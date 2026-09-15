@@ -29,3 +29,48 @@ export type {
     PkiParseOptions,
     EncodingRules,
 } from './types/pki-types.js';
+
+// ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────
+
+export { decodeAsn1, decodeAsn1Sequence } from './asn1/asn1-decode.js';
+export {
+    readBoolean,
+    readInteger,
+    readSmallInteger,
+    readNull,
+    readBitString,
+    readOctetString,
+    readString,
+} from './asn1/asn1-read.js';
+export { readTime } from './asn1/asn1-time.js';
+export {
+    encodeTlv,
+    encodeSequence,
+    encodeSet,
+    encodeSetOf,
+    encodeInteger,
+    encodeBoolean,
+    encodeNull,
+    encodeBitString,
+    encodeOctetString,
+    encodeObjectIdentifier,
+    encodeString,
+    encodeTime,
+    encodeAsn1Node,
+} from './asn1/asn1-encode.js';
+export type {
+    TagClass,
+    Asn1Node,
+    DecodeAsn1Options,
+    BitString,
+    Asn1StringType,
+    Asn1String,
+    TimeType,
+    PkiTime,
+    ReadStringOptions,
+    ReadTimeOptions,
+} from './types/asn1-types.js';
+
+// ── 3. OID — codec ───────────────────────────────────────────────────
+
+export { encodeOid, decodeOid, isValidOid, readObjectIdentifier } from './asn1/asn1-oid.js';
