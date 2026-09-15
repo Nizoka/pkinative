@@ -79,3 +79,8 @@ export { encodeOid, decodeOid, isValidOid, readObjectIdentifier } from './asn1/a
 
 export { decodePem, encodePem } from './pem/pem.js';
 export type { PemBlock, DecodePemOptions } from './types/pem-types.js';
+
+// ── 5. Fingerprints ──────────────────────────────────────────────────
+
+export { computeFingerprint, computeFingerprintAsync, formatFingerprint } from './hash/fingerprint.js';
+export type { FingerprintAlgorithm, FormatFingerprintOptions } from './types/hash-types.js';
