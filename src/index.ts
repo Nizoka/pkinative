@@ -74,3 +74,8 @@ export type {
 // ── 3. OID — codec ───────────────────────────────────────────────────
 
 export { encodeOid, decodeOid, isValidOid, readObjectIdentifier } from './asn1/asn1-oid.js';
+
+// ── 4. PEM — RFC 7468 ────────────────────────────────────────────────
+
+export { decodePem, encodePem } from './pem/pem.js';
+export type { PemBlock, DecodePemOptions } from './types/pem-types.js';
