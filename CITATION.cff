@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: >-
+  If you use pkinative in academic work or cite it in publications,
+  please cite it using the metadata below.
+title: "pkinative — Zero-dependency native PKI toolkit"
+abstract: >-
+  A zero-dependency, pure-TypeScript toolkit for public-key infrastructure
+  data: a strict ITU-T X.690 DER decoder and encoder (BER on request) with
+  CWE-tagged resource limits, RFC 7468 PEM, object identifiers, and complete
+  RFC 5280 X.509 certificate parsing covering every standard extension. It
+  runs unchanged on Node.js, browsers, Deno, Bun and Workers, never
+  implements secret-dependent cryptography, and is held to the x509-limbo and
+  Wycheproof corpora by a blocking conformance gate.
+type: software
+authors:
+  - name: "Nizoka"
+    email: "hello@pdfnative.dev"
+    website: "https://pdfnative.dev"
+repository-code: "https://github.com/Nizoka/pkinative"
+url: "https://github.com/Nizoka/pkinative"
+license: MIT
+version: 0.0.1
+date-released: 2026-09-15
+keywords:
+  - pki
+  - x509
+  - asn1
+  - der
+  - pem
+  - rfc5280
+  - typescript
+  - zero-dependency
+  - secure-by-default

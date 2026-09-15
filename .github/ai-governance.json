@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pkinative AI Governance Configuration",
+  "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes to pkinative. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol.",
+  "version": "1.1.0",
+  "spec_updated": "2026-09-15",
+  "applies_to": [
+    "pkinative"
+  ],
+  "policy": {
+    "automatic_issue_reporting": false,
+    "runtime_dependencies_allowed": false,
+    "secret_dependent_cryptography_allowed": false,
+    "human_in_the_loop_mandatory": true,
+    "autonomous_github_writes_allowed": false,
+    "required_issue_fields": [
+      "minimal_reproduction",
+      "environment",
+      "expected_behavior"
+    ]
+  },
+  "anti_goals": [
+    "a runtime dependency of any kind",
+    "a TypeScript implementation of signing, key generation or arithmetic on secret material (Web Crypto only)",
+    "certificate path validation, revocation or CMS before the milestone that owns it (ROADMAP.md)",
+    "filesystem, network or process access inside the engine",
+    "a lenient decoder that guesses at ambiguous encodings instead of refusing them"
+  ],
+  "human_in_the_loop": {
+    "role_of_agent": "draftsman",
+    "gate": "A human MUST explicitly review, sign off on, and trigger any GitHub issue, comment, PR, or release. The agent's authority ends at producing a local draft plus a compliance report.",
+    "identity_integrity": "Any issue or PR is published under the human user's GitHub identity. The agent MUST remind the user of their shared responsibility for the content before submission.",
+    "draft_location": ".github/drafts/"
+  },
+  "pre_issue_checklist": [
+    "no_duplicate_open_or_closed_issue",
+    "zero_runtime_dependency_preserved",
+    "no_secret_dependent_primitive_proposed",
+    "local_minimal_reproduction_executed",
+    "error_code_captured",
+    "expected_vs_actual_documented",
+    "environment_captured"
+  ],
+  "compliance_report": {
+    "description": "The structured summary an agent MUST present to the user alongside every draft.",
+    "required_fields": [
+      "zero_dependency_confirmed",
+      "reproduction_command",
+      "reproduction_result",
+      "duplicate_search_performed",
+      "affected_packages",
+      "identity_reminder_shown"
+    ]
+  },
+  "capability_manifest": {
+    "description": "Authoritative project context an agent SHOULD load before proposing changes.",
+    "sources": [
+      "AGENTS.md",
+      ".github/AGENT_RULES.md"
+    ],
+    "$comment": "on_demand: load lazily by topic. sources are loaded on every task and verify-docs (governance-sources) holds their total under 16 KiB; ecosystem.json is the counts manifest, needed only when a figure or version is touched.",
+    "on_demand": [
+      "docs/assets/ecosystem.json",
+      ".github/instructions/",
+      "ROADMAP.md",
+      "SECURITY.md"
+    ],
+    "claude_code": {
+      "description": "How the policy is enforced inside a Claude Code session (settings, hook, rules); verify-docs rules agent-config-parity, claude-rules-sync, claude-rules-budget and skills-shape keep these files consistent.",
+      "settings": ".claude/settings.json",
+      "hooks": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "command": "node .claude/hooks/guard.mjs",
+          "denies": ["npm publish|unpublish|deprecate|dist-tag|version <bump>", "npx npm publish", "gh pr create|edit|close|merge|comment", "gh issue create|edit|close|comment", "gh release *", "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F", "git push (any form)", "git add --renormalize", "git tag (except list forms)"],
+          "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
+          "tests": "tests/tools/guard.test.ts"
+        }
+      ],
+      "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, social images) and Bash on the HITL commands above",
+      "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
+      "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
+      "skills": []
+    }
+  },
+  "verification": {
+    "command": "node scripts/verify-issue.mjs <draft.md>",
+    "validator_covered_by": "tests/tools/verify-issue.test.ts",
+    "blocks_submission_on_failure": true
+  },
+  "references": {
+    "zero_dependency_policy": "README.md#why-pkinative",
+    "issue_templates": [".github/ISSUE_TEMPLATE"]
+  }
+}

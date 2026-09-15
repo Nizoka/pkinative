@@ -1,0 +1,186 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Trusted Publishing (npmjs.com OIDC):
+#   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
+#   The OIDC id-token permission mints a short-lived token that:
+#     1. Authorises the `npm publish` HTTP request
+#     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
+#   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
+#   bound to this file AND to the `npm-publish` environment below. Trusted
+#   Publishing can only be configured on a package that already exists: the
+#   maintainer published the 0.0.1 name reservation by hand.
+#
+# Pre-1.0 policy: versions below 1.0.0 are git tags, never npm releases
+# (ROADMAP.md). The workflow is complete so it is exercised and audited from
+# day one, and its first step after the tag check refuses such a version.
+#
+# Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
+# and approves the `npm-publish` environment; nothing here opens or edits a
+# release, the attest job only attaches files to one that already exists.
+permissions:
+  contents: read
+
+# One release at a time, and a running publish is never cancelled half-way.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A protected environment (required reviewer) gates the OIDC token: the
+    # job cannot mint one before the maintainer approves the run.
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      # Audit mode for the first two weeks, then switch to `egress-policy: block`
+      # with the endpoints this job actually reaches:
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     codeload.github.com:443
+      #     registry.npmjs.org:443
+      #     raw.githubusercontent.com:443
+      #     fulcio.sigstore.dev:443
+      #     rekor.sigstore.dev:443
+      #     tuf-repo-cdn.sigstore.dev:443
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          # The release is built on the Node line .nvmrc names — the same one
+          # contributors develop on — not on whatever ">= floor" resolves to.
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Read the version and check it against the tag
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
+            exit 1
+          fi
+          echo "Publishing pkinative ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+
+      - name: Refuse a pre-1.0 publication
+        run: |
+          set -euo pipefail
+          MAJOR=$(node -p "require('./package.json').version.split('.')[0]")
+          if [ "${MAJOR}" = "0" ]; then
+            echo "::error::pre-1.0 versions are git tags, never npm releases (ROADMAP.md); the first npm publication is 1.0.0"
+            exit 1
+          fi
+
+      # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
+      # npm ≥ 11.5.1. The client is pinned to one exact release so the bytes
+      # that publish are the same on every run — the engine itself is still
+      # built and tested on the .nvmrc line.
+      - name: Install the pinned npm client
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Every gate step — typecheck, lint, coverage, build, package checks,
+      # bundle, docs. --require-all: a missing tool fails the release instead
+      # of skipping.
+      - name: Run the quality gate (publish profile)
+        run: npx tsx scripts/gate.ts --publish --require-all
+
+      - name: Show the package contents
+        run: npm pack --dry-run
+
+      - name: Publish
+        run: npm publish --provenance --access public
+
+  # Attests the tarball and a CycloneDX SBOM built from the same commit, and
+  # attaches both to the GitHub release when the maintainer has created it.
+  attest:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.publish.outputs.version }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # .npmrc sets ignore-scripts, so prepublishOnly does not run for
+      # `npm pack`: build explicitly, as the gate did in the publish job.
+      - name: Build
+        run: npm run build
+
+      - name: Generate the SBOM (CycloneDX, runtime dependencies only)
+        run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pkinative-${VERSION}.cdx.json"
+
+      - name: Pack the tarball
+        run: |
+          set -euo pipefail
+          npm pack
+          test -f "pkinative-${VERSION}.tgz"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            pkinative-${{ env.VERSION }}.tgz
+            pkinative-${{ env.VERSION }}.cdx.json
+
+      # The release is created by the maintainer (human-in-the-loop); on a
+      # workflow_dispatch without one, the artefacts stay in the attestation
+      # store and nothing is created here.
+      - name: Attach the tarball and SBOM to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" "pkinative-${VERSION}.tgz" "pkinative-${VERSION}.cdx.json" --clobber --repo "${GITHUB_REPOSITORY}"
+          else
+            echo "::notice::No GitHub release v${VERSION} exists; the tarball and SBOM were attested but not attached."
+          fi

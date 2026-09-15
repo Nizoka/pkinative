@@ -1,0 +1,28 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+.vscode/
+
+# Generated outputs: gate logs, downloaded conformance corpora, audit ledgers.
+# Nothing under test-output/ is ever committed.
+test-output/
+
+# Draft release notes (copy-paste helpers, never committed)
+release-notes/draft-*.md
+
+# AI-agent issue drafts (HITL staging; keep README + TEMPLATE, ignore the rest)
+.github/drafts/*.md
+!.github/drafts/README.md
+!.github/drafts/TEMPLATE.md
+
+# Release PR description scratchpads (per-version, never committed;
+# the committed template is release-notes/PR_TEMPLATE.md)
+RELEASE_PR_*.md
+
+# Claude Code per-machine settings (the shared ones are .claude/settings.json)
+.claude/settings.local.json

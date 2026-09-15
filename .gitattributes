@@ -1,0 +1,32 @@
+# Binary files must never go through EOL conversion. core.autocrlf=true (a
+# common system-level default on Windows) would otherwise classify a small DER
+# certificate as text and rewrite its bytes at checkout while `git status`
+# stayed clean — pdfnative lost golden fixtures exactly that way.
+#
+# Text files are LF in the repository AND in every working copy (eol=lf), so
+# a Windows checkout produces the same bytes as CI and the byte manifests of
+# generated files (llms, api.json, guides, rules) do not depend on the OS.
+* text=auto eol=lf
+
+# DER-encoded PKI objects are binary by definition.
+*.der   binary
+*.cer   binary
+*.crt   binary
+*.p7b   binary
+*.p7c   binary
+*.p12   binary
+*.pfx   binary
+*.png   binary
+*.ico   binary
+
+# PEM is text, and RFC 7468 parsers must accept both line endings — the
+# CRLF variants are generated inside the tests, never committed.
+*.pem   text eol=lf
+
+# Generated files: collapsed in GitHub diffs and excluded from language stats.
+docs/llms-full.txt      linguist-generated=true -diff
+docs/llms-index.json    linguist-generated=true
+docs/assets/api.json    linguist-generated=true
+docs/guides/*.html      linguist-generated=true
+.claude/rules/*.md      linguist-generated=true
+package-lock.json       linguist-generated=true

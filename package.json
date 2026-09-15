@@ -1,0 +1,128 @@
+{
+  "name": "pkinative",
+  "version": "0.0.1",
+  "description": "Zero-dependency native PKI toolkit: strict ASN.1 DER (BER on request), PEM, OIDs and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable machine-readable error codes and a conformance gate over x509-limbo and Wycheproof. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, never implements secret-dependent cryptography, built under a human-in-the-loop AI-agent governance policy.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup --silent",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "gate": "npx tsx scripts/gate.ts",
+    "gate:fast": "npx tsx scripts/gate.ts --fast",
+    "verify:docs": "npx tsx scripts/verify-docs.ts",
+    "verify:issue": "node scripts/verify-issue.mjs",
+    "agents:rules": "npx tsx scripts/build-claude-rules.ts",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "hooks:uninstall": "node scripts/install-git-hooks.mjs --uninstall",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
+    "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:scripts",
+    "check:package": "npm run build && npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm && npx publint",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pki",
+    "x509",
+    "x.509",
+    "certificate",
+    "asn1",
+    "asn.1",
+    "der",
+    "ber",
+    "pem",
+    "oid",
+    "rfc5280",
+    "rfc7468",
+    "x690",
+    "subject-alternative-name",
+    "name-constraints",
+    "certificate-policies",
+    "fingerprint",
+    "zero-dependency",
+    "typescript",
+    "webcrypto",
+    "secure-by-default",
+    "x509-limbo",
+    "wycheproof",
+    "serverless",
+    "cloudflare-workers",
+    "browser",
+    "node-forge-alternative",
+    "pkijs-alternative",
+    "asn1js-alternative",
+    "ai-governance",
+    "human-in-the-loop",
+    "agent-safety"
+  ],
+  "author": "Nizoka <hello@pdfnative.dev> (https://pdfnative.dev)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nizoka/pkinative.git"
+  },
+  "homepage": "https://github.com/Nizoka/pkinative#readme",
+  "bugs": {
+    "url": "https://github.com/Nizoka/pkinative/issues"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://plika.app"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10.9.2",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.0.0",
+    "publint": "^0.3.12",
+    "tsup": "^8.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
+  }
+}
