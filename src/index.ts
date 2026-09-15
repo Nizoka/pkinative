@@ -71,9 +71,12 @@ export type {
     ReadTimeOptions,
 } from './types/asn1-types.js';
 
-// ── 3. OID — codec ───────────────────────────────────────────────────
+// ── 3. OID — codec and registry ──────────────────────────────────────
 
 export { encodeOid, decodeOid, isValidOid, readObjectIdentifier } from './asn1/asn1-oid.js';
+export { OID_REGISTRY } from './oid/oid-registry.js';
+export type { OidRegistryEntry } from './oid/oid-registry.js';
+export { getOidName } from './oid/oid-names.js';
 
 // ── 4. PEM — RFC 7468 ────────────────────────────────────────────────
 
