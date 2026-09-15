@@ -133,6 +133,23 @@ describe('checkArchitecture', () => {
         expect(checkArchitecture({ ...base, 'src/core/props.ts': 'export const o = { process: 1, fetch: 2 };\nexport const v = o.process + o.fetch;\n' })).toEqual([]);
     });
 
+    it('should apply the console and host-global rules to globalThis property access, through casts', () => {
+        const found = messages({
+            ...base,
+            'src/core/sneaky.ts': [
+                "export const a = (): void => (globalThis as { console?: { warn(m: string): void } }).console?.warn('x');",
+                'export const b = (): unknown => (globalThis as { process?: unknown }).process;',
+                "export const c = (): unknown => (globalThis as Record<string, unknown>)['fetch'];",
+            ].join('\n'),
+        }).join('\n');
+        expect(found).toContain('`globalThis.console` is forbidden');
+        expect(found).toContain('`globalThis.process` is forbidden');
+        expect(found).toContain('computed `globalThis[…]` access is forbidden');
+        const allowed = "export const w = (): void => (globalThis as { console?: { warn(m: string): void } }).console?.warn('x');\n";
+        expect(checkArchitecture({ ...base, [DIAGNOSTICS_MODULE]: allowed })).toEqual([]);
+        expect(checkArchitecture({ ...base, 'src/core/crypto.ts': 'export const s = (): unknown => (globalThis as { crypto?: unknown }).crypto;\n' })).toEqual([]);
+    });
+
     it('should refuse a file outside every layer and an unregistered layer', () => {
         expect(messages({ ...base, 'src/loose.ts': 'export const x = 1;\n' })).toEqual([expect.stringContaining('outside every layer')]);
         expect(messages({ ...base, 'src/crypto/rsa.ts': 'export const x = 1;\n' })).toEqual([expect.stringContaining('layer "crypto" is not registered')]);

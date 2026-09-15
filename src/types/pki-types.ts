@@ -1,0 +1,120 @@
+/**
+ * pkinative — Shared types
+ * ========================
+ * The option, limit and diagnostic types every layer references. They live
+ * in `types/` so lower layers can name them without importing the modules
+ * that implement them: the diagnostics emitter and the resolved limits are
+ * handed down by parameter, never imported sideways.
+ *
+ * @module types/pki-types
+ */
+
+// ── Limits ───────────────────────────────────────────────────────────
+
+/**
+ * The named security bounds every loop over untrusted input consults.
+ * Defaults are `DEFAULT_PKI_LIMITS`; override any subset with
+ * `options.limits`. Each bound is a positive integer or `Infinity`.
+ */
+export interface PkiLimits {
+    /** Maximum size of one input, in bytes for DER or characters for PEM. CWE-400. */
+    readonly maxInputBytes: number;
+    /** Maximum nesting depth of constructed ASN.1 values. CWE-674. */
+    readonly maxDepth: number;
+    /** Maximum number of ASN.1 values decoded from one input. CWE-770. */
+    readonly maxNodes: number;
+    /** Maximum content length of one INTEGER, in bytes. CWE-407. */
+    readonly maxIntegerBytes: number;
+    /** Maximum content length of one OBJECT IDENTIFIER, in bytes. CWE-400. */
+    readonly maxOidBytes: number;
+    /** Maximum number of segments joined from one BER constructed string. CWE-400. */
+    readonly maxBerSegments: number;
+    /** Maximum number of PEM blocks read from one text. CWE-400. */
+    readonly maxPemBlocks: number;
+    /** Maximum number of extensions in one certificate. CWE-400. */
+    readonly maxExtensions: number;
+    /** Maximum number of GeneralName entries in one field. CWE-400. */
+    readonly maxGeneralNames: number;
+    /** Maximum number of attributes in one distinguished name. CWE-400. */
+    readonly maxNameAttributes: number;
+    /** Maximum number of policies or policy mappings in one extension. CWE-400. */
+    readonly maxPolicies: number;
+}
+
+// ── Diagnostics ──────────────────────────────────────────────────────
+
+/**
+ * Every diagnostic code. The union is additions-only by contract: a code is
+ * never renamed or removed. Registry: `docs/data/diagnostics.json`.
+ */
+export type PkiDiagnosticCode =
+    | 'PKI_DIAG_SERIAL_TOO_LONG'
+    | 'PKI_DIAG_SERIAL_NOT_POSITIVE'
+    | 'PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH'
+    | 'PKI_DIAG_RSA_PARAMETERS_NOT_NULL'
+    | 'PKI_DIAG_EXTENSIONS_REQUIRE_V3'
+    | 'PKI_DIAG_UNIQUE_ID_REQUIRES_V2'
+    | 'PKI_DIAG_GENERALIZED_TIME_BEFORE_2050'
+    | 'PKI_DIAG_GENERALIZED_TIME_FRACTION'
+    | 'PKI_DIAG_VALIDITY_INVERTED'
+    | 'PKI_DIAG_EMPTY_ISSUER'
+    | 'PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL'
+    | 'PKI_DIAG_SAN_EMPTY'
+    | 'PKI_DIAG_RDN_SET_NOT_SORTED'
+    | 'PKI_DIAG_PRINTABLE_STRING_CHARSET'
+    | 'PKI_DIAG_TELETEX_AS_LATIN1'
+    | 'PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION'
+    | 'PKI_DIAG_PATHLEN_WITHOUT_CA'
+    | 'PKI_DIAG_KEY_USAGE_EMPTY'
+    | 'PKI_DIAG_NAMED_BITS_TRAILING_ZERO'
+    | 'PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL'
+    | 'PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED'
+    | 'PKI_DIAG_POLICY_DUPLICATE'
+    | 'PKI_DIAG_POLICY_CONSTRAINTS_EMPTY'
+    | 'PKI_DIAG_BER_CONSTRUCT_ACCEPTED'
+    | 'PKI_DIAG_PEM_LAX_ACCEPTED';
+
+/** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
+export type PkiDiagnosticSeverity = 'warning' | 'info';
+
+/** One non-fatal conformance concern. Structural failures throw instead. */
+export interface PkiDiagnostic {
+    readonly code: PkiDiagnosticCode;
+    readonly severity: PkiDiagnosticSeverity;
+    /** What was found and what it means, without the `pkinative: ` prefix. */
+    readonly message: string;
+    /** The clause the concern cites, e.g. `RFC 5280 §4.1.2.2`. */
+    readonly standard: string;
+    /** Where in the structure, e.g. `tbsCertificate.serialNumber`; empty for the whole input. */
+    readonly path: string;
+    /** Absolute byte offset of the value concerned, when known. */
+    readonly offset: number | undefined;
+}
+
+/** Receives every diagnostic of an operation; replaces the default `console.warn` sink. */
+export type PkiDiagnosticHandler = (diagnostic: PkiDiagnostic) => void;
+
+/** The per-operation diagnostics channel handed down to every layer. */
+export interface PkiDiagnosticEmitter {
+    /** Report a diagnostic: throws under `strict`, otherwise records and delivers it. */
+    emit(diagnostic: PkiDiagnostic): void;
+    /** Every diagnostic recorded so far, in emission order. */
+    readonly diagnostics: readonly PkiDiagnostic[];
+}
+
+// ── Options ──────────────────────────────────────────────────────────
+
+/** `der` (default) refuses every BER-only construct; `ber` accepts them with a diagnostic. */
+export type EncodingRules = 'der' | 'ber';
+
+/** Options shared by every parsing function. */
+export interface PkiParseOptions {
+    /** `'der'` (default) or `'ber'`. */
+    readonly encodingRules?: EncodingRules | undefined;
+    /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
+    readonly limits?: Partial<PkiLimits> | undefined;
+    /** Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`. */
+    readonly strict?: boolean | undefined;
+    /** Receive every diagnostic instead of the default once-per-code `console.warn`. */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
+}

@@ -9,4 +9,23 @@
  * @packageDocumentation
  */
 
-export {};
+// ── 1. Errors, limits and diagnostics ────────────────────────────────
+
+export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError } from './types/pki-errors.js';
+export type {
+    PkiErrorCode,
+    PkiBaseErrorCode,
+    PkiEncodingErrorCode,
+    PkiCertificateErrorCode,
+    PkiLimitErrorCode,
+} from './types/pki-errors.js';
+export { DEFAULT_PKI_LIMITS } from './core/pki-limits.js';
+export type {
+    PkiLimits,
+    PkiDiagnostic,
+    PkiDiagnosticCode,
+    PkiDiagnosticSeverity,
+    PkiDiagnosticHandler,
+    PkiParseOptions,
+    EncodingRules,
+} from './types/pki-types.js';

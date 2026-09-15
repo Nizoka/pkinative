@@ -45,6 +45,13 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'eol-lf': (f) => { f['CHANGELOG.md'] = (f['CHANGELOG.md'] ?? '').replace(/\n/g, '\r\n'); },
     'skills-shape': (f) => { f['.claude/skills/broken/SKILL.md'] = '# a skill without frontmatter\n'; },
     'layer-parity': (f) => edit(f, 'AGENTS.md', /^x509 +→ .+$/m, 'x509   → types, core, asn1, oid'),
+    'error-parity': (f) => {
+        const registry = JSON.parse(f['docs/data/errors.json'] ?? '{}') as { errors: unknown[] };
+        registry.errors.shift();
+        f['docs/data/errors.json'] = JSON.stringify(registry, null, 2);
+    },
+    'diagnostics-parity': (f) => edit(f, 'docs/data/diagnostics.json', '"PKI_DIAG_SAN_EMPTY"', '"PKI_DIAG_SAN_MISSING"'),
+    'limits-parity': (f) => edit(f, 'SECURITY.md', /^\| `maxDepth` \| 64 \|/m, '| `maxDepth` | 65 |'),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };
 
@@ -75,6 +82,20 @@ describe('verify-docs rule table', () => {
         mutate(files);
         const problems = await runRules(createMemoryContext(files), RULES, id);
         expect(problems.filter((p) => p.severity === 'error').length, id).toBeGreaterThan(0);
+    });
+
+    it('should fire error-parity on a throw site whose message lacks the pkinative prefix', async () => {
+        const files = { ...TREE };
+        edit(files, 'src/core/pki-limits.ts', "'pkinative: options.limits must be", "'options.limits must be");
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
+        expect(problems).toEqual([expect.objectContaining({ file: 'src/core/pki-limits.ts', message: expect.stringContaining('must start with "pkinative: "') })]);
+    });
+
+    it('should fire limits-parity on a CWE that disagrees between the interface and the registry', async () => {
+        const files = { ...TREE };
+        edit(files, 'src/types/pki-types.ts', 'nesting depth of constructed ASN.1 values. CWE-674.', 'nesting depth of constructed ASN.1 values. CWE-400.');
+        const problems = await runRules(createMemoryContext(files), RULES, 'limits-parity');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('PkiLimits.maxDepth cites CWE-400')]);
     });
 
     it('should honour a verify-docs:allow suppression on the reported line or the line above', async () => {

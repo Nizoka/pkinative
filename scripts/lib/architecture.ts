@@ -77,6 +77,21 @@ function isPropertyName(node: ts.Identifier): boolean {
     return false;
 }
 
+/** `(globalThis as T).x` and `globalThis!.x` reach the same object as `globalThis.x`. */
+function unwrapExpression(node: ts.Expression): ts.Expression {
+    let current = node;
+    while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isTypeAssertionExpression(current)
+        || ts.isNonNullExpression(current) || ts.isSatisfiesExpression(current)) {
+        current = current.expression;
+    }
+    return current;
+}
+
+function isGlobalThis(node: ts.Expression): boolean {
+    const bare = unwrapExpression(node);
+    return ts.isIdentifier(bare) && bare.text === 'globalThis';
+}
+
 interface ModuleFacts {
     readonly imports: Array<{ readonly specifier: string; readonly line: number }>;
     readonly findings: Finding[];
@@ -97,6 +112,17 @@ function inspectModule(path: string, text: string): ModuleFacts {
             findings.push(finding(path, lineAt(node), '`import x = require(…)` is forbidden — use an ES import'));
         } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
             findings.push(finding(path, lineAt(node), 'dynamic `import()` is forbidden in src/ — every dependency is static and relative'));
+        } else if (ts.isPropertyAccessExpression(node) && isGlobalThis(node.expression)) {
+            // Without the DOM lib, `globalThis.console` is the only way to reach the console,
+            // so the single-sink and no-host-global rules apply to it as they do to identifiers.
+            const name = node.name.text;
+            if (name === 'console' && path !== DIAGNOSTICS_MODULE) {
+                findings.push(finding(path, lineAt(node), `\`globalThis.console\` is forbidden outside ${DIAGNOSTICS_MODULE} — emit a diagnostic instead`));
+            } else if (FORBIDDEN_GLOBALS.has(name)) {
+                findings.push(finding(path, lineAt(node), `\`globalThis.${name}\` is forbidden in src/ — the engine has no dynamic code, no I/O and no host-specific globals`));
+            }
+        } else if (ts.isElementAccessExpression(node) && isGlobalThis(node.expression)) {
+            findings.push(finding(path, lineAt(node), 'computed `globalThis[…]` access is forbidden in src/ — name a global statically so the architecture test can check it'));
         } else if ((ts.isClassDeclaration(node) || ts.isClassExpression(node)) && path !== ERRORS_MODULE) {
             findings.push(finding(path, lineAt(node), `\`class\` is forbidden outside ${ERRORS_MODULE} — use a closure factory returning an interface`));
         } else if (ts.isIdentifier(node) && !isPropertyName(node)) {

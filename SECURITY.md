@@ -36,6 +36,24 @@ pkinative **never implements secret-dependent cryptography in TypeScript**. Ther
 - Every declared length is checked against the remaining input and the limits before anything is allocated.
 - Structural failures throw a `PkiError` subclass with a stable code; conformance concerns are diagnostics; the two never mix.
 
+### Resource Limits
+
+Every loop over untrusted input consults one of these named bounds (`PkiLimits`). Each is configurable per call through `options.limits`; exceeding one throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` fields. Raise a limit only for trusted input. The table is held to `src/core/pki-limits.ts` and `docs/data/limits.json` by `npm run verify:docs`.
+
+| Limit | Default | CWE | Guards |
+|---|---|---|---|
+| `maxInputBytes` | 64 MiB | CWE-400 | The size of one DER input, or the length of one PEM text. |
+| `maxDepth` | 64 | CWE-674 | The nesting depth of constructed values; the decoder is iterative, so hostile nesting stops here instead of in the call stack. |
+| `maxNodes` | 200 000 | CWE-770 | The number of values decoded from one input. |
+| `maxIntegerBytes` | 8 192 | CWE-407 | The content length of one INTEGER converted to a bigint. |
+| `maxOidBytes` | 256 | CWE-400 | The content length of one OBJECT IDENTIFIER. |
+| `maxBerSegments` | 10 000 | CWE-400 | The segments joined from one BER constructed string. |
+| `maxPemBlocks` | 10 000 | CWE-400 | The blocks read from one PEM text. |
+| `maxExtensions` | 256 | CWE-400 | The extensions of one certificate. |
+| `maxGeneralNames` | 10 000 | CWE-400 | The GeneralName entries of one field. |
+| `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name. |
+| `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension. |
+
 ### Code Safety
 
 - No `eval()`, `Function()`, dynamic `import()` or dynamic code execution — enforced from the syntax tree

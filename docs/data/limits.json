@@ -1,0 +1,18 @@
+{
+  "$comment": "The registry of every named security bound. The limits-parity rule of scripts/verify-docs.ts holds four copies together: the PkiLimits interface (src/types/pki-types.ts, CWE in each TSDoc line), DEFAULT_PKI_LIMITS and its header table (src/core/pki-limits.ts), this file, and the Resource Limits table of SECURITY.md.",
+  "package": "pkinative",
+  "verifiedOn": "2026-09-15",
+  "limits": [
+    { "limit": "maxInputBytes", "default": 67108864, "display": "64 MiB", "cwe": "CWE-400", "guards": "The size of one DER input, or the length of one PEM text." },
+    { "limit": "maxDepth", "default": 64, "display": "64", "cwe": "CWE-674", "guards": "The nesting depth of constructed values; the decoder is iterative, so hostile nesting stops here instead of in the call stack." },
+    { "limit": "maxNodes", "default": 200000, "display": "200 000", "cwe": "CWE-770", "guards": "The number of values decoded from one input." },
+    { "limit": "maxIntegerBytes", "default": 8192, "display": "8 192", "cwe": "CWE-407", "guards": "The content length of one INTEGER converted to a bigint." },
+    { "limit": "maxOidBytes", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The content length of one OBJECT IDENTIFIER." },
+    { "limit": "maxBerSegments", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The segments joined from one BER constructed string." },
+    { "limit": "maxPemBlocks", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The blocks read from one PEM text." },
+    { "limit": "maxExtensions", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The extensions of one certificate." },
+    { "limit": "maxGeneralNames", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The GeneralName entries of one field." },
+    { "limit": "maxNameAttributes", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The attributes of one distinguished name." },
+    { "limit": "maxPolicies", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The policies or policy mappings of one extension." }
+  ]
+}
