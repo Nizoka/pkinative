@@ -87,3 +87,32 @@ export type { PemBlock, DecodePemOptions } from './types/pem-types.js';
 
 export { computeFingerprint, computeFingerprintAsync, formatFingerprint } from './hash/fingerprint.js';
 export type { FingerprintAlgorithm, FormatFingerprintOptions } from './types/hash-types.js';
+
+// ── 6. X.509 — certificate parsing, names, public keys ───────────────
+
+export { parseCertificate } from './x509/x509-certificate.js';
+export { formatDistinguishedName } from './x509/x509-name-format.js';
+export type {
+    AlgorithmIdentifier,
+    AttributeTypeAndValue,
+    RelativeDistinguishedName,
+    DistinguishedName,
+    GeneralName,
+    OtherGeneralName,
+    TextGeneralName,
+    OpaqueGeneralName,
+    DirectoryGeneralName,
+    IpAddressGeneralName,
+    RegisteredIdGeneralName,
+    EcCurve,
+    RsaPublicKeyInfo,
+    EcPublicKeyInfo,
+    OctetPublicKeyInfo,
+    UnknownPublicKeyInfo,
+    SubjectPublicKeyInfo,
+    Validity,
+    SerialNumber,
+    RawExtension,
+    Extension,
+    Certificate,
+} from './types/x509-types.js';
