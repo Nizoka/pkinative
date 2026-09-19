@@ -27,6 +27,21 @@ export type Reader = (path: string) => string | null;
 
 export type ApiKind = 'function' | 'constant' | 'class' | 'type';
 
+/** One field or method of an exported interface, inherited ones included. */
+export interface ApiMember {
+    readonly name: string;
+    /** The declared type as written, or the method signature. */
+    readonly type: string;
+    readonly optional: boolean;
+    readonly summary: string | null;
+}
+
+/** One documented parameter of a function. */
+export interface ApiParam {
+    readonly name: string;
+    readonly description: string;
+}
+
 export interface ApiExport {
     readonly name: string;
     readonly kind: ApiKind;
@@ -35,6 +50,12 @@ export interface ApiExport {
     readonly summary: string | null;
     /** Error classes named by `@throws {Class}`, for functions; null for other kinds. */
     readonly throws: readonly string[] | null;
+    /** The `@param` text of a function, in order; null for other kinds. */
+    readonly params: readonly ApiParam[] | null;
+    /** The `@returns` text of a function; null for other kinds or when absent. */
+    readonly returns: string | null;
+    /** Every field of an interface, inherited ones first; null for other kinds. */
+    readonly members: readonly ApiMember[] | null;
 }
 
 export interface ApiManifest {
@@ -78,8 +99,14 @@ function signatureOf(moduleText: string, match: RegExpMatchArray): string {
             }
         }
     }
-    signature = signature.replace(/\s+/g, ' ').replace(/\s*[{=]\s*$/, '').trim();
-    return signature.length > 400 ? `${signature.slice(0, 400)}…` : signature;
+    // A type alias is its whole right-hand side: a union spans several lines.
+    if (/^export\s+type\s/.test(signature) && !/;\s*$/.test(signature)) {
+        const start = (match.index ?? 0) + signature.length;
+        const end = moduleText.indexOf(';', start);
+        if (end >= 0 && end - start < 4000) signature += moduleText.slice(start, end + 1);
+    }
+    signature = signature.replace(/\s+/g, ' ').replace(/\s*[{=]\s*$/, '').replace(/;$/, '').trim();
+    return signature.length > 1200 ? `${signature.slice(0, 1200)}…` : signature;
 }
 
 function balancedParens(text: string): boolean {
@@ -99,14 +126,103 @@ function docBlockAbove(moduleText: string, match: RegExpMatchArray): string | nu
     return block[1].split('\n').map((line) => line.replace(/^\s*\*? ?/, '')).join('\n');
 }
 
+const ABBREVIATION = /\b(e\.g|i\.e|etc|cf|vs)\./g;
+
 function summaryOf(doc: string | null): string | null {
     if (doc === null) return null;
     const prose = doc.split('\n').filter((l) => !l.trim().startsWith('@') && !/^[=\-─]{3,}/.test(l.trim())).join(' ');
-    const joined = prose.replace(/\s+/g, ' ').trim();
+    // Guard abbreviations, so "e.g. `x`" is not taken for the end of the first sentence.
+    const joined = prose.replace(/\s+/g, ' ').trim().replace(ABBREVIATION, '$1\u0000');
     if (joined === '') return null;
     const sentence = /^(.*?[.!?])(\s|$)/.exec(joined);
-    const summary = (sentence !== null ? sentence[1] : joined).replace(/\{@link\s+([^}]+)\}/g, '$1').trim();
-    return summary.length > 240 ? `${summary.slice(0, 240)}…` : summary;
+    const summary = (sentence !== null ? sentence[1] : joined).replace(/\u0000/g, '.').replace(/\{@link\s+([^}]+)\}/g, '$1').trim();
+    return summary.length > 300 ? `${summary.slice(0, 300)}…` : summary;
+}
+
+/** The text of every `@param name text` tag, continuation lines joined. */
+function paramsOf(doc: string | null): ApiParam[] {
+    if (doc === null) return [];
+    return [...doc.matchAll(/@param\s+(?:\{[^}]*\}\s+)?\[?([A-Za-z_$][\w$]*)\]?\s+([\s\S]*?)(?=\n\s*@|$)/g)]
+        .map((m) => ({ name: m[1] ?? '', description: (m[2] ?? '').replace(/\s+/g, ' ').trim() }));
+}
+
+function returnsOf(doc: string | null): string | null {
+    const m = doc === null ? null : /@returns?\s+([\s\S]*?)(?=\n\s*@|$)/.exec(doc);
+    return m === null ? null : (m[1] ?? '').replace(/\s+/g, ' ').trim();
+}
+
+// ── Interface members ────────────────────────────────────────────────
+
+/** The body of `interface name { … }` in a module, and the names it extends. */
+function interfaceOf(moduleText: string, name: string): { body: string; bases: string[] } | null {
+    const head = new RegExp(`(?:export\\s+)?interface\\s+${name}\\b([^{]*)\\{`).exec(moduleText);
+    if (head === null) return null;
+    let depth = 1;
+    let i = (head.index ?? 0) + head[0].length;
+    const start = i;
+    for (; i < moduleText.length && depth > 0; i++) {
+        if (moduleText[i] === '{') depth++;
+        if (moduleText[i] === '}') depth--;
+    }
+    const bases = /extends\s+([\s\S]+)/.exec(head[1] ?? '')?.[1]?.replace(/<[^>]*>/g, '').split(',').map((b) => b.trim()).filter((b) => b !== '') ?? [];
+    return { body: moduleText.slice(start, i - 1), bases };
+}
+
+/** Where a module imports a name from, resolved to a repository path. */
+function importedFrom(modulePath: string, moduleText: string, name: string): string | null {
+    for (const m of moduleText.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'([^']+)'/g)) {
+        const names = (m[1] ?? '').split(',').map((p) => p.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop()?.trim());
+        if (names.includes(name)) return posix.normalize(posix.join(posix.dirname(modulePath), (m[2] ?? '').replace(/\.js$/, '.ts')));
+    }
+    return null;
+}
+
+function ownMembers(body: string): ApiMember[] {
+    const members: ApiMember[] = [];
+    let doc: string[] = [];
+    let inDoc = false;
+    let depth = 0;
+    for (const raw of body.split('\n')) {
+        const line = raw.trim();
+        if (depth === 0 && line.startsWith('/**')) {
+            inDoc = true;
+            doc = [];
+        }
+        if (inDoc) {
+            doc.push(line.replace(/^\/\*\*\s?|\s*\*\/$|^\*\s?/g, ''));
+            if (line.endsWith('*/')) inDoc = false;
+            continue;
+        }
+        const m = depth === 0 ? /^(?:readonly\s+)?([A-Za-z_$][\w$]*)(\?)?\s*(\(.*|:\s*(.*?));?$/.exec(line) : null;
+        if (m !== null) {
+            const type = m[3]?.startsWith('(') ? (m[3] ?? '').replace(/;$/, '') : (m[4] ?? '').replace(/;$/, '');
+            members.push({ name: m[1] ?? '', type, optional: m[2] === '?', summary: summaryOf(doc.join('\n')) });
+            doc = [];
+        }
+        for (const c of line) {
+            if (c === '{' || c === '(') depth++;
+            if (c === '}' || c === ')') depth--;
+        }
+    }
+    return members;
+}
+
+/** Every member of an interface, inherited ones first, across modules. */
+function membersOf(read: Reader, modulePath: string, name: string, seen: Set<string> = new Set()): ApiMember[] {
+    const key = `${modulePath}#${name}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const text = lf(read(modulePath) ?? '');
+    const found = interfaceOf(text, name);
+    if (found === null) return [];
+    const inherited = found.bases.flatMap((base) => {
+        if (interfaceOf(text, base) !== null) return membersOf(read, modulePath, base, seen);
+        const from = importedFrom(modulePath, text, base);
+        return from === null ? [] : membersOf(read, from, base, seen);
+    });
+    const own = ownMembers(found.body);
+    const ownNames = new Set(own.map((m) => m.name));
+    return [...inherited.filter((m) => !ownNames.has(m.name)), ...own];
 }
 
 function throwsOf(doc: string | null): string[] {
@@ -164,6 +280,7 @@ function collect(read: Reader): Entry[] {
             const match = declarationMatch(text, name);
             const kind = match === null ? (m[1] !== undefined ? 'type' : 'constant') : kindOf(match[1] ?? '');
             const doc = match === null ? null : docBlockAbove(text, match);
+            const isFunction = kind === 'function';
             entries.set(name, {
                 export: {
                     name,
@@ -171,7 +288,10 @@ function collect(read: Reader): Entry[] {
                     module,
                     signature: match === null ? null : signatureOf(text, match),
                     summary: summaryOf(doc),
-                    throws: kind === 'function' ? throwsOf(doc) : null,
+                    throws: isFunction ? throwsOf(doc) : null,
+                    params: isFunction ? paramsOf(doc) : null,
+                    returns: isFunction ? returnsOf(doc) : null,
+                    members: match?.[1] === 'interface' ? membersOf(read, module, name) : null,
                 },
                 doc,
             });
@@ -184,7 +304,8 @@ export function buildApiJson(read: Reader): ApiManifest {
     const exports = collect(read).map((e) => e.export);
     return {
         $comment: 'Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. '
-            + 'Fields that cannot be read mechanically are null, never guessed; `throws` lists the @throws classes of a function. '
+            + 'Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; '
+            + 'interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. '
             + 'Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.',
         package: 'pkinative',
         source: ENTRY,

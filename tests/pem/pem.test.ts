@@ -102,6 +102,12 @@ describe('decodePem — boundaries and labels', () => {
         expect(failure(() => decodePem(nested)).code).toBe('PKI_PEM_UNTERMINATED');
     });
 
+    it('should refuse an END line with whitespace around it in strict mode and accept it in lax mode', () => {
+        const spaced = PEM.replace('-----END CERTIFICATE-----', '-----END CERTIFICATE----- ');
+        expect(failure(() => decodePem(spaced)).code).toBe('PKI_PEM_UNTERMINATED');
+        expect(decodePem(spaced, { mode: 'lax', onDiagnostic: () => undefined })).toHaveLength(1);
+    });
+
     it('should refuse an END label that differs, and a label outside the grammar', () => {
         expect(failure(() => decodePem(PEM.replace('END CERTIFICATE', 'END PRIVATE KEY'))).code).toBe('PKI_PEM_LABEL_MISMATCH');
         expect(failure(() => decodePem('-----BEGIN A  B-----\n-----END A  B-----\n')).code).toBe('PKI_PEM_LABEL_INVALID');

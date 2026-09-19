@@ -1,5 +1,5 @@
 {
-  "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed; `throws` lists the @throws classes of a function. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
+  "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
   "exportCount": 127,
@@ -10,7 +10,23 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface AccessDescription",
       "summary": "One access method and where to reach it.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "accessMethod",
+          "type": "string",
+          "optional": false,
+          "summary": "e.g. `1.3.6.1.5.5.7.48.1` (ocsp) or `1.3.6.1.5.5.7.48.2` (caIssuers)."
+        },
+        {
+          "name": "accessLocation",
+          "type": "GeneralName",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "AlgorithmIdentifier",
@@ -18,7 +34,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface AlgorithmIdentifier",
       "summary": "An AlgorithmIdentifier (RFC 5280 §4.1.1.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The algorithm OID, e.g. `1.2.840.113549.1.1.11`."
+        },
+        {
+          "name": "parameters",
+          "type": "Asn1Node | undefined",
+          "optional": false,
+          "summary": "The parameters, or `undefined` when the field is absent."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the AlgorithmIdentifier."
+        }
+      ]
     },
     {
       "name": "Asn1Node",
@@ -26,7 +64,71 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface Asn1Node",
       "summary": "One decoded tag-length-value, with its exact position in the input.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "tagClass",
+          "type": "TagClass",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "tagNumber",
+          "type": "number",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "constructed",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "offset",
+          "type": "number",
+          "optional": false,
+          "summary": "Absolute offset of the identifier octet in the decoded input."
+        },
+        {
+          "name": "headerLength",
+          "type": "number",
+          "optional": false,
+          "summary": "Identifier and length octets (the `0x80` octet included for the indefinite form)."
+        },
+        {
+          "name": "contentLength",
+          "type": "number",
+          "optional": false,
+          "summary": "Content octets, excluding the end-of-contents marker of the indefinite form."
+        },
+        {
+          "name": "indefinite",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only for a BER indefinite-length value; always false under DER."
+        },
+        {
+          "name": "bytes",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole encoding of this value, exactly as it appears in the input."
+        },
+        {
+          "name": "content",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content octets (for a constructed value, the concatenated encodings of its children)."
+        },
+        {
+          "name": "children",
+          "type": "readonly Asn1Node[]",
+          "optional": false,
+          "summary": "The decoded children of a constructed value; empty for a primitive value."
+        }
+      ]
     },
     {
       "name": "Asn1String",
@@ -34,15 +136,40 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface Asn1String",
       "summary": "A decoded character string with its original content octets.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "stringType",
+          "type": "Asn1StringType",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "raw",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "Asn1StringType",
       "kind": "type",
       "module": "src/types/asn1-types.ts",
-      "signature": "export type Asn1StringType = 'utf8' | 'numeric' | 'printable' | 'teletex' | 'ia5' | 'visible' | 'universal' | 'bmp';",
+      "signature": "export type Asn1StringType = 'utf8' | 'numeric' | 'printable' | 'teletex' | 'ia5' | 'visible' | 'universal' | 'bmp'",
       "summary": "The character string types pkinative decodes.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "AttributeTypeAndValue",
@@ -50,7 +177,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface AttributeTypeAndValue",
       "summary": "One attribute of a distinguished name (RFC 5280 §4.1.2.4).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "type",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type OID, e.g. `2.5.4.3` (commonName)."
+        },
+        {
+          "name": "value",
+          "type": "Asn1String | undefined",
+          "optional": false,
+          "summary": "The decoded value when it is a character string; `undefined` for a value of any other ASN.1 type."
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the value: tag, length and content."
+        }
+      ]
     },
     {
       "name": "AuthorityInfoAccessExtension",
@@ -58,7 +207,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface AuthorityInfoAccessExtension extends ExtensionBase",
       "summary": "authorityInfoAccess (RFC 5280 §4.2.2.1).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'authorityInfoAccess'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "descriptions",
+          "type": "readonly AccessDescription[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "AuthorityKeyIdentifierExtension",
@@ -66,7 +249,53 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface AuthorityKeyIdentifierExtension extends ExtensionBase",
       "summary": "authorityKeyIdentifier (RFC 5280 §4.2.1.1).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'authorityKeyIdentifier'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "keyIdentifier",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "authorityCertIssuer",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "authorityCertSerialNumber",
+          "type": "SerialNumber | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "BasicConstraintsExtension",
@@ -74,7 +303,47 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface BasicConstraintsExtension extends ExtensionBase",
       "summary": "basicConstraints (RFC 5280 §4.2.1.9).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'basicConstraints'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "cA",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "pathLenConstraint",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "BitString",
@@ -82,7 +351,23 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface BitString",
       "summary": "A BIT STRING: the octets and the number of unused bits in the last one (0–7).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "bytes",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "unusedBits",
+          "type": "number",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "Certificate",
@@ -90,7 +375,101 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface Certificate",
       "summary": "A parsed X.509 certificate.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole certificate encoding."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The tbsCertificate encoding — the bytes the signature covers."
+        },
+        {
+          "name": "version",
+          "type": "1 | 2 | 3",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "serialNumber",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The outer signatureAlgorithm."
+        },
+        {
+          "name": "tbsSignatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "tbsCertificate.signature, which RFC 5280 requires to equal `signatureAlgorithm`."
+        },
+        {
+          "name": "signatureValue",
+          "type": "BitString",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "issuer",
+          "type": "DistinguishedName",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "validity",
+          "type": "Validity",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "subject",
+          "type": "DistinguishedName",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "subjectPublicKeyInfo",
+          "type": "SubjectPublicKeyInfo",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "issuerUniqueId",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "subjectUniqueId",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "Every extension in encoded order; empty when the field is absent."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Every diagnostic the parse recorded, in emission order."
+        }
+      ]
     },
     {
       "name": "CertificatePoliciesExtension",
@@ -98,7 +477,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface CertificatePoliciesExtension extends ExtensionBase",
       "summary": "certificatePolicies (RFC 5280 §4.2.1.4).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'certificatePolicies'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "policies",
+          "type": "readonly PolicyInformation[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "CpsQualifier",
@@ -106,7 +519,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface CpsQualifier",
       "summary": "A CPS pointer qualifier.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "kind",
+          "type": "'cps'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "uri",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "CrlDistributionPointsExtension",
@@ -114,15 +549,52 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface CrlDistributionPointsExtension extends ExtensionBase",
       "summary": "cRLDistributionPoints (RFC 5280 §4.2.1.13).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'crlDistributionPoints'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "points",
+          "type": "readonly DistributionPoint[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, });",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "DecodeAsn1Options",
@@ -130,7 +602,41 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface DecodeAsn1Options extends PkiParseOptions",
       "summary": "Options of `decodeAsn1` and `decodeAsn1Sequence`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "allowTrailingData",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept bytes after the outermost value (`decodeAsn1` only)."
+        }
+      ]
     },
     {
       "name": "DecodeExtensionValueOptions",
@@ -138,7 +644,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface DecodeExtensionValueOptions extends PkiParseOptions",
       "summary": "Options of `decodeExtensionValue`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "critical",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "The criticality to report on the result and to check against (default `false`)."
+        }
+      ]
     },
     {
       "name": "DecodePemOptions",
@@ -146,15 +686,52 @@
       "module": "src/types/pem-types.ts",
       "signature": "export interface DecodePemOptions",
       "summary": "Options of `decodePem`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "mode",
+          "type": "'strict' | 'lax' | undefined",
+          "optional": true,
+          "summary": "`'strict'` (default) accepts the RFC 7468 strict grammar: exact boundary lines, 64-character base64 lines, no headers."
+        },
+        {
+          "name": "label",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "Require every block to carry this label (e.g. `CERTIFICATE`)."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for `maxInputBytes` (text length) and `maxPemBlocks`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        }
+      ]
     },
     {
       "name": "DecodedExtensionKind",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type DecodedExtensionKind = Exclude<Extension['kind'], 'unknown' | 'raw'>;",
+      "signature": "export type DecodedExtensionKind = Exclude<Extension['kind'], 'unknown' | 'raw'>",
       "summary": "The kinds `getExtension` looks up: every decoded extension, one per certificate.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "DirectoryGeneralName",
@@ -162,7 +739,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface DirectoryGeneralName extends GeneralNameBase",
       "summary": "`directoryName [4]`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'directoryName'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "name",
+          "type": "DistinguishedName",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "DistinguishedName",
@@ -170,7 +769,23 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface DistinguishedName",
       "summary": "A distinguished name.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "rdns",
+          "type": "readonly RelativeDistinguishedName[]",
+          "optional": false,
+          "summary": "The relative distinguished names in encoded order — the reverse of the RFC 4514 string order."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the Name, the bytes a name comparison by octets uses."
+        }
+      ]
     },
     {
       "name": "DistributionPoint",
@@ -178,15 +793,46 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface DistributionPoint",
       "summary": "One distribution point.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "fullName",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "nameRelativeToCRLIssuer",
+          "type": "RelativeDistinguishedName | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "reasons",
+          "type": "readonly ReasonFlag[] | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "cRLIssuer",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "EcCurve",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type EcCurve = 'P-256' | 'P-384' | 'P-521';",
+      "signature": "export type EcCurve = 'P-256' | 'P-384' | 'P-521'",
       "summary": "The NIST curves RFC 5480 names.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "EcPublicKeyInfo",
@@ -194,15 +840,70 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface EcPublicKeyInfo extends PublicKeyInfoBase",
       "summary": "An elliptic-curve key (RFC 5480).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "publicKey",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The subjectPublicKey BIT STRING."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the SubjectPublicKeyInfo."
+        },
+        {
+          "name": "kind",
+          "type": "'ec'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "namedCurve",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "The namedCurve OID; `undefined` when the parameters are not a named curve."
+        },
+        {
+          "name": "curve",
+          "type": "EcCurve | undefined",
+          "optional": false,
+          "summary": "The curve name when `namedCurve` is P-256, P-384 or P-521."
+        },
+        {
+          "name": "pointFormat",
+          "type": "'uncompressed' | 'compressed'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "point",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The encoded point, format octet included."
+        }
+      ]
     },
     {
       "name": "EncodingRules",
       "kind": "type",
       "module": "src/types/pki-types.ts",
-      "signature": "export type EncodingRules = 'der' | 'ber';",
+      "signature": "export type EncodingRules = 'der' | 'ber'",
       "summary": "`der` (default) refuses every BER-only construct; `ber` accepts them with a diagnostic.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "ExtendedKeyUsageExtension",
@@ -210,15 +911,52 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface ExtendedKeyUsageExtension extends ExtensionBase",
       "summary": "extKeyUsage (RFC 5280 §4.2.1.12).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'extendedKeyUsage'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "purposes",
+          "type": "readonly string[]",
+          "optional": false,
+          "summary": "KeyPurposeId OIDs, e.g. `1.3.6.1.5.5.7.3.1` (serverAuth)."
+        }
+      ]
     },
     {
       "name": "Extension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type Extension",
+      "signature": "export type Extension = | BasicConstraintsExtension | KeyUsageExtension | ExtendedKeyUsageExtension | SubjectAltNameExtension | IssuerAltNameExtension | SubjectKeyIdentifierExtension | AuthorityKeyIdentifierExtension | NameConstraintsExtension | CertificatePoliciesExtension | PolicyMappingsExtension | PolicyConstraintsExtension | InhibitAnyPolicyExtension | AuthorityInfoAccessExtension | SubjectInfoAccessExtension | CrlDistributionPointsExtension | FreshestCrlExtension | SignedCertificateTimestampListExtension | OcspNoCheckExtension | UnknownExtension | RawExtension",
       "summary": "A certificate extension, discriminated by `kind`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "ExtensionBase",
@@ -226,15 +964,40 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface ExtensionBase",
       "summary": "The fields every extension carries (RFC 5280 §4.1.2.9).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        }
+      ]
     },
     {
       "name": "FingerprintAlgorithm",
       "kind": "type",
       "module": "src/types/hash-types.ts",
-      "signature": "export type FingerprintAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';",
+      "signature": "export type FingerprintAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512'",
       "summary": "The digest algorithms a fingerprint can use, named as Web Crypto names them.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "FormatFingerprintOptions",
@@ -242,7 +1005,23 @@
       "module": "src/types/hash-types.ts",
       "signature": "export interface FormatFingerprintOptions",
       "summary": "Options of `formatFingerprint`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "separator",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "Placed between octets; `':'` by default."
+        },
+        {
+          "name": "letterCase",
+          "type": "'upper' | 'lower' | undefined",
+          "optional": true,
+          "summary": "`'upper'` (default) or `'lower'` hexadecimal digits."
+        }
+      ]
     },
     {
       "name": "FreshestCrlExtension",
@@ -250,15 +1029,52 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface FreshestCrlExtension extends ExtensionBase",
       "summary": "freshestCRL (RFC 5280 §4.2.1.15).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'freshestCRL'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "points",
+          "type": "readonly DistributionPoint[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "GeneralName",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type GeneralName",
+      "signature": "export type GeneralName = | OtherGeneralName | TextGeneralName | OpaqueGeneralName | DirectoryGeneralName | IpAddressGeneralName | RegisteredIdGeneralName",
       "summary": "One GeneralName (RFC 5280 §4.2.1.6), discriminated by `kind`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "GeneralSubtree",
@@ -266,7 +1082,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface GeneralSubtree",
       "summary": "One permitted or excluded subtree of name constraints.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "base",
+          "type": "GeneralName",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "minimum",
+          "type": "number",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "maximum",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "InhibitAnyPolicyExtension",
@@ -274,7 +1112,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface InhibitAnyPolicyExtension extends ExtensionBase",
       "summary": "inhibitAnyPolicy (RFC 5280 §4.2.1.14).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'inhibitAnyPolicy'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "skipCerts",
+          "type": "number",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "IpAddressGeneralName",
@@ -282,7 +1154,47 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface IpAddressGeneralName extends GeneralNameBase",
       "summary": "`iPAddress [7]`: an address, and in name constraints its mask.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'iPAddress'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "version",
+          "type": "4 | 6",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "address",
+          "type": "string",
+          "optional": false,
+          "summary": "Dotted decimal for IPv4, RFC 5952 text for IPv6."
+        },
+        {
+          "name": "mask",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "The mask in the same notation, present only in name constraints."
+        },
+        {
+          "name": "bytes",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The octets: 4 or 16, doubled with the mask in name constraints."
+        }
+      ]
     },
     {
       "name": "IssuerAltNameExtension",
@@ -290,7 +1202,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface IssuerAltNameExtension extends ExtensionBase",
       "summary": "issuerAltName (RFC 5280 §4.2.1.7).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'issuerAltName'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "names",
+          "type": "readonly GeneralName[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "KeyUsageExtension",
@@ -298,15 +1244,58 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface KeyUsageExtension extends ExtensionBase",
       "summary": "keyUsage (RFC 5280 §4.2.1.3).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'keyUsage'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "usages",
+          "type": "readonly KeyUsageName[]",
+          "optional": false,
+          "summary": "The asserted usages, in bit order."
+        },
+        {
+          "name": "bits",
+          "type": "BitString",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "KeyUsageName",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type KeyUsageName",
+      "signature": "export type KeyUsageName = | 'digitalSignature' | 'nonRepudiation' | 'keyEncipherment' | 'dataEncipherment' | 'keyAgreement' | 'keyCertSign' | 'cRLSign' | 'encipherOnly' | 'decipherOnly'",
       "summary": "The named bits of KeyUsage, in bit order (RFC 5280 §4.2.1.3).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "NameConstraintsExtension",
@@ -314,7 +1303,47 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface NameConstraintsExtension extends ExtensionBase",
       "summary": "nameConstraints (RFC 5280 §4.2.1.10).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'nameConstraints'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "permittedSubtrees",
+          "type": "readonly GeneralSubtree[] | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "excludedSubtrees",
+          "type": "readonly GeneralSubtree[] | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "NoticeReference",
@@ -322,15 +1351,34 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface NoticeReference",
       "summary": "The organization and notice numbers of a user notice.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "organization",
+          "type": "Asn1String",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "noticeNumbers",
+          "type": "readonly bigint[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "OID_REGISTRY",
       "kind": "constant",
       "module": "src/oid/oid-registry.ts",
-      "signature": "export const OID_REGISTRY: readonly OidRegistryEntry[] = /*#__PURE__*/ buildRegistry(GROUPS);",
+      "signature": "export const OID_REGISTRY: readonly OidRegistryEntry[] = /*#__PURE__*/ buildRegistry(GROUPS)",
       "summary": "Every registered object identifier, grouped by area and frozen.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "OcspNoCheckExtension",
@@ -338,7 +1386,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface OcspNoCheckExtension extends ExtensionBase",
       "summary": "id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'ocspNoCheck'",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "OctetPublicKeyInfo",
@@ -346,7 +1422,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface OctetPublicKeyInfo extends PublicKeyInfoBase",
       "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410, FIPS 204).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "publicKey",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The subjectPublicKey BIT STRING."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the SubjectPublicKeyInfo."
+        },
+        {
+          "name": "kind",
+          "type": "'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "key",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "OidRegistryEntry",
@@ -354,7 +1464,29 @@
       "module": "src/oid/oid-registry.ts",
       "signature": "export interface OidRegistryEntry",
       "summary": "One registered object identifier.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "Dotted-decimal form, e.g. `2.5.29.17`."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "optional": false,
+          "summary": "Display name, e.g. `subjectAltName`."
+        },
+        {
+          "name": "standard",
+          "type": "string",
+          "optional": false,
+          "summary": "The defining standard, e.g. `RFC 5280`."
+        }
+      ]
     },
     {
       "name": "OpaqueGeneralName",
@@ -362,7 +1494,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface OpaqueGeneralName extends GeneralNameBase",
       "summary": "`x400Address [3]` and `ediPartyName [5]`, kept as their tagged node.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'x400Address' | 'ediPartyName'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "value",
+          "type": "Asn1Node",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "OtherGeneralName",
@@ -370,7 +1524,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface OtherGeneralName extends GeneralNameBase",
       "summary": "`otherName [0]`: a type OID and a value of that type.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'otherName'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "typeId",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "value",
+          "type": "Asn1Node",
+          "optional": false,
+          "summary": "The value inside the explicit `[0]` tag."
+        }
+      ]
     },
     {
       "name": "ParseCertificateOptions",
@@ -378,7 +1560,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface ParseCertificateOptions extends PkiParseOptions",
       "summary": "Options of `parseCertificate`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "decodeExtensions",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Decode every recognised extension (default `true`)."
+        }
+      ]
     },
     {
       "name": "PemBlock",
@@ -386,15 +1602,46 @@
       "module": "src/types/pem-types.ts",
       "signature": "export interface PemBlock",
       "summary": "One `-----BEGIN label-----` … `-----END label-----` block.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "label",
+          "type": "string",
+          "optional": false,
+          "summary": "The label, e.g. `CERTIFICATE` (may be empty, as RFC 7468 allows)."
+        },
+        {
+          "name": "bytes",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The decoded binary payload."
+        },
+        {
+          "name": "headers",
+          "type": "readonly (readonly [name: string, value: string])[]",
+          "optional": false,
+          "summary": "RFC 1421 encapsulated headers, in order — only ever non-empty in lax mode."
+        },
+        {
+          "name": "offset",
+          "type": "number",
+          "optional": false,
+          "summary": "Character offset of the `-----BEGIN` line in the text."
+        }
+      ]
     },
     {
       "name": "PkiBaseErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiBaseErrorCode",
+      "signature": "export type PkiBaseErrorCode = | 'PKI_INVALID_INPUT' // the input has the wrong type (not a Uint8Array, not a string) | 'PKI_INVALID_OPTION' // an option value fails validation | 'PKI_API_MISUSE' // a caller contract violation (e.g. DER-encoding an indefinite-length node) | 'PKI_STRICT_DIAGNOSTIC' // strict: true escalated a diagnostic | 'PKI_INTERNAL'",
       "summary": "Codes carried by the base PkiError (usage and invariant faults).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiCertificateError",
@@ -402,15 +1649,21 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export class PkiCertificateError extends PkiError<PkiCertificateErrorCode>",
       "summary": "The DER is well formed but does not match the RFC 5280 certificate structure.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiCertificateErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiCertificateErrorCode",
+      "signature": "export type PkiCertificateErrorCode = | 'PKI_X509_STRUCTURE_INVALID' // the certificate does not match the RFC 5280 ASN.1 module (CWE-1286) | 'PKI_X509_VERSION_INVALID' // a version other than v1, v2 or v3 (CWE-1286) | 'PKI_X509_NAME_INVALID' // a malformed distinguished name (CWE-1286) | 'PKI_X509_VALIDITY_INVALID' // a malformed validity period (CWE-1286) | 'PKI_X509_SPKI_INVALID' // a malformed subject public key info (CWE-1286) | 'PKI_X509_UNIQUE_ID_INVALID' // a malformed or misplaced unique identifier (CWE-1286) | 'PKI_X509_EXTENSIONS_EMPTY' // an extensions field with no extension (CWE-1286) | 'PKI_X509_EXTENSION_DUPLICATE' // the same extension OID twice (CWE-694) | 'PKI_X509_EXTENSION_MALFORMED' // a recognised extension whose value does not match its definition (CWE-1286) | 'PKI_X509_GENERAL_NAME_INVALID'",
       "summary": "Codes carried by PkiCertificateError: the RFC 5280 certificate structure.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiDiagnostic",
@@ -418,31 +1671,80 @@
       "module": "src/types/pki-types.ts",
       "signature": "export interface PkiDiagnostic",
       "summary": "One non-fatal conformance concern.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "code",
+          "type": "PkiDiagnosticCode",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "severity",
+          "type": "PkiDiagnosticSeverity",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "optional": false,
+          "summary": "What was found and what it means, without the `pkinative: ` prefix."
+        },
+        {
+          "name": "standard",
+          "type": "string",
+          "optional": false,
+          "summary": "The clause the concern cites, e.g. `RFC 5280 §4.1.2.2`."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "summary": "Where in the structure, e.g. `tbsCertificate.serialNumber`; empty for the whole input."
+        },
+        {
+          "name": "offset",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": "Absolute byte offset of the value concerned, when known."
+        }
+      ]
     },
     {
       "name": "PkiDiagnosticCode",
       "kind": "type",
       "module": "src/types/pki-types.ts",
-      "signature": "export type PkiDiagnosticCode",
+      "signature": "export type PkiDiagnosticCode = | 'PKI_DIAG_SERIAL_TOO_LONG' | 'PKI_DIAG_SERIAL_NOT_POSITIVE' | 'PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH' | 'PKI_DIAG_RSA_PARAMETERS_NOT_NULL' | 'PKI_DIAG_EXTENSIONS_REQUIRE_V3' | 'PKI_DIAG_UNIQUE_ID_REQUIRES_V2' | 'PKI_DIAG_GENERALIZED_TIME_BEFORE_2050' | 'PKI_DIAG_GENERALIZED_TIME_FRACTION' | 'PKI_DIAG_VALIDITY_INVERTED' | 'PKI_DIAG_EMPTY_ISSUER' | 'PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL' | 'PKI_DIAG_SAN_EMPTY' | 'PKI_DIAG_RDN_SET_NOT_SORTED' | 'PKI_DIAG_PRINTABLE_STRING_CHARSET' | 'PKI_DIAG_TELETEX_AS_LATIN1' | 'PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION' | 'PKI_DIAG_PATHLEN_WITHOUT_CA' | 'PKI_DIAG_KEY_USAGE_EMPTY' | 'PKI_DIAG_NAMED_BITS_TRAILING_ZERO' | 'PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED' | 'PKI_DIAG_POLICY_DUPLICATE' | 'PKI_DIAG_POLICY_CONSTRAINTS_EMPTY' | 'PKI_DIAG_DEFAULT_ENCODED' | 'PKI_DIAG_BER_CONSTRUCT_ACCEPTED' | 'PKI_DIAG_PEM_LAX_ACCEPTED'",
       "summary": "Every diagnostic code.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiDiagnosticHandler",
       "kind": "type",
       "module": "src/types/pki-types.ts",
-      "signature": "export type PkiDiagnosticHandler = (diagnostic: PkiDiagnostic) => void;",
+      "signature": "export type PkiDiagnosticHandler = (diagnostic: PkiDiagnostic) => void",
       "summary": "Receives every diagnostic of an operation; replaces the default `console.warn` sink.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiDiagnosticSeverity",
       "kind": "type",
       "module": "src/types/pki-types.ts",
-      "signature": "export type PkiDiagnosticSeverity = 'warning' | 'info';",
+      "signature": "export type PkiDiagnosticSeverity = 'warning' | 'info'",
       "summary": "`warning`: a profile violation a verifier may refuse.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiEncodingError",
@@ -450,15 +1752,21 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export class PkiEncodingError extends PkiError<PkiEncodingErrorCode>",
       "summary": "The input violates the syntax of X.690, of an OBJECT IDENTIFIER or of RFC 7468.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiEncodingErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiEncodingErrorCode",
+      "signature": "export type PkiEncodingErrorCode = | 'PKI_ASN1_TRUNCATED' // a header or content runs past the end of the input (CWE-125) | 'PKI_ASN1_TAG_INVALID' // a high-tag-number form is non-minimal or overflows (CWE-1286) | 'PKI_ASN1_LENGTH_INVALID' // the reserved length octet 0xFF (CWE-1286) | 'PKI_ASN1_LENGTH_NON_MINIMAL' // DER: a length not in its shortest form (CWE-436) | 'PKI_ASN1_LENGTH_OVERFLOW' // a declared length exceeds its enclosing value (CWE-130) | 'PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN' // DER: the indefinite length form (CWE-436) | 'PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN' // DER: a string type in constructed form (CWE-436) | 'PKI_ASN1_CONSTRUCTED_FORM_INVALID' // a universal type in the wrong form (CWE-1286) | 'PKI_ASN1_EOC_UNEXPECTED' // an end-of-contents marker where none may appear (CWE-1286) | 'PKI_ASN1_TRAILING_DATA' // bytes after the outermost value (CWE-436) | 'PKI_ASN1_UNEXPECTED_TAG' // a value of another type where one type is required (CWE-1286) | 'PKI_ASN1_BOOLEAN_INVALID' // a BOOLEAN that is not one octet, or not 0x00/0xFF under DER (CWE-436) | 'PKI_ASN1_INTEGER_INVALID' // an empty or non-minimal INTEGER (CWE-436) | 'PKI_ASN1_INTEGER_UNREPRESENTABLE' // an IN…",
       "summary": "Codes carried by PkiEncodingError: X.690, OID and RFC 7468 syntax.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiError",
@@ -466,15 +1774,21 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export class PkiError<Code extends PkiErrorCode = PkiErrorCode> extends Error",
       "summary": "Base class for every error thrown by pkinative.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiErrorCode",
+      "signature": "export type PkiErrorCode = | PkiBaseErrorCode | PkiEncodingErrorCode | PkiCertificateErrorCode | PkiLimitErrorCode",
       "summary": "Every stable error code pkinative can throw.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiLimitError",
@@ -482,15 +1796,21 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export class PkiLimitError extends PkiError<PkiLimitErrorCode>",
       "summary": "A configured security bound from PkiLimits was exceeded, or the override is invalid.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiLimitErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiLimitErrorCode",
+      "signature": "export type PkiLimitErrorCode = | 'PKI_LIMIT_EXCEEDED' // a configured PkiLimits bound was exceeded (CWE-400) | 'PKI_LIMIT_INVALID'",
       "summary": "Codes carried by PkiLimitError.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiLimits",
@@ -498,7 +1818,77 @@
       "module": "src/types/pki-types.ts",
       "signature": "export interface PkiLimits",
       "summary": "The named security bounds every loop over untrusted input consults.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "maxInputBytes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum size of one input, in bytes for DER or characters for PEM."
+        },
+        {
+          "name": "maxDepth",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum nesting depth of constructed ASN.1 values."
+        },
+        {
+          "name": "maxNodes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of ASN.1 values decoded from one input."
+        },
+        {
+          "name": "maxIntegerBytes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum content length of one INTEGER, in bytes."
+        },
+        {
+          "name": "maxOidBytes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum content length of one OBJECT IDENTIFIER, in bytes."
+        },
+        {
+          "name": "maxBerSegments",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of segments joined from one BER constructed string."
+        },
+        {
+          "name": "maxPemBlocks",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of PEM blocks read from one text."
+        },
+        {
+          "name": "maxExtensions",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of extensions in one certificate."
+        },
+        {
+          "name": "maxGeneralNames",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of GeneralName entries in one field."
+        },
+        {
+          "name": "maxNameAttributes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of attributes in one distinguished name."
+        },
+        {
+          "name": "maxPolicies",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of policies or policy mappings in one extension."
+        }
+      ]
     },
     {
       "name": "PkiParseOptions",
@@ -506,7 +1896,35 @@
       "module": "src/types/pki-types.ts",
       "signature": "export interface PkiParseOptions",
       "summary": "Options shared by every parsing function.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        }
+      ]
     },
     {
       "name": "PkiTime",
@@ -514,7 +1932,29 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface PkiTime",
       "summary": "A decoded time: the instant, and the text it was decoded from.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "type",
+          "type": "TimeType",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "epochMilliseconds",
+          "type": "number",
+          "optional": false,
+          "summary": "Milliseconds since 1970-01-01T00:00:00Z (negative before 1970)."
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "optional": false,
+          "summary": "The time exactly as encoded, e.g. `250101000000Z`."
+        }
+      ]
     },
     {
       "name": "PolicyConstraintsExtension",
@@ -522,7 +1962,47 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface PolicyConstraintsExtension extends ExtensionBase",
       "summary": "policyConstraints (RFC 5280 §4.2.1.11).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'policyConstraints'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "requireExplicitPolicy",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "inhibitPolicyMapping",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "PolicyInformation",
@@ -530,7 +2010,23 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface PolicyInformation",
       "summary": "One entry of certificatePolicies.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "policyIdentifier",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "qualifiers",
+          "type": "readonly PolicyQualifier[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "PolicyMapping",
@@ -538,7 +2034,23 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface PolicyMapping",
       "summary": "One issuer-to-subject policy mapping.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "issuerDomainPolicy",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "subjectDomainPolicy",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "PolicyMappingsExtension",
@@ -546,15 +2058,52 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface PolicyMappingsExtension extends ExtensionBase",
       "summary": "policyMappings (RFC 5280 §4.2.1.5).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'policyMappings'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "mappings",
+          "type": "readonly PolicyMapping[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "PolicyQualifier",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type PolicyQualifier = CpsQualifier | UserNoticeQualifier | UnknownPolicyQualifier;",
+      "signature": "export type PolicyQualifier = CpsQualifier | UserNoticeQualifier | UnknownPolicyQualifier",
       "summary": "One policy qualifier, discriminated by `kind`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "RawExtension",
@@ -562,7 +2111,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface RawExtension extends ExtensionBase",
       "summary": "An extension kept as encoded because the parse ran with `decodeExtensions: false`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'raw'",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "ReadStringOptions",
@@ -570,7 +2147,41 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface ReadStringOptions extends PkiParseOptions",
       "summary": "Options of `readString`: the type of an implicitly tagged string.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "stringType",
+          "type": "Asn1StringType | undefined",
+          "optional": true,
+          "summary": "Required when the node carries a non-universal (implicit) tag."
+        }
+      ]
     },
     {
       "name": "ReadTimeOptions",
@@ -578,15 +2189,52 @@
       "module": "src/types/asn1-types.ts",
       "signature": "export interface ReadTimeOptions extends PkiParseOptions",
       "summary": "Options of `readTime`: the type of an implicitly tagged time.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "timeType",
+          "type": "TimeType | undefined",
+          "optional": true,
+          "summary": "Required when the node carries a non-universal (implicit) tag."
+        }
+      ]
     },
     {
       "name": "ReasonFlag",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type ReasonFlag",
+      "signature": "export type ReasonFlag = | 'unused' | 'keyCompromise' | 'cACompromise' | 'affiliationChanged' | 'superseded' | 'cessationOfOperation' | 'certificateHold' | 'privilegeWithdrawn' | 'aACompromise'",
       "summary": "The named bits of ReasonFlags, in bit order (RFC 5280 §4.2.1.13).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "RegisteredIdGeneralName",
@@ -594,15 +2242,40 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface RegisteredIdGeneralName extends GeneralNameBase",
       "summary": "`registeredID [8]`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'registeredID'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "RelativeDistinguishedName",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type RelativeDistinguishedName = readonly AttributeTypeAndValue[];",
+      "signature": "export type RelativeDistinguishedName = readonly AttributeTypeAndValue[]",
       "summary": "A relative distinguished name: one or more attributes, in encoded order.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "RsaPublicKeyInfo",
@@ -610,7 +2283,53 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface RsaPublicKeyInfo extends PublicKeyInfoBase",
       "summary": "An RSA or RSASSA-PSS key (RFC 3279 §2.3.1, RFC 4055 §1.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "publicKey",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The subjectPublicKey BIT STRING."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the SubjectPublicKeyInfo."
+        },
+        {
+          "name": "kind",
+          "type": "'rsa' | 'rsa-pss'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "modulus",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The unsigned big-endian modulus, without its sign octet."
+        },
+        {
+          "name": "modulusBits",
+          "type": "number",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "publicExponent",
+          "type": "bigint",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "SerialNumber",
@@ -618,7 +2337,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface SerialNumber",
       "summary": "The serial number (RFC 5280 §4.1.2.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "bytes",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The two's-complement content octets, exactly as encoded."
+        },
+        {
+          "name": "hex",
+          "type": "string",
+          "optional": false,
+          "summary": "Lowercase hexadecimal of `bytes`."
+        },
+        {
+          "name": "value",
+          "type": "bigint",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "SignedCertificateTimestampListExtension",
@@ -626,7 +2367,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface SignedCertificateTimestampListExtension extends ExtensionBase",
       "summary": "The Certificate Transparency SCT list (RFC 6962 §3.3), kept in its TLS encoding.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'signedCertificateTimestampList'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "list",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The SignedCertificateTimestampList, TLS-encoded."
+        }
+      ]
     },
     {
       "name": "SubjectAltNameExtension",
@@ -634,7 +2409,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface SubjectAltNameExtension extends ExtensionBase",
       "summary": "subjectAltName (RFC 5280 §4.2.1.6).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'subjectAltName'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "names",
+          "type": "readonly GeneralName[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "SubjectInfoAccessExtension",
@@ -642,7 +2451,41 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface SubjectInfoAccessExtension extends ExtensionBase",
       "summary": "subjectInfoAccess (RFC 5280 §4.2.2.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'subjectInfoAccess'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "descriptions",
+          "type": "readonly AccessDescription[]",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "SubjectKeyIdentifierExtension",
@@ -650,23 +2493,63 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface SubjectKeyIdentifierExtension extends ExtensionBase",
       "summary": "subjectKeyIdentifier (RFC 5280 §4.2.1.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'subjectKeyIdentifier'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "keyIdentifier",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "SubjectPublicKeyInfo",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type SubjectPublicKeyInfo = RsaPublicKeyInfo | EcPublicKeyInfo | OctetPublicKeyInfo | UnknownPublicKeyInfo;",
+      "signature": "export type SubjectPublicKeyInfo = RsaPublicKeyInfo | EcPublicKeyInfo | OctetPublicKeyInfo | UnknownPublicKeyInfo",
       "summary": "A SubjectPublicKeyInfo (RFC 5280 §4.1.2.7), discriminated by `kind`.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "TagClass",
       "kind": "type",
       "module": "src/types/asn1-types.ts",
-      "signature": "export type TagClass = 'universal' | 'application' | 'context' | 'private';",
+      "signature": "export type TagClass = 'universal' | 'application' | 'context' | 'private'",
       "summary": "The class bits of an identifier octet (X.690 §8.1.2.2).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "TextGeneralName",
@@ -674,15 +2557,40 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface TextGeneralName extends GeneralNameBase",
       "summary": "`rfc822Name [1]`, `dNSName [2]` and `uniformResourceIdentifier [6]`: ASCII text.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the GeneralName, its context tag included."
+        },
+        {
+          "name": "kind",
+          "type": "'rfc822Name' | 'dNSName' | 'uniformResourceIdentifier'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "TimeType",
       "kind": "type",
       "module": "src/types/asn1-types.ts",
-      "signature": "export type TimeType = 'UTCTime' | 'GeneralizedTime';",
+      "signature": "export type TimeType = 'UTCTime' | 'GeneralizedTime'",
       "summary": "The two time types of X.680.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "UnknownExtension",
@@ -690,7 +2598,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface UnknownExtension extends ExtensionBase",
       "summary": "An extension pkinative does not decode.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'unknown'",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "UnknownPolicyQualifier",
@@ -698,7 +2634,29 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface UnknownPolicyQualifier",
       "summary": "A qualifier pkinative does not decode.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "kind",
+          "type": "'unknown'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "qualifier",
+          "type": "Asn1Node",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "UnknownPublicKeyInfo",
@@ -706,7 +2664,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface UnknownPublicKeyInfo extends PublicKeyInfoBase",
       "summary": "A key of an algorithm pkinative does not decode.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "publicKey",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The subjectPublicKey BIT STRING."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The exact encoding of the SubjectPublicKeyInfo."
+        },
+        {
+          "name": "kind",
+          "type": "'unknown'",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "UserNoticeQualifier",
@@ -714,7 +2700,35 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface UserNoticeQualifier",
       "summary": "A user notice qualifier.",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "kind",
+          "type": "'userNotice'",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "noticeRef",
+          "type": "NoticeReference | undefined",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "explicitText",
+          "type": "Asn1String | undefined",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "Validity",
@@ -722,7 +2736,23 @@
       "module": "src/types/x509-types.ts",
       "signature": "export interface Validity",
       "summary": "The validity period (RFC 5280 §4.1.2.5).",
-      "throws": null
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "notBefore",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": null
+        },
+        {
+          "name": "notAfter",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": null
+        }
+      ]
     },
     {
       "name": "computeFingerprint",
@@ -732,7 +2762,19 @@
       "summary": "Compute a fingerprint synchronously.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The exact encoding to fingerprint, typically `certificate.der`."
+        },
+        {
+          "name": "algorithm",
+          "description": "`'SHA-1'`, `'SHA-256'`, `'SHA-384'` or `'SHA-512'`."
+        }
+      ],
+      "returns": "The digest octets.",
+      "members": null
     },
     {
       "name": "computeFingerprintAsync",
@@ -742,7 +2784,19 @@
       "summary": "Compute a fingerprint through Web Crypto when available, and through the pure-TypeScript hashes otherwise.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The exact encoding to fingerprint."
+        },
+        {
+          "name": "algorithm",
+          "description": "`'SHA-1'`, `'SHA-256'`, `'SHA-384'` or `'SHA-512'`."
+        }
+      ],
+      "returns": "A promise of the digest octets.",
+      "members": null
     },
     {
       "name": "decodeAsn1",
@@ -754,7 +2808,19 @@
         "PkiEncodingError",
         "PkiError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "data",
+          "description": "The encoded value. Nodes are zero-copy views of it."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics, and whether bytes may follow the value."
+        }
+      ],
+      "returns": "The root node, with every descendant decoded.",
+      "members": null
     },
     {
       "name": "decodeAsn1Sequence",
@@ -766,7 +2832,19 @@
         "PkiEncodingError",
         "PkiError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "data",
+          "description": "The concatenated encodings."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits and diagnostics."
+        }
+      ],
+      "returns": "Every value, in input order.",
+      "members": null
     },
     {
       "name": "decodeExtensionValue",
@@ -779,7 +2857,23 @@
         "PkiEncodingError",
         "PkiError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "The extension OID, e.g. `2.5.29.17`."
+        },
+        {
+          "name": "valueDer",
+          "description": "The DER encoding of the extension value."
+        },
+        {
+          "name": "options",
+          "description": "`critical`, encoding rules, limits, `strict` and `onDiagnostic`."
+        }
+      ],
+      "returns": "The decoded extension, or `kind: 'unknown'` for an OID pkinative does not decode.",
+      "members": null
     },
     {
       "name": "decodeOid",
@@ -790,7 +2884,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "content",
+          "description": "The content octets (not the tag and length)."
+        },
+        {
+          "name": "options",
+          "description": "Limits (`maxOidBytes`)."
+        }
+      ],
+      "returns": "The dotted-decimal OID, e.g. `1.2.840.113549.1.1.11`.",
+      "members": null
     },
     {
       "name": "decodePem",
@@ -802,7 +2908,19 @@
         "PkiEncodingError",
         "PkiError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "text",
+          "description": "The PEM text (explanatory text around the blocks is ignored)."
+        },
+        {
+          "name": "options",
+          "description": "Mode (strict by default), a required label, limits and diagnostics."
+        }
+      ],
+      "returns": "The blocks in text order, with their labels, payloads, headers and offsets.",
+      "members": null
     },
     {
       "name": "encodeAsn1Node",
@@ -812,7 +2930,15 @@
       "summary": "Re-encode a decoded node tree in DER.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A node returned by decodeAsn1."
+        }
+      ],
+      "returns": "The DER encoding of the tree.",
+      "members": null
     },
     {
       "name": "encodeBitString",
@@ -822,7 +2948,19 @@
       "summary": "Encode a BIT STRING.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "bytes",
+          "description": "The octets."
+        },
+        {
+          "name": "unusedBits",
+          "description": "Unused bits in the last octet, 0 to 7; they must be zero."
+        }
+      ],
+      "returns": "The BIT STRING encoding.",
+      "members": null
     },
     {
       "name": "encodeBoolean",
@@ -830,7 +2968,15 @@
       "module": "src/asn1/asn1-encode.ts",
       "signature": "export function encodeBoolean(value: boolean): Uint8Array",
       "summary": "Encode a BOOLEAN (TRUE as 0xFF, as DER requires).",
-      "throws": []
+      "throws": [],
+      "params": [
+        {
+          "name": "value",
+          "description": "The boolean."
+        }
+      ],
+      "returns": "The BOOLEAN encoding.",
+      "members": null
     },
     {
       "name": "encodeInteger",
@@ -840,7 +2986,15 @@
       "summary": "Encode an INTEGER in minimal two's complement form.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "value",
+          "description": "A bigint, or a safe-integer number."
+        }
+      ],
+      "returns": "The INTEGER encoding.",
+      "members": null
     },
     {
       "name": "encodeNull",
@@ -848,7 +3002,10 @@
       "module": "src/asn1/asn1-encode.ts",
       "signature": "export function encodeNull(): Uint8Array",
       "summary": "Encode a NULL.",
-      "throws": []
+      "throws": [],
+      "params": [],
+      "returns": "The two octets 05 00.",
+      "members": null
     },
     {
       "name": "encodeObjectIdentifier",
@@ -858,7 +3015,15 @@
       "summary": "Encode an OBJECT IDENTIFIER from dotted decimal.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "A dotted-decimal OID."
+        }
+      ],
+      "returns": "The OBJECT IDENTIFIER encoding.",
+      "members": null
     },
     {
       "name": "encodeOctetString",
@@ -868,7 +3033,15 @@
       "summary": "Encode an OCTET STRING.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "bytes",
+          "description": "The octets."
+        }
+      ],
+      "returns": "The OCTET STRING encoding.",
+      "members": null
     },
     {
       "name": "encodeOid",
@@ -879,7 +3052,15 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "A dotted-decimal OID, e.g. `2.5.29.17`."
+        }
+      ],
+      "returns": "The minimal base-128 content octets.",
+      "members": null
     },
     {
       "name": "encodePem",
@@ -890,7 +3071,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "label",
+          "description": "The label, e.g. `CERTIFICATE`."
+        },
+        {
+          "name": "bytes",
+          "description": "The binary payload."
+        }
+      ],
+      "returns": "The PEM text, ending with a line feed.",
+      "members": null
     },
     {
       "name": "encodeSequence",
@@ -900,7 +3093,15 @@
       "summary": "Encode a SEQUENCE from its encoded components, in the order given.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "children",
+          "description": "The DER encodings of the components."
+        }
+      ],
+      "returns": "The SEQUENCE encoding.",
+      "members": null
     },
     {
       "name": "encodeSet",
@@ -910,7 +3111,15 @@
       "summary": "Encode a SET whose component order the schema fixes (SET, not SET OF).",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "children",
+          "description": "The DER encodings of the components, in schema order."
+        }
+      ],
+      "returns": "The SET encoding.",
+      "members": null
     },
     {
       "name": "encodeSetOf",
@@ -920,7 +3129,15 @@
       "summary": "Encode a SET OF with the canonical DER ordering: the component encodings sorted as octet strings (X.690 §11.6).",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "children",
+          "description": "The DER encodings of the components, in any order."
+        }
+      ],
+      "returns": "The SET OF encoding.",
+      "members": null
     },
     {
       "name": "encodeString",
@@ -931,7 +3148,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "type",
+          "description": "The string type."
+        },
+        {
+          "name": "value",
+          "description": "The text."
+        }
+      ],
+      "returns": "The string encoding.",
+      "members": null
     },
     {
       "name": "encodeTime",
@@ -942,7 +3171,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "epochMilliseconds",
+          "description": "The instant, in milliseconds since 1970-01-01T00:00:00Z."
+        },
+        {
+          "name": "type",
+          "description": "`'rfc5280'` (default) picks UTCTime for 1950–2049 and GeneralizedTime otherwise, with whole seconds; `'UTCTime'` requires 1950–2049 and whole seconds; `'GeneralizedTime'` writes a fraction when needed."
+        }
+      ],
+      "returns": "The time encoding.",
+      "members": null
     },
     {
       "name": "encodeTlv",
@@ -952,37 +3193,89 @@
       "summary": "Encode one tag-length-value in DER: the shortest identifier and length forms.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "tagClass",
+          "description": "The class of the tag."
+        },
+        {
+          "name": "tagNumber",
+          "description": "The tag number, 0 to 2^31 − 1 (0 is refused in the universal class)."
+        },
+        {
+          "name": "constructed",
+          "description": "Whether the content is a concatenation of encodings."
+        },
+        {
+          "name": "content",
+          "description": "The content octets."
+        }
+      ],
+      "returns": "The encoding.",
+      "members": null
     },
     {
       "name": "formatDistinguishedName",
       "kind": "function",
       "module": "src/x509/x509-name-format.ts",
       "signature": "export function formatDistinguishedName(name: DistinguishedName): string",
-      "summary": "Format a distinguished name as an RFC 4514 string, e.g.",
+      "summary": "Format a distinguished name as an RFC 4514 string, e.g. `CN=example.com,O=Example,C=US`.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "name",
+          "description": "A name from a parsed certificate (`certificate.subject`, `certificate.issuer`)."
+        }
+      ],
+      "returns": "The RFC 4514 string; an empty name gives the empty string.",
+      "members": null
     },
     {
       "name": "formatFingerprint",
       "kind": "function",
       "module": "src/hash/fingerprint.ts",
       "signature": "export function formatFingerprint(digest: Uint8Array, options?: FormatFingerprintOptions): string",
-      "summary": "Render a digest the way certificate tools display it, e.g.",
+      "summary": "Render a digest the way certificate tools display it, e.g. `AB:CD:…`.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "digest",
+          "description": "The digest octets."
+        },
+        {
+          "name": "options",
+          "description": "Separator (`':'` by default) and letter case (`'upper'` by default)."
+        }
+      ],
+      "returns": "The formatted fingerprint.",
+      "members": null
     },
     {
       "name": "getExtension",
       "kind": "function",
       "module": "src/x509/x509-extensions.ts",
       "signature": "export function getExtension<K extends DecodedExtensionKind>(certificate: Certificate, kind: K): Extract<Extension, { readonly kind: K }> | undefined",
-      "summary": "The decoded extension of one kind, e.g.",
+      "summary": "The decoded extension of one kind, e.g. `getExtension(cert, 'subjectAltName')?.names`.",
       "throws": [
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "certificate",
+          "description": "A certificate from `parseCertificate`."
+        },
+        {
+          "name": "kind",
+          "description": "The extension kind; RFC 5280 allows each extension once per certificate."
+        }
+      ],
+      "returns": "The extension, or `undefined` when the certificate does not carry it, was parsed with `decodeExtensions: false`, or `kind` names no decoded extension kind (TypeScript refuses such a kind at compile time).",
+      "members": null
     },
     {
       "name": "getOidName",
@@ -990,7 +3283,15 @@
       "module": "src/oid/oid-names.ts",
       "signature": "export function getOidName(oid: string): string | undefined",
       "summary": "The display name of a registered object identifier.",
-      "throws": []
+      "throws": [],
+      "params": [
+        {
+          "name": "oid",
+          "description": "A dotted-decimal OID, e.g. `2.5.29.17`."
+        }
+      ],
+      "returns": "The registered name (`subjectAltName`), or `undefined` for an OID the registry does not list and for any argument that is not a string.",
+      "members": null
     },
     {
       "name": "isValidOid",
@@ -998,7 +3299,15 @@
       "module": "src/asn1/asn1-oid.ts",
       "signature": "export function isValidOid(oid: string): boolean",
       "summary": "Whether a string is a dotted-decimal OID X.660 allows: at least two arcs, the first 0, 1 or 2, the second at most 39 under 0 and 1, no leading zeros.",
-      "throws": []
+      "throws": [],
+      "params": [
+        {
+          "name": "oid",
+          "description": "The candidate string."
+        }
+      ],
+      "returns": "True when `encodeOid` accepts it; false for anything else, a non-string included.",
+      "members": null
     },
     {
       "name": "parseCertificate",
@@ -1011,7 +3320,19 @@
         "PkiEncodingError",
         "PkiError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The certificate encoding. The result holds zero-copy views of it: do not mutate it while you use the result."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules (`'der'` by default), limits, `strict`, `onDiagnostic` and `decodeExtensions` (default `true`)."
+        }
+      ],
+      "returns": "The frozen certificate, with every diagnostic of the parse on `diagnostics`.",
+      "members": null
     },
     {
       "name": "readBitString",
@@ -1021,7 +3342,19 @@
       "summary": "Read a BIT STRING.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A BIT STRING node (constructed only under BER), or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules (DER requires zero padding bits), limits and diagnostics."
+        }
+      ],
+      "returns": "The octets (a zero-copy view when primitive) and the unused-bits count.",
+      "members": null
     },
     {
       "name": "readBoolean",
@@ -1031,7 +3364,19 @@
       "summary": "Read a BOOLEAN.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A BOOLEAN node, or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules and diagnostics (DER requires TRUE as 0xFF)."
+        }
+      ],
+      "returns": "The boolean value.",
+      "members": null
     },
     {
       "name": "readInteger",
@@ -1042,7 +3387,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiLimitError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "An INTEGER node, or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Limits (`maxIntegerBytes`) and diagnostics."
+        }
+      ],
+      "returns": "The value as a bigint.",
+      "members": null
     },
     {
       "name": "readNull",
@@ -1052,7 +3409,15 @@
       "summary": "Read a NULL.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A NULL node, or an implicitly tagged one."
+        }
+      ],
+      "returns": "null.",
+      "members": null
     },
     {
       "name": "readObjectIdentifier",
@@ -1062,7 +3427,19 @@
       "summary": "Read an OBJECT IDENTIFIER node.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "An OBJECT IDENTIFIER node, or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Limits (`maxOidBytes`)."
+        }
+      ],
+      "returns": "The dotted-decimal OID.",
+      "members": null
     },
     {
       "name": "readOctetString",
@@ -1072,7 +3449,19 @@
       "summary": "Read an OCTET STRING.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "An OCTET STRING node (constructed only under BER), or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits (`maxBerSegments`) and diagnostics."
+        }
+      ],
+      "returns": "The octets: a zero-copy view when primitive, a joined copy when segmented.",
+      "members": null
     },
     {
       "name": "readSmallInteger",
@@ -1082,7 +3471,15 @@
       "summary": "Read an INTEGER that must fit in a JavaScript number.",
       "throws": [
         "PkiEncodingError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "An INTEGER node, or an implicitly tagged one."
+        }
+      ],
+      "returns": "The value as a number.",
+      "members": null
     },
     {
       "name": "readString",
@@ -1093,7 +3490,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A string node, or an implicitly tagged one together with `stringType`."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics, and the type of an implicit tag."
+        }
+      ],
+      "returns": "The type, the decoded text and the original octets.",
+      "members": null
     },
     {
       "name": "readTime",
@@ -1104,7 +3513,19 @@
       "throws": [
         "PkiEncodingError",
         "PkiError"
-      ]
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A time node, or an implicitly tagged one together with `timeType`."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules (DER requires the restricted forms), diagnostics, and the type of an implicit tag."
+        }
+      ],
+      "returns": "The type, the instant in epoch milliseconds and the encoded text. UTCTime years 50–99 are 1950–1999, 00–49 are 2000–2049.",
+      "members": null
     }
   ]
 }

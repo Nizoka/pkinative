@@ -129,7 +129,8 @@ export function decodeExtensionValue(oid: string, valueDer: Uint8Array, options?
  *
  * @param certificate A certificate from `parseCertificate`.
  * @param kind        The extension kind; RFC 5280 allows each extension once per certificate.
- * @returns The extension, or `undefined` when the certificate does not carry it (or was parsed with `decodeExtensions: false`).
+ * @returns The extension, or `undefined` when the certificate does not carry it, was parsed with `decodeExtensions: false`,
+ *   or `kind` names no decoded extension kind (TypeScript refuses such a kind at compile time).
  * @throws {PkiError} `PKI_INVALID_INPUT` when `certificate` is not a parsed certificate.
  */
 export function getExtension<K extends DecodedExtensionKind>(certificate: Certificate, kind: K): Extract<Extension, { readonly kind: K }> | undefined {

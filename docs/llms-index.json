@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 2566,
-      "approxTokens": 642
+      "bytes": 2807,
+      "approxTokens": 702
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 37193,
-      "approxTokens": 9298
+      "bytes": 41936,
+      "approxTokens": 10484
     },
     {
       "url": "llms-recipes.txt",
@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 38998,
-      "approxTokens": 9750
+      "bytes": 109660,
+      "approxTokens": 27415
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 16011,
-      "approxTokens": 4003
+      "bytes": 16463,
+      "approxTokens": 4116
     },
     {
       "url": "data/diagnostics.json",
@@ -73,6 +73,7 @@
       "anchors": [
         "install",
         "read-a-certificate",
+        "what-a-certificate-holds",
         "every-extension-typed",
         "diagnostics-what-real-issuers-get-wrong",
         "errors-branch-on-the-code",
@@ -80,8 +81,8 @@
         "below-the-certificate-asn1-and-oids",
         "next"
       ],
-      "bytes": 6521,
-      "approxTokens": 1630
+      "bytes": 11264,
+      "approxTokens": 2816
     },
     {
       "title": "Security model",

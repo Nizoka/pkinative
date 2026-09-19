@@ -58,9 +58,129 @@
       getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
       </code></pre>
       <p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
+      <h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
+      <p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Holds</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>der</code>, <code>tbsDer</code></td>
+      <td>The whole certificate, and the <code>tbsCertificate</code> bytes its signature covers</td>
+      </tr>
+      <tr>
+      <td><code>version</code></td>
+      <td><code>1</code>, <code>2</code> or <code>3</code> (the encoded INTEGER is 0, 1 or 2)</td>
+      </tr>
+      <tr>
+      <td><code>serialNumber</code></td>
+      <td><code>{ bytes, hex, value }</code> — the content octets, their lowercase hex, and a <code>bigint</code></td>
+      </tr>
+      <tr>
+      <td><code>signatureAlgorithm</code>, <code>tbsSignatureAlgorithm</code></td>
+      <td><code>{ oid, parameters, der }</code>; RFC 5280 requires the two to be equal (a diagnostic says when they are not)</td>
+      </tr>
+      <tr>
+      <td><code>signatureValue</code></td>
+      <td><code>{ bytes, unusedBits }</code> — the signature, not verified in 0.1</td>
+      </tr>
+      <tr>
+      <td><code>issuer</code>, <code>subject</code></td>
+      <td><code>{ rdns, der }</code>: each RDN a list of <code>{ type, value, valueDer }</code>, <code>value</code> a <code>{ stringType, value, raw }</code> string when the attribute is one</td>
+      </tr>
+      <tr>
+      <td><code>validity</code></td>
+      <td><code>{ notBefore, notAfter }</code>, each <code>{ type, epochMilliseconds, text }</code></td>
+      </tr>
+      <tr>
+      <td><code>subjectPublicKeyInfo</code></td>
+      <td><code>{ kind, algorithm, publicKey, der, … }</code>, by <code>kind</code>: <code>rsa</code> and <code>rsa-pss</code> add <code>modulus</code>, <code>modulusBits</code>, <code>publicExponent</code>; <code>ec</code> adds <code>namedCurve</code>, <code>curve</code> (<code>P-256</code>, <code>P-384</code>, <code>P-521</code> or <code>undefined</code>), <code>pointFormat</code>, <code>point</code>; <code>ed25519</code>, <code>ed448</code>, <code>x25519</code>, <code>x448</code>, <code>ml-dsa-44</code>, <code>ml-dsa-65</code>, <code>ml-dsa-87</code> add <code>key</code>; <code>unknown</code> adds nothing</td>
+      </tr>
+      <tr>
+      <td><code>issuerUniqueId</code>, <code>subjectUniqueId</code></td>
+      <td><code>{ bytes, unusedBits }</code> or <code>undefined</code></td>
+      </tr>
+      <tr>
+      <td><code>extensions</code>, <code>diagnostics</code></td>
+      <td>In encoded order, below</td>
+      </tr>
+      </tbody></table>
+      <p>The fields of the extensions <code>getExtension</code> returns:</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Kind</th>
+      <th>Fields</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>basicConstraints</code></td>
+      <td><code>cA</code>, <code>pathLenConstraint</code> (<code>undefined</code> when absent)</td>
+      </tr>
+      <tr>
+      <td><code>keyUsage</code></td>
+      <td><code>usages</code> (<code>digitalSignature</code>, <code>nonRepudiation</code>, <code>keyEncipherment</code>, <code>dataEncipherment</code>, <code>keyAgreement</code>, <code>keyCertSign</code>, <code>cRLSign</code>, <code>encipherOnly</code>, <code>decipherOnly</code>), <code>bits</code></td>
+      </tr>
+      <tr>
+      <td><code>extendedKeyUsage</code></td>
+      <td><code>purposes</code>: KeyPurposeId OIDs, e.g. <code>1.3.6.1.5.5.7.3.1</code> (serverAuth)</td>
+      </tr>
+      <tr>
+      <td><code>subjectAltName</code>, <code>issuerAltName</code></td>
+      <td><code>names</code>: GeneralNames, by <code>kind</code> — <code>dNSName</code>, <code>rfc822Name</code>, <code>uniformResourceIdentifier</code> with <code>value</code>; <code>iPAddress</code> with <code>version</code>, <code>address</code>, <code>mask</code>, <code>bytes</code>; <code>directoryName</code> with <code>name</code>; <code>otherName</code> with <code>typeId</code>, <code>value</code>; <code>registeredID</code> with <code>oid</code>; <code>x400Address</code>, <code>ediPartyName</code> with <code>value</code></td>
+      </tr>
+      <tr>
+      <td><code>subjectKeyIdentifier</code></td>
+      <td><code>keyIdentifier</code></td>
+      </tr>
+      <tr>
+      <td><code>authorityKeyIdentifier</code></td>
+      <td><code>keyIdentifier</code>, <code>authorityCertIssuer</code>, <code>authorityCertSerialNumber</code></td>
+      </tr>
+      <tr>
+      <td><code>authorityInfoAccess</code>, <code>subjectInfoAccess</code></td>
+      <td><code>descriptions</code>: <code>{ accessMethod, accessLocation }</code> — <code>1.3.6.1.5.5.7.48.1</code> is OCSP, <code>1.3.6.1.5.5.7.48.2</code> CA issuers, the location a GeneralName (usually a <code>uniformResourceIdentifier</code>)</td>
+      </tr>
+      <tr>
+      <td><code>crlDistributionPoints</code>, <code>freshestCRL</code></td>
+      <td><code>points</code>: <code>{ fullName, nameRelativeToCRLIssuer, reasons, cRLIssuer }</code></td>
+      </tr>
+      <tr>
+      <td><code>certificatePolicies</code></td>
+      <td><code>policies</code>: <code>{ policyIdentifier, qualifiers }</code>, a qualifier <code>cps</code> with <code>uri</code>, <code>userNotice</code> with <code>noticeRef</code> and <code>explicitText</code>, or <code>unknown</code></td>
+      </tr>
+      <tr>
+      <td><code>policyMappings</code></td>
+      <td><code>mappings</code>: <code>{ issuerDomainPolicy, subjectDomainPolicy }</code></td>
+      </tr>
+      <tr>
+      <td><code>policyConstraints</code></td>
+      <td><code>requireExplicitPolicy</code>, <code>inhibitPolicyMapping</code></td>
+      </tr>
+      <tr>
+      <td><code>inhibitAnyPolicy</code></td>
+      <td><code>skipCerts</code></td>
+      </tr>
+      <tr>
+      <td><code>nameConstraints</code></td>
+      <td><code>permittedSubtrees</code>, <code>excludedSubtrees</code>: <code>{ base, minimum, maximum }</code>, <code>base</code> a GeneralName (an <code>iPAddress</code> base carries its <code>mask</code>)</td>
+      </tr>
+      <tr>
+      <td><code>signedCertificateTimestampList</code></td>
+      <td><code>list</code>: the RFC 6962 SCT list in its TLS encoding</td>
+      </tr>
+      <tr>
+      <td><code>ocspNoCheck</code></td>
+      <td>nothing beyond <code>oid</code>, <code>critical</code>, <code>valueDer</code></td>
+      </tr>
+      </tbody></table>
       <h2 id="every-extension-typed">Every extension, typed <a class="heading-anchor" href="#every-extension-typed" aria-label="Link to this section">#</a></h2>
       <p><code>cert.extensions</code> lists every extension in encoded order, each with <code>oid</code>, <code>critical</code> and <code>valueDer</code>, and a <code>kind</code> that says how it was decoded: <code>basicConstraints</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>subjectAltName</code>, <code>issuerAltName</code>, <code>subjectKeyIdentifier</code>, <code>authorityKeyIdentifier</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code>, <code>authorityInfoAccess</code>, <code>subjectInfoAccess</code>, <code>crlDistributionPoints</code>, <code>freshestCRL</code>, <code>signedCertificateTimestampList</code>, <code>ocspNoCheck</code> — or <code>unknown</code> for an extension pkinative does not decode. <code>getExtension(cert, kind)</code> returns the one of that kind, typed.</p>
-      <p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer)</code>.</p>
+      <p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer, { critical })</code>; <code>critical</code> (default <code>false</code>) is reported on the result and decides whether an unknown extension raises <code>PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION</code>.</p>
+      <p><code>computeFingerprint(der, algorithm)</code> takes <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code> (anything else is <code>PKI_INVALID_OPTION</code>); <code>formatFingerprint(digest, { separator, letterCase })</code> writes <code>96:BC:EC:…</code> by default — <code>separator</code> defaults to <code>&#39;:&#39;</code>, <code>letterCase</code> to <code>&#39;upper&#39;</code> (or <code>&#39;lower&#39;</code>), so <code>{ separator: &#39;&#39;, letterCase: &#39;lower&#39; }</code> gives the pinning form.</p>
       <h2 id="diagnostics-what-real-issuers-get-wrong">Diagnostics: what real issuers get wrong <a class="heading-anchor" href="#diagnostics-what-real-issuers-get-wrong" aria-label="Link to this section">#</a></h2>
       <p>A structural violation throws; a profile violation that real issuers commit is a diagnostic. Diagnostics are recorded on <code>cert.diagnostics</code>, each with a <code>code</code>, the RFC section it cites, a <code>path</code> and an <code>offset</code>:</p>
       <pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
@@ -96,7 +216,8 @@
       getOidName(&#39;2.5.29.17&#39;);                       // &#39;subjectAltName&#39;
       readInteger(integerNode);                      // 65537n
       </code></pre>
-      <p>The readers are <code>readBoolean</code>, <code>readInteger</code> (a bigint), <code>readSmallInteger</code> (a number), <code>readNull</code>, <code>readBitString</code>, <code>readOctetString</code>, <code>readObjectIdentifier</code>, <code>readString</code> (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and <code>readTime</code> (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, <code>encodeOid</code> and <code>decodeOid</code> convert between dotted text and content octets, <code>isValidOid</code> checks a string, and <code>getOidName</code> names 300+ registered OIDs. <code>decodePem</code> takes an optional <code>label</code> that every block must carry, and <code>mode: &#39;lax&#39;</code> accepts whitespace, long lines and RFC 1421 headers, each reported once per call as a diagnostic.</p>
+      <p>A node is <code>{ tagClass, tagNumber, constructed, offset, headerLength, contentLength, indefinite, bytes, content, children }</code>: <code>tagClass</code> is <code>&#39;universal&#39;</code>, <code>&#39;application&#39;</code>, <code>&#39;context&#39;</code> or <code>&#39;private&#39;</code>, <code>bytes</code> the whole encoding and <code>content</code> the content octets, both views of the input. A reader accepts its universal tag or any implicit (non-universal) tag, which it reads as its own type; <code>readString</code> and <code>readTime</code> need the type of an implicit tag — <code>readString(node, { stringType: &#39;ia5&#39; })</code>, <code>readTime(node, { timeType: &#39;GeneralizedTime&#39; })</code> — and throw <code>PKI_API_MISUSE</code> without it.</p>
+      <p>The readers are <code>readBoolean</code>, <code>readInteger</code> (a bigint), <code>readSmallInteger</code> (a number), <code>readNull</code>, <code>readBitString</code>, <code>readOctetString</code>, <code>readObjectIdentifier</code>, <code>readString</code> (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and <code>readTime</code> (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, <code>encodeOid</code> and <code>decodeOid</code> convert between dotted text and content octets, <code>isValidOid</code> checks a string, and <code>getOidName</code> names 300+ registered OIDs. <code>decodePem</code> returns blocks of <code>{ label, bytes, headers, offset }</code> — <code>headers</code> holds the RFC 1421 <code>[name, value]</code> pairs lax mode reads; it takes an optional <code>label</code> that every block must carry, and <code>mode: &#39;lax&#39;</code> accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. <code>OID_REGISTRY</code> entries are <code>{ oid, name, standard }</code>.</p>
       <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
       <ul>
       <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" rel="noopener">recipes/</a> — six executable recipes: the quick start, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, hostile input.</li>

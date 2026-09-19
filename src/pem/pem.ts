@@ -133,6 +133,7 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
         const body: Line[] = [];
         let endLine: Line | undefined;
         let endLabel = '';
+        const bodyStart = i + 1;
         for (i++; i < lines.length; i++) {
             const line = lines[i] as Line;
             const shown = boundary(line);
@@ -146,6 +147,10 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
             body.push(line);
         }
         if (endLine === undefined) {
+            if (!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))) {
+                throw new PkiEncodingError('PKI_PEM_UNTERMINATED',
+                    `pkinative: the "${label}" block at offset ${beginLine.start} has an END line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary — decode with mode: 'lax' to accept it`, beginLine.start);
+            }
             throw new PkiEncodingError('PKI_PEM_UNTERMINATED',
                 `pkinative: the "${label}" block at offset ${beginLine.start} has no matching END line — the text is truncated or spliced`, beginLine.start);
         }
@@ -212,6 +217,10 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
         blocks.push(Object.freeze({ label, bytes, headers: Object.freeze(headers), offset: beginLine.start }));
     }
     if (blocks.length === 0) {
+        if (!lax && lines.some((l) => BEGIN.test(l.text.trim()))) {
+            throw new PkiEncodingError('PKI_PEM_NO_BLOCK',
+                'pkinative: the text has a -----BEGIN line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary — decode with mode: \'lax\' to accept it', 0);
+        }
         throw new PkiEncodingError('PKI_PEM_NO_BLOCK',
             'pkinative: the text contains no -----BEGIN line — pass the PEM text itself, or call the DER function directly for binary input', 0);
     }

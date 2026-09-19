@@ -23,6 +23,7 @@ for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
 - Times are `epochMilliseconds` numbers; serial numbers are `{ bytes, hex, value: bigint }`.
 - Extensions: `getExtension(cert, kind)` with a kind such as `basicConstraints`, `keyUsage`, `extendedKeyUsage`, `subjectAltName`, `authorityKeyIdentifier`, `crlDistributionPoints`, `authorityInfoAccess`, `certificatePolicies`, `nameConstraints`.
 - Names: `formatDistinguishedName(cert.subject)` gives the RFC 4514 string.
+- Every field of `Certificate`, of `subjectPublicKeyInfo` (by `kind`: `rsa`, `ec`, `ed25519`, `ml-dsa-65`, …) and of each extension is in `docs/assets/api.json` (`members`) and in the quick start guide, section "What a certificate holds".
 
 ## Catch
 
