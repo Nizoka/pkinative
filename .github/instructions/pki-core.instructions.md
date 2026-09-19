@@ -42,3 +42,5 @@ applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**"
 - `asn1/` knows nothing of certificates; `x509/` reaches bytes only through `asn1/`
 - `x509/` does not import `oid/` (the name registry is tree-shaken data); it keeps its own internal OID constants
 - `pem/` does not import `asn1/`: PEM is a text envelope, not a decoder of its content
+- `x509/` does not import `pem/` and exports no PEM entry point (as Go separates `encoding/pem` from `crypto/x509`):
+  callers compose `decodePem(text, { label: 'CERTIFICATE' })` with `parseCertificate`, shown in `recipes/pem-bundle.ts`
