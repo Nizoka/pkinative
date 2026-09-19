@@ -30,11 +30,11 @@ Every failure is a `PkiError` subclass (`PkiEncodingError`, `PkiCertificateError
 
 ## Diagnostics are not errors
 
-Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has one. By default each code is logged once with `console.warn`; pass `onDiagnostic` to silence or redirect that.
+Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has one. By default each code is logged with `console.warn`, once per code in each call; pass `onDiagnostic` to silence or redirect that.
 
 ## Do not
 
 - Do not claim pkinative verifies signatures or validates chains: 0.1 parses only (verification arrives in 0.3, path validation in 0.5).
 - Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto.
 - Do not raise a limit (`options.limits`) for untrusted input.
-- Do not install pkinative from npm: 0.1 is `npm install github:Nizoka/pkinative#v0.1.0`.
+- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.1 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz`.

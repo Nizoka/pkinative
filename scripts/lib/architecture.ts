@@ -17,7 +17,9 @@
  *     bare package specifier, no dynamic `import()`, no `require`;
  *   - `class` appears only in the error module;
  *   - `console` appears only in the diagnostics module;
- *   - no runtime escape hatch (`eval`, `Function`, `fetch`, `process`, …).
+ *   - no runtime escape hatch (`eval`, `Function`, `fetch`, `process`, …);
+ *   - no Web Crypto key operation (`sign`, `generateKey`, `deriveBits`, …),
+ *     called or declared.
  *
  * @module scripts/lib/architecture
  */
@@ -50,6 +52,17 @@ export const DIAGNOSTICS_MODULE = 'src/core/pki-diagnostics.ts';
 export const FORBIDDEN_GLOBALS: ReadonlySet<string> = new Set([
     'eval', 'Function', 'fetch', 'WebSocket', 'XMLHttpRequest', 'EventSource',
     'process', 'require', 'module', 'exports', 'Buffer', 'setImmediate', 'importScripts', 'Deno', 'Bun',
+]);
+
+/**
+ * Web Crypto operations on keys. 0.1 reads public data and hashes it; it
+ * signs nothing, generates no key and touches no secret (AGENTS.md
+ * §Mission and constraints), so no module may name one — in a call or in a
+ * type. Verification (0.3) will allow `verify` and `importKey` of public keys
+ * here, in its own reviewed commit.
+ */
+export const KEY_OPERATIONS: ReadonlySet<string> = new Set([
+    'sign', 'verify', 'generateKey', 'deriveBits', 'deriveKey', 'encrypt', 'decrypt', 'wrapKey', 'unwrapKey', 'importKey', 'exportKey',
 ]);
 
 function finding(file: string, line: number, message: string): Finding {
@@ -104,6 +117,11 @@ function inspectModule(path: string, text: string): ModuleFacts {
     const lineAt = (node: ts.Node): number => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 
     const visit = (node: ts.Node): void => {
+        const member = ts.isPropertyAccessExpression(node) ? node.name
+            : (ts.isPropertySignature(node) || ts.isMethodSignature(node)) && ts.isIdentifier(node.name) ? node.name : undefined;
+        if (member !== undefined && KEY_OPERATIONS.has(member.text)) {
+            findings.push(finding(path, lineAt(node), `\`${member.text}\` is a key operation, and 0.1 signs nothing, generates no key and touches no secret — see SECURITY.md §Cryptographic Implementation Scope`));
+        }
         if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
             imports.push({ specifier: node.moduleSpecifier.text, line: lineAt(node) });
         } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {

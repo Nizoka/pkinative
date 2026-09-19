@@ -69,7 +69,7 @@
       <td><code>code</code>, <code>limit</code>, <code>configured</code>, <code>observed</code></td>
       </tr>
       </tbody></table>
-      <p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. Codes are additions-only until 0.9, when the vocabulary freezes under semantic versioning.</p>
+      <p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.</p>
       <h2 id="error-codes">Error codes <a class="heading-anchor" href="#error-codes" aria-label="Link to this section">#</a></h2>
       <h3 id="usage">Usage <a class="heading-anchor" href="#usage" aria-label="Link to this section">#</a></h3>
       <ul>

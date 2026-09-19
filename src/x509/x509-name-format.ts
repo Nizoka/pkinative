@@ -6,13 +6,16 @@
  * type prints its dotted OID, and its value as `#` and the hex of its
  * encoding (§2.4), as does a value that is not a character string.
  *
- * Beyond the escapes §2.4 requires, control characters are escaped as `\hh`
- * so a crafted name cannot drive the terminal that displays it.
+ * Beyond the escapes §2.4 requires, C0 and C1 control characters, DEL and
+ * the bidirectional controls are escaped as the `\hh` pairs of their UTF-8
+ * octets, so a crafted name can neither drive the terminal that displays it
+ * nor reorder what it shows.
  *
  * @module x509/x509-name-format
  */
 
 import { toHex } from '../core/bytes.js';
+import { encodeUtf8 } from '../core/text.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { AttributeTypeAndValue, DistinguishedName } from '../types/x509-types.js';
 
@@ -30,12 +33,22 @@ const SHORT_NAMES: ReadonlyMap<string, string> = /*#__PURE__*/ new Map([
 
 const SPECIAL = '"+,;<>\\';
 
+/** Bidirectional controls: they reorder what a terminal or a UI shows (CVE-2021-42574). */
+const BIDI_CONTROLS: ReadonlySet<number> = /*#__PURE__*/ new Set([0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069]);
+
+/** RFC 4514 §2.4 hexpairs: the UTF-8 octets of one character, each as `\hh`. */
+function hexpairs(ch: string): string {
+    let out = '';
+    for (const octet of encodeUtf8(ch) ?? []) out += `\\${octet.toString(16).padStart(2, '0')}`;
+    return out;
+}
+
 function escapeValue(text: string): string {
     let out = '';
     for (let i = 0; i < text.length; i++) {
         const ch = text.charAt(i);
         const code = text.charCodeAt(i);
-        if (code < 0x20 || code === 0x7f) out += `\\${code.toString(16).padStart(2, '0')}`;
+        if (code < 0x20 || (code >= 0x7f && code <= 0x9f) || BIDI_CONTROLS.has(code)) out += hexpairs(ch);
         else if (SPECIAL.includes(ch)) out += `\\${ch}`;
         else if ((i === 0 && (ch === ' ' || ch === '#')) || (i === text.length - 1 && ch === ' ')) out += `\\${ch}`;
         else out += ch;

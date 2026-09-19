@@ -63,6 +63,12 @@ function core(input: Uint8Array, iv: readonly number[], outputLength: 48 | 64): 
     const wh = new Uint32Array(80);
     const wl = new Uint32Array(80);
     const t = new Uint32Array(2);
+    /** state[i], state[i + 1] += (high, low) modulo 2^64 — per word, allocating nothing. */
+    const fold = (i: number, high: number, low: number): void => {
+        add(t, state[i] as number, state[i + 1] as number, high, low);
+        state[i] = t[0] as number;
+        state[i + 1] = t[1] as number;
+    };
 
     for (let offset = 0; offset < padded.length; offset += 128) {
         for (let j = 0; j < 16; j++) {
@@ -129,12 +135,14 @@ function core(input: Uint8Array, iv: readonly number[], outputLength: 48 | 64): 
             aH = t[0] as number; aL = t[1] as number;
         }
 
-        const rounds = [aH, aL, bH, bL, cH, cL, dH, dL, eH, eL, fH, fL, gH, gL, hH, hL];
-        for (let i = 0; i < 16; i += 2) {
-            add(t, state[i] as number, state[i + 1] as number, rounds[i] as number, rounds[i + 1] as number);
-            state[i] = t[0] as number;
-            state[i + 1] = t[1] as number;
-        }
+        fold(0, aH, aL);
+        fold(2, bH, bL);
+        fold(4, cH, cL);
+        fold(6, dH, dL);
+        fold(8, eH, eL);
+        fold(10, fH, fL);
+        fold(12, gH, gL);
+        fold(14, hH, hL);
     }
 
     const out = new Uint8Array(64);

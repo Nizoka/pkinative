@@ -9,7 +9,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 0.1 — pre-1.0, not on npm.** The npm name is reserved by an empty 0.0.1; versions below 1.0.0 are git tags, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.1 reads certificates; it does not verify signatures or validate chains yet.
+> **Status: 0.1 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.1 reads certificates; it does not verify signatures or validate chains yet.
 
 ## Why pkinative?
 
@@ -41,13 +41,14 @@ Choose pkinative to **read** certificates strictly with nothing else installed; 
 
 ## Installation
 
-pkinative 0.1 is a git tag, not an npm release:
+pkinative 0.1 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
 
 ```bash
-npm install github:Nizoka/pkinative#v0.1.0
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz
+gh attestation verify pkinative-0.1.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
-Node.js ≥ 22, current browsers, Deno, Bun and Cloudflare Workers run the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
+A plain git install (`github:Nizoka/pkinative#v0.1.0`) does not work: `dist/` is not committed. Node.js ≥ 22, current browsers, Deno, Bun and Cloudflare Workers run the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
 
 ## Quick start
 
@@ -81,8 +82,8 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Area | Exports |
 |---|---|
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
-| PEM | `decodePem` (strict or lax RFC 7468, with a required label), `encodePem` |
-| ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`, typed readers for every universal type, DER encoders, `encodeAsn1Node` (byte-identical re-encoding) |
+| PEM | `decodePem` (strict or lax RFC 7468, optionally restricted to one label), `encodePem` |
+| ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`, typed readers (BOOLEAN, INTEGER, NULL, BIT STRING, OCTET STRING, OBJECT IDENTIFIER, eight string types, both time types), DER encoders, `encodeAsn1Node` (byte-identical re-encoding) |
 | OIDs | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName` over a registry of 300+ names |
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |

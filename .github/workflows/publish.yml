@@ -13,11 +13,12 @@ on:
 #   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
 #   bound to this file AND to the `npm-publish` environment below. Trusted
 #   Publishing can only be configured on a package that already exists: the
-#   maintainer published the 0.0.1 name reservation by hand.
+#   maintainer publishes an empty 0.0.1 name reservation by hand first.
 #
 # Pre-1.0 policy: versions below 1.0.0 are git tags, never npm releases
-# (ROADMAP.md). The workflow is complete so it is exercised and audited from
-# day one, and its first step after the tag check refuses such a version.
+# (ROADMAP.md); release-assets.yml attests and attaches their tarball. This
+# workflow is complete so it is exercised and audited from day one, and its
+# first step after the tag check refuses such a version.
 #
 # Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
 # and approves the `npm-publish` environment; nothing here opens or edits a
@@ -106,9 +107,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # The publish profile runs the conformance gate, which needs the pinned
+      # corpora; without them --require-all fails the release, as it should.
+      - name: Fetch the pinned conformance corpora
+        run: npm run conformance:fetch
+
       # Every gate step — typecheck, lint, coverage, build, package checks,
-      # bundle, docs. --require-all: a missing tool fails the release instead
-      # of skipping.
+      # bundle, install smoke test, docs, conformance. --require-all: a missing
+      # tool fails the release instead of skipping.
       - name: Run the quality gate (publish profile)
         run: npx tsx scripts/gate.ts --publish --require-all
 

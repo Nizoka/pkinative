@@ -46,7 +46,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 0.1 — pre-1.0, not on npm.** The npm name is reserved by an empty 0.0.1; versions below 1.0.0 are git tags, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.1 reads certificates; it does not verify signatures or validate chains yet.
+> **Status: 0.1 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.1 reads certificates; it does not verify signatures or validate chains yet.
 
 ## Why pkinative?
 
@@ -78,13 +78,14 @@ Choose pkinative to **read** certificates strictly with nothing else installed; 
 
 ## Installation
 
-pkinative 0.1 is a git tag, not an npm release:
+pkinative 0.1 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
 
 ```bash
-npm install github:Nizoka/pkinative#v0.1.0
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz
+gh attestation verify pkinative-0.1.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
-Node.js ≥ 22, current browsers, Deno, Bun and Cloudflare Workers run the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
+A plain git install (`github:Nizoka/pkinative#v0.1.0`) does not work: `dist/` is not committed. Node.js ≥ 22, current browsers, Deno, Bun and Cloudflare Workers run the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
 
 ## Quick start
 
@@ -118,8 +119,8 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Area | Exports |
 |---|---|
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
-| PEM | `decodePem` (strict or lax RFC 7468, with a required label), `encodePem` |
-| ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`, typed readers for every universal type, DER encoders, `encodeAsn1Node` (byte-identical re-encoding) |
+| PEM | `decodePem` (strict or lax RFC 7468, optionally restricted to one label), `encodePem` |
+| ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`, typed readers (BOOLEAN, INTEGER, NULL, BIT STRING, OCTET STRING, OBJECT IDENTIFIER, eight string types, both time types), DER encoders, `encodeAsn1Node` (byte-identical re-encoding) |
 | OIDs | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName` over a registry of 300+ names |
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
@@ -181,13 +182,13 @@ pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures.
 
 ## Install
 
-pkinative 0.1 is a git tag, not an npm release:
+pkinative 0.1 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
-npm install github:Nizoka/pkinative#v0.1.0
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz
 ```
 
-Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`gh attestation verify pkinative-0.1.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
 
 ## Read a certificate
 
@@ -223,7 +224,7 @@ const cert = parseCertificate(der, { onDiagnostic: (d) => log(d.code, d.path, d.
 cert.diagnostics;   // the same list, in order
 ```
 
-By default each code is also written once to `console.warn`; `onDiagnostic` replaces that, and `strict: true` turns the first diagnostic into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC` — the choice for a verifier that accepts only clean certificates.
+By default each code is also written to `console.warn`, once per code in each call; `onDiagnostic` replaces that, and `strict: true` turns the first diagnostic into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC` — the choice for a verifier that accepts only clean certificates.
 
 ## Errors: branch on the code
 
@@ -254,9 +255,25 @@ parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
 
 The [security guide](security.md) lists them with their defaults and CWE.
 
+## Below the certificate: ASN.1 and OIDs
+
+The layers the certificate parser stands on are public too. `decodeAsn1` decodes one DER value (BER with `encodingRules: 'ber'`) into frozen nodes that keep their exact bytes; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; `encodeAsn1Node` re-encodes a decoded tree to the exact input bytes:
+
+```ts
+import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from 'pkinative';
+
+const der = encodeSequence([encodeObjectIdentifier('2.5.29.17'), encodeInteger(65537n)]);
+const [oidNode, integerNode] = decodeAsn1(der).children;
+readObjectIdentifier(oidNode);                 // '2.5.29.17'
+getOidName('2.5.29.17');                       // 'subjectAltName'
+readInteger(integerNode);                      // 65537n
+```
+
+The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace, long lines and RFC 1421 headers, each reported once per call as a diagnostic.
+
 ## Next
 
-- [recipes/](../../recipes/) — five executable recipes: a CA bundle, fingerprints, extensions on demand, hostile input.
+- [recipes/](../../recipes/) — six executable recipes: the quick start, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, hostile input.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -336,7 +353,7 @@ Report privately through GitHub's private vulnerability reporting, never in an i
 `scripts/validate-certs.ts` runs the package from `dist/` — what users get, not the sources:
 
 - **L0 — pins and canaries.** The files match their SHA-256, and the case counts match the values declared in `ecosystem.json`, so a silently changed corpus fails loudly.
-- **L1 — parse or refuse by the rules.** Every one of the 30 361 unique x509-limbo certificates parses, or throws a `PkiError`. A refusal is allowed only when every limbo case using that certificate expects failure, and only as recorded in the reviewed baseline `scripts/data/limbo-refusals.json`: 564 certificates refused — unknown GeneralName tags, malformed name forms, iPAddress lengths, empty subtree lists, an empty extended key usage, a duplicated extension, an emoji in a DNS name, and two denial-of-service certificates stopped by `maxNameAttributes`. A baseline entry that starts to parse is an `UNEXPECTED-PASS`; any other exception fails the gate.
+- **L1 — parse or refuse by the rules.** Every one of the 30 361 unique x509-limbo certificates parses, or throws a `PkiError`. A refusal is allowed only when every limbo case using that certificate expects failure, and only as recorded in the reviewed baseline `scripts/data/limbo-refusals.json`: 564 certificates refused — unknown GeneralName tags, malformed name forms, iPAddress lengths, empty subtree lists, an empty extended key usage, two truncated extension values (subjectAltName, authorityInfoAccess), an issuer RSA key that is not an RSAPublicKey, a duplicated extension, an emoji in a DNS name, and two denial-of-service certificates stopped by `maxNameAttributes`. A baseline entry that starts to parse is an `UNEXPECTED-PASS`; any other exception fails the gate.
 - **L2 — byte identity.** Every certificate re-encodes byte for byte from its decoded tree, and the boundaries of `tbsCertificate` and `signatureValue` agree with `scripts/lib/raw-der.ts`, a walker written separately that never imports `src/`.
 - **L3 — OpenSSL.** Every parsed certificate agrees with `node:crypto.X509Certificate` on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 200 agrees with the `openssl` command-line tool — two OpenSSL builds, the one inside Node and the system one. `--require-all` turns a missing tool into a failure.
 - **Wycheproof.** Every ECDSA signature is decoded as a strict `Ecdsa-Sig-Value`: every valid vector must decode, and every vector flagged `BerEncodedSignature`, `InvalidEncoding` or `InvalidTypesInSignature` must be refused.
@@ -347,7 +364,7 @@ x509-limbo also scores path validation — whether a chain should be accepted. p
 
 ## Where it runs
 
-`.github/workflows/conformance.yml` runs the gate on every push and pull request as the required `conformance` check, and weekly on the pinned corpora; the release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
+`.github/workflows/conformance.yml` runs the gate on every push to `main` and every pull request into it as the required `conformance` check, weekly, and on demand; the release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
 
 ```bash
 npm run build
@@ -375,7 +392,7 @@ Six public certificates are committed as known-answer fixtures, each with its so
 | `PkiCertificateError` | The RFC 5280 certificate structure | `code`, `path`, `offset` |
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 
-Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Codes are additions-only until 0.9, when the vocabulary freezes under semantic versioning.
+Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
 ## Error codes
 

@@ -52,6 +52,7 @@
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:scripts",
     "check:package": "npm run build && npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm && npx publint",
     "verify:bundle": "npx tsx scripts/verify-bundle.ts",
+    "smoke:install": "npx tsx scripts/smoke-install.ts",
     "docs:api": "npx tsx scripts/build-api-json.ts",
     "docs:guides": "npx tsx scripts/build-guides.ts",
     "docs:llms": "npx tsx scripts/build-llms-full.ts",

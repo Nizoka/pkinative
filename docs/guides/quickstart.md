@@ -4,13 +4,13 @@
 
 ## Install
 
-pkinative 0.1 is a git tag, not an npm release:
+pkinative 0.1 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
-npm install github:Nizoka/pkinative#v0.1.0
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz
 ```
 
-Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`gh attestation verify pkinative-0.1.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
 
 ## Read a certificate
 
@@ -46,7 +46,7 @@ const cert = parseCertificate(der, { onDiagnostic: (d) => log(d.code, d.path, d.
 cert.diagnostics;   // the same list, in order
 ```
 
-By default each code is also written once to `console.warn`; `onDiagnostic` replaces that, and `strict: true` turns the first diagnostic into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC` — the choice for a verifier that accepts only clean certificates.
+By default each code is also written to `console.warn`, once per code in each call; `onDiagnostic` replaces that, and `strict: true` turns the first diagnostic into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC` — the choice for a verifier that accepts only clean certificates.
 
 ## Errors: branch on the code
 
@@ -77,8 +77,24 @@ parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
 
 The [security guide](security.md) lists them with their defaults and CWE.
 
+## Below the certificate: ASN.1 and OIDs
+
+The layers the certificate parser stands on are public too. `decodeAsn1` decodes one DER value (BER with `encodingRules: 'ber'`) into frozen nodes that keep their exact bytes; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; `encodeAsn1Node` re-encodes a decoded tree to the exact input bytes:
+
+```ts
+import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from 'pkinative';
+
+const der = encodeSequence([encodeObjectIdentifier('2.5.29.17'), encodeInteger(65537n)]);
+const [oidNode, integerNode] = decodeAsn1(der).children;
+readObjectIdentifier(oidNode);                 // '2.5.29.17'
+getOidName('2.5.29.17');                       // 'subjectAltName'
+readInteger(integerNode);                      // 65537n
+```
+
+The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace, long lines and RFC 1421 headers, each reported once per call as a diagnostic.
+
 ## Next
 
-- [recipes/](../../recipes/) — five executable recipes: a CA bundle, fingerprints, extensions on demand, hostile input.
+- [recipes/](../../recipes/) — six executable recipes: the quick start, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, hostile input.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.

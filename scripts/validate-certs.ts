@@ -310,18 +310,15 @@ async function main(): Promise<number> {
 
 function report(): number {
     const failed = failures.length > 0 || (requireAll && skips.length > 0);
-    const summary = [
-        '## pkinative conformance',
-        '',
-        '```',
+    const body = [
         ...lines,
         ...skips.map((s) => `SKIP   ${s}`),
         ...failures.slice(0, 50).map((f) => `FAIL   ${f}`),
-        failures.length > 50 ? `FAIL   … ${failures.length - 50} more` : '',
+        ...(failures.length > 50 ? [`FAIL   … ${failures.length - 50} more`] : []),
         `${failed ? 'FAILED' : 'PASSED'}: ${failures.length} failure(s), ${skips.length} skip(s)${requireAll ? ' (--require-all)' : ''}`,
-        '```',
-    ].filter((l) => l !== '');
-    console.log(summary.slice(3, -1).join('\n'));
+    ];
+    console.log(body.join('\n'));
+    const summary = ['## pkinative conformance', '', '```', ...body, '```'];
     mkdirSync(REPORT_DIR, { recursive: true });
     writeFileSync(join(REPORT_DIR, 'report.json'), `${JSON.stringify({ level, lines, skips, failures }, null, 2)}\n`);
     const stepSummary = process.env['GITHUB_STEP_SUMMARY'];

@@ -14,7 +14,7 @@
  */
 
 import { posix } from 'node:path';
-import { guideAnchors, guideOutputs, SITE, type Reader } from '../../build-guides.js';
+import { GUIDES, guideAnchors, guideOutputs, SITE, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
@@ -285,29 +285,42 @@ const apiExists: Rule = {
     },
 };
 
+const NUMBER_WORDS: readonly string[] = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${NUMBER_WORDS.join('|')})`;
+
+function quotedValue(token: string): number {
+    const word = NUMBER_WORDS.indexOf(token.toLowerCase());
+    return word >= 0 ? word : Number(token.replace(/[ \u00a0,]/g, ''));
+}
+
 const countTokens: Rule = {
     id: 'count-tokens',
-    summary: 'Every conformance and API count quoted in the README, the changelog and the docs equals its source: the canaries of docs/assets/ecosystem.json and the export count of docs/assets/api.json.',
+    summary: 'Every count quoted in the README, the changelog and the docs \u2014 in digits or in words \u2014 equals its source: the corpus canaries of docs/assets/ecosystem.json, the export count of docs/assets/api.json, the limits of docs/data/limits.json, the guides and the recipes.',
     check(ctx) {
         const ecosystem = readJson<{ declared?: Record<string, Record<string, number | string>> }>(ctx, 'docs/assets/ecosystem.json');
         const api = readJson<{ exportCount?: number }>(ctx, 'docs/assets/api.json');
-        if ('finding' in ecosystem) return [ecosystem.finding];
-        if ('finding' in api) return [api.finding];
+        const limits = readJson<Record<string, unknown>>(ctx, 'docs/data/limits.json');
+        const recipes = readJson<{ recipes?: unknown[] }>(ctx, 'recipes/index.json');
+        for (const parsed of [ecosystem, api, limits, recipes]) if ('finding' in parsed) return [parsed.finding];
+        if ('finding' in ecosystem || 'finding' in api || 'finding' in limits || 'finding' in recipes) return [];
         const limbo = ecosystem.value.declared?.['x509-limbo'] ?? {};
+        const limitList = Object.values(limits.value).find(Array.isArray);
         const phrases: ReadonlyArray<readonly [string, unknown]> = [
             ['unique x509-limbo certificates', limbo['certificates']],
             ['x509-limbo test cases', limbo['testcases']],
             ['certificates refused', limbo['refused']],
             ['Wycheproof ECDSA vectors', ecosystem.value.declared?.['wycheproof']?.['tests']],
             ['public exports', api.value.exportCount],
+            ['(?:named, CWE-tagged |named |CWE-tagged )?limits', limitList?.length],
+            ['guides', GUIDES.length],
+            ['executable recipes', recipes.value.recipes?.length],
         ];
         const out: Finding[] = [];
         for (const path of PROSE_SOURCES(ctx)) {
             const text = ctx.read(path) ?? '';
             for (const [phrase, value] of phrases) {
-                for (const m of text.matchAll(new RegExp(`(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+)\\s+${phrase}`, 'g'))) {
-                    const quoted = Number((m[1] ?? '').replace(/[ \u00a0,]/g, ''));
-                    if (quoted !== value) out.push(error(path, `quotes ${m[1] ?? ''} ${phrase}; the source says ${String(value)}`, lineContaining(text, m[0])));
+                for (const m of text.matchAll(new RegExp(`\\b${NUMBER}\\s+${phrase}\\b`, 'gi'))) {
+                    if (quotedValue(m[1] ?? '') !== value) out.push(error(path, `quotes "${m[0]}"; the source says ${String(value)}`, lineContaining(text, m[0])));
                 }
             }
         }

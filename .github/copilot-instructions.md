@@ -84,7 +84,7 @@ npm run agents:rules       # regenerate .claude/rules/ from .github/instructions
 - DER is the default and is strict: indefinite lengths, non-minimal lengths and tags, constructed strings, non-canonical BOOLEAN and INTEGER, non-zero BIT STRING padding and trailing data all throw
 - BER is an explicit option (`encodingRules: 'ber'`) and raises a diagnostic when it accepts a BER-only construct
 - Every decoded node keeps its absolute offset and a zero-copy view of its exact bytes, so signed bytes are never re-serialised
-- UTCTime maps 50–99 to 1950–1999 and 00–49 to 2000–2049; `Z` and seconds are required; out-of-range fields throw
+- UTCTime maps 50–99 to 1950–1999 and 00–49 to 2000–2049; under DER `Z` and seconds are required (BER accepts their absence with a diagnostic); out-of-range fields throw
 - 0.1 parses certificates; it never verifies a signature and never builds or validates a chain
 
 ### API

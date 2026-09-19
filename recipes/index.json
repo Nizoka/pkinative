@@ -51,6 +51,22 @@
       ]
     },
     {
+      "file": "asn1-and-oids.ts",
+      "task": "Build DER with the encoders, read typed fields back, re-encode a certificate byte for byte, and encode, decode, validate and name OIDs",
+      "surface": ["encodeSequence", "encodeObjectIdentifier", "encodeInteger", "encodeString", "encodeTime", "decodeAsn1", "readObjectIdentifier", "readInteger", "readString", "readTime", "encodeAsn1Node", "encodeOid", "decodeOid", "isValidOid", "getOidName"],
+      "since": "0.1.0",
+      "expects": [
+        "oid=2.5.29.17 subjectAltName",
+        "integer=65537",
+        "text=Zoë",
+        "time=UTCTime 491231235959Z",
+        "reencoded=true",
+        "oidRoundTrip=true",
+        "oidName=sha256WithRSAEncryption",
+        "validOid=true false"
+      ]
+    },
+    {
       "file": "hostile-input.ts",
       "task": "Meet hostile input with typed errors and caller-tightened limits, never a crash",
       "surface": ["decodeAsn1", "readInteger", "parseCertificate", "PkiError", "PkiEncodingError", "PkiLimitError"],

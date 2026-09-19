@@ -8,7 +8,7 @@
       "status": "active",
       "engine": { "node": ">=22" },
       "site": "https://pkinative.dev",
-      "npm": "name reservation only (0.0.1); pre-1.0 versions are git tags, the first npm publication is 1.0.0"
+      "npm": "not published; pre-1.0 versions are git tags with an attested release tarball, the first npm publication is 1.0.0"
     }
   },
   "family": {

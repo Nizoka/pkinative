@@ -158,6 +158,30 @@ describe('conformance.yml', () => {
     });
 });
 
+describe('release-assets.yml', () => {
+    const assets = readWorkflow('release-assets.yml');
+
+    it('should gate, pack, prove the install, attest and attach the tarball of every pre-1.0 release, in that order', () => {
+        const order = [
+            'does not match package.json version',
+            'run: npm run conformance:fetch',
+            'run: npx tsx scripts/gate.ts --publish --require-all',
+            'npm sbom --sbom-format cyclonedx --omit dev --package-lock-only',
+            'npx tsx scripts/smoke-install.ts',
+            'uses: actions/attest-build-provenance@',
+            'gh release upload "v${VERSION}"',
+        ].map((needle) => assets.indexOf(needle));
+        expect(order.every((i) => i >= 0)).toBe(true);
+        expect([...order].sort((a, b) => a - b)).toEqual(order);
+        expect(assets).not.toMatch(/gh release create|npm publish/);
+    });
+
+    it('should act only on versions below 1.0.0, which publish.yml refuses', () => {
+        expect(assets).toMatch(/if \[ "\$\{VERSION%%\.\*\}" = "0" \]/);
+        expect([...assets.matchAll(/if: steps\.version\.outputs\.prerelease == 'true'/g)].length).toBeGreaterThanOrEqual(7);
+    });
+});
+
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');
     const jobs = jobSteps(publish);

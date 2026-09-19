@@ -14,8 +14,8 @@ What counts as a vulnerability here: an input that makes pkinative accept an enc
 
 | Version | Supported |
 |---------|-----------|
-| 0.x (latest tag) | ✅ (pre-1.0: fixes land in the next tag) |
-| npm `0.0.1` | ❌ name reservation, contains no code |
+| 0.x (latest tag and its release tarball) | ✅ (pre-1.0: fixes land in the next tag) |
+| npm `0.0.1` (name reservation, when published) | ❌ contains no code |
 
 ## Security Model
 
@@ -23,7 +23,7 @@ pkinative is a pure TypeScript library with **zero runtime dependencies**. Every
 
 ### Cryptographic Implementation Scope
 
-pkinative **never implements secret-dependent cryptography in TypeScript**. There is no signing, no key generation, no RSA modular exponentiation and no elliptic-curve scalar multiplication in `src/`, and the architecture test fails the build if a module reaches for one.
+pkinative **never implements secret-dependent cryptography in TypeScript**. There is no signing, no key generation, no RSA modular exponentiation and no elliptic-curve scalar multiplication in `src/`. The architecture test (`tests/tools/architecture.test.ts`) fails the build if any module names a Web Crypto key operation — `sign`, `verify`, `generateKey`, `deriveBits`, `deriveKey`, `encrypt`, `decrypt`, `wrapKey`, `unwrapKey`, `importKey`, `exportKey` — in a call or in a type; arithmetic cannot be recognised from the syntax tree, so modular and elliptic-curve arithmetic are kept out by review, and none exists in `src/`.
 
 - Signature verification and certificate creation (from 0.3) go through Web Crypto (`crypto.subtle`), whose implementations run in constant time in the host.
 - Hashing (SHA-1, SHA-256, SHA-384, SHA-512) is implemented in TypeScript for synchronous fingerprints of **public** data only; these functions are not exported as general-purpose hashes.

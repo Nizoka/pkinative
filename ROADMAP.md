@@ -1,6 +1,6 @@
 # Roadmap
 
-pkinative grows in milestones, each one a git tag with its own release note. Versions below 1.0.0 are never published to npm; the name is reserved by an empty 0.0.1, and 1.0.0 is the first npm release. Every milestone ships under the same gate, the same limits discipline and the same conformance corpora.
+pkinative grows in milestones, each one a git tag with its own release note. Versions below 1.0.0 are never published to npm: each is a git tag whose GitHub release carries an attested tarball, and 1.0.0 is the first npm release. Every milestone ships under the same gate, the same limits discipline and the same conformance corpora.
 
 ## 0.1.x — M1: Read-only foundation *(0.1.0)*
 

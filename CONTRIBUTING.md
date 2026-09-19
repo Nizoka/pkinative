@@ -163,7 +163,7 @@ The version bump is mechanical; the judgement goes into the release note.
 6. `npx tsx scripts/gate.ts --publish --require-all`: the full gate, conformance included.
 7. Draft the pull-request body from [release-notes/PR_TEMPLATE.md](release-notes/PR_TEMPLATE.md) into `RELEASE_PR_vX.Y.Z.md` at the repository root (git-ignored); paste the numbers the gate printed into its Verification section.
 8. Squash-merge with the title `release: vX.Y.Z — <headline>`, where the headline is the release note's GitHub Release title.
-9. The maintainer tags `vX.Y.Z` on the merge commit and publishes the GitHub Release (title `vX.Y.Z — <headline>`, body = the release note). Below 1.0.0, `publish.yml` refuses to publish to npm by design; from 1.0.0 it waits for the `npm-publish` environment's reviewer, runs the publish gate, publishes with provenance and attests the tarball and SBOM.
+9. The maintainer tags `vX.Y.Z` on the merge commit and publishes the GitHub Release (title `vX.Y.Z — <headline>`, body = the release note). Below 1.0.0, `release-assets.yml` builds the tag, runs the publish gate, proves the tarball installs, and attaches it with its SBOM and build provenance to the release, while `publish.yml` refuses to publish to npm by design; from 1.0.0 it waits for the `npm-publish` environment's reviewer, runs the publish gate, publishes with provenance and attests the tarball and SBOM.
 10. After a 1.x publication: `npm view pkinative version`.
 
 ### Branch protection

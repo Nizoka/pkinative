@@ -12,20 +12,20 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 2419,
-      "approxTokens": 605
+      "bytes": 2566,
+      "approxTokens": 642
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 34399,
-      "approxTokens": 8600
+      "bytes": 37193,
+      "approxTokens": 9298
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 9768,
-      "approxTokens": 2442
+      "bytes": 11835,
+      "approxTokens": 2959
     },
     {
       "url": "assets/api.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 2419,
-      "approxTokens": 605
+      "bytes": 2432,
+      "approxTokens": 608
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 1547,
-      "approxTokens": 387
+      "bytes": 1564,
+      "approxTokens": 391
     }
   ],
   "guides": [
@@ -77,10 +77,11 @@
         "diagnostics-what-real-issuers-get-wrong",
         "errors-branch-on-the-code",
         "limits",
+        "below-the-certificate-asn1-and-oids",
         "next"
       ],
-      "bytes": 4608,
-      "approxTokens": 1152
+      "bytes": 6521,
+      "approxTokens": 1630
     },
     {
       "title": "Security model",
@@ -110,8 +111,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 3857,
-      "approxTokens": 964
+      "bytes": 3987,
+      "approxTokens": 997
     },
     {
       "title": "Errors and diagnostics",
@@ -128,8 +129,8 @@
         "limits",
         "diagnostics"
       ],
-      "bytes": 5553,
-      "approxTokens": 1388
+      "bytes": 5759,
+      "approxTokens": 1440
     },
     {
       "title": "Choosing a PKI library",

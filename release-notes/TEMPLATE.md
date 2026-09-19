@@ -88,10 +88,11 @@ _Released YYYY-MM-DD_
 
 ## Install
 
-<!-- Pre-1.0 install honesty: versions below 1.0.0 are git tags, not npm releases. -->
+<!-- Pre-1.0 install honesty: versions below 1.0.0 are git tags, not npm releases. A git
+     install carries no dist/, so the command is the tarball release-assets.yml attaches. -->
 
 \`\`\`bash
-npm install github:Nizoka/pkinative#vX.Y.Z
+npm install https://github.com/Nizoka/pkinative/releases/download/vX.Y.Z/pkinative-X.Y.Z.tgz
 \`\`\`
 
 ## Upgrade
@@ -127,7 +128,7 @@ Thanks to @handle1, @handle2 for contributions to this release.
 - **Security section first** when a release contains security fixes — always include the CWE identifier and mitigation.
 - **Code blocks** for install commands and migration examples only.
 - **Backward-compatibility statement** in the summary paragraph for every release.
-- **Pre-1.0 install honesty.** Below 1.0.0 the Install section installs from the git tag and says the version is not on npm.
+- **Pre-1.0 install honesty.** Below 1.0.0 the Install section installs the attested tarball of the GitHub release (never a git URL, which carries no `dist/`) and says the version is not on npm.
 
 ## Publication workflow
 

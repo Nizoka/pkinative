@@ -67,6 +67,20 @@ describe('checkArchitecture', () => {
         expect(checkArchitecture(base)).toEqual([]);
     });
 
+    it.each([
+        ['a Web Crypto signature', "export const s = (k: never, d: Uint8Array): unknown => (globalThis as { crypto: { subtle: { sign: (...a: unknown[]) => unknown } } }).crypto.subtle.sign('ECDSA', k, d);\n"],
+        ['a key generation', 'export const g = (subtle: { generateKey(): void }): void => subtle.generateKey();\n'],
+        ['a key operation declared in a type', 'export interface Subtle { deriveBits(): void }\n'],
+    ])('should refuse %s in src/', (_, source) => {
+        const files = { ...base, 'src/core/keys.ts': source };
+        expect(messages(files).some((m) => m.startsWith('src/core/keys.ts') && m.includes('is a key operation'))).toBe(true);
+    });
+
+    it('should allow a digest, the one Web Crypto operation 0.1 uses', () => {
+        const files = { ...base, 'src/core/hash.ts': 'export const d = (s: { digest(a: string, b: Uint8Array): unknown }, b: Uint8Array): unknown => s.digest(\'SHA-256\', b);\n' };
+        expect(checkArchitecture(files)).toEqual([]);
+    });
+
     it('should refuse a reverse edge (asn1 → x509) and name both layers', () => {
         const files = { ...base, 'src/asn1/asn1-decode.ts': "import { parse } from '../x509/x509-certificate.js';\nexport const decode = (): Uint8Array => parse();\n" };
         expect(messages(files).some((m) => m.includes('layer "asn1" imports layer "x509"'))).toBe(true);

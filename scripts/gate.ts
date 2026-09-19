@@ -126,6 +126,7 @@ export const STEPS: readonly Step[] = [
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:bundle', npmScript: 'verify:bundle', profiles: ['ci', 'publish'] },
+    { id: 'smoke:install', npmScript: 'smoke:install', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
     {
         // Needs the network once (npm run conformance:fetch), so it stays out of

@@ -11,7 +11,7 @@
 | `PkiCertificateError` | The RFC 5280 certificate structure | `code`, `path`, `offset` |
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 
-Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Codes are additions-only until 0.9, when the vocabulary freezes under semantic versioning.
+Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
 ## Error codes
 

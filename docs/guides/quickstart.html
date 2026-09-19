@@ -40,10 +40,10 @@
       <p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 0.1 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
       </blockquote>
       <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
-      <p>pkinative 0.1 is a git tag, not an npm release:</p>
-      <pre><code class="language-bash">npm install github:Nizoka/pkinative#v0.1.0
+      <p>pkinative 0.1 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:</p>
+      <pre><code class="language-bash">npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz
       </code></pre>
-      <p>Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
+      <p><code>gh attestation verify pkinative-0.1.0.tgz --repo Nizoka/pkinative</code> checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
       <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
       <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
       <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
@@ -66,7 +66,7 @@
       <pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
       cert.diagnostics;   // the same list, in order
       </code></pre>
-      <p>By default each code is also written once to <code>console.warn</code>; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
+      <p>By default each code is also written to <code>console.warn</code>, once per code in each call; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
       <h2 id="errors-branch-on-the-code">Errors: branch on the code <a class="heading-anchor" href="#errors-branch-on-the-code" aria-label="Link to this section">#</a></h2>
       <p>Every failure is a <code>PkiError</code> subclass with a stable <code>code</code>, a message that starts with <code>pkinative: </code> and names the remedy, and — for certificates — the <code>path</code> and <code>offset</code> of the offending field:</p>
       <pre><code class="language-ts">import { parseCertificate, PkiCertificateError, PkiError, PkiLimitError } from &#39;pkinative&#39;;
@@ -86,9 +86,20 @@
       <pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
       </code></pre>
       <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
+      <h2 id="below-the-certificate-asn1-and-oids">Below the certificate: ASN.1 and OIDs <a class="heading-anchor" href="#below-the-certificate-asn1-and-oids" aria-label="Link to this section">#</a></h2>
+      <p>The layers the certificate parser stands on are public too. <code>decodeAsn1</code> decodes one DER value (BER with <code>encodingRules: &#39;ber&#39;</code>) into frozen nodes that keep their exact bytes; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; <code>encodeAsn1Node</code> re-encodes a decoded tree to the exact input bytes:</p>
+      <pre><code class="language-ts">import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from &#39;pkinative&#39;;
+
+      const der = encodeSequence([encodeObjectIdentifier(&#39;2.5.29.17&#39;), encodeInteger(65537n)]);
+      const [oidNode, integerNode] = decodeAsn1(der).children;
+      readObjectIdentifier(oidNode);                 // &#39;2.5.29.17&#39;
+      getOidName(&#39;2.5.29.17&#39;);                       // &#39;subjectAltName&#39;
+      readInteger(integerNode);                      // 65537n
+      </code></pre>
+      <p>The readers are <code>readBoolean</code>, <code>readInteger</code> (a bigint), <code>readSmallInteger</code> (a number), <code>readNull</code>, <code>readBitString</code>, <code>readOctetString</code>, <code>readObjectIdentifier</code>, <code>readString</code> (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and <code>readTime</code> (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, <code>encodeOid</code> and <code>decodeOid</code> convert between dotted text and content octets, <code>isValidOid</code> checks a string, and <code>getOidName</code> names 300+ registered OIDs. <code>decodePem</code> takes an optional <code>label</code> that every block must carry, and <code>mode: &#39;lax&#39;</code> accepts whitespace, long lines and RFC 1421 headers, each reported once per call as a diagnostic.</p>
       <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
       <ul>
-      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" rel="noopener">recipes/</a> — five executable recipes: a CA bundle, fingerprints, extensions on demand, hostile input.</li>
+      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" rel="noopener">recipes/</a> — six executable recipes: the quick start, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, hostile input.</li>
       <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.</li>
       <li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when it is not yet.</li>
       </ul>
