@@ -149,11 +149,24 @@ export function _readGeneralName(node: Asn1Node, ctx: Asn1Context, path: string,
  * @internal
  */
 export function _readGeneralNames(node: Asn1Node, ctx: Asn1Context, path: string, inNameConstraints: boolean): readonly GeneralName[] {
-    const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE, node.offset);
-    enforceLimit(ctx.limits, 'maxGeneralNames', seq.children.length, `the names of ${path}`);
+    return _readGeneralNameList(expectUniversalField(node, TAG_SEQUENCE, path, CODE, node.offset), ctx, path, inNameConstraints);
+}
+
+/**
+ * Read the GeneralName children of a constructed value: a GeneralNames
+ * SEQUENCE, or one under an implicit tag (`authorityCertIssuer [1]`,
+ * `fullName [0]`, `cRLIssuer [2]`).
+ *
+ * @internal
+ */
+export function _readGeneralNameList(container: Asn1Node, ctx: Asn1Context, path: string, inNameConstraints: boolean): readonly GeneralName[] {
+    if (!container.constructed) {
+        throw certificateError(CODE, path, container.offset, 'is primitive; GeneralNames is a constructed SEQUENCE OF GeneralName');
+    }
+    enforceLimit(ctx.limits, 'maxGeneralNames', container.children.length, `the names of ${path}`);
     const names: GeneralName[] = [];
-    for (let i = 0; i < seq.children.length; i++) {
-        names.push(_readGeneralName(seq.children[i] as Asn1Node, ctx, `${path}[${i}]`, inNameConstraints));
+    for (let i = 0; i < container.children.length; i++) {
+        names.push(_readGeneralName(container.children[i] as Asn1Node, ctx, `${path}[${i}]`, inNameConstraints));
     }
     return Object.freeze(names);
 }

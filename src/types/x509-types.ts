@@ -10,7 +10,7 @@
  */
 
 import type { Asn1Node, Asn1String, BitString, PkiTime } from './asn1-types.js';
-import type { PkiDiagnostic } from './pki-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
 
 // ── Algorithms ───────────────────────────────────────────────────────
 
@@ -172,17 +172,274 @@ export interface SerialNumber {
     readonly value: bigint;
 }
 
-/** An extension kept as encoded (RFC 5280 §4.2). */
-export interface RawExtension {
-    readonly kind: 'raw';
+// ── Extensions ───────────────────────────────────────────────────────
+
+/** The fields every extension carries (RFC 5280 §4.1.2.9). */
+export interface ExtensionBase {
     readonly oid: string;
     readonly critical: boolean;
     /** The content of extnValue: the DER encoding of the extension value. */
     readonly valueDer: Uint8Array;
 }
 
+/** An extension kept as encoded because the parse ran with `decodeExtensions: false`. */
+export interface RawExtension extends ExtensionBase {
+    readonly kind: 'raw';
+}
+
+/** An extension pkinative does not decode. */
+export interface UnknownExtension extends ExtensionBase {
+    readonly kind: 'unknown';
+}
+
+/** basicConstraints (RFC 5280 §4.2.1.9). */
+export interface BasicConstraintsExtension extends ExtensionBase {
+    readonly kind: 'basicConstraints';
+    readonly cA: boolean;
+    readonly pathLenConstraint: number | undefined;
+}
+
+/** The named bits of KeyUsage, in bit order (RFC 5280 §4.2.1.3). */
+export type KeyUsageName =
+    | 'digitalSignature'
+    | 'nonRepudiation'
+    | 'keyEncipherment'
+    | 'dataEncipherment'
+    | 'keyAgreement'
+    | 'keyCertSign'
+    | 'cRLSign'
+    | 'encipherOnly'
+    | 'decipherOnly';
+
+/** keyUsage (RFC 5280 §4.2.1.3). */
+export interface KeyUsageExtension extends ExtensionBase {
+    readonly kind: 'keyUsage';
+    /** The asserted usages, in bit order. */
+    readonly usages: readonly KeyUsageName[];
+    readonly bits: BitString;
+}
+
+/** extKeyUsage (RFC 5280 §4.2.1.12). */
+export interface ExtendedKeyUsageExtension extends ExtensionBase {
+    readonly kind: 'extendedKeyUsage';
+    /** KeyPurposeId OIDs, e.g. `1.3.6.1.5.5.7.3.1` (serverAuth). */
+    readonly purposes: readonly string[];
+}
+
+/** subjectAltName (RFC 5280 §4.2.1.6). */
+export interface SubjectAltNameExtension extends ExtensionBase {
+    readonly kind: 'subjectAltName';
+    readonly names: readonly GeneralName[];
+}
+
+/** issuerAltName (RFC 5280 §4.2.1.7). */
+export interface IssuerAltNameExtension extends ExtensionBase {
+    readonly kind: 'issuerAltName';
+    readonly names: readonly GeneralName[];
+}
+
+/** subjectKeyIdentifier (RFC 5280 §4.2.1.2). */
+export interface SubjectKeyIdentifierExtension extends ExtensionBase {
+    readonly kind: 'subjectKeyIdentifier';
+    readonly keyIdentifier: Uint8Array;
+}
+
+/** authorityKeyIdentifier (RFC 5280 §4.2.1.1). */
+export interface AuthorityKeyIdentifierExtension extends ExtensionBase {
+    readonly kind: 'authorityKeyIdentifier';
+    readonly keyIdentifier: Uint8Array | undefined;
+    readonly authorityCertIssuer: readonly GeneralName[] | undefined;
+    readonly authorityCertSerialNumber: SerialNumber | undefined;
+}
+
+/** One permitted or excluded subtree of name constraints. */
+export interface GeneralSubtree {
+    readonly base: GeneralName;
+    readonly minimum: number;
+    readonly maximum: number | undefined;
+}
+
+/** nameConstraints (RFC 5280 §4.2.1.10). */
+export interface NameConstraintsExtension extends ExtensionBase {
+    readonly kind: 'nameConstraints';
+    readonly permittedSubtrees: readonly GeneralSubtree[] | undefined;
+    readonly excludedSubtrees: readonly GeneralSubtree[] | undefined;
+}
+
+/** A CPS pointer qualifier. */
+export interface CpsQualifier {
+    readonly kind: 'cps';
+    readonly oid: string;
+    readonly uri: string;
+}
+
+/** The organization and notice numbers of a user notice. */
+export interface NoticeReference {
+    readonly organization: Asn1String;
+    readonly noticeNumbers: readonly bigint[];
+}
+
+/** A user notice qualifier. */
+export interface UserNoticeQualifier {
+    readonly kind: 'userNotice';
+    readonly oid: string;
+    readonly noticeRef: NoticeReference | undefined;
+    readonly explicitText: Asn1String | undefined;
+}
+
+/** A qualifier pkinative does not decode. */
+export interface UnknownPolicyQualifier {
+    readonly kind: 'unknown';
+    readonly oid: string;
+    readonly qualifier: Asn1Node;
+}
+
+/** One policy qualifier, discriminated by `kind`. */
+export type PolicyQualifier = CpsQualifier | UserNoticeQualifier | UnknownPolicyQualifier;
+
+/** One entry of certificatePolicies. */
+export interface PolicyInformation {
+    readonly policyIdentifier: string;
+    readonly qualifiers: readonly PolicyQualifier[];
+}
+
+/** certificatePolicies (RFC 5280 §4.2.1.4). */
+export interface CertificatePoliciesExtension extends ExtensionBase {
+    readonly kind: 'certificatePolicies';
+    readonly policies: readonly PolicyInformation[];
+}
+
+/** One issuer-to-subject policy mapping. */
+export interface PolicyMapping {
+    readonly issuerDomainPolicy: string;
+    readonly subjectDomainPolicy: string;
+}
+
+/** policyMappings (RFC 5280 §4.2.1.5). */
+export interface PolicyMappingsExtension extends ExtensionBase {
+    readonly kind: 'policyMappings';
+    readonly mappings: readonly PolicyMapping[];
+}
+
+/** policyConstraints (RFC 5280 §4.2.1.11). */
+export interface PolicyConstraintsExtension extends ExtensionBase {
+    readonly kind: 'policyConstraints';
+    readonly requireExplicitPolicy: number | undefined;
+    readonly inhibitPolicyMapping: number | undefined;
+}
+
+/** inhibitAnyPolicy (RFC 5280 §4.2.1.14). */
+export interface InhibitAnyPolicyExtension extends ExtensionBase {
+    readonly kind: 'inhibitAnyPolicy';
+    readonly skipCerts: number;
+}
+
+/** One access method and where to reach it. */
+export interface AccessDescription {
+    /** e.g. `1.3.6.1.5.5.7.48.1` (ocsp) or `1.3.6.1.5.5.7.48.2` (caIssuers). */
+    readonly accessMethod: string;
+    readonly accessLocation: GeneralName;
+}
+
+/** authorityInfoAccess (RFC 5280 §4.2.2.1). */
+export interface AuthorityInfoAccessExtension extends ExtensionBase {
+    readonly kind: 'authorityInfoAccess';
+    readonly descriptions: readonly AccessDescription[];
+}
+
+/** subjectInfoAccess (RFC 5280 §4.2.2.2). */
+export interface SubjectInfoAccessExtension extends ExtensionBase {
+    readonly kind: 'subjectInfoAccess';
+    readonly descriptions: readonly AccessDescription[];
+}
+
+/** The named bits of ReasonFlags, in bit order (RFC 5280 §4.2.1.13). */
+export type ReasonFlag =
+    | 'unused'
+    | 'keyCompromise'
+    | 'cACompromise'
+    | 'affiliationChanged'
+    | 'superseded'
+    | 'cessationOfOperation'
+    | 'certificateHold'
+    | 'privilegeWithdrawn'
+    | 'aACompromise';
+
+/** One distribution point. */
+export interface DistributionPoint {
+    readonly fullName: readonly GeneralName[] | undefined;
+    readonly nameRelativeToCRLIssuer: RelativeDistinguishedName | undefined;
+    readonly reasons: readonly ReasonFlag[] | undefined;
+    readonly cRLIssuer: readonly GeneralName[] | undefined;
+}
+
+/** cRLDistributionPoints (RFC 5280 §4.2.1.13). */
+export interface CrlDistributionPointsExtension extends ExtensionBase {
+    readonly kind: 'crlDistributionPoints';
+    readonly points: readonly DistributionPoint[];
+}
+
+/** freshestCRL (RFC 5280 §4.2.1.15). */
+export interface FreshestCrlExtension extends ExtensionBase {
+    readonly kind: 'freshestCRL';
+    readonly points: readonly DistributionPoint[];
+}
+
+/** The Certificate Transparency SCT list (RFC 6962 §3.3), kept in its TLS encoding. */
+export interface SignedCertificateTimestampListExtension extends ExtensionBase {
+    readonly kind: 'signedCertificateTimestampList';
+    /** The SignedCertificateTimestampList, TLS-encoded. */
+    readonly list: Uint8Array;
+}
+
+/** id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1). */
+export interface OcspNoCheckExtension extends ExtensionBase {
+    readonly kind: 'ocspNoCheck';
+}
+
 /** A certificate extension, discriminated by `kind`. */
-export type Extension = RawExtension;
+export type Extension =
+    | BasicConstraintsExtension
+    | KeyUsageExtension
+    | ExtendedKeyUsageExtension
+    | SubjectAltNameExtension
+    | IssuerAltNameExtension
+    | SubjectKeyIdentifierExtension
+    | AuthorityKeyIdentifierExtension
+    | NameConstraintsExtension
+    | CertificatePoliciesExtension
+    | PolicyMappingsExtension
+    | PolicyConstraintsExtension
+    | InhibitAnyPolicyExtension
+    | AuthorityInfoAccessExtension
+    | SubjectInfoAccessExtension
+    | CrlDistributionPointsExtension
+    | FreshestCrlExtension
+    | SignedCertificateTimestampListExtension
+    | OcspNoCheckExtension
+    | UnknownExtension
+    | RawExtension;
+
+/** The kinds `getExtension` looks up: every decoded extension, one per certificate. */
+export type DecodedExtensionKind = Exclude<Extension['kind'], 'unknown' | 'raw'>;
+
+// ── Options ──────────────────────────────────────────────────────────
+
+/** Options of `parseCertificate`. */
+export interface ParseCertificateOptions extends PkiParseOptions {
+    /**
+     * Decode every recognised extension (default `true`). With `false`, every
+     * extension stays `kind: 'raw'` and a malformed one cannot fail the parse;
+     * decode the ones you need with `decodeExtensionValue`.
+     */
+    readonly decodeExtensions?: boolean | undefined;
+}
+
+/** Options of `decodeExtensionValue`. */
+export interface DecodeExtensionValueOptions extends PkiParseOptions {
+    /** The criticality to report on the result and to check against (default `false`). */
+    readonly critical?: boolean | undefined;
+}
 
 /**
  * A parsed X.509 certificate. Parsing checks structure and records profile

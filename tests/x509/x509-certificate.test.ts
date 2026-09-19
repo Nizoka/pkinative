@@ -69,10 +69,18 @@ describe('parseCertificate', () => {
             expect(cert.subjectPublicKeyInfo).toMatchObject({ kind: 'ec', curve: 'P-256', pointFormat: 'uncompressed' });
         });
 
-        it('should keep the extensions as encoded', () => {
+        it('should decode the extensions and keep their encoding', () => {
             expect(cert.extensions).toHaveLength(1);
-            expect(cert.extensions[0]).toMatchObject({ kind: 'raw', oid: '2.5.29.19', critical: true });
+            expect(cert.extensions[0]).toMatchObject({ kind: 'basicConstraints', oid: '2.5.29.19', critical: true, cA: true, pathLenConstraint: undefined });
             expect([...(cert.extensions[0]?.valueDer ?? [])]).toEqual([0x30, 0x03, 0x01, 0x01, 0xff]);
+        });
+
+        it('should keep every extension raw under decodeExtensions: false', () => {
+            expect(parseCertificate(input, { decodeExtensions: false }).extensions[0]).toMatchObject({ kind: 'raw', oid: '2.5.29.19', critical: true });
+        });
+
+        it('should refuse a decodeExtensions option that is not a boolean', () => {
+            expect(codeOf(() => parseCertificate(input, { decodeExtensions: 'no' as unknown as boolean }))).toBe('PKI_INVALID_OPTION');
         });
 
         it('should read the signature value and no unique identifier', () => {

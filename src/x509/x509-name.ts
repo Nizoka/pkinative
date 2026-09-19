@@ -37,6 +37,38 @@ function inDerSetOrder(elements: readonly Asn1Node[]): boolean {
     return true;
 }
 
+/** The attribute count of one name, against `maxNameAttributes`. */
+interface AttributeBudget {
+    count: number;
+    readonly scope: string;
+}
+
+/** The attributes of one RDN: `set` is a SET, or an implicitly tagged one. */
+function readRdn(set: Asn1Node, ctx: Asn1Context, rdnPath: string, budget: AttributeBudget): RelativeDistinguishedName {
+    if (!set.constructed || set.children.length === 0) {
+        throw certificateError(CODE, rdnPath, set.offset, 'is an empty relative distinguished name; RFC 5280 requires at least one attribute');
+    }
+    const atvs: AttributeTypeAndValue[] = [];
+    for (let j = 0; j < set.children.length; j++) {
+        budget.count++;
+        enforceLimit(ctx.limits, 'maxNameAttributes', budget.count, `the attributes of ${budget.scope}`);
+        const atvPath = `${rdnPath}[${j}]`;
+        const atv = expectUniversalField(set.children[j], TAG_SEQUENCE, atvPath, CODE, set.offset);
+        if (atv.children.length !== 2) {
+            throw certificateError(CODE, atvPath, atv.offset, `holds ${atv.children.length} values; an AttributeTypeAndValue is a type OID and one value`);
+        }
+        const type = _readObjectIdentifier(expectUniversalField(atv.children[0], TAG_OID, `${atvPath}.type`, CODE, atv.offset), ctx);
+        const valueNode = atv.children[1] as Asn1Node;
+        const value = valueNode.tagClass === 'universal' && stringTypeOfTag(valueNode.tagNumber) !== undefined
+            ? _readString(valueNode, ctx, undefined, `${atvPath}.value`)
+            : undefined;
+        const attribute: AttributeTypeAndValue = { type, value, valueDer: valueNode.bytes };
+        atvs.push(Object.freeze(attribute));
+    }
+    if (!inDerSetOrder(set.children)) ctx.emitter.emit(rdnSetNotSortedDiagnostic(rdnPath, set.offset));
+    return Object.freeze(atvs);
+}
+
 /**
  * Read a Name under the operation context.
  *
@@ -45,33 +77,21 @@ function inDerSetOrder(elements: readonly Asn1Node[]): boolean {
 export function _readName(node: Asn1Node | undefined, ctx: Asn1Context, path: string, parentOffset: number): DistinguishedName {
     const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE, parentOffset);
     const rdns: RelativeDistinguishedName[] = [];
-    let attributes = 0;
+    const budget: AttributeBudget = { count: 0, scope: path };
     for (let i = 0; i < seq.children.length; i++) {
         const rdnPath = `${path}.rdns[${i}]`;
-        const set = expectUniversalField(seq.children[i], TAG_SET, rdnPath, CODE, seq.offset);
-        if (set.children.length === 0) {
-            throw certificateError(CODE, rdnPath, set.offset, 'is an empty relative distinguished name; RFC 5280 requires at least one attribute');
-        }
-        const atvs: AttributeTypeAndValue[] = [];
-        for (let j = 0; j < set.children.length; j++) {
-            attributes++;
-            enforceLimit(ctx.limits, 'maxNameAttributes', attributes, `the attributes of ${path}`);
-            const atvPath = `${rdnPath}[${j}]`;
-            const atv = expectUniversalField(set.children[j], TAG_SEQUENCE, atvPath, CODE, set.offset);
-            if (atv.children.length !== 2) {
-                throw certificateError(CODE, atvPath, atv.offset, `holds ${atv.children.length} values; an AttributeTypeAndValue is a type OID and one value`);
-            }
-            const type = _readObjectIdentifier(expectUniversalField(atv.children[0], TAG_OID, `${atvPath}.type`, CODE, atv.offset), ctx);
-            const valueNode = atv.children[1] as Asn1Node;
-            const value = valueNode.tagClass === 'universal' && stringTypeOfTag(valueNode.tagNumber) !== undefined
-                ? _readString(valueNode, ctx, undefined, `${atvPath}.value`)
-                : undefined;
-            const attribute: AttributeTypeAndValue = { type, value, valueDer: valueNode.bytes };
-            atvs.push(Object.freeze(attribute));
-        }
-        if (!inDerSetOrder(set.children)) ctx.emitter.emit(rdnSetNotSortedDiagnostic(rdnPath, set.offset));
-        rdns.push(Object.freeze(atvs));
+        rdns.push(readRdn(expectUniversalField(seq.children[i], TAG_SET, rdnPath, CODE, seq.offset), ctx, rdnPath, budget));
     }
     const name: DistinguishedName = { rdns: Object.freeze(rdns), der: seq.bytes };
     return Object.freeze(name);
+}
+
+/**
+ * Read one RelativeDistinguishedName carried under an implicit tag
+ * (`nameRelativeToCRLIssuer`, RFC 5280 §4.2.1.13).
+ *
+ * @internal
+ */
+export function _readRelativeDistinguishedName(node: Asn1Node, ctx: Asn1Context, path: string): RelativeDistinguishedName {
+    return readRdn(node, ctx, path, { count: 0, scope: path });
 }

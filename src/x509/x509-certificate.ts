@@ -4,7 +4,8 @@
  * RFC 5280 §4.1: the Certificate envelope and every TBSCertificate field.
  * A structural violation of the ASN.1 module throws `PkiCertificateError`;
  * a profile violation real issuers commit is a diagnostic, recorded on
- * `certificate.diagnostics`. Extensions are kept as encoded.
+ * `certificate.diagnostics`. Recognised extensions are decoded
+ * (x509-extensions.ts) unless `decodeExtensions: false` keeps them raw.
  *
  * Parsing reads; it does not verify the signature and does not validate a
  * chain.
@@ -43,9 +44,10 @@ import {
 } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, BitString, PkiTime } from '../types/asn1-types.js';
-import type { PkiParseOptions } from '../types/pki-types.js';
-import type { Certificate, Extension, RawExtension, SerialNumber, Validity } from '../types/x509-types.js';
+import { PkiError } from '../types/pki-errors.js';
+import type { Certificate, Extension, ParseCertificateOptions, RawExtension, SerialNumber, Validity } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
+import { _decodeExtension } from './x509-extensions.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readName } from './x509-name.js';
 import { _readSubjectPublicKeyInfo } from './x509-spki.js';
@@ -100,7 +102,7 @@ function readValidity(node: Asn1Node | undefined, ctx: Asn1Context, parentOffset
     return Object.freeze(validity);
 }
 
-function readExtensions(field: Asn1Node, ctx: Asn1Context): readonly Extension[] {
+function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, decode: boolean): readonly Extension[] {
     const path = 'tbsCertificate.extensions';
     if (!field.constructed || field.children.length !== 1) {
         throw certificateError(STRUCTURE, path, field.offset, 'is not one SEQUENCE under the explicit [3] tag');
@@ -136,8 +138,16 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context): readonly Extension[]
             throw certificateError('PKI_X509_EXTENSION_DUPLICATE', extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 §4.2 allows each extension once`);
         }
         seen.add(oid);
-        const extension: RawExtension = { kind: 'raw', oid, critical, valueDer };
-        extensions.push(Object.freeze(extension));
+        if (!decode) {
+            const extension: RawExtension = { kind: 'raw', oid, critical, valueDer };
+            extensions.push(Object.freeze(extension));
+        } else if (valueNode.constructed) {
+            // A BER segmented extnValue was joined into a copy: decode the copy.
+            extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
+        } else {
+            const start = valueNode.offset + valueNode.headerLength;
+            extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
+        }
     }
     return Object.freeze(extensions);
 }
@@ -150,18 +160,23 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context): readonly Extension[]
  * the signature and does not validate a chain.
  *
  * @param der     The certificate encoding. The result holds zero-copy views of it: do not mutate it while you use the result.
- * @param options Encoding rules (`'der'` by default), limits, `strict` and `onDiagnostic`.
+ * @param options Encoding rules (`'der'` by default), limits, `strict`, `onDiagnostic` and `decodeExtensions` (default `true`).
  * @returns The frozen certificate, with every diagnostic of the parse on `diagnostics`.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID`, `PKI_X509_VERSION_INVALID`, `PKI_X509_NAME_INVALID`,
  *   `PKI_X509_VALIDITY_INVALID`, `PKI_X509_SPKI_INVALID`, `PKI_X509_UNIQUE_ID_INVALID`, `PKI_X509_EXTENSIONS_EMPTY`,
- *   `PKI_X509_EXTENSION_DUPLICATE` or `PKI_X509_DEFAULT_ENCODED` when the DER is not an RFC 5280 certificate.
+ *   `PKI_X509_EXTENSION_DUPLICATE`, `PKI_X509_EXTENSION_MALFORMED`, `PKI_X509_GENERAL_NAME_INVALID` or
+ *   `PKI_X509_DEFAULT_ENCODED` when the DER is not an RFC 5280 certificate.
  * @throws {PkiEncodingError} For every X.690 violation (`PKI_ASN1_*`, `PKI_OID_INVALID`).
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` beyond a configured limit.
  * @throws {PkiError} `PKI_INVALID_INPUT` or `PKI_INVALID_OPTION` for a wrong argument; `PKI_STRICT_DIAGNOSTIC` under `strict: true`.
  */
-export function parseCertificate(der: Uint8Array, options?: PkiParseOptions): Certificate {
+export function parseCertificate(der: Uint8Array, options?: ParseCertificateOptions): Certificate {
     const bytes = assertBytes(der, 'parseCertificate input');
     const ctx = createAsn1Context(options);
+    const decode = options?.decodeExtensions ?? true;
+    if (typeof decode !== 'boolean') {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
+    }
     const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, 'certificate', STRUCTURE, 0);
     if (cert.children.length !== 3) {
         throw certificateError(STRUCTURE, 'certificate', cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
@@ -208,7 +223,7 @@ export function parseCertificate(der: Uint8Array, options?: PkiParseOptions): Ce
         }
         rank = tag;
         if (tag === 3) {
-            extensions = readExtensions(field, ctx);
+            extensions = readExtensions(field, ctx, bytes, decode);
             extensionsPresent = true;
             continue;
         }
