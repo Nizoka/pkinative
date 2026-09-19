@@ -4,6 +4,21 @@ pkinative itself is licensed under the [MIT License](LICENSE) and has **zero run
 
 This file lists third-party material the repository uses for testing and conformance, where it comes from, and its licence. None of it is included in the npm package.
 
+## Conformance corpora (downloaded, never committed)
+
+`npm run conformance:fetch` downloads these files into `test-output/corpora/` (git-ignored) at the pinned commit and refuses any file whose SHA-256 differs from `.github/checksums/<corpus>-<commit>.sha256`. The pins live in `scripts/lib/corpora.ts`; the `corpus-pin-parity` rule of `npm run verify:docs` holds this section to them.
+
+| Corpus | Source | Pinned commit | Files | Licence |
+|---|---|---|---|---|
+| x509-limbo | https://github.com/C2SP/x509-limbo | `118721335e675edde10015df89b138cf292d7554` | `limbo.json` (schema version 1) | Apache-2.0 |
+| Project Wycheproof | https://github.com/C2SP/wycheproof | `3fa63dd0344abb611f1fb1d77e119938603ea230` | `testvectors_v1/ecdsa_secp256r1_sha256_test.json`, `ecdsa_secp384r1_sha384_test.json`, `ecdsa_secp521r1_sha512_test.json` | Apache-2.0 |
+
+x509-limbo is a project of the C2SP (Community Cryptography Specification Project), originally by Trail of Bits; Project Wycheproof was started by Google and is maintained under C2SP. Both are used unmodified, as test inputs only.
+
+## Committed test fixtures
+
+`tests/fixtures/certs/` holds six public certificates of foreign provenance — the ISRG roots, two Let's Encrypt intermediates, one Let's Encrypt end-entity certificate and the RFC 8410 §10.2 example. [tests/fixtures/PROVENANCE.md](tests/fixtures/PROVENANCE.md) lists the source, retrieval date, SHA-256 and terms of each; `tests/docs/fixture-budget.test.ts` holds the files to those hashes. Certificates are public data published for distribution; none carries a private key.
+
 ## Not included
 
 - No third-party code is bundled into `dist/`.

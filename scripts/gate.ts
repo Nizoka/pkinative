@@ -30,7 +30,7 @@
  * Profiles:
  *   --fast     typecheck:all, lint, test, verify:docs
  *   --ci       every step except the publish-only ones (default)
- *   --publish  every step
+ *   --publish  every step, the conformance gate over the pinned corpora included
  *
  * Flags:
  *   --require-all  a step that would SKIP fails instead, with
@@ -49,6 +49,7 @@ import { spawnSync, type SpawnSyncOptions } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { corporaReady } from './lib/corpora.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOG_DIR = join(REPO_ROOT, 'test-output', '.gate');
@@ -125,6 +126,12 @@ export const STEPS: readonly Step[] = [
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
+    {
+        // Needs the network once (npm run conformance:fetch), so it stays out of
+        // the hermetic CI profile; conformance.yml runs it on every change.
+        id: 'conformance', npmScript: 'conformance', profiles: ['publish'],
+        skipWhen: () => (corporaReady(REPO_ROOT) ? null : 'corpora not fetched or not matching their pins — run npm run conformance:fetch'),
+    },
 ];
 
 // ── Running a step ──────────────────────────────────────────────────

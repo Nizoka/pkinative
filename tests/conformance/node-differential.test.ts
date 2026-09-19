@@ -7,6 +7,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { X509Certificate } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { getExtension } from '../../src/x509/x509-extensions.js';
 import { computeFingerprint, formatFingerprint } from '../../src/hash/fingerprint.js';
@@ -77,6 +79,10 @@ const SAMPLES: ReadonlyArray<readonly [string, Uint8Array]> = [
     })],
 ];
 
+const FIXTURES: ReadonlyArray<readonly [string, Uint8Array]> = readdirSync(join(process.cwd(), 'tests', 'fixtures', 'certs'))
+    .filter((f) => f.endsWith('.der'))
+    .map((f) => [`the ${f} fixture`, new Uint8Array(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'certs', f)))] as const);
+
 function openSslName(name: DistinguishedName): string {
     return name.rdns.map((rdn) => rdn.map((a) => `${SHORT.get(a.type) ?? a.type}=${a.value?.value ?? ''}`).join('+')).join('\n');
 }
@@ -91,8 +97,8 @@ function openSslGeneralName(name: GeneralName): string {
     }
 }
 
-describe.each(SAMPLES)('parseCertificate and node:crypto on %s', (_, der) => {
-    const ours: Certificate = parseCertificate(der);
+describe.each([...SAMPLES, ...FIXTURES])('parseCertificate and node:crypto on %s', (_, der) => {
+    const ours: Certificate = parseCertificate(der, { onDiagnostic: () => undefined });
     const theirs = new X509Certificate(der);
 
     it('should agree on the serial number', () => {
@@ -114,8 +120,10 @@ describe.each(SAMPLES)('parseCertificate and node:crypto on %s', (_, der) => {
         expect(san === undefined ? undefined : san.names.map(openSslGeneralName).join(', ')).toBe(theirs.subjectAltName);
     });
 
-    it('should agree on the CA flag and the extended key usage', () => {
-        expect(getExtension(ours, 'basicConstraints')?.cA ?? false).toBe(theirs.ca);
+    it('should agree on the CA flag (OpenSSL X509_check_ca) and the extended key usage', () => {
+        const keyUsage = getExtension(ours, 'keyUsage');
+        const ca = getExtension(ours, 'basicConstraints')?.cA === true && (keyUsage === undefined || keyUsage.usages.includes('keyCertSign'));
+        expect(ca).toBe(theirs.ca);
         expect(getExtension(ours, 'extendedKeyUsage')?.purposes ?? undefined).toEqual(theirs.keyUsage);
     });
 
@@ -125,9 +133,13 @@ describe.each(SAMPLES)('parseCertificate and node:crypto on %s', (_, der) => {
         expect(formatFingerprint(computeFingerprint(der, 'SHA-512'))).toBe(theirs.fingerprint512);
     });
 
-    it('should agree on the RSA key size and exponent', () => {
-        const details = theirs.publicKey.asymmetricKeyDetails;
-        expect(ours.subjectPublicKeyInfo).toMatchObject({ kind: 'rsa', modulusBits: details?.modulusLength, publicExponent: details?.publicExponent });
+    it('should agree on the key type and, for RSA and EC, its size', () => {
+        const key = theirs.publicKey;
+        const details = key.asymmetricKeyDetails;
+        const spki = ours.subjectPublicKeyInfo;
+        if (spki.kind === 'rsa') expect(spki).toMatchObject({ modulusBits: details?.modulusLength, publicExponent: details?.publicExponent });
+        else if (spki.kind === 'ec') expect(details?.namedCurve).toBe({ 'P-256': 'prime256v1', 'P-384': 'secp384r1', 'P-521': 'secp521r1' }[spki.curve ?? 'P-256']);
+        else expect(key.asymmetricKeyType).toBe(spki.kind);
     });
 
     it('should agree on every name the certificate is valid for', () => {

@@ -1,0 +1,83 @@
+name: Conformance
+
+# The independent conformance barrier (scripts/validate-certs.ts) — the
+# analogue of pdfnative's veraPDF gate and zipnative's ISO/IEC 21320-1 gate.
+# It runs the BUILT package over corpora pinned by commit and SHA-256
+# (scripts/lib/corpora.ts, .github/checksums/): every x509-limbo certificate
+# parses or is refused only where limbo expects failure, re-encodes byte for
+# byte, agrees with node:crypto and the openssl CLI; every Wycheproof ECDSA
+# signature decodes strictly. `--require-all` turns a missing tool into a
+# failure. Tool versions are echoed first, so a red run is attributable to
+# "our bug" or to "runner image drift".
+#
+# No path filter: the ruleset requires the `conformance` check on every pull
+# request, and a filtered-out required check would block the merge.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The job id is load-bearing: .github/rulesets/main.json requires `conformance`.
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Record tool versions
+        run: |
+          {
+            echo '## Conformance tool versions (ubuntu-latest)'
+            echo '```'
+            echo "node $(node --version), bundled OpenSSL $(node -p process.versions.openssl)"
+            openssl version || echo 'openssl CLI: not found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the package under test
+        run: npm run build
+
+      - name: Fetch the pinned corpora (SHA-256 verified)
+        run: npm run conformance:fetch
+
+      - name: Run the conformance gate (blocking)
+        run: npx tsx scripts/validate-certs.ts --require-all
+
+      - name: Upload the conformance report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: conformance-report
+          path: test-output/conformance/report.json
+          retention-days: 14
+          if-no-files-found: ignore

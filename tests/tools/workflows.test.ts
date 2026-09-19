@@ -135,6 +135,29 @@ describe('ci.yml', () => {
     });
 });
 
+describe('conformance.yml', () => {
+    const conformance = readWorkflow('conformance.yml');
+    const ruleset = JSON.parse(readText('.github', 'rulesets', 'main.json')) as {
+        rules: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string }> } }>;
+    };
+    const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
+
+    it('should keep the job id the ruleset requires, with no path filter that could leave it pending', () => {
+        expect(conformance).toMatch(/^ {2}conformance:\s*$/m);
+        expect(contexts).toContain('conformance');
+        expect(conformance).not.toMatch(/^\s+paths(-ignore)?:/m);
+    });
+
+    it('should build, fetch the pinned corpora and run the gate with --require-all', () => {
+        const build = conformance.indexOf('run: npm run build');
+        const fetch = conformance.indexOf('run: npm run conformance:fetch');
+        const gate = conformance.indexOf('run: npx tsx scripts/validate-certs.ts --require-all');
+        expect(build).toBeGreaterThan(0);
+        expect(fetch).toBeGreaterThan(build);
+        expect(gate).toBeGreaterThan(fetch);
+    });
+});
+
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');
     const jobs = jobSteps(publish);
