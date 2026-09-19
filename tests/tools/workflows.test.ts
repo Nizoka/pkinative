@@ -14,8 +14,14 @@ import { join } from 'node:path';
 const ROOT = process.cwd();
 const WORKFLOWS = join(ROOT, '.github', 'workflows');
 const workflowFiles = readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml')).sort();
-const readWorkflow = (f: string): string => readFileSync(join(WORKFLOWS, f), 'utf8');
-const readText = (...parts: string[]): string => readFileSync(join(ROOT, ...parts), 'utf8');
+/**
+ * Every assertion below is a multi-line regex over file text. A working copy
+ * checked out with CRLF endings would mismatch all of them silently — passing
+ * for the wrong reason — so the line endings are normalised on the way in.
+ */
+const lf = (text: string): string => text.replace(/\r\n/g, '\n');
+const readWorkflow = (f: string): string => lf(readFileSync(join(WORKFLOWS, f), 'utf8'));
+const readText = (...parts: string[]): string => lf(readFileSync(join(ROOT, ...parts), 'utf8'));
 
 const HARDEN_RUNNER = 'step-security/harden-runner@';
 
@@ -41,6 +47,42 @@ function jobSteps(text: string): Map<string, string[]> {
 
 describe('every workflow', () => {
     const allFiles = workflowFiles.map((f) => ({ label: f, text: readWorkflow(f) }));
+
+    it('should be exactly the expected set of workflow files', () => {
+        // ci.yml and docs.yml carry mutually exclusive `paths` filters: a tenth
+        // workflow could shadow one of them without any other test noticing.
+        expect(workflowFiles).toEqual([
+            'audit.yml',
+            'ci.yml',
+            'codeql.yml',
+            'conformance.yml',
+            'dependency-review.yml',
+            'docs.yml',
+            'publish.yml',
+            'release-assets.yml',
+            'scorecard.yml',
+        ]);
+    });
+
+    it('should resolve every action to a single SHA across the whole tree', () => {
+        // A partially merged bump — upload-artifact v4 in ci.yml, v7 in
+        // publish.yml — pins one workflow to code the others never run.
+        const pins = new Map<string, Map<string, string[]>>();
+        for (const { label, text } of allFiles) {
+            for (const m of text.matchAll(/^\s*(?:- )?uses:\s*([^@\s]+)@([0-9a-f]{40})/gm)) {
+                // The codeql-action entry points ship from one repository at one release.
+                const action = m[1].startsWith('github/codeql-action/') ? 'github/codeql-action' : m[1];
+                const shas = pins.get(action) ?? new Map<string, string[]>();
+                shas.set(m[2], [...(shas.get(m[2]) ?? []), label]);
+                pins.set(action, shas);
+            }
+        }
+        expect(pins.size, 'no pinned action found').toBeGreaterThan(0);
+        for (const [action, shas] of pins) {
+            const spread = [...shas].map(([sha, where]) => `${sha} (${[...new Set(where)].join(', ')})`);
+            expect(spread, `${action} is pinned to more than one SHA`).toHaveLength(1);
+        }
+    });
 
     it('should pin every action to a 40-hex commit SHA with a version comment', () => {
         for (const { label, text } of allFiles) {

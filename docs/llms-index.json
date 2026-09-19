@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 2807,
-      "approxTokens": 702
+      "bytes": 3211,
+      "approxTokens": 803
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 41936,
-      "approxTokens": 10484
+      "bytes": 42017,
+      "approxTokens": 10504
     },
     {
       "url": "llms-recipes.txt",
@@ -54,8 +54,8 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 2432,
-      "approxTokens": 608
+      "bytes": 2828,
+      "approxTokens": 707
     },
     {
       "url": "assets/ecosystem.json",
@@ -81,8 +81,8 @@
         "below-the-certificate-asn1-and-oids",
         "next"
       ],
-      "bytes": 11264,
-      "approxTokens": 2816
+      "bytes": 11345,
+      "approxTokens": 2836
     },
     {
       "title": "Security model",

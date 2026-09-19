@@ -118,7 +118,7 @@ The [security guide](security.md) lists them with their defaults and CWE.
 
 ## Below the certificate: ASN.1 and OIDs
 
-The layers the certificate parser stands on are public too. `decodeAsn1` decodes one DER value (BER with `encodingRules: 'ber'`) into frozen nodes that keep their exact bytes; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; `encodeAsn1Node` re-encodes a decoded tree to the exact input bytes:
+The layers the certificate parser stands on are public too. `decodeAsn1` decodes one DER value (BER with `encodingRules: 'ber'`) into frozen nodes that keep their exact bytes, and refuses anything after that value unless you pass `allowTrailingData: true`; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; `encodeAsn1Node` re-encodes a decoded tree to the exact input bytes:
 
 ```ts
 import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from 'pkinative';

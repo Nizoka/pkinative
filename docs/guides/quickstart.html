@@ -207,7 +207,7 @@
       </code></pre>
       <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
       <h2 id="below-the-certificate-asn1-and-oids">Below the certificate: ASN.1 and OIDs <a class="heading-anchor" href="#below-the-certificate-asn1-and-oids" aria-label="Link to this section">#</a></h2>
-      <p>The layers the certificate parser stands on are public too. <code>decodeAsn1</code> decodes one DER value (BER with <code>encodingRules: &#39;ber&#39;</code>) into frozen nodes that keep their exact bytes; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; <code>encodeAsn1Node</code> re-encodes a decoded tree to the exact input bytes:</p>
+      <p>The layers the certificate parser stands on are public too. <code>decodeAsn1</code> decodes one DER value (BER with <code>encodingRules: &#39;ber&#39;</code>) into frozen nodes that keep their exact bytes, and refuses anything after that value unless you pass <code>allowTrailingData: true</code>; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; <code>encodeAsn1Node</code> re-encodes a decoded tree to the exact input bytes:</p>
       <pre><code class="language-ts">import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from &#39;pkinative&#39;;
 
       const der = encodeSequence([encodeObjectIdentifier(&#39;2.5.29.17&#39;), encodeInteger(65537n)]);
