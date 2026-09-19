@@ -1,6 +1,6 @@
 {
   "name": "pkinative",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Zero-dependency native PKI toolkit: strict ASN.1 DER (BER on request), PEM, OIDs and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable machine-readable error codes and a conformance gate over x509-limbo and Wycheproof. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, never implements secret-dependent cryptography, built under a human-in-the-loop AI-agent governance policy.",
   "type": "module",
   "main": "./dist/index.cjs",

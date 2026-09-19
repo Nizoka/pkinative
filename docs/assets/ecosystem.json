@@ -3,7 +3,7 @@
   "verifiedOn": "2026-09-19",
   "packages": {
     "pkinative": {
-      "version": "0.0.1",
+      "version": "0.1.0",
       "repo": "https://github.com/Nizoka/pkinative",
       "status": "active",
       "engine": { "node": ">=22" },
