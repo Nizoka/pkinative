@@ -1,0 +1,1110 @@
+{
+  "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed; `throws` lists the @throws classes of a function. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
+  "package": "pkinative",
+  "source": "src/index.ts",
+  "exportCount": 127,
+  "exports": [
+    {
+      "name": "AccessDescription",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface AccessDescription",
+      "summary": "One access method and where to reach it.",
+      "throws": null
+    },
+    {
+      "name": "AlgorithmIdentifier",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface AlgorithmIdentifier",
+      "summary": "An AlgorithmIdentifier (RFC 5280 §4.1.1.2).",
+      "throws": null
+    },
+    {
+      "name": "Asn1Node",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface Asn1Node",
+      "summary": "One decoded tag-length-value, with its exact position in the input.",
+      "throws": null
+    },
+    {
+      "name": "Asn1String",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface Asn1String",
+      "summary": "A decoded character string with its original content octets.",
+      "throws": null
+    },
+    {
+      "name": "Asn1StringType",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export type Asn1StringType = 'utf8' | 'numeric' | 'printable' | 'teletex' | 'ia5' | 'visible' | 'universal' | 'bmp';",
+      "summary": "The character string types pkinative decodes.",
+      "throws": null
+    },
+    {
+      "name": "AttributeTypeAndValue",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface AttributeTypeAndValue",
+      "summary": "One attribute of a distinguished name (RFC 5280 §4.1.2.4).",
+      "throws": null
+    },
+    {
+      "name": "AuthorityInfoAccessExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface AuthorityInfoAccessExtension extends ExtensionBase",
+      "summary": "authorityInfoAccess (RFC 5280 §4.2.2.1).",
+      "throws": null
+    },
+    {
+      "name": "AuthorityKeyIdentifierExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface AuthorityKeyIdentifierExtension extends ExtensionBase",
+      "summary": "authorityKeyIdentifier (RFC 5280 §4.2.1.1).",
+      "throws": null
+    },
+    {
+      "name": "BasicConstraintsExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface BasicConstraintsExtension extends ExtensionBase",
+      "summary": "basicConstraints (RFC 5280 §4.2.1.9).",
+      "throws": null
+    },
+    {
+      "name": "BitString",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface BitString",
+      "summary": "A BIT STRING: the octets and the number of unused bits in the last one (0–7).",
+      "throws": null
+    },
+    {
+      "name": "Certificate",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface Certificate",
+      "summary": "A parsed X.509 certificate.",
+      "throws": null
+    },
+    {
+      "name": "CertificatePoliciesExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface CertificatePoliciesExtension extends ExtensionBase",
+      "summary": "certificatePolicies (RFC 5280 §4.2.1.4).",
+      "throws": null
+    },
+    {
+      "name": "CpsQualifier",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface CpsQualifier",
+      "summary": "A CPS pointer qualifier.",
+      "throws": null
+    },
+    {
+      "name": "CrlDistributionPointsExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface CrlDistributionPointsExtension extends ExtensionBase",
+      "summary": "cRLDistributionPoints (RFC 5280 §4.2.1.13).",
+      "throws": null
+    },
+    {
+      "name": "DEFAULT_PKI_LIMITS",
+      "kind": "constant",
+      "module": "src/core/pki-limits.ts",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, });",
+      "summary": "Default security bounds — the safe path for untrusted input.",
+      "throws": null
+    },
+    {
+      "name": "DecodeAsn1Options",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface DecodeAsn1Options extends PkiParseOptions",
+      "summary": "Options of `decodeAsn1` and `decodeAsn1Sequence`.",
+      "throws": null
+    },
+    {
+      "name": "DecodeExtensionValueOptions",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface DecodeExtensionValueOptions extends PkiParseOptions",
+      "summary": "Options of `decodeExtensionValue`.",
+      "throws": null
+    },
+    {
+      "name": "DecodePemOptions",
+      "kind": "type",
+      "module": "src/types/pem-types.ts",
+      "signature": "export interface DecodePemOptions",
+      "summary": "Options of `decodePem`.",
+      "throws": null
+    },
+    {
+      "name": "DecodedExtensionKind",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type DecodedExtensionKind = Exclude<Extension['kind'], 'unknown' | 'raw'>;",
+      "summary": "The kinds `getExtension` looks up: every decoded extension, one per certificate.",
+      "throws": null
+    },
+    {
+      "name": "DirectoryGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface DirectoryGeneralName extends GeneralNameBase",
+      "summary": "`directoryName [4]`.",
+      "throws": null
+    },
+    {
+      "name": "DistinguishedName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface DistinguishedName",
+      "summary": "A distinguished name.",
+      "throws": null
+    },
+    {
+      "name": "DistributionPoint",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface DistributionPoint",
+      "summary": "One distribution point.",
+      "throws": null
+    },
+    {
+      "name": "EcCurve",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type EcCurve = 'P-256' | 'P-384' | 'P-521';",
+      "summary": "The NIST curves RFC 5480 names.",
+      "throws": null
+    },
+    {
+      "name": "EcPublicKeyInfo",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface EcPublicKeyInfo extends PublicKeyInfoBase",
+      "summary": "An elliptic-curve key (RFC 5480).",
+      "throws": null
+    },
+    {
+      "name": "EncodingRules",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export type EncodingRules = 'der' | 'ber';",
+      "summary": "`der` (default) refuses every BER-only construct; `ber` accepts them with a diagnostic.",
+      "throws": null
+    },
+    {
+      "name": "ExtendedKeyUsageExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface ExtendedKeyUsageExtension extends ExtensionBase",
+      "summary": "extKeyUsage (RFC 5280 §4.2.1.12).",
+      "throws": null
+    },
+    {
+      "name": "Extension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type Extension",
+      "summary": "A certificate extension, discriminated by `kind`.",
+      "throws": null
+    },
+    {
+      "name": "ExtensionBase",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface ExtensionBase",
+      "summary": "The fields every extension carries (RFC 5280 §4.1.2.9).",
+      "throws": null
+    },
+    {
+      "name": "FingerprintAlgorithm",
+      "kind": "type",
+      "module": "src/types/hash-types.ts",
+      "signature": "export type FingerprintAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';",
+      "summary": "The digest algorithms a fingerprint can use, named as Web Crypto names them.",
+      "throws": null
+    },
+    {
+      "name": "FormatFingerprintOptions",
+      "kind": "type",
+      "module": "src/types/hash-types.ts",
+      "signature": "export interface FormatFingerprintOptions",
+      "summary": "Options of `formatFingerprint`.",
+      "throws": null
+    },
+    {
+      "name": "FreshestCrlExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface FreshestCrlExtension extends ExtensionBase",
+      "summary": "freshestCRL (RFC 5280 §4.2.1.15).",
+      "throws": null
+    },
+    {
+      "name": "GeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type GeneralName",
+      "summary": "One GeneralName (RFC 5280 §4.2.1.6), discriminated by `kind`.",
+      "throws": null
+    },
+    {
+      "name": "GeneralSubtree",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface GeneralSubtree",
+      "summary": "One permitted or excluded subtree of name constraints.",
+      "throws": null
+    },
+    {
+      "name": "InhibitAnyPolicyExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface InhibitAnyPolicyExtension extends ExtensionBase",
+      "summary": "inhibitAnyPolicy (RFC 5280 §4.2.1.14).",
+      "throws": null
+    },
+    {
+      "name": "IpAddressGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface IpAddressGeneralName extends GeneralNameBase",
+      "summary": "`iPAddress [7]`: an address, and in name constraints its mask.",
+      "throws": null
+    },
+    {
+      "name": "IssuerAltNameExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface IssuerAltNameExtension extends ExtensionBase",
+      "summary": "issuerAltName (RFC 5280 §4.2.1.7).",
+      "throws": null
+    },
+    {
+      "name": "KeyUsageExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface KeyUsageExtension extends ExtensionBase",
+      "summary": "keyUsage (RFC 5280 §4.2.1.3).",
+      "throws": null
+    },
+    {
+      "name": "KeyUsageName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type KeyUsageName",
+      "summary": "The named bits of KeyUsage, in bit order (RFC 5280 §4.2.1.3).",
+      "throws": null
+    },
+    {
+      "name": "NameConstraintsExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface NameConstraintsExtension extends ExtensionBase",
+      "summary": "nameConstraints (RFC 5280 §4.2.1.10).",
+      "throws": null
+    },
+    {
+      "name": "NoticeReference",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface NoticeReference",
+      "summary": "The organization and notice numbers of a user notice.",
+      "throws": null
+    },
+    {
+      "name": "OID_REGISTRY",
+      "kind": "constant",
+      "module": "src/oid/oid-registry.ts",
+      "signature": "export const OID_REGISTRY: readonly OidRegistryEntry[] = /*#__PURE__*/ buildRegistry(GROUPS);",
+      "summary": "Every registered object identifier, grouped by area and frozen.",
+      "throws": null
+    },
+    {
+      "name": "OcspNoCheckExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface OcspNoCheckExtension extends ExtensionBase",
+      "summary": "id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1).",
+      "throws": null
+    },
+    {
+      "name": "OctetPublicKeyInfo",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface OctetPublicKeyInfo extends PublicKeyInfoBase",
+      "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410, FIPS 204).",
+      "throws": null
+    },
+    {
+      "name": "OidRegistryEntry",
+      "kind": "type",
+      "module": "src/oid/oid-registry.ts",
+      "signature": "export interface OidRegistryEntry",
+      "summary": "One registered object identifier.",
+      "throws": null
+    },
+    {
+      "name": "OpaqueGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface OpaqueGeneralName extends GeneralNameBase",
+      "summary": "`x400Address [3]` and `ediPartyName [5]`, kept as their tagged node.",
+      "throws": null
+    },
+    {
+      "name": "OtherGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface OtherGeneralName extends GeneralNameBase",
+      "summary": "`otherName [0]`: a type OID and a value of that type.",
+      "throws": null
+    },
+    {
+      "name": "ParseCertificateOptions",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface ParseCertificateOptions extends PkiParseOptions",
+      "summary": "Options of `parseCertificate`.",
+      "throws": null
+    },
+    {
+      "name": "PemBlock",
+      "kind": "type",
+      "module": "src/types/pem-types.ts",
+      "signature": "export interface PemBlock",
+      "summary": "One `-----BEGIN label-----` … `-----END label-----` block.",
+      "throws": null
+    },
+    {
+      "name": "PkiBaseErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiBaseErrorCode",
+      "summary": "Codes carried by the base PkiError (usage and invariant faults).",
+      "throws": null
+    },
+    {
+      "name": "PkiCertificateError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiCertificateError extends PkiError<PkiCertificateErrorCode>",
+      "summary": "The DER is well formed but does not match the RFC 5280 certificate structure.",
+      "throws": null
+    },
+    {
+      "name": "PkiCertificateErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiCertificateErrorCode",
+      "summary": "Codes carried by PkiCertificateError: the RFC 5280 certificate structure.",
+      "throws": null
+    },
+    {
+      "name": "PkiDiagnostic",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export interface PkiDiagnostic",
+      "summary": "One non-fatal conformance concern.",
+      "throws": null
+    },
+    {
+      "name": "PkiDiagnosticCode",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export type PkiDiagnosticCode",
+      "summary": "Every diagnostic code.",
+      "throws": null
+    },
+    {
+      "name": "PkiDiagnosticHandler",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export type PkiDiagnosticHandler = (diagnostic: PkiDiagnostic) => void;",
+      "summary": "Receives every diagnostic of an operation; replaces the default `console.warn` sink.",
+      "throws": null
+    },
+    {
+      "name": "PkiDiagnosticSeverity",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export type PkiDiagnosticSeverity = 'warning' | 'info';",
+      "summary": "`warning`: a profile violation a verifier may refuse.",
+      "throws": null
+    },
+    {
+      "name": "PkiEncodingError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiEncodingError extends PkiError<PkiEncodingErrorCode>",
+      "summary": "The input violates the syntax of X.690, of an OBJECT IDENTIFIER or of RFC 7468.",
+      "throws": null
+    },
+    {
+      "name": "PkiEncodingErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiEncodingErrorCode",
+      "summary": "Codes carried by PkiEncodingError: X.690, OID and RFC 7468 syntax.",
+      "throws": null
+    },
+    {
+      "name": "PkiError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiError<Code extends PkiErrorCode = PkiErrorCode> extends Error",
+      "summary": "Base class for every error thrown by pkinative.",
+      "throws": null
+    },
+    {
+      "name": "PkiErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiErrorCode",
+      "summary": "Every stable error code pkinative can throw.",
+      "throws": null
+    },
+    {
+      "name": "PkiLimitError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiLimitError extends PkiError<PkiLimitErrorCode>",
+      "summary": "A configured security bound from PkiLimits was exceeded, or the override is invalid.",
+      "throws": null
+    },
+    {
+      "name": "PkiLimitErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiLimitErrorCode",
+      "summary": "Codes carried by PkiLimitError.",
+      "throws": null
+    },
+    {
+      "name": "PkiLimits",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export interface PkiLimits",
+      "summary": "The named security bounds every loop over untrusted input consults.",
+      "throws": null
+    },
+    {
+      "name": "PkiParseOptions",
+      "kind": "type",
+      "module": "src/types/pki-types.ts",
+      "signature": "export interface PkiParseOptions",
+      "summary": "Options shared by every parsing function.",
+      "throws": null
+    },
+    {
+      "name": "PkiTime",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface PkiTime",
+      "summary": "A decoded time: the instant, and the text it was decoded from.",
+      "throws": null
+    },
+    {
+      "name": "PolicyConstraintsExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface PolicyConstraintsExtension extends ExtensionBase",
+      "summary": "policyConstraints (RFC 5280 §4.2.1.11).",
+      "throws": null
+    },
+    {
+      "name": "PolicyInformation",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface PolicyInformation",
+      "summary": "One entry of certificatePolicies.",
+      "throws": null
+    },
+    {
+      "name": "PolicyMapping",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface PolicyMapping",
+      "summary": "One issuer-to-subject policy mapping.",
+      "throws": null
+    },
+    {
+      "name": "PolicyMappingsExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface PolicyMappingsExtension extends ExtensionBase",
+      "summary": "policyMappings (RFC 5280 §4.2.1.5).",
+      "throws": null
+    },
+    {
+      "name": "PolicyQualifier",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type PolicyQualifier = CpsQualifier | UserNoticeQualifier | UnknownPolicyQualifier;",
+      "summary": "One policy qualifier, discriminated by `kind`.",
+      "throws": null
+    },
+    {
+      "name": "RawExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface RawExtension extends ExtensionBase",
+      "summary": "An extension kept as encoded because the parse ran with `decodeExtensions: false`.",
+      "throws": null
+    },
+    {
+      "name": "ReadStringOptions",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface ReadStringOptions extends PkiParseOptions",
+      "summary": "Options of `readString`: the type of an implicitly tagged string.",
+      "throws": null
+    },
+    {
+      "name": "ReadTimeOptions",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export interface ReadTimeOptions extends PkiParseOptions",
+      "summary": "Options of `readTime`: the type of an implicitly tagged time.",
+      "throws": null
+    },
+    {
+      "name": "ReasonFlag",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type ReasonFlag",
+      "summary": "The named bits of ReasonFlags, in bit order (RFC 5280 §4.2.1.13).",
+      "throws": null
+    },
+    {
+      "name": "RegisteredIdGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface RegisteredIdGeneralName extends GeneralNameBase",
+      "summary": "`registeredID [8]`.",
+      "throws": null
+    },
+    {
+      "name": "RelativeDistinguishedName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type RelativeDistinguishedName = readonly AttributeTypeAndValue[];",
+      "summary": "A relative distinguished name: one or more attributes, in encoded order.",
+      "throws": null
+    },
+    {
+      "name": "RsaPublicKeyInfo",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface RsaPublicKeyInfo extends PublicKeyInfoBase",
+      "summary": "An RSA or RSASSA-PSS key (RFC 3279 §2.3.1, RFC 4055 §1.2).",
+      "throws": null
+    },
+    {
+      "name": "SerialNumber",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface SerialNumber",
+      "summary": "The serial number (RFC 5280 §4.1.2.2).",
+      "throws": null
+    },
+    {
+      "name": "SignedCertificateTimestampListExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface SignedCertificateTimestampListExtension extends ExtensionBase",
+      "summary": "The Certificate Transparency SCT list (RFC 6962 §3.3), kept in its TLS encoding.",
+      "throws": null
+    },
+    {
+      "name": "SubjectAltNameExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface SubjectAltNameExtension extends ExtensionBase",
+      "summary": "subjectAltName (RFC 5280 §4.2.1.6).",
+      "throws": null
+    },
+    {
+      "name": "SubjectInfoAccessExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface SubjectInfoAccessExtension extends ExtensionBase",
+      "summary": "subjectInfoAccess (RFC 5280 §4.2.2.2).",
+      "throws": null
+    },
+    {
+      "name": "SubjectKeyIdentifierExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface SubjectKeyIdentifierExtension extends ExtensionBase",
+      "summary": "subjectKeyIdentifier (RFC 5280 §4.2.1.2).",
+      "throws": null
+    },
+    {
+      "name": "SubjectPublicKeyInfo",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export type SubjectPublicKeyInfo = RsaPublicKeyInfo | EcPublicKeyInfo | OctetPublicKeyInfo | UnknownPublicKeyInfo;",
+      "summary": "A SubjectPublicKeyInfo (RFC 5280 §4.1.2.7), discriminated by `kind`.",
+      "throws": null
+    },
+    {
+      "name": "TagClass",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export type TagClass = 'universal' | 'application' | 'context' | 'private';",
+      "summary": "The class bits of an identifier octet (X.690 §8.1.2.2).",
+      "throws": null
+    },
+    {
+      "name": "TextGeneralName",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface TextGeneralName extends GeneralNameBase",
+      "summary": "`rfc822Name [1]`, `dNSName [2]` and `uniformResourceIdentifier [6]`: ASCII text.",
+      "throws": null
+    },
+    {
+      "name": "TimeType",
+      "kind": "type",
+      "module": "src/types/asn1-types.ts",
+      "signature": "export type TimeType = 'UTCTime' | 'GeneralizedTime';",
+      "summary": "The two time types of X.680.",
+      "throws": null
+    },
+    {
+      "name": "UnknownExtension",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface UnknownExtension extends ExtensionBase",
+      "summary": "An extension pkinative does not decode.",
+      "throws": null
+    },
+    {
+      "name": "UnknownPolicyQualifier",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface UnknownPolicyQualifier",
+      "summary": "A qualifier pkinative does not decode.",
+      "throws": null
+    },
+    {
+      "name": "UnknownPublicKeyInfo",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface UnknownPublicKeyInfo extends PublicKeyInfoBase",
+      "summary": "A key of an algorithm pkinative does not decode.",
+      "throws": null
+    },
+    {
+      "name": "UserNoticeQualifier",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface UserNoticeQualifier",
+      "summary": "A user notice qualifier.",
+      "throws": null
+    },
+    {
+      "name": "Validity",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface Validity",
+      "summary": "The validity period (RFC 5280 §4.1.2.5).",
+      "throws": null
+    },
+    {
+      "name": "computeFingerprint",
+      "kind": "function",
+      "module": "src/hash/fingerprint.ts",
+      "signature": "export function computeFingerprint(der: Uint8Array, algorithm: FingerprintAlgorithm): Uint8Array",
+      "summary": "Compute a fingerprint synchronously.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "computeFingerprintAsync",
+      "kind": "function",
+      "module": "src/hash/fingerprint.ts",
+      "signature": "export async function computeFingerprintAsync(der: Uint8Array, algorithm: FingerprintAlgorithm): Promise<Uint8Array>",
+      "summary": "Compute a fingerprint through Web Crypto when available, and through the pure-TypeScript hashes otherwise.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "decodeAsn1",
+      "kind": "function",
+      "module": "src/asn1/asn1-decode.ts",
+      "signature": "export function decodeAsn1(data: Uint8Array, options?: DecodeAsn1Options): Asn1Node",
+      "summary": "Decode one ASN.1 value — strict DER by default, BER with `encodingRules: 'ber'`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "decodeAsn1Sequence",
+      "kind": "function",
+      "module": "src/asn1/asn1-decode.ts",
+      "signature": "export function decodeAsn1Sequence(data: Uint8Array, options?: DecodeAsn1Options): readonly Asn1Node[]",
+      "summary": "Decode a concatenation of ASN.1 values placed back to back (an empty input yields no value).",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "decodeExtensionValue",
+      "kind": "function",
+      "module": "src/x509/x509-extensions.ts",
+      "signature": "export function decodeExtensionValue(oid: string, valueDer: Uint8Array, options?: DecodeExtensionValueOptions): Extension",
+      "summary": "Decode an extension value on its own — the content of an extnValue — as `parseCertificate` decodes it.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "decodeOid",
+      "kind": "function",
+      "module": "src/asn1/asn1-oid.ts",
+      "signature": "export function decodeOid(content: Uint8Array, options?: PkiParseOptions): string",
+      "summary": "Decode the content octets of an OBJECT IDENTIFIER to dotted decimal.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "decodePem",
+      "kind": "function",
+      "module": "src/pem/pem.ts",
+      "signature": "export function decodePem(text: string, options?: DecodePemOptions): readonly PemBlock[]",
+      "summary": "Decode every PEM block of a text.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "encodeAsn1Node",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeAsn1Node(node: Asn1Node): Uint8Array",
+      "summary": "Re-encode a decoded node tree in DER.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeBitString",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array",
+      "summary": "Encode a BIT STRING.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "encodeBoolean",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeBoolean(value: boolean): Uint8Array",
+      "summary": "Encode a BOOLEAN (TRUE as 0xFF, as DER requires).",
+      "throws": []
+    },
+    {
+      "name": "encodeInteger",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeInteger(value: bigint | number): Uint8Array",
+      "summary": "Encode an INTEGER in minimal two's complement form.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "encodeNull",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeNull(): Uint8Array",
+      "summary": "Encode a NULL.",
+      "throws": []
+    },
+    {
+      "name": "encodeObjectIdentifier",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeObjectIdentifier(oid: string): Uint8Array",
+      "summary": "Encode an OBJECT IDENTIFIER from dotted decimal.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "encodeOctetString",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeOctetString(bytes: Uint8Array): Uint8Array",
+      "summary": "Encode an OCTET STRING.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeOid",
+      "kind": "function",
+      "module": "src/asn1/asn1-oid.ts",
+      "signature": "export function encodeOid(oid: string): Uint8Array",
+      "summary": "Encode a dotted-decimal OID as content octets (without tag and length).",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodePem",
+      "kind": "function",
+      "module": "src/pem/pem.ts",
+      "signature": "export function encodePem(label: string, bytes: Uint8Array): string",
+      "summary": "Encode bytes as one strict RFC 7468 block: 64-character lines, LF line endings.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeSequence",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeSequence(children: readonly Uint8Array[]): Uint8Array",
+      "summary": "Encode a SEQUENCE from its encoded components, in the order given.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeSet",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeSet(children: readonly Uint8Array[]): Uint8Array",
+      "summary": "Encode a SET whose component order the schema fixes (SET, not SET OF).",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeSetOf",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeSetOf(children: readonly Uint8Array[]): Uint8Array",
+      "summary": "Encode a SET OF with the canonical DER ordering: the component encodings sorted as octet strings (X.690 §11.6).",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeString",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeString(type: Asn1StringType, value: string): Uint8Array",
+      "summary": "Encode a character string, refusing any character outside the type.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeTime",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeTime(epochMilliseconds: number, type: 'UTCTime' | 'GeneralizedTime' | 'rfc5280' = 'rfc5280'): Uint8Array",
+      "summary": "Encode an instant as a UTCTime or a GeneralizedTime in its DER form.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    },
+    {
+      "name": "encodeTlv",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: boolean, content: Uint8Array): Uint8Array",
+      "summary": "Encode one tag-length-value in DER: the shortest identifier and length forms.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "formatDistinguishedName",
+      "kind": "function",
+      "module": "src/x509/x509-name-format.ts",
+      "signature": "export function formatDistinguishedName(name: DistinguishedName): string",
+      "summary": "Format a distinguished name as an RFC 4514 string, e.g.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "formatFingerprint",
+      "kind": "function",
+      "module": "src/hash/fingerprint.ts",
+      "signature": "export function formatFingerprint(digest: Uint8Array, options?: FormatFingerprintOptions): string",
+      "summary": "Render a digest the way certificate tools display it, e.g.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "getExtension",
+      "kind": "function",
+      "module": "src/x509/x509-extensions.ts",
+      "signature": "export function getExtension<K extends DecodedExtensionKind>(certificate: Certificate, kind: K): Extract<Extension, { readonly kind: K }> | undefined",
+      "summary": "The decoded extension of one kind, e.g.",
+      "throws": [
+        "PkiError"
+      ]
+    },
+    {
+      "name": "getOidName",
+      "kind": "function",
+      "module": "src/oid/oid-names.ts",
+      "signature": "export function getOidName(oid: string): string | undefined",
+      "summary": "The display name of a registered object identifier.",
+      "throws": []
+    },
+    {
+      "name": "isValidOid",
+      "kind": "function",
+      "module": "src/asn1/asn1-oid.ts",
+      "signature": "export function isValidOid(oid: string): boolean",
+      "summary": "Whether a string is a dotted-decimal OID X.660 allows: at least two arcs, the first 0, 1 or 2, the second at most 39 under 0 and 1, no leading zeros.",
+      "throws": []
+    },
+    {
+      "name": "parseCertificate",
+      "kind": "function",
+      "module": "src/x509/x509-certificate.ts",
+      "signature": "export function parseCertificate(der: Uint8Array, options?: ParseCertificateOptions): Certificate",
+      "summary": "Parse a DER-encoded X.509 certificate (RFC 5280 §4.1).",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "readBitString",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readBitString(node: Asn1Node, options?: PkiParseOptions): BitString",
+      "summary": "Read a BIT STRING.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readBoolean",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readBoolean(node: Asn1Node, options?: PkiParseOptions): boolean",
+      "summary": "Read a BOOLEAN.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readInteger",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readInteger(node: Asn1Node, options?: PkiParseOptions): bigint",
+      "summary": "Read an INTEGER of any size.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiLimitError"
+      ]
+    },
+    {
+      "name": "readNull",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readNull(node: Asn1Node): null",
+      "summary": "Read a NULL.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readObjectIdentifier",
+      "kind": "function",
+      "module": "src/asn1/asn1-oid.ts",
+      "signature": "export function readObjectIdentifier(node: Asn1Node, options?: PkiParseOptions): string",
+      "summary": "Read an OBJECT IDENTIFIER node.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readOctetString",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readOctetString(node: Asn1Node, options?: PkiParseOptions): Uint8Array",
+      "summary": "Read an OCTET STRING.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readSmallInteger",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readSmallInteger(node: Asn1Node): number",
+      "summary": "Read an INTEGER that must fit in a JavaScript number.",
+      "throws": [
+        "PkiEncodingError"
+      ]
+    },
+    {
+      "name": "readString",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readString(node: Asn1Node, options?: ReadStringOptions): Asn1String",
+      "summary": "Read a character string: UTF8String, NumericString, PrintableString, TeletexString (as ISO 8859-1, with a diagnostic), IA5String, VisibleString, UniversalString or BMPString.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    },
+    {
+      "name": "readTime",
+      "kind": "function",
+      "module": "src/asn1/asn1-time.ts",
+      "signature": "export function readTime(node: Asn1Node, options?: ReadTimeOptions): PkiTime",
+      "summary": "Read a UTCTime or a GeneralizedTime.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ]
+    }
+  ]
+}

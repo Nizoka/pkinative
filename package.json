@@ -51,6 +51,9 @@
     "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:scripts",
     "check:package": "npm run build && npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm && npx publint",
+    "verify:bundle": "npx tsx scripts/verify-bundle.ts",
+    "docs:api": "npx tsx scripts/build-api-json.ts",
+    "bench": "vitest bench --run",
     "conformance:fetch": "npx tsx scripts/fetch-corpora.ts",
     "conformance": "npx tsx scripts/validate-certs.ts --require-all",
     "prepublishOnly": "npm run build"

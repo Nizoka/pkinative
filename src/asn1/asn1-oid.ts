@@ -107,7 +107,8 @@ const DOTTED = /^[012](?:\.(?:0|[1-9][0-9]*))+$/;
  * the first 0, 1 or 2, the second at most 39 under 0 and 1, no leading zeros.
  *
  * @param oid The candidate string.
- * @returns True when `encodeOid` accepts it.
+ * @returns True when `encodeOid` accepts it; false for anything else, a non-string included.
+ * @throws Never.
  */
 export function isValidOid(oid: string): boolean {
     if (typeof oid !== 'string' || !DOTTED.test(oid)) return false;

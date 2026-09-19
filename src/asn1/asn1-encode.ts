@@ -102,6 +102,7 @@ function childrenContent(children: readonly Uint8Array[], what: string): Uint8Ar
  *
  * @param children The DER encodings of the components.
  * @returns The SEQUENCE encoding.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when a component is not a Uint8Array.
  */
 export function encodeSequence(children: readonly Uint8Array[]): Uint8Array {
     return encodeTlv('universal', TAG_SEQUENCE, true, childrenContent(children, 'encodeSequence'));
@@ -112,6 +113,7 @@ export function encodeSequence(children: readonly Uint8Array[]): Uint8Array {
  *
  * @param children The DER encodings of the components, in schema order.
  * @returns The SET encoding.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when a component is not a Uint8Array.
  */
 export function encodeSet(children: readonly Uint8Array[]): Uint8Array {
     return encodeTlv('universal', TAG_SET, true, childrenContent(children, 'encodeSet'));
@@ -133,6 +135,7 @@ function compareOctets(a: Uint8Array, b: Uint8Array): number {
  *
  * @param children The DER encodings of the components, in any order.
  * @returns The SET OF encoding.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when a component is not a Uint8Array.
  */
 export function encodeSetOf(children: readonly Uint8Array[]): Uint8Array {
     childrenContent(children, 'encodeSetOf');
@@ -181,6 +184,7 @@ export function encodeInteger(value: bigint | number): Uint8Array {
  *
  * @param value The boolean.
  * @returns The BOOLEAN encoding.
+ * @throws Never.
  */
 export function encodeBoolean(value: boolean): Uint8Array {
     return encodeTlv('universal', TAG_BOOLEAN, false, Uint8Array.of(value ? 0xff : 0x00));
@@ -190,6 +194,7 @@ export function encodeBoolean(value: boolean): Uint8Array {
  * Encode a NULL.
  *
  * @returns The two octets 05 00.
+ * @throws Never.
  */
 export function encodeNull(): Uint8Array {
     return encodeTlv('universal', TAG_NULL, false, new Uint8Array(0));
@@ -224,6 +229,7 @@ export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array {
  *
  * @param bytes The octets.
  * @returns The OCTET STRING encoding.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `bytes` is not a Uint8Array.
  */
 export function encodeOctetString(bytes: Uint8Array): Uint8Array {
     return encodeTlv('universal', TAG_OCTET_STRING, false, assertBytes(bytes, 'encodeOctetString bytes'));

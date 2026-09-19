@@ -88,6 +88,8 @@ x509   → types, core, asn1
 | File | Regenerate with |
 |---|---|
 | `.claude/rules/*.md` | `npm run agents:rules` (from `.github/instructions/*.instructions.md`) |
+| `docs/assets/api.json` | `npm run docs:api` (from the TSDoc of every export of `src/index.ts`) |
+| `scripts/data/limbo-refusals.json` | `npx tsx scripts/validate-certs.ts --update-baseline` — then review every changed entry |
 | `dist/`, `coverage/`, `test-output/` | `npm run build`, `npm run test:coverage`, `npm run gate` |
 
 ## Counts and versions

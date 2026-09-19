@@ -125,6 +125,7 @@ export const STEPS: readonly Step[] = [
         inline: () => DIST_FILES.filter(f => !existsSync(join(REPO_ROOT, f))).map(f => `missing: ${f}`),
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
+    { id: 'verify:bundle', npmScript: 'verify:bundle', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
     {
         // Needs the network once (npm run conformance:fetch), so it stays out of
