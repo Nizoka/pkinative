@@ -13,7 +13,7 @@
  * @module x509/x509-certificate
  */
 
-import { createAsn1Context, noteBer, type Asn1Context } from '../asn1/asn1-context.js';
+import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBitString, _readBoolean, _readInteger, _readOctetString } from '../asn1/asn1-read.js';
@@ -31,6 +31,7 @@ import {
 import { _readTime } from '../asn1/asn1-time.js';
 import { assertBytes, bytesEqual, toHex } from '../core/bytes.js';
 import {
+    defaultEncodedDiagnostic,
     emptyIssuerDiagnostic,
     emptySubjectSanNotCriticalDiagnostic,
     extensionsRequireV3Diagnostic,
@@ -68,12 +69,7 @@ function readVersion(field: Asn1Node, ctx: Asn1Context): 1 | 2 | 3 {
     if (value !== 0n && value !== 1n && value !== 2n) {
         throw certificateError('PKI_X509_VERSION_INVALID', path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
     }
-    if (value === 0n) {
-        if (ctx.rules === 'der') {
-            throw certificateError('PKI_X509_DEFAULT_ENCODED', path, field.offset, 'encodes the DEFAULT value v1, which DER omits (X.690 §11.5)');
-        }
-        noteBer(ctx, 'explicitly encoded DEFAULT version', field.offset);
-    }
+    if (value === 0n) ctx.emitter.emit(defaultEncodedDiagnostic(path, 'v1', field.offset));
     return (Number(value) + 1) as 1 | 2 | 3;
 }
 
@@ -125,12 +121,7 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
         if (ext.children.length === 3) {
             const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE, ext.offset);
             critical = _readBoolean(flag, ctx);
-            if (!critical) {
-                if (ctx.rules === 'der') {
-                    throw certificateError('PKI_X509_DEFAULT_ENCODED', `${extPath}.critical`, flag.offset, 'encodes the DEFAULT value FALSE, which DER omits (X.690 §11.5)');
-                }
-                noteBer(ctx, 'explicitly encoded DEFAULT critical flag', flag.offset);
-            }
+            if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, 'FALSE', flag.offset));
         }
         const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE, ext.offset);
         const valueDer = _readOctetString(valueNode, ctx);
@@ -164,8 +155,8 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
  * @returns The frozen certificate, with every diagnostic of the parse on `diagnostics`.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID`, `PKI_X509_VERSION_INVALID`, `PKI_X509_NAME_INVALID`,
  *   `PKI_X509_VALIDITY_INVALID`, `PKI_X509_SPKI_INVALID`, `PKI_X509_UNIQUE_ID_INVALID`, `PKI_X509_EXTENSIONS_EMPTY`,
- *   `PKI_X509_EXTENSION_DUPLICATE`, `PKI_X509_EXTENSION_MALFORMED`, `PKI_X509_GENERAL_NAME_INVALID` or
- *   `PKI_X509_DEFAULT_ENCODED` when the DER is not an RFC 5280 certificate.
+ *   `PKI_X509_EXTENSION_DUPLICATE`, `PKI_X509_EXTENSION_MALFORMED` or `PKI_X509_GENERAL_NAME_INVALID`
+ *   when the DER is not an RFC 5280 certificate.
  * @throws {PkiEncodingError} For every X.690 violation (`PKI_ASN1_*`, `PKI_OID_INVALID`).
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` beyond a configured limit.
  * @throws {PkiError} `PKI_INVALID_INPUT` or `PKI_INVALID_OPTION` for a wrong argument; `PKI_STRICT_DIAGNOSTIC` under `strict: true`.

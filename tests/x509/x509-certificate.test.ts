@@ -116,11 +116,11 @@ describe('parseCertificate', () => {
             expect(parseCertificate(certificate({ version: explicit(0, integer([1])), trailing: [] })).version).toBe(2);
         });
 
-        it('should refuse an explicit v1 under DER and accept it under BER', () => {
+        it('should read an explicit v1 as v1 with a diagnostic, and refuse it under strict', () => {
             const der = certificate({ version: explicit(0, integer([0])), trailing: [] });
-            expect(codeOf(() => parseCertificate(der))).toBe('PKI_X509_DEFAULT_ENCODED');
-            expect(parseCertificate(der, { encodingRules: 'ber', onDiagnostic: () => undefined }).version).toBe(1);
-            expect(diagnosticsOf(der, { encodingRules: 'ber' })).toEqual(['PKI_DIAG_BER_CONSTRUCT_ACCEPTED']);
+            expect(parseCertificate(der, QUIET).version).toBe(1);
+            expect(diagnosticsOf(der)).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
+            expect(codeOf(() => parseCertificate(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
         });
 
         it.each<[string, number[]]>([
@@ -326,13 +326,10 @@ describe('parseCertificate', () => {
             expect(codeOf(() => parseCertificate(withExtensions(BASIC_CONSTRAINTS_CA, BASIC_CONSTRAINTS_CA)))).toBe('PKI_X509_EXTENSION_DUPLICATE');
         });
 
-        it('should refuse an explicit FALSE critical flag under DER and accept it under BER', () => {
+        it('should read an explicit FALSE critical flag with a diagnostic', () => {
             const der = withExtensions(extension('2.5.29.14', octetString([1]), false));
-            expect(codeOf(() => parseCertificate(der))).toBe('PKI_X509_DEFAULT_ENCODED');
-            const seen: string[] = [];
-            const cert = parseCertificate(der, { encodingRules: 'ber', onDiagnostic: (d) => { seen.push(d.code); } });
-            expect(cert.extensions[0]?.critical).toBe(false);
-            expect(seen).toEqual(['PKI_DIAG_BER_CONSTRUCT_ACCEPTED']);
+            expect(parseCertificate(der, QUIET).extensions[0]?.critical).toBe(false);
+            expect(diagnosticsOf(der)).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
         });
 
         it('should enforce maxExtensions', () => {

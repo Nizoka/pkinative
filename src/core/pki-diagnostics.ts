@@ -226,6 +226,12 @@ export function policyConstraintsEmptyDiagnostic(): PkiDiagnostic {
         'tbsCertificate.extensions.policyConstraints', undefined);
 }
 
+export function defaultEncodedDiagnostic(path: string, value: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DEFAULT_ENCODED', 'warning', 'ITU-T X.690 §11.5',
+        `the field encodes its DEFAULT value ${value}, which DER omits; the value reads the same either way, but a strict DER verifier may refuse the certificate`,
+        path, offset);
+}
+
 // ── Payload factories — accepted tolerances ──────────────────────────
 
 export function berConstructAcceptedDiagnostic(construct: string, offset: number): PkiDiagnostic {

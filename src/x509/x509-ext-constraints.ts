@@ -7,12 +7,12 @@
  * @module x509/x509-ext-constraints
  */
 
-import { noteBer } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBitString, _readBoolean } from '../asn1/asn1-read.js';
 import { TAG_BIT_STRING, TAG_BOOLEAN, TAG_INTEGER, TAG_OID } from '../asn1/asn1-tags.js';
 import type { Asn1Context } from '../asn1/asn1-context.js';
 import {
+    defaultEncodedDiagnostic,
     keyUsageEmptyDiagnostic,
     nameConstraintsNotCriticalDiagnostic,
     pathLenWithoutCaDiagnostic,
@@ -41,7 +41,7 @@ import {
     readNamedBits,
     type ExtensionInput,
 } from './x509-ext-shared.js';
-import { certificateError, expectUniversalField } from './x509-fields.js';
+import { expectUniversalField } from './x509-fields.js';
 import { _readGeneralName } from './x509-general-name.js';
 
 const KEY_USAGES: readonly KeyUsageName[] = [
@@ -56,12 +56,9 @@ const KEY_USAGES: readonly KeyUsageName[] = [
     'decipherOnly',
 ];
 
-/** DER omits a DEFAULT value; BER tolerates it once per operation. */
+/** DER omits a DEFAULT value; an explicit one reads the same and is reported. */
 function defaultEncoded(ctx: Asn1Context, path: string, offset: number, value: string): void {
-    if (ctx.rules === 'der') {
-        throw certificateError('PKI_X509_DEFAULT_ENCODED', path, offset, `encodes the DEFAULT value ${value}, which DER omits (X.690 §11.5)`);
-    }
-    noteBer(ctx, 'explicitly encoded DEFAULT value', offset);
+    ctx.emitter.emit(defaultEncodedDiagnostic(path, value, offset));
 }
 
 /** @internal */

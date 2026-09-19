@@ -109,8 +109,8 @@ export function _decodeExtension(
  * @param valueDer  The DER encoding of the extension value.
  * @param options   `critical`, encoding rules, limits, `strict` and `onDiagnostic`.
  * @returns The decoded extension, or `kind: 'unknown'` for an OID pkinative does not decode.
- * @throws {PkiCertificateError} `PKI_X509_EXTENSION_MALFORMED`, `PKI_X509_GENERAL_NAME_INVALID`, `PKI_X509_NAME_INVALID`
- *   or `PKI_X509_DEFAULT_ENCODED` when the value does not match the definition of its extension.
+ * @throws {PkiCertificateError} `PKI_X509_EXTENSION_MALFORMED`, `PKI_X509_GENERAL_NAME_INVALID` or `PKI_X509_NAME_INVALID`
+ *   when the value does not match the definition of its extension.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for an OID string X.660 does not allow.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` beyond a configured limit.
  * @throws {PkiError} `PKI_INVALID_INPUT` or `PKI_INVALID_OPTION` for a wrong argument; `PKI_STRICT_DIAGNOSTIC` under `strict: true`.

@@ -85,6 +85,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', diagnostics.akiIssuerSerialUnpairedDiagnostic()],
         ['PKI_DIAG_POLICY_DUPLICATE', diagnostics.policyDuplicateDiagnostic('2.23.140.1.2.1')],
         ['PKI_DIAG_POLICY_CONSTRAINTS_EMPTY', diagnostics.policyConstraintsEmptyDiagnostic()],
+        ['PKI_DIAG_DEFAULT_ENCODED', diagnostics.defaultEncodedDiagnostic('tbsCertificate.extensions[0].cA', 'FALSE', 177)],
         ['PKI_DIAG_BER_CONSTRUCT_ACCEPTED', diagnostics.berConstructAcceptedDiagnostic('indefinite length', 0)],
         ['PKI_DIAG_PEM_LAX_ACCEPTED', diagnostics.pemLaxAcceptedDiagnostic('line longer than 64 characters', 28)],
     ];

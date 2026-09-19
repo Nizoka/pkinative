@@ -91,10 +91,10 @@ describe('decodeExtensionValue', () => {
             expect(diagnosticsOf(OID.basicConstraints, sequence(integer([0])))).toEqual(['PKI_DIAG_PATHLEN_WITHOUT_CA']);
         });
 
-        it('should refuse an explicit FALSE under DER and accept it under BER', () => {
+        it('should read an explicit FALSE with a diagnostic (the RFC 8410 §10.2 example encodes one)', () => {
             const value = sequence(boolean(false));
-            expect(codeOf(() => decode(OID.basicConstraints, value))).toBe('PKI_X509_DEFAULT_ENCODED');
-            expect(decode(OID.basicConstraints, value, { encodingRules: 'ber', onDiagnostic: () => undefined })).toMatchObject({ cA: false });
+            expect(decode(OID.basicConstraints, value)).toMatchObject({ cA: false });
+            expect(diagnosticsOf(OID.basicConstraints, value)).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
         });
 
         it.each<[string, Uint8Array]>([
@@ -244,9 +244,9 @@ describe('decodeExtensionValue', () => {
             expect(diagnosticsOf(OID.nameConstraints, sequence())).toEqual(['PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL']);
         });
 
-        it('should refuse an explicit minimum of 0 under DER', () => {
-            expect(codeOf(() => decode(OID.nameConstraints, sequence(context(0, true, sequence(context(2, false, ascii('a')), context(0, false, [0])))), { critical: true })))
-                .toBe('PKI_X509_DEFAULT_ENCODED');
+        it('should read an explicit minimum of 0 with a diagnostic', () => {
+            expect(diagnosticsOf(OID.nameConstraints, sequence(context(0, true, sequence(context(2, false, ascii('a')), context(0, false, [0])))), true))
+                .toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
         });
 
         it.each<[string, Uint8Array]>([
