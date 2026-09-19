@@ -1,0 +1,14 @@
+{
+  "$comment": "Facts behind the README comparison, read mechanically on 2026-09-19 from the npm registry (https://registry.npmjs.org/<name>, latest dist-tag) and the npm downloads API (last week). Only registry facts are recorded — no benchmark, no opinion. pkinative has no npm release before 1.0.0, so its row describes the git tag. Refresh by re-reading the same endpoints and saving a new dated file.",
+  "retrievedOn": "2026-09-19",
+  "downloadsWeek": "2026-09-12..2026-09-18",
+  "libraries": [
+    { "name": "pkinative", "version": "0.1.0 (git tag)", "published": null, "license": "MIT", "runtimeDependencies": [], "bundledTypes": true, "esm": true, "weeklyDownloads": null },
+    { "name": "node-forge", "version": "1.4.0", "published": "2026-03-24", "license": "(BSD-3-Clause OR GPL-2.0)", "runtimeDependencies": [], "bundledTypes": false, "esm": false, "weeklyDownloads": 27569280 },
+    { "name": "asn1js", "version": "3.0.10", "published": "2026-04-20", "license": "BSD-3-Clause", "runtimeDependencies": ["pvtsutils", "pvutils", "tslib"], "bundledTypes": true, "esm": true, "weeklyDownloads": 13708712 },
+    { "name": "@peculiar/x509", "version": "2.1.0", "published": "2026-09-04", "license": "MIT", "runtimeDependencies": ["tslib", "tsyringe", "pvtsutils", "@peculiar/asn1-cms", "@peculiar/asn1-csr", "@peculiar/asn1-ecc", "@peculiar/asn1-rsa", "@peculiar/asn1-x509", "@peculiar/asn1-pkcs9", "@peculiar/asn1-schema", "@peculiar/asn1-x509-post-quantum"], "bundledTypes": true, "esm": true, "weeklyDownloads": 8218129 },
+    { "name": "pkijs", "version": "3.4.0", "published": "2026-03-18", "license": "BSD-3-Clause", "runtimeDependencies": ["@noble/hashes", "asn1js", "bytestreamjs", "pvtsutils", "pvutils", "tslib"], "bundledTypes": true, "esm": true, "weeklyDownloads": 6824749 },
+    { "name": "jsrsasign", "version": "11.1.5", "published": "2026-08-14", "license": "MIT", "runtimeDependencies": [], "bundledTypes": false, "esm": false, "weeklyDownloads": 980927 },
+    { "name": "micro509", "version": "0.14.0", "published": "2026-07-29", "license": "MIT", "runtimeDependencies": [], "bundledTypes": true, "esm": true, "weeklyDownloads": 59 }
+  ]
+}

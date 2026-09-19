@@ -1,0 +1,33 @@
+# pkinative
+
+> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo and Wycheproof. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Version 0.1 is a git tag, not an npm release; it reads certificates and does not verify signatures or validate chains.
+
+pkinative never implements secret-dependent cryptography in TypeScript; verification and creation arrive through Web Crypto from 0.3. Every failure is a PkiError subclass with a stable `code`; profile concerns are diagnostics (`onDiagnostic`, `strict: true`, `certificate.diagnostics`). There is no PEM-to-certificate shortcut: compose `decodePem` and `parseCertificate`.
+
+## Start here
+
+- [Agent brief](https://pkinative.dev/agent-brief.md): what to import, what to catch, what not to write
+- [Quick start](https://pkinative.dev/guides/quickstart.md): read a certificate, extensions, diagnostics, errors, limits
+- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes
+
+## Guides
+
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the eleven limits, typed failures, the cryptography boundary
+- [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
+- [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
+- [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when not yet
+
+## Data
+
+- [Error registry](https://pkinative.dev/data/errors.json): code, class, cause, remedy, standard, CWE
+- [Diagnostic registry](https://pkinative.dev/data/diagnostics.json): code, severity, cause, remedy, standard
+- [Limits](https://pkinative.dev/data/limits.json): the named resource bounds with defaults and CWE
+- [Capabilities](https://pkinative.dev/data/surfaces.json): what pkinative does, the exports that do it, since when
+- [Ecosystem](https://pkinative.dev/assets/ecosystem.json): versions, milestones, corpus pins and counts
+
+## Optional
+
+- [Full documentation](https://pkinative.dev/llms-full.txt): this file, the README and every guide in one text
+- [Executable recipes](https://pkinative.dev/llms-recipes.txt): every recipe, CI-tested
+- [Documentation index](https://pkinative.dev/llms-index.json): artefacts and guides with sizes and anchors
+- [Source](https://github.com/Nizoka/pkinative): repository, AGENTS.md, CHANGELOG.md, ROADMAP.md

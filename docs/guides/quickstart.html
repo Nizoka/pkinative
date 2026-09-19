@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick start — pkinative</title>
+  <meta name="description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:url" content="https://pkinative.dev/guides/quickstart.html">
+  <meta property="og:title" content="Quick start — pkinative">
+  <meta property="og:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://pkinative.dev/guides/quickstart.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#guide-content">Skip to content</a>
+  <header class="guide-header">
+    <a class="brand" href="../index.html">pkinative</a>
+    <nav aria-label="Guides">
+      <a href="index.html">Guides</a>
+      <a href="quickstart.html" aria-current="page">Quick start</a>
+      <a href="security.html">Security</a>
+      <a href="conformance.html">Conformance</a>
+      <a href="errors.html">Errors</a>
+      <a href="choose.html">Choose</a>
+    </nav>
+  </header>
+  <main>
+    <article id="guide-content" class="guide">
+      <h1 id="quick-start">Quick start</h1>
+      <blockquote>
+      <p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 0.1 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
+      </blockquote>
+      <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
+      <p>pkinative 0.1 is a git tag, not an npm release:</p>
+      <pre><code class="language-bash">npm install github:Nizoka/pkinative#v0.1.0
+      </code></pre>
+      <p>Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
+      <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
+      <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
+      <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
+
+      const [block] = decodePem(pemText, { label: &#39;CERTIFICATE&#39; });
+      const cert = parseCertificate(block.bytes);
+
+      formatDistinguishedName(cert.subject);            // &#39;CN=letsencrypt.org&#39;
+      cert.serialNumber.hex;                            // &#39;0543933be386b3a2b3add534f2103bc8b65f&#39;
+      new Date(cert.validity.notAfter.epochMilliseconds);
+      getExtension(cert, &#39;subjectAltName&#39;)?.names;      // [{ kind: &#39;dNSName&#39;, value: &#39;cp.letsencrypt.org&#39;, … }, …]
+      getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
+      </code></pre>
+      <p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
+      <h2 id="every-extension-typed">Every extension, typed <a class="heading-anchor" href="#every-extension-typed" aria-label="Link to this section">#</a></h2>
+      <p><code>cert.extensions</code> lists every extension in encoded order, each with <code>oid</code>, <code>critical</code> and <code>valueDer</code>, and a <code>kind</code> that says how it was decoded: <code>basicConstraints</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>subjectAltName</code>, <code>issuerAltName</code>, <code>subjectKeyIdentifier</code>, <code>authorityKeyIdentifier</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code>, <code>authorityInfoAccess</code>, <code>subjectInfoAccess</code>, <code>crlDistributionPoints</code>, <code>freshestCRL</code>, <code>signedCertificateTimestampList</code>, <code>ocspNoCheck</code> — or <code>unknown</code> for an extension pkinative does not decode. <code>getExtension(cert, kind)</code> returns the one of that kind, typed.</p>
+      <p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer)</code>.</p>
+      <h2 id="diagnostics-what-real-issuers-get-wrong">Diagnostics: what real issuers get wrong <a class="heading-anchor" href="#diagnostics-what-real-issuers-get-wrong" aria-label="Link to this section">#</a></h2>
+      <p>A structural violation throws; a profile violation that real issuers commit is a diagnostic. Diagnostics are recorded on <code>cert.diagnostics</code>, each with a <code>code</code>, the RFC section it cites, a <code>path</code> and an <code>offset</code>:</p>
+      <pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
+      cert.diagnostics;   // the same list, in order
+      </code></pre>
+      <p>By default each code is also written once to <code>console.warn</code>; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
+      <h2 id="errors-branch-on-the-code">Errors: branch on the code <a class="heading-anchor" href="#errors-branch-on-the-code" aria-label="Link to this section">#</a></h2>
+      <p>Every failure is a <code>PkiError</code> subclass with a stable <code>code</code>, a message that starts with <code>pkinative: </code> and names the remedy, and — for certificates — the <code>path</code> and <code>offset</code> of the offending field:</p>
+      <pre><code class="language-ts">import { parseCertificate, PkiCertificateError, PkiError, PkiLimitError } from &#39;pkinative&#39;;
+
+      try {
+          parseCertificate(der);
+      } catch (error) {
+          if (error instanceof PkiLimitError) console.error(error.limit, error.configured, error.observed);
+          else if (error instanceof PkiCertificateError) console.error(error.code, error.path, error.offset);
+          else if (error instanceof PkiError) console.error(error.code);
+          else throw error;
+      }
+      </code></pre>
+      <p>Never branch on the message. The <a href="errors.html">error guide</a> lists every code with its cause and remedy.</p>
+      <h2 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h2>
+      <p>Eleven named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
+      <pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
+      </code></pre>
+      <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
+      <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
+      <ul>
+      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" rel="noopener">recipes/</a> — five executable recipes: a CA bundle, fingerprints, extensions on demand, hostile input.</li>
+      <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.</li>
+      <li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when it is not yet.</li>
+      </ul>
+    </article>
+  </main>
+  <footer class="guide-footer">
+    <p>Generated from <a href="https://github.com/Nizoka/pkinative/tree/main/docs/guides">docs/guides</a> by <code>npm run docs:guides</code>. <a href="../llms.txt">llms.txt</a> · <a href="https://github.com/Nizoka/pkinative">GitHub</a> · MIT © Nizoka</p>
+  </footer>
+</body>
+</html>

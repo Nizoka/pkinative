@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" role="img" aria-labelledby="architecture-title architecture-desc">
+  <title id="architecture-title">pkinative layers</title>
+  <desc id="architecture-desc">src/index.ts imports every layer. x509 imports types, core and asn1. hash, asn1 and pem import types and core. core imports types. oid imports nothing. There is no reverse edge: x509 never imports oid or pem, and pem never imports asn1.</desc>
+  <style>
+    .box { fill: #eff6ff; stroke: #2563eb; stroke-width: 2; }
+    .top { fill: #2563eb; stroke: #1d4ed8; stroke-width: 2; }
+    .label { font: 600 18px -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; fill: #0f172a; text-anchor: middle; }
+    .top-label { font: 600 18px -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; fill: #ffffff; text-anchor: middle; }
+    .note { font: 14px -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; fill: #475569; text-anchor: middle; }
+    .edge { stroke: #64748b; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect class="top" x="300" y="16" width="160" height="44" rx="8"/>
+  <text class="top-label" x="380" y="44">src/index.ts</text>
+  <rect class="box" x="40" y="110" width="140" height="44" rx="8"/>
+  <text class="label" x="110" y="138">x509</text>
+  <rect class="box" x="220" y="110" width="140" height="44" rx="8"/>
+  <text class="label" x="290" y="138">pem</text>
+  <rect class="box" x="400" y="110" width="140" height="44" rx="8"/>
+  <text class="label" x="470" y="138">hash</text>
+  <rect class="box" x="580" y="110" width="140" height="44" rx="8"/>
+  <text class="label" x="650" y="138">oid</text>
+  <rect class="box" x="40" y="200" width="140" height="44" rx="8"/>
+  <text class="label" x="110" y="228">asn1</text>
+  <rect class="box" x="220" y="290" width="320" height="44" rx="8"/>
+  <text class="label" x="380" y="318">core → types</text>
+  <path class="edge" d="M380 60v20H110v28"/>
+  <path class="edge" d="M380 60v20h-90v28"/>
+  <path class="edge" d="M380 60v20h90v28"/>
+  <path class="edge" d="M380 60v20h270v28"/>
+  <path class="edge" d="M110 154v44"/>
+  <path class="edge" d="M110 244v26h170v18"/>
+  <path class="edge" d="M290 154v134"/>
+  <path class="edge" d="M470 154v134"/>
+  <text class="note" x="650" y="190">data only getOidName</text>
+  <text class="note" x="650" y="208">pulls into a bundle</text>
+</svg>

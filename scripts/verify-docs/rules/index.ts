@@ -14,6 +14,7 @@ import { CONFORMANCE_RULES } from './conformance.js';
 import { GOVERNANCE_RULES } from './governance.js';
 import { PROSE_RULES } from './prose.js';
 import { REGISTRY_RULES } from './registries.js';
+import { SITE_RULES } from './site.js';
 import { VERSION_RULES } from './versions.js';
 
-export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...CONFORMANCE_RULES, ...PROSE_RULES];
+export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...CONFORMANCE_RULES, ...SITE_RULES, ...PROSE_RULES];

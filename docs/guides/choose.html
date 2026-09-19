@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choosing a PKI library — pkinative</title>
+  <meta name="description" content="Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:url" content="https://pkinative.dev/guides/choose.html">
+  <meta property="og:title" content="Choosing a PKI library — pkinative">
+  <meta property="og:description" content="Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://pkinative.dev/guides/choose.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#guide-content">Skip to content</a>
+  <header class="guide-header">
+    <a class="brand" href="../index.html">pkinative</a>
+    <nav aria-label="Guides">
+      <a href="index.html">Guides</a>
+      <a href="quickstart.html">Quick start</a>
+      <a href="security.html">Security</a>
+      <a href="conformance.html">Conformance</a>
+      <a href="errors.html">Errors</a>
+      <a href="choose.html" aria-current="page">Choose</a>
+    </nav>
+  </header>
+  <main>
+    <article id="guide-content" class="guide">
+      <h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
+      <blockquote>
+      <p><strong>Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign.</strong> This guide says which, with the facts behind it and the milestone that closes each gap.</p>
+      </blockquote>
+      <h2 id="what-pkinative-01-does">What pkinative 0.1 does <a class="heading-anchor" href="#what-pkinative-01-does" aria-label="Link to this section">#</a></h2>
+      <ul>
+      <li>Parses every field and every standard extension of an RFC 5280 certificate, with profile concerns as diagnostics.</li>
+      <li>Decodes and encodes DER (and BER on request), PEM and OIDs, with typed errors and CWE-tagged limits.</li>
+      <li>Computes certificate fingerprints, synchronously or through Web Crypto.</li>
+      <li>Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.</li>
+      </ul>
+      <p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
+      <h2 id="what-it-does-not-do-yet">What it does not do yet <a class="heading-anchor" href="#what-it-does-not-do-yet" aria-label="Link to this section">#</a></h2>
+      <table>
+      <thead>
+      <tr>
+      <th>You need</th>
+      <th>pkinative</th>
+      <th>Until then</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td>Verify a certificate&#39;s signature</td>
+      <td>0.3, through Web Crypto</td>
+      <td>@peculiar/x509 or pkijs, which verify through Web Crypto</td>
+      </tr>
+      <tr>
+      <td>Create a CSR or a certificate</td>
+      <td>0.3, signed by a Web Crypto key</td>
+      <td>@peculiar/x509</td>
+      </tr>
+      <tr>
+      <td>Validate a path, check CRL or OCSP</td>
+      <td>0.5</td>
+      <td>pkijs; on Node.js, <code>node:crypto.X509Certificate</code> plus your TLS stack</td>
+      </tr>
+      <tr>
+      <td>Parse or build CMS, verify timestamps</td>
+      <td>0.7</td>
+      <td>pkijs</td>
+      </tr>
+      <tr>
+      <td>Read PKCS#8 or PKCS#12</td>
+      <td>0.9</td>
+      <td>pkijs, node-forge</td>
+      </tr>
+      </tbody></table>
+      <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
+      <p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Library</th>
+      <th>Runtime dependencies</th>
+      <th>Types bundled</th>
+      <th>ES modules</th>
+      <th>Weekly downloads</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td>node-forge 1.4.0</td>
+      <td>0</td>
+      <td>no</td>
+      <td>no</td>
+      <td>27.6 M</td>
+      </tr>
+      <tr>
+      <td>asn1js 3.0.10</td>
+      <td>3</td>
+      <td>yes</td>
+      <td>yes</td>
+      <td>13.7 M</td>
+      </tr>
+      <tr>
+      <td>@peculiar/x509 2.1.0</td>
+      <td>11</td>
+      <td>yes</td>
+      <td>yes</td>
+      <td>8.2 M</td>
+      </tr>
+      <tr>
+      <td>pkijs 3.4.0</td>
+      <td>6</td>
+      <td>yes</td>
+      <td>yes</td>
+      <td>6.8 M</td>
+      </tr>
+      <tr>
+      <td>jsrsasign 11.1.5</td>
+      <td>0</td>
+      <td>no</td>
+      <td>no</td>
+      <td>1.0 M</td>
+      </tr>
+      <tr>
+      <td>micro509 0.14.0</td>
+      <td>0</td>
+      <td>yes</td>
+      <td>yes</td>
+      <td>59</td>
+      </tr>
+      </tbody></table>
+      <p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>
+      <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
+      <ul>
+      <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
+      <li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: a certificate parser bundle is about 55 KB minified, checked by <code>npm run verify:bundle</code>.</li>
+      <li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
+      <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
+      </ul>
+    </article>
+  </main>
+  <footer class="guide-footer">
+    <p>Generated from <a href="https://github.com/Nizoka/pkinative/tree/main/docs/guides">docs/guides</a> by <code>npm run docs:guides</code>. <a href="../llms.txt">llms.txt</a> · <a href="https://github.com/Nizoka/pkinative">GitHub</a> · MIT © Nizoka</p>
+  </footer>
+</body>
+</html>

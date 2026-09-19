@@ -54,6 +54,12 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name. |
 | `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension. |
 
+### Verification of the Parser
+
+- Every truncation point and every single-octet mutation of the test certificates ends in a certificate or a `PkiError` (`tests/fuzzing/`); seeded suites cover length encodings, nesting, tags, integers, times, strings, BER forms and PEM.
+- The conformance gate ([docs/guides/conformance.md](docs/guides/conformance.md)) runs the built package over 30 361 unique x509-limbo certificates and 1 530 Wycheproof ECDSA vectors, pinned by commit and SHA-256, and holds every answer to OpenSSL.
+- A certificate is refused only where every x509-limbo case using it expects failure; any other refusal, and any exception that is not a `PkiError`, fails the gate.
+
 ### Code Safety
 
 - No `eval()`, `Function()`, dynamic `import()` or dynamic code execution — enforced from the syntax tree

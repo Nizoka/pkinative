@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Errors and diagnostics — pkinative</title>
+  <meta name="description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:url" content="https://pkinative.dev/guides/errors.html">
+  <meta property="og:title" content="Errors and diagnostics — pkinative">
+  <meta property="og:description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://pkinative.dev/guides/errors.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#guide-content">Skip to content</a>
+  <header class="guide-header">
+    <a class="brand" href="../index.html">pkinative</a>
+    <nav aria-label="Guides">
+      <a href="index.html">Guides</a>
+      <a href="quickstart.html">Quick start</a>
+      <a href="security.html">Security</a>
+      <a href="conformance.html">Conformance</a>
+      <a href="errors.html" aria-current="page">Errors</a>
+      <a href="choose.html">Choose</a>
+    </nav>
+  </header>
+  <main>
+    <article id="guide-content" class="guide">
+      <h1 id="errors-and-diagnostics">Errors and diagnostics</h1>
+      <blockquote>
+      <p><strong>Every failure has a stable code, and every code has a cause and a remedy.</strong> Branch on <code>error.code</code>; the message is for people. The machine-readable registries are <code>docs/data/errors.json</code> and <code>docs/data/diagnostics.json</code>.</p>
+      </blockquote>
+      <h2 id="the-error-classes">The error classes <a class="heading-anchor" href="#the-error-classes" aria-label="Link to this section">#</a></h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Class</th>
+      <th>Raised for</th>
+      <th>Extra fields</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>PkiError</code></td>
+      <td>Usage faults: a wrong argument, an invalid option, <code>strict: true</code> escalating a diagnostic</td>
+      <td><code>code</code></td>
+      </tr>
+      <tr>
+      <td><code>PkiEncodingError</code></td>
+      <td>X.690, OBJECT IDENTIFIER and RFC 7468 syntax</td>
+      <td><code>code</code>, <code>offset</code></td>
+      </tr>
+      <tr>
+      <td><code>PkiCertificateError</code></td>
+      <td>The RFC 5280 certificate structure</td>
+      <td><code>code</code>, <code>path</code>, <code>offset</code></td>
+      </tr>
+      <tr>
+      <td><code>PkiLimitError</code></td>
+      <td>A configured limit exceeded, or an invalid limits override</td>
+      <td><code>code</code>, <code>limit</code>, <code>configured</code>, <code>observed</code></td>
+      </tr>
+      </tbody></table>
+      <p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. Codes are additions-only until 0.9, when the vocabulary freezes under semantic versioning.</p>
+      <h2 id="error-codes">Error codes <a class="heading-anchor" href="#error-codes" aria-label="Link to this section">#</a></h2>
+      <h3 id="usage">Usage <a class="heading-anchor" href="#usage" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_INVALID_INPUT</code> — the input has the wrong type: not a <code>Uint8Array</code>, not a string, not a parsed certificate.</li>
+      <li><code>PKI_INVALID_OPTION</code> — an option fails validation, e.g. <code>encodingRules: &#39;cer&#39;</code>.</li>
+      <li><code>PKI_API_MISUSE</code> — a caller contract is violated, e.g. DER-encoding an indefinite-length node, or reading an implicitly tagged value without saying its type.</li>
+      <li><code>PKI_STRICT_DIAGNOSTIC</code> — <code>strict: true</code> refused an input because of its first diagnostic; the message carries that diagnostic&#39;s code.</li>
+      <li><code>PKI_INTERNAL</code> — an internal invariant broke: a pkinative bug, please report it.</li>
+      </ul>
+      <h3 id="asn1-and-oids">ASN.1 and OIDs <a class="heading-anchor" href="#asn1-and-oids" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_ASN1_TRUNCATED</code> — a header or value runs past the end of the input (CWE-125).</li>
+      <li><code>PKI_ASN1_LENGTH_OVERFLOW</code> — a declared length overruns its enclosing value (CWE-130).</li>
+      <li><code>PKI_ASN1_TAG_INVALID</code>, <code>PKI_ASN1_LENGTH_INVALID</code> — a malformed tag or length octet.</li>
+      <li><code>PKI_ASN1_LENGTH_NON_MINIMAL</code>, <code>PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN</code>, <code>PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN</code> — a BER-only construct under DER (CWE-436); decode with <code>encodingRules: &#39;ber&#39;</code> if the input is BER.</li>
+      <li><code>PKI_ASN1_CONSTRUCTED_FORM_INVALID</code>, <code>PKI_ASN1_EOC_UNEXPECTED</code>, <code>PKI_ASN1_UNEXPECTED_TAG</code> — the wrong form or type where the structure requires another.</li>
+      <li><code>PKI_ASN1_TRAILING_DATA</code> — bytes after the outermost value.</li>
+      <li><code>PKI_ASN1_BOOLEAN_INVALID</code>, <code>PKI_ASN1_INTEGER_INVALID</code>, <code>PKI_ASN1_INTEGER_UNREPRESENTABLE</code>, <code>PKI_ASN1_BIT_STRING_INVALID</code>, <code>PKI_ASN1_NULL_INVALID</code>, <code>PKI_ASN1_STRING_INVALID</code>, <code>PKI_ASN1_TIME_INVALID</code> — a value that does not match its type.</li>
+      <li><code>PKI_ASN1_VALUE_OUT_OF_RANGE</code> — an encoder argument the type cannot represent.</li>
+      <li><code>PKI_OID_INVALID</code> — an OBJECT IDENTIFIER that is empty, non-minimal or malformed.</li>
+      </ul>
+      <h3 id="pem">PEM <a class="heading-anchor" href="#pem" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_PEM_NO_BLOCK</code>, <code>PKI_PEM_UNTERMINATED</code> — no block, or a BEGIN line without its END.</li>
+      <li><code>PKI_PEM_LABEL_INVALID</code>, <code>PKI_PEM_LABEL_MISMATCH</code> — a label outside the RFC 7468 grammar, or an END label that differs.</li>
+      <li><code>PKI_PEM_UNEXPECTED_LABEL</code> — a block whose label is not the one requested with <code>label</code>, such as a private key in a certificate bundle.</li>
+      <li><code>PKI_PEM_BASE64_INVALID</code>, <code>PKI_PEM_HEADERS_FORBIDDEN</code> — the body is not canonical base64, or strict mode met RFC 1421 headers.</li>
+      </ul>
+      <h3 id="certificates">Certificates <a class="heading-anchor" href="#certificates" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_X509_STRUCTURE_INVALID</code> — the DER is not a Certificate: check that the input is not a CSR, a CRL or a key.</li>
+      <li><code>PKI_X509_VERSION_INVALID</code>, <code>PKI_X509_NAME_INVALID</code>, <code>PKI_X509_VALIDITY_INVALID</code>, <code>PKI_X509_SPKI_INVALID</code>, <code>PKI_X509_UNIQUE_ID_INVALID</code> — a malformed field.</li>
+      <li><code>PKI_X509_EXTENSIONS_EMPTY</code>, <code>PKI_X509_EXTENSION_DUPLICATE</code> — an empty extensions field, or one extension twice (CWE-694).</li>
+      <li><code>PKI_X509_EXTENSION_MALFORMED</code> — a recognised extension whose value does not match its definition; parse with <code>decodeExtensions: false</code> to keep every extension raw.</li>
+      <li><code>PKI_X509_GENERAL_NAME_INVALID</code> — a malformed GeneralName: an unknown tag, a bad iPAddress length, a non-ASCII IA5String name.</li>
+      </ul>
+      <h3 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_LIMIT_EXCEEDED</code> — a bound of <code>PkiLimits</code> was exceeded; raise it only for trusted input (CWE-400).</li>
+      <li><code>PKI_LIMIT_INVALID</code> — <code>options.limits</code> itself is invalid.</li>
+      </ul>
+      <h2 id="diagnostics">Diagnostics <a class="heading-anchor" href="#diagnostics" aria-label="Link to this section">#</a></h2>
+      <p>A diagnostic is a non-fatal conformance concern: <code>{ code, severity, message, standard, path, offset }</code>. Receive them with <code>onDiagnostic</code>, read them on <code>certificate.diagnostics</code>, or refuse them all with <code>strict: true</code>.</p>
+      <ul>
+      <li><strong>Serial number and algorithms</strong> — <code>PKI_DIAG_SERIAL_TOO_LONG</code>, <code>PKI_DIAG_SERIAL_NOT_POSITIVE</code>, <code>PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH</code>, <code>PKI_DIAG_RSA_PARAMETERS_NOT_NULL</code>.</li>
+      <li><strong>Version and encoding</strong> — <code>PKI_DIAG_EXTENSIONS_REQUIRE_V3</code>, <code>PKI_DIAG_UNIQUE_ID_REQUIRES_V2</code>, <code>PKI_DIAG_DEFAULT_ENCODED</code>.</li>
+      <li><strong>Time</strong> — <code>PKI_DIAG_GENERALIZED_TIME_BEFORE_2050</code>, <code>PKI_DIAG_GENERALIZED_TIME_FRACTION</code>, <code>PKI_DIAG_VALIDITY_INVERTED</code>.</li>
+      <li><strong>Names</strong> — <code>PKI_DIAG_EMPTY_ISSUER</code>, <code>PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL</code>, <code>PKI_DIAG_SAN_EMPTY</code>, <code>PKI_DIAG_RDN_SET_NOT_SORTED</code>, <code>PKI_DIAG_PRINTABLE_STRING_CHARSET</code>, <code>PKI_DIAG_TELETEX_AS_LATIN1</code>.</li>
+      <li><strong>Extensions</strong> — <code>PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION</code>, <code>PKI_DIAG_PATHLEN_WITHOUT_CA</code>, <code>PKI_DIAG_KEY_USAGE_EMPTY</code>, <code>PKI_DIAG_NAMED_BITS_TRAILING_ZERO</code>, <code>PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL</code>, <code>PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED</code>, <code>PKI_DIAG_POLICY_DUPLICATE</code>, <code>PKI_DIAG_POLICY_CONSTRAINTS_EMPTY</code>.</li>
+      <li><strong>Accepted tolerances</strong> — <code>PKI_DIAG_BER_CONSTRUCT_ACCEPTED</code>, <code>PKI_DIAG_PEM_LAX_ACCEPTED</code>: the input used a construct you allowed with <code>encodingRules: &#39;ber&#39;</code> or <code>mode: &#39;lax&#39;</code>.</li>
+      </ul>
+      <p><code>docs/data/diagnostics.json</code> gives each one&#39;s cause, remedy and the clause it cites.</p>
+    </article>
+  </main>
+  <footer class="guide-footer">
+    <p>Generated from <a href="https://github.com/Nizoka/pkinative/tree/main/docs/guides">docs/guides</a> by <code>npm run docs:guides</code>. <a href="../llms.txt">llms.txt</a> · <a href="https://github.com/Nizoka/pkinative">GitHub</a> · MIT © Nizoka</p>
+  </footer>
+</body>
+</html>

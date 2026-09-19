@@ -1,0 +1,20 @@
+/* pkinative.dev — guide pages. Tokens come from ../style.css. */
+
+.guide-header { max-width: var(--max-w); margin: 0 auto; padding: 0 1.5rem; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--c-border); }
+.guide-header nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.guide-header nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+
+.guide { max-width: var(--text-w); margin: 0 auto; padding: 2.5rem 1.5rem 1rem; }
+.guide h1 { font-size: 2.2rem; line-height: 1.2; letter-spacing: -.02em; margin-bottom: 1rem; }
+.guide h2 { font-size: 1.45rem; margin: 2.25rem 0 .75rem; padding-top: .5rem; border-top: 1px solid var(--c-border); }
+.guide h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+.guide p, .guide ul, .guide ol, .guide pre, .guide table { margin-bottom: 1rem; }
+.guide ul, .guide ol { padding-left: 1.5rem; }
+.guide li + li { margin-top: .3rem; }
+.guide blockquote { border-left: 4px solid var(--c-primary); background: var(--c-bg-alt); padding: .9rem 1.2rem; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 1.5rem; font-size: 1.08rem; }
+.guide blockquote p { margin: 0; }
+.heading-anchor { opacity: 0; margin-left: .4rem; font-weight: 400; color: var(--c-text-muted); }
+.guide h2:hover .heading-anchor, .guide h3:hover .heading-anchor, .heading-anchor:focus { opacity: 1; }
+.guide-list { list-style: none; padding: 0; }
+.guide-list li { padding: .75rem 0; border-bottom: 1px solid var(--c-border); }
+.guide-footer { max-width: var(--text-w); margin: 2rem auto 3rem; padding: 1rem 1.5rem 0; border-top: 1px solid var(--c-border); color: var(--c-text-muted); font-size: .9rem; }

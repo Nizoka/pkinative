@@ -102,14 +102,18 @@ Every certificate and DER blob is attacker-controlled (`.github/instructions/sec
 
 ## Conformance
 
-pkinative is held to external corpora rather than to its own encoder:
+pkinative is held to external corpora rather than to its own encoder ([conformance guide](docs/guides/conformance.md)):
 
-- **x509-limbo** (C2SP, Apache-2.0) — every certificate of every testcase is parsed, or refused with the code the expectation map names.
+- **x509-limbo** (C2SP, Apache-2.0) — every unique certificate parses, or is refused only where every limbo case using it expects failure, as the reviewed baseline `scripts/data/limbo-refusals.json` records.
 - **Wycheproof** (C2SP, Apache-2.0) — the DER-encoded ECDSA signature vectors exercise the decoder's strictness.
-- The corpora are pinned by commit and SHA-256 in `.github/checksums/`, downloaded into `test-output/corpora/`, and never committed.
-- The runner never imports `src/`'s decoder to judge the decoder: an engine-independent DER walker cross-checks the boundaries.
+- The corpora are pinned by commit and SHA-256 (`scripts/lib/corpora.ts`, `.github/checksums/`), downloaded into `test-output/corpora/` by `npm run conformance:fetch`, and never committed.
+- The gate runs the built package, never `src/`, and an engine-independent DER walker (`scripts/lib/raw-der.ts`) cross-checks the boundaries; `node:crypto` and the openssl CLI are the differential oracles.
 
-A change to decoding or parsing behaviour updates the expectation maps in the same commit, and the commit message says why the previous expectation was wrong.
+```bash
+npm run build && npm run conformance:fetch && npx tsx scripts/validate-certs.ts --require-all
+```
+
+A change to decoding or parsing behaviour that moves a refusal regenerates the baseline in the same commit (`npx tsx scripts/validate-certs.ts --update-baseline`), and the commit message says why every changed entry was wrong before. Re-pinning a corpus updates `scripts/lib/corpora.ts`, the checksum file, `THIRD-PARTY-NOTICES.md` and the canaries of `docs/assets/ecosystem.json` together; the verify-docs rule `corpus-pin-parity` checks them.
 
 ## Branch Strategy
 
@@ -164,7 +168,7 @@ The version bump is mechanical; the judgement goes into the release note.
 
 ### Branch protection
 
-The rules for `main` are versioned in [.github/rulesets/main.json](.github/rulesets/main.json), GitHub's ruleset format: no deletion, no force-push, pull request required (single maintainer, so zero approvals — but every review thread resolved, stale reviews dismissed on push, squash merges only), and the status checks `ci (22)`, `ci (24)` and `windows` required and up to date with `main`. The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting or moving a `v*` tag. Import a file after editing it: Settings → Rules → Rulesets → Import a ruleset.
+The rules for `main` are versioned in [.github/rulesets/main.json](.github/rulesets/main.json), GitHub's ruleset format: no deletion, no force-push, pull request required (single maintainer, so zero approvals — but every review thread resolved, stale reviews dismissed on push, squash merges only), and the status checks `ci (22)`, `ci (24)`, `windows` and `conformance` required and up to date with `main`. The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting or moving a `v*` tag. Import a file after editing it: Settings → Rules → Rulesets → Import a ruleset.
 
 ## License
 

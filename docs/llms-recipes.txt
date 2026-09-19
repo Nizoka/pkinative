@@ -1,0 +1,232 @@
+# pkinative — executable recipes
+
+Each recipe below runs on every test run (tests/docs/recipes.test.ts) and its
+expectations in recipes/index.json are asserted, so these samples cannot rot.
+They read the public certificates of tests/fixtures/ through recipes/_fixtures.ts.
+
+---
+<!-- source: recipes/_fixtures.ts -->
+
+```ts
+/**
+ * The public certificates the recipes read — the committed fixtures of
+ * tests/fixtures/ (PROVENANCE.md), so every recipe runs on real
+ * certificates without the network.
+ */
+import { readFileSync } from 'node:fs';
+
+/** The DER bytes of a fixture, e.g. `fixture('letsencrypt-org-leaf')`. */
+export function fixture(name: string): Uint8Array {
+    return new Uint8Array(readFileSync(new URL(`../tests/fixtures/certs/${name}.der`, import.meta.url)));
+}
+
+export const FIXTURE_NAMES = ['isrg-root-x1', 'isrg-root-x2', 'lets-encrypt-e7', 'lets-encrypt-r12', 'letsencrypt-org-leaf', 'rfc8410-x25519'] as const;
+```
+
+---
+<!-- source: recipes/quick-start.ts -->
+
+```ts
+/**
+ * Recipe: the README quick start — read PEM certificates and print what a
+ * person checks first: who, issued by whom, valid when, for which names, and
+ * the fingerprint. The block between the quick-start markers is the README
+ * code block, character for character (tests/docs/recipes.test.ts).
+ */
+import { encodePem } from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+// quick-start:begin
+import { computeFingerprint, decodePem, formatDistinguishedName, formatFingerprint, getExtension, parseCertificate } from 'pkinative';
+
+export function describeCertificates(pemText: string): string[] {
+    const lines: string[] = [];
+    for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
+        const cert = parseCertificate(bytes);
+        const names = getExtension(cert, 'subjectAltName')?.names ?? [];
+        const iso = (ms: number): string => new Date(ms).toISOString();
+        lines.push(
+            `subject: ${formatDistinguishedName(cert.subject)}`,
+            `issuer:  ${formatDistinguishedName(cert.issuer)}`,
+            `valid:   ${iso(cert.validity.notBefore.epochMilliseconds)} → ${iso(cert.validity.notAfter.epochMilliseconds)}`,
+            `names:   ${names.map((n) => (n.kind === 'dNSName' ? n.value : n.kind)).join(', ')}`,
+            `sha-256: ${formatFingerprint(computeFingerprint(bytes, 'SHA-256'))}`,
+        );
+    }
+    return lines;
+}
+// quick-start:end
+
+export default function run(): Record<string, string> {
+    const lines = describeCertificates(encodePem('CERTIFICATE', fixture('letsencrypt-org-leaf')));
+    return {
+        subject: lines[0] ?? '',
+        issuer: lines[1] ?? '',
+        valid: lines[2] ?? '',
+        firstName: (lines[3] ?? '').split(', ')[0] ?? '',
+        fingerprint: lines[4] ?? '',
+    };
+}
+```
+
+---
+<!-- source: recipes/inspect-extensions.ts -->
+
+```ts
+/**
+ * Recipe: walk every extension of a certificate — the decoded ones by kind,
+ * the critical flags, the profile diagnostics — then keep one extension raw
+ * and decode it on demand, the way an inspection tool reads certificates it
+ * must not reject.
+ */
+import { decodeExtensionValue, getExtension, getOidName, parseCertificate, type PkiDiagnostic } from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+export default function run(): Record<string, string> {
+    const der = fixture('letsencrypt-org-leaf');
+    const cert = parseCertificate(der);
+
+    const kinds = cert.extensions.map((e) => `${e.kind}${e.critical ? '!' : ''}`);
+    const policies = getExtension(cert, 'certificatePolicies')?.policies.map((p) => getOidName(p.policyIdentifier) ?? p.policyIdentifier) ?? [];
+    const crl = getExtension(cert, 'crlDistributionPoints')?.points[0]?.fullName?.[0];
+
+    // Tools that must show a certificate even when an extension is malformed
+    // parse with decodeExtensions: false, then decode what they need.
+    const raw = parseCertificate(der, { decodeExtensions: false });
+    const keyUsage = raw.extensions.find((e) => e.oid === '2.5.29.15');
+    const decoded = keyUsage === undefined ? undefined : decodeExtensionValue(keyUsage.oid, keyUsage.valueDer, { critical: keyUsage.critical });
+
+    // The RFC 8410 example encodes DEFAULT values explicitly: read, and reported.
+    const seen: PkiDiagnostic[] = [];
+    parseCertificate(fixture('rfc8410-x25519'), { onDiagnostic: (d) => { seen.push(d); } });
+
+    return {
+        extensions: kinds.join(','),
+        policy: policies.join(','),
+        crl: crl?.kind === 'uniformResourceIdentifier' ? crl.value : '',
+        rawKinds: [...new Set(raw.extensions.map((e) => e.kind))].join(','),
+        onDemand: decoded?.kind === 'keyUsage' ? decoded.usages.join(',') : '',
+        diagnostics: seen.map((d) => `${d.code}@${d.path}`).join(' '),
+    };
+}
+```
+
+---
+<!-- source: recipes/pem-bundle.ts -->
+
+```ts
+/**
+ * Recipe: read a CA bundle — many PEM certificates in one text — and link
+ * each certificate to its issuer by key identifier (a root is its own). The `label` option makes
+ * a private key slipped into the bundle an error instead of a certificate.
+ * pkinative exports no PEM-to-certificate shortcut: decodePem and
+ * parseCertificate compose, as encoding/pem and crypto/x509 do in Go.
+ */
+import { decodePem, encodePem, formatDistinguishedName, getExtension, parseCertificate, PkiError } from 'pkinative';
+import { FIXTURE_NAMES, fixture } from './_fixtures.ts';
+
+const hex = (bytes: Uint8Array | undefined): string => [...(bytes ?? [])].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+export default function run(): Record<string, string> {
+    const bundle = FIXTURE_NAMES.map((name) => encodePem('CERTIFICATE', fixture(name))).join('\n');
+
+    const certificates = decodePem(bundle, { label: 'CERTIFICATE' }).map((block) => parseCertificate(block.bytes, { onDiagnostic: () => undefined }));
+    const bySubjectKey = new Map(certificates.map((c) => [hex(getExtension(c, 'subjectKeyIdentifier')?.keyIdentifier), c]));
+
+    const links = certificates.map((cert) => {
+        // A root carries no authorityKeyIdentifier: its issuer name is its own subject, byte for byte.
+        const selfIssued = hex(cert.issuer.der) === hex(cert.subject.der);
+        const issuer = selfIssued ? cert : bySubjectKey.get(hex(getExtension(cert, 'authorityKeyIdentifier')?.keyIdentifier));
+        return `${formatDistinguishedName(cert.subject).split(',')[0]} <- ${issuer === undefined ? '?' : formatDistinguishedName(issuer.subject).split(',')[0]}`;
+    });
+
+    let refused = '';
+    try {
+        decodePem(`${bundle}\n-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n`, { label: 'CERTIFICATE' });
+    } catch (error) {
+        refused = error instanceof PkiError ? error.code : 'unexpected';
+    }
+
+    return {
+        count: String(certificates.length),
+        links: links.join('; '),
+        privateKey: refused,
+    };
+}
+```
+
+---
+<!-- source: recipes/fingerprint.ts -->
+
+```ts
+/**
+ * Recipe: certificate fingerprints — synchronous everywhere, or through Web
+ * Crypto when the host has it — with the same bytes either way, formatted
+ * the way certificate tools and pinning configurations write them.
+ */
+import { computeFingerprint, computeFingerprintAsync, formatFingerprint } from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+export default async function run(): Promise<Record<string, string>> {
+    const der = fixture('isrg-root-x1');
+    const sync = computeFingerprint(der, 'SHA-256');
+    const viaWebCrypto = await computeFingerprintAsync(der, 'SHA-256');
+    return {
+        sha256: formatFingerprint(sync),
+        pin: formatFingerprint(sync, { separator: '', letterCase: 'lower' }),
+        sameBytes: String(formatFingerprint(viaWebCrypto) === formatFingerprint(sync)),
+        sha1: formatFingerprint(computeFingerprint(der, 'SHA-1')),
+    };
+}
+```
+
+---
+<!-- source: recipes/hostile-input.ts -->
+
+```ts
+/**
+ * Recipe: what hostile input meets — a typed error with a stable code, never
+ * a crash, and resource limits a caller can tighten for its own context.
+ * Branch on `error.code`, never on the message.
+ */
+import { decodeAsn1, parseCertificate, PkiEncodingError, PkiError, PkiLimitError, readInteger } from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+function codeOf(action: () => unknown): string {
+    try {
+        action();
+        return 'accepted';
+    } catch (error) {
+        if (error instanceof PkiLimitError) return `${error.code}:${error.limit}`;
+        if (error instanceof PkiError) return error.code;
+        throw error;
+    }
+}
+
+export default function run(): Record<string, string> {
+    // 10 000 nested SEQUENCEs: the decoder is iterative, so this is a limit, not a stack overflow.
+    const depth = 10_000;
+    const nested = new Uint8Array(depth * 2 + 2);
+    for (let i = 0; i < depth; i++) nested.set([0x30, 0x80], i * 2);
+    const deep = codeOf(() => decodeAsn1(nested, { encodingRules: 'ber', onDiagnostic: () => undefined }));
+
+    // A length that runs past the end of the input.
+    const truncated = codeOf(() => decodeAsn1(Uint8Array.of(0x30, 0x84, 0x7f, 0xff, 0xff, 0xff)));
+
+    // A real certificate, cut in half.
+    const leaf = fixture('letsencrypt-org-leaf');
+    const halved = codeOf(() => parseCertificate(leaf.subarray(0, leaf.length >> 1)));
+
+    // A caller that expects small certificates can say so.
+    const tightened = codeOf(() => parseCertificate(leaf, { limits: { maxExtensions: 4 } }));
+
+    let offset = '';
+    try {
+        readInteger(decodeAsn1(Uint8Array.of(0x02, 0x02, 0x00, 0x01)));
+    } catch (error) {
+        if (error instanceof PkiEncodingError) offset = `${error.code}@${String(error.offset)}`;
+    }
+
+    return { deep, truncated, halved, tightened, nonMinimalInteger: offset };
+}
+```

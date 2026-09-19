@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript</title>
+  <meta name="description" content="Zero-dependency TypeScript toolkit for PKI data: strict ASN.1 DER, RFC 7468 PEM, OIDs and complete RFC 5280 certificate parsing, held to x509-limbo, Wycheproof and OpenSSL. One API for Node, browsers, Deno, Bun and Workers.">
+  <meta name="keywords" content="x509, certificate, asn1, der, pem, rfc5280, typescript, zero-dependency, x509-limbo, wycheproof">
+  <meta name="author" content="Nizoka">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/">
+  <meta property="og:title" content="pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript">
+  <meta property="og:description" content="Read the certificates your software trusts — strictly, safely, on every runtime, without a single dependency.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="pkinative">
+  <meta name="twitter:description" content="Strict, zero-dependency X.509 and ASN.1 for TypeScript, held to x509-limbo, Wycheproof and OpenSSL.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.svg">
+  <link rel="canonical" href="https://pkinative.dev/">
+  <link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt — machine-readable documentation index">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://pkinative.dev/#website",
+        "url": "https://pkinative.dev/",
+        "name": "pkinative",
+        "inLanguage": "en",
+        "publisher": { "@id": "https://pkinative.dev/#org" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://pkinative.dev/#org",
+        "name": "Nizoka",
+        "url": "https://pkinative.dev/",
+        "logo": "https://pkinative.dev/assets/logo.svg",
+        "sameAs": ["https://github.com/Nizoka/pkinative"]
+      },
+      {
+        "@type": ["SoftwareSourceCode", "SoftwareApplication"],
+        "@id": "https://pkinative.dev/#library",
+        "name": "pkinative",
+        "inLanguage": "en",
+        "programmingLanguage": "TypeScript",
+        "runtimePlatform": "Node.js >= 22, browsers, Deno, Bun, Workers",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Cross-platform",
+        "codeRepository": "https://github.com/Nizoka/pkinative",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@id": "https://pkinative.dev/#org" },
+        "softwareVersion": "0.0.1",
+        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER, RFC 7468 PEM, OIDs and complete RFC 5280 X.509 certificate parsing."
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="./"><img src="favicon.svg" alt="" width="28" height="28">pkinative</a>
+    <nav aria-label="Site">
+      <a href="guides/quickstart.html">Quick start</a>
+      <a href="guides/index.html">Guides</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="https://github.com/Nizoka/pkinative">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main-content">
+    <section class="section hero" aria-labelledby="hero-title">
+      <h1 id="hero-title">Read the certificates your software trusts.</h1>
+      <p class="lede">Strictly, safely, on every runtime, without a single dependency. pkinative decodes ASN.1 DER, PEM and OIDs and parses every field and every standard extension of an RFC 5280 certificate — in plain TypeScript, for Node.js, browsers, Deno, Bun and Workers.</p>
+      <span class="status">0.1 — pre-1.0 git tag, not on npm · reads certificates; verification arrives in 0.3</span>
+      <div class="actions">
+        <a class="button primary" href="guides/quickstart.html">Quick start</a>
+        <a class="button" href="https://github.com/Nizoka/pkinative">Source on GitHub</a>
+      </div>
+    </section>
+
+    <section class="section" id="why" aria-labelledby="why-title">
+      <h2 id="why-title">Why pkinative</h2>
+      <ul class="features">
+        <li><strong>Strict by default</strong>DER is decoded as X.690 §10–11 requires. Two encodings of one value is an ambiguity an attacker can exploit, so it is refused, not guessed at.</li>
+        <li><strong>Safe on hostile input</strong>Eleven named, CWE-tagged limits bound every loop; nesting is iterative; every failure is a typed error with a stable code.</li>
+        <li><strong>Complete</strong>Every RFC 5280 extension, every GeneralName form, RFC 4514 names, and RSA, EC, EdDSA, XDH and ML-DSA keys.</li>
+        <li><strong>Honest about profiles</strong>What real issuers get wrong is a diagnostic with its RFC section — never a crash, never silence.</li>
+        <li><strong>No cryptography it should not own</strong>No signing, key generation or secret arithmetic in TypeScript; verification goes through Web Crypto.</li>
+        <li><strong>Built for agents</strong>Machine-readable codes, a generated API manifest, <a href="llms.txt">llms.txt</a> and a human-in-the-loop governance policy.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="example" aria-labelledby="example-title">
+      <h2 id="example-title">Three calls</h2>
+      <pre><code>import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from 'pkinative';
+
+const [block] = decodePem(pemText, { label: 'CERTIFICATE' });
+const cert = parseCertificate(block.bytes);
+
+formatDistinguishedName(cert.subject);          // 'CN=letsencrypt.org'
+getExtension(cert, 'subjectAltName')?.names;    // [{ kind: 'dNSName', value: 'cp.letsencrypt.org' }, …]
+cert.diagnostics;                               // profile concerns, each with its RFC section</code></pre>
+      <p>Every export, its signature and the errors it throws are listed in the generated <a href="assets/api.json">API manifest</a>; every sample in the guides runs in CI as a <a href="llms-recipes.txt">recipe</a>.</p>
+    </section>
+
+    <section class="section" id="conformance" aria-labelledby="conformance-title">
+      <h2 id="conformance-title">Held to corpora it did not write</h2>
+      <p>A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.</p>
+      <ul class="figures">
+        <li><span class="figure">30 361</span>unique x509-limbo certificates parsed or refused by the rules</li>
+        <li><span class="figure">564</span>certificates refused, each only where limbo expects failure</li>
+        <li><span class="figure">1 530</span>Wycheproof ECDSA vectors decoded strictly</li>
+        <li><span class="figure">0</span>disagreements with OpenSSL on serial, validity, CA flag and fingerprint</li>
+      </ul>
+      <p><a href="guides/conformance.html">How the conformance gate works</a></p>
+    </section>
+
+    <section class="section" id="architecture" aria-labelledby="architecture-title">
+      <h2 id="architecture-title">Small, layered, tree-shakeable</h2>
+      <p>Strict layers with no reverse edge, enforced from the syntax tree. A bundle that only parses certificates carries no PEM code, no hash and no OID name registry — proved on every build by <code>npm run verify:bundle</code>.</p>
+      <img src="assets/architecture.svg" alt="The pkinative layers: index imports every layer; x509 imports types, core and asn1; hash, asn1 and pem import types and core; oid imports nothing." width="760" height="360">
+    </section>
+
+    <section class="section" id="agents" aria-labelledby="agents-title">
+      <h2 id="agents-title">For AI agents</h2>
+      <p>Start from <a href="agent-brief.md">the agent brief</a>, <a href="llms.txt">llms.txt</a> and <a href="llms-full.txt">llms-full.txt</a>. Errors carry stable codes (<a href="data/errors.json">registry</a>), diagnostics carry their clause (<a href="data/diagnostics.json">registry</a>), and the public surface is <a href="assets/api.json">api.json</a>. Agents that contribute work under a human-in-the-loop policy: they draft and verify, a maintainer pushes and publishes.</p>
+    </section>
+
+    <section class="section" id="origin" aria-labelledby="origin-title">
+      <h2 id="origin-title">Origin</h2>
+      <p>pkinative is the third library of the <em>native</em> family, after <a href="https://github.com/Nizoka/pdfnative">pdfnative</a> and <a href="https://github.com/Nizoka/zipnative">zipnative</a>. It grew out of the X.509 and CMS code pdfnative wrote for PDF signatures, keeps its ideas, rewrites its parser, and leaves secret-dependent arithmetic to Web Crypto.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><a href="guides/index.html">Guides</a> · <a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md">Roadmap</a> · <a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md">Changelog</a> · <a href="sitemap.xml">Sitemap</a></p>
+    <p>MIT © Nizoka · Documentation verified on <time id="verified-on" datetime="2026-09-19">2026-09-19</time></p>
+  </footer>
+</body>
+</html>

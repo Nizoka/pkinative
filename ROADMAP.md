@@ -2,15 +2,16 @@
 
 pkinative grows in milestones, each one a git tag with its own release note. Versions below 1.0.0 are never published to npm; the name is reserved by an empty 0.0.1, and 1.0.0 is the first npm release. Every milestone ships under the same gate, the same limits discipline and the same conformance corpora.
 
-## 0.1.x — M1: Read-only foundation *(in progress)*
+## 0.1.x — M1: Read-only foundation *(0.1.0)*
 
-- [ ] **Errors, limits and diagnostics** — the `PkiError` family with stable codes, CWE-tagged `PkiLimits`, the single diagnostics sink with `onDiagnostic` and `strict`
-- [ ] **ASN.1** — iterative X.690 decoder, strict DER by default and BER on request; value readers (BOOLEAN, INTEGER, BIT STRING, OCTET STRING, NULL, OBJECT IDENTIFIER, every string type, UTCTime and GeneralizedTime); hardened encoders
-- [ ] **PEM** — RFC 7468 strict and lax parsing, encoding
-- [ ] **OIDs** — dotted-string codec and a tree-shaken name registry
-- [ ] **Fingerprints** — SHA-1/256/384/512 over certificate DER, synchronous and Web Crypto-backed
-- [ ] **X.509** — complete RFC 5280 certificate parsing: every standard extension, every GeneralName form, full distinguished names with RFC 4514 rendering, every public-key algorithm's parameters
-- [ ] **Conformance gate** — x509-limbo and Wycheproof pinned by commit and checksum, an engine-independent DER walker, a differential against `node:crypto`
+- [x] **Errors, limits and diagnostics** — the `PkiError` family with stable codes, CWE-tagged `PkiLimits`, the single diagnostics sink with `onDiagnostic` and `strict`
+- [x] **ASN.1** — iterative X.690 decoder, strict DER by default and BER on request; value readers (BOOLEAN, INTEGER, BIT STRING, OCTET STRING, NULL, OBJECT IDENTIFIER, every string type, UTCTime and GeneralizedTime); hardened encoders
+- [x] **PEM** — RFC 7468 strict and lax parsing, encoding
+- [x] **OIDs** — dotted-string codec and a tree-shaken name registry
+- [x] **Fingerprints** — SHA-1/256/384/512 over certificate DER, synchronous and Web Crypto-backed
+- [x] **X.509** — complete RFC 5280 certificate parsing: every standard extension, every GeneralName form, full distinguished names with RFC 4514 rendering, every public-key algorithm's parameters
+- [x] **Conformance gate** — x509-limbo and Wycheproof pinned by commit and checksum, an engine-independent DER walker, a differential against `node:crypto` and the openssl CLI
+- [x] **Documentation** — guides, `llms.txt`, a generated API manifest, executable recipes, the pkinative.dev landing page
 
 ## 0.3.x — M2: Creation through Web Crypto
 
