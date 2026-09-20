@@ -18,8 +18,9 @@
  *   - `class` appears only in the error module;
  *   - `console` appears only in the diagnostics module;
  *   - no runtime escape hatch (`eval`, `Function`, `fetch`, `process`, …);
- *   - no Web Crypto key operation (`sign`, `generateKey`, `deriveBits`, …),
- *     called or declared.
+ *   - every Web Crypto key operation — called or declared — is named only by
+ *     the modules `KEY_OPERATION_POLICY` allows, and five of them by nobody,
+ *     ever; the host object itself has one door.
  *
  * @module scripts/lib/architecture
  */
@@ -40,6 +41,14 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     pem: ['types', 'core'],
     oid: [],
     x509: ['types', 'core', 'asn1'],
+    // crypto imports no x509. Everything a verifier needs is already on the
+    // parsed structure as data — tbsDer, signatureAlgorithm, signatureValue,
+    // subjectPublicKeyInfo.der — and all of those types live in `types`. The
+    // asn1 edge is for reading RSASSA-PSS parameters out of an Asn1Node and
+    // for the DER ↔ P1363 signature conversion, both pure encoding work.
+    // The invariant to defend: the verifier consumes parsed data, it does
+    // not parse. It is why verification never ships the certificate parser.
+    crypto: ['types', 'core', 'asn1'],
 });
 
 export const ENTRY = 'src/index.ts';
@@ -55,14 +64,61 @@ export const FORBIDDEN_GLOBALS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Web Crypto operations on keys. 0.1 reads public data and hashes it; it
- * signs nothing, generates no key and touches no secret (AGENTS.md
- * §Mission and constraints), so no module may name one — in a call or in a
- * type. Verification (0.3) will allow `verify` and `importKey` of public keys
- * here, in its own reviewed commit.
+ * Every Web Crypto key operation, and the exact modules of `src/` allowed to
+ * name each one — in a call, a property signature or a method signature.
+ *
+ * **An empty list is a permanent refusal**, not a milestone waiting its turn:
+ * pkinative never creates, exports, wraps or derives raw key material, in any
+ * version. The three that are allowed are allowed in two files and nowhere
+ * else, because the guarantee this table exists to give is not "the library
+ * is careful" but "there is one door, and here it is".
+ *
+ * `src/types/webcrypto.ts` appears beside the implementation because the
+ * check fires on declarations too: the boundary cannot declare the shape of
+ * the host it calls without naming these.
+ *
+ * Widening this table is a reviewed commit of its own, and changes the
+ * SECURITY.md table in the same diff — the `key-operation-parity` rule of
+ * verify-docs fails otherwise.
  */
-export const KEY_OPERATIONS: ReadonlySet<string> = new Set([
-    'sign', 'verify', 'generateKey', 'deriveBits', 'deriveKey', 'encrypt', 'decrypt', 'wrapKey', 'unwrapKey', 'importKey', 'exportKey',
+export const KEY_OPERATION_POLICY: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    // ── The Web Crypto boundary (0.3) ────────────────────────────────
+    importKey: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
+    verify: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
+    sign: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
+
+    // ── Never, in any version ────────────────────────────────────────
+    // generateKey and exportKey: owning a key's lifetime is the caller's
+    //   job, and three lines of their code. `exportKey: []` is why the
+    //   certificate builder takes SPKI DER instead of a CryptoKey.
+    // deriveBits: hands back an ArrayBuffer of key material nothing can
+    //   zeroise. deriveKey (0.8, PBES2) strictly dominates it, and
+    //   refusing it turns "we prefer deriveKey" from a review habit into
+    //   a gate.
+    // encrypt and wrapKey: pkinative reads containers; it writes none.
+    generateKey: [],
+    exportKey: [],
+    deriveBits: [],
+    encrypt: [],
+    wrapKey: [],
+
+    // ── 0.8, for PKCS#8 and PKCS#12 under PBES2 only ─────────────────
+    // Listed here with an empty allowlist so the table states the whole
+    // vocabulary rather than half of it: a reader must be able to see that
+    // `decrypt` is refused today and why it will not always be.
+    deriveKey: [],
+    unwrapKey: [],
+    decrypt: [],
+});
+
+/**
+ * The only modules that may reach the host's Web Crypto object. Without the
+ * DOM lib, `globalThis.crypto` is the only way there, so it is a single-sink
+ * global exactly as `console` is: one door for digests, one for keys.
+ */
+export const WEBCRYPTO_HOST_MODULES: ReadonlySet<string> = new Set([
+    'src/crypto/webcrypto.ts',
+    'src/hash/fingerprint.ts',
 ]);
 
 function finding(file: string, line: number, message: string): Finding {
@@ -119,8 +175,17 @@ function inspectModule(path: string, text: string): ModuleFacts {
     const visit = (node: ts.Node): void => {
         const member = ts.isPropertyAccessExpression(node) ? node.name
             : (ts.isPropertySignature(node) || ts.isMethodSignature(node)) && ts.isIdentifier(node.name) ? node.name : undefined;
-        if (member !== undefined && KEY_OPERATIONS.has(member.text)) {
-            findings.push(finding(path, lineAt(node), `\`${member.text}\` is a key operation, and 0.1 signs nothing, generates no key and touches no secret — see SECURITY.md §Cryptographic Implementation Scope`));
+        // `Object.hasOwn`, not `in`: a property named `toString` or
+        // `constructor` satisfies `in` through the prototype chain and then
+        // yields a function where a list is expected. The same reason
+        // src/ puts decoded names in Maps and never in object keys.
+        if (member !== undefined && Object.hasOwn(KEY_OPERATION_POLICY, member.text)) {
+            const allowed = KEY_OPERATION_POLICY[member.text] ?? [];
+            if (allowed.length === 0) {
+                findings.push(finding(path, lineAt(node), `\`${member.text}\` is never allowed in src/ — pkinative creates, exports, wraps and derives no key material, in any version; see SECURITY.md §Cryptographic Implementation Scope`));
+            } else if (!allowed.includes(path)) {
+                findings.push(finding(path, lineAt(node), `\`${member.text}\` is a key operation, and only ${allowed.join(' and ')} may name it — route it through the Web Crypto boundary rather than reaching for the host here`));
+            }
         }
         if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
             imports.push({ specifier: node.moduleSpecifier.text, line: lineAt(node) });
@@ -136,6 +201,8 @@ function inspectModule(path: string, text: string): ModuleFacts {
             const name = node.name.text;
             if (name === 'console' && path !== DIAGNOSTICS_MODULE) {
                 findings.push(finding(path, lineAt(node), `\`globalThis.console\` is forbidden outside ${DIAGNOSTICS_MODULE} — emit a diagnostic instead`));
+            } else if (name === 'crypto' && !WEBCRYPTO_HOST_MODULES.has(path)) {
+                findings.push(finding(path, lineAt(node), `\`globalThis.crypto\` is forbidden outside ${[...WEBCRYPTO_HOST_MODULES].join(' and ')} — the host is reached through one door, so what pkinative asks of it can be read in one place`));
             } else if (FORBIDDEN_GLOBALS.has(name)) {
                 findings.push(finding(path, lineAt(node), `\`globalThis.${name}\` is forbidden in src/ — the engine has no dynamic code, no I/O and no host-specific globals`));
             }
@@ -171,7 +238,9 @@ export function checkArchitecture(files: Readonly<Record<string, string>>): Find
             out.push(finding(path, 1, 'is outside every layer — source files live in src/<layer>/ or are src/index.ts'));
             continue;
         }
-        if (from !== 'index' && !(from in LAYERS)) {
+        // `Object.hasOwn` for the reason above: a directory named
+        // `constructor` would otherwise resolve to a function.
+        if (from !== 'index' && !Object.hasOwn(LAYERS, from)) {
             out.push(finding(path, 1, `layer "${from}" is not registered in LAYERS (scripts/lib/architecture.ts) — register it and update AGENTS.md §Architecture first`));
             continue;
         }
@@ -273,7 +342,7 @@ export function checkLayerParity(agentsMd: string | null): Finding[] {
         if (want !== got) out.push(finding(FILE, line, `the diagram says ${layer} → ${got || '(nothing)'}, LAYERS says ${layer} → ${want || '(nothing)'}`));
     }
     for (const layer of Object.keys(diagram)) {
-        if (!(layer in LAYERS)) out.push(finding(FILE, line, `the diagram names layer "${layer}", which LAYERS does not register`));
+        if (!Object.hasOwn(LAYERS, layer)) out.push(finding(FILE, line, `the diagram names layer "${layer}", which LAYERS does not register`));
     }
     return out;
 }

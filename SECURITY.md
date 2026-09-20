@@ -23,10 +23,29 @@ pkinative is a pure TypeScript library with **zero runtime dependencies**. Every
 
 ### Cryptographic Implementation Scope
 
-pkinative **never implements secret-dependent cryptography in TypeScript**. There is no signing, no key generation, no RSA modular exponentiation and no elliptic-curve scalar multiplication in `src/`. The architecture test (`tests/tools/architecture.test.ts`) fails the build if any module names a Web Crypto key operation — `sign`, `verify`, `generateKey`, `deriveBits`, `deriveKey`, `encrypt`, `decrypt`, `wrapKey`, `unwrapKey`, `importKey`, `exportKey` — in a call or in a type; arithmetic cannot be recognised from the syntax tree, so modular and elliptic-curve arithmetic are kept out by review, and none exists in `src/`.
+pkinative **never implements secret-dependent cryptography in TypeScript**. There is no signing, no key generation, no RSA modular exponentiation and no elliptic-curve scalar multiplication in `src/`. Arithmetic cannot be recognised from a syntax tree, so it is kept out by review — but *naming* a Web Crypto key operation can be, and is, per module. The architecture test (`tests/tools/architecture.test.ts`) fails the build when any file outside the list below names one, in a call or in a type, and the `key-operation-parity` rule of `npm run verify:docs` holds this table to `KEY_OPERATION_POLICY` in `scripts/lib/architecture.ts`.
 
-- Signature verification and certificate creation (from 0.3) go through Web Crypto (`crypto.subtle`), whose implementations run in constant time in the host.
+| Operation | Allowed in | Since |
+|---|---|---|
+| `importKey` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.3.0 |
+| `verify` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.3.0 |
+| `sign` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.3.0 |
+| `generateKey` | nowhere | never |
+| `exportKey` | nowhere | never |
+| `deriveBits` | nowhere | never |
+| `encrypt` | nowhere | never |
+| `wrapKey` | nowhere | never |
+| `deriveKey` | nowhere | 0.8.0 |
+| `unwrapKey` | nowhere | 0.8.0 |
+| `decrypt` | nowhere | 0.8.0 |
+
+**"Nowhere / never" is a promise, not a backlog.** pkinative creates, exports, wraps and derives no raw key material in any version. `exportKey` being refused is why the certificate builder takes a SubjectPublicKeyInfo in DER rather than a `CryptoKey`: one line in the caller's code, in exchange for a guarantee a test can check. `deriveBits` stays refused even when 0.8 opens `deriveKey`, because the first hands back an `ArrayBuffer` nothing can zeroise and the second returns a non-extractable handle.
+
+`globalThis.crypto` has one door too: only `src/crypto/webcrypto.ts` and `src/hash/fingerprint.ts` may reach it, so everything pkinative asks of a host is readable in two files.
+
+- Signature verification (0.3) and certificate creation go through Web Crypto (`crypto.subtle`), whose implementations run in constant time in the host. Keys are imported from `spki` — the public half — with `extractable: false` and the single usage `['verify']`.
 - Hashing (SHA-1, SHA-256, SHA-384, SHA-512) is implemented in TypeScript for synchronous fingerprints of **public** data only; these functions are not exported as general-purpose hashes.
+- The DER ↔ P1363 ECDSA signature converter (`src/crypto/crypto-signature.ts`) is TypeScript, and legal: a signature is public, there is no key in it, and it performs no arithmetic beyond copying bytes.
 - This is a deliberate departure from pdfnative's pure-TypeScript RSA and ECDSA, whose `BigInt` arithmetic is not constant-time; that code is not, and will not be, ported.
 
 ### Parser Safety

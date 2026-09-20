@@ -48,16 +48,28 @@ const MARKERS = {
     pem: ['PEM boundaries', '-----BEGIN'],
     asn1Decoder: ['ASN.1 decoder', 'end-of-contents marker'],
     x509: ['X.509 parser', 'tbsCertificate'],
+    webcrypto: ['Web Crypto bridge', 'RSASSA-PKCS1-v1_5'],
 } as const;
 
-/** Measured 2026-09-19 (esbuild 0.28.1, minified ESM): 10.3, 8.6, 55.1, 7.6, 14.6 and 94.0 KB. */
+/**
+ * Measured 2026-09-20 (esbuild 0.28.1, minified ESM): 10.3, 8.6, 55.6,
+ * 7.6, 14.6, 12.7 and 101.6 KB. Each budget is the measurement plus 15 %.
+ *
+ * The verification probe is the one that earns its place. AGENTS.md
+ * §Architecture claims `crypto` never imports `x509`; this measures the
+ * built artefact and finds neither the parser, nor the decoder, nor the
+ * hashes in it — 12.7 KB to check a signature. The parser probe is the
+ * same claim from the other side: reading a certificate ships no Web
+ * Crypto bridge. A layer diagram is a drawing until something weighs it.
+ */
 export const PROBES: readonly Probe[] = [
-    { exports: ['decodeAsn1'], maxBytes: 12 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509] },
-    { exports: ['decodePem', 'encodePem'], maxBytes: 10 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509] },
-    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 64 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
-    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 9 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry] },
-    { exports: ['getOidName'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509] },
-    { exports: ['*'], maxBytes: 109 * 1024, mustNotContain: [] },
+    { exports: ['decodeAsn1'], maxBytes: 12 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['decodePem', 'encodePem'], maxBytes: 10 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 64 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
+    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 9 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
+    { exports: ['getOidName'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    { exports: ['*'], maxBytes: 118 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

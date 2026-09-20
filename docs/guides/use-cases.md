@@ -1,8 +1,8 @@
 # Use cases
 
-> **Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each.** None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.
+> **Five jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.
 
-A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the four cases below.
+A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
 <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
   <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
@@ -171,15 +171,40 @@ This is the check conformance level L2 runs over all 30 361 unique x509-limbo ce
 
 Strict DER is the default, and that is what makes the check meaningful: a non-minimal length, a constructed string, an indefinite length or a `BOOLEAN` that is not `0x00` or `0xFF` is refused rather than normalised. BER is available with `{ encodingRules: 'ber' }` when you must read what another tool wrote, and the differences it tolerated are reported as diagnostics rather than hidden.
 
+## Check one link of a chain
+
+The job: confirm that the key in one certificate really signed another. It is one link, and the honest name for it is a link — not a chain.
+
+```ts
+import { canVerify, parseCertificate, PkiCryptoError, verifyCertificateSignature } from 'pkinative';
+
+export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Promise<'yes' | 'no' | string> {
+    if (!canVerify()) return 'PKI_CRYPTO_UNAVAILABLE';
+    const quiet = { onDiagnostic: () => undefined };
+    try {
+        return await verifyCertificateSignature(parseCertificate(leafDer, quiet), parseCertificate(issuerDer, quiet)) ? 'yes' : 'no';
+    } catch (error) {
+        // Not a verdict: pkinative could not decide. Retrying elsewhere may
+        // give a different answer, and treating it as a rejection would
+        // blame the certificate for the runtime's limits.
+        if (error instanceof PkiCryptoError) return error.code;
+        throw error;
+    }
+}
+```
+
+**Three answers, and the third is the one people get wrong.** `true` and `false` are verdicts; a `PkiCryptoError` is not. A signature whose bytes are malformed, whose issuer key is of the wrong family, or whose two `signatureAlgorithm` fields disagree is `false` — fail closed, so a caller who forgets the `catch` gets "not verified" instead of an exception that some layer above may swallow into a success path.
+
+Verification runs in [Web Crypto](https://www.w3.org/TR/WebCryptoAPI/), never in TypeScript: the key is imported from the SubjectPublicKeyInfo with `extractable: false` and the single usage `verify`, and pkinative never sees its bits. That is the whole of [`src/crypto/webcrypto.ts`](../../src/crypto/webcrypto.ts), sixty lines, and it is the only file in the library that may name a key operation at all.
+
 ## What none of these do yet
 
-Each of the four is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the five is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Verify that a certificate was signed by its issuer | 0.3, through Web Crypto | @peculiar/x509, pkijs |
 | Build a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Decide whether a chain is trusted | 0.5, RFC 5280 §6 | pkijs; on Node.js, your TLS stack |
 | Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
 
-A fingerprint proves two byte strings are the same certificate. It proves nothing about whether that certificate should be trusted, and pkinative 0.1 does not pretend otherwise. That distinction is the whole of the [security model](security.md).
+A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. **Neither proves a certificate should be trusted** — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the [security model](security.md).

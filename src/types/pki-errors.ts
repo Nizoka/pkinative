@@ -75,6 +75,18 @@ export type PkiLimitErrorCode =
     | 'PKI_LIMIT_INVALID';   // the limits override itself is invalid (configured/observed are NaN)
 
 /**
+ * Codes carried by {@link PkiCryptoError}: pkinative could not **decide**.
+ *
+ * Every one of these means the verification did not happen, never that it
+ * failed — a signature that does not check out is `false`, and so is one
+ * whose bytes are malformed. See the class for why.
+ */
+export type PkiCryptoErrorCode =
+    | 'PKI_CRYPTO_UNAVAILABLE'              // the host exposes no crypto.subtle to verify with (CWE-693)
+    | 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED'    // pkinative maps no Web Crypto algorithm to this signature OID (CWE-757)
+    | 'PKI_CRYPTO_KEY_UNSUPPORTED';         // the host refused to import the public key, or its kind has no Web Crypto form (CWE-757)
+
+/**
  * Every stable error code pkinative can throw. Frozen from 0.8.0:
  * removal or renaming is semver-major; additions are semver-minor.
  */
@@ -82,7 +94,8 @@ export type PkiErrorCode =
     | PkiBaseErrorCode
     | PkiEncodingErrorCode
     | PkiCertificateErrorCode
-    | PkiLimitErrorCode;
+    | PkiLimitErrorCode
+    | PkiCryptoErrorCode;
 
 // ── Classes ──────────────────────────────────────────────────────────
 
@@ -144,5 +157,36 @@ export class PkiLimitError extends PkiError<PkiLimitErrorCode> {
         this.limit = limit;
         this.configured = configured;
         this.observed = observed;
+    }
+}
+
+/**
+ * pkinative could not decide whether a signature is valid.
+ *
+ * This class draws the line the rest of the library is built around, so it
+ * is worth stating plainly: **a verification that runs returns a boolean. It
+ * throws only when it could not run.** No Web Crypto on the host, an
+ * algorithm pkinative does not map, a key the host will not import — those
+ * are the three, and they are all "ask me again elsewhere", never "this
+ * certificate is bad".
+ *
+ * A signature whose bytes are malformed is **`false`**, not an exception.
+ * That is deliberate and it fails closed: a caller who forgets a `catch`
+ * gets "not verified", which is the safe answer, instead of an exception
+ * that some layer above may swallow into a success path. It also matches
+ * what every other verification API does with garbage.
+ *
+ * From 0.5 this class is what the one-call report layer catches and
+ * converts into a reason code; it is the only `PkiError` subclass that
+ * carries a cause from the host.
+ */
+export class PkiCryptoError extends PkiError<PkiCryptoErrorCode> {
+    /** The algorithm OID involved, in dotted notation, when one is known. */
+    readonly algorithm: string | undefined;
+
+    constructor(code: PkiCryptoErrorCode, message: string, algorithm?: string) {
+        super(code, message);
+        this.name = 'PkiCryptoError';
+        this.algorithm = algorithm;
     }
 }

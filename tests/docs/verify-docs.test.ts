@@ -52,7 +52,13 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     },
     'diagnostics-parity': (f) => edit(f, 'docs/data/diagnostics.json', '"PKI_DIAG_SAN_EMPTY"', '"PKI_DIAG_SAN_MISSING"'),
     'limits-parity': (f) => edit(f, 'SECURITY.md', /^\| `maxDepth` \| 64 \|/m, '| `maxDepth` | 65 |'),
+    // The defect that matters: the prose quietly granting an operation the
+    // check still refuses. "nowhere" is the only honest value for these.
+    'key-operation-parity': (f) => edit(f, 'SECURITY.md', /^\| `generateKey` \| nowhere \|/m, '| `generateKey` | `src/crypto/webcrypto.ts` |'),
     'api-json-sync': (f) => edit(f, 'docs/assets/api.json', /"exportCount": \d+/, '"exportCount": 0'),
+    // The failure to catch is a budget raised for a surface that grew
+    // without anyone restating how much it grew.
+    'type-surface-parity': (f) => edit(f, 'docs/assets/ecosystem.json', /"exportedTypes": \d+/, '"exportedTypes": 1'),
     'tsdoc-complete': (f) => edit(f, 'src/asn1/asn1-oid.ts', ' * @throws Never.\n */\nexport function isValidOid', ' */\nexport function isValidOid'),
     'guide-render-sync': (f) => edit(f, 'docs/guides/errors.html', '<h1 id=', '<h1 class="stale" id='),
     'llms-sync': (f) => edit(f, 'docs/llms-full.txt', /\n$/, '\nstale\n'),

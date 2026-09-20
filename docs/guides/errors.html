@@ -86,9 +86,17 @@
       <td>A configured limit exceeded, or an invalid limits override</td>
       <td><code>code</code>, <code>limit</code>, <code>configured</code>, <code>observed</code></td>
       </tr>
+      <tr>
+      <td><code>PkiCryptoError</code></td>
+      <td>A verification <strong>could not be performed</strong> — never one that failed</td>
+      <td><code>code</code>, <code>algorithm</code></td>
+      </tr>
       </tbody></table>
       <p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. Before 0.8 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.8 the vocabulary is frozen under semantic versioning. PKCS#12 is the last subsystem that introduces codes, so 0.8 is the first version at which the vocabulary is complete — and 0.9 exists to prove that nothing needed renaming after all. Diagnostic codes are additions-only already: none is ever renamed or removed.</p>
-      <p>Each class types its own <code>code</code>, so narrowing the error narrows the codes: <code>PkiBaseErrorCode</code> on <code>PkiError</code>, <code>PkiEncodingErrorCode</code>, <code>PkiCertificateErrorCode</code> and <code>PkiLimitErrorCode</code> on the three subclasses. <code>PkiErrorCode</code> is the union of all four — the type to write when you store or pass a code without caring which class raised it.</p>
+      <p>Each class types its own <code>code</code>, so narrowing the error narrows the codes: <code>PkiBaseErrorCode</code> on <code>PkiError</code>, and <code>PkiEncodingErrorCode</code>, <code>PkiCertificateErrorCode</code>, <code>PkiLimitErrorCode</code> and <code>PkiCryptoErrorCode</code> on the four subclasses. <code>PkiErrorCode</code> is the union of all five — the type to write when you store or pass a code without caring which class raised it.</p>
+      <h3 id="the-line-pkicryptoerror-draws">The line <code>PkiCryptoError</code> draws <a class="heading-anchor" href="#the-line-pkicryptoerror-draws" aria-label="Link to this section">#</a></h3>
+      <p><code>verifyCertificateSignature</code> returns a boolean, and <strong>throws only when the question could not be put</strong>. A signature that does not check out is <code>false</code>. So is one whose bytes are malformed, one whose issuer key is of the wrong family entirely, and one whose two <code>signatureAlgorithm</code> fields disagree — every case where the answer is knowably &quot;no&quot;. Failing closed is deliberate: a caller who forgets a <code>catch</code> gets &quot;not verified&quot;, which is the safe reading, instead of an exception some layer above may swallow into a success path.</p>
+      <p>A <code>PkiCryptoError</code> means something else, and it is worth reacting to differently: pkinative did not decide. Retrying elsewhere may give a different answer, and treating it as a rejection would blame a certificate for the runtime&#39;s limits.</p>
       <h2 id="error-codes">Error codes <a class="heading-anchor" href="#error-codes" aria-label="Link to this section">#</a></h2>
       <h3 id="usage">Usage <a class="heading-anchor" href="#usage" aria-label="Link to this section">#</a></h3>
       <ul>
@@ -129,6 +137,12 @@
       <ul>
       <li><code>PKI_LIMIT_EXCEEDED</code> — a bound of <code>PkiLimits</code> was exceeded; raise it only for trusted input (CWE-400).</li>
       <li><code>PKI_LIMIT_INVALID</code> — <code>options.limits</code> itself is invalid.</li>
+      </ul>
+      <h3 id="verification-that-could-not-run">Verification that could not run <a class="heading-anchor" href="#verification-that-could-not-run" aria-label="Link to this section">#</a></h3>
+      <ul>
+      <li><code>PKI_CRYPTO_UNAVAILABLE</code> — this runtime exposes no <code>crypto.subtle</code> with <code>importKey</code> and <code>verify</code>. Call <code>canVerify()</code> first; a page on plain HTTP has none (CWE-693).</li>
+      <li><code>PKI_CRYPTO_ALGORITHM_UNSUPPORTED</code> — the signature algorithm is outside the set pkinative verifies, or its RSASSA-PSS parameters name something Web Crypto cannot express. MD2 and MD5 are here on purpose: Web Crypto implements neither, so the honest answer names the algorithm instead of a verification that did not happen (CWE-757).</li>
+      <li><code>PKI_CRYPTO_KEY_UNSUPPORTED</code> — the issuer&#39;s key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent (CWE-757).</li>
       </ul>
       <h2 id="diagnostics">Diagnostics <a class="heading-anchor" href="#diagnostics" aria-label="Link to this section">#</a></h2>
       <p>A diagnostic is a non-fatal conformance concern: <code>{ code, severity, message, standard, path, offset }</code>. Receive them with <code>onDiagnostic</code>, read them on <code>certificate.diagnostics</code>, or refuse them all with <code>strict: true</code>.</p>

@@ -14,6 +14,7 @@
  */
 
 import ts from 'typescript';
+import { KEY_OPERATION_POLICY, WEBCRYPTO_HOST_MODULES } from '../../lib/architecture.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 export const ERRORS_SOURCE = 'src/types/pki-errors.ts';
@@ -338,7 +339,58 @@ const limitsParity: Rule = {
     },
 };
 
-export const REGISTRY_RULES: readonly Rule[] = [errorParity, diagnosticsParity, limitsParity];
+/**
+ * The Web Crypto key-operation policy, in SECURITY.md and in code.
+ *
+ * This is the project's central security promise — "pkinative creates,
+ * exports and wraps no key material" — and before 0.3 it was a sentence
+ * listing eleven operations as forbidden. That sentence became false the
+ * moment verification landed. Prose that states a guarantee must not be
+ * able to drift from the check that gives it, so the table is held to
+ * `KEY_OPERATION_POLICY` in both directions.
+ */
+const keyOperationParity: Rule = {
+    id: 'key-operation-parity',
+    summary: 'The Web Crypto key-operation table of SECURITY.md lists exactly the operations of KEY_OPERATION_POLICY, with the same modules allowed for each — the prose that states pkinative touches no key material cannot drift from the check that enforces it.',
+    check(ctx) {
+        const security = ctx.read(SECURITY);
+        if (security === null) return [error(SECURITY, 'missing — it carries the cryptographic scope promise')];
+        const out: Finding[] = [];
+
+        // `| \`op\` | a, b | since |`, the rows of the §Cryptographic
+        // Implementation Scope table. "nowhere" is the empty list.
+        const documented = new Map<string, string>();
+        for (const m of security.matchAll(/^\|\s*`(\w+)`\s*\|\s*([^|]+?)\s*\|[^|]*\|$/gm)) {
+            const name = m[1] ?? '';
+            if (Object.hasOwn(KEY_OPERATION_POLICY, name)) documented.set(name, m[2] ?? '');
+        }
+
+        for (const [operation, allowed] of Object.entries(KEY_OPERATION_POLICY)) {
+            const row = documented.get(operation);
+            if (row === undefined) {
+                out.push(error(SECURITY, `the key-operation table omits \`${operation}\`, which KEY_OPERATION_POLICY ${allowed.length === 0 ? 'refuses everywhere' : `allows in ${allowed.join(', ')}`}`));
+                continue;
+            }
+            const want = allowed.length === 0 ? 'nowhere' : allowed.map((p) => `\`${p}\``).join(', ');
+            if (row !== want) {
+                out.push(error(SECURITY, `the key-operation table says \`${operation}\` is allowed in "${row}"; KEY_OPERATION_POLICY says ${want}`, lineContaining(security, `\`${operation}\``)));
+            }
+        }
+        for (const operation of documented.keys()) {
+            if (!Object.hasOwn(KEY_OPERATION_POLICY, operation)) {
+                out.push(error(SECURITY, `the key-operation table names \`${operation}\`, which KEY_OPERATION_POLICY does not`));
+            }
+        }
+
+        // The single-sink claim, which is the other half of the promise.
+        for (const module of WEBCRYPTO_HOST_MODULES) {
+            if (!security.includes(module)) out.push(error(SECURITY, `does not name ${module}, one of the two modules allowed to reach globalThis.crypto`));
+        }
+        return out;
+    },
+};
+
+export const REGISTRY_RULES: readonly Rule[] = [errorParity, diagnosticsParity, limitsParity, keyOperationParity];
 
 /** Exported for tests: the codes the registries hold, read the way the rules read them. */
 export function registryCodes(ctx: RuleContext): { errors: string[]; diagnostics: string[] } {

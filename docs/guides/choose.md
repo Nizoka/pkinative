@@ -7,7 +7,10 @@
 - Parses every field and every standard extension of an RFC 5280 certificate, with profile concerns as diagnostics.
 - Decodes and encodes DER (and BER on request), PEM and OIDs, with typed errors and CWE-tagged limits.
 - Computes certificate fingerprints, synchronously or through Web Crypto.
+- Verifies a certificate's signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448. `true` and `false` are answers; a `PkiCryptoError` means the question could not be put.
 - Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.
+
+Verifying a signature is **not** validating a chain: it says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. Treating one as the other is an authentication bypass, and RFC 5280 §6 arrives in 0.5.
 
 `docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
 
@@ -15,7 +18,6 @@
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Verify a certificate's signature | 0.3, through Web Crypto | @peculiar/x509 or pkijs, which verify through Web Crypto |
 | Create a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Validate a path, check CRL or OCSP | 0.5 | pkijs; on Node.js, `node:crypto.X509Certificate` plus your TLS stack |
 | Parse or build CMS, verify timestamps | 0.7 | pkijs |

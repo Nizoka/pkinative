@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Use cases — pkinative</title>
-  <meta name="description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta name="description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/use-cases.html">
   <meta property="og:title" content="Use cases — pkinative">
-  <meta property="og:description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta property="og:description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Use cases — pkinative">
-  <meta name="twitter:description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta name="twitter:description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/use-cases.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases.html">
@@ -55,9 +55,9 @@
     <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
       <h1 id="use-cases">Use cases</h1>
       <blockquote>
-      <p><strong>Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each.</strong> None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only <em>reads</em> can do completely, and completely is the point.</p>
+      <p><strong>Five jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.</p>
       </blockquote>
-      <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the four cases below.</p>
+      <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.</p>
       <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
         <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
         <desc id="decision-desc">Untrusted bytes reach decodeAsn1, which either throws a PkiEncodingError with a stable code or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or produces a certificate together with any diagnostics. Every refusal carries a code; nothing is ever half-accepted.</desc>
@@ -202,8 +202,28 @@
       </code></pre>
       <p>This is the check conformance level L2 runs over all 30 361 unique x509-limbo certificates on every release, so it is not a suggestion — it is a property the library is held to. A certificate that fails it was not canonical DER to begin with, which is itself the finding.</p>
       <p>Strict DER is the default, and that is what makes the check meaningful: a non-minimal length, a constructed string, an indefinite length or a <code>BOOLEAN</code> that is not <code>0x00</code> or <code>0xFF</code> is refused rather than normalised. BER is available with <code>{ encodingRules: &#39;ber&#39; }</code> when you must read what another tool wrote, and the differences it tolerated are reported as diagnostics rather than hidden.</p>
+      <h2 id="check-one-link-of-a-chain">Check one link of a chain <a class="heading-anchor" href="#check-one-link-of-a-chain" aria-label="Link to this section">#</a></h2>
+      <p>The job: confirm that the key in one certificate really signed another. It is one link, and the honest name for it is a link — not a chain.</p>
+      <pre><code class="language-ts">import { canVerify, parseCertificate, PkiCryptoError, verifyCertificateSignature } from &#39;pkinative&#39;;
+
+      export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Promise&lt;&#39;yes&#39; | &#39;no&#39; | string&gt; {
+          if (!canVerify()) return &#39;PKI_CRYPTO_UNAVAILABLE&#39;;
+          const quiet = { onDiagnostic: () =&gt; undefined };
+          try {
+              return await verifyCertificateSignature(parseCertificate(leafDer, quiet), parseCertificate(issuerDer, quiet)) ? &#39;yes&#39; : &#39;no&#39;;
+          } catch (error) {
+              // Not a verdict: pkinative could not decide. Retrying elsewhere may
+              // give a different answer, and treating it as a rejection would
+              // blame the certificate for the runtime&#39;s limits.
+              if (error instanceof PkiCryptoError) return error.code;
+              throw error;
+          }
+      }
+      </code></pre>
+      <p><strong>Three answers, and the third is the one people get wrong.</strong> <code>true</code> and <code>false</code> are verdicts; a <code>PkiCryptoError</code> is not. A signature whose bytes are malformed, whose issuer key is of the wrong family, or whose two <code>signatureAlgorithm</code> fields disagree is <code>false</code> — fail closed, so a caller who forgets the <code>catch</code> gets &quot;not verified&quot; instead of an exception that some layer above may swallow into a success path.</p>
+      <p>Verification runs in <a href="https://www.w3.org/TR/WebCryptoAPI/" target="_blank" rel="noopener">Web Crypto</a>, never in TypeScript: the key is imported from the SubjectPublicKeyInfo with <code>extractable: false</code> and the single usage <code>verify</code>, and pkinative never sees its bits. That is the whole of <a href="https://github.com/Nizoka/pkinative/blob/main/src/crypto/webcrypto.ts" target="_blank" rel="noopener"><code>src/crypto/webcrypto.ts</code></a>, sixty lines, and it is the only file in the library that may name a key operation at all.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
-      <p>Each of the four is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <p>Each of the five is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>
       <thead>
       <tr>
@@ -213,11 +233,6 @@
       </tr>
       </thead>
       <tbody><tr>
-      <td>Verify that a certificate was signed by its issuer</td>
-      <td>0.3, through Web Crypto</td>
-      <td>@peculiar/x509, pkijs</td>
-      </tr>
-      <tr>
       <td>Build a CSR or a certificate</td>
       <td>0.3, signed by a Web Crypto key</td>
       <td>@peculiar/x509</td>
@@ -233,7 +248,7 @@
       <td>pkijs</td>
       </tr>
       </tbody></table>
-      <p>A fingerprint proves two byte strings are the same certificate. It proves nothing about whether that certificate should be trusted, and pkinative 0.1 does not pretend otherwise. That distinction is the whole of the <a href="security.html">security model</a>.</p>
+      <p>A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. <strong>Neither proves a certificate should be trusted</strong> — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the <a href="security.html">security model</a>.</p>
     </article>
   </main>
   <footer class="footer">

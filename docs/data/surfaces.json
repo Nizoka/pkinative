@@ -11,7 +11,7 @@
     { "id": "pem", "capability": "Decode RFC 7468 PEM in strict or lax mode, optionally restricted to one label; encode PEM", "exports": ["decodePem", "encodePem"], "since": "0.1.0" },
     { "id": "fingerprint", "capability": "Certificate fingerprints over SHA-1, SHA-256, SHA-384 and SHA-512, synchronous or through Web Crypto", "exports": ["computeFingerprint", "computeFingerprintAsync", "formatFingerprint"], "since": "0.1.0" },
     { "id": "x509-parse", "capability": "Parse an RFC 5280 certificate: every field, every standard extension, profile concerns as diagnostics", "exports": ["parseCertificate", "getExtension", "decodeExtensionValue", "formatDistinguishedName"], "since": "0.1.0" },
-    { "id": "x509-verify", "capability": "Verify a certificate signature through Web Crypto", "exports": [], "since": "0.3.0 (planned)" },
+    { "id": "x509-verify", "capability": "Verify a certificate signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448", "exports": ["verifyCertificateSignature", "verifySelfSignature", "canVerify", "PkiCryptoError"], "since": "0.3.0" },
     { "id": "x509-path", "capability": "Build and validate a certification path (RFC 5280 §6), CRL and OCSP", "exports": [], "since": "0.5.0 (planned)" }
   ]
 }

@@ -4,7 +4,15 @@
     {
       "file": "quick-start.ts",
       "task": "Read PEM certificates and print subject, issuer, validity, names and fingerprint (the README quick start)",
-      "surface": ["decodePem", "parseCertificate", "getExtension", "formatDistinguishedName", "computeFingerprint", "formatFingerprint", "encodePem"],
+      "surface": [
+        "decodePem",
+        "parseCertificate",
+        "getExtension",
+        "formatDistinguishedName",
+        "computeFingerprint",
+        "formatFingerprint",
+        "encodePem"
+      ],
       "since": "0.1.0",
       "expects": [
         "subject=subject: CN=letsencrypt.org",
@@ -17,14 +25,26 @@
     {
       "file": "agent-brief.ts",
       "task": "Compose decodePem and parseCertificate to read the host names of a certificate (the docs/agent-brief.md sample)",
-      "surface": ["decodePem", "parseCertificate", "getExtension", "encodePem"],
+      "surface": [
+        "decodePem",
+        "parseCertificate",
+        "getExtension",
+        "encodePem"
+      ],
       "since": "0.2.0",
-      "expects": ["names=cp.letsencrypt.org,cp.root-x1.letsencrypt.org,cps.letsencrypt.org,cps.root-x1.letsencrypt.org,lencr.org,letsencrypt.com,letsencrypt.org,www.lencr.org,www.letsencrypt.com,www.letsencrypt.org"]
+      "expects": [
+        "names=cp.letsencrypt.org,cp.root-x1.letsencrypt.org,cps.letsencrypt.org,cps.root-x1.letsencrypt.org,lencr.org,letsencrypt.com,letsencrypt.org,www.lencr.org,www.letsencrypt.com,www.letsencrypt.org"
+      ]
     },
     {
       "file": "inspect-extensions.ts",
       "task": "Walk every extension, keep them raw when an inspection tool needs to, and decode one on demand",
-      "surface": ["parseCertificate", "getExtension", "decodeExtensionValue", "getOidName"],
+      "surface": [
+        "parseCertificate",
+        "getExtension",
+        "decodeExtensionValue",
+        "getOidName"
+      ],
       "since": "0.1.0",
       "expects": [
         "extensions=keyUsage!,extendedKeyUsage,basicConstraints!,subjectKeyIdentifier,authorityKeyIdentifier,authorityInfoAccess,subjectAltName,certificatePolicies,crlDistributionPoints,signedCertificateTimestampList",
@@ -38,7 +58,14 @@
     {
       "file": "pem-bundle.ts",
       "task": "Read a CA bundle, link each certificate to its issuer, refuse a private key hidden in it",
-      "surface": ["decodePem", "encodePem", "parseCertificate", "getExtension", "formatDistinguishedName", "PkiError"],
+      "surface": [
+        "decodePem",
+        "encodePem",
+        "parseCertificate",
+        "getExtension",
+        "formatDistinguishedName",
+        "PkiError"
+      ],
       "since": "0.1.0",
       "expects": [
         "count=6",
@@ -49,7 +76,11 @@
     {
       "file": "fingerprint.ts",
       "task": "Compute certificate fingerprints synchronously and through Web Crypto, formatted for display and for pinning",
-      "surface": ["computeFingerprint", "computeFingerprintAsync", "formatFingerprint"],
+      "surface": [
+        "computeFingerprint",
+        "computeFingerprintAsync",
+        "formatFingerprint"
+      ],
       "since": "0.1.0",
       "expects": [
         "sha256=96:BC:EC:06:26:49:76:F3:74:60:77:9A:CF:28:C5:A7:CF:E8:A3:C0:AA:E1:1A:8F:FC:EE:05:C0:BD:DF:08:C6",
@@ -60,7 +91,24 @@
     {
       "file": "asn1-and-oids.ts",
       "task": "Build DER with the encoders, read typed fields back, re-encode a certificate byte for byte, and encode, decode, validate and name OIDs",
-      "surface": ["encodeSequence", "encodeObjectIdentifier", "encodeInteger", "encodeString", "encodeTime", "decodeAsn1", "readObjectIdentifier", "readInteger", "readString", "readTime", "encodeAsn1Node", "encodeOid", "decodeOid", "isValidOid", "getOidName", "OID_REGISTRY"],
+      "surface": [
+        "encodeSequence",
+        "encodeObjectIdentifier",
+        "encodeInteger",
+        "encodeString",
+        "encodeTime",
+        "decodeAsn1",
+        "readObjectIdentifier",
+        "readInteger",
+        "readString",
+        "readTime",
+        "encodeAsn1Node",
+        "encodeOid",
+        "decodeOid",
+        "isValidOid",
+        "getOidName",
+        "OID_REGISTRY"
+      ],
       "since": "0.1.0",
       "expects": [
         "oid=2.5.29.17 subjectAltName",
@@ -77,7 +125,23 @@
     {
       "file": "asn1-primitives.ts",
       "task": "Encode and read the BOOLEAN, NULL, BIT STRING and OCTET STRING primitives, reach an arbitrary tag with encodeTlv, and see what DER's SET OF ordering does",
-      "surface": ["decodeAsn1", "decodeAsn1Sequence", "encodeBoolean", "encodeNull", "encodeInteger", "encodeOctetString", "encodeBitString", "encodeTlv", "encodeSet", "encodeSetOf", "readBoolean", "readNull", "readSmallInteger", "readOctetString", "readBitString"],
+      "surface": [
+        "decodeAsn1",
+        "decodeAsn1Sequence",
+        "encodeBoolean",
+        "encodeNull",
+        "encodeInteger",
+        "encodeOctetString",
+        "encodeBitString",
+        "encodeTlv",
+        "encodeSet",
+        "encodeSetOf",
+        "readBoolean",
+        "readNull",
+        "readSmallInteger",
+        "readOctetString",
+        "readBitString"
+      ],
       "since": "0.2.0",
       "expects": [
         "stream=true null 65537 deadbeef",
@@ -91,7 +155,16 @@
     {
       "file": "hostile-input.ts",
       "task": "Meet hostile input with typed errors and caller-tightened limits, never a crash",
-      "surface": ["decodeAsn1", "readInteger", "parseCertificate", "PkiError", "PkiEncodingError", "PkiLimitError", "PkiCertificateError", "DEFAULT_PKI_LIMITS"],
+      "surface": [
+        "decodeAsn1",
+        "readInteger",
+        "parseCertificate",
+        "PkiError",
+        "PkiEncodingError",
+        "PkiLimitError",
+        "PkiCertificateError",
+        "DEFAULT_PKI_LIMITS"
+      ],
       "since": "0.1.0",
       "expects": [
         "deep=PKI_LIMIT_EXCEEDED:maxDepth",
@@ -101,6 +174,28 @@
         "defaultExtensions=256",
         "structural=PKI_X509_STRUCTURE_INVALID",
         "nonMinimalInteger=PKI_ASN1_INTEGER_INVALID@0"
+      ]
+    },
+    {
+      "file": "verify-signature.ts",
+      "task": "Verify that an issuer's key signed a certificate, and tell a refusal apart from an inability to check",
+      "surface": [
+        "canVerify",
+        "verifyCertificateSignature",
+        "verifySelfSignature",
+        "PkiCryptoError",
+        "parseCertificate",
+        "formatDistinguishedName"
+      ],
+      "since": "0.3.0",
+      "expects": [
+        "available=yes",
+        "selfSigned=CN=ISRG Root X1=true CN=ISRG Root X2=true",
+        "links=CN=R12<-CN=ISRG Root X1=true CN=E7<-CN=ISRG Root X2=true",
+        "wrongRoot=false",
+        "x25519SelfSignature=false",
+        "couldNotCheck=none",
+        "lenient=true"
       ]
     }
   ]

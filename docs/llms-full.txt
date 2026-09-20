@@ -46,7 +46,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 0.2 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.1 reads certificates; it does not verify signatures or validate chains yet.
+> **Status: 0.2 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.3 reads certificates and verifies their signatures through Web Crypto; it does not validate chains yet.
 
 ## Why pkinative?
 
@@ -125,7 +125,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 
-pkinative has 127 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 133 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -326,7 +326,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — eight executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input.
+- [recipes/](../../recipes/) — nine executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -335,9 +335,9 @@ Error code unions are in the [errors guide](errors.md).
 
 # Use cases
 
-> **Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each.** None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.
+> **Five jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.
 
-A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the four cases below.
+A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
 <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
   <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
@@ -506,18 +506,43 @@ This is the check conformance level L2 runs over all 30 361 unique x509-limbo ce
 
 Strict DER is the default, and that is what makes the check meaningful: a non-minimal length, a constructed string, an indefinite length or a `BOOLEAN` that is not `0x00` or `0xFF` is refused rather than normalised. BER is available with `{ encodingRules: 'ber' }` when you must read what another tool wrote, and the differences it tolerated are reported as diagnostics rather than hidden.
 
+## Check one link of a chain
+
+The job: confirm that the key in one certificate really signed another. It is one link, and the honest name for it is a link — not a chain.
+
+```ts
+import { canVerify, parseCertificate, PkiCryptoError, verifyCertificateSignature } from 'pkinative';
+
+export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Promise<'yes' | 'no' | string> {
+    if (!canVerify()) return 'PKI_CRYPTO_UNAVAILABLE';
+    const quiet = { onDiagnostic: () => undefined };
+    try {
+        return await verifyCertificateSignature(parseCertificate(leafDer, quiet), parseCertificate(issuerDer, quiet)) ? 'yes' : 'no';
+    } catch (error) {
+        // Not a verdict: pkinative could not decide. Retrying elsewhere may
+        // give a different answer, and treating it as a rejection would
+        // blame the certificate for the runtime's limits.
+        if (error instanceof PkiCryptoError) return error.code;
+        throw error;
+    }
+}
+```
+
+**Three answers, and the third is the one people get wrong.** `true` and `false` are verdicts; a `PkiCryptoError` is not. A signature whose bytes are malformed, whose issuer key is of the wrong family, or whose two `signatureAlgorithm` fields disagree is `false` — fail closed, so a caller who forgets the `catch` gets "not verified" instead of an exception that some layer above may swallow into a success path.
+
+Verification runs in [Web Crypto](https://www.w3.org/TR/WebCryptoAPI/), never in TypeScript: the key is imported from the SubjectPublicKeyInfo with `extractable: false` and the single usage `verify`, and pkinative never sees its bits. That is the whole of [`src/crypto/webcrypto.ts`](../../src/crypto/webcrypto.ts), sixty lines, and it is the only file in the library that may name a key operation at all.
+
 ## What none of these do yet
 
-Each of the four is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the five is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Verify that a certificate was signed by its issuer | 0.3, through Web Crypto | @peculiar/x509, pkijs |
 | Build a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Decide whether a chain is trusted | 0.5, RFC 5280 §6 | pkijs; on Node.js, your TLS stack |
 | Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
 
-A fingerprint proves two byte strings are the same certificate. It proves nothing about whether that certificate should be trusted, and pkinative 0.1 does not pretend otherwise. That distinction is the whole of the [security model](security.md).
+A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. **Neither proves a certificate should be trusted** — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the [security model](security.md).
 
 ---
 <!-- source: docs/guides/security.md -->
@@ -638,10 +663,17 @@ Six public certificates are committed as known-answer fixtures, each with its so
 | `PkiEncodingError` | X.690, OBJECT IDENTIFIER and RFC 7468 syntax | `code`, `offset` |
 | `PkiCertificateError` | The RFC 5280 certificate structure | `code`, `path`, `offset` |
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
+| `PkiCryptoError` | A verification **could not be performed** — never one that failed | `code`, `algorithm` |
 
 Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.8 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.8 the vocabulary is frozen under semantic versioning. PKCS#12 is the last subsystem that introduces codes, so 0.8 is the first version at which the vocabulary is complete — and 0.9 exists to prove that nothing needed renaming after all. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
-Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, `PkiEncodingErrorCode`, `PkiCertificateErrorCode` and `PkiLimitErrorCode` on the three subclasses. `PkiErrorCode` is the union of all four — the type to write when you store or pass a code without caring which class raised it.
+Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, and `PkiEncodingErrorCode`, `PkiCertificateErrorCode`, `PkiLimitErrorCode` and `PkiCryptoErrorCode` on the four subclasses. `PkiErrorCode` is the union of all five — the type to write when you store or pass a code without caring which class raised it.
+
+### The line `PkiCryptoError` draws
+
+`verifyCertificateSignature` returns a boolean, and **throws only when the question could not be put**. A signature that does not check out is `false`. So is one whose bytes are malformed, one whose issuer key is of the wrong family entirely, and one whose two `signatureAlgorithm` fields disagree — every case where the answer is knowably "no". Failing closed is deliberate: a caller who forgets a `catch` gets "not verified", which is the safe reading, instead of an exception some layer above may swallow into a success path.
+
+A `PkiCryptoError` means something else, and it is worth reacting to differently: pkinative did not decide. Retrying elsewhere may give a different answer, and treating it as a rejection would blame a certificate for the runtime's limits.
 
 ## Error codes
 
@@ -685,6 +717,12 @@ Each class types its own `code`, so narrowing the error narrows the codes: `PkiB
 - `PKI_LIMIT_EXCEEDED` — a bound of `PkiLimits` was exceeded; raise it only for trusted input (CWE-400).
 - `PKI_LIMIT_INVALID` — `options.limits` itself is invalid.
 
+### Verification that could not run
+
+- `PKI_CRYPTO_UNAVAILABLE` — this runtime exposes no `crypto.subtle` with `importKey` and `verify`. Call `canVerify()` first; a page on plain HTTP has none (CWE-693).
+- `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` — the signature algorithm is outside the set pkinative verifies, or its RSASSA-PSS parameters name something Web Crypto cannot express. MD2 and MD5 are here on purpose: Web Crypto implements neither, so the honest answer names the algorithm instead of a verification that did not happen (CWE-757).
+- `PKI_CRYPTO_KEY_UNSUPPORTED` — the issuer's key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent (CWE-757).
+
 ## Diagnostics
 
 A diagnostic is a non-fatal conformance concern: `{ code, severity, message, standard, path, offset }`. Receive them with `onDiagnostic`, read them on `certificate.diagnostics`, or refuse them all with `strict: true`.
@@ -710,7 +748,10 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 - Parses every field and every standard extension of an RFC 5280 certificate, with profile concerns as diagnostics.
 - Decodes and encodes DER (and BER on request), PEM and OIDs, with typed errors and CWE-tagged limits.
 - Computes certificate fingerprints, synchronously or through Web Crypto.
+- Verifies a certificate's signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448. `true` and `false` are answers; a `PkiCryptoError` means the question could not be put.
 - Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.
+
+Verifying a signature is **not** validating a chain: it says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. Treating one as the other is an authentication bypass, and RFC 5280 §6 arrives in 0.5.
 
 `docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
 
@@ -718,7 +759,6 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Verify a certificate's signature | 0.3, through Web Crypto | @peculiar/x509 or pkijs, which verify through Web Crypto |
 | Create a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Validate a path, check CRL or OCSP | 0.5 | pkijs; on Node.js, `node:crypto.X509Certificate` plus your TLS stack |
 | Parse or build CMS, verify timestamps | 0.7 | pkijs |

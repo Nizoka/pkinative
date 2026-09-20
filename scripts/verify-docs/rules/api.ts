@@ -198,6 +198,37 @@ const surfacesParity: Rule = {
     },
 };
 
+/**
+ * The size of the public type surface, declared rather than discovered.
+ *
+ * `dist/index.d.ts` has the least headroom of anything pkinative ships,
+ * and its weight is decided by how many types are exported — not by how
+ * they are worded. A byte budget alone can therefore be raised release
+ * after release without anyone noticing the surface doubled, which is the
+ * failure this rule exists to make impossible: these two counts cannot
+ * change by accident, and every change to one is a line in a diff.
+ */
+const typeSurfaceParity: Rule = {
+    id: 'type-surface-parity',
+    summary: 'declared.typeSurface of docs/assets/ecosystem.json counts exactly the exported types and values of docs/assets/api.json — the declaration file\'s byte budget can be raised, but not without the surface behind it being restated.',
+    check(ctx) {
+        const api = readJson<{ exports?: Array<{ kind: string }> }>(ctx, API_JSON);
+        const manifest = readJson<{ declared?: { typeSurface?: { exportedTypes?: unknown; exportedValues?: unknown } } }>(ctx, MANIFEST);
+        if ('finding' in api) return [api.finding];
+        if ('finding' in manifest) return [manifest.finding];
+        const declared = manifest.value.declared?.typeSurface;
+        if (declared === undefined) return [error(MANIFEST, 'declared.typeSurface is missing — the declaration file would be budgeted in bytes alone')];
+
+        const all = api.value.exports ?? [];
+        const types = all.filter((e) => e.kind === 'type' || e.kind === 'interface').length;
+        const values = all.length - types;
+        const out: Finding[] = [];
+        if (declared.exportedTypes !== types) out.push(error(MANIFEST, `declared.typeSurface.exportedTypes says ${String(declared.exportedTypes)}; ${API_JSON} has ${String(types)}`));
+        if (declared.exportedValues !== values) out.push(error(MANIFEST, `declared.typeSurface.exportedValues says ${String(declared.exportedValues)}; ${API_JSON} has ${String(values)}`));
+        return out;
+    },
+};
+
 export const API_RULES: readonly Rule[] = [
-    apiJsonSync, tsdocComplete, memberTsdoc, exportNamed, optionFieldsNamed, extensionKindsComplete, surfacesParity,
+    apiJsonSync, tsdocComplete, memberTsdoc, exportNamed, optionFieldsNamed, extensionKindsComplete, surfacesParity, typeSurfaceParity,
 ];

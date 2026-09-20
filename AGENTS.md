@@ -58,10 +58,12 @@ asn1   → types, core
 pem    → types, core
 oid    → (nothing)
 x509   → types, core, asn1
+crypto → types, core, asn1
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid` (the name registry stays out of the certificate parser's bundle), and `pem` never imports `asn1` (PEM is an envelope, not a decoder).
+`x509` never imports `oid` (the registry stays out of the parser's bundle), `pem` never imports `asn1` (PEM is an envelope), and **`crypto` never imports `x509`**: the verifier consumes parsed data, so verification ships no parser.
+**Web Crypto has one door.** Only `src/crypto/webcrypto.ts` may name `importKey`, `verify` or `sign`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` in every version.
 
 ## Conventions
 

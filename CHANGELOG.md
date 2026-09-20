@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **feat(crypto): a certificate's signature can be verified, through Web Crypto and nowhere else** — `verifyCertificateSignature(certificate, issuer)` and `verifySelfSignature(certificate)` answer whether the issuer's key signed these bytes, over RSA PKCS#1 v1.5, RSASSA-PSS, ECDSA on P-256/384/521, Ed25519 and Ed448. `canVerify()` says whether the runtime can be asked at all. The new `crypto` layer imports **no `x509`**: everything a verifier needs is already on the parsed structure as data, so `verify-bundle` measures 12.7 KB with neither the parser, nor the ASN.1 decoder, nor the hashes in it — and the parser probe proves the converse, that reading a certificate ships no Web Crypto bridge. A layer diagram is a drawing until something weighs it.
+- **feat(crypto): `PkiCryptoError`, and the line it draws** — a verification that runs returns a boolean; it throws only when it could not run. `PKI_CRYPTO_UNAVAILABLE`, `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` and `PKI_CRYPTO_KEY_UNSUPPORTED` all mean "ask me again elsewhere", never "this certificate is bad". A malformed signature, an issuer key of the wrong family and two disagreeing `signatureAlgorithm` fields are each **`false`** — failing closed, so a caller who forgets a `catch` gets "not verified" rather than an exception a layer above may swallow into a success path. That distinction is what 0.9's non-throwing reports are built on, which is why the class exists now and not then.
+- **feat(crypto): a strict DER ↔ P1363 signature converter** — X.509 carries ECDSA as `SEQUENCE { INTEGER r, INTEGER s }`, Web Crypto takes raw `r ‖ s`, and nothing bridges them for you. This one refuses a non-minimal INTEGER, a negative `r`, a two-octet length, a value wider than the curve and a third value hiding after the pair — every Wycheproof class that lets one signature be presented in several encodings (CWE-436). P-521 is 66 bytes, not 65.
+
+### Changed
+
+- **`KEY_OPERATION_POLICY` replaces the blanket key-operation ban** — the old rule refused eleven Web Crypto operations everywhere in `src/`, including in a *type declaration*, so 0.3 could not have declared its own host types. Deleting entries would have traded the guarantee for the feature; instead each operation now lists the exact modules allowed to name it. `importKey`, `verify` and `sign` are allowed in two files; `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` are refused **in every version**, and three more until 0.8 opens PKCS#8 and PKCS#12 under PBES2. `globalThis.crypto` gains the same treatment `console` already had: one door, two modules. The table is in SECURITY.md and held to the code by the new `key-operation-parity` rule, because prose stating the project's central security promise must not be able to drift from the check that gives it.
+- **`exportKey` being refused forever has an API consequence, and it is the right one** — a caller hands the builder a SubjectPublicKeyInfo in DER rather than a `CryptoKey`. One line in their code, in exchange for a promise a test can check.
+- **`type-surface-parity`, so a declaration budget cannot be raised quietly** — `dist/index.d.ts` has the least headroom of anything pkinative ships and it crossed its budget here. Bytes drift with TSDoc wording, so `declared.typeSurface` now records the counts that actually decide the weight: 86 exported types, 47 values. Subpath exports are revisited at 1.0 if the file passes 200 000 bytes.
+
+### Fixed
+
+- **fix(tools): the architecture checker crashed on a property named `toString`** — `'toString' in KEY_OPERATION_POLICY` is true through the prototype chain, and the value is a function where a list was expected. The same hazard the engine's own "no object keys from input" rule exists for (CWE-1321), found by running the checker over a file that had one.
+
 ## [0.2.0] – 2026-09-20
 
 ### Added

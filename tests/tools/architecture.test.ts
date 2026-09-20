@@ -67,18 +67,68 @@ describe('checkArchitecture', () => {
         expect(checkArchitecture(base)).toEqual([]);
     });
 
+    /** A call that names the operation once: the parameter type does not repeat it. */
+    const calls = (operation: string): string => `type Any = Record<string, () => void>;\nexport const f = (subtle: Any): void => subtle.${operation}();\n`;
+    /** A declaration that names it once, and calls nothing. */
+    const declares = (operation: string): string => `export interface Subtle { ${operation}(): void }\n`;
+
     it.each([
-        ['a Web Crypto signature', "export const s = (k: never, d: Uint8Array): unknown => (globalThis as { crypto: { subtle: { sign: (...a: unknown[]) => unknown } } }).crypto.subtle.sign('ECDSA', k, d);\n"],
-        ['a key generation', 'export const g = (subtle: { generateKey(): void }): void => subtle.generateKey();\n'],
-        ['a key operation declared in a type', 'export interface Subtle { deriveBits(): void }\n'],
-    ])('should refuse %s in src/', (_, source) => {
+        ['a signature, called', calls('sign')],
+        ['a key import, called', calls('importKey')],
+        ['a verification, called', calls('verify')],
+        ['a verification, merely declared', declares('verify')],
+    ])('should refuse %s outside the Web Crypto boundary, and name the boundary', (_, source) => {
         const files = { ...base, 'src/core/keys.ts': source };
-        expect(messages(files).some((m) => m.startsWith('src/core/keys.ts') && m.includes('is a key operation'))).toBe(true);
+        expect(messages(files)).toEqual([expect.stringContaining('src/crypto/webcrypto.ts may name it')]);
     });
 
-    it('should allow a digest, the one Web Crypto operation 0.1 uses', () => {
+    it.each([
+        ['key generation', calls('generateKey')],
+        ['key export', calls('exportKey')],
+        ['raw bit derivation', declares('deriveBits')],
+        ['encryption', calls('encrypt')],
+        ['key wrapping', calls('wrapKey')],
+        ['decryption, which 0.8 will need and does not have yet', calls('decrypt')],
+    ])('should refuse %s everywhere, including inside the boundary itself', (_, source) => {
+        // Inside the boundary is the case that matters: the permanent tier
+        // must not become reachable by moving code into the allowed file.
+        const files = { ...base, 'src/crypto/webcrypto.ts': source };
+        expect(messages(files)).toEqual([expect.stringContaining('is never allowed in src/')]);
+    });
+
+    it('should refuse a key operation in a sibling of the boundary — the policy is per module, not per layer', () => {
+        const files = { ...base, 'src/crypto/x509-verify.ts': calls('sign') };
+        expect(messages(files)).toEqual([expect.stringContaining('may name it')]);
+    });
+
+    it('should allow the boundary to call and declare what it is allowed to', () => {
+        const files = {
+            ...base,
+            'src/types/webcrypto.ts': 'export interface Subtle { importKey(): void; verify(): void; sign(): void }\n',
+            'src/crypto/webcrypto.ts': "import type { Subtle } from '../types/webcrypto.js';\nexport const v = (s: Subtle): void => { s.importKey(); s.verify(); s.sign(); };\n",
+        };
+        expect(checkArchitecture(files)).toEqual([]);
+    });
+
+    it('should allow a digest anywhere — it reads public data and names no key', () => {
         const files = { ...base, 'src/core/hash.ts': 'export const d = (s: { digest(a: string, b: Uint8Array): unknown }, b: Uint8Array): unknown => s.digest(\'SHA-256\', b);\n' };
         expect(checkArchitecture(files)).toEqual([]);
+    });
+
+    it('should not mistake an inherited property name for a key operation', () => {
+        // `'toString' in KEY_OPERATION_POLICY` is true through the prototype
+        // chain, and the value is a function — which threw a TypeError from
+        // inside the checker rather than reporting anything. Same hazard the
+        // engine's "no object keys from input" rule exists for.
+        const files = { ...base, 'src/core/proto.ts': 'export const t = (o: { toString(): string; constructor: unknown }): string => o.toString();\n' };
+        expect(checkArchitecture(files)).toEqual([]);
+    });
+
+    it('should let only the two declared modules reach globalThis.crypto', () => {
+        const reach = 'export const s = (): unknown => (globalThis as { crypto?: unknown }).crypto;\n';
+        expect(messages({ ...base, 'src/core/crypto.ts': reach })).toEqual([expect.stringContaining('`globalThis.crypto` is forbidden outside')]);
+        expect(checkArchitecture({ ...base, 'src/crypto/webcrypto.ts': reach })).toEqual([]);
+        expect(checkArchitecture({ ...base, 'src/hash/fingerprint.ts': reach })).toEqual([]);
     });
 
     it('should refuse a reverse edge (asn1 → x509) and name both layers', () => {
@@ -161,12 +211,14 @@ describe('checkArchitecture', () => {
         expect(found).toContain('computed `globalThis[…]` access is forbidden');
         const allowed = "export const w = (): void => (globalThis as { console?: { warn(m: string): void } }).console?.warn('x');\n";
         expect(checkArchitecture({ ...base, [DIAGNOSTICS_MODULE]: allowed })).toEqual([]);
-        expect(checkArchitecture({ ...base, 'src/core/crypto.ts': 'export const s = (): unknown => (globalThis as { crypto?: unknown }).crypto;\n' })).toEqual([]);
     });
 
     it('should refuse a file outside every layer and an unregistered layer', () => {
         expect(messages({ ...base, 'src/loose.ts': 'export const x = 1;\n' })).toEqual([expect.stringContaining('outside every layer')]);
-        expect(messages({ ...base, 'src/crypto/rsa.ts': 'export const x = 1;\n' })).toEqual([expect.stringContaining('layer "crypto" is not registered')]);
+        // A layer that will never exist: pkinative talks to no hardware
+        // token. `crypto` served here until 0.3 registered it, at which
+        // point the test would have passed for the wrong reason.
+        expect(messages({ ...base, 'src/pkcs11/token.ts': 'export const x = 1;\n' })).toEqual([expect.stringContaining('layer "pkcs11" is not registered')]);
     });
 });
 
@@ -183,7 +235,7 @@ describe('parseLayerDiagram and checkLayerParity', () => {
         expect(checkLayerParity(diagram(exact))).toEqual([]);
         expect(checkLayerParity(diagram(exact.replace(/^oid.*$/m, '')))).toEqual([expect.objectContaining({ message: expect.stringContaining('omits layer "oid"') })]);
         expect(checkLayerParity(diagram(exact.replace(/^x509.*$/m, 'x509   → types, core, asn1, oid')))).toEqual([expect.objectContaining({ message: expect.stringContaining('x509 →') })]);
-        expect(checkLayerParity(diagram(`${exact}\ncrypto → core`))).toEqual([expect.objectContaining({ message: expect.stringContaining('"crypto"') })]);
+        expect(checkLayerParity(diagram(`${exact}\npkcs11 → core`))).toEqual([expect.objectContaining({ message: expect.stringContaining('"pkcs11"') })]);
         expect(checkLayerParity(null)[0].message).toContain('missing');
         expect(checkLayerParity('# nothing')[0].message).toContain('Architecture');
     });

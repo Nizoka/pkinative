@@ -11,13 +11,14 @@
 
 // ── 1. Errors, limits and diagnostics ────────────────────────────────
 
-export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError } from './types/pki-errors.js';
+export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError } from './types/pki-errors.js';
 export type {
     PkiErrorCode,
     PkiBaseErrorCode,
     PkiEncodingErrorCode,
     PkiCertificateErrorCode,
     PkiLimitErrorCode,
+    PkiCryptoErrorCode,
 } from './types/pki-errors.js';
 export { DEFAULT_PKI_LIMITS } from './core/pki-limits.js';
 export type {
@@ -152,3 +153,9 @@ export type {
     Extension,
     Certificate,
 } from './types/x509-types.js';
+
+// ── 7. Verification through Web Crypto ───────────────────────────────
+
+export { verifyCertificateSignature, verifySelfSignature } from './crypto/x509-verify.js';
+export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
+export { canVerify } from './crypto/webcrypto.js';

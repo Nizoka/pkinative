@@ -18,26 +18,26 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 59898,
-      "approxTokens": 14975
+      "bytes": 63860,
+      "approxTokens": 15965
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 16847,
-      "approxTokens": 4212
+      "bytes": 21281,
+      "approxTokens": 5320
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 121312,
-      "approxTokens": 30328
+      "bytes": 125401,
+      "approxTokens": 31350
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 16624,
-      "approxTokens": 4156
+      "bytes": 18348,
+      "approxTokens": 4587
     },
     {
       "url": "data/diagnostics.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 2828,
-      "approxTokens": 707
+      "bytes": 2990,
+      "approxTokens": 748
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 3940,
-      "approxTokens": 985
+      "bytes": 4474,
+      "approxTokens": 1119
     }
   ],
   "guides": [
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12721,
+      "bytes": 12720,
       "approxTokens": 3180
     },
     {
       "title": "Use cases",
-      "summary": "Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.",
+      "summary": "Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -95,10 +95,11 @@
         "ingest-hostile-bytes",
         "pin-a-public-key-not-a-certificate",
         "gate-a-der-round-trip",
+        "check-one-link-of-a-chain",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 13425,
-      "approxTokens": 3356
+      "bytes": 15205,
+      "approxTokens": 3801
     },
     {
       "title": "Security model",
@@ -138,16 +139,18 @@
       "markdown": "guides/errors.md",
       "anchors": [
         "the-error-classes",
+        "the-line-pkicryptoerror-draws",
         "error-codes",
         "usage",
         "asn1-and-oids",
         "pem",
         "certificates",
         "limits",
+        "verification-that-could-not-run",
         "diagnostics"
       ],
-      "bytes": 6283,
-      "approxTokens": 1571
+      "bytes": 8048,
+      "approxTokens": 2012
     },
     {
       "title": "Choosing a PKI library",
@@ -160,8 +163,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 2753,
-      "approxTokens": 688
+      "bytes": 3143,
+      "approxTokens": 786
     }
   ]
 }
