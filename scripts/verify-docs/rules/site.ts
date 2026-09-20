@@ -169,6 +169,33 @@ const sitemapParity: Rule = {
     },
 };
 
+const cleanUrlSafe: Rule = {
+    id: 'clean-url-safe',
+    summary: 'No page under docs/ links to a directory index as `…/index.html`, and no canonical URL or sitemap entry ends in `/index.html` — `npm run docs:serve` and most static hosts rewrite that away, which re-bases every relative URL on the page and 404s its stylesheets.',
+    check(ctx) {
+        const out: Finding[] = [];
+        for (const path of LINK_SOURCES(ctx).filter((p) => p.startsWith('docs/'))) {
+            const text = ctx.read(path);
+            if (text === null) continue;
+            for (const { target, line } of linksOf(path, text)) {
+                if (isExternal(target) || !/(^|\/)index\.html($|[#?])/.test(target)) continue;
+                out.push(error(path, `links to ${target}: under cleanUrls that URL is served one path segment higher, so every relative link on the page it reaches resolves against the wrong directory — link the directory instead (${target.replace(/index\.html/, '')})`, line));
+            }
+        }
+        for (const path of htmlPages(ctx)) {
+            const canonical = canonicalOf(ctx.read(path) ?? '');
+            if (canonical !== undefined && canonical.endsWith('/index.html')) {
+                out.push(error(path, `declares the canonical URL ${canonical}; a host with cleanUrls serves that page at ${canonical.slice(0, -'index.html'.length)}, so the canonical points at a URL that redirects`));
+            }
+        }
+        const sitemap = ctx.read('docs/sitemap.xml');
+        for (const m of (sitemap ?? '').matchAll(/<loc>([^<]*\/index\.html)<\/loc>/g)) {
+            out.push(error('docs/sitemap.xml', `lists ${m[1] ?? ''}, which a host with cleanUrls redirects away from`, lineContaining(sitemap ?? '', m[1] ?? '')));
+        }
+        return out;
+    },
+};
+
 const jsonLdVersion: Rule = {
     id: 'jsonld-version',
     summary: 'The JSON-LD of docs/index.html parses and declares the softwareVersion of docs/assets/ecosystem.json.',
@@ -347,5 +374,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
+    seoHead, sitemapParity, cleanUrlSafe, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
 ];

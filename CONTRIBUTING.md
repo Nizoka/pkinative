@@ -39,6 +39,23 @@ npm run dev            # tsup --watch
 npm run check:package  # build + @arethetypeswrong/cli + publint
 ```
 
+### Preview the site
+
+```bash
+npm run docs:serve                              # http://localhost:5000
+python -m http.server 5000 --directory docs/    # fallback, no npx
+```
+
+`serve` applies `cleanUrls`, as most static hosts do: it serves `/guides/quickstart.html` at
+`/guides/quickstart` and `/guides/index.html` at `/guides`. `python -m http.server` does not.
+That is why the guides index is linked as `guides/` everywhere — under `cleanUrls` the
+`index.html` form loses a path segment and every relative stylesheet 404s. The `clean-url-safe`
+rule of `npm run verify:docs` holds the site to it.
+
+The Open Graph images are rasterised from their SVG sources; each SVG's header comment carries
+the exact command, and `docs/assets/ecosystem.json` records the SHA-256 that proves the PNG is
+not stale.
+
 ## Test
 
 ```bash

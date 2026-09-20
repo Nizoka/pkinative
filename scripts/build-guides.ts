@@ -132,9 +132,9 @@ function page(options: { title: string; description: string; path: string; body:
 <body>
   <a class="skip-link" href="#guide-content">Skip to content</a>
   <header class="guide-header">
-    <a class="brand" href="../index.html">pkinative</a>
+    <a class="brand" href="../">pkinative</a>
     <nav aria-label="Guides">
-      <a href="index.html"${options.current === 'index' ? ' aria-current="page"' : ''}>Guides</a>
+      <a href="./"${options.current === 'index' ? ' aria-current="page"' : ''}>Guides</a>
 ${nav}
     </nav>
   </header>
@@ -172,7 +172,10 @@ export function renderGuidesIndex(read: Reader): string {
     return page({
         title: 'Guides — pkinative',
         description: 'The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.',
-        path: 'guides/index.html',
+        // The URL, not the output path: under `cleanUrls` (npm run docs:serve,
+        // and most static hosts) /guides/index.html is served at /guides, which
+        // loses a path segment and 404s every relative stylesheet.
+        path: 'guides/',
         body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-list">\n${items}\n      </ul>\n`,
         current: 'index',
     });
