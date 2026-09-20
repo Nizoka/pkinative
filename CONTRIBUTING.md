@@ -66,7 +66,7 @@ npm run verify:docs    # offline rules over docs, governance files, README and r
 npm run gate           # Everything a pull request is held to, in one command
 ```
 
-All new code must include tests. Coverage thresholds (vitest.config.ts): statements 95%, branches 90%, functions 95%, lines 95% globally, and 98 / 95 / 98 / 98 on the ASN.1 and PEM parsers.
+All new code must include tests. Coverage thresholds (vitest.config.ts): 100% of statements, branches, functions and lines, with no per-path override — a glob threshold replaces the global one, so an exception would only ever lower the bar. A branch no input can reach is removed by construction; where that is impossible it carries a `/* v8 ignore next -- why */` comment, counted by `declared.coverageIgnores` and checked by the `coverage-ignore-budget` rule of `npm run verify:docs`.
 
 `npm run verify:docs` lists its rules with `npx tsx scripts/verify-docs.ts --list`. Each rule has a perturbation in `tests/docs/verify-docs.test.ts` that proves it fires; a new rule without one fails the suite.
 

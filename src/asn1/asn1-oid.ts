@@ -31,8 +31,7 @@ export function _decodeOid(content: Uint8Array, offset: number, ctx: Asn1Context
     let value = 0;
     let big: bigint | null = null;
     let inArc = false;
-    for (let i = 0; i < content.length; i++) {
-        const octet = content[i] ?? 0;
+    for (const octet of content) {
         if (!inArc && octet === 0x80) {
             throw new PkiEncodingError('PKI_OID_INVALID',
                 `pkinative: a subidentifier of the OBJECT IDENTIFIER at offset ${offset} starts with 0x80, a non-minimal form X.690 §8.19.2 forbids`, offset);
@@ -100,7 +99,12 @@ export function readObjectIdentifier(node: Asn1Node, options?: PkiParseOptions):
     return _readObjectIdentifier(assertNode(node, 'readObjectIdentifier'), createAsn1Context(options));
 }
 
-const DOTTED = /^[012](?:\.(?:0|[1-9][0-9]*))+$/;
+/**
+ * X.660: two or more arcs, no leading zeros, and — under the 0 and 1 trees —
+ * a second arc of 0 to 39, which the alternation states outright rather than
+ * leaving to a `BigInt` comparison the grammar then has to be trusted about.
+ */
+const DOTTED = /^(?:[01]\.(?:[0-9]|[123][0-9])|2\.(?:0|[1-9][0-9]*))(?:\.(?:0|[1-9][0-9]*))*$/;
 
 /**
  * Whether a string is a dotted-decimal OID X.660 allows: at least two arcs,
@@ -111,9 +115,7 @@ const DOTTED = /^[012](?:\.(?:0|[1-9][0-9]*))+$/;
  * @throws Never.
  */
 export function isValidOid(oid: string): boolean {
-    if (typeof oid !== 'string' || !DOTTED.test(oid)) return false;
-    const [first, second] = oid.split('.');
-    return first === '2' || BigInt(second ?? '0') <= 39n;
+    return typeof oid === 'string' && DOTTED.test(oid);
 }
 
 /**
@@ -132,17 +134,33 @@ export function encodeOid(oid: string): Uint8Array {
         throw new PkiEncodingError('PKI_OID_INVALID',
             `pkinative: "${oid.length > 64 ? `${oid.slice(0, 61)}…` : oid}" is not a dotted-decimal OID — use two or more decimal arcs without leading zeros, a first arc of 0, 1 or 2, and a second arc of at most 39 under 0 and 1`);
     }
-    const arcs = oid.split('.').map((arc) => BigInt(arc));
-    const subidentifiers = [(arcs[0] ?? 0n) * 40n + (arcs[1] ?? 0n), ...arcs.slice(2)];
+    // X.690 §8.19.4: the first two arcs share one subidentifier. Accumulated
+    // rather than indexed, because an indexed read of a split() result is
+    // `string | undefined` and its fallback is a branch the grammar above
+    // has already made unreachable.
+    const subidentifiers: bigint[] = [];
+    let head: bigint | null = null;
+    for (const arc of oid.split('.')) {
+        const value = BigInt(arc);
+        if (head === null) head = value * 40n;
+        else if (subidentifiers.length === 0) subidentifiers.push(head + value);
+        else subidentifiers.push(value);
+    }
     const out: number[] = [];
     for (const sub of subidentifiers) {
+        // Most significant digit first, so the emitting loop reads them in
+        // order and the continuation bit is a countdown, not an index.
         const digits: number[] = [];
         let rest = sub;
         do {
-            digits.push(Number(rest & 0x7fn));
+            digits.unshift(Number(rest & 0x7fn));
             rest >>= 7n;
         } while (rest > 0n);
-        for (let i = digits.length - 1; i >= 0; i--) out.push((digits[i] ?? 0) | (i > 0 ? 0x80 : 0));
+        let remaining = digits.length;
+        for (const digit of digits) {
+            remaining--;
+            out.push(digit | (remaining > 0 ? 0x80 : 0));
+        }
     }
     return Uint8Array.from(out);
 }

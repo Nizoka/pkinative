@@ -23,15 +23,47 @@ export function assertBytes(input: unknown, what: string): Uint8Array {
         `pkinative: ${what} must be a Uint8Array, got ${input === null ? 'null' : typeof input} — decode PEM text with decodePem() first`);
 }
 
+/**
+ * A `DataView` over exactly the bytes of `data`.
+ *
+ * `noUncheckedIndexedAccess` widens `data[i]` to `number | undefined`, and the
+ * `?? 0` that narrows it back turns a bound the caller has already proved into
+ * a silent default: an out-of-range read becomes a plausible zero octet, which
+ * is a wrong value rather than a failure. `getUint8` returns a `number`, and
+ * throws a `RangeError` if a bound is ever wrong — which the fuzzing suites
+ * turn into a test failure. Hold one view per input, never one per node.
+ */
+export function byteView(data: Uint8Array): DataView {
+    return new DataView(data.buffer, data.byteOffset, data.byteLength);
+}
+
+/**
+ * Lexicographic octet-string order; a prefix sorts first (X.690 §11.6).
+ *
+ * §11.6 pads the shorter encoding with trailing zero octets before comparing.
+ * Comparing the common prefix and then the lengths gives the same order,
+ * because a zero octet compares below every octet the longer encoding can hold
+ * in that position.
+ */
+export function compareOctets(a: Uint8Array, b: Uint8Array): number {
+    const av = byteView(a);
+    const bv = byteView(b);
+    const min = Math.min(a.length, b.length);
+    for (let i = 0; i < min; i++) {
+        const diff = av.getUint8(i) - bv.getUint8(i);
+        if (diff !== 0) return diff;
+    }
+    return a.length - b.length;
+}
+
 const HEX_DIGITS = '0123456789abcdef';
 
 /** Lowercase hexadecimal, with an optional separator between octets. */
 export function toHex(bytes: Uint8Array, separator = ''): string {
     const parts: string[] = [];
-    for (let i = 0; i < bytes.length; i++) {
-        const b = bytes[i] ?? 0;
-        parts.push(`${HEX_DIGITS[b >> 4] ?? ''}${HEX_DIGITS[b & 15] ?? ''}`);
-    }
+    // for…of yields a number and charAt a string, so neither needs the `?? ''`
+    // that an indexed read would: two unreachable branches fewer.
+    for (const b of bytes) parts.push(HEX_DIGITS.charAt(b >> 4) + HEX_DIGITS.charAt(b & 15));
     return parts.join(separator);
 }
 

@@ -95,7 +95,7 @@ x509   → types, core, asn1
 ## Counts and versions
 
 `docs/assets/ecosystem.json` is the source of every count, version, milestone and contract quoted in the docs; run `npm run verify:docs` after touching any of them.
-Coverage thresholds live once, in `vitest.config.ts` (95 % statements globally, 98 % on the ASN.1 and PEM parsers).
+Coverage thresholds live once, in `vitest.config.ts`: 100 % on all four axes, no per-path override. An unreachable branch is removed by construction, or carries a justified `v8 ignore` that `declared.coverageIgnores` counts.
 
 ## Releasing
 

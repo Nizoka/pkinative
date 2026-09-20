@@ -93,6 +93,7 @@ export function _decodeExtension(
         return decoder({ node, ctx, path, oid, critical, valueDer });
     } catch (error) {
         if (error instanceof PkiEncodingError) {
+            /* v8 ignore next -- unreachable: every PkiEncodingError a recognised extension decoder can raise comes from a reader that knows its node offset. The class makes `offset` optional only because the encoders, the PEM layer and decodeExtensionValue's own OID check throw without one, and no decode path reaches any of them. */
             throw malformed(path, error.offset ?? start, `does not match its ASN.1 definition (${error.code})`);
         }
         throw error;

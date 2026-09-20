@@ -14,6 +14,7 @@ import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { stringContent } from '../asn1/asn1-read.js';
 import { TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, tagLabel } from '../asn1/asn1-tags.js';
+import { byteView } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import { decodeAsciiSubset, isIa5Octet } from '../core/text.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -32,13 +33,16 @@ import { _readName } from './x509-name.js';
 const CODE = 'PKI_X509_GENERAL_NAME_INVALID';
 
 function formatIpv4(bytes: Uint8Array): string {
-    return `${bytes[0] ?? 0}.${bytes[1] ?? 0}.${bytes[2] ?? 0}.${bytes[3] ?? 0}`;
+    // readIpAddress has already refused anything but exactly four octets here.
+    return bytes.join('.');
 }
 
 /** RFC 5952 §4: lowercase, no leading zeros, the first longest run of two or more zero groups as `::`. */
 function formatIpv6(bytes: Uint8Array): string {
     const groups: number[] = [];
-    for (let i = 0; i < 16; i += 2) groups.push(((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0));
+    // Exactly sixteen octets here, and getUint16 is big-endian, as the address is.
+    const view = byteView(bytes);
+    for (let i = 0; i < 16; i += 2) groups.push(view.getUint16(i));
     let bestStart = 0;
     let bestLength = 0;
     for (let i = 0; i < 8;) {

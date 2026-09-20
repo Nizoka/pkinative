@@ -19,9 +19,6 @@ const reporters: Array<'dot' | 'github-actions' | ['json', { outputFile: string 
 if (process.env['GITHUB_ACTIONS']) reporters.push('github-actions');
 if (process.env['GATE'] === '1') reporters.push(['json', { outputFile: 'test-output/.gate/vitest.json' }]);
 
-/** The parsers of untrusted bytes carry a higher bar than the rest of the library. */
-const PARSER_THRESHOLDS = { statements: 98, branches: 95, functions: 98, lines: 98 } as const;
-
 export default defineConfig({
     resolve: {
         alias: [{ find: /^pkinative$/, replacement: rootUrl('./src/index.ts') }],
@@ -54,12 +51,17 @@ export default defineConfig({
             // from; `html` stays for local drill-down.
             reporter: ['text-summary', 'json-summary', 'html'],
             thresholds: {
-                statements: 95,
-                branches: 90,
-                functions: 95,
-                lines: 95,
-                'src/asn1/**': PARSER_THRESHOLDS,
-                'src/pem/**': PARSER_THRESHOLDS,
+                // 100 % on all four axes, and no per-path override any more.
+                // A glob threshold REPLACES the global one for the files it
+                // matches, so the old 98/95 on src/asn1/** and src/pem/**
+                // could now only lower the bar on the two parsers that need
+                // it most. A branch no input can reach is removed by
+                // construction, or carries a justified `v8 ignore` that the
+                // coverage-ignore-budget rule of verify:docs counts.
+                statements: 100,
+                branches: 100,
+                functions: 100,
+                lines: 100,
             },
         },
     },

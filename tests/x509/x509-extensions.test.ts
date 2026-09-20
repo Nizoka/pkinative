@@ -474,6 +474,9 @@ describe('extensions in parseCertificate', () => {
 
     it('should refuse getExtension on something that is not a certificate', () => {
         expect(codeOf(() => getExtension(null as unknown as ReturnType<typeof parseCertificate>, 'keyUsage'))).toBe('PKI_INVALID_INPUT');
+        // An object, not null: it reaches the extensions check rather than
+        // stopping at the null one, which is the other half of the guard.
+        expect(codeOf(() => getExtension({} as unknown as ReturnType<typeof parseCertificate>, 'basicConstraints'))).toBe('PKI_INVALID_INPUT');
     });
 
     it('should report a malformed extension at its absolute offset', () => {

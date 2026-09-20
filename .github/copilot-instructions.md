@@ -73,7 +73,7 @@ npm run agents:rules       # regenerate .claude/rules/ from .github/instructions
 ## Quality Standards
 
 - Zero TypeScript errors, zero ESLint errors
-- Coverage: 95 % statements / 90 % branches / 95 % functions / 95 % lines globally; 98 / 95 / 98 / 98 on `src/asn1/**` and `src/pem/**`
+- Coverage: 100 % statements, branches, functions and lines, with no per-path override; an unreachable branch carries a justified `v8 ignore` counted by `declared.coverageIgnores`
 - Every error code and diagnostic raised by at least one test; every limit tripped by a fuzzing test
 - Zero runtime dependencies — `npm ls --omit=dev --all` lists pkinative alone
 - The conformance gate passes on the pinned x509-limbo and Wycheproof corpora

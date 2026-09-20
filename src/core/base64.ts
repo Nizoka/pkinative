@@ -11,6 +11,8 @@
  * @module core/base64
  */
 
+import { byteView } from './bytes.js';
+
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 function _reverseTable(): Int16Array {
@@ -23,6 +25,7 @@ const REVERSE: Int16Array = /*#__PURE__*/ _reverseTable();
 
 function _sextet(text: string, index: number): number {
     const c = text.charCodeAt(index);
+    /* v8 ignore next -- unreachable: `c < 128` is the bound of a 128-entry table, so the read always yields a number. The `?? -1` exists only because noUncheckedIndexedAccess cannot see that. Measured alternatives that erase the branch — a string table read with charCodeAt, and a DataView — cost 33 % and 25 % on this per-character path, and decodePem is where that shows (performance.instructions.md, hot paths). */
     return c < 128 ? REVERSE[c] ?? -1 : -1;
 }
 
@@ -56,16 +59,20 @@ export function decodeBase64(text: string): Uint8Array | null {
 /** Encode bytes as canonical, padded base64 (one line, no whitespace). */
 export function encodeBase64(bytes: Uint8Array): string {
     const parts: string[] = [];
+    const view = byteView(bytes);
     for (let i = 0; i < bytes.length; i += 3) {
-        const b0 = bytes[i] ?? 0;
-        const b1 = bytes[i + 1];
-        const b2 = bytes[i + 2];
-        const triple = (b0 << 16) | ((b1 ?? 0) << 8) | (b2 ?? 0);
+        // `remaining` replaces the `=== undefined` tests one for one: the same
+        // two branches, without the three indexed reads that could not fail.
+        const remaining = bytes.length - i;
+        const b0 = view.getUint8(i);
+        const b1 = remaining > 1 ? view.getUint8(i + 1) : 0;
+        const b2 = remaining > 2 ? view.getUint8(i + 2) : 0;
+        const triple = (b0 << 16) | (b1 << 8) | b2;
         parts.push(
-            ALPHABET[(triple >> 18) & 63] ?? '',
-            ALPHABET[(triple >> 12) & 63] ?? '',
-            b1 === undefined ? '=' : ALPHABET[(triple >> 6) & 63] ?? '',
-            b2 === undefined ? '=' : ALPHABET[triple & 63] ?? '',
+            ALPHABET.charAt((triple >> 18) & 63),
+            ALPHABET.charAt((triple >> 12) & 63),
+            remaining > 1 ? ALPHABET.charAt((triple >> 6) & 63) : '=',
+            remaining > 2 ? ALPHABET.charAt(triple & 63) : '=',
         );
     }
     return parts.join('');

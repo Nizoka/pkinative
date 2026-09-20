@@ -115,6 +115,13 @@ describe('readTime — impossible instants', () => {
         }
         expect(message).toContain('65 octets');
     });
+
+    it('should refuse an oversized UTCTime too, on the length alone', () => {
+        // The guard is type-independent, and this is what says so: UTCTime and
+        // GeneralizedTime share it, rather than each testing the length again.
+        const oversized = universal(23, new Uint8Array(65).fill(0x31));
+        expect(codeOf(() => read(oversized))).toBe('PKI_ASN1_TIME_INVALID');
+    });
 });
 
 describe('readTime — tags and options', () => {

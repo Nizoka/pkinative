@@ -26,8 +26,16 @@ import { TAG_GENERALIZED_TIME, TAG_OCTET_STRING, TAG_UTC_TIME, tagLabel } from '
 /** Longer than any well-formed time with a millisecond-scale fraction: refuse before decoding text. */
 const MAX_TIME_OCTETS = 64;
 
-const UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(Z|[+-]\d{4})$/;
-const GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(Z|[+-]\d{4})$/;
+// The zone is matched but not captured: `zoneOf` reads it back off the end of
+// the text, which is always a string, where a capture group is
+// `string | undefined` and needs a `?? 'Z'` no match can reach.
+const UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
+const GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(?:Z|[+-]\d{4})$/;
+
+/** `Z`, or the `±hhmm` offset the grammar puts last. */
+function zoneOf(text: string): string {
+    return text.endsWith('Z') ? 'Z' : text.slice(-5);
+}
 
 function isLeapYear(year: number): boolean {
     return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -92,16 +100,20 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
     }
 
     const raw = stringContent(node, ctx, TAG_OCTET_STRING, type);
-    let text = '';
-    if (raw.length <= MAX_TIME_OCTETS) {
-        for (let i = 0; i < raw.length; i++) text += String.fromCharCode(raw[i] ?? 0);
+    // Refuse the oversize value here rather than threading a text/shown pair
+    // through a ternary in each branch below: no well-formed time of either
+    // type comes close to this, so the length alone settles it.
+    if (raw.length > MAX_TIME_OCTETS) {
+        throw invalidTime(node, type, `${raw.length} octets`,
+            `is longer than the ${MAX_TIME_OCTETS} octets any well-formed ${type} needs`);
     }
-    const shown = raw.length <= MAX_TIME_OCTETS ? text : `${raw.length} octets`;
+    const text = String.fromCharCode(...raw);
 
     if (type === 'UTCTime') {
-        const m = raw.length <= MAX_TIME_OCTETS ? UTC_TIME.exec(text) : null;
-        if (m === null) throw invalidTime(node, type, shown, 'is not YYMMDDHHMM[SS](Z|±hhmm)');
-        const [, yy, mo, dd, hh, mi, ss, zone] = m;
+        const m = UTC_TIME.exec(text);
+        if (m === null) throw invalidTime(node, type, text, 'is not YYMMDDHHMM[SS](Z|±hhmm)');
+        const [, yy, mo, dd, hh, mi, ss] = m;
+        const zone = zoneOf(text);
         if (ss === undefined || zone !== 'Z') {
             if (ctx.rules === 'der') throw invalidTime(node, type, text, 'omits the seconds or the Z; DER requires YYMMDDHHMMSSZ (X.690 §11.8)');
             noteBer(ctx, 'UTCTime without seconds or with an offset', node.offset);
@@ -110,14 +122,15 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
         const epochMilliseconds = toEpoch(node, type, text, {
             year: twoDigit >= 50 ? 1900 + twoDigit : 2000 + twoDigit,
             month: Number(mo), day: Number(dd), hour: Number(hh), minute: Number(mi), second: Number(ss ?? '0'),
-            millisecond: 0, zone: zone ?? 'Z',
+            millisecond: 0, zone,
         });
         return Object.freeze({ type, epochMilliseconds, text });
     }
 
-    const m = raw.length <= MAX_TIME_OCTETS ? GENERALIZED_TIME.exec(text) : null;
-    if (m === null) throw invalidTime(node, type, shown, 'is not YYYYMMDDHHMM[SS[.f]](Z|±hhmm)');
-    const [, yyyy, mo, dd, hh, mi, ss, separator, fraction, zone] = m;
+    const m = GENERALIZED_TIME.exec(text);
+    if (m === null) throw invalidTime(node, type, text, 'is not YYYYMMDDHHMM[SS[.f]](Z|±hhmm)');
+    const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
+    const zone = zoneOf(text);
     if (fraction !== undefined && ss === undefined) throw invalidTime(node, type, text, 'has a fraction without seconds');
     const nonCanonical = ss === undefined || zone !== 'Z' || separator === ',' || (fraction !== undefined && fraction.endsWith('0'));
     if (nonCanonical) {
@@ -128,7 +141,7 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
     }
     const epochMilliseconds = toEpoch(node, type, text, {
         year: Number(yyyy), month: Number(mo), day: Number(dd), hour: Number(hh), minute: Number(mi), second: Number(ss ?? '0'),
-        millisecond: fraction === undefined ? 0 : Number(`${fraction}000`.slice(0, 3)), zone: zone ?? 'Z',
+        millisecond: fraction === undefined ? 0 : Number(`${fraction}000`.slice(0, 3)), zone,
     });
     return Object.freeze({ type, epochMilliseconds, text });
 }

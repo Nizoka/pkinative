@@ -70,6 +70,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
     'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
     'install-url-version': (f) => edit(f, 'docs/agent-brief.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
+    // One edit, both halves: the comment states no reason, and the count is now 2 against a declared 1.
+    'coverage-ignore-budget': (f) => edit(f, 'src/core/bytes.ts', /^const HEX_DIGITS/m, '/* v8 ignore next */\nconst HEX_DIGITS'),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
     // Edit the SVG without re-rasterising: the recorded hash no longer matches.
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),
@@ -117,6 +119,22 @@ describe('verify-docs rule table', () => {
         edit(files, 'src/core/pki-limits.ts', "'pkinative: options.limits must be", "'options.limits must be");
         const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
         expect(problems).toEqual([expect.objectContaining({ file: 'src/core/pki-limits.ts', message: expect.stringContaining('must start with "pkinative: "') })]);
+    });
+
+    it('should fire coverage-ignore-budget on an ignore comment that states no reason', async () => {
+        // The count stays 1, so only the justification finding appears: this
+        // proves that half of the rule independently of the budget half.
+        const files = { ...TREE };
+        edit(files, 'src/x509/x509-extensions.ts', /\/\* v8 ignore next -- [^*]*\*\//, '/* v8 ignore next */');
+        const problems = await runRules(createMemoryContext(files), RULES, 'coverage-ignore-budget');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('carries no justification')]);
+    });
+
+    it('should fire coverage-ignore-budget on a threshold below 100', async () => {
+        const files = { ...TREE };
+        edit(files, 'vitest.config.ts', 'branches: 100,', 'branches: 95,');
+        const problems = await runRules(createMemoryContext(files), RULES, 'coverage-ignore-budget');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('does not hold branches coverage at 100')]);
     });
 
     it('should fire limits-parity on a CWE that disagrees between the interface and the registry', async () => {

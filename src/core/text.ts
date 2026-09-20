@@ -12,6 +12,8 @@
  * @module core/text
  */
 
+import { byteView } from './bytes.js';
+
 /** Code units are turned into strings in chunks, far below any engine's argument limit. */
 const CHUNK = 4096;
 
@@ -38,9 +40,10 @@ function _pushCodePoint(units: number[], cp: number): void {
  */
 export function decodeUtf8(bytes: Uint8Array): string | null {
     const units: number[] = [];
+    const view = byteView(bytes);
     let i = 0;
     while (i < bytes.length) {
-        const b0 = bytes[i] ?? 0;
+        const b0 = view.getUint8(i);
         if (b0 < 0x80) {
             units.push(b0);
             i += 1;
@@ -64,8 +67,8 @@ export function decodeUtf8(bytes: Uint8Array): string | null {
             return null;
         }
         for (let k = 1; k <= need; k++) {
-            const b = bytes[i + k];
-            if (b === undefined) return null;
+            if (i + k >= bytes.length) return null;      // a truncated sequence
+            const b = view.getUint8(i + k);
             const lo = k === 1 ? lower : 0x80;
             const hi = k === 1 ? upper : 0xbf;
             if (b < lo || b > hi) return null;
@@ -81,8 +84,10 @@ export function decodeUtf8(bytes: Uint8Array): string | null {
 export function decodeUcs2Be(bytes: Uint8Array): string | null {
     if (bytes.length % 2 !== 0) return null;
     const units: number[] = [];
+    const view = byteView(bytes);
+    // getUint16 is big-endian by default, which is exactly what BMPString is.
     for (let i = 0; i < bytes.length; i += 2) {
-        const unit = ((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0);
+        const unit = view.getUint16(i);
         if (unit >= 0xd800 && unit <= 0xdfff) return null;
         units.push(unit);
     }
@@ -93,8 +98,10 @@ export function decodeUcs2Be(bytes: Uint8Array): string | null {
 export function decodeUcs4Be(bytes: Uint8Array): string | null {
     if (bytes.length % 4 !== 0) return null;
     const units: number[] = [];
+    const view = byteView(bytes);
+    // getUint32 is big-endian and already unsigned, so the `>>> 0` goes too.
     for (let i = 0; i < bytes.length; i += 4) {
-        const cp = (((bytes[i] ?? 0) << 24) | ((bytes[i + 1] ?? 0) << 16) | ((bytes[i + 2] ?? 0) << 8) | (bytes[i + 3] ?? 0)) >>> 0;
+        const cp = view.getUint32(i);
         if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return null;
         _pushCodePoint(units, cp);
     }
@@ -103,16 +110,13 @@ export function decodeUcs4Be(bytes: Uint8Array): string | null {
 
 /** ISO 8859-1: every octet is the code point of the same value. Never fails. */
 export function decodeLatin1(bytes: Uint8Array): string {
-    const units: number[] = [];
-    for (let i = 0; i < bytes.length; i++) units.push(bytes[i] ?? 0);
-    return _fromCodeUnits(units);
+    return _fromCodeUnits(Array.from(bytes));
 }
 
 /** Single-octet text whose every octet satisfies `allowed`; null at the first octet that does not. */
 export function decodeAsciiSubset(bytes: Uint8Array, allowed: (octet: number) => boolean): string | null {
     const units: number[] = [];
-    for (let i = 0; i < bytes.length; i++) {
-        const b = bytes[i] ?? 0;
+    for (const b of bytes) {
         if (!allowed(b)) return null;
         units.push(b);
     }
@@ -121,8 +125,8 @@ export function decodeAsciiSubset(bytes: Uint8Array, allowed: (octet: number) =>
 
 /** The first octet of `bytes` that fails `allowed`, or -1. */
 export function firstOctetOutside(bytes: Uint8Array, allowed: (octet: number) => boolean): number {
-    for (let i = 0; i < bytes.length; i++) {
-        if (!allowed(bytes[i] ?? 0)) return i;
+    for (const octet of bytes) {
+        if (!allowed(octet)) return octet;
     }
     return -1;
 }

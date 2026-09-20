@@ -15,7 +15,6 @@
  */
 
 import { toHex } from '../core/bytes.js';
-import { encodeUtf8 } from '../core/text.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { AttributeTypeAndValue, DistinguishedName } from '../types/x509-types.js';
 
@@ -36,11 +35,18 @@ const SPECIAL = '"+,;<>\\';
 /** Bidirectional controls: they reorder what a terminal or a UI shows (CVE-2021-42574). */
 const BIDI_CONTROLS: ReadonlySet<number> = /*#__PURE__*/ new Set([0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069]);
 
-/** RFC 4514 §2.4 hexpairs: the UTF-8 octets of one character, each as `\hh`. */
-function hexpairs(ch: string): string {
-    let out = '';
-    for (const octet of encodeUtf8(ch) ?? []) out += `\\${octet.toString(16).padStart(2, '0')}`;
-    return out;
+const hex2 = (octet: number): string => `\\${octet.toString(16).padStart(2, '0')}`;
+
+/**
+ * RFC 4514 §2.4 hexpairs: the UTF-8 octets of one BMP code point, each as
+ * `\hh`. Taking the code point rather than the character keeps `encodeUtf8`'s
+ * lone-surrogate `null` out of a path whose caller only ever passes one of
+ * three known control classes.
+ */
+function hexpairs(code: number): string {
+    if (code < 0x80) return hex2(code);
+    if (code < 0x800) return hex2(0xc0 | (code >> 6)) + hex2(0x80 | (code & 0x3f));
+    return hex2(0xe0 | (code >> 12)) + hex2(0x80 | ((code >> 6) & 0x3f)) + hex2(0x80 | (code & 0x3f));
 }
 
 function escapeValue(text: string): string {
@@ -48,7 +54,7 @@ function escapeValue(text: string): string {
     for (let i = 0; i < text.length; i++) {
         const ch = text.charAt(i);
         const code = text.charCodeAt(i);
-        if (code < 0x20 || (code >= 0x7f && code <= 0x9f) || BIDI_CONTROLS.has(code)) out += hexpairs(ch);
+        if (code < 0x20 || (code >= 0x7f && code <= 0x9f) || BIDI_CONTROLS.has(code)) out += hexpairs(code);
         else if (SPECIAL.includes(ch)) out += `\\${ch}`;
         else if ((i === 0 && (ch === ' ' || ch === '#')) || (i === text.length - 1 && ch === ' ')) out += `\\${ch}`;
         else out += ch;
@@ -75,9 +81,17 @@ export function formatDistinguishedName(name: DistinguishedName): string {
             `pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, got ${name === null ? 'null' : typeof name}`);
     }
     const parts: string[] = [];
-    for (let i = name.rdns.length - 1; i >= 0; i--) {
-        const rdn = name.rdns[i] ?? [];
+    for (const rdn of name.rdns) {
+        // The `?? []` this replaces printed ",," for a sparse or malformed
+        // rdns array instead of saying what was wrong, and a bare for…of
+        // would leak a TypeError, which the security rules call a bug.
+        if (!Array.isArray(rdn)) {
+            throw new PkiError('PKI_INVALID_INPUT',
+                'pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, whose rdns are arrays of attributes');
+        }
         parts.push(rdn.map(formatAttribute).join('+'));
     }
+    // RFC 4514 §2.1: the RDNs print in the reverse of their encoded order.
+    parts.reverse();
     return parts.join(',');
 }

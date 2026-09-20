@@ -31,11 +31,21 @@ import type { PkiDiagnosticEmitter } from '../types/pki-types.js';
 
 /** RFC 7468 §3: printable ASCII other than hyphen, joined by single hyphens or spaces. */
 const LABEL = /^(?:[\x21-\x2c\x2e-\x7e](?:[- ]?[\x21-\x2c\x2e-\x7e])*)?$/;
-const BEGIN = /^-----BEGIN (.*)-----$/;
-const END = /^-----END (.*)-----$/;
+/**
+ * The boundary lines. The label is cut out of `match[0]`, which the lib types
+ * as a `string`, rather than captured: a capture group reads as
+ * `string | undefined`, and the fallback that hides it is a branch no matching
+ * line can take. Index 10 of a BEGIN line cannot be both a space and a hyphen,
+ * so the prefix and the suffix can never overlap.
+ */
+const BEGIN = /^-----BEGIN .*-----$/;
+const END = /^-----END .*-----$/;
+const BEGIN_PREFIX = '-----BEGIN '.length;
+const END_PREFIX = '-----END '.length;
+const BOUNDARY_SUFFIX = '-----'.length;
 const BASE64_LINE = /^[A-Za-z0-9+/=]+$/;
 /** RFC 1421 §4.2 header field: a name, a colon, a value. Base64 never contains a colon. */
-const HEADER = /^([\x21-\x39\x3b-\x7e]+):[ \t]*(.*)$/;
+const HEADER = /^[\x21-\x39\x3b-\x7e]+:[ \t]*.*$/;
 const LAX_WHITESPACE = /[ \t\v\f\r\n]/g;
 const TRAILING_WHITESPACE = /[ \t\v\f]+$/;
 const LEADING_WHITESPACE = /^[ \t\v\f]+/;
@@ -123,7 +133,7 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
         const beginLine = lines[i] as Line;
         const begin = BEGIN.exec(boundary(beginLine));
         if (begin === null) continue;
-        const label = begin[1] ?? '';
+        const label = begin[0].slice(BEGIN_PREFIX, -BOUNDARY_SUFFIX);
         if (!isValidLabel(label)) {
             throw new PkiEncodingError('PKI_PEM_LABEL_INVALID',
                 `pkinative: the BEGIN label ${JSON.stringify(label)} at offset ${beginLine.start} is outside the RFC 7468 label grammar — printable ASCII joined by single spaces or hyphens`, beginLine.start);
@@ -140,7 +150,7 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
             const end = END.exec(shown);
             if (end !== null) {
                 endLine = line;
-                endLabel = end[1] ?? '';
+                endLabel = end[0].slice(END_PREFIX, -BOUNDARY_SUFFIX);
                 break;
             }
             if (BEGIN.test(shown)) break;
@@ -176,7 +186,12 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
                 if (raw.trim() === '') break;
                 const header = HEADER.exec(raw.replace(LEADING_WHITESPACE, ''));
                 const previous = headers[headers.length - 1];
-                if (header !== null && !LEADING_WHITESPACE.test(raw)) headers.push([header[1] ?? '', (header[2] ?? '').trim()]);
+                if (header !== null && !LEADING_WHITESPACE.test(raw)) {
+                    // The name charset excludes 0x3A, so the first colon is
+                    // the separator, and trim() removes the [ \t]* after it.
+                    const colon = header[0].indexOf(':');
+                    headers.push([header[0].slice(0, colon), header[0].slice(colon + 1).trim()]);
+                }
                 else if (previous !== undefined && LEADING_WHITESPACE.test(raw)) headers[headers.length - 1] = [previous[0], `${previous[1]} ${raw.trim()}`];
                 else break;
             }

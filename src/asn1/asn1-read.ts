@@ -17,7 +17,7 @@
  * @module asn1/asn1-read
  */
 
-import { concatBytes } from '../core/bytes.js';
+import { byteView, concatBytes } from '../core/bytes.js';
 import { printableStringCharsetDiagnostic, teletexAsLatin1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import {
@@ -124,7 +124,8 @@ export function _readBoolean(node: Asn1Node, ctx: Asn1Context): boolean {
         throw new PkiEncodingError('PKI_ASN1_BOOLEAN_INVALID',
             `pkinative: the BOOLEAN at offset ${node.offset} has ${node.contentLength} content octets; X.690 §8.2.1 requires exactly one`, node.offset);
     }
-    const value = node.content[0] ?? 0;
+    // contentLength !== 1 has already thrown, so index 0 exists.
+    const value = byteView(node.content).getUint8(0);
     if (value !== 0x00 && value !== 0xff) {
         if (ctx.rules === 'der') {
             throw new PkiEncodingError('PKI_ASN1_BOOLEAN_INVALID',
@@ -159,16 +160,18 @@ export function _readInteger(node: Asn1Node, ctx: Asn1Context): bigint {
             `pkinative: the INTEGER at offset ${node.offset} has no content octet (X.690 §8.3.1)`, node.offset);
     }
     enforceLimit(ctx.limits, 'maxIntegerBytes', content.length, 'the INTEGER content length');
-    const first = content[0] ?? 0;
+    // content.length === 0 has already thrown.
+    const view = byteView(content);
+    const first = view.getUint8(0);
     if (content.length > 1) {
-        const second = content[1] ?? 0;
+        const second = view.getUint8(1);
         if ((first === 0x00 && (second & 0x80) === 0) || (first === 0xff && (second & 0x80) !== 0)) {
             throw new PkiEncodingError('PKI_ASN1_INTEGER_INVALID',
                 `pkinative: the INTEGER at offset ${node.offset} is not in minimal two's complement form (X.690 §8.3.2) — the encoder is broken`, node.offset);
         }
     }
     let hex = '';
-    for (let i = 0; i < content.length; i++) hex += (content[i] ?? 0).toString(16).padStart(2, '0');
+    for (const octet of content) hex += octet.toString(16).padStart(2, '0');
     let value = BigInt(`0x${hex}`);
     if ((first & 0x80) !== 0) value -= 1n << BigInt(content.length * 8);
     return value;
@@ -235,7 +238,9 @@ function bitStringFromContent(content: Uint8Array, offset: number, ctx: Asn1Cont
         throw new PkiEncodingError('PKI_ASN1_BIT_STRING_INVALID',
             `pkinative: the BIT STRING at offset ${offset} has no initial octet; X.690 §8.6.2.2 requires the unused-bits count`, offset);
     }
-    const unusedBits = content[0] ?? 0;
+    // content.length === 0 has already thrown.
+    const view = byteView(content);
+    const unusedBits = view.getUint8(0);
     if (unusedBits > 7) {
         throw new PkiEncodingError('PKI_ASN1_BIT_STRING_INVALID',
             `pkinative: the BIT STRING at offset ${offset} declares ${unusedBits} unused bits; X.690 §8.6.2.2 allows 0 to 7`, offset);
@@ -244,7 +249,7 @@ function bitStringFromContent(content: Uint8Array, offset: number, ctx: Asn1Cont
         throw new PkiEncodingError('PKI_ASN1_BIT_STRING_INVALID',
             `pkinative: the empty BIT STRING at offset ${offset} declares ${unusedBits} unused bits; X.690 §8.6.2.3 requires 0`, offset);
     }
-    if (unusedBits !== 0 && ((content[content.length - 1] ?? 0) & ((1 << unusedBits) - 1)) !== 0) {
+    if (unusedBits !== 0 && (view.getUint8(content.length - 1) & ((1 << unusedBits) - 1)) !== 0) {
         if (ctx.rules === 'der') {
             throw new PkiEncodingError('PKI_ASN1_BIT_STRING_INVALID',
                 `pkinative: the BIT STRING at offset ${offset} has non-zero unused bits; DER requires them to be zero (X.690 §11.2.1)`, offset);
@@ -366,7 +371,7 @@ export function _readString(node: Asn1Node, ctx: Asn1Context, implicitType: Asn1
             value = decodeAsciiSubset(raw, isIa5Octet);
             if (value === null) throw invalidString(node, type, 'contains an octet above 0x7F');
             const outside = firstOctetOutside(raw, isPrintableOctet);
-            if (outside >= 0) ctx.emitter.emit(printableStringCharsetDiagnostic(path, String.fromCharCode(raw[outside] ?? 0), node.offset));
+            if (outside >= 0) ctx.emitter.emit(printableStringCharsetDiagnostic(path, String.fromCharCode(outside), node.offset));
             break;
         }
         case 'ia5':

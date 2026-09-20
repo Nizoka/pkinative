@@ -34,6 +34,21 @@ export const TAG_BMP_STRING = 30;
 /** Index = the two class bits of the identifier octet. */
 export const TAG_CLASSES: readonly TagClass[] = ['universal', 'application', 'context', 'private'];
 
+/**
+ * The class the two leading bits of an identifier octet name (X.690 §8.1.2.2).
+ *
+ * Written out rather than indexed into `TAG_CLASSES`: a computed index is
+ * `TagClass | undefined` under `noUncheckedIndexedAccess`, and the fallback
+ * that narrowed it back was a branch no octet could reach.
+ */
+export function tagClassOf(identifier: number): TagClass {
+    const bits = identifier & 0xc0;
+    if (bits === 0x00) return 'universal';
+    if (bits === 0x40) return 'application';
+    if (bits === 0x80) return 'context';
+    return 'private';
+}
+
 /** The universal tag of each decoded character string type. */
 export const STRING_TAGS: Readonly<Record<Asn1StringType, number>> = {
     utf8: TAG_UTF8_STRING,

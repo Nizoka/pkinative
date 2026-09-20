@@ -155,6 +155,9 @@ describe('formatDistinguishedName', () => {
         ['null', null],
         ['a string', 'CN=x'],
         ['an object without rdns', {}],
+        // Previously printed ",," instead of saying what was wrong.
+        ['an rdns entry that is not an array of attributes', { rdns: [null] }],
+        ['a sparse rdns array', { rdns: new Array<unknown>(3) }],
     ])('should refuse %s', (_, value) => {
         expect(codeOf(() => formatDistinguishedName(value as DistinguishedName))).toBe('PKI_INVALID_INPUT');
     });

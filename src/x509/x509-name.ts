@@ -15,6 +15,7 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readString } from '../asn1/asn1-read.js';
 import { TAG_OID, TAG_SEQUENCE, TAG_SET, stringTypeOfTag } from '../asn1/asn1-tags.js';
 import { rdnSetNotSortedDiagnostic } from '../core/pki-diagnostics.js';
+import { compareOctets } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import type { AttributeTypeAndValue, DistinguishedName, RelativeDistinguishedName } from '../types/x509-types.js';
@@ -22,17 +23,16 @@ import { certificateError, expectUniversalField } from './x509-fields.js';
 
 const CODE = 'PKI_X509_NAME_INVALID';
 
-/** X.690 §11.6: encodings compared as octet strings, the shorter padded with trailing zero octets. */
+/**
+ * X.690 §11.6 order over the component encodings, shared with `encodeSetOf`.
+ *
+ * The zero padding §11.6 prescribes is unreachable here: two complete TLVs are
+ * never a strict prefix of one another, because a difference in total length
+ * shows up in the length octets before the content is reached.
+ */
 function inDerSetOrder(elements: readonly Asn1Node[]): boolean {
     for (let k = 1; k < elements.length; k++) {
-        const a = (elements[k - 1] as Asn1Node).bytes;
-        const b = (elements[k] as Asn1Node).bytes;
-        const length = Math.max(a.length, b.length);
-        for (let i = 0; i < length; i++) {
-            const d = (a[i] ?? 0) - (b[i] ?? 0);
-            if (d < 0) break;
-            if (d > 0) return false;
-        }
+        if (compareOctets((elements[k - 1] as Asn1Node).bytes, (elements[k] as Asn1Node).bytes) > 0) return false;
     }
     return true;
 }

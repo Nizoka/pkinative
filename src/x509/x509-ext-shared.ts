@@ -11,6 +11,7 @@
 import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readInteger } from '../asn1/asn1-read.js';
 import { TAG_SEQUENCE, tagLabel } from '../asn1/asn1-tags.js';
+import { byteView } from '../core/bytes.js';
 import { namedBitsTrailingZeroDiagnostic } from '../core/pki-diagnostics.js';
 import type { Asn1Node, BitString } from '../types/asn1-types.js';
 import type { PkiCertificateError } from '../types/pki-errors.js';
@@ -86,8 +87,8 @@ export function readCount(node: Asn1Node, ctx: Asn1Context, path: string): numbe
     return Number(value);
 }
 
-function bitAt(bits: BitString, index: number): number {
-    return ((bits.bytes[index >> 3] ?? 0) >> (7 - (index & 7))) & 1;
+function bitAt(view: DataView, index: number): number {
+    return (view.getUint8(index >> 3) >> (7 - (index & 7))) & 1;
 }
 
 /**
@@ -98,13 +99,15 @@ function bitAt(bits: BitString, index: number): number {
  */
 export function readNamedBits<T extends string>(bits: BitString, names: readonly T[], ctx: Asn1Context, path: string, offset: number): T[] {
     const total = bits.bytes.length * 8 - bits.unusedBits;
+    // index < total <= bytes.length * 8, so index >> 3 is always in range.
+    const view = byteView(bits.bytes);
     const set: T[] = [];
     for (let i = 0; i < total; i++) {
-        if (bitAt(bits, i) === 0) continue;
+        if (bitAt(view, i) === 0) continue;
         const name = names[i];
         if (name === undefined) throw malformed(path, offset, `sets bit ${i}, beyond the ${names.length} named bits`);
         set.push(name);
     }
-    if (total > 0 && bitAt(bits, total - 1) === 0) ctx.emitter.emit(namedBitsTrailingZeroDiagnostic(path, offset));
+    if (total > 0 && bitAt(view, total - 1) === 0) ctx.emitter.emit(namedBitsTrailingZeroDiagnostic(path, offset));
     return set;
 }

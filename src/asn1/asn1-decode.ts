@@ -22,12 +22,12 @@
  * @module asn1/asn1-decode
  */
 
-import { assertBytes } from '../core/bytes.js';
+import { assertBytes, byteView } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, DecodeAsn1Options, TagClass } from '../types/asn1-types.js';
 import { PkiEncodingError, PkiError } from '../types/pki-errors.js';
 import { createAsn1Context, noteBer, type Asn1Context } from './asn1-context.js';
-import { TAG_CLASSES, isConstructedOnly, isPrimitiveOnly, isStringTag, tagLabel } from './asn1-tags.js';
+import { isConstructedOnly, isPrimitiveOnly, isStringTag, tagClassOf, tagLabel } from './asn1-tags.js';
 
 interface Header {
     readonly tagClass: TagClass;
@@ -53,13 +53,13 @@ function where(endIsInput: boolean): string {
     return endIsInput ? 'input' : 'enclosing value';
 }
 
-function readHeader(data: Uint8Array, offset: number, end: number, endIsInput: boolean, ctx: Asn1Context): Header {
+function readHeader(view: DataView, offset: number, end: number, endIsInput: boolean, ctx: Asn1Context): Header {
     if (offset >= end) {
         throw new PkiEncodingError('PKI_ASN1_TRUNCATED',
             `pkinative: expected an identifier octet at offset ${offset}, but the ${where(endIsInput)} ends there — the input is incomplete`, offset);
     }
-    const first = data[offset] ?? 0;
-    const tagClass = TAG_CLASSES[first >> 6] ?? 'universal';
+    const first = view.getUint8(offset);
+    const tagClass = tagClassOf(first);
     const constructed = (first & 0x20) !== 0;
     let tagNumber = first & 0x1f;
     let at = offset + 1;
@@ -71,7 +71,7 @@ function readHeader(data: Uint8Array, offset: number, end: number, endIsInput: b
                 throw new PkiEncodingError('PKI_ASN1_TRUNCATED',
                     `pkinative: the high-tag-number identifier at offset ${offset} runs past the end of the ${where(endIsInput)} — the input is incomplete`, offset);
             }
-            const octet = data[at] ?? 0;
+            const octet = view.getUint8(at);
             if (index === 0 && octet === 0x80) {
                 throw new PkiEncodingError('PKI_ASN1_TAG_INVALID',
                     `pkinative: the high-tag-number identifier at offset ${offset} starts with 0x80, a non-minimal form X.690 §8.1.2.4.2 forbids`, offset);
@@ -94,7 +94,7 @@ function readHeader(data: Uint8Array, offset: number, end: number, endIsInput: b
         throw new PkiEncodingError('PKI_ASN1_TRUNCATED',
             `pkinative: expected a length octet at offset ${at}, but the ${where(endIsInput)} ends there — the input is incomplete`, offset);
     }
-    const lengthOctet = data[at] ?? 0;
+    const lengthOctet = view.getUint8(at);
     at++;
     if (lengthOctet < 0x80) {
         return { tagClass, tagNumber, constructed, headerLength: at - offset, length: lengthOctet };
@@ -124,10 +124,10 @@ function readHeader(data: Uint8Array, offset: number, end: number, endIsInput: b
             throw new PkiEncodingError('PKI_ASN1_TRUNCATED',
                 `pkinative: the ${count}-octet length of the ${label} at offset ${offset} runs past the end of the ${where(endIsInput)} — the input is incomplete`, offset);
         }
-        length = length * 256 + (data[at] ?? 0);
+        length = length * 256 + view.getUint8(at);
         at++;
     }
-    const minimal = count === 1 ? length >= 0x80 : (data[lengthStart] ?? 0) !== 0;
+    const minimal = count === 1 ? length >= 0x80 : view.getUint8(lengthStart) !== 0;
     if (!minimal) {
         if (ctx.rules === 'der') {
             throw new PkiEncodingError('PKI_ASN1_LENGTH_NON_MINIMAL',
@@ -163,6 +163,15 @@ function makeNode(
  * @internal Shared by the public decoders and the structure parsers.
  */
 export function decodeValueAt(data: Uint8Array, start: number, ctx: Asn1Context): Asn1Node {
+    return decodeValueIn(byteView(data), data, start, ctx);
+}
+
+/**
+ * The body of `decodeValueAt`, taking the view as a parameter so that a caller
+ * decoding many values back to back — `decodeAsn1Sequence` over a bundle —
+ * allocates one view for the whole input rather than one per value.
+ */
+function decodeValueIn(view: DataView, data: Uint8Array, start: number, ctx: Asn1Context): Asn1Node {
     const frames: Frame[] = [];
     let pos = start;
     for (;;) {
@@ -189,7 +198,7 @@ export function decodeValueAt(data: Uint8Array, start: number, ctx: Asn1Context)
 
         const end = top?.contentEnd ?? data.length;
         const endIsInput = top === undefined || top.contentEnd === null;
-        const header = readHeader(data, pos, end, endIsInput, ctx);
+        const header = readHeader(view, pos, end, endIsInput, ctx);
         const label = tagLabel(header.tagClass, header.tagNumber);
 
         if (header.tagClass === 'universal' && header.tagNumber === 0) {
@@ -300,9 +309,10 @@ export function decodeAsn1Sequence(data: Uint8Array, options?: DecodeAsn1Options
     const ctx = createAsn1Context(options);
     enforceLimit(ctx.limits, 'maxInputBytes', bytes.length, 'the input size');
     const out: Asn1Node[] = [];
+    const view = byteView(bytes);
     let pos = 0;
     while (pos < bytes.length) {
-        const node = decodeValueAt(bytes, pos, ctx);
+        const node = decodeValueIn(view, bytes, pos, ctx);
         out.push(node);
         pos = node.offset + node.bytes.length;
     }

@@ -11,7 +11,7 @@
  * @module asn1/asn1-encode
  */
 
-import { assertBytes, concatBytes } from '../core/bytes.js';
+import { assertBytes, byteView, compareOctets, concatBytes } from '../core/bytes.js';
 import { encodeUtf8, isIa5Octet, isNumericOctet, isPrintableOctet, isVisibleOctet } from '../core/text.js';
 import type { Asn1Node, Asn1StringType, TagClass } from '../types/asn1-types.js';
 import { PkiEncodingError, PkiError } from '../types/pki-errors.js';
@@ -72,14 +72,20 @@ export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: bo
     if (tagNumber < 31) {
         identifier.push(leading | tagNumber);
     } else {
+        // Most significant digit first, so the emitting loop reads them in
+        // order and the continuation bit is a countdown, not an index.
         const digits: number[] = [];
         let rest = tagNumber;
         do {
-            digits.push(rest % 128);
+            digits.unshift(rest % 128);
             rest = Math.floor(rest / 128);
         } while (rest > 0);
         identifier.push(leading | 0x1f);
-        for (let i = digits.length - 1; i >= 0; i--) identifier.push((digits[i] ?? 0) | (i > 0 ? 0x80 : 0));
+        let remaining = digits.length;
+        for (const digit of digits) {
+            remaining--;
+            identifier.push(digit | (remaining > 0 ? 0x80 : 0));
+        }
     }
     const header = [...identifier, ...encodeLength(bytes.length)];
     const out = new Uint8Array(header.length + bytes.length);
@@ -117,16 +123,6 @@ export function encodeSequence(children: readonly Uint8Array[]): Uint8Array {
  */
 export function encodeSet(children: readonly Uint8Array[]): Uint8Array {
     return encodeTlv('universal', TAG_SET, true, childrenContent(children, 'encodeSet'));
-}
-
-/** Lexicographic octet-string order; a prefix sorts first (X.690 §11.6). */
-function compareOctets(a: Uint8Array, b: Uint8Array): number {
-    const min = Math.min(a.length, b.length);
-    for (let i = 0; i < min; i++) {
-        const diff = (a[i] ?? 0) - (b[i] ?? 0);
-        if (diff !== 0) return diff;
-    }
-    return a.length - b.length;
 }
 
 /**
@@ -214,7 +210,8 @@ export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array {
         throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE',
             `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`);
     }
-    if (unusedBits > 0 && ((data[data.length - 1] ?? 0) & ((1 << unusedBits) - 1)) !== 0) {
+    // data.length === 0 with unusedBits !== 0 has already thrown above.
+    if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & ((1 << unusedBits) - 1)) !== 0) {
         throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE',
             `pkinative: the ${unusedBits} unused bits of the last octet must be zero in DER (X.690 §11.2.1) — clear them before encoding`);
     }
@@ -306,7 +303,11 @@ export function encodeString(type: Asn1StringType, value: string): Uint8Array {
             const points: number[] = [];
             let index = 0;
             for (const ch of value) {
-                const code = ch.codePointAt(0) ?? 0;
+                // for…of yields one code point per step: two units for an astral
+                // one, a lone surrogate as a single unit, which the range
+                // check below refuses. codePointAt would be number|undefined.
+                const lead = ch.charCodeAt(0);
+                const code = ch.length === 2 ? 0x10000 + ((lead - 0xd800) << 10) + (ch.charCodeAt(1) - 0xdc00) : lead;
                 if (code >= 0xd800 && code <= 0xdfff) throw outOfRange(type, index);
                 points.push(code >>> 24, (code >> 16) & 0xff, (code >> 8) & 0xff, code & 0xff);
                 index += ch.length;
