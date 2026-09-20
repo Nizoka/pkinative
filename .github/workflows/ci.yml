@@ -40,18 +40,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The job id and the matrix are load-bearing: the main ruleset requires the
-  # status checks `ci (22)` and `ci (24)` (.github/rulesets/main.json).
+  # One job, four runs. `name:` is what decides the status-check name, so the
+  # three contexts the ruleset already requires — `ci (22)`, `ci (24)` and
+  # `windows` — keep exactly the names they had when they were separate jobs,
+  # and `macos` is purely additive. Renaming a required check is what leaves
+  # every pull request waiting for a context that will never report again.
+  #
+  # Windows and macOS are blocking from day one (zipnative doctrine): CRLF
+  # line endings in PEM files, path separators in the scripts, the npm.cmd
+  # shim and LibreSSL in place of OpenSSL are facts a Linux runner never
+  # exercises. Any "skip on this platform" needs a linked issue. Both non-
+  # Linux platforms run the Node version of .nvmrc; the second Node version
+  # is covered on Linux, where the runners are fastest.
   ci:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22, 24]
+        include:
+          - { name: 'ci (22)', os: ubuntu-latest, node-version: 22, slug: linux-node22, audit: true }
+          - { name: 'ci (24)', os: ubuntu-latest, node-version: 24, slug: linux-node24, audit: false }
+          - { name: windows, os: windows-latest, node-version: 22, slug: windows, audit: false }
+          - { name: macos, os: macos-latest, node-version: 22, slug: macos, audit: false }
 
     steps:
+      # Harden-Runner monitors Linux runners; on Windows and macOS it records
+      # that the platform is unsupported and continues, and the step stays
+      # first so the workflow invariant (tests/tools/workflows.test.ts) holds
+      # everywhere.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -72,7 +91,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # Once per commit, not once per platform: the advisory database does not
+      # depend on the runner, and four identical network calls are four
+      # chances to go red for a reason that is not this repository's.
       - name: Audit dependencies
+        if: matrix.audit
         run: npm audit --audit-level=high
 
       - name: Run the quality gate (CI profile)
@@ -82,49 +105,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: gate-logs-node${{ matrix.node-version }}
-          path: test-output/.gate/
-          retention-days: 7
-          if-no-files-found: ignore
-
-  # Blocking from day one (zipnative doctrine): PEM files with CRLF line
-  # endings, path separators in the scripts and the npm.cmd shim are Windows
-  # facts that a Linux runner never exercises. Any "skip on win32" needs a
-  # linked issue. The ruleset requires the `windows` status check.
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-      # Harden-Runner monitors Linux runners; on Windows it records that the
-      # platform is unsupported and continues, and the step stays first so the
-      # workflow invariant (tests/tools/workflows.test.ts) holds everywhere.
-      - name: Harden the runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Run the quality gate (CI profile)
-        run: npx tsx scripts/gate.ts --ci --require-all
-
-      - name: Upload the gate logs on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: gate-logs-windows
+          name: gate-logs-${{ matrix.slug }}
           path: test-output/.gate/
           retention-days: 7
           if-no-files-found: ignore

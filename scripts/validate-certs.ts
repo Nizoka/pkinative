@@ -97,6 +97,16 @@ const readCorpusJson = <T>(id: Corpus['id'], name: string): T => JSON.parse(read
 
 const failures: string[] = [];
 const skips: string[] = [];
+/**
+ * Three states, not two. A tool that is absent is a SKIP, which
+ * `--require-all` turns into a failure: on the reference platform every tool
+ * must be there. A tool that is present but whose *acceptance policy* is not
+ * ours — LibreSSL on the macOS runner refusing a certificate OpenSSL reads —
+ * is neither. Recording that as a failure would make the gate red for
+ * something that is not a defect here, and a gate that is red for the wrong
+ * reason is a gate people learn to ignore.
+ */
+const notApplicable: string[] = [];
 const lines: string[] = [];
 const fail = (message: string): void => { failures.push(message); };
 const record = (label: string, detail: string): void => { lines.push(`${label.padEnd(6)} ${detail}`); };
@@ -259,19 +269,38 @@ async function main(): Promise<number> {
     if (openssl === null) {
         skips.push('L3 openssl CLI not found');
     } else {
+        // What is cross-checked is the VALUES the CLI reads, never its
+        // acceptance policy: a disagreement on a serial or a fingerprint is
+        // always a defect somewhere and always fails. A refusal to read is a
+        // defect only for the reference implementation; another one refusing
+        // is a difference between implementations, which is data.
+        const reference = !/LibreSSL|BoringSSL/i.test(openssl);
         const step = Math.max(1, Math.floor(parsed.size / OPENSSL_SAMPLE));
         const scratch = join(REPORT_DIR, 'openssl-input.der');
         mkdirSync(REPORT_DIR, { recursive: true });
         let sampled = 0;
+        let refused = 0;
         let index = 0;
         for (const [hash, cert] of parsed) {
             if (index++ % step !== 0) continue;
             sampled++;
             const facts = openSslFacts(cert.der, scratch);
-            if (facts === null) fail(`L3 ${hash}: the openssl CLI cannot read a certificate pkinative parses`);
-            else if (signedHex(facts.serial) !== cert.serialNumber.value || facts.fingerprint !== colonHex(sha256Hex(cert.der))) fail(`L3 ${hash}: the openssl CLI disagrees on the serial or the fingerprint`);
+            if (facts === null) {
+                refused++;
+                if (reference) fail(`L3 ${hash}: the openssl CLI cannot read a certificate pkinative parses`);
+            } else if (signedHex(facts.serial) !== cert.serialNumber.value || facts.fingerprint !== colonHex(sha256Hex(cert.der))) {
+                fail(`L3 ${hash}: ${openssl} disagrees on the serial or the fingerprint`);
+            }
         }
-        record('L3', `${openssl}: ${sampled} sampled certificates agree`);
+        // Anti-vacuity: an implementation that reads almost nothing proves
+        // nothing, and must not pass as a cross-check.
+        if (sampled - refused < sampled / 2) {
+            fail(`L3 ${openssl} read only ${sampled - refused} of ${sampled} sampled certificates — too few to be a cross-check`);
+        }
+        record('L3', `${openssl}: ${sampled - refused} of ${sampled} sampled certificates agree`);
+        if (refused > 0 && !reference) {
+            notApplicable.push(`L3 ${openssl} refused ${refused} of ${sampled} sampled certificates; its acceptance policy is not pkinative's contract, and every certificate it did read agrees`);
+        }
     }
 
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
@@ -312,15 +341,19 @@ function report(): number {
     const failed = failures.length > 0 || (requireAll && skips.length > 0);
     const body = [
         ...lines,
+        // n/a lines are printed, never counted as failures: they say what this
+        // platform could not be asked, so a green run is not mistaken for a
+        // run that asked everything.
+        ...notApplicable.map((n) => `N/A    ${n}`),
         ...skips.map((s) => `SKIP   ${s}`),
         ...failures.slice(0, 50).map((f) => `FAIL   ${f}`),
         ...(failures.length > 50 ? [`FAIL   … ${failures.length - 50} more`] : []),
-        `${failed ? 'FAILED' : 'PASSED'}: ${failures.length} failure(s), ${skips.length} skip(s)${requireAll ? ' (--require-all)' : ''}`,
+        `${failed ? 'FAILED' : 'PASSED'}: ${failures.length} failure(s), ${skips.length} skip(s), ${notApplicable.length} not applicable${requireAll ? ' (--require-all)' : ''}`,
     ];
     console.log(body.join('\n'));
     const summary = ['## pkinative conformance', '', '```', ...body, '```'];
     mkdirSync(REPORT_DIR, { recursive: true });
-    writeFileSync(join(REPORT_DIR, 'report.json'), `${JSON.stringify({ level, lines, skips, failures }, null, 2)}\n`);
+    writeFileSync(join(REPORT_DIR, 'report.json'), `${JSON.stringify({ level, lines, notApplicable, skips, failures }, null, 2)}\n`);
     const stepSummary = process.env['GITHUB_STEP_SUMMARY'];
     if (stepSummary !== undefined && stepSummary !== '') appendFileSync(stepSummary, `${summary.join('\n')}\n`);
     return failed ? 1 : 0;

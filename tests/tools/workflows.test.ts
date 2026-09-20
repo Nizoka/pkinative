@@ -157,16 +157,28 @@ describe('ci.yml', () => {
     };
     const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
 
-    it('should keep the job ids and matrix the ruleset requires (ci (22), ci (24), windows)', () => {
-        expect(ci).toMatch(/^ {2}ci:\s*$/m);
-        expect(ci).toMatch(/node-version:\s*\[22, 24\]/);
-        expect(ci).toMatch(/^ {2}windows:\s*\n\s+runs-on:\s*windows-latest/m);
-        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'windows']));
+    /** Every `name:` of a matrix include — the status-check names GitHub reports. */
+    const checkNames = (text: string): string[] => [...text.matchAll(/^\s+- \{ name: '?([^,']+)'?,/gm)].map((m) => m[1]);
+
+    it('should report exactly the status checks the ruleset requires, on all three platforms', () => {
+        // `name:` is what decides the check name, which is why renaming a job
+        // here — or dropping the `name:` — would leave required checks pending
+        // forever. Adding a platform must stay additive.
+        expect(ci).toMatch(/^ {2}ci:\s*\n\s+name: \$\{\{ matrix\.name \}\}/m);
+        expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'macos', 'windows']);
+        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'windows', 'macos']));
+        for (const os of ['ubuntu-latest', 'windows-latest', 'macos-latest']) expect(ci, os).toContain(`os: ${os}`);
+        expect(ci).toMatch(/node-version: 22/);
+        expect(ci).toMatch(/node-version: 24/);
     });
 
-    it('should run the gate with --require-all in both jobs and audit outside it', () => {
-        expect([...ci.matchAll(/run: npx tsx scripts\/gate\.ts --ci --require-all/g)]).toHaveLength(2);
-        expect(ci).toMatch(/run: npm audit --audit-level=high/);
+    it('should run the gate with --require-all once, for every platform, and audit only once', () => {
+        // One job now, so one gate invocation in the file — and `npm audit` is
+        // guarded, because four identical network calls are four chances to go
+        // red for a reason that is not this repository's.
+        expect([...ci.matchAll(/run: npx tsx scripts\/gate\.ts --ci --require-all/g)]).toHaveLength(1);
+        expect(ci).toMatch(/if: matrix\.audit\s*\n\s+run: npm audit --audit-level=high/);
+        expect(checkNames(ci).length, 'the gate runs once per matrix entry').toBe(4);
         expect(ci).toMatch(/if: failure\(\)[\s\S]*upload-artifact[\s\S]*test-output\/\.gate\//);
     });
 
@@ -184,10 +196,18 @@ describe('conformance.yml', () => {
     };
     const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
 
-    it('should keep the job id the ruleset requires, with no path filter that could leave it pending', () => {
-        expect(conformance).toMatch(/^ {2}conformance:\s*$/m);
-        expect(contexts).toContain('conformance');
+    it('should report the checks the ruleset requires, on all three platforms, with no path filter that could leave one pending', () => {
+        expect(conformance).toMatch(/^ {2}conformance:\s*\n\s+name: \$\{\{ matrix\.name \}\}/m);
+        const names = [...conformance.matchAll(/^\s+- \{ name: ([a-z-]+),/gm)].map((m) => m[1]).sort();
+        expect(names).toEqual(['conformance', 'conformance-macos', 'conformance-windows']);
+        for (const name of names) expect(contexts, name).toContain(name);
         expect(conformance).not.toMatch(/^\s+paths(-ignore)?:/m);
+    });
+
+    it('should force bash where the step is a shell script, so the Windows runner does not use PowerShell', () => {
+        const summary = conformance.indexOf('GITHUB_STEP_SUMMARY');
+        expect(summary).toBeGreaterThan(0);
+        expect(conformance.slice(0, summary)).toMatch(/shell: bash\s*\n\s+run: \|[^]*$/);
     });
 
     it('should build, fetch the pinned corpora and run the gate with --require-all', () => {

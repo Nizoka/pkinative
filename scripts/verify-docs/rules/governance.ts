@@ -33,39 +33,84 @@ export interface WorkflowJob {
     readonly file: string;
     readonly id: string;
     readonly name: string | null;
-    /** Matrix axis → values (quotes stripped). */
+    /** Matrix axis → values (quotes stripped); an `include:` contributes every key it sets. */
     readonly matrix: Readonly<Record<string, readonly string[]>>;
+    /** One `include:` entry per element, as key → value. */
+    readonly include: ReadonlyArray<Readonly<Record<string, string>>>;
+    /** The status-check names GitHub will report for this job. */
+    readonly checkNames: readonly string[];
 }
 
-/** The jobs of a workflow file: id, optional `name:`, and inline-list matrix axes. */
+const unquote = (value: string): string => value.trim().replace(/^["']|["']$/g, '');
+
+/**
+ * What GitHub calls each run of a job.
+ *
+ * `name:` wins over the job id, and when it interpolates a matrix key, every
+ * `include:` entry supplies one name. Getting this wrong is not cosmetic: a
+ * required check whose name no job reports leaves every pull request pending
+ * for ever, which is the failure `ruleset-parity` exists to prevent.
+ */
+function checkNamesOf(job: { id: string; name: string | null; matrix: Record<string, string[]>; include: Array<Record<string, string>> }): string[] {
+    const interpolated = /^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$/.exec(job.name ?? '');
+    if (interpolated !== null) {
+        const key = interpolated[1];
+        const names = job.include.map((entry) => entry[key]).filter((v): v is string => v !== undefined);
+        return names.length > 0 ? names : [];
+    }
+    if (job.name !== null) return [job.name];
+    const axes = Object.entries(job.matrix).filter(([, values]) => values.length > 0);
+    if (axes.length === 0) return [job.id];
+    // GitHub joins the axis values, in declaration order: `ci (22)`.
+    let combinations: string[][] = [[]];
+    for (const [, values] of axes) combinations = combinations.flatMap((prefix) => values.map((v) => [...prefix, v]));
+    return combinations.map((values) => `${job.id} (${values.join(', ')})`);
+}
+
+/** The jobs of a workflow file: id, optional `name:`, matrix axes and `include:` entries. */
 export function workflowJobs(file: string, text: string): WorkflowJob[] {
     const lines = text.replace(/\r\n/g, '\n').split('\n');
     const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
     if (start < 0) return [];
-    const jobs: Array<{ file: string; id: string; name: string | null; matrix: Record<string, string[]> }> = [];
+    const jobs: Array<{ file: string; id: string; name: string | null; matrix: Record<string, string[]>; include: Array<Record<string, string>> }> = [];
     let inMatrix = false;
     for (const line of lines.slice(start + 1)) {
         const head = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
         if (head) {
-            jobs.push({ file, id: head[1], name: null, matrix: {} });
+            jobs.push({ file, id: head[1], name: null, matrix: {}, include: [] });
             inMatrix = false;
             continue;
         }
         const job = jobs[jobs.length - 1];
         if (!job) continue;
         const name = /^ {4}name:\s*(.+?)\s*$/.exec(line);
-        if (name) job.name = name[1].replace(/^["']|["']$/g, '');
+        if (name) job.name = unquote(name[1]);
         if (/^ {6}matrix:\s*$/.test(line)) {
             inMatrix = true;
             continue;
         }
         if (inMatrix) {
             const axis = /^ {8}([\w-]+):\s*\[(.*)\]\s*$/.exec(line);
-            if (axis) job.matrix[axis[1]] = axis[2].split(',').map((v) => v.trim().replace(/^["']|["']$/g, '')).filter((v) => v.length > 0);
-            else if (!/^ {8,}/.test(line) && line.trim() !== '') inMatrix = false;
+            const entry = /^ {10}- \{(.+)\}\s*$/.exec(line);
+            if (axis) job.matrix[axis[1]] = axis[2].split(',').map(unquote).filter((v) => v.length > 0);
+            else if (entry) {
+                // `- { name: 'ci (22)', os: ubuntu-latest, … }`. A value that
+                // itself holds a comma would need a YAML parser; none does,
+                // and a plain axis list is the alternative.
+                const pairs: Record<string, string> = {};
+                for (const pair of entry[1].split(',')) {
+                    const at = pair.indexOf(':');
+                    if (at < 0) continue;
+                    const key = pair.slice(0, at).trim();
+                    const value = unquote(pair.slice(at + 1));
+                    pairs[key] = value;
+                    job.matrix[key] = [...(job.matrix[key] ?? []), value];
+                }
+                job.include.push(pairs);
+            } else if (!/^ {8,}/.test(line) && line.trim() !== '') inMatrix = false;
         }
     }
-    return jobs;
+    return jobs.map((job) => ({ ...job, checkNames: checkNamesOf(job) }));
 }
 
 function workflowFiles(ctx: RuleContext): Array<{ file: string; text: string }> {
@@ -219,12 +264,9 @@ const rulesetParity: Rule = {
             .filter((c): c is string => typeof c === 'string');
         if (contexts.length === 0) out.push(error(FILE, 'requires no status check — the gate must be a required check'));
         const jobs = workflowFiles(ctx).flatMap(({ file, text: t }) => workflowJobs(file, t));
+        const reported = new Set(jobs.flatMap((j) => j.checkNames));
         for (const context of contexts) {
-            const m = /^(.+) \((.+)\)$/.exec(context);
-            const found = m
-                ? jobs.some((j) => (j.id === m[1] || j.name === m[1]) && Object.values(j.matrix).some((v) => v.includes(m[2])))
-                : jobs.some((j) => (j.id === context || j.name === context) && Object.keys(j.matrix).length === 0);
-            if (!found) out.push(error(FILE, `required check "${context}" is reported by no workflow job — a required check that never reports blocks every pull request`, lineContaining(text, `"${context}"`)));
+            if (!reported.has(context)) out.push(error(FILE, `required check "${context}" is reported by no workflow job — a required check that never reports blocks every pull request`, lineContaining(text, `"${context}"`)));
         }
         out.push(...checkTagRuleset(ctx.read('.github/rulesets/tags.json')));
         return out;
