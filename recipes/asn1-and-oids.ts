@@ -16,6 +16,7 @@ import {
     encodeTime,
     getOidName,
     isValidOid,
+    OID_REGISTRY,
     readInteger,
     readObjectIdentifier,
     readString,
@@ -42,7 +43,12 @@ export default function run(): Record<string, string> {
     const identical = again.length === certificate.length && again.every((b, i) => b === certificate[i]);
 
     const sha256WithRsa = '1.2.840.113549.1.1.11';
+    // getOidName gives the name; OID_REGISTRY is the whole table behind it,
+    // and each entry also names the standard that defines the OID.
+    const entry = OID_REGISTRY.find((e) => e.oid === sha256WithRsa);
+
     return {
+        oidStandard: entry?.standard ?? '?',
         oid: `${oid} ${getOidName(oid) ?? '?'}`,
         integer: String(readInteger(integerNode)),
         text: readString(textNode).value,

@@ -64,6 +64,12 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'sitemap-parity': (f) => edit(f, 'docs/sitemap.xml', /\s*<url><loc>https:\/\/pkinative\.dev\/guides\/choose\.html<\/loc><\/url>/, ''),
     // api.json is what the rule reads; dropping a TSDoc in src/ would only make it stale.
     'member-tsdoc': (f) => edit(f, 'docs/assets/api.json', /"summary": "The algorithm OID[^"]*"/, '"summary": null'),
+    // encodeSetOf is named in exactly one hand-written file, the primitives recipe.
+    'export-named': (f) => edit(f, 'recipes/asn1-primitives.ts', /encodeSetOf/g, 'encodeSetOfXX'),
+    'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'allowTrailingData', 'allowTrailingDataXX'),
+    'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
+    'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
+    'install-url-version': (f) => edit(f, 'docs/agent-brief.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
     // Edit the SVG without re-rasterising: the recorded hash no longer matches.
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),

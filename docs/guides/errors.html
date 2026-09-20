@@ -72,6 +72,7 @@
       </tr>
       </tbody></table>
       <p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.</p>
+      <p>Each class types its own <code>code</code>, so narrowing the error narrows the codes: <code>PkiBaseErrorCode</code> on <code>PkiError</code>, <code>PkiEncodingErrorCode</code>, <code>PkiCertificateErrorCode</code> and <code>PkiLimitErrorCode</code> on the three subclasses. <code>PkiErrorCode</code> is the union of all four — the type to write when you store or pass a code without caring which class raised it.</p>
       <h2 id="error-codes">Error codes <a class="heading-anchor" href="#error-codes" aria-label="Link to this section">#</a></h2>
       <h3 id="usage">Usage <a class="heading-anchor" href="#usage" aria-label="Link to this section">#</a></h3>
       <ul>

@@ -68,6 +68,26 @@ const packageVersionSync: Rule = {
     },
 };
 
+const installUrlVersion: Rule = {
+    id: 'install-url-version',
+    summary: 'Every release-tarball install command outside release-notes/ names the current version, in both the tag and the file name — a frozen URL does not break, it quietly installs the wrong artefact.',
+    check(ctx) {
+        const version = packageVersion(ctx);
+        if (version === null) return [];
+        const sources = ['README.md', 'llms.txt', 'docs/agent-brief.md', ...ctx.list('docs').filter((p) => p.endsWith('.md'))];
+        const out: Finding[] = [];
+        for (const path of new Set(sources)) {
+            const text = ctx.read(path);
+            if (text === null) continue;
+            for (const m of text.matchAll(/releases\/download\/v([0-9][^/\s]*)\/pkinative-([^\s"')`]+)\.tgz/g)) {
+                if (m[1] === version && m[2] === version) continue;
+                out.push(error(path, `installs pkinative-${m[2] ?? ''}.tgz from tag v${m[1] ?? ''}; package.json says ${version}`, lineContaining(text, m[0])));
+            }
+        }
+        return out;
+    },
+};
+
 const citationVersionSync: Rule = {
     id: 'citation-version-sync',
     summary: 'CITATION.cff version equals package.json version.',
@@ -117,4 +137,4 @@ const changelogCurrent: Rule = {
     },
 };
 
-export const VERSION_RULES: readonly Rule[] = [manifestShape, packageVersionSync, citationVersionSync, changelogCurrent];
+export const VERSION_RULES: readonly Rule[] = [manifestShape, packageVersionSync, installUrlVersion, citationVersionSync, changelogCurrent];

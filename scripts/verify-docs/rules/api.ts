@@ -10,14 +10,20 @@
  * `member-tsdoc`: every member of every exported interface has a summary
  * too — most of them belong to shapes a caller only ever receives, so the
  * manifest is the only place their fields are described.
+ * `export-named`, `option-fields-named`, `extension-kinds-complete` and
+ * `surfaces-parity`: the mechanical half of "can an agent use this from
+ * the documentation alone" — every name it must write is written somewhere
+ * a human wrote, every enumeration is complete, and the machine-readable
+ * surface matches the package.
  *
  * @module scripts/verify-docs/rules/api
  */
 
 import { documentationGaps, renderApiJson, type Reader } from '../../build-api-json.js';
-import { error, readJson, type Rule, type RuleContext } from '../context.js';
+import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 const API_JSON = 'docs/assets/api.json';
+const MANIFEST = 'docs/assets/ecosystem.json';
 
 const reader = (ctx: RuleContext): Reader => (path) => ctx.read(path);
 
@@ -52,4 +58,146 @@ const memberTsdoc: Rule = {
     },
 };
 
-export const API_RULES: readonly Rule[] = [apiJsonSync, tsdocComplete, memberTsdoc];
+// ── Can an agent use the library from the docs alone? ────────────────
+//
+// Four mechanical halves of that question. What is left to judgement — is
+// the sentence still true, is this still the shortest path — stays with the
+// release-audit skill, which is why none of these rules reads a generated
+// page: a page built from api.json would make export-named prove itself.
+
+/** One export of docs/assets/api.json, as these rules read it. */
+interface ApiExport {
+    readonly name?: string;
+    readonly kind?: string;
+    readonly module?: string;
+    readonly signature?: string;
+    readonly members?: ReadonlyArray<{ name?: string; type?: string }>;
+}
+
+const readExports = (ctx: RuleContext): ApiExport[] | Finding => {
+    const api = readJson<{ exports?: ApiExport[] }>(ctx, API_JSON);
+    return 'finding' in api ? api.finding : (api.value.exports ?? []);
+};
+
+/** The files a human writes by hand. A generated page must never be in this list. */
+const HAND_WRITTEN = (ctx: RuleContext): string[] => [
+    'README.md',
+    'llms.txt',
+    'docs/agent-brief.md',
+    ...ctx.list('docs/guides').filter((p) => p.endsWith('.md')),
+    ...ctx.list('recipes').filter((p) => p.endsWith('.ts')),
+];
+
+/** Every identifier that occurs in hand-written prose. */
+const namedInProse = (ctx: RuleContext): Set<string> =>
+    new Set(HAND_WRITTEN(ctx).flatMap((path) => (ctx.read(path) ?? '').split(/[^A-Za-z0-9_$]+/)));
+
+const exportNamed: Rule = {
+    id: 'export-named',
+    summary: 'Every export a caller has to write — every function, class and constant, and every type that appears in an exported signature — is named in the README, llms.txt, the agent brief, a guide or a recipe. The result-only shapes a caller never types are deliberately exempt: their contract is docs/assets/api.json, and padding the guides with them would cost tokens and teach nothing.',
+    check(ctx) {
+        const exports = readExports(ctx);
+        if (!Array.isArray(exports)) return [exports];
+        const inSignatures = new Set(
+            exports.filter((e) => e.kind === 'function' || e.kind === 'class')
+                .flatMap((e) => (e.signature ?? '').split(/[^A-Za-z0-9_$]+/)));
+        const named = namedInProse(ctx);
+        return exports
+            .filter((e) => (e.kind !== 'type' || inSignatures.has(e.name ?? '')) && !named.has(e.name ?? ''))
+            .map((e) => error(API_JSON, `${e.name ?? '?'} (${e.kind ?? '?'}, ${e.module ?? '?'}) is an export a caller must be able to write, and no guide, recipe, the README, llms.txt or the agent brief names it — an agent with only the docs cannot discover it`));
+    },
+};
+
+const optionFieldsNamed: Rule = {
+    id: 'option-fields-named',
+    summary: 'Every field of every exported options interface, and of PkiLimits, is named in hand-written prose — an option no document names is an option no caller will ever pass.',
+    check(ctx) {
+        const exports = readExports(ctx);
+        if (!Array.isArray(exports)) return [exports];
+        const named = namedInProse(ctx);
+        return exports
+            .filter((e) => (e.name ?? '').endsWith('Options') || e.name === 'PkiLimits')
+            .flatMap((e) => (e.members ?? [])
+                .filter((member) => !named.has(member.name ?? ''))
+                .map((member) => error(API_JSON, `${e.name ?? '?'}.${member.name ?? '?'} is named in no guide, recipe, the README, llms.txt or the agent brief`)));
+    },
+};
+
+const KIND_DOCS: readonly string[] = ['docs/guides/quickstart.md', 'docs/agent-brief.md'];
+
+const extensionKindsComplete: Rule = {
+    id: 'extension-kinds-complete',
+    summary: 'The quick start and the agent brief each name every `kind` an Extension can carry, and neither names one that does not exist — the second half is what keeps an invented kind such as `subjectAlternativeName` out of the documentation.',
+    check(ctx) {
+        const exports = readExports(ctx);
+        if (!Array.isArray(exports)) return [exports];
+        const kinds = exports
+            .filter((e) => /Extension$/.test(e.name ?? '') && e.members !== undefined)
+            .map((e) => e.members?.find((m) => m.name === 'kind')?.type ?? '')
+            .filter((type) => /^'[a-zA-Z]+'$/.test(type))
+            .map((type) => type.slice(1, -1));
+        if (kinds.length === 0) return [error(API_JSON, 'no Extension export declares a literal `kind`')];
+
+        const out: Finding[] = [];
+        for (const path of KIND_DOCS) {
+            const text = ctx.read(path);
+            if (text === null) { out.push(error(path, 'missing')); continue; }
+            const words = new Set(text.split(/[^A-Za-z0-9_$]+/));
+            const absent = kinds.filter((kind) => !words.has(kind));
+            if (absent.length > 0) out.push(error(path, `names ${String(kinds.length - absent.length)} of the ${String(kinds.length)} extension kinds; missing ${absent.join(', ')} — a kind no document names is one an agent cannot ask for`));
+            // getExtension(cert, '<kind>') spelled with a kind that does not exist.
+            for (const m of text.matchAll(/getExtension\([^,)]+,\s*'([a-zA-Z]+)'/g)) {
+                if (!kinds.includes(m[1] ?? '')) out.push(error(path, `calls getExtension with '${m[1] ?? ''}', which is not an extension kind`, lineContaining(text, m[0])));
+            }
+        }
+        return out;
+    },
+};
+
+const SURFACES = 'docs/data/surfaces.json';
+
+interface Capability {
+    readonly id?: string;
+    readonly exports?: readonly string[];
+    readonly since?: string;
+}
+
+const surfacesParity: Rule = {
+    id: 'surfaces-parity',
+    summary: 'docs/data/surfaces.json names only real exports, claims every runtime export in exactly one capability, carries the current version, and leaves a planned capability with no exports — the drift that makes a site advertise a surface the package does not have.',
+    check(ctx) {
+        const exports = readExports(ctx);
+        if (!Array.isArray(exports)) return [exports];
+        const surfaces = readJson<{ version?: unknown; capabilities?: Capability[] }>(ctx, SURFACES);
+        if ('finding' in surfaces) return [surfaces.finding];
+        const manifest = readJson<{ packages?: { pkinative?: { version?: unknown } } }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+
+        const out: Finding[] = [];
+        const known = new Set(exports.map((e) => e.name ?? ''));
+        const claimedBy = new Map<string, string[]>();
+        for (const capability of surfaces.value.capabilities ?? []) {
+            const id = capability.id ?? '?';
+            for (const name of capability.exports ?? []) {
+                if (!known.has(name)) out.push(error(SURFACES, `capability "${id}" claims ${name}, which the package does not export`));
+                claimedBy.set(name, [...(claimedBy.get(name) ?? []), id]);
+            }
+            if ((capability.since ?? '').includes('planned') && (capability.exports ?? []).length > 0) {
+                out.push(error(SURFACES, `capability "${id}" is planned (${capability.since ?? ''}) but already claims ${(capability.exports ?? []).join(', ')}`));
+            }
+        }
+        for (const e of exports) {
+            if (e.kind === 'type') continue;
+            const owners = claimedBy.get(e.name ?? '') ?? [];
+            if (owners.length === 0) out.push(error(SURFACES, `${e.name ?? '?'} is exported and no capability claims it — the site would advertise a surface smaller than the package`));
+            else if (owners.length > 1) out.push(error(SURFACES, `${e.name ?? '?'} is claimed by ${owners.join(' and ')}; exactly one capability owns each export`));
+        }
+        const version = manifest.value.packages?.pkinative?.version;
+        if (surfaces.value.version !== version) out.push(error(SURFACES, `declares version ${String(surfaces.value.version)}; docs/assets/ecosystem.json says ${String(version)}`));
+        return out;
+    },
+};
+
+export const API_RULES: readonly Rule[] = [
+    apiJsonSync, tsdocComplete, memberTsdoc, exportNamed, optionFieldsNamed, extensionKindsComplete, surfacesParity,
+];

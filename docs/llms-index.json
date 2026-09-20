@@ -12,20 +12,20 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 3211,
-      "approxTokens": 803
+      "bytes": 3416,
+      "approxTokens": 854
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 42017,
-      "approxTokens": 10504
+      "bytes": 43732,
+      "approxTokens": 10933
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 11835,
-      "approxTokens": 2959
+      "bytes": 16847,
+      "approxTokens": 4212
     },
     {
       "url": "assets/api.json",
@@ -79,10 +79,11 @@
         "errors-branch-on-the-code",
         "limits",
         "below-the-certificate-asn1-and-oids",
+        "types-you-write",
         "next"
       ],
-      "bytes": 11345,
-      "approxTokens": 2836
+      "bytes": 12721,
+      "approxTokens": 3180
     },
     {
       "title": "Security model",
@@ -130,8 +131,8 @@
         "limits",
         "diagnostics"
       ],
-      "bytes": 5759,
-      "approxTokens": 1440
+      "bytes": 6098,
+      "approxTokens": 1525
     },
     {
       "title": "Choosing a PKI library",

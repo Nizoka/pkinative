@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **docs: the site previews locally, and its social cards render** — `npm run docs:serve` serves `docs/` the way a static host does. It exposed a defect it was the only way to see: under `cleanUrls` the link `guides/index.html` took two redirects and landed on a URL whose base directory is the site root, so the guides index loaded without its stylesheet. The index is now linked and canonicalised as `guides/`, held there by the new `clean-url-safe` rule. `og:image` and `twitter:image` pointed at an SVG, which no social platform renders, so every share card was blank: both images are now committed PNGs with declared dimensions, plus a 1280×640 `social-preview.png` for GitHub. `declared.socialImages` records the SHA-256 of each SVG source, so a raster cannot silently go stale.
+- **docs: the library is provably usable from its documentation alone** — five new verify-docs rules and two suite assertions replace the question with a measurement. `export-named` requires every export a caller must write — derived, not hand-listed: every function, class and constant, plus every type occurring in an exported signature. `member-tsdoc` requires a summary on all 283 interface members of `api.json`, which is the only place the 57 result-only shapes are ever described. `extension-kinds-complete` requires all twenty extension kinds in both the quick start and the agent brief, and refuses one that does not exist. `option-fields-named` covers every option field, `surfaces-parity` holds `docs/data/surfaces.json` to the package in both directions. The recipes suite now asserts that every runtime export appears in a recipe that runs, and that the code blocks of the README and the agent brief are the marked regions of those recipes byte for byte.
+- **docs: two recipes and the last unnamed exports** — `recipes/asn1-primitives.ts` covers the BOOLEAN, NULL, BIT STRING and OCTET STRING pairs, `encodeTlv`, `decodeAsn1Sequence` and the SET/SET OF distinction; `recipes/agent-brief.ts` makes the brief's sample executable. With `OID_REGISTRY`, `DEFAULT_PKI_LIMITS` and `PkiCertificateError` added to the recipes that already touched them, all 43 runtime exports are demonstrated by code that runs.
+
+### Changed
+
+- **docs: the agent brief names all twenty extension kinds** — it named nine, so the other eleven were undiscoverable and the list read as open-ended. Its code sample is now a function that runs, rather than a top-level loop over an undefined variable.
+- **test: workflow invariants** — `tests/tools/workflows.test.ts` normalises CRLF on the way in, without which every multi-line assertion in it mismatched silently on a CRLF working copy. Two new invariants: the exact set of workflow files, and one SHA per action across the tree.
+- **test: `count-tokens` holds only the top changelog entry to current counts** — an entry for a released version records what that version shipped, and forcing today's numbers into it would falsify the record.
+
 ## [0.1.0] – 2026-09-19
 
 ### Added

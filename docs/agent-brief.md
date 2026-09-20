@@ -11,9 +11,15 @@ One entry point, no subpaths: import every name from `'pkinative'`. Every export
 ```ts
 import { decodePem, getExtension, parseCertificate } from 'pkinative';
 
-for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
-    const cert = parseCertificate(bytes);
-    const names = getExtension(cert, 'subjectAltName')?.names ?? [];
+export function hostNames(pemText: string): string[] {
+    const names: string[] = [];
+    for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
+        const cert = parseCertificate(bytes);
+        for (const name of getExtension(cert, 'subjectAltName')?.names ?? []) {
+            if (name.kind === 'dNSName') names.push(name.value);
+        }
+    }
+    return names;
 }
 ```
 

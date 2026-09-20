@@ -15,6 +15,13 @@
       ]
     },
     {
+      "file": "agent-brief.ts",
+      "task": "Compose decodePem and parseCertificate to read the host names of a certificate (the docs/agent-brief.md sample)",
+      "surface": ["decodePem", "parseCertificate", "getExtension", "encodePem"],
+      "since": "0.2.0",
+      "expects": ["names=cp.letsencrypt.org,cp.root-x1.letsencrypt.org,cps.letsencrypt.org,cps.root-x1.letsencrypt.org,lencr.org,letsencrypt.com,letsencrypt.org,www.lencr.org,www.letsencrypt.com,www.letsencrypt.org"]
+    },
+    {
       "file": "inspect-extensions.ts",
       "task": "Walk every extension, keep them raw when an inspection tool needs to, and decode one on demand",
       "surface": ["parseCertificate", "getExtension", "decodeExtensionValue", "getOidName"],
@@ -53,10 +60,11 @@
     {
       "file": "asn1-and-oids.ts",
       "task": "Build DER with the encoders, read typed fields back, re-encode a certificate byte for byte, and encode, decode, validate and name OIDs",
-      "surface": ["encodeSequence", "encodeObjectIdentifier", "encodeInteger", "encodeString", "encodeTime", "decodeAsn1", "readObjectIdentifier", "readInteger", "readString", "readTime", "encodeAsn1Node", "encodeOid", "decodeOid", "isValidOid", "getOidName"],
+      "surface": ["encodeSequence", "encodeObjectIdentifier", "encodeInteger", "encodeString", "encodeTime", "decodeAsn1", "readObjectIdentifier", "readInteger", "readString", "readTime", "encodeAsn1Node", "encodeOid", "decodeOid", "isValidOid", "getOidName", "OID_REGISTRY"],
       "since": "0.1.0",
       "expects": [
         "oid=2.5.29.17 subjectAltName",
+        "oidStandard=RFC 8017",
         "integer=65537",
         "text=Zoë",
         "time=UTCTime 491231235959Z",
@@ -67,15 +75,31 @@
       ]
     },
     {
+      "file": "asn1-primitives.ts",
+      "task": "Encode and read the BOOLEAN, NULL, BIT STRING and OCTET STRING primitives, reach an arbitrary tag with encodeTlv, and see what DER's SET OF ordering does",
+      "surface": ["decodeAsn1", "decodeAsn1Sequence", "encodeBoolean", "encodeNull", "encodeInteger", "encodeOctetString", "encodeBitString", "encodeTlv", "encodeSet", "encodeSetOf", "readBoolean", "readNull", "readSmallInteger", "readOctetString", "readBitString"],
+      "since": "0.2.0",
+      "expects": [
+        "stream=true null 65537 deadbeef",
+        "bitString=b0/4",
+        "setOf=3109020101020102020103",
+        "set=3109020103020101020102",
+        "sorted=true",
+        "explicit=a003010100"
+      ]
+    },
+    {
       "file": "hostile-input.ts",
       "task": "Meet hostile input with typed errors and caller-tightened limits, never a crash",
-      "surface": ["decodeAsn1", "readInteger", "parseCertificate", "PkiError", "PkiEncodingError", "PkiLimitError"],
+      "surface": ["decodeAsn1", "readInteger", "parseCertificate", "PkiError", "PkiEncodingError", "PkiLimitError", "PkiCertificateError", "DEFAULT_PKI_LIMITS"],
       "since": "0.1.0",
       "expects": [
         "deep=PKI_LIMIT_EXCEEDED:maxDepth",
         "truncated=PKI_ASN1_TRUNCATED",
         "halved=PKI_ASN1_TRUNCATED",
         "tightened=PKI_LIMIT_EXCEEDED:maxExtensions",
+        "defaultExtensions=256",
+        "structural=PKI_X509_STRUCTURE_INVALID",
         "nonMinimalInteger=PKI_ASN1_INTEGER_INVALID@0"
       ]
     }

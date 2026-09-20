@@ -312,9 +312,21 @@ A node is `{ tagClass, tagNumber, constructed, offset, headerLength, contentLeng
 
 The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` returns blocks of `{ label, bytes, headers, offset }` — `headers` holds the RFC 1421 `[name, value]` pairs lax mode reads; it takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. `OID_REGISTRY` entries are `{ oid, name, standard }`.
 
+## Types you write
+
+Most of what pkinative returns you never name: you reach it through a return value, and its fields are in `docs/assets/api.json`. These are the ones you may have to write down — in a signature, a variable annotation or an options object.
+
+- **Certificate**: `DistinguishedName` (`subject`, `issuer`), `PkiTime` (both ends of `validity`), `Extension` (the union `certificate.extensions` holds) and `DecodedExtensionKind` (the argument `getExtension` takes).
+- **ASN.1**: `Asn1Node` (what `decodeAsn1` returns and every reader takes), `TagClass` (`node.tagClass`, and the first argument of `encodeTlv`), `Asn1String` and `Asn1StringType` (what `readString` returns, and the eight types it can read), `BitString` (`readBitString`, `encodeBitString`, and `certificate.signatureValue`).
+- **PEM**: `PemBlock` — what `decodePem` yields, and what `encodePem` reverses.
+- **Fingerprints**: `FingerprintAlgorithm` — `'SHA-1'`, `'SHA-256'`, `'SHA-384'` or `'SHA-512'`.
+- **Options**, one per function, each extending `PkiParseOptions` (which carries `limits`, `strict` and `onDiagnostic`): `ParseCertificateOptions`, `DecodeExtensionValueOptions`, `DecodeAsn1Options`, `DecodePemOptions`, `ReadStringOptions`, `ReadTimeOptions`, and `FormatFingerprintOptions`.
+
+Error code unions are in the [errors guide](errors.md).
+
 ## Next
 
-- [recipes/](../../recipes/) — six executable recipes: the quick start, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, hostile input.
+- [recipes/](../../recipes/) — eight executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -434,6 +446,8 @@ Six public certificates are committed as known-answer fixtures, each with its so
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 
 Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.
+
+Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, `PkiEncodingErrorCode`, `PkiCertificateErrorCode` and `PkiLimitErrorCode` on the three subclasses. `PkiErrorCode` is the union of all four — the type to write when you store or pass a code without caring which class raised it.
 
 ## Error codes
 

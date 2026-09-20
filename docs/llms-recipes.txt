@@ -70,6 +70,41 @@ export default function run(): Record<string, string> {
 ```
 
 ---
+<!-- source: recipes/agent-brief.ts -->
+
+```ts
+/**
+ * Recipe: the docs/agent-brief.md sample — compose `decodePem` and
+ * `parseCertificate` (there is no `parsePemCertificates`) and read the host
+ * names out of subjectAltName. The block between the agent-brief markers is
+ * the brief's code block, character for character (tests/docs/recipes.test.ts),
+ * so an agent that copies it gets code that runs.
+ */
+import { encodePem } from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+// agent-brief:begin
+import { decodePem, getExtension, parseCertificate } from 'pkinative';
+
+export function hostNames(pemText: string): string[] {
+    const names: string[] = [];
+    for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
+        const cert = parseCertificate(bytes);
+        for (const name of getExtension(cert, 'subjectAltName')?.names ?? []) {
+            if (name.kind === 'dNSName') names.push(name.value);
+        }
+    }
+    return names;
+}
+// agent-brief:end
+
+export default function run(): Record<string, string> {
+    const pemText = encodePem('CERTIFICATE', fixture('letsencrypt-org-leaf'));
+    return { names: hostNames(pemText).join(',') };
+}
+```
+
+---
 <!-- source: recipes/inspect-extensions.ts -->
 
 ```ts
@@ -202,6 +237,7 @@ import {
     encodeTime,
     getOidName,
     isValidOid,
+    OID_REGISTRY,
     readInteger,
     readObjectIdentifier,
     readString,
@@ -228,7 +264,12 @@ export default function run(): Record<string, string> {
     const identical = again.length === certificate.length && again.every((b, i) => b === certificate[i]);
 
     const sha256WithRsa = '1.2.840.113549.1.1.11';
+    // getOidName gives the name; OID_REGISTRY is the whole table behind it,
+    // and each entry also names the standard that defines the OID.
+    const entry = OID_REGISTRY.find((e) => e.oid === sha256WithRsa);
+
     return {
+        oidStandard: entry?.standard ?? '?',
         oid: `${oid} ${getOidName(oid) ?? '?'}`,
         integer: String(readInteger(integerNode)),
         text: readString(textNode).value,
@@ -242,6 +283,83 @@ export default function run(): Record<string, string> {
 ```
 
 ---
+<!-- source: recipes/asn1-primitives.ts -->
+
+```ts
+/**
+ * Recipe: the primitive encoders and readers, and the two SET forms.
+ *
+ * `asn1-and-oids.ts` builds a SEQUENCE; this one covers what is left — the
+ * BOOLEAN, NULL, BIT STRING and OCTET STRING pairs, `encodeTlv` for a tag
+ * no named encoder covers, the SET/SET OF distinction DER cares about, and
+ * `decodeAsn1Sequence` for values placed back to back with no container.
+ */
+import {
+    decodeAsn1,
+    decodeAsn1Sequence,
+    encodeBitString,
+    encodeBoolean,
+    encodeInteger,
+    encodeNull,
+    encodeOctetString,
+    encodeSet,
+    encodeSetOf,
+    encodeTlv,
+    readBitString,
+    readBoolean,
+    readNull,
+    readOctetString,
+    readSmallInteger,
+} from 'pkinative';
+
+const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+export default function run(): Record<string, string> {
+    // Four primitives, back to back with no container: decodeAsn1Sequence
+    // reads a stream of values, where decodeAsn1 insists on exactly one.
+    const stream = new Uint8Array([
+        ...encodeBoolean(true),
+        ...encodeNull(),
+        ...encodeInteger(65537n),
+        ...encodeOctetString(Uint8Array.of(0xde, 0xad, 0xbe, 0xef)),
+    ]);
+    const [booleanNode, nullNode, integerNode, octetNode] = decodeAsn1Sequence(stream);
+
+    // DER encodes TRUE as 0xFF and rejects every other non-zero octet, so a
+    // BOOLEAN round-trips through exactly one encoding.
+    const flag = readBoolean(booleanNode);
+    const nothing = readNull(nullNode);
+    // readSmallInteger refuses what a JavaScript number cannot hold exactly;
+    // readInteger returns a bigint and always succeeds.
+    const small = readSmallInteger(integerNode);
+    const octets = readOctetString(octetNode);
+
+    // A BIT STRING carries its own count of padding bits: 0b1011 is four bits
+    // in one octet, so four of that octet's eight bits are unused.
+    const bits = readBitString(decodeAsn1(encodeBitString(Uint8Array.of(0b1011_0000), 4)));
+
+    // SET OF is sorted by the encoded bytes (X.690 §11.6); SET keeps the order
+    // the schema fixes. Feeding the same three components to both shows it.
+    const components = [encodeInteger(3n), encodeInteger(1n), encodeInteger(2n)];
+    const setOf = hex(encodeSetOf(components));
+    const set = hex(encodeSet(components));
+
+    // encodeTlv reaches a tag no named encoder covers: [0] EXPLICIT, the
+    // context-specific constructed tag that wraps an optional field.
+    const explicit = encodeTlv('context', 0, true, encodeBoolean(false));
+
+    return {
+        stream: `${String(flag)} ${String(nothing)} ${String(small)} ${hex(octets)}`,
+        bitString: `${hex(bits.bytes)}/${String(bits.unusedBits)}`,
+        setOf,
+        set,
+        sorted: String(setOf !== set),
+        explicit: hex(explicit),
+    };
+}
+```
+
+---
 <!-- source: recipes/hostile-input.ts -->
 
 ```ts
@@ -250,7 +368,7 @@ export default function run(): Record<string, string> {
  * a crash, and resource limits a caller can tighten for its own context.
  * Branch on `error.code`, never on the message.
  */
-import { decodeAsn1, parseCertificate, PkiEncodingError, PkiError, PkiLimitError, readInteger } from 'pkinative';
+import { decodeAsn1, DEFAULT_PKI_LIMITS, parseCertificate, PkiCertificateError, PkiEncodingError, PkiError, PkiLimitError, readInteger } from 'pkinative';
 import { fixture } from './_fixtures.ts';
 
 function codeOf(action: () => unknown): string {
@@ -278,8 +396,20 @@ export default function run(): Record<string, string> {
     const leaf = fixture('letsencrypt-org-leaf');
     const halved = codeOf(() => parseCertificate(leaf.subarray(0, leaf.length >> 1)));
 
-    // A caller that expects small certificates can say so.
+    // A caller that expects small certificates can say so. Every limit it does
+    // not name keeps its DEFAULT_PKI_LIMITS value, so tightening one is safe.
     const tightened = codeOf(() => parseCertificate(leaf, { limits: { maxExtensions: 4 } }));
+    const defaultExtensions = String(DEFAULT_PKI_LIMITS.maxExtensions);
+
+    // A structural violation of RFC 5280 is a PkiCertificateError, distinct
+    // from the PkiEncodingError a malformed DER value raises: the bytes below
+    // are a valid ASN.1 value, and not a certificate.
+    let structural = '';
+    try {
+        parseCertificate(Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x00));
+    } catch (error) {
+        if (error instanceof PkiCertificateError) structural = error.code;
+    }
 
     let offset = '';
     try {
@@ -288,6 +418,6 @@ export default function run(): Record<string, string> {
         if (error instanceof PkiEncodingError) offset = `${error.code}@${String(error.offset)}`;
     }
 
-    return { deep, truncated, halved, tightened, nonMinimalInteger: offset };
+    return { deep, truncated, halved, tightened, defaultExtensions, structural, nonMinimalInteger: offset };
 }
 ```

@@ -3,7 +3,7 @@
  * a crash, and resource limits a caller can tighten for its own context.
  * Branch on `error.code`, never on the message.
  */
-import { decodeAsn1, parseCertificate, PkiEncodingError, PkiError, PkiLimitError, readInteger } from 'pkinative';
+import { decodeAsn1, DEFAULT_PKI_LIMITS, parseCertificate, PkiCertificateError, PkiEncodingError, PkiError, PkiLimitError, readInteger } from 'pkinative';
 import { fixture } from './_fixtures.ts';
 
 function codeOf(action: () => unknown): string {
@@ -31,8 +31,20 @@ export default function run(): Record<string, string> {
     const leaf = fixture('letsencrypt-org-leaf');
     const halved = codeOf(() => parseCertificate(leaf.subarray(0, leaf.length >> 1)));
 
-    // A caller that expects small certificates can say so.
+    // A caller that expects small certificates can say so. Every limit it does
+    // not name keeps its DEFAULT_PKI_LIMITS value, so tightening one is safe.
     const tightened = codeOf(() => parseCertificate(leaf, { limits: { maxExtensions: 4 } }));
+    const defaultExtensions = String(DEFAULT_PKI_LIMITS.maxExtensions);
+
+    // A structural violation of RFC 5280 is a PkiCertificateError, distinct
+    // from the PkiEncodingError a malformed DER value raises: the bytes below
+    // are a valid ASN.1 value, and not a certificate.
+    let structural = '';
+    try {
+        parseCertificate(Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x00));
+    } catch (error) {
+        if (error instanceof PkiCertificateError) structural = error.code;
+    }
 
     let offset = '';
     try {
@@ -41,5 +53,5 @@ export default function run(): Record<string, string> {
         if (error instanceof PkiEncodingError) offset = `${error.code}@${String(error.offset)}`;
     }
 
-    return { deep, truncated, halved, tightened, nonMinimalInteger: offset };
+    return { deep, truncated, halved, tightened, defaultExtensions, structural, nonMinimalInteger: offset };
 }

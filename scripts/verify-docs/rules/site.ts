@@ -381,6 +381,18 @@ const apiExists: Rule = {
 const NUMBER_WORDS: readonly string[] = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
 const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${NUMBER_WORDS.join('|')})`;
 
+/**
+ * The changelog is history: an entry for a released version records what that
+ * version shipped, and holding "six executable recipes" in the 0.1.0 entry to
+ * today's eight would force a lie into the record. Only the entry at the top,
+ * the one still being written, is held to the current counts.
+ */
+function topEntryOnly(path: string, text: string): string {
+    if (path !== 'CHANGELOG.md') return text;
+    const entries = [...text.matchAll(/^## \[/gm)];
+    return entries.length < 2 ? text : text.slice(0, entries[1]?.index);
+}
+
 function quotedValue(token: string): number {
     const word = NUMBER_WORDS.indexOf(token.toLowerCase());
     return word >= 0 ? word : Number(token.replace(/[ \u00a0,]/g, ''));
@@ -410,7 +422,7 @@ const countTokens: Rule = {
         ];
         const out: Finding[] = [];
         for (const path of PROSE_SOURCES(ctx)) {
-            const text = ctx.read(path) ?? '';
+            const text = topEntryOnly(path, ctx.read(path) ?? '');
             for (const [phrase, value] of phrases) {
                 for (const m of text.matchAll(new RegExp(`\\b${NUMBER}\\s+${phrase}\\b`, 'gi'))) {
                     if (quotedValue(m[1] ?? '') !== value) out.push(error(path, `quotes "${m[0]}"; the source says ${String(value)}`, lineContaining(text, m[0])));
