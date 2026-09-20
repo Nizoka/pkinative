@@ -74,6 +74,10 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'coverage-ignore-budget': (f) => edit(f, 'src/core/bytes.ts', /^const HEX_DIGITS/m, '/* v8 ignore next */\nconst HEX_DIGITS'),
     // A field L4 compares, dropped from the guide that documents the contract.
     'validator-record-parity': (f) => edit(f, 'docs/guides/conformance.md', '`spkiKeyFp256`', '`spkiKeyFingerprint`'),
+    // Strip the first integrity attribute — the Prism theme stylesheet.
+    'cdn-sri': (f) => edit(f, 'docs/index.html', /\s+integrity="sha384-[^"]+"/, ''),
+    // The landing nav drifting from the one the generator writes into the guides.
+    'chrome-parity': (f) => edit(f, 'docs/index.html', '<a class="nav-brand"', '<a class="brand"'),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
     // Edit the SVG without re-rasterising: the recorded hash no longer matches.
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),

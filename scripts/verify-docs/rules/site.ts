@@ -15,7 +15,7 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import { GUIDES, guideAnchors, guideOutputs, SITE, type Reader } from '../../build-guides.js';
+import { footerHtml, GUIDES, guideAnchors, guideOutputs, navHtml, SITE, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
@@ -262,6 +262,68 @@ const socialImages: Rule = {
     },
 };
 
+const cdnSri: Rule = {
+    id: 'cdn-sri',
+    summary: 'Every third-party script and stylesheet a page under docs/ loads carries both `integrity` and `crossorigin` — a CDN that is ever compromised must not be able to execute in a reader\'s browser. Self-referencing links (canonical, hreflang, alternate) are not loads and are out of scope.',
+    check(ctx) {
+        const out: Finding[] = [];
+        for (const path of htmlPages(ctx)) {
+            const html = ctx.read(path) ?? '';
+            const remote = [
+                ...html.matchAll(/<script[^>]*\bsrc="(https?:\/\/[^"]+)"[^>]*>/g),
+                ...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*\bhref="(https?:\/\/[^"]+)"[^>]*>/g),
+                ...html.matchAll(/<link[^>]*\bhref="(https?:\/\/[^"]+)"[^>]*rel="stylesheet"[^>]*>/g),
+            ];
+            for (const m of remote) {
+                const tag = m[0];
+                if (/\bintegrity="sha(256|384|512)-/.test(tag) && /\bcrossorigin[=>\s]/.test(tag)) continue;
+                out.push(error(path, `loads ${m[1] ?? ''} without both integrity and crossorigin — pin it with a subresource hash, or serve it first-party`, lineContaining(html, m[1] ?? '')));
+            }
+        }
+        return out;
+    },
+};
+
+/**
+ * The pages whose chrome is written by hand, with the arguments
+ * `navHtml`/`footerHtml` must be called with to reproduce them.
+ */
+const HAND_WRITTEN_PAGES: ReadonlyArray<readonly [path: string, prefix: string, current: NavSection]> = [
+    ['docs/index.html', '', null],
+];
+
+const chromeParity: Rule = {
+    id: 'chrome-parity',
+    summary: 'Every hand-written page under docs/ carries, byte for byte, the nav and footer that scripts/build-guides.ts renders into the generated guides — which is what lets the landing page stay hand-written without the site half-adopting a redesign the guides already have.',
+    check(ctx) {
+        const manifest = readJson<{ verifiedOn?: unknown }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const verifiedOn = String(manifest.value.verifiedOn ?? '');
+        // The landing page alone carries the audit date in its meta line;
+        // taking it from the manifest here means this rule also proves the
+        // footer quotes the date the manifest declares.
+        const extraFor = (path: string): string => (path === 'docs/index.html'
+            ? ` · verified <time id="verified-on" datetime="${verifiedOn}">${verifiedOn}</time>`
+            : '');
+
+        const out: Finding[] = [];
+        for (const [path, prefix, current] of HAND_WRITTEN_PAGES) {
+            const html = ctx.read(path);
+            if (html === null) { out.push(error(path, 'missing')); continue; }
+            const expected: ReadonlyArray<readonly [string, string]> = [
+                ['nav', navHtml(prefix, current)],
+                ['footer', footerHtml(prefix, extraFor(path))],
+            ];
+            for (const [what, block] of expected) {
+                if (!html.replace(/\r\n/g, '\n').includes(block)) {
+                    out.push(error(path, `its ${what} is not the one scripts/build-guides.ts renders — the site would be half-redesigned; paste the generator's output rather than editing this by hand`));
+                }
+            }
+        }
+        return out;
+    },
+};
+
 const jsonLdVersion: Rule = {
     id: 'jsonld-version',
     summary: 'The JSON-LD of docs/index.html parses and declares the softwareVersion of docs/assets/ecosystem.json.',
@@ -452,5 +514,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
 ];

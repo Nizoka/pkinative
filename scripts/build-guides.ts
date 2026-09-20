@@ -138,8 +138,13 @@ export function navHtml(prefix: string, current: NavSection): string {
   </nav>`;
 }
 
-/** @internal Exported for `chrome-parity`. */
-export function footerHtml(prefix: string): string {
+/**
+ * @param extra Appended inside the meta line. The landing page carries the
+ *   audit date there (`verified-on-parity` requires it and
+ *   `release-prepare.ts` rewrites it); the guides carry nothing.
+ * @internal Exported for `chrome-parity`.
+ */
+export function footerHtml(prefix: string, extra = ''): string {
     return `  <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
@@ -169,7 +174,7 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
         </div>
       </div>
       <div class="footer-meta">
-        <span>MIT License · © 2026 Nizoka</span>
+        <span>MIT License · © 2026 Nizoka${extra}</span>
         <ul class="footer-links" role="list">
           <li><a href="${prefix}sitemap.xml">Sitemap</a></li>
           <li><a href="${prefix}guides/">All guides</a></li>
