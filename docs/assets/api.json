@@ -275,25 +275,25 @@
           "name": "kind",
           "type": "'authorityKeyIdentifier'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'authorityKeyIdentifier')` returns this type."
         },
         {
           "name": "keyIdentifier",
           "type": "Uint8Array | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The issuing key's identifier, to match against its subjectKeyIdentifier; `undefined` when absent."
         },
         {
           "name": "authorityCertIssuer",
           "type": "readonly GeneralName[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The issuing certificate's own issuer; `undefined` when absent."
         },
         {
           "name": "authorityCertSerialNumber",
           "type": "SerialNumber | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The issuing certificate's serial; `undefined` when absent."
         }
       ]
     },
@@ -329,19 +329,19 @@
           "name": "kind",
           "type": "'basicConstraints'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'basicConstraints')` returns this type."
         },
         {
           "name": "cA",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the subject is a CA."
         },
         {
           "name": "pathLenConstraint",
           "type": "number | undefined",
           "optional": false,
-          "summary": null
+          "summary": "How many intermediates may follow this certificate in a path; `undefined` means unlimited, and it is meaningful only when `cA` is true."
         }
       ]
     },
@@ -937,7 +937,7 @@
           "name": "kind",
           "type": "'extendedKeyUsage'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'extendedKeyUsage')` returns this type."
         },
         {
           "name": "purposes",
@@ -1090,19 +1090,19 @@
           "name": "base",
           "type": "GeneralName",
           "optional": false,
-          "summary": null
+          "summary": "The name the subtree is rooted at; its `kind` decides how a candidate name is matched (RFC 5280 §4.2.1.10)."
         },
         {
           "name": "minimum",
           "type": "number",
           "optional": false,
-          "summary": null
+          "summary": "The minimum depth."
         },
         {
           "name": "maximum",
           "type": "number | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The maximum depth; `undefined` when absent, which RFC 5280 requires."
         }
       ]
     },
@@ -1228,13 +1228,13 @@
           "name": "kind",
           "type": "'issuerAltName'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'issuerAltName')` returns this type."
         },
         {
           "name": "names",
           "type": "readonly GeneralName[]",
           "optional": false,
-          "summary": null
+          "summary": "Alternative names of the issuer, in encoded order."
         }
       ]
     },
@@ -1270,7 +1270,7 @@
           "name": "kind",
           "type": "'keyUsage'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'keyUsage')` returns this type."
         },
         {
           "name": "usages",
@@ -1282,7 +1282,7 @@
           "name": "bits",
           "type": "BitString",
           "optional": false,
-          "summary": null
+          "summary": "The raw BIT STRING, for a bit beyond `decipherOnly` that `usages` cannot name."
         }
       ]
     },
@@ -1329,19 +1329,19 @@
           "name": "kind",
           "type": "'nameConstraints'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'nameConstraints')` returns this type."
         },
         {
           "name": "permittedSubtrees",
           "type": "readonly GeneralSubtree[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The only subtrees names may fall in; `undefined` when the field is absent, which is not the same as an empty list."
         },
         {
           "name": "excludedSubtrees",
           "type": "readonly GeneralSubtree[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The subtrees names must not fall in; `undefined` when the field is absent."
         }
       ]
     },
@@ -2137,7 +2137,7 @@
           "name": "kind",
           "type": "'raw'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant."
         }
       ]
     },
@@ -2435,13 +2435,13 @@
           "name": "kind",
           "type": "'subjectAltName'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'subjectAltName')` returns this type."
         },
         {
           "name": "names",
           "type": "readonly GeneralName[]",
           "optional": false,
-          "summary": null
+          "summary": "The identities, in encoded order — where a modern certificate's host names live, not in the subject."
         }
       ]
     },
@@ -2519,13 +2519,13 @@
           "name": "kind",
           "type": "'subjectKeyIdentifier'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'subjectKeyIdentifier')` returns this type."
         },
         {
           "name": "keyIdentifier",
           "type": "Uint8Array",
           "optional": false,
-          "summary": null
+          "summary": "The identifier octets, as issued."
         }
       ]
     },
@@ -2624,7 +2624,7 @@
           "name": "kind",
           "type": "'unknown'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant."
         }
       ]
     },

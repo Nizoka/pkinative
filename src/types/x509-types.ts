@@ -210,18 +210,23 @@ export interface ExtensionBase {
 
 /** An extension kept as encoded because the parse ran with `decodeExtensions: false`. */
 export interface RawExtension extends ExtensionBase {
+    /** Discriminant. Decode it on demand with `decodeExtensionValue(oid, valueDer)`. */
     readonly kind: 'raw';
 }
 
 /** An extension pkinative does not decode. */
 export interface UnknownExtension extends ExtensionBase {
+    /** Discriminant. Read `oid` and `valueDer`; an unknown extension marked critical also raises a diagnostic. */
     readonly kind: 'unknown';
 }
 
 /** basicConstraints (RFC 5280 §4.2.1.9). */
 export interface BasicConstraintsExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'basicConstraints')` returns this type. */
     readonly kind: 'basicConstraints';
+    /** Whether the subject is a CA. Spelled as RFC 5280 spells it. */
     readonly cA: boolean;
+    /** How many intermediates may follow this certificate in a path; `undefined` means unlimited, and it is meaningful only when `cA` is true. */
     readonly pathLenConstraint: number | undefined;
 }
 
@@ -239,14 +244,17 @@ export type KeyUsageName =
 
 /** keyUsage (RFC 5280 §4.2.1.3). */
 export interface KeyUsageExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'keyUsage')` returns this type. */
     readonly kind: 'keyUsage';
     /** The asserted usages, in bit order. */
     readonly usages: readonly KeyUsageName[];
+    /** The raw BIT STRING, for a bit beyond `decipherOnly` that `usages` cannot name. */
     readonly bits: BitString;
 }
 
 /** extKeyUsage (RFC 5280 §4.2.1.12). */
 export interface ExtendedKeyUsageExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'extendedKeyUsage')` returns this type. */
     readonly kind: 'extendedKeyUsage';
     /** KeyPurposeId OIDs, e.g. `1.3.6.1.5.5.7.3.1` (serverAuth). */
     readonly purposes: readonly string[];
@@ -254,41 +262,57 @@ export interface ExtendedKeyUsageExtension extends ExtensionBase {
 
 /** subjectAltName (RFC 5280 §4.2.1.6). */
 export interface SubjectAltNameExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'subjectAltName')` returns this type. */
     readonly kind: 'subjectAltName';
+    /** The identities, in encoded order — where a modern certificate's host names live, not in the subject. */
     readonly names: readonly GeneralName[];
 }
 
 /** issuerAltName (RFC 5280 §4.2.1.7). */
 export interface IssuerAltNameExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'issuerAltName')` returns this type. */
     readonly kind: 'issuerAltName';
+    /** Alternative names of the issuer, in encoded order. */
     readonly names: readonly GeneralName[];
 }
 
 /** subjectKeyIdentifier (RFC 5280 §4.2.1.2). */
 export interface SubjectKeyIdentifierExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'subjectKeyIdentifier')` returns this type. */
     readonly kind: 'subjectKeyIdentifier';
+    /** The identifier octets, as issued. RFC 5280 suggests a SHA-1 of the key, but an issuer may derive it any way it likes, so never recompute it to compare. */
     readonly keyIdentifier: Uint8Array;
 }
 
 /** authorityKeyIdentifier (RFC 5280 §4.2.1.1). */
 export interface AuthorityKeyIdentifierExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'authorityKeyIdentifier')` returns this type. */
     readonly kind: 'authorityKeyIdentifier';
+    /** The issuing key's identifier, to match against its subjectKeyIdentifier; `undefined` when absent. */
     readonly keyIdentifier: Uint8Array | undefined;
+    /** The issuing certificate's own issuer; `undefined` when absent. Paired with `authorityCertSerialNumber`. */
     readonly authorityCertIssuer: readonly GeneralName[] | undefined;
+    /** The issuing certificate's serial; `undefined` when absent. Paired with `authorityCertIssuer`. */
     readonly authorityCertSerialNumber: SerialNumber | undefined;
 }
 
 /** One permitted or excluded subtree of name constraints. */
 export interface GeneralSubtree {
+    /** The name the subtree is rooted at; its `kind` decides how a candidate name is matched (RFC 5280 §4.2.1.10). */
     readonly base: GeneralName;
+    /** The minimum depth. RFC 5280 requires 0, and anything else makes the constraint unusable by a conforming path validator. */
     readonly minimum: number;
+    /** The maximum depth; `undefined` when absent, which RFC 5280 requires. */
     readonly maximum: number | undefined;
 }
 
 /** nameConstraints (RFC 5280 §4.2.1.10). */
 export interface NameConstraintsExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'nameConstraints')` returns this type. */
     readonly kind: 'nameConstraints';
+    /** The only subtrees names may fall in; `undefined` when the field is absent, which is not the same as an empty list. */
     readonly permittedSubtrees: readonly GeneralSubtree[] | undefined;
+    /** The subtrees names must not fall in; `undefined` when the field is absent. */
     readonly excludedSubtrees: readonly GeneralSubtree[] | undefined;
 }
 
