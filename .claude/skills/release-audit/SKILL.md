@@ -31,7 +31,16 @@ Spawn one verifier (template: `verifier.md`) with both reports. It re-derives ev
 
 ## Phase D — docs autonomy pass, then verify
 
-Spawn Auditor D (template: `auditor-b.md`, section "Autonomy pass") with one question: *can an agent that has only the published docs (`docs/`, `llms.txt`, `docs/llms-full.txt`, `docs/agent-brief.md`, the recipes) use every feature without reading `src/`?* It picks every feature the release note names, writes the call it would make from the docs alone, and runs it. Then a second verifier pass (template: `verifier.md`) over its findings.
+**The mechanical half is `npm run gate`; do not re-derive it.** Whether every name is written down, every option field named, every extension kind listed, every interface member described, every export demonstrated by a recipe that runs and every machine surface in step with the package is decided on every run by `export-named`, `member-tsdoc`, `option-fields-named`, `extension-kinds-complete`, `surfaces-parity`, `install-url-version` and the `tests/docs/recipes.test.ts` assertions. Re-deriving them costs tokens and, worse, fills the report with findings the gate already proved green — which trains the reader to skim. Cite the rule ids instead.
+
+Spawn Auditor D (template: `auditor-b.md`, section "Autonomy pass") for the four things no rule can decide:
+
+1. **Is the sentence true?** `count-tokens` proves a number matches its source; nothing proves "results are frozen and hold views of the input" is still true of the code. Pick claims, not names, and reproduce each with a command.
+2. **Is the advice still the best advice?** "Compose `decodePem` and `parseCertificate`" becomes incomplete, without becoming false, the day signature verification lands.
+3. **Is the ordering right?** An agent reading `llms-full.txt` top to bottom meets the security model before the quick start, or the reverse. Token budget, ordering and lede quality are judgement.
+4. **Cross-surface coherence.** `error-parity` proves the *codes* match between `docs/data/errors.json` and the throw sites; it cannot read the remedy text, or tell whether the guide's remedy and the thrown message say the same thing.
+
+Then a second verifier pass (template: `verifier.md`) over its findings.
 
 ## Phase E — GO / NO-GO
 
@@ -48,7 +57,7 @@ Add a check for each of these to the auditor briefs; they are where audits of th
 
 - Machine surfaces lag behind prose: `docs/data/errors.json`, `docs/data/diagnostics.json`, `docs/data/surfaces.json`, `docs/llms-index.json` and `docs/agent-brief.md` are updated after the guides, and sometimes not at all.
 - Recipes drift from behaviour changes: a recipe that still runs is not a recipe that still demonstrates the documented behaviour.
-- Regex-driven `verify:docs` rules are blind to wording: they prove counts, versions, links and presence, never that a sentence is true.
+- Regex-driven `verify:docs` rules are blind to wording: they prove counts, versions, links and presence, never that a sentence is true. That blindness is the whole remaining brief of Phase D — everything the rules *can* decide, they now decide on every run.
 - The conformance baseline can hide a regression: a refusal moved to another code is caught, but a certificate that should never have been refused needs a human reading of `scripts/data/limbo-refusals.json` against the limbo case descriptions.
 - CI assumptions live outside the repo: trusted publishing needs npm >= 11.5.1 on the runner; a green local gate proves nothing about the publish job.
 - Auditors have ~10 % false findings — never file an unverified finding, and never let a `REJECTED` one reach the verdict.
