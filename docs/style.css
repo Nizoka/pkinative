@@ -556,6 +556,58 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 }
 .pg-table td { padding: 6px 10px; border-bottom: 1px solid var(--c-border); white-space: nowrap; }
 .pg-table td:first-child { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.pg-table td.pg-wrap { white-space: normal; word-break: break-word; font-family: inherit; }
+
+/* ── Playground output ─────────────────────────────────────── */
+.pg-section {
+  margin-top: 22px; padding: 18px 20px;
+  background: var(--c-bg-card); border: 1px solid var(--c-border); border-radius: var(--radius);
+}
+.pg-section h3 {
+  margin: 0 0 12px; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--c-text-dim);
+}
+.pg-note { font-size: 13px; color: var(--c-text-dim); line-height: 1.55; margin: 12px 0 0; }
+
+.pg-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
+.pg-facts dt { color: var(--c-text-dim); font-weight: 600; }
+.pg-facts dd {
+  margin: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  word-break: break-all; color: var(--c-text);
+}
+@media (max-width: 600px) {
+  .pg-facts { grid-template-columns: 1fr; gap: 2px 0; }
+  .pg-facts dd { margin-bottom: 8px; }
+}
+
+.pg-diagnostics { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pg-diagnostics li { font-size: 13.5px; line-height: 1.5; }
+.pg-diagnostics code {
+  font-size: 12px; padding: 1px 7px; border-radius: 4px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+}
+.pg-sev-warning { border-color: var(--c-primary) !important; color: var(--c-primary); }
+.pg-diag-where { display: block; font-size: 12px; color: var(--c-text-muted); margin-top: 2px; }
+
+/* The ASN.1 tree: <details> nests, so the indentation is the structure. */
+.pg-node { margin-left: 14px; border-left: 1px solid var(--c-border); padding-left: 12px; }
+.pg-node > summary {
+  cursor: pointer; padding: 3px 0;
+  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--c-primary);
+}
+.pg-node > summary:hover { color: var(--c-accent); }
+.pg-leaf {
+  margin-left: 14px; padding: 3px 0 3px 12px; border-left: 1px solid var(--c-border);
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+}
+.pg-tag { color: var(--c-text-dim); white-space: nowrap; }
+.pg-value { color: var(--c-text); word-break: break-all; }
+
+.pg-switch {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 14px; color: var(--c-text); cursor: pointer; user-select: none;
+}
 
 /* ── Utility ───────────────────────────────────────────────── */
 .sr-only {

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playground — pkinative</title>
+  <meta name="description" content="Run pkinative in your browser on a byte-for-byte copy of the published build: inspect an X.509 certificate, walk its ASN.1 tree, and watch strict DER refuse the bytes it should refuse.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/playground/">
+  <meta property="og:title" content="Playground — pkinative">
+  <meta property="og:description" content="Run pkinative in your browser on the same bytes npm run build produces. Nothing is uploaded: every certificate you paste stays in the tab.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Playground — pkinative">
+  <meta name="twitter:description" content="Inspect certificates and ASN.1 in the browser, on the published build.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/playground/">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/playground/">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/playground/">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="../playground/" aria-current="page">Playground</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › Playground</p>
+    <h1>Playground</h1>
+    <p>Everything below runs <strong>in your tab</strong>, on <code>pkinative.js</code> — a byte-for-byte copy of what <code>npm run build</code> produces, held to the build by the <code>playground-freshness</code> rule. There is no server, no upload and no telemetry: a certificate you paste never leaves the browser, which matters because the interesting ones are usually not public.</p>
+    <p>The siblings load their engine from a CDN. pkinative cannot — it is not on npm before 1.0.0 — so the copy is committed instead. That is the one place these playgrounds diverge from the family, and it is why they carry a freshness rule the siblings do not need.</p>
+
+    <div class="pg-grid">
+      <a class="pg-card" href="certificate.html">
+        <div class="pg-icon" aria-hidden="true">🔑</div>
+        <h3>Certificate inspector</h3>
+        <p>Paste a certificate and read every field pkinative decodes: names, validity, public key, fingerprints, all twenty extension kinds, and every conformance diagnostic with the clause it cites.</p>
+        <div class="pg-tags">
+          <span class="pg-tag">parseCertificate</span>
+          <span class="pg-tag">getExtension</span>
+          <span class="pg-tag">computeFingerprint</span>
+        </div>
+        <span class="pg-cta">Open the inspector →</span>
+      </a>
+
+      <a class="pg-card" href="asn1.html">
+        <div class="pg-icon" aria-hidden="true">🌳</div>
+        <h3>ASN.1 tree</h3>
+        <p>Walk any DER value tag by tag, with every offset and length, object identifiers resolved to their names, and a switch that lets you watch strict DER refuse what BER accepts.</p>
+        <div class="pg-tags">
+          <span class="pg-tag">decodeAsn1</span>
+          <span class="pg-tag">decodeOid</span>
+          <span class="pg-tag">getOidName</span>
+        </div>
+        <span class="pg-cta">Open the tree →</span>
+      </a>
+    </div>
+
+    <h2 id="refusals">Try to break them</h2>
+    <p>Both pages treat a refusal as a result, not as an accident. Truncate a sample, flip an octet, feed them a private key or a JPEG: what comes back is a <code>PkiError</code> with its stable <code>code</code>, its subclass, and the byte offset where the decoder stopped. That is the error registry — <a href="../data/errors.json">44 codes</a>, each with a remedy, a standard and a CWE — firing on bytes you chose rather than on an example somebody wrote down. The <a href="../guides/errors.html">errors guide</a> is the whole list.</p>
+
+    <h2 id="not-yet">What they cannot show yet</h2>
+    <p>Neither page verifies a signature or validates a chain, because pkinative 0.1 does neither. Signature verification through Web Crypto arrives in 0.3 and path validation in 0.5; both will get a playground here when they do. Until then a fingerprint proves two byte strings are the same certificate, and nothing about whether that certificate should be trusted. The <a href="../guides/choose.html">comparison guide</a> says what to use meanwhile.</p>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>For agents</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="../app.js" defer></script>
+</body>
+</html>

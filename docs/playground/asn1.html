@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASN.1 tree — pkinative playground</title>
+  <meta name="description" content="Walk any DER value tag by tag in your browser: every offset and length, object identifiers resolved to their names, and a switch that shows what strict DER refuses and BER accepts.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/playground/asn1.html">
+  <meta property="og:title" content="ASN.1 tree — pkinative playground">
+  <meta property="og:description" content="Every tag, length and offset of a DER value, decoded in your browser on the published build.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ASN.1 tree — pkinative playground">
+  <meta name="twitter:description" content="Every tag, length and offset of a DER value, decoded in your browser.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/playground/asn1.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/playground/asn1.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/playground/asn1.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body data-playground="asn1">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="../playground/" aria-current="page">Playground</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playground</a> › ASN.1 tree</p>
+
+    <nav class="playground-switcher" aria-label="Playgrounds">
+      <span class="playground-switcher-label">Playgrounds</span>
+      <a href="certificate.html">Certificate inspector</a>
+      <a href="asn1.html" aria-current="page">ASN.1 tree</a>
+    </nav>
+
+    <h1>ASN.1 tree</h1>
+    <p>Any DER value, not only a certificate. Paste PEM, hexadecimal or base64; every node shows its tag, its content length and its absolute offset in your input.</p>
+
+    <div class="pg-toolbar">
+      <label class="sr-only" for="sample">Sample certificate</label>
+      <select class="pg-picker" id="sample">
+        <option value="">Pick a sample certificate…</option>
+      </select>
+      <label class="pg-switch"><input type="checkbox" id="ber"> Accept BER</label>
+      <button class="btn btn-secondary" id="clear" type="button">Clear</button>
+    </div>
+
+    <label class="sr-only" for="input">DER value in PEM, hexadecimal or base64</label>
+    <textarea class="pg-input" id="input" spellcheck="false" autocomplete="off" aria-describedby="status"
+      placeholder="-----BEGIN CERTIFICATE-----&#10;MIIF…&#10;-----END CERTIFICATE-----&#10;&#10;or  30 03 02 01 00"></textarea>
+    <p class="pg-status" id="status" role="status" aria-live="polite"></p>
+
+    <div id="output"></div>
+
+    <h2 id="strictness">The switch is the point</h2>
+    <p>DER is a canonical subset of BER: for any value there is exactly one encoding. <strong>Accept BER</strong> turns that off, and the difference is worth seeing on real bytes. Try <code>30 80 02 01 00 00 00</code> — a SEQUENCE with an indefinite length, terminated by an end-of-contents marker. Strict DER refuses it with <code>PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN</code>; tick the box and BER reads it, reporting what it tolerated as a diagnostic. Same input, two policies, and the caller chooses which.</p>
+    <p>Two more the switch changes: a non-minimal length — <code>30 81 03 02 01 00</code>, where <code>81 03</code> spends two octets saying what one could say, refused as <code>PKI_ASN1_LENGTH_NON_MINIMAL</code> — and a constructed OCTET STRING, <code>24 06 04 01 41 04 01 42</code>, refused as <code>PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN</code>. Each names its clause of X.690.</p>
+    <p><strong>What this page will <em>not</em> refuse is as instructive.</strong> Paste <code>01 01 01</code> — a BOOLEAN whose content octet is neither <code>0x00</code> nor <code>0xFF</code> — and the tree accepts it under both policies. That is not a gap: <code>decodeAsn1</code> decides structure, and the rule that DER's TRUE is exactly <code>0xFF</code> belongs to <code>readBoolean</code>, which fires when something reads the value as a boolean. The layering is the point — a decoder that enforced every type's value rules would have to know every schema, and pkinative's does not. The certificate inspector is where those rules run.</p>
+
+    <h2 id="oids">Object identifiers, resolved</h2>
+    <p>Every <code>OBJECT IDENTIFIER</code> node is decoded to dotted notation and, when the registry knows it, given its name. That resolution is a deliberate composition rather than a feature of the parser: the certificate layer never imports the name registry, so a caller that only parses never pays for its bytes, and a caller that wants names asks for them. This page asks.</p>
+
+    <h2 id="offsets">Offsets are real</h2>
+    <p>The offset on every node is its position in the bytes you pasted, and the length is the content length excluding the header. That is what makes the tree usable next to a hex editor, and it is the same arithmetic conformance level L2 uses to prove that <code>tbsCertificate</code> and <code>signatureValue</code> start and end where an independently written walker says they do.</p>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>For agents</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="../app.js" defer></script>
+  <script type="module" src="playground.js"></script>
+</body>
+</html>

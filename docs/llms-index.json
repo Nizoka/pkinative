@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 46146,
-      "approxTokens": 11537
+      "bytes": 59619,
+      "approxTokens": 14905
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 3053,
-      "approxTokens": 763
+      "bytes": 3820,
+      "approxTokens": 955
     }
   ],
   "guides": [
@@ -84,6 +84,21 @@
       ],
       "bytes": 12721,
       "approxTokens": 3180
+    },
+    {
+      "title": "Use cases",
+      "summary": "Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.",
+      "html": "guides/use-cases.html",
+      "markdown": "guides/use-cases.md",
+      "anchors": [
+        "inventory-a-certificate-estate",
+        "ingest-hostile-bytes",
+        "pin-a-public-key-not-a-certificate",
+        "gate-a-der-round-trip",
+        "what-none-of-these-do-yet"
+      ],
+      "bytes": 13425,
+      "approxTokens": 3356
     },
     {
       "title": "Security model",

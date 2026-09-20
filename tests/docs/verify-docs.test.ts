@@ -86,6 +86,10 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'contrast': (f) => edit(f, 'docs/style.css', /--c-text-dim: +#[0-9a-f]{6};/, '--c-text-dim:   #c0c0c0;'),
     'api-exists': (f) => edit(f, 'docs/agent-brief.md', "import { decodePem, getExtension", "import { decodePem, parsePemCertificates, getExtension"),
     'count-tokens': (f) => edit(f, 'README.md', /\d+ public exports/, '999 public exports'),
+    // The defect this rule exists for, and the only one a hermetic run can
+    // see: an engine source edited while the committed bundle stays behind.
+    // A hash typo would also fire, but proving that would prove nothing.
+    'playground-freshness': (f) => edit(f, 'src/oid/oid-names.ts', /\n$/, '\n// a source edited without rebuilding the playground\n'),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
     'corpus-pin-parity': (f) => edit(f, 'THIRD-PARTY-NOTICES.md', '118721335e675edde10015df89b138cf292d7554', '0000000000000000000000000000000000000000'),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),

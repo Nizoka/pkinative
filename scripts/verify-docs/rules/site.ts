@@ -290,6 +290,9 @@ const cdnSri: Rule = {
  */
 const HAND_WRITTEN_PAGES: ReadonlyArray<readonly [path: string, prefix: string, current: NavSection]> = [
     ['docs/index.html', '', null],
+    ['docs/playground/index.html', '../', 'playgrounds'],
+    ['docs/playground/certificate.html', '../', 'playgrounds'],
+    ['docs/playground/asn1.html', '../', 'playgrounds'],
 ];
 
 const chromeParity: Rule = {
@@ -495,6 +498,70 @@ const countTokens: Rule = {
     },
 };
 
+/** One `declared.playgroundBundle` entry of docs/assets/ecosystem.json. */
+interface PlaygroundBundle {
+    readonly target?: unknown;
+    readonly sourceSha256?: unknown;
+    readonly bundleSha256?: unknown;
+    readonly bytes?: unknown;
+    readonly maxBytes?: unknown;
+}
+
+const playgroundFreshness: Rule = {
+    id: 'playground-freshness',
+    summary: 'The committed playground bundle is the current build: the fingerprint of every src/**/*.ts and tsup.config.ts matches declared.playgroundBundle.sourceSha256, the bundle itself matches bundleSha256 and its budget, and the playground loads it locally rather than from a CDN.',
+    check(ctx) {
+        const manifest = readJson<{ declared?: { playgroundBundle?: PlaygroundBundle } }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const declared = manifest.value.declared?.playgroundBundle;
+        if (declared === undefined) return [error(MANIFEST, 'declared.playgroundBundle is missing — the playground bundle would be unpoliced')];
+
+        const out: Finding[] = [];
+        const target = typeof declared.target === 'string' ? declared.target : 'docs/playground/pkinative.js';
+
+        // The defect this rule exists for: a source edited and the bundle
+        // never rebuilt. `dist/` is absent from a hermetic run, so the
+        // inputs are fingerprinted instead of the output re-derived —
+        // `npm run docs:playground -- --check` closes that gap online.
+        const sources = ctx.list('src').filter((p) => p.endsWith('.ts')).sort();
+        const fingerprint = createHash('sha256');
+        for (const path of [...sources, 'tsup.config.ts']) {
+            fingerprint.update(path);
+            fingerprint.update('\0');
+            fingerprint.update((ctx.read(path) ?? '').replace(/\r\n/g, '\n'));
+            fingerprint.update('\0');
+        }
+        const sourceSha256 = fingerprint.digest('hex');
+        if (sourceSha256 !== declared.sourceSha256) {
+            out.push(error(MANIFEST, `declared.playgroundBundle.sourceSha256 is ${String(declared.sourceSha256)}; src/ and tsup.config.ts hash to ${sourceSha256} — the engine changed without a rebuild, so the playground runs older code than the package. Run \`npm run build && npm run docs:playground\``));
+        }
+
+        const bundle = ctx.read(target);
+        if (bundle === null) return [...out, error(target, 'missing — run `npm run build && npm run docs:playground`')];
+        const bundleSha256 = createHash('sha256').update(bundle).digest('hex');
+        if (bundleSha256 !== declared.bundleSha256) {
+            out.push(error(target, `hashes to ${bundleSha256}; declared.playgroundBundle.bundleSha256 says ${String(declared.bundleSha256)}`));
+        }
+        const bytes = Buffer.byteLength(bundle);
+        if (bytes !== declared.bytes) out.push(error(target, `is ${String(bytes)} bytes; declared.playgroundBundle.bytes says ${String(declared.bytes)}`));
+        if (typeof declared.maxBytes === 'number' && bytes > declared.maxBytes) {
+            out.push(error(target, `is ${String(bytes)} bytes, over the ${String(declared.maxBytes)} budget — raising it is a reviewed diff`));
+        }
+
+        // Loader hygiene. The local copy is the whole reason this rule
+        // exists; a CDN import would quietly make it decorative.
+        const loader = ctx.read('docs/playground/playground.js');
+        if (loader === null) out.push(error('docs/playground/playground.js', 'missing'));
+        else {
+            if (!loader.includes("from './pkinative.js'")) out.push(error('docs/playground/playground.js', "does not import './pkinative.js' — the playground must run the committed build"));
+            for (const m of loader.matchAll(/from\s+'(https?:\/\/[^']+)'/g)) {
+                out.push(error('docs/playground/playground.js', `imports ${m[1] ?? ''} — the playground loads no third party`, lineContaining(loader, m[1] ?? '')));
+            }
+        }
+        return out;
+    },
+};
+
 const releaseNotes: Rule = {
     id: 'release-notes',
     summary: 'Every release-notes/vX.Y.Z.md is titled "pkinative vX.Y.Z" and carries Highlights, Known limitations, Install, Upgrade, Downstream integration notes and Links.',
@@ -514,5 +581,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, playgroundFreshness, releaseNotes,
 ];

@@ -1,0 +1,185 @@
+# Use cases
+
+> **Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each.** None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.
+
+A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the four cases below.
+
+<svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
+  <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
+  <desc id="decision-desc">Untrusted bytes reach decodeAsn1, which either throws a PkiEncodingError with a stable code or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or produces a certificate together with any diagnostics. Every refusal carries a code; nothing is ever half-accepted.</desc>
+  <defs>
+    <marker id="uc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--c-text-muted)"/>
+    </marker>
+  </defs>
+  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">
+    <rect x="8" y="72" width="126" height="46" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
+    <text x="71" y="91" fill="var(--c-text)" font-family="inherit">untrusted</text>
+    <text x="71" y="107" fill="var(--c-text-dim)" font-family="inherit">bytes</text>
+
+    <rect x="192" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
+    <text x="267" y="99" fill="var(--c-primary)">decodeAsn1</text>
+
+    <rect x="400" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
+    <text x="475" y="99" fill="var(--c-primary)">parseCertificate</text>
+
+    <rect x="616" y="62" width="176" height="30" rx="8" fill="var(--c-bg-card)" stroke="var(--c-success)" stroke-width="1.5"/>
+    <text x="704" y="82" fill="var(--c-success)">Certificate</text>
+    <rect x="616" y="100" width="176" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
+    <text x="704" y="120" fill="var(--c-text-dim)">+ diagnostics</text>
+
+    <rect x="236" y="8" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
+    <text x="426" y="28" fill="var(--c-text-muted)">throw PkiEncodingError · PkiLimitError</text>
+    <rect x="236" y="158" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
+    <text x="426" y="178" fill="var(--c-text-muted)">throw PkiCertificateError</text>
+  </g>
+  <g fill="none" stroke="var(--c-text-muted)" marker-end="url(#uc-arrow)">
+    <path d="M134 95H186"/>
+    <path d="M342 95H394"/>
+    <path d="M550 87H610"/>
+    <path d="M550 103V115H610"/>
+    <path d="M267 72V38" stroke-dasharray="4 3"/>
+    <path d="M475 118V152" stroke-dasharray="4 3"/>
+  </g>
+</svg>
+
+Three exits, never a fourth. The decoder is iterative, so depth is a limit and not a stack overflow; every refusal carries a `code` you branch on and a message that names the remedy. What a refusal never is, is silence.
+
+## Inventory a certificate estate
+
+The job: read every certificate an organisation has on disk, and report what expires when. It needs no network, no signature and no trust store — only correct parsing of every field, including the ones that are usually skipped.
+
+```ts
+import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from 'pkinative';
+
+const DAY = 86_400_000;
+
+export function expiring(bundle: string, within: number): string[] {
+    const soon: string[] = [];
+    for (const block of decodePem(bundle, { label: 'CERTIFICATE' })) {
+        const cert = parseCertificate(block.bytes, { onDiagnostic: () => undefined });
+        const days = Math.floor((cert.validity.notAfter.epochMilliseconds - Date.now()) / DAY);
+        if (days > within) continue;
+        const names = getExtension(cert, 'subjectAltName')?.names ?? [];
+        soon.push(`${String(days)}d  ${formatDistinguishedName(cert.subject)}  ${names.length} SAN`);
+    }
+    return soon;
+}
+```
+
+What makes this pkinative's job rather than `openssl x509`'s: a bundle is one string, a malformed block in the middle is a typed refusal rather than a partially-written report, and the result is data — not text you then have to parse back. `decodePem` with a `label` also refuses a private key hidden in the bundle, which is how a key ends up in a log.
+
+The distinguished name is rendered by [RFC 4514](https://datatracker.ietf.org/doc/html/rfc4514), the one rendering two tools can compare. Times are `epochMilliseconds`, so there is no locale and no time zone to disagree about.
+
+## Ingest hostile bytes
+
+The job: accept certificates from somewhere you do not control — an upload form, a queue, a peer — and never crash, never hang, never read past the buffer.
+
+```ts
+import { DEFAULT_PKI_LIMITS, parseCertificate, PkiError, PkiLimitError } from 'pkinative';
+
+export function ingest(der: Uint8Array): { ok: true; subject: string } | { ok: false; code: string } {
+    try {
+        // Every limit not named here keeps its DEFAULT_PKI_LIMITS value.
+        const cert = parseCertificate(der, { limits: { maxInputBytes: 64 * 1024, maxExtensions: 32 } });
+        return { ok: true, subject: cert.subject.der.length.toString() };
+    } catch (error) {
+        if (error instanceof PkiLimitError) return { ok: false, code: `${error.code}:${error.limit}` };
+        if (error instanceof PkiError) return { ok: false, code: error.code };
+        throw error;
+    }
+}
+```
+
+Every loop over input bytes consults a named, CWE-tagged bound from [`src/core/pki-limits.ts`](../../src/core/pki-limits.ts), and the caller can tighten any of them for its own context. `DEFAULT_PKI_LIMITS` is what you get when you name nothing.
+
+Branch on `error.code`, never on the message: the codes are a registry ([docs/data/errors.json](../data/errors.json)), each one recording when it is raised, its remedy, the clause it comes from and its CWE. Messages are prose and may be reworded; codes are the contract. The [errors guide](errors.md) is the full list.
+
+`PkiLimitError` additionally carries `limit`, `configured` and `observed`, so a rejection tells an operator which bound to raise and by how much — rather than leaving them to guess.
+
+## Pin a public key, not a certificate
+
+The job: remember that this peer is this peer, across a certificate renewal. Pinning the whole certificate breaks every ninety days; pinning the subject public key does not, because a renewal normally keeps the key.
+
+```ts
+import { computeFingerprint, formatFingerprint, parseCertificate } from 'pkinative';
+
+/** The SHA-256 of the SubjectPublicKeyInfo — what HPKP and Certificate Transparency pin. */
+export function keyPin(der: Uint8Array): string {
+    const cert = parseCertificate(der, { onDiagnostic: () => undefined });
+    return formatFingerprint(computeFingerprint(cert.subjectPublicKeyInfo.der, 'SHA-256'), { separator: '', letterCase: 'lower' });
+}
+```
+
+The detail that decides whether a pin is right: **what exactly you hash.** Hashing the certificate pins the certificate. Hashing the public key *bits* pins something two different algorithms could collide on. The thing to hash is the full `SubjectPublicKeyInfo` — algorithm identifier and key together — and pkinative hands it to you as `der`, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.
+
+<svg viewBox="0 0 960 250" role="img" aria-labelledby="anatomy-title anatomy-desc" class="guide-figure">
+  <title id="anatomy-title">What a parsed certificate gives you, and which slice each use case hashes</title>
+  <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; signature verification, arriving in 0.3, will read tbsDer and signatureValue.</desc>
+  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
+    <rect x="8" y="8" width="944" height="234" rx="10" fill="none" stroke="var(--c-border)"/>
+    <text x="24" y="32" fill="var(--c-text-dim)" font-size="12">Certificate</text>
+
+    <rect x="24" y="44" width="620" height="146" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
+    <text x="40" y="65" fill="var(--c-text-dim)" font-size="12">tbsCertificate — the signed bytes, exposed whole as tbsDer</text>
+
+    <rect x="40" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
+    <text x="106" y="99" fill="var(--c-text)" text-anchor="middle">serialNumber</text>
+    <rect x="184" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
+    <text x="250" y="99" fill="var(--c-text)" text-anchor="middle">issuer</text>
+    <rect x="328" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
+    <text x="394" y="99" fill="var(--c-text)" text-anchor="middle">validity</text>
+    <rect x="472" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
+    <text x="538" y="99" fill="var(--c-text)" text-anchor="middle">subject</text>
+
+    <rect x="40" y="124" width="264" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
+    <text x="172" y="145" fill="var(--c-primary)" text-anchor="middle">subjectPublicKeyInfo</text>
+    <text x="172" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">.der — what a key pin hashes</text>
+
+    <rect x="316" y="124" width="288" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
+    <text x="460" y="145" fill="var(--c-text)" text-anchor="middle">extensions</text>
+    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">twenty decoded kinds, or raw</text>
+
+    <rect x="664" y="44" width="272" height="60" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
+    <text x="800" y="70" fill="var(--c-text)" text-anchor="middle">signatureAlgorithm</text>
+    <text x="800" y="90" fill="var(--c-text)" text-anchor="middle">signatureValue</text>
+
+    <rect x="664" y="116" width="272" height="58" rx="8" fill="none" stroke="var(--c-text-muted)" stroke-dasharray="4 3"/>
+    <text x="800" y="140" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">tbsDer + signatureValue</text>
+    <text x="800" y="158" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">verified in 0.3, not today</text>
+
+    <line x1="24" y1="206" x2="936" y2="206" stroke="var(--c-border)"/>
+    <text x="24" y="228" fill="var(--c-text-dim)" font-size="11.5">Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.</text>
+  </g>
+</svg>
+
+## Gate a DER round trip
+
+The job: prove that a tool in your pipeline did not quietly rewrite a certificate. Re-encoding a decoded value and comparing it to the input is a total check — every octet, including the ones nothing in your code reads.
+
+```ts
+import { decodeAsn1, encodeAsn1Node } from 'pkinative';
+
+/** True when `der` is canonical DER that survives a decode and re-encode unchanged. */
+export function roundTrips(der: Uint8Array): boolean {
+    const again = encodeAsn1Node(decodeAsn1(der));
+    return again.length === der.length && again.every((b, i) => b === der[i]);
+}
+```
+
+This is the check conformance level L2 runs over all 30 361 unique x509-limbo certificates on every release, so it is not a suggestion — it is a property the library is held to. A certificate that fails it was not canonical DER to begin with, which is itself the finding.
+
+Strict DER is the default, and that is what makes the check meaningful: a non-minimal length, a constructed string, an indefinite length or a `BOOLEAN` that is not `0x00` or `0xFF` is refused rather than normalised. BER is available with `{ encodingRules: 'ber' }` when you must read what another tool wrote, and the differences it tolerated are reported as diagnostics rather than hidden.
+
+## What none of these do yet
+
+Each of the four is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+
+| You need | pkinative | Until then |
+|---|---|---|
+| Verify that a certificate was signed by its issuer | 0.3, through Web Crypto | @peculiar/x509, pkijs |
+| Build a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
+| Decide whether a chain is trusted | 0.5, RFC 5280 §6 | pkijs; on Node.js, your TLS stack |
+| Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
+
+A fingerprint proves two byte strings are the same certificate. It proves nothing about whether that certificate should be trusted, and pkinative 0.1 does not pretend otherwise. That distinction is the whole of the [security model](security.md).

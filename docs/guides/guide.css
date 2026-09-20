@@ -125,6 +125,20 @@
 
 .guide-content img { display: block; margin: 0 auto 20px; }
 
+/* Inline diagrams. They carry no colour of their own: every fill and stroke
+   is a design token, so the same markup is correct in both themes and there
+   is no second asset to keep in step with the palette. */
+.guide-figure {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 28px 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-bg-card);
+  padding: 8px;
+}
+
 .guide-loading,
 .guide-error {
   padding: 24px;

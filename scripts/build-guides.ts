@@ -29,7 +29,7 @@ export const SITE = 'https://pkinative.dev';
 export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
 
 /** The guides, in navigation order. */
-export const GUIDES: readonly string[] = ['quickstart', 'security', 'conformance', 'errors', 'choose'];
+export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'errors', 'choose'];
 
 const markdown = new Marked({ gfm: true, breaks: false });
 
@@ -130,6 +130,7 @@ export function navHtml(prefix: string, current: NavSection): string {
         <li><a href="${prefix}#benchmarks">Benchmarks</a></li>
         <li><a href="${prefix}#architecture">Architecture</a></li>
         <li><a href="${prefix}guides/"${mark('guides')}>Guides</a></li>
+        <li><a href="${prefix}playground/"${mark('playgrounds')}>Playground</a></li>
         <li><a href="${prefix}llms.txt">llms.txt</a></li>
         <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>

@@ -164,6 +164,11 @@ export const STEPS: readonly Step[] = [
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:bundle', npmScript: 'verify:bundle', profiles: ['ci', 'publish'] },
     { id: 'smoke:install', npmScript: 'smoke:install', profiles: ['ci', 'publish'] },
+    // The second layer of the playground's freshness guard. verify:docs
+    // fingerprints the inputs hermetically; this re-derives the file from the
+    // dist/ built above and compares byte for byte, which is what "the
+    // playground runs the published build" actually claims.
+    { id: 'docs:playground-fresh', npmScript: 'docs:playground-fresh', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
     {
         // Needs the network once (npm run conformance:fetch), so it stays out of

@@ -44,6 +44,15 @@
       "dist/index.js.map": { "maxBytes": 470000 },
       "dist/index.cjs.map": { "maxBytes": 470000 }
     },
+    "playgroundBundle": {
+      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
+      "source": "dist/index.js",
+      "target": "docs/playground/pkinative.js",
+      "sourceSha256": "dbba26f0385d6a91954d20fc523d2af4d5fe07dee70637d4e15bbff24d431b38",
+      "bundleSha256": "b14752508d703c40c05c66304f7b3669a8a931d613982bcce12018a040abe323",
+      "bytes": 159668,
+      "maxBytes": 200000
+    },
     "socialImages": [
       { "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
         "svg": "docs/assets/og-image.svg", "png": "docs/assets/og-image.png", "width": 1200, "height": 630,

@@ -30,3 +30,11 @@ docs/assets/api.json    linguist-generated=true
 docs/guides/*.html      linguist-generated=true
 .claude/rules/*.md      linguist-generated=true
 package-lock.json       linguist-generated=true
+docs/sitemap.xml        linguist-generated=true
+
+# The playground's copy of the built engine, and the sample block it reads.
+# Both are written by `npm run docs:playground` and held to the build by the
+# `playground-freshness` rule; a hand edit to either is a defect, so neither
+# belongs in a diff or in the language statistics.
+docs/playground/pkinative.js  linguist-generated=true -diff
+docs/playground/samples.js    linguist-generated=true -diff

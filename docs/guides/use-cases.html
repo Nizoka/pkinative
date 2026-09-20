@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Use cases — pkinative</title>
+  <meta name="description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/guides/use-cases.html">
+  <meta property="og:title" content="Use cases — pkinative">
+  <meta property="og:description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Use cases — pkinative">
+  <meta name="twitter:description" content="Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each. None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only *reads* can do completely, and completely is the point.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/guides/use-cases.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/use-cases.html">
+  <link rel="alternate" type="text/markdown" href="use-cases.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../playground/">Playground</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Use cases</p>
+    <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
+      <h1 id="use-cases">Use cases</h1>
+      <blockquote>
+      <p><strong>Four jobs pkinative 0.1 does today, with the code that does them and the guarantee behind each.</strong> None of them verifies a signature or validates a chain — that is 0.3 and 0.5. Every one of them is something a library that only <em>reads</em> can do completely, and completely is the point.</p>
+      </blockquote>
+      <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the four cases below.</p>
+      <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
+        <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
+        <desc id="decision-desc">Untrusted bytes reach decodeAsn1, which either throws a PkiEncodingError with a stable code or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or produces a certificate together with any diagnostics. Every refusal carries a code; nothing is ever half-accepted.</desc>
+        <defs>
+          <marker id="uc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="var(--c-text-muted)"/>
+          </marker>
+        </defs>
+        <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">
+          <rect x="8" y="72" width="126" height="46" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
+          <text x="71" y="91" fill="var(--c-text)" font-family="inherit">untrusted</text>
+          <text x="71" y="107" fill="var(--c-text-dim)" font-family="inherit">bytes</text>
+
+      <pre><code>&lt;rect x=&quot;192&quot; y=&quot;72&quot; width=&quot;150&quot; height=&quot;46&quot; rx=&quot;8&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-primary)&quot; stroke-width=&quot;1.5&quot;/&gt;
+      &lt;text x=&quot;267&quot; y=&quot;99&quot; fill=&quot;var(--c-primary)&quot;&gt;decodeAsn1&lt;/text&gt;
+
+      &lt;rect x=&quot;400&quot; y=&quot;72&quot; width=&quot;150&quot; height=&quot;46&quot; rx=&quot;8&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-primary)&quot; stroke-width=&quot;1.5&quot;/&gt;
+      &lt;text x=&quot;475&quot; y=&quot;99&quot; fill=&quot;var(--c-primary)&quot;&gt;parseCertificate&lt;/text&gt;
+
+      &lt;rect x=&quot;616&quot; y=&quot;62&quot; width=&quot;176&quot; height=&quot;30&quot; rx=&quot;8&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-success)&quot; stroke-width=&quot;1.5&quot;/&gt;
+      &lt;text x=&quot;704&quot; y=&quot;82&quot; fill=&quot;var(--c-success)&quot;&gt;Certificate&lt;/text&gt;
+      &lt;rect x=&quot;616&quot; y=&quot;100&quot; width=&quot;176&quot; height=&quot;30&quot; rx=&quot;8&quot; fill=&quot;var(--c-surface)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;704&quot; y=&quot;120&quot; fill=&quot;var(--c-text-dim)&quot;&gt;+ diagnostics&lt;/text&gt;
+
+      &lt;rect x=&quot;236&quot; y=&quot;8&quot; width=&quot;380&quot; height=&quot;30&quot; rx=&quot;8&quot; fill=&quot;var(--c-surface)&quot; stroke=&quot;var(--c-border)&quot; stroke-dasharray=&quot;4 3&quot;/&gt;
+      &lt;text x=&quot;426&quot; y=&quot;28&quot; fill=&quot;var(--c-text-muted)&quot;&gt;throw PkiEncodingError · PkiLimitError&lt;/text&gt;
+      &lt;rect x=&quot;236&quot; y=&quot;158&quot; width=&quot;380&quot; height=&quot;30&quot; rx=&quot;8&quot; fill=&quot;var(--c-surface)&quot; stroke=&quot;var(--c-border)&quot; stroke-dasharray=&quot;4 3&quot;/&gt;
+      &lt;text x=&quot;426&quot; y=&quot;178&quot; fill=&quot;var(--c-text-muted)&quot;&gt;throw PkiCertificateError&lt;/text&gt;
+      </code></pre>
+        </g>
+        <g fill="none" stroke="var(--c-text-muted)" marker-end="url(#uc-arrow)">
+          <path d="M134 95H186"/>
+          <path d="M342 95H394"/>
+          <path d="M550 87H610"/>
+          <path d="M550 103V115H610"/>
+          <path d="M267 72V38" stroke-dasharray="4 3"/>
+          <path d="M475 118V152" stroke-dasharray="4 3"/>
+        </g>
+      </svg>
+
+      <p>Three exits, never a fourth. The decoder is iterative, so depth is a limit and not a stack overflow; every refusal carries a <code>code</code> you branch on and a message that names the remedy. What a refusal never is, is silence.</p>
+      <h2 id="inventory-a-certificate-estate">Inventory a certificate estate <a class="heading-anchor" href="#inventory-a-certificate-estate" aria-label="Link to this section">#</a></h2>
+      <p>The job: read every certificate an organisation has on disk, and report what expires when. It needs no network, no signature and no trust store — only correct parsing of every field, including the ones that are usually skipped.</p>
+      <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
+
+      const DAY = 86_400_000;
+
+      export function expiring(bundle: string, within: number): string[] {
+          const soon: string[] = [];
+          for (const block of decodePem(bundle, { label: &#39;CERTIFICATE&#39; })) {
+              const cert = parseCertificate(block.bytes, { onDiagnostic: () =&gt; undefined });
+              const days = Math.floor((cert.validity.notAfter.epochMilliseconds - Date.now()) / DAY);
+              if (days &gt; within) continue;
+              const names = getExtension(cert, &#39;subjectAltName&#39;)?.names ?? [];
+              soon.push(`${String(days)}d  ${formatDistinguishedName(cert.subject)}  ${names.length} SAN`);
+          }
+          return soon;
+      }
+      </code></pre>
+      <p>What makes this pkinative&#39;s job rather than <code>openssl x509</code>&#39;s: a bundle is one string, a malformed block in the middle is a typed refusal rather than a partially-written report, and the result is data — not text you then have to parse back. <code>decodePem</code> with a <code>label</code> also refuses a private key hidden in the bundle, which is how a key ends up in a log.</p>
+      <p>The distinguished name is rendered by <a href="https://datatracker.ietf.org/doc/html/rfc4514" target="_blank" rel="noopener">RFC 4514</a>, the one rendering two tools can compare. Times are <code>epochMilliseconds</code>, so there is no locale and no time zone to disagree about.</p>
+      <h2 id="ingest-hostile-bytes">Ingest hostile bytes <a class="heading-anchor" href="#ingest-hostile-bytes" aria-label="Link to this section">#</a></h2>
+      <p>The job: accept certificates from somewhere you do not control — an upload form, a queue, a peer — and never crash, never hang, never read past the buffer.</p>
+      <pre><code class="language-ts">import { DEFAULT_PKI_LIMITS, parseCertificate, PkiError, PkiLimitError } from &#39;pkinative&#39;;
+
+      export function ingest(der: Uint8Array): { ok: true; subject: string } | { ok: false; code: string } {
+          try {
+              // Every limit not named here keeps its DEFAULT_PKI_LIMITS value.
+              const cert = parseCertificate(der, { limits: { maxInputBytes: 64 * 1024, maxExtensions: 32 } });
+              return { ok: true, subject: cert.subject.der.length.toString() };
+          } catch (error) {
+              if (error instanceof PkiLimitError) return { ok: false, code: `${error.code}:${error.limit}` };
+              if (error instanceof PkiError) return { ok: false, code: error.code };
+              throw error;
+          }
+      }
+      </code></pre>
+      <p>Every loop over input bytes consults a named, CWE-tagged bound from <a href="https://github.com/Nizoka/pkinative/blob/main/src/core/pki-limits.ts" target="_blank" rel="noopener"><code>src/core/pki-limits.ts</code></a>, and the caller can tighten any of them for its own context. <code>DEFAULT_PKI_LIMITS</code> is what you get when you name nothing.</p>
+      <p>Branch on <code>error.code</code>, never on the message: the codes are a registry (<a href="../data/errors.json">docs/data/errors.json</a>), each one recording when it is raised, its remedy, the clause it comes from and its CWE. Messages are prose and may be reworded; codes are the contract. The <a href="errors.html">errors guide</a> is the full list.</p>
+      <p><code>PkiLimitError</code> additionally carries <code>limit</code>, <code>configured</code> and <code>observed</code>, so a rejection tells an operator which bound to raise and by how much — rather than leaving them to guess.</p>
+      <h2 id="pin-a-public-key-not-a-certificate">Pin a public key, not a certificate <a class="heading-anchor" href="#pin-a-public-key-not-a-certificate" aria-label="Link to this section">#</a></h2>
+      <p>The job: remember that this peer is this peer, across a certificate renewal. Pinning the whole certificate breaks every ninety days; pinning the subject public key does not, because a renewal normally keeps the key.</p>
+      <pre><code class="language-ts">import { computeFingerprint, formatFingerprint, parseCertificate } from &#39;pkinative&#39;;
+
+      /** The SHA-256 of the SubjectPublicKeyInfo — what HPKP and Certificate Transparency pin. */
+      export function keyPin(der: Uint8Array): string {
+          const cert = parseCertificate(der, { onDiagnostic: () =&gt; undefined });
+          return formatFingerprint(computeFingerprint(cert.subjectPublicKeyInfo.der, &#39;SHA-256&#39;), { separator: &#39;&#39;, letterCase: &#39;lower&#39; });
+      }
+      </code></pre>
+      <p>The detail that decides whether a pin is right: <strong>what exactly you hash.</strong> Hashing the certificate pins the certificate. Hashing the public key <em>bits</em> pins something two different algorithms could collide on. The thing to hash is the full <code>SubjectPublicKeyInfo</code> — algorithm identifier and key together — and pkinative hands it to you as <code>der</code>, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.</p>
+      <svg viewBox="0 0 960 250" role="img" aria-labelledby="anatomy-title anatomy-desc" class="guide-figure">
+        <title id="anatomy-title">What a parsed certificate gives you, and which slice each use case hashes</title>
+        <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; signature verification, arriving in 0.3, will read tbsDer and signatureValue.</desc>
+        <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
+          <rect x="8" y="8" width="944" height="234" rx="10" fill="none" stroke="var(--c-border)"/>
+          <text x="24" y="32" fill="var(--c-text-dim)" font-size="12">Certificate</text>
+
+      <pre><code>&lt;rect x=&quot;24&quot; y=&quot;44&quot; width=&quot;620&quot; height=&quot;146&quot; rx=&quot;8&quot; fill=&quot;var(--c-surface)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;40&quot; y=&quot;65&quot; fill=&quot;var(--c-text-dim)&quot; font-size=&quot;12&quot;&gt;tbsCertificate — the signed bytes, exposed whole as tbsDer&lt;/text&gt;
+
+      &lt;rect x=&quot;40&quot; y=&quot;78&quot; width=&quot;132&quot; height=&quot;34&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;106&quot; y=&quot;99&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;serialNumber&lt;/text&gt;
+      &lt;rect x=&quot;184&quot; y=&quot;78&quot; width=&quot;132&quot; height=&quot;34&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;250&quot; y=&quot;99&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;issuer&lt;/text&gt;
+      &lt;rect x=&quot;328&quot; y=&quot;78&quot; width=&quot;132&quot; height=&quot;34&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;394&quot; y=&quot;99&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;validity&lt;/text&gt;
+      &lt;rect x=&quot;472&quot; y=&quot;78&quot; width=&quot;132&quot; height=&quot;34&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;538&quot; y=&quot;99&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;subject&lt;/text&gt;
+
+      &lt;rect x=&quot;40&quot; y=&quot;124&quot; width=&quot;264&quot; height=&quot;50&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-primary)&quot; stroke-width=&quot;1.5&quot;/&gt;
+      &lt;text x=&quot;172&quot; y=&quot;145&quot; fill=&quot;var(--c-primary)&quot; text-anchor=&quot;middle&quot;&gt;subjectPublicKeyInfo&lt;/text&gt;
+      &lt;text x=&quot;172&quot; y=&quot;163&quot; fill=&quot;var(--c-text-dim)&quot; text-anchor=&quot;middle&quot; font-size=&quot;11.5&quot;&gt;.der — what a key pin hashes&lt;/text&gt;
+
+      &lt;rect x=&quot;316&quot; y=&quot;124&quot; width=&quot;288&quot; height=&quot;50&quot; rx=&quot;6&quot; fill=&quot;var(--c-bg-card)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;460&quot; y=&quot;145&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;extensions&lt;/text&gt;
+      &lt;text x=&quot;460&quot; y=&quot;163&quot; fill=&quot;var(--c-text-dim)&quot; text-anchor=&quot;middle&quot; font-size=&quot;11.5&quot;&gt;twenty decoded kinds, or raw&lt;/text&gt;
+
+      &lt;rect x=&quot;664&quot; y=&quot;44&quot; width=&quot;272&quot; height=&quot;60&quot; rx=&quot;8&quot; fill=&quot;var(--c-surface)&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;800&quot; y=&quot;70&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;signatureAlgorithm&lt;/text&gt;
+      &lt;text x=&quot;800&quot; y=&quot;90&quot; fill=&quot;var(--c-text)&quot; text-anchor=&quot;middle&quot;&gt;signatureValue&lt;/text&gt;
+
+      &lt;rect x=&quot;664&quot; y=&quot;116&quot; width=&quot;272&quot; height=&quot;58&quot; rx=&quot;8&quot; fill=&quot;none&quot; stroke=&quot;var(--c-text-muted)&quot; stroke-dasharray=&quot;4 3&quot;/&gt;
+      &lt;text x=&quot;800&quot; y=&quot;140&quot; fill=&quot;var(--c-text-muted)&quot; text-anchor=&quot;middle&quot; font-size=&quot;11.5&quot;&gt;tbsDer + signatureValue&lt;/text&gt;
+      &lt;text x=&quot;800&quot; y=&quot;158&quot; fill=&quot;var(--c-text-muted)&quot; text-anchor=&quot;middle&quot; font-size=&quot;11.5&quot;&gt;verified in 0.3, not today&lt;/text&gt;
+
+      &lt;line x1=&quot;24&quot; y1=&quot;206&quot; x2=&quot;936&quot; y2=&quot;206&quot; stroke=&quot;var(--c-border)&quot;/&gt;
+      &lt;text x=&quot;24&quot; y=&quot;228&quot; fill=&quot;var(--c-text-dim)&quot; font-size=&quot;11.5&quot;&gt;Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.&lt;/text&gt;
+      </code></pre>
+        </g>
+      </svg>
+
+      <h2 id="gate-a-der-round-trip">Gate a DER round trip <a class="heading-anchor" href="#gate-a-der-round-trip" aria-label="Link to this section">#</a></h2>
+      <p>The job: prove that a tool in your pipeline did not quietly rewrite a certificate. Re-encoding a decoded value and comparing it to the input is a total check — every octet, including the ones nothing in your code reads.</p>
+      <pre><code class="language-ts">import { decodeAsn1, encodeAsn1Node } from &#39;pkinative&#39;;
+
+      /** True when `der` is canonical DER that survives a decode and re-encode unchanged. */
+      export function roundTrips(der: Uint8Array): boolean {
+          const again = encodeAsn1Node(decodeAsn1(der));
+          return again.length === der.length &amp;&amp; again.every((b, i) =&gt; b === der[i]);
+      }
+      </code></pre>
+      <p>This is the check conformance level L2 runs over all 30 361 unique x509-limbo certificates on every release, so it is not a suggestion — it is a property the library is held to. A certificate that fails it was not canonical DER to begin with, which is itself the finding.</p>
+      <p>Strict DER is the default, and that is what makes the check meaningful: a non-minimal length, a constructed string, an indefinite length or a <code>BOOLEAN</code> that is not <code>0x00</code> or <code>0xFF</code> is refused rather than normalised. BER is available with <code>{ encodingRules: &#39;ber&#39; }</code> when you must read what another tool wrote, and the differences it tolerated are reported as diagnostics rather than hidden.</p>
+      <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
+      <p>Each of the four is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <table>
+      <thead>
+      <tr>
+      <th>You need</th>
+      <th>pkinative</th>
+      <th>Until then</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td>Verify that a certificate was signed by its issuer</td>
+      <td>0.3, through Web Crypto</td>
+      <td>@peculiar/x509, pkijs</td>
+      </tr>
+      <tr>
+      <td>Build a CSR or a certificate</td>
+      <td>0.3, signed by a Web Crypto key</td>
+      <td>@peculiar/x509</td>
+      </tr>
+      <tr>
+      <td>Decide whether a chain is trusted</td>
+      <td>0.5, RFC 5280 §6</td>
+      <td>pkijs; on Node.js, your TLS stack</td>
+      </tr>
+      <tr>
+      <td>Know whether a certificate is revoked</td>
+      <td>0.5, CRL and OCSP</td>
+      <td>pkijs</td>
+      </tr>
+      </tbody></table>
+      <p>A fingerprint proves two byte strings are the same certificate. It proves nothing about whether that certificate should be trusted, and pkinative 0.1 does not pretend otherwise. That distinction is the whole of the <a href="security.html">security model</a>.</p>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>For agents</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>
