@@ -98,15 +98,123 @@ function rewriteLinks(html: string): string {
     return html
         .replace(/href="([a-z-]+)\.md(#[^"]*)?"/g, (_m, name: string, hash: string | undefined) => `href="${name}.html${hash ?? ''}"`)
         .replace(/href="\.\.\/\.\.\/([^"]*)"/g, (_m, path: string) => `href="${REPOSITORY}/${path.endsWith('/') || path === '' ? 'tree' : 'blob'}/main/${path}"`)
-        .replace(/<a href="(https?:\/\/[^"]+)">/g, '<a href="$1" rel="noopener">');
+        // Family parity with zipnative's externaliseLinks: an outbound link
+        // from a guide opens in its own tab, and never with window.opener.
+        .replace(/<a href="(https?:\/\/[^"]+)">/g, '<a href="$1" target="_blank" rel="noopener">');
+}
+
+/** Which section of the site a page belongs to, for `aria-current`. */
+export type NavSection = 'guides' | 'playgrounds' | null;
+
+/**
+ * The chrome every page carries, generated here and only here.
+ *
+ * `prefix` is `''` for docs/index.html and `'../'` for anything one level
+ * down. The hand-written pages paste the output of these functions verbatim,
+ * and the `chrome-parity` rule proves they still match — which is what lets
+ * the landing page stay hand-written without the nav drifting from the
+ * generated guides.
+ *
+ * @internal Exported for `chrome-parity`, not for general use.
+ */
+export function navHtml(prefix: string, current: NavSection): string {
+    const mark = (section: NavSection): string => (section === current ? ' aria-current="page"' : '');
+    return `  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="${prefix === '' ? './' : prefix}"><img src="${prefix}assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="${prefix}#features">Features</a></li>
+        <li><a href="${prefix}#examples">Examples</a></li>
+        <li><a href="${prefix}#comparison">Compare</a></li>
+        <li><a href="${prefix}#benchmarks">Benchmarks</a></li>
+        <li><a href="${prefix}#architecture">Architecture</a></li>
+        <li><a href="${prefix}guides/"${mark('guides')}>Guides</a></li>
+        <li><a href="${prefix}llms.txt">llms.txt</a></li>
+        <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>`;
+}
+
+/** @internal Exported for `chrome-parity`. */
+export function footerHtml(prefix: string): string {
+    return `  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="${REPOSITORY}/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="${REPOSITORY}/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="${REPOSITORY}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">${escapeHtml(guideNavLabel(name))}</a></li>`).join('\n')}
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>For agents</h4>
+          <ul>
+            <li><a href="${prefix}llms.txt">llms.txt</a></li>
+            <li><a href="${prefix}llms-full.txt">llms-full.txt</a></li>
+            <li><a href="${prefix}agent-brief.md">Agent brief</a></li>
+            <li><a href="${prefix}assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="${prefix}sitemap.xml">Sitemap</a></li>
+          <li><a href="${prefix}guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>`;
+}
+
+/**
+ * Prism, pinned by SRI.
+ *
+ * The guides fence only `ts` and `bash`, so these three files are the whole
+ * set; a new language means a new tag and a new hash, computed with
+ * `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A` —
+ * never guessed. The `cdn-sri` rule fails on any remote load without
+ * `integrity` and `crossorigin`.
+ *
+ * @internal Exported for `chrome-parity`.
+ */
+export function prismTags(): { head: string; tail: string } {
+    return {
+        head: '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">',
+        tail: [
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>',
+        ].join('\n'),
+    };
+}
+
+/** The label a guide carries in the nav, the footer and the index. */
+function guideNavLabel(name: string): string {
+    return name === 'quickstart' ? 'Quick start' : `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
 }
 
 function page(options: { title: string; description: string; path: string; body: string; current: string }): string {
     const url = `${SITE}/${options.path}`;
-    const nav = GUIDES.map((name) => {
-        const current = name === options.current ? ' aria-current="page"' : '';
-        return `      <a href="${name}.html"${current}>${escapeHtml(name === 'quickstart' ? 'Quick start' : name[0]?.toUpperCase() + name.slice(1))}</a>`;
-    }).join('\n');
+    const prism = prismTags();
+    const isIndex = options.current === 'index';
+    const breadcrumb = isIndex
+        ? `<a href="../">Home</a> › Guides`
+        : `<a href="../">Home</a> › <a href="./">Guides</a> › ${escapeHtml(options.title.replace(/ — pkinative$/, ''))}`;
+    const markdownAlternate = isIndex ? '' : `\n  <link rel="alternate" type="text/markdown" href="${options.current}.md" title="Markdown source">`;
+    const articleAttrs = isIndex ? '' : ` data-md="${options.current}.md" data-prerendered="true"`;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -118,6 +226,7 @@ function page(options: { title: string; description: string; path: string; body:
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
   <meta property="og:url" content="${url}">
   <meta property="og:title" content="${escapeHtml(options.title)}">
   <meta property="og:description" content="${escapeHtml(options.description)}">
@@ -125,28 +234,29 @@ function page(options: { title: string; description: string; path: string; body:
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(options.title)}">
+  <meta name="twitter:description" content="${escapeHtml(options.description)}">
+  <meta name="twitter:image" content="${SITE}/assets/og-image.png">
   <link rel="canonical" href="${url}">
+  <link rel="alternate" hreflang="en" href="${url}">
+  <link rel="alternate" hreflang="x-default" href="${url}">${markdownAlternate}
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
+${prism.head}
 </head>
 <body>
-  <a class="skip-link" href="#guide-content">Skip to content</a>
-  <header class="guide-header">
-    <a class="brand" href="../">pkinative</a>
-    <nav aria-label="Guides">
-      <a href="./"${options.current === 'index' ? ' aria-current="page"' : ''}>Guides</a>
-${nav}
-    </nav>
-  </header>
-  <main>
-    <article id="guide-content" class="guide">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+${navHtml('../', 'guides')}
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb">${breadcrumb}</p>
+    <article id="guide-content" class="guide-content"${articleAttrs}>
 ${options.body}    </article>
   </main>
-  <footer class="guide-footer">
-    <p>Generated from <a href="${REPOSITORY}/tree/main/docs/guides">docs/guides</a> by <code>npm run docs:guides</code>. <a href="../llms.txt">llms.txt</a> · <a href="${REPOSITORY}">GitHub</a> · MIT © Nizoka</p>
-  </footer>
+${footerHtml('../')}
+${prism.tail}
+  <script src="guide.js" defer></script>
 </body>
 </html>
 `;
@@ -169,7 +279,8 @@ export function renderGuidePage(read: Reader, name: string): string {
 export function renderGuidesIndex(read: Reader): string {
     const items = GUIDES.map((name) => {
         const md = lf(read(`docs/guides/${name}.md`) ?? '');
-        return `        <li><a href="${name}.html">${escapeHtml(guideTitle(md))}</a> — ${escapeHtml(guideSummary(md))}</li>`;
+        return `        <li><a href="${name}.html">${escapeHtml(guideTitle(md))}</a>`
+            + `<span class="guide-toc-desc">${escapeHtml(guideSummary(md))}</span></li>`;
     }).join('\n');
     return page({
         title: 'Guides — pkinative',
@@ -178,7 +289,7 @@ export function renderGuidesIndex(read: Reader): string {
         // and most static hosts) /guides/index.html is served at /guides, which
         // loses a path segment and 404s every relative stylesheet.
         path: 'guides/',
-        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-list">\n${items}\n      </ul>\n`,
+        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`,
         current: 'index',
     });
 }

@@ -9,6 +9,7 @@
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/">
   <meta property="og:title" content="Guides — pkinative">
   <meta property="og:description" content="The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.">
@@ -16,40 +17,95 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Guides — pkinative">
+  <meta name="twitter:description" content="The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/">
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
 </head>
 <body>
-  <a class="skip-link" href="#guide-content">Skip to content</a>
-  <header class="guide-header">
-    <a class="brand" href="../">pkinative</a>
-    <nav aria-label="Guides">
-      <a href="./" aria-current="page">Guides</a>
-      <a href="quickstart.html">Quick start</a>
-      <a href="security.html">Security</a>
-      <a href="conformance.html">Conformance</a>
-      <a href="errors.html">Errors</a>
-      <a href="choose.html">Choose</a>
-    </nav>
-  </header>
-  <main>
-    <article id="guide-content" class="guide">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › Guides</p>
+    <article id="guide-content" class="guide-content">
       <h1 id="guides">Guides</h1>
       <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>
-      <ul class="guide-list">
-        <li><a href="quickstart.html">Quick start</a> — Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.</li>
-        <li><a href="security.html">Security model</a> — Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled. This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</li>
-        <li><a href="conformance.html">Conformance</a> — pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.</li>
-        <li><a href="errors.html">Errors and diagnostics</a> — Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.</li>
-        <li><a href="choose.html">Choosing a PKI library</a> — Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.</li>
+      <ul class="guide-toc-list">
+        <li><a href="quickstart.html">Quick start</a><span class="guide-toc-desc">Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.</span></li>
+        <li><a href="security.html">Security model</a><span class="guide-toc-desc">Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled. This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</span></li>
+        <li><a href="conformance.html">Conformance</a><span class="guide-toc-desc">pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.</span></li>
+        <li><a href="errors.html">Errors and diagnostics</a><span class="guide-toc-desc">Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.</span></li>
+        <li><a href="choose.html">Choosing a PKI library</a><span class="guide-toc-desc">Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.</span></li>
       </ul>
     </article>
   </main>
-  <footer class="guide-footer">
-    <p>Generated from <a href="https://github.com/Nizoka/pkinative/tree/main/docs/guides">docs/guides</a> by <code>npm run docs:guides</code>. <a href="../llms.txt">llms.txt</a> · <a href="https://github.com/Nizoka/pkinative">GitHub</a> · MIT © Nizoka</p>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Guides</h4>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>For agents</h4>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
   </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
 </body>
 </html>
