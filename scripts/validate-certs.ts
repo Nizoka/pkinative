@@ -18,7 +18,15 @@
  *   L3  every parsed certificate agrees with node:crypto.X509Certificate
  *       (serial, validity, CA flag, SHA-256 fingerprint) and a sample agrees
  *       with the openssl CLI (serial, fingerprint); a missing openssl is a
- *       SKIP, which --require-all turns into a failure;
+ *       SKIP, which --require-all turns into a failure, while a non-reference
+ *       implementation declining a certificate is reported as not applicable;
+ *   L4  a sample is read again by implementations written by other people in
+ *       other languages, and the readings must agree on SHA-256 of exact DER
+ *       slices — never on anything either side renders. A positive canary
+ *       unmasks a validator that rejects everything, negative canaries one
+ *       that accepts anything, and a footer one that stopped halfway. A real
+ *       difference is recorded in scripts/data/validator-disagreements.json
+ *       with its reason. See scripts/lib/validators.ts;
  *   Wycheproof  ECDSA signatures decode as a strict Ecdsa-Sig-Value
  *       (SEQUENCE of two INTEGERs): every valid vector parses, every vector
  *       flagged as an encoding defect is refused.
@@ -27,7 +35,7 @@
  * so no SUCCESS/FAILURE score is claimed before 0.5.
  *
  * Usage:
- *   npx tsx scripts/validate-certs.ts [--level 0-3] [--require-all] [--update-baseline]
+ *   npx tsx scripts/validate-certs.ts [--level 0-4] [--require-all] [--update-baseline]
  *
  * Exit: 0 pass, 1 failure, 2 corpora or build missing.
  *
@@ -42,17 +50,28 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
+import {
+    VALIDATORS,
+    compareRecord,
+    negativeCanaries,
+    parseStream,
+    readOutput,
+    writeBlob,
+    type Expected,
+} from './lib/validators.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
 const REPORT_DIR = join(ROOT, 'test-output', 'conformance');
 const OPENSSL_SAMPLE = 200;
+/** How many certificates each cross-implementation validator is given (L4). */
+const VALIDATOR_SAMPLE = 200;
 /** Wycheproof flags that mark a defect of the DER encoding itself. */
 const ENCODING_FLAGS: ReadonlySet<string> = new Set(['BerEncodedSignature', 'InvalidEncoding', 'InvalidTypesInSignature']);
 
 const args = process.argv.slice(2);
 const levelAt = args.indexOf('--level');
-const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 3;
+const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 4;
 const requireAll = args.includes('--require-all');
 const updateBaseline = args.includes('--update-baseline');
 
@@ -303,6 +322,8 @@ async function main(): Promise<number> {
         }
     }
 
+    if (level >= 4) runCrossValidators(pki, certificates, parsed);
+
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
     let vectors = 0;
     for (const file of corpus('wycheproof').files) {
@@ -335,6 +356,128 @@ async function main(): Promise<number> {
     if (vectors !== declared.wycheproof?.tests) fail(`Wycheproof: ${vectors} vectors; ecosystem.json declares ${String(declared.wycheproof?.tests)} (canary)`);
     record('WP', `wycheproof@${corpus('wycheproof').commit.slice(0, 12)}: ${vectors} ECDSA vectors on P-256, P-384 and P-521`);
     return report();
+}
+
+// ── L4 — confrontation with other implementations ───────────────────
+
+/** What pkinative says, in the vocabulary of `FIELDS`. */
+function expectationOf(cert: Pki.Certificate): Expected {
+    return {
+        subjectFp256: sha256Hex(cert.subject.der),
+        issuerFp256: sha256Hex(cert.issuer.der),
+        spkiKeyFp256: sha256Hex(cert.subjectPublicKeyInfo.publicKey.bytes),
+        tbsFp256: sha256Hex(cert.tbsDer),
+        keyAlgOid: cert.subjectPublicKeyInfo.algorithm.oid,
+        version: cert.version,
+    };
+}
+
+interface Disagreements {
+    readonly reviewed?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Confront a sample of the corpus with every implementation this platform
+ * can reach. See scripts/lib/validators.ts for why the comparison is over
+ * SHA-256 of DER slices and not over anything an implementation renders.
+ */
+function runCrossValidators(pki: typeof Pki, certificates: ReadonlyMap<string, Uint8Array>, parsed: ReadonlyMap<string, Pki.Certificate>): void {
+    const reviewedFile = join(ROOT, 'scripts', 'data', 'validator-disagreements.json');
+    const reviewed = existsSync(reviewedFile)
+        ? (JSON.parse(readFileSync(reviewedFile, 'utf8')) as Disagreements).reviewed ?? {}
+        : {};
+    for (const [key, reason] of Object.entries(reviewed)) {
+        if (/^TODO\b/.test(reason)) fail(`L4 the reviewed disagreement ${key} still says "${reason}" — every entry carries the reason it is accepted`);
+    }
+
+    // A sample, in corpus order, plus a known-good certificate as #0 and the
+    // structurally broken canaries last.
+    const step = Math.max(1, Math.floor(parsed.size / VALIDATOR_SAMPLE));
+    const sample: Array<{ hash: string; der: Uint8Array; cert: Pki.Certificate }> = [];
+    let index = 0;
+    for (const [hash, cert] of parsed) {
+        if (index++ % step !== 0) continue;
+        const der = certificates.get(hash);
+        if (der !== undefined) sample.push({ hash, der, cert });
+    }
+    const positivePath = join(ROOT, 'tests', 'fixtures', 'certs', 'isrg-root-x1.der');
+    const positive = new Uint8Array(readFileSync(positivePath));
+    const canaries = negativeCanaries(positive);
+    const submitted = [positive, ...sample.map((s) => s.der), ...canaries.map((c) => c.bytes)];
+
+    mkdirSync(REPORT_DIR, { recursive: true });
+    const blobPath = join(REPORT_DIR, 'validator-input.blob');
+    writeBlob(blobPath, submitted);
+    const positiveExpected = expectationOf(pki.parseCertificate(positive, { onDiagnostic: () => undefined }));
+
+    for (const spec of VALIDATORS) {
+        if (!spec.platforms.includes(process.platform)) {
+            notApplicable.push(`L4 ${spec.id} (${spec.lineage}) does not run on ${process.platform}`);
+            continue;
+        }
+        const version = spec.probe();
+        if (version === null) { skips.push(`L4 ${spec.id}: ${spec.lineage} is not installed on this ${process.platform} runner`); continue; }
+
+        const outPath = join(REPORT_DIR, `validator-${spec.id}.ndjson`);
+        const outcome = spec.emit(blobPath, outPath);
+        const stream = parseStream(readOutput(outPath), submitted.length);
+        if ('errors' in stream) {
+            if (!outcome.ok) fail(`L4 ${spec.id}: the validator exited non-zero — ${outcome.stderr.slice(0, 200)}`);
+            for (const message of stream.errors.slice(0, 5)) fail(`L4 ${spec.id}: ${message}`);
+            continue;
+        }
+
+        // Anti-vacuity, before a single comparison is believed. Neither
+        // verdict can be put on the reviewed list: a validator that rejects
+        // everything or accepts everything is not disagreeing, it is broken,
+        // and its agreement elsewhere would mean nothing.
+        const first = stream.certs[0];
+        if (first === undefined || !first.ok) {
+            fail(`L4 ${spec.id}: VACUOUS — it rejects the positive canary, a certificate every implementation reads (${String(first?.error ?? 'no record')})`);
+            continue;
+        }
+        const canaryDisagreement = compareRecord(positiveExpected, first, stream.header.fields);
+        if (canaryDisagreement.length > 0) {
+            fail(`L4 ${spec.id}: VACUOUS — it disagrees on the positive canary itself: ${canaryDisagreement.join('; ')}`);
+            continue;
+        }
+        let xpass = 0;
+        for (const [offset, canary] of canaries.entries()) {
+            const record = stream.certs[1 + sample.length + offset];
+            if (record?.ok === true) {
+                xpass++;
+                fail(`L4 ${spec.id}: XPASS — it accepts ${canary.why} as a certificate, so its agreement proves nothing`);
+            }
+        }
+        if (xpass > 0) continue;
+
+        let agreed = 0;
+        let refusedBySample = 0;
+        const unreviewed: string[] = [];
+        for (const [offset, entry] of sample.entries()) {
+            const record = stream.certs[1 + offset];
+            if (record === undefined) continue;
+            if (!record.ok) { refusedBySample++; continue; }
+            const differences = compareRecord(expectationOf(entry.cert), record, stream.header.fields);
+            if (differences.length === 0) { agreed++; continue; }
+            for (const difference of differences) {
+                const field = difference.split(':')[0] ?? '';
+                const key = `${spec.id}:${entry.hash}:${field}@${process.platform}`;
+                if (reviewed[key] === undefined) unreviewed.push(`L4 ${spec.id} ${entry.hash} ${difference} — record it in scripts/data/validator-disagreements.json under "${key}" with the reason, or fix the defect`);
+            }
+        }
+        for (const message of unreviewed.slice(0, 20)) fail(message);
+        if (unreviewed.length > 20) fail(`L4 ${spec.id}: … ${unreviewed.length - 20} more disagreements`);
+
+        // A validator that read almost nothing agrees about almost nothing.
+        if (agreed < sample.length / 2) {
+            fail(`L4 ${spec.id}: it read only ${agreed} of ${sample.length} sampled certificates — too few to be a cross-check`);
+        }
+        record('L4', `${spec.id} (${spec.lineage}, ${version}): ${agreed}/${sample.length} agree on ${stream.header.fields.join(', ')}`);
+        if (refusedBySample > 0) {
+            notApplicable.push(`L4 ${spec.id} declined ${refusedBySample} of ${sample.length} sampled certificates; its acceptance policy is not pkinative's contract, and every one it read agrees`);
+        }
+    }
 }
 
 function report(): number {

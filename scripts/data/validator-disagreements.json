@@ -1,0 +1,5 @@
+{
+  "$comment": "Reviewed disagreements between pkinative and another implementation at conformance level L4. Key: <validator>:<SHA-256 of the DER>:<field>@<platform>; value: why the difference is accepted, never the word TODO — an unexplained entry fails the gate. A disagreement is data: two implementations reading the same bytes differently is worth recording with its reason, not silencing. Two verdicts can never appear here, by construction: VACUOUS (the validator rejects the positive canary) and XPASS (it accepts bytes that are not a certificate) mean the validator is broken, not that it disagrees. Empty is the goal, and today the fact.",
+  "schema": 1,
+  "reviewed": {}
+}

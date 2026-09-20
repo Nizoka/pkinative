@@ -72,6 +72,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'install-url-version': (f) => edit(f, 'docs/agent-brief.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
     // One edit, both halves: the comment states no reason, and the count is now 2 against a declared 1.
     'coverage-ignore-budget': (f) => edit(f, 'src/core/bytes.ts', /^const HEX_DIGITS/m, '/* v8 ignore next */\nconst HEX_DIGITS'),
+    // A field L4 compares, dropped from the guide that documents the contract.
+    'validator-record-parity': (f) => edit(f, 'docs/guides/conformance.md', '`spkiKeyFp256`', '`spkiKeyFingerprint`'),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
     // Edit the SVG without re-rasterising: the recorded hash no longer matches.
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),

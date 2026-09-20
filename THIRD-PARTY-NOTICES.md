@@ -19,6 +19,15 @@ x509-limbo is a project of the C2SP (Community Cryptography Specification Projec
 
 `tests/fixtures/certs/` holds six public certificates of foreign provenance — the ISRG roots, two Let's Encrypt intermediates, one Let's Encrypt end-entity certificate and the RFC 8410 §10.2 example. [tests/fixtures/PROVENANCE.md](tests/fixtures/PROVENANCE.md) lists the source, retrieval date, SHA-256 and terms of each; `tests/docs/fixture-budget.test.ts` holds the files to those hashes. Certificates are public data published for distribution; none carries a private key.
 
+## Cross-implementation validators (already on the runner, never fetched)
+
+Conformance level L4 confronts pkinative's reading of a certificate with other implementations'. Each of them is a toolchain the runner already provides:
+
+- **Microsoft CryptoAPI**, reached through .NET's `X509Certificate2` under Windows PowerShell, which ships with Windows.
+- **OpenSSL**, through the `openssl` command line at level L3 — the OpenSSL build of the runner image, and separately the one inside Node.js.
+
+None of these is downloaded, vendored, cached or checksum-pinned by this repository, and none is redistributed: the gate invokes what the platform already has, so it adds no supply-chain surface of its own. That is also the rule for admitting a new one. They are used as independent readers, never as libraries, and no code of theirs enters `dist/`.
+
 ## Not included
 
 - No third-party code is bundled into `dist/`.

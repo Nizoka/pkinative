@@ -49,4 +49,47 @@ const corpusPinParity: Rule = {
     },
 };
 
-export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity];
+const GUIDE = 'docs/guides/conformance.md';
+const DISAGREEMENTS = 'scripts/data/validator-disagreements.json';
+
+const validatorRecordParity: Rule = {
+    id: 'validator-record-parity',
+    summary: 'The L4 record contract is the one the conformance guide documents: every field scripts/lib/validators.ts can compare is described in the guide, the guide invents none, every validator names its implementation lineage in THIRD-PARTY-NOTICES.md, and every reviewed disagreement carries a reason rather than a TODO.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const guide = ctx.read(GUIDE);
+        if (guide === null) return [error(GUIDE, 'missing')];
+        // Read from the source, so the rule cannot drift from the contract it
+        // is checking: a field added in code but not documented is exactly
+        // the gap a reader of the guide would fall into.
+        const source = ctx.read('scripts/lib/validators.ts') ?? '';
+        const fields = [...source.matchAll(/^ {4}([A-Za-z0-9]+): '/gm)].map((m) => m[1] ?? '');
+        if (fields.length === 0) return [error('scripts/lib/validators.ts', 'declares no comparable field — FIELDS is what L4 compares')];
+        for (const field of fields) {
+            if (!guide.includes(`\`${field}\``)) out.push(error(GUIDE, `does not document the L4 field \`${field}\`, which scripts/lib/validators.ts compares`));
+        }
+        for (const m of guide.matchAll(/`([a-z][A-Za-z0-9]*Fp256)`/g)) {
+            if (!fields.includes(m[1] ?? '')) out.push(error(GUIDE, `documents the L4 field \`${m[1] ?? ''}\`, which scripts/lib/validators.ts does not compare`));
+        }
+
+        const notices = ctx.read(NOTICES) ?? '';
+        for (const m of source.matchAll(/^ {8}lineage: '([^']+)'/gm)) {
+            const lineage = (m[1] ?? '').split(',')[0] ?? '';
+            if (!notices.includes(lineage)) out.push(error(NOTICES, `credits no "${lineage}", which the L4 validator matrix runs — every toolchain it uses is named, with the fact that none is downloaded, vendored or pinned`));
+        }
+
+        const reviewed = readJson<{ schema?: unknown; reviewed?: Record<string, unknown> }>(ctx, DISAGREEMENTS);
+        if ('finding' in reviewed) return [...out, reviewed.finding];
+        for (const [key, reason] of Object.entries(reviewed.value.reviewed ?? {})) {
+            if (typeof reason !== 'string' || reason.trim() === '' || /^TODO\b/i.test(reason)) {
+                out.push(error(DISAGREEMENTS, `the disagreement ${key} carries no reason — an entry without one silences a difference instead of recording it`));
+            }
+            if (!/^[a-z0-9-]+:[0-9a-f]{64}:[A-Za-z0-9]+@[a-z0-9]+$/.test(key)) {
+                out.push(error(DISAGREEMENTS, `the key ${JSON.stringify(key)} is not <validator>:<sha256>:<field>@<platform>`));
+            }
+        }
+        return out;
+    },
+};
+
+export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity];
