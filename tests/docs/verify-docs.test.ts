@@ -62,6 +62,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'anchor-parity': (f) => edit(f, 'docs/guides/quickstart.md', '[error guide](errors.md)', '[error guide](errors.md#no-such-heading)'),
     'seo-head': (f) => edit(f, 'docs/index.html', '<html lang="en">', '<html>'),
     'sitemap-parity': (f) => edit(f, 'docs/sitemap.xml', /\s*<url><loc>https:\/\/pkinative\.dev\/guides\/choose\.html<\/loc><\/url>/, ''),
+    // Fires at any counter value, 0 included, so this row survives the end state.
+    'member-tsdoc': (f) => edit(f, 'docs/assets/ecosystem.json', /"undocumentedMembers": \d+/, '"undocumentedMembers": 9999'),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
     // Edit the SVG without re-rasterising: the recorded hash no longer matches.
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),
