@@ -56,6 +56,7 @@ const TARBALL = /releases\/download\/v[0-9][^/\s]*\/pkinative-[0-9][^\s"')`]*\.t
 const ATTESTED = /gh attestation verify pkinative-[0-9][^\s]*\.tgz/g;
 const tarball = (v: string): string => `releases/download/v${v}/pkinative-${v}.tgz`;
 const attested = (v: string): string => `gh attestation verify pkinative-${v}.tgz`;
+const minor = (v: string): string => v.split('.').slice(0, 2).join('.');
 
 export const EDITS: readonly Edit[] = [
     { file: 'package.json', what: 'version', pattern: /("name": "pkinative",\s*\n\s*"version": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
@@ -81,6 +82,18 @@ export const EDITS: readonly Edit[] = [
     { file: 'docs/guides/quickstart.md', what: 'release tarball URL', pattern: TARBALL, replace: (v) => tarball(v) },
     { file: 'docs/guides/quickstart.md', what: 'attestation tarball name', pattern: ATTESTED, replace: (v) => attested(v) },
     { file: 'docs/index.html', what: 'install command (code and data-copy)', pattern: TARBALL, replace: (v) => tarball(v) },
+
+    // The fourth version site, which `surfaces-parity` owns and no list of
+    // "what a bump touches" had ever mentioned. Found by the rule, on the
+    // first release after the rule existed.
+    { file: 'docs/data/surfaces.json', what: 'version', pattern: /("version": ")\d+\.\d+\.\d+(")/, replace: (v) => `$1${v}$2` },
+
+    // The two prose sentences that carry the current minor beside those
+    // URLs. They change wording at 1.0 — "pre-1.0, not on npm" stops being
+    // true — so the rewrite is of the digits alone and the sentence is a
+    // human's to revisit then.
+    { file: 'README.md', what: 'status line minor', pattern: /(\*\*Status: )\d+\.\d+( )/, replace: (v) => `$1${minor(v)}$2` },
+    { file: 'docs/agent-brief.md', what: 'release-tarball minor', pattern: /\b\d+\.\d+( is the release tarball\b)/, replace: (v) => `${minor(v)}$1` },
 ];
 
 function parseArgs(argv: readonly string[]): { version: string; date: string; dryRun: boolean } | null {
@@ -117,7 +130,14 @@ function main(): number {
         // one refactor away from silently skipping a file's first match.
         edit.pattern.lastIndex = 0;
         if (!edit.pattern.test(before)) {
-            console.error(`FAIL  ${edit.file}: ${edit.what} not found`);
+            // Re-running a bump is the common way to land here: the CHANGELOG
+            // heading is consumed by the first run, so the second finds
+            // nothing, fails, and — since failures are collected before any
+            // write — silently leaves every other file untouched. Saying so
+            // costs three lines and saves the ten minutes of reading the
+            // whole table to work out why nothing changed.
+            const seen = before.includes(args.version) ? ` (the file already mentions ${args.version}: has this bump already run? nothing is written while any row fails)` : '';
+            console.error(`FAIL  ${edit.file}: ${edit.what} not found${seen}`);
             failures++;
             continue;
         }

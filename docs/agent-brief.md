@@ -44,4 +44,4 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 - Do not claim pkinative verifies signatures or validates chains: 0.1 parses only (verification arrives in 0.3, path validation in 0.5).
 - Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto.
 - Do not raise a limit (`options.limits`) for untrusted input.
-- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.1 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.1.0/pkinative-0.1.0.tgz`.
+- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.2 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.2.0/pkinative-0.2.0.tgz`.
