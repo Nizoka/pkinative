@@ -56,7 +56,9 @@ interface GeneralNameBase {
 
 /** `otherName [0]`: a type OID and a value of that type. */
 export interface OtherGeneralName extends GeneralNameBase {
+    /** Discriminant: switch on it to narrow a `GeneralName` to this alternative. */
     readonly kind: 'otherName';
+    /** The OID that says how to read `value`. */
     readonly typeId: string;
     /** The value inside the explicit `[0]` tag. */
     readonly value: Asn1Node;
@@ -64,25 +66,33 @@ export interface OtherGeneralName extends GeneralNameBase {
 
 /** `rfc822Name [1]`, `dNSName [2]` and `uniformResourceIdentifier [6]`: ASCII text. */
 export interface TextGeneralName extends GeneralNameBase {
+    /** Discriminant, which also says which of the three text forms this is. */
     readonly kind: 'rfc822Name' | 'dNSName' | 'uniformResourceIdentifier';
+    /** The IA5String text, exactly as encoded: never lowercased, never punycode-decoded, never trimmed. */
     readonly value: string;
 }
 
 /** `x400Address [3]` and `ediPartyName [5]`, kept as their tagged node. */
 export interface OpaqueGeneralName extends GeneralNameBase {
+    /** Discriminant, which also says which of the two undecoded forms this is. */
     readonly kind: 'x400Address' | 'ediPartyName';
+    /** The tagged node, undecoded: neither form has a profile RFC 5280 defines. */
     readonly value: Asn1Node;
 }
 
 /** `directoryName [4]`. */
 export interface DirectoryGeneralName extends GeneralNameBase {
+    /** Discriminant: switch on it to narrow a `GeneralName` to this alternative. */
     readonly kind: 'directoryName';
+    /** The name, in the same shape as `certificate.subject`. */
     readonly name: DistinguishedName;
 }
 
 /** `iPAddress [7]`: an address, and in name constraints its mask. */
 export interface IpAddressGeneralName extends GeneralNameBase {
+    /** Discriminant: switch on it to narrow a `GeneralName` to this alternative. */
     readonly kind: 'iPAddress';
+    /** 4 or 6, decided by the octet count, not by anything the certificate asserts. */
     readonly version: 4 | 6;
     /** Dotted decimal for IPv4, RFC 5952 text for IPv6. */
     readonly address: string;
@@ -94,7 +104,9 @@ export interface IpAddressGeneralName extends GeneralNameBase {
 
 /** `registeredID [8]`. */
 export interface RegisteredIdGeneralName extends GeneralNameBase {
+    /** Discriminant: switch on it to narrow a `GeneralName` to this alternative. */
     readonly kind: 'registeredID';
+    /** The identifier, in dotted notation. */
     readonly oid: string;
 }
 
@@ -110,6 +122,7 @@ export type GeneralName =
 // ── Public keys ──────────────────────────────────────────────────────
 
 interface PublicKeyInfoBase {
+    /** The algorithm the key belongs to, with its parameters; `kind` is pkinative's reading of it. */
     readonly algorithm: AlgorithmIdentifier;
     /** The subjectPublicKey BIT STRING. */
     readonly publicKey: BitString;
@@ -119,10 +132,13 @@ interface PublicKeyInfoBase {
 
 /** An RSA or RSASSA-PSS key (RFC 3279 §2.3.1, RFC 4055 §1.2). */
 export interface RsaPublicKeyInfo extends PublicKeyInfoBase {
+    /** Discriminant: switch on it to narrow a `SubjectPublicKeyInfo` to this alternative. */
     readonly kind: 'rsa' | 'rsa-pss';
     /** The unsigned big-endian modulus, without its sign octet. */
     readonly modulus: Uint8Array;
+    /** The bit length of `modulus`, counted from its most significant set bit — the number "RSA 2048" means. */
     readonly modulusBits: number;
+    /** The public exponent, usually 65537. */
     readonly publicExponent: bigint;
 }
 
@@ -131,11 +147,13 @@ export type EcCurve = 'P-256' | 'P-384' | 'P-521';
 
 /** An elliptic-curve key (RFC 5480). */
 export interface EcPublicKeyInfo extends PublicKeyInfoBase {
+    /** Discriminant: switch on it to narrow a `SubjectPublicKeyInfo` to this alternative. */
     readonly kind: 'ec';
     /** The namedCurve OID; `undefined` when the parameters are not a named curve. */
     readonly namedCurve: string | undefined;
     /** The curve name when `namedCurve` is P-256, P-384 or P-521. */
     readonly curve: EcCurve | undefined;
+    /** Read from the point's first octet: `0x04` is uncompressed, `0x02` and `0x03` compressed. */
     readonly pointFormat: 'uncompressed' | 'compressed';
     /** The encoded point, format octet included. */
     readonly point: Uint8Array;
@@ -143,12 +161,15 @@ export interface EcPublicKeyInfo extends PublicKeyInfoBase {
 
 /** A key whose subjectPublicKey is the raw key octets (RFC 8410, FIPS 204). */
 export interface OctetPublicKeyInfo extends PublicKeyInfoBase {
+    /** Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`. */
     readonly kind: 'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87';
+    /** The raw key octets: the subjectPublicKey content, with no structure of its own. */
     readonly key: Uint8Array;
 }
 
 /** A key of an algorithm pkinative does not decode. */
 export interface UnknownPublicKeyInfo extends PublicKeyInfoBase {
+    /** Discriminant: read `algorithm.oid` and `publicKey` to go further. */
     readonly kind: 'unknown';
 }
 
@@ -159,7 +180,9 @@ export type SubjectPublicKeyInfo = RsaPublicKeyInfo | EcPublicKeyInfo | OctetPub
 
 /** The validity period (RFC 5280 §4.1.2.5). */
 export interface Validity {
+    /** The first instant the certificate is valid, inclusive. */
     readonly notBefore: PkiTime;
+    /** The last instant the certificate is valid, inclusive; RFC 5280 §4.1.2.5 gives 99991231235959Z the meaning "no well-defined expiry". */
     readonly notAfter: PkiTime;
 }
 
@@ -169,6 +192,7 @@ export interface SerialNumber {
     readonly bytes: Uint8Array;
     /** Lowercase hexadecimal of `bytes`. */
     readonly hex: string;
+    /** The signed value; negative for a serial whose first octet has the high bit set. Compare serials by `bytes` or `hex`, never by `value`. */
     readonly value: bigint;
 }
 
@@ -176,7 +200,9 @@ export interface SerialNumber {
 
 /** The fields every extension carries (RFC 5280 §4.1.2.9). */
 export interface ExtensionBase {
+    /** The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints). */
     readonly oid: string;
+    /** Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate. */
     readonly critical: boolean;
     /** The content of extnValue: the DER encoding of the extension value. */
     readonly valueDer: Uint8Array;
@@ -450,18 +476,27 @@ export interface Certificate {
     readonly der: Uint8Array;
     /** The tbsCertificate encoding — the bytes the signature covers. */
     readonly tbsDer: Uint8Array;
+    /** The profile version, already decoded from the encoded 0, 1 or 2; only a v3 certificate may carry extensions. */
     readonly version: 1 | 2 | 3;
+    /** The issuer-assigned serial, unique per issuer — the pair (issuer, serialNumber) identifies a certificate. */
     readonly serialNumber: SerialNumber;
     /** The outer signatureAlgorithm. */
     readonly signatureAlgorithm: AlgorithmIdentifier;
     /** tbsCertificate.signature, which RFC 5280 requires to equal `signatureAlgorithm`. */
     readonly tbsSignatureAlgorithm: AlgorithmIdentifier;
+    /** The signature over `tbsDer`. pkinative does not verify it: 0.1 parses only. */
     readonly signatureValue: BitString;
+    /** Who issued the certificate — matched against the subject of the issuing certificate by encoded bytes. */
     readonly issuer: DistinguishedName;
+    /** When the certificate is valid. Nothing here is compared against the current time; that is the caller's decision. */
     readonly validity: Validity;
+    /** Who the certificate is about. Empty for a certificate that carries its identity in subjectAltName. */
     readonly subject: DistinguishedName;
+    /** The subject's public key, discriminated by `kind`. */
     readonly subjectPublicKeyInfo: SubjectPublicKeyInfo;
+    /** issuerUniqueID, or `undefined` when absent. RFC 5280 §4.1.2.8 recommends against issuing it. */
     readonly issuerUniqueId: BitString | undefined;
+    /** subjectUniqueID, or `undefined` when absent. RFC 5280 §4.1.2.8 recommends against issuing it. */
     readonly subjectUniqueId: BitString | undefined;
     /** Every extension in encoded order; empty when the field is absent. */
     readonly extensions: readonly Extension[];

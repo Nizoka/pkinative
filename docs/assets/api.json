@@ -215,13 +215,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -257,13 +257,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -311,13 +311,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -395,13 +395,13 @@
           "name": "version",
           "type": "1 | 2 | 3",
           "optional": false,
-          "summary": null
+          "summary": "The profile version, already decoded from the encoded 0, 1 or 2; only a v3 certificate may carry extensions."
         },
         {
           "name": "serialNumber",
           "type": "SerialNumber",
           "optional": false,
-          "summary": null
+          "summary": "The issuer-assigned serial, unique per issuer — the pair (issuer, serialNumber) identifies a certificate."
         },
         {
           "name": "signatureAlgorithm",
@@ -419,43 +419,43 @@
           "name": "signatureValue",
           "type": "BitString",
           "optional": false,
-          "summary": null
+          "summary": "The signature over `tbsDer`."
         },
         {
           "name": "issuer",
           "type": "DistinguishedName",
           "optional": false,
-          "summary": null
+          "summary": "Who issued the certificate — matched against the subject of the issuing certificate by encoded bytes."
         },
         {
           "name": "validity",
           "type": "Validity",
           "optional": false,
-          "summary": null
+          "summary": "When the certificate is valid."
         },
         {
           "name": "subject",
           "type": "DistinguishedName",
           "optional": false,
-          "summary": null
+          "summary": "Who the certificate is about."
         },
         {
           "name": "subjectPublicKeyInfo",
           "type": "SubjectPublicKeyInfo",
           "optional": false,
-          "summary": null
+          "summary": "The subject's public key, discriminated by `kind`."
         },
         {
           "name": "issuerUniqueId",
           "type": "BitString | undefined",
           "optional": false,
-          "summary": null
+          "summary": "issuerUniqueID, or `undefined` when absent."
         },
         {
           "name": "subjectUniqueId",
           "type": "BitString | undefined",
           "optional": false,
-          "summary": null
+          "summary": "subjectUniqueID, or `undefined` when absent."
         },
         {
           "name": "extensions",
@@ -485,13 +485,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -557,13 +557,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -753,13 +753,13 @@
           "name": "kind",
           "type": "'directoryName'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `GeneralName` to this alternative."
         },
         {
           "name": "name",
           "type": "DistinguishedName",
           "optional": false,
-          "summary": null
+          "summary": "The name, in the same shape as `certificate.subject`."
         }
       ]
     },
@@ -848,7 +848,7 @@
           "name": "algorithm",
           "type": "AlgorithmIdentifier",
           "optional": false,
-          "summary": null
+          "summary": "The algorithm the key belongs to, with its parameters; `kind` is pkinative's reading of it."
         },
         {
           "name": "publicKey",
@@ -866,7 +866,7 @@
           "name": "kind",
           "type": "'ec'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `SubjectPublicKeyInfo` to this alternative."
         },
         {
           "name": "namedCurve",
@@ -884,7 +884,7 @@
           "name": "pointFormat",
           "type": "'uncompressed' | 'compressed'",
           "optional": false,
-          "summary": null
+          "summary": "Read from the point's first octet: `0x04` is uncompressed, `0x02` and `0x03` compressed."
         },
         {
           "name": "point",
@@ -919,13 +919,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -972,13 +972,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1037,13 +1037,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1120,13 +1120,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1168,13 +1168,13 @@
           "name": "kind",
           "type": "'iPAddress'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `GeneralName` to this alternative."
         },
         {
           "name": "version",
           "type": "4 | 6",
           "optional": false,
-          "summary": null
+          "summary": "4 or 6, decided by the octet count, not by anything the certificate asserts."
         },
         {
           "name": "address",
@@ -1210,13 +1210,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1252,13 +1252,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1311,13 +1311,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1394,13 +1394,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -1430,7 +1430,7 @@
           "name": "algorithm",
           "type": "AlgorithmIdentifier",
           "optional": false,
-          "summary": null
+          "summary": "The algorithm the key belongs to, with its parameters; `kind` is pkinative's reading of it."
         },
         {
           "name": "publicKey",
@@ -1448,13 +1448,13 @@
           "name": "kind",
           "type": "'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`."
         },
         {
           "name": "key",
           "type": "Uint8Array",
           "optional": false,
-          "summary": null
+          "summary": "The raw key octets: the subjectPublicKey content, with no structure of its own."
         }
       ]
     },
@@ -1508,13 +1508,13 @@
           "name": "kind",
           "type": "'x400Address' | 'ediPartyName'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant, which also says which of the two undecoded forms this is."
         },
         {
           "name": "value",
           "type": "Asn1Node",
           "optional": false,
-          "summary": null
+          "summary": "The tagged node, undecoded: neither form has a profile RFC 5280 defines."
         }
       ]
     },
@@ -1538,13 +1538,13 @@
           "name": "kind",
           "type": "'otherName'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `GeneralName` to this alternative."
         },
         {
           "name": "typeId",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The OID that says how to read `value`."
         },
         {
           "name": "value",
@@ -1970,13 +1970,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2066,13 +2066,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2119,13 +2119,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2256,13 +2256,13 @@
           "name": "kind",
           "type": "'registeredID'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `GeneralName` to this alternative."
         },
         {
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The identifier, in dotted notation."
         }
       ]
     },
@@ -2291,7 +2291,7 @@
           "name": "algorithm",
           "type": "AlgorithmIdentifier",
           "optional": false,
-          "summary": null
+          "summary": "The algorithm the key belongs to, with its parameters; `kind` is pkinative's reading of it."
         },
         {
           "name": "publicKey",
@@ -2309,7 +2309,7 @@
           "name": "kind",
           "type": "'rsa' | 'rsa-pss'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `SubjectPublicKeyInfo` to this alternative."
         },
         {
           "name": "modulus",
@@ -2321,13 +2321,13 @@
           "name": "modulusBits",
           "type": "number",
           "optional": false,
-          "summary": null
+          "summary": "The bit length of `modulus`, counted from its most significant set bit — the number \"RSA 2048\" means."
         },
         {
           "name": "publicExponent",
           "type": "bigint",
           "optional": false,
-          "summary": null
+          "summary": "The public exponent, usually 65537."
         }
       ]
     },
@@ -2357,7 +2357,7 @@
           "name": "value",
           "type": "bigint",
           "optional": false,
-          "summary": null
+          "summary": "The signed value; negative for a serial whose first octet has the high bit set."
         }
       ]
     },
@@ -2375,13 +2375,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2417,13 +2417,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2459,13 +2459,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2501,13 +2501,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2571,13 +2571,13 @@
           "name": "kind",
           "type": "'rfc822Name' | 'dNSName' | 'uniformResourceIdentifier'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant, which also says which of the three text forms this is."
         },
         {
           "name": "value",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The IA5String text, exactly as encoded: never lowercased, never punycode-decoded, never trimmed."
         }
       ]
     },
@@ -2606,13 +2606,13 @@
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
         },
         {
           "name": "critical",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
         },
         {
           "name": "valueDer",
@@ -2672,7 +2672,7 @@
           "name": "algorithm",
           "type": "AlgorithmIdentifier",
           "optional": false,
-          "summary": null
+          "summary": "The algorithm the key belongs to, with its parameters; `kind` is pkinative's reading of it."
         },
         {
           "name": "publicKey",
@@ -2690,7 +2690,7 @@
           "name": "kind",
           "type": "'unknown'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: read `algorithm.oid` and `publicKey` to go further."
         }
       ]
     },
@@ -2744,13 +2744,13 @@
           "name": "notBefore",
           "type": "PkiTime",
           "optional": false,
-          "summary": null
+          "summary": "The first instant the certificate is valid, inclusive."
         },
         {
           "name": "notAfter",
           "type": "PkiTime",
           "optional": false,
-          "summary": null
+          "summary": "The last instant the certificate is valid, inclusive; RFC 5280 §4.1.2.5 gives 99991231235959Z the meaning \"no well-defined expiry\"."
         }
       ]
     },

@@ -31,7 +31,7 @@
   },
   "derived": {
     "$comment": "Measured from the repository, never written by hand except to record a reviewed improvement. undocumentedMembers is a ratchet: the member-tsdoc rule fails if docs/assets/api.json holds a different number of interface members without a summary, in either direction, so the debt can only go down and only in a diff someone read.",
-    "undocumentedMembers": 153
+    "undocumentedMembers": 75
   },
   "declared": {
     "x509-limbo": { "commit": "118721335e675edde10015df89b138cf292d7554", "testcases": 9793, "certificates": 30361, "refused": 564 },
