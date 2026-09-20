@@ -33,6 +33,15 @@
   "declared": {
     "x509-limbo": { "commit": "118721335e675edde10015df89b138cf292d7554", "testcases": 9793, "certificates": 30361, "refused": 564 },
     "wycheproof": { "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230", "tests": 1530 },
+    "bundle": {
+      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff.",
+      "dist/index.js": { "maxBytes": 175000 },
+      "dist/index.cjs": { "maxBytes": 176000 },
+      "dist/index.d.ts": { "maxBytes": 80000 },
+      "dist/index.d.cts": { "maxBytes": 80000 },
+      "dist/index.js.map": { "maxBytes": 470000 },
+      "dist/index.cjs.map": { "maxBytes": 470000 }
+    },
     "socialImages": [
       { "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
         "svg": "docs/assets/og-image.svg", "png": "docs/assets/og-image.png", "width": 1200, "height": 630,

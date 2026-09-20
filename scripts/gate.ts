@@ -46,9 +46,10 @@
  */
 
 import { spawnSync, type SpawnSyncOptions } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { probeBundle, probeDistFiles, type BundleBudget, type DistFile } from './lib/bundle-probe.js';
 import { corporaReady } from './lib/corpora.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,9 +80,13 @@ function testCount(): string | null {
     if (!existsSync(VITEST_JSON)) return null;
     // The whole suite, skipped tests included — the figure `declared.tests`
     // in docs/assets/ecosystem.json is held to.
-    const report = JSON.parse(readFileSync(VITEST_JSON, 'utf8')) as { numTotalTests?: number; numPassedTests?: number };
+    const report = JSON.parse(readFileSync(VITEST_JSON, 'utf8')) as { numTotalTests?: number; numPassedTests?: number; numPendingTests?: number };
     const total = report.numTotalTests ?? report.numPassedTests;
-    return typeof total === 'number' ? `${total} tests` : null;
+    if (typeof total !== 'number') return null;
+    // A skipped suite is otherwise invisible in the one-line summary, which is
+    // exactly how a suite that stopped running goes unnoticed for a release.
+    const pending = report.numPendingTests ?? 0;
+    return pending > 0 ? `${total} tests, ${pending} skipped` : `${total} tests`;
 }
 
 function coverageFigure(): string | null {
@@ -108,6 +113,33 @@ const DIST_FILES = [
     'dist/index.d.cts',
 ] as const;
 
+/**
+ * The forensic probe of what `dist/` ships: portability, zero dependency, the
+ * console rule, nothing foreign, declaration parity and the byte budgets.
+ * Inline rather than an npm script — it is text over files that already exist,
+ * it costs milliseconds, and the gate keeps one line per step.
+ */
+function bundleFindings(): readonly string[] {
+    const files: DistFile[] = readdirSync(join(REPO_ROOT, 'dist')).map((name) => {
+        const path = `dist/${name}`;
+        const full = join(REPO_ROOT, path);
+        return { path, text: readFileSync(full, 'utf8'), bytes: statSync(full).size };
+    });
+    const api = JSON.parse(readFileSync(join(REPO_ROOT, 'docs/assets/api.json'), 'utf8')) as { exports?: Array<{ name: string }> };
+    const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'docs/assets/ecosystem.json'), 'utf8')) as {
+        declared?: { bundle?: Record<string, BundleBudget | string> };
+    };
+    const budgets: Record<string, BundleBudget> = {};
+    for (const [key, value] of Object.entries(manifest.declared?.bundle ?? {})) {
+        if (typeof value === 'object') budgets[key] = value;
+    }
+
+    const findings = files
+        .filter((f) => f.path.endsWith('.js') || f.path.endsWith('.cjs'))
+        .flatMap((f) => probeBundle(f.path, f.text));
+    return [...findings, ...probeDistFiles(files, (api.exports ?? []).map((e) => e.name), budgets)];
+}
+
 export const STEPS: readonly Step[] = [
     { id: 'typecheck:all', npmScript: 'typecheck:all', profiles: ['fast', 'ci', 'publish'] },
     { id: 'lint', npmScript: 'lint', profiles: ['fast', 'ci', 'publish'] },
@@ -115,14 +147,19 @@ export const STEPS: readonly Step[] = [
         id: 'test', npmScript: 'test', profiles: ['fast'],
         env: { GATE: '1' }, note: testCount,
     },
-    {
-        id: 'test:coverage', npmScript: 'test:coverage', profiles: ['ci', 'publish'],
-        env: { GATE: '1' }, note: () => joinNotes(testCount(), coverageFigure()),
-    },
+    // build comes before the suites so that tests/tools/bundle-probe.test.ts
+    // has an artefact to read. GATE_REQUIRE_ARTIFACTS turns a missing dist/
+    // into a failure there instead of a silent skip: inside the gate, the
+    // build has already run, so absence can only mean something is wrong.
     { id: 'build', npmScript: 'build', profiles: ['ci', 'publish'] },
     {
         id: 'dist-check', profiles: ['ci', 'publish'],
         inline: () => DIST_FILES.filter(f => !existsSync(join(REPO_ROOT, f))).map(f => `missing: ${f}`),
+    },
+    { id: 'bundle-check', profiles: ['ci', 'publish'], inline: bundleFindings },
+    {
+        id: 'test:coverage', npmScript: 'test:coverage', profiles: ['ci', 'publish'],
+        env: { GATE: '1', GATE_REQUIRE_ARTIFACTS: '1' }, note: () => joinNotes(testCount(), coverageFigure()),
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:bundle', npmScript: 'verify:bundle', profiles: ['ci', 'publish'] },
@@ -326,4 +363,9 @@ function main(): number {
     return failedAt === null ? 0 : 1;
 }
 
-process.exit(main());
+// Run only when invoked as the script. Without this guard, importing STEPS —
+// which tests/tools/gate.test.ts does, to hold the step order to what the
+// suites depend on — would run the whole gate recursively.
+if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url) {
+    process.exit(main());
+}
