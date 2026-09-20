@@ -1,4 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="pkinative — read the certificates your software trusts">
+<!--
+  pkinative Open Graph / social share image (1200x630).
+  Editable vector source. Rasterise to og-image.png with headless
+  Chromium/Edge using a window size of 1200x630 and the screenshot flag:
+    msedge ++headless ++disable-gpu ++hide-scrollbars ++window-size=1200,630
+           ++screenshot=og-image.png og-image.svg
+  (replace ++ with double dashes). The committed PNG is the artefact of
+  record — no social platform renders SVG — and docs/assets/ecosystem.json
+  records the SHA-256 of this file, so editing it without re-rasterising
+  fails the social-images rule of `npm run verify:docs`. Text renders
+  through the system font stack, so rasterise on a machine with Segoe UI
+  or equivalent.
+  Brand charter (shared with pdfnative and zipnative): primary #2563eb,
+  primary-dim #60a5fa on bg #0f172a, text #f1f5f9 / #e2e8f0.
+-->
   <rect width="1200" height="630" fill="#0f172a"/>
   <path d="M150 150 90 172v43c0 38 26 66 60 75 34-9 60-37 60-75v-43Z" fill="#2563eb"/>
   <circle cx="135" cy="215" r="20" fill="none" stroke="#ffffff" stroke-width="9"/>

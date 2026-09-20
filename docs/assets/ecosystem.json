@@ -32,6 +32,13 @@
   "derived": {},
   "declared": {
     "x509-limbo": { "commit": "118721335e675edde10015df89b138cf292d7554", "testcases": 9793, "certificates": 30361, "refused": 564 },
-    "wycheproof": { "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230", "tests": 1530 }
+    "wycheproof": { "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230", "tests": 1530 },
+    "socialImages": [
+      { "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
+        "svg": "docs/assets/og-image.svg", "png": "docs/assets/og-image.png", "width": 1200, "height": 630,
+        "svgSha256": "7b7685cc6218f786085b7e70442f59ea514ff74f8aa86e29866eab5fb171f81d" },
+      { "svg": "docs/assets/social-preview.svg", "png": "docs/assets/social-preview.png", "width": 1280, "height": 640,
+        "svgSha256": "ee042874ce38188b094c66a5b9a04fb4f73fc958d63a9304653fbe5a192c6152" }
+    ]
   }
 }

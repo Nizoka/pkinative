@@ -121,7 +121,9 @@ function page(options: { title: string; description: string; path: string; body:
   <meta property="og:url" content="${url}">
   <meta property="og:title" content="${escapeHtml(options.title)}">
   <meta property="og:description" content="${escapeHtml(options.description)}">
-  <meta property="og:image" content="${SITE}/assets/og-image.svg">
+  <meta property="og:image" content="${SITE}/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="${url}">
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">

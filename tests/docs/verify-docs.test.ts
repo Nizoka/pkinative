@@ -63,6 +63,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'seo-head': (f) => edit(f, 'docs/index.html', '<html lang="en">', '<html>'),
     'sitemap-parity': (f) => edit(f, 'docs/sitemap.xml', /\s*<url><loc>https:\/\/pkinative\.dev\/guides\/choose\.html<\/loc><\/url>/, ''),
     'clean-url-safe': (f) => edit(f, 'docs/index.html', 'href="guides/"', 'href="guides/index.html"'),
+    // Edit the SVG without re-rasterising: the recorded hash no longer matches.
+    'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),
     'jsonld-version': (f) => edit(f, 'docs/index.html', /"softwareVersion": "[^"]*"/, '"softwareVersion": "9.9.9"'),
     'verified-on-parity': (f) => edit(f, 'docs/index.html', /<time id="verified-on" datetime="[^"]+">[^<]+</, '<time id="verified-on" datetime="2020-01-01">2020-01-01<'),
     'contrast': (f) => edit(f, 'docs/style.css', /--c-text-dim: +#[0-9a-f]{6};/, '--c-text-dim:   #c0c0c0;'),

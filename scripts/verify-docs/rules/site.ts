@@ -13,12 +13,15 @@
  * @module scripts/verify-docs/rules/site
  */
 
+import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 import { GUIDES, guideAnchors, guideOutputs, SITE, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 const reader = (ctx: RuleContext): Reader => (path) => ctx.read(path);
+
+const MANIFEST = 'docs/assets/ecosystem.json';
 
 function generatedSync(id: string, summary: string, outputs: (read: Reader) => ReadonlyMap<string, string>, only: (path: string) => boolean, command: string): Rule {
     return {
@@ -191,6 +194,69 @@ const cleanUrlSafe: Rule = {
         const sitemap = ctx.read('docs/sitemap.xml');
         for (const m of (sitemap ?? '').matchAll(/<loc>([^<]*\/index\.html)<\/loc>/g)) {
             out.push(error('docs/sitemap.xml', `lists ${m[1] ?? ''}, which a host with cleanUrls redirects away from`, lineContaining(sitemap ?? '', m[1] ?? '')));
+        }
+        return out;
+    },
+};
+
+/** One entry of `declared.socialImages` in docs/assets/ecosystem.json. */
+interface SocialImage {
+    readonly svg?: unknown;
+    readonly png?: unknown;
+    readonly width?: unknown;
+    readonly height?: unknown;
+    readonly svgSha256?: unknown;
+}
+
+const socialImages: Rule = {
+    id: 'social-images',
+    summary: 'Every Open Graph and Twitter image under docs/ is a raster listed in declared.socialImages of docs/assets/ecosystem.json, declares that entry\'s width and height, and the recorded SHA-256 of each SVG source matches the file — which is what proves the committed PNG is not stale.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const manifest = readJson<{ declared?: { socialImages?: unknown } }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const declared = manifest.value.declared?.socialImages;
+        if (!Array.isArray(declared) || declared.length === 0) {
+            return [error(MANIFEST, 'declared.socialImages must list every social image, as { svg, png, width, height, svgSha256 }')];
+        }
+
+        const byPng = new Map<string, { width: number; height: number }>();
+        for (const raw of declared as SocialImage[]) {
+            const { svg, png, width, height, svgSha256 } = raw;
+            if (typeof svg !== 'string' || typeof png !== 'string' || typeof width !== 'number' || typeof height !== 'number' || typeof svgSha256 !== 'string') {
+                out.push(error(MANIFEST, `a socialImages entry is not { svg, png, width, height, svgSha256 }: ${JSON.stringify(raw)}`));
+                continue;
+            }
+            byPng.set(png, { width, height });
+            if (/\.svg$/.test(png)) out.push(error(MANIFEST, `${png} is an SVG: no social platform renders SVG, so the image a page advertises must be a raster`));
+            const source = ctx.read(svg);
+            if (source === null) { out.push(error(MANIFEST, `${svg} does not exist`)); continue; }
+            const actual = createHash('sha256').update(source.replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+            if (actual !== svgSha256) {
+                out.push(error(svg, `has changed since ${png} was rasterised (SHA-256 ${actual}, ecosystem.json records ${svgSha256}) — re-run the command in this file's header comment and record the new hash`));
+            }
+            const declaredSize = `width="${width}" height="${height}"`;
+            if (!source.includes(declaredSize)) {
+                out.push(error(svg, `does not declare ${declaredSize}, the size ecosystem.json says ${png} was rasterised at`));
+            }
+        }
+
+        for (const path of htmlPages(ctx)) {
+            const html = ctx.read(path) ?? '';
+            for (const m of html.matchAll(/<meta (?:property|name)="(og:image|twitter:image|og:image:secure_url)" content="([^"]+)">/g)) {
+                const [, key = '', url = ''] = m;
+                const file = `docs/${url.startsWith(`${SITE}/`) ? url.slice(SITE.length + 1) : url}`;
+                if (!byPng.has(file)) {
+                    out.push(error(path, `${key} points at ${url}, which declared.socialImages does not list${/\.svg$/.test(url) ? ' — and it is an SVG, which no social platform renders' : ''}`, lineContaining(html, url)));
+                    continue;
+                }
+                if (key !== 'og:image') continue;
+                const size = byPng.get(file);
+                for (const [dimension, value] of [['width', size?.width], ['height', size?.height]] as const) {
+                    const tag = `<meta property="og:image:${dimension}" content="${String(value)}">`;
+                    if (!html.includes(tag)) out.push(error(path, `declares ${key} but not ${tag}; a card without declared dimensions is re-cropped by every platform that reads it`, lineContaining(html, url)));
+                }
+            }
         }
         return out;
     },
@@ -374,5 +440,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, releaseNotes,
 ];
