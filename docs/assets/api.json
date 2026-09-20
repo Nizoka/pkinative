@@ -24,7 +24,7 @@
           "name": "accessLocation",
           "type": "GeneralName",
           "optional": false,
-          "summary": null
+          "summary": "Where to reach it, usually a `uniformResourceIdentifier`."
         }
       ]
     },
@@ -72,19 +72,19 @@
           "name": "tagClass",
           "type": "TagClass",
           "optional": false,
-          "summary": null
+          "summary": "The two leading bits of the identifier octet."
         },
         {
           "name": "tagNumber",
           "type": "number",
           "optional": false,
-          "summary": null
+          "summary": "The tag number."
         },
         {
           "name": "constructed",
           "type": "boolean",
           "optional": false,
-          "summary": null
+          "summary": "Whether the value is built from other values (bit 6 of the identifier octet): `children` is populated exactly when this is true."
         },
         {
           "name": "offset",
@@ -144,19 +144,19 @@
           "name": "stringType",
           "type": "Asn1StringType",
           "optional": false,
-          "summary": null
+          "summary": "Which of the eight string types it was encoded as — the charset that decided how `raw` became `value`."
         },
         {
           "name": "value",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The decoded text."
         },
         {
           "name": "raw",
           "type": "Uint8Array",
           "optional": false,
-          "summary": null
+          "summary": "The content octets before decoding, for a comparison by bytes."
         }
       ]
     },
@@ -233,13 +233,13 @@
           "name": "kind",
           "type": "'authorityInfoAccess'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'authorityInfoAccess')` returns this type."
         },
         {
           "name": "descriptions",
           "type": "readonly AccessDescription[]",
           "optional": false,
-          "summary": null
+          "summary": "Where to reach the issuer's OCSP responder and its own certificate, in encoded order."
         }
       ]
     },
@@ -359,13 +359,13 @@
           "name": "bytes",
           "type": "Uint8Array",
           "optional": false,
-          "summary": null
+          "summary": "The octets, most significant bit first."
         },
         {
           "name": "unusedBits",
           "type": "number",
           "optional": false,
-          "summary": null
+          "summary": "How many bits of the final octet are padding, 0 to 7."
         }
       ]
     },
@@ -503,13 +503,13 @@
           "name": "kind",
           "type": "'certificatePolicies'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'certificatePolicies')` returns this type."
         },
         {
           "name": "policies",
           "type": "readonly PolicyInformation[]",
           "optional": false,
-          "summary": null
+          "summary": "The policies this certificate was issued under, in encoded order."
         }
       ]
     },
@@ -527,19 +527,19 @@
           "name": "kind",
           "type": "'cps'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative."
         },
         {
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The qualifier OID, `1.3.6.1.5.5.7.2.1`."
         },
         {
           "name": "uri",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "Where the certification practice statement is published."
         }
       ]
     },
@@ -575,13 +575,13 @@
           "name": "kind",
           "type": "'crlDistributionPoints'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'crlDistributionPoints')` returns this type."
         },
         {
           "name": "points",
           "type": "readonly DistributionPoint[]",
           "optional": false,
-          "summary": null
+          "summary": "Where the revocation lists are, in encoded order."
         }
       ]
     },
@@ -801,25 +801,25 @@
           "name": "fullName",
           "type": "readonly GeneralName[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "Where the CRL is published, usually a `uniformResourceIdentifier`; `undefined` when absent."
         },
         {
           "name": "nameRelativeToCRLIssuer",
           "type": "RelativeDistinguishedName | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The point named relative to the CRL issuer; `undefined` when absent."
         },
         {
           "name": "reasons",
           "type": "readonly ReasonFlag[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "Which revocation reasons this point covers; `undefined` means all of them, which is not the same as an empty list."
         },
         {
           "name": "cRLIssuer",
           "type": "readonly GeneralName[] | undefined",
           "optional": false,
-          "summary": null
+          "summary": "Who issues the CRL when it is not the certificate's own issuer; `undefined` when absent."
         }
       ]
     },
@@ -1055,13 +1055,13 @@
           "name": "kind",
           "type": "'freshestCRL'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'freshestCRL')` returns this type."
         },
         {
           "name": "points",
           "type": "readonly DistributionPoint[]",
           "optional": false,
-          "summary": null
+          "summary": "Where the delta CRLs are, in encoded order."
         }
       ]
     },
@@ -1138,13 +1138,13 @@
           "name": "kind",
           "type": "'inhibitAnyPolicy'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'inhibitAnyPolicy')` returns this type."
         },
         {
           "name": "skipCerts",
           "type": "number",
           "optional": false,
-          "summary": null
+          "summary": "How many further certificates may still rely on anyPolicy; 0 forbids it from this certificate on."
         }
       ]
     },
@@ -1359,13 +1359,13 @@
           "name": "organization",
           "type": "Asn1String",
           "optional": false,
-          "summary": null
+          "summary": "The organization the notice numbers are defined by."
         },
         {
           "name": "noticeNumbers",
           "type": "readonly bigint[]",
           "optional": false,
-          "summary": null
+          "summary": "Which notices of that organization apply."
         }
       ]
     },
@@ -1412,7 +1412,7 @@
           "name": "kind",
           "type": "'ocspNoCheck'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'ocspNoCheck')` returns this type."
         }
       ]
     },
@@ -1679,13 +1679,13 @@
           "name": "code",
           "type": "PkiDiagnosticCode",
           "optional": false,
-          "summary": null
+          "summary": "The stable identifier."
         },
         {
           "name": "severity",
           "type": "PkiDiagnosticSeverity",
           "optional": false,
-          "summary": null
+          "summary": "How much it matters: `'warning'` for something a strict reader would refuse, `'info'` for something merely worth knowing."
         },
         {
           "name": "message",
@@ -1940,7 +1940,7 @@
           "name": "type",
           "type": "TimeType",
           "optional": false,
-          "summary": null
+          "summary": "Which type it was encoded as."
         },
         {
           "name": "epochMilliseconds",
@@ -1988,19 +1988,19 @@
           "name": "kind",
           "type": "'policyConstraints'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'policyConstraints')` returns this type."
         },
         {
           "name": "requireExplicitPolicy",
           "type": "number | undefined",
           "optional": false,
-          "summary": null
+          "summary": "How many further certificates may be issued before an acceptable policy becomes mandatory; `undefined` when the field is absent."
         },
         {
           "name": "inhibitPolicyMapping",
           "type": "number | undefined",
           "optional": false,
-          "summary": null
+          "summary": "How many further certificates may be issued before policy mapping is forbidden; `undefined` when the field is absent."
         }
       ]
     },
@@ -2018,13 +2018,13 @@
           "name": "policyIdentifier",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The policy OID; `2.5.29.32.0` is anyPolicy."
         },
         {
           "name": "qualifiers",
           "type": "readonly PolicyQualifier[]",
           "optional": false,
-          "summary": null
+          "summary": "Qualifiers of this policy, in encoded order; empty when the field is absent."
         }
       ]
     },
@@ -2042,13 +2042,13 @@
           "name": "issuerDomainPolicy",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The policy as the issuer names it."
         },
         {
           "name": "subjectDomainPolicy",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The policy it is equivalent to in the subject's domain."
         }
       ]
     },
@@ -2084,13 +2084,13 @@
           "name": "kind",
           "type": "'policyMappings'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'policyMappings')` returns this type."
         },
         {
           "name": "mappings",
           "type": "readonly PolicyMapping[]",
           "optional": false,
-          "summary": null
+          "summary": "The equivalences asserted, in encoded order."
         }
       ]
     },
@@ -2393,7 +2393,7 @@
           "name": "kind",
           "type": "'signedCertificateTimestampList'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'signedCertificateTimestampList')` returns this type."
         },
         {
           "name": "list",
@@ -2477,13 +2477,13 @@
           "name": "kind",
           "type": "'subjectInfoAccess'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant; `getExtension(cert, 'subjectInfoAccess')` returns this type."
         },
         {
           "name": "descriptions",
           "type": "readonly AccessDescription[]",
           "optional": false,
-          "summary": null
+          "summary": "Services the subject itself offers, in encoded order."
         }
       ]
     },
@@ -2642,19 +2642,19 @@
           "name": "kind",
           "type": "'unknown'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative."
         },
         {
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The qualifier OID, which says how to read `qualifier`."
         },
         {
           "name": "qualifier",
           "type": "Asn1Node",
           "optional": false,
-          "summary": null
+          "summary": "The undecoded qualifier value."
         }
       ]
     },
@@ -2708,25 +2708,25 @@
           "name": "kind",
           "type": "'userNotice'",
           "optional": false,
-          "summary": null
+          "summary": "Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative."
         },
         {
           "name": "oid",
           "type": "string",
           "optional": false,
-          "summary": null
+          "summary": "The qualifier OID, `1.3.6.1.5.5.7.2.2`."
         },
         {
           "name": "noticeRef",
           "type": "NoticeReference | undefined",
           "optional": false,
-          "summary": null
+          "summary": "A notice named indirectly, by organization and number; `undefined` when absent."
         },
         {
           "name": "explicitText",
           "type": "Asn1String | undefined",
           "optional": false,
-          "summary": null
+          "summary": "The notice spelled out; `undefined` when absent."
         }
       ]
     },

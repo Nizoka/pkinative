@@ -318,29 +318,41 @@ export interface NameConstraintsExtension extends ExtensionBase {
 
 /** A CPS pointer qualifier. */
 export interface CpsQualifier {
+    /** Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative. */
     readonly kind: 'cps';
+    /** The qualifier OID, `1.3.6.1.5.5.7.2.1`. */
     readonly oid: string;
+    /** Where the certification practice statement is published. A URI from the certificate: never fetch it without deciding you trust the issuer. */
     readonly uri: string;
 }
 
 /** The organization and notice numbers of a user notice. */
 export interface NoticeReference {
+    /** The organization the notice numbers are defined by. */
     readonly organization: Asn1String;
+    /** Which notices of that organization apply. */
     readonly noticeNumbers: readonly bigint[];
 }
 
 /** A user notice qualifier. */
 export interface UserNoticeQualifier {
+    /** Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative. */
     readonly kind: 'userNotice';
+    /** The qualifier OID, `1.3.6.1.5.5.7.2.2`. */
     readonly oid: string;
+    /** A notice named indirectly, by organization and number; `undefined` when absent. */
     readonly noticeRef: NoticeReference | undefined;
+    /** The notice spelled out; `undefined` when absent. Attacker-controlled text: escape it before displaying it. */
     readonly explicitText: Asn1String | undefined;
 }
 
 /** A qualifier pkinative does not decode. */
 export interface UnknownPolicyQualifier {
+    /** Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative. */
     readonly kind: 'unknown';
+    /** The qualifier OID, which says how to read `qualifier`. */
     readonly oid: string;
+    /** The undecoded qualifier value. */
     readonly qualifier: Asn1Node;
 }
 
@@ -349,38 +361,51 @@ export type PolicyQualifier = CpsQualifier | UserNoticeQualifier | UnknownPolicy
 
 /** One entry of certificatePolicies. */
 export interface PolicyInformation {
+    /** The policy OID; `2.5.29.32.0` is anyPolicy. */
     readonly policyIdentifier: string;
+    /** Qualifiers of this policy, in encoded order; empty when the field is absent. */
     readonly qualifiers: readonly PolicyQualifier[];
 }
 
 /** certificatePolicies (RFC 5280 §4.2.1.4). */
 export interface CertificatePoliciesExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'certificatePolicies')` returns this type. */
     readonly kind: 'certificatePolicies';
+    /** The policies this certificate was issued under, in encoded order. */
     readonly policies: readonly PolicyInformation[];
 }
 
 /** One issuer-to-subject policy mapping. */
 export interface PolicyMapping {
+    /** The policy as the issuer names it. */
     readonly issuerDomainPolicy: string;
+    /** The policy it is equivalent to in the subject's domain. */
     readonly subjectDomainPolicy: string;
 }
 
 /** policyMappings (RFC 5280 §4.2.1.5). */
 export interface PolicyMappingsExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'policyMappings')` returns this type. */
     readonly kind: 'policyMappings';
+    /** The equivalences asserted, in encoded order. */
     readonly mappings: readonly PolicyMapping[];
 }
 
 /** policyConstraints (RFC 5280 §4.2.1.11). */
 export interface PolicyConstraintsExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'policyConstraints')` returns this type. */
     readonly kind: 'policyConstraints';
+    /** How many further certificates may be issued before an acceptable policy becomes mandatory; `undefined` when the field is absent. */
     readonly requireExplicitPolicy: number | undefined;
+    /** How many further certificates may be issued before policy mapping is forbidden; `undefined` when the field is absent. */
     readonly inhibitPolicyMapping: number | undefined;
 }
 
 /** inhibitAnyPolicy (RFC 5280 §4.2.1.14). */
 export interface InhibitAnyPolicyExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'inhibitAnyPolicy')` returns this type. */
     readonly kind: 'inhibitAnyPolicy';
+    /** How many further certificates may still rely on anyPolicy; 0 forbids it from this certificate on. */
     readonly skipCerts: number;
 }
 
@@ -388,18 +413,23 @@ export interface InhibitAnyPolicyExtension extends ExtensionBase {
 export interface AccessDescription {
     /** e.g. `1.3.6.1.5.5.7.48.1` (ocsp) or `1.3.6.1.5.5.7.48.2` (caIssuers). */
     readonly accessMethod: string;
+    /** Where to reach it, usually a `uniformResourceIdentifier`. A location from the certificate: never fetch it without deciding you trust the issuer. */
     readonly accessLocation: GeneralName;
 }
 
 /** authorityInfoAccess (RFC 5280 §4.2.2.1). */
 export interface AuthorityInfoAccessExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'authorityInfoAccess')` returns this type. */
     readonly kind: 'authorityInfoAccess';
+    /** Where to reach the issuer's OCSP responder and its own certificate, in encoded order. */
     readonly descriptions: readonly AccessDescription[];
 }
 
 /** subjectInfoAccess (RFC 5280 §4.2.2.2). */
 export interface SubjectInfoAccessExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'subjectInfoAccess')` returns this type. */
     readonly kind: 'subjectInfoAccess';
+    /** Services the subject itself offers, in encoded order. */
     readonly descriptions: readonly AccessDescription[];
 }
 
@@ -417,26 +447,35 @@ export type ReasonFlag =
 
 /** One distribution point. */
 export interface DistributionPoint {
+    /** Where the CRL is published, usually a `uniformResourceIdentifier`; `undefined` when absent. Mutually exclusive with `nameRelativeToCRLIssuer`. */
     readonly fullName: readonly GeneralName[] | undefined;
+    /** The point named relative to the CRL issuer; `undefined` when absent. Mutually exclusive with `fullName`. */
     readonly nameRelativeToCRLIssuer: RelativeDistinguishedName | undefined;
+    /** Which revocation reasons this point covers; `undefined` means all of them, which is not the same as an empty list. */
     readonly reasons: readonly ReasonFlag[] | undefined;
+    /** Who issues the CRL when it is not the certificate's own issuer; `undefined` when absent. */
     readonly cRLIssuer: readonly GeneralName[] | undefined;
 }
 
 /** cRLDistributionPoints (RFC 5280 §4.2.1.13). */
 export interface CrlDistributionPointsExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'crlDistributionPoints')` returns this type. */
     readonly kind: 'crlDistributionPoints';
+    /** Where the revocation lists are, in encoded order. */
     readonly points: readonly DistributionPoint[];
 }
 
 /** freshestCRL (RFC 5280 §4.2.1.15). */
 export interface FreshestCrlExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'freshestCRL')` returns this type. */
     readonly kind: 'freshestCRL';
+    /** Where the delta CRLs are, in encoded order. */
     readonly points: readonly DistributionPoint[];
 }
 
 /** The Certificate Transparency SCT list (RFC 6962 §3.3), kept in its TLS encoding. */
 export interface SignedCertificateTimestampListExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'signedCertificateTimestampList')` returns this type. */
     readonly kind: 'signedCertificateTimestampList';
     /** The SignedCertificateTimestampList, TLS-encoded. */
     readonly list: Uint8Array;
@@ -444,6 +483,7 @@ export interface SignedCertificateTimestampListExtension extends ExtensionBase {
 
 /** id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1). */
 export interface OcspNoCheckExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'ocspNoCheck')` returns this type. The extension carries no value: its presence is the assertion. */
     readonly kind: 'ocspNoCheck';
 }
 

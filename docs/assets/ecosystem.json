@@ -29,10 +29,7 @@
     "M5-pkcs8-pkcs12-frozen-codes": "0.9.0",
     "M6-audit-npm-satellites": "1.0.0"
   },
-  "derived": {
-    "$comment": "Measured from the repository, never written by hand except to record a reviewed improvement. undocumentedMembers is a ratchet: the member-tsdoc rule fails if docs/assets/api.json holds a different number of interface members without a summary, in either direction, so the debt can only go down and only in a diff someone read.",
-    "undocumentedMembers": 51
-  },
+  "derived": {},
   "declared": {
     "x509-limbo": { "commit": "118721335e675edde10015df89b138cf292d7554", "testcases": 9793, "certificates": 30361, "refused": 564 },
     "wycheproof": { "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230", "tests": 1530 },

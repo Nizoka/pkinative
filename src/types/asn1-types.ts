@@ -15,8 +15,11 @@ export type TagClass = 'universal' | 'application' | 'context' | 'private';
 
 /** One decoded tag-length-value, with its exact position in the input. */
 export interface Asn1Node {
+    /** The two leading bits of the identifier octet. `'universal'` is a type X.680 defines; anything else is an implicit or explicit tag, whose meaning its context decides. */
     readonly tagClass: TagClass;
+    /** The tag number. Under `'universal'` it names the type — 2 INTEGER, 4 OCTET STRING, 6 OBJECT IDENTIFIER, 16 SEQUENCE, 17 SET. */
     readonly tagNumber: number;
+    /** Whether the value is built from other values (bit 6 of the identifier octet): `children` is populated exactly when this is true. */
     readonly constructed: boolean;
     /** Absolute offset of the identifier octet in the decoded input. */
     readonly offset: number;
@@ -45,7 +48,9 @@ export interface DecodeAsn1Options extends PkiParseOptions {
 
 /** A BIT STRING: the octets and the number of unused bits in the last one (0–7). */
 export interface BitString {
+    /** The octets, most significant bit first. The last `unusedBits` bits of the final octet are padding, not data. */
     readonly bytes: Uint8Array;
+    /** How many bits of the final octet are padding, 0 to 7. Under DER every one of them is zero. */
     readonly unusedBits: number;
 }
 
@@ -54,8 +59,11 @@ export type Asn1StringType = 'utf8' | 'numeric' | 'printable' | 'teletex' | 'ia5
 
 /** A decoded character string with its original content octets. */
 export interface Asn1String {
+    /** Which of the eight string types it was encoded as — the charset that decided how `raw` became `value`. */
     readonly stringType: Asn1StringType;
+    /** The decoded text. Attacker-controlled: escape it before displaying it, and use `formatDistinguishedName` for a name. */
     readonly value: string;
+    /** The content octets before decoding, for a comparison by bytes. */
     readonly raw: Uint8Array;
 }
 
@@ -64,6 +72,7 @@ export type TimeType = 'UTCTime' | 'GeneralizedTime';
 
 /** A decoded time: the instant, and the text it was decoded from. */
 export interface PkiTime {
+    /** Which type it was encoded as. RFC 5280 requires UTCTime through 2049 and GeneralizedTime from 2050. */
     readonly type: TimeType;
     /** Milliseconds since 1970-01-01T00:00:00Z (negative before 1970). */
     readonly epochMilliseconds: number;

@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 118059,
-      "approxTokens": 29515
+      "bytes": 121312,
+      "approxTokens": 30328
     },
     {
       "url": "data/errors.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 2606,
-      "approxTokens": 652
+      "bytes": 2227,
+      "approxTokens": 557
     }
   ],
   "guides": [

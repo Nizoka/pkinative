@@ -7,8 +7,9 @@
  * public function documents each parameter, its return value and what it
  * throws (AGENTS.md §Conventions) — the manifest is only as honest as the
  * comments it is read from.
- * `member-tsdoc`: the interface members that still have no summary are
- * counted, and the count only ever goes down.
+ * `member-tsdoc`: every member of every exported interface has a summary
+ * too — most of them belong to shapes a caller only ever receives, so the
+ * manifest is the only place their fields are described.
  *
  * @module scripts/verify-docs/rules/api
  */
@@ -17,7 +18,6 @@ import { documentationGaps, renderApiJson, type Reader } from '../../build-api-j
 import { error, readJson, type Rule, type RuleContext } from '../context.js';
 
 const API_JSON = 'docs/assets/api.json';
-const MANIFEST = 'docs/assets/ecosystem.json';
 
 const reader = (ctx: RuleContext): Reader => (path) => ctx.read(path);
 
@@ -41,26 +41,14 @@ const tsdocComplete: Rule = {
 
 const memberTsdoc: Rule = {
     id: 'member-tsdoc',
-    summary: 'The number of interface members of docs/assets/api.json without a TSDoc summary equals derived.undocumentedMembers in docs/assets/ecosystem.json exactly — a ratchet, so the debt can only fall, and only in a reviewed diff.',
+    summary: 'Every interface member of docs/assets/api.json has a TSDoc summary — the 57 result-only shapes a caller never types are reached through a return value, so the manifest is the only place their fields are ever described.',
     check(ctx) {
-        const api = readJson<{ exports?: ReadonlyArray<{ members?: ReadonlyArray<{ summary?: unknown }> }> }>(ctx, API_JSON);
+        const api = readJson<{ exports?: ReadonlyArray<{ name?: string; module?: string; members?: ReadonlyArray<{ name?: string; summary?: unknown }> }> }>(ctx, API_JSON);
         if ('finding' in api) return [api.finding];
-        const manifest = readJson<{ derived?: { undocumentedMembers?: unknown } }>(ctx, MANIFEST);
-        if ('finding' in manifest) return [manifest.finding];
-
-        let undocumented = 0;
-        for (const e of api.value.exports ?? []) {
-            for (const member of e.members ?? []) if (typeof member.summary !== 'string' || member.summary === '') undocumented++;
-        }
-        const declared = manifest.value.derived?.undocumentedMembers;
-        if (typeof declared !== 'number' || !Number.isInteger(declared) || declared < 0) {
-            return [error(MANIFEST, 'derived.undocumentedMembers must be the number of interface members of api.json that have no summary')];
-        }
-        if (declared === undocumented) return [];
-        const direction = undocumented < declared
-            ? `${declared - undocumented} member(s) gained a summary — lower the count to ${undocumented} in the same commit, so the improvement is on the record`
-            : `${undocumented - declared} member(s) lost one, or a new undocumented member shipped — an interface member with no summary is a field a caller cannot learn about from docs/assets/api.json`;
-        return [error(MANIFEST, `derived.undocumentedMembers is ${declared}; api.json holds ${undocumented}: ${direction}`)];
+        return (api.value.exports ?? []).flatMap((e) =>
+            (e.members ?? [])
+                .filter((member) => typeof member.summary !== 'string' || member.summary === '')
+                .map((member) => error(e.module ?? API_JSON, `${e.name ?? '?'}.${member.name ?? '?'} has no TSDoc summary — a caller reading docs/assets/api.json sees the field name and its type, and nothing about what it holds`)));
     },
 };
 

@@ -80,7 +80,9 @@ export type PkiDiagnosticSeverity = 'warning' | 'info';
 
 /** One non-fatal conformance concern. Structural failures throw instead. */
 export interface PkiDiagnostic {
+    /** The stable identifier. Branch on it, never on `message`; every code is registered in docs/data/diagnostics.json. */
     readonly code: PkiDiagnosticCode;
+    /** How much it matters: `'warning'` for something a strict reader would refuse, `'info'` for something merely worth knowing. */
     readonly severity: PkiDiagnosticSeverity;
     /** What was found and what it means, without the `pkinative: ` prefix. */
     readonly message: string;
