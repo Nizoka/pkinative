@@ -1,8 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════
    pkinative.dev — site styles
-   The design tokens of the native family (pdfnative.dev): the same
-   :root palette, the dark palette doubled for the explicit theme and for
-   prefers-color-scheme. No build, no web font, no JavaScript.
+   The design system of the native family, ported from the pdfnative
+   charter: tokens and components verbatim, sections without pkinative
+   content dropped — the same rule zipnative followed. No build step,
+   no web font.
+
+   TWO TOKENS DIVERGE FROM THE CHARTER, both in the dark palette, both
+   forced by the `contrast` rule — which checks eight text pairs here
+   where zipnative's checks two, so these were never measured upstream:
+     --c-primary     the charter's #3b82f6 is 3.98:1 on --c-bg-alt (needs 4.5)
+     --c-primary-fg  the charter leaves it #ffffff, which is 3.68:1 on #3b82f6
+   The values kept below measure 5.75:1 and 7.02:1. Copying a WCAG AA
+   failure for the sake of resemblance is the one thing this port will
+   not do; the only visible difference is the primary button label.
    ═══════════════════════════════════════════════════════════════ */
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -18,14 +28,21 @@
   --c-text-muted: #475569;
   --c-primary:    #2563eb;
   --c-primary-fg: #ffffff;
+  --c-primary-dim: #3b82f6;
   --c-accent:     #1d4ed8;
+  --c-success:    #16a34a;
   --c-code-bg:    #1e293b;
   --c-code-text:  #e2e8f0;
+  --c-bar:        #3b82f6;
   --shadow-sm:    0 1px 2px rgba(0,0,0,.05);
   --shadow-md:    0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,.12);
   --radius:       12px;
   --radius-sm:    8px;
   --max-w:        1120px;
+  --nav-h:        64px;
+  /* Not in the charter, which writes `max-width:820px` on .guide-shell.
+     Goes with its two consumers when guide.css is ported. */
   --text-w:       760px;
 }
 
@@ -38,13 +55,18 @@
   --c-text:       #f1f5f9;
   --c-text-dim:   #aab6c6;
   --c-text-muted: #a3b0c2;
+  /* Diverges from the charter (#3b82f6), which measures 3.98:1 here. */
   --c-primary:    #60a5fa;
+  /* Diverges: the charter does not override this, leaving #ffffff at 3.68:1. */
   --c-primary-fg: #0f172a;
-  --c-accent:     #93c5fd;
-  --c-code-bg:    #020617;
+  --c-primary-dim: #60a5fa;
+  --c-accent:     #60a5fa;
+  --c-code-bg:    #0f172a;
   --c-code-text:  #e2e8f0;
+  --c-bar:        #60a5fa;
   --shadow-sm:    0 1px 2px rgba(0,0,0,.2);
   --shadow-md:    0 4px 12px rgba(0,0,0,.3);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,11 +81,14 @@
     --c-text-muted: #a3b0c2;
     --c-primary:    #60a5fa;
     --c-primary-fg: #0f172a;
-    --c-accent:     #93c5fd;
-    --c-code-bg:    #020617;
+    --c-primary-dim: #60a5fa;
+    --c-accent:     #60a5fa;
+    --c-code-bg:    #0f172a;
     --c-code-text:  #e2e8f0;
+    --c-bar:        #60a5fa;
     --shadow-sm:    0 1px 2px rgba(0,0,0,.2);
     --shadow-md:    0 4px 12px rgba(0,0,0,.3);
+    --shadow-lg:    0 8px 24px rgba(0,0,0,.4);
   }
 }
 
