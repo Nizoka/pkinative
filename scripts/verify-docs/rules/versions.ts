@@ -70,10 +70,11 @@ const packageVersionSync: Rule = {
 
 const installUrlVersion: Rule = {
     id: 'install-url-version',
-    summary: 'Every release-tarball install command outside release-notes/ names the current version, in both the tag and the file name — a frozen URL does not break, it quietly installs the wrong artefact.',
+    summary: 'Every release-tarball install command outside release-notes/ names the current version, in both the tag and the file name, and the prose that names the current minor beside it agrees — a frozen URL does not break, it quietly installs the wrong artefact.',
     check(ctx) {
         const version = packageVersion(ctx);
         if (version === null) return [];
+        const minor = version.split('.').slice(0, 2).join('.');
         const sources = ['README.md', 'llms.txt', 'docs/agent-brief.md', ...ctx.list('docs').filter((p) => p.endsWith('.md'))];
         const out: Finding[] = [];
         for (const path of new Set(sources)) {
@@ -82,6 +83,15 @@ const installUrlVersion: Rule = {
             for (const m of text.matchAll(/releases\/download\/v([0-9][^/\s]*)\/pkinative-([^\s"')`]+)\.tgz/g)) {
                 if (m[1] === version && m[2] === version) continue;
                 out.push(error(path, `installs pkinative-${m[2] ?? ''}.tgz from tag v${m[1] ?? ''}; package.json says ${version}`, lineContaining(text, m[0])));
+            }
+            // The two sentences that carry a bare `X.Y` next to those URLs.
+            // release-prepare.ts deliberately does not rewrite them — they
+            // change meaning at 1.0, not just digits — so the rule is what
+            // remembers they exist.
+            for (const m of text.matchAll(/\*\*Status: (\d+\.\d+) |\b(\d+\.\d+) is the release tarball\b/g)) {
+                const quoted = m[1] ?? m[2] ?? '';
+                if (quoted === minor) continue;
+                out.push(error(path, `names minor ${quoted} beside the install command; package.json says ${minor}`, lineContaining(text, m[0])));
             }
         }
         return out;

@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 59619,
-      "approxTokens": 14905
+      "bytes": 59898,
+      "approxTokens": 14975
     },
     {
       "url": "llms-recipes.txt",
@@ -36,8 +36,8 @@
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 16463,
-      "approxTokens": 4116
+      "bytes": 16624,
+      "approxTokens": 4156
     },
     {
       "url": "data/diagnostics.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 3820,
-      "approxTokens": 955
+      "bytes": 3940,
+      "approxTokens": 985
     }
   ],
   "guides": [
@@ -146,8 +146,8 @@
         "limits",
         "diagnostics"
       ],
-      "bytes": 6098,
-      "approxTokens": 1525
+      "bytes": 6283,
+      "approxTokens": 1571
     },
     {
       "title": "Choosing a PKI library",
@@ -160,8 +160,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 2659,
-      "approxTokens": 665
+      "bytes": 2753,
+      "approxTokens": 688
     }
   ]
 }

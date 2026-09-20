@@ -19,7 +19,7 @@
 | Create a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Validate a path, check CRL or OCSP | 0.5 | pkijs; on Node.js, `node:crypto.X509Certificate` plus your TLS stack |
 | Parse or build CMS, verify timestamps | 0.7 | pkijs |
-| Read PKCS#8 or PKCS#12 | 0.9 | pkijs, node-forge |
+| Read PKCS#8 or PKCS#12 | 0.8, PKCS#12 under PBES2 only | pkijs, node-forge — and for a legacy `.p12`, `openssl pkcs12 -legacy` to convert it |
 
 ## The alternatives, by the facts
 

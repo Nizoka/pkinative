@@ -18,16 +18,19 @@
   "contracts": {
     "runtime_dependencies": 0,
     "secret_dependent_primitives": "never implemented; Web Crypto only",
-    "error_codes_frozen_since": "0.9.0",
+    "error_codes_frozen_since": "0.8.0",
     "der_strict_by_default": true
   },
   "milestones": {
     "M1-read-only-foundation": "0.1.0",
+    "M1b-hardening-and-site": "0.2.0",
     "M2-creation-through-webcrypto": "0.3.0",
+    "M2b-interop-clauses-and-trend": "0.4.0",
     "M3-path-validation-crl-ocsp": "0.5.0",
     "M4-cms-and-timestamps": "0.7.0",
-    "M5-pkcs8-pkcs12-frozen-codes": "0.9.0",
-    "M6-audit-npm-satellites": "1.0.0"
+    "M5-keys-and-frozen-codes": "0.8.0",
+    "M5b-freeze-rehearsal": "0.9.0",
+    "M6-freeze-and-publication": "1.0.0"
   },
   "derived": {},
   "declared": {
@@ -48,7 +51,7 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "dbba26f0385d6a91954d20fc523d2af4d5fe07dee70637d4e15bbff24d431b38",
+      "sourceSha256": "ed929454ca5a795170f5d24981c7f448f9edee696e538828fc1e95606281bbc7",
       "bundleSha256": "b14752508d703c40c05c66304f7b3669a8a931d613982bcce12018a040abe323",
       "bytes": 159668,
       "maxBytes": 200000

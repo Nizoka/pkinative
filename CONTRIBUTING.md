@@ -185,7 +185,9 @@ The version bump is mechanical; the judgement goes into the release note.
 
 ### Branch protection
 
-The rules for `main` are versioned in [.github/rulesets/main.json](.github/rulesets/main.json), GitHub's ruleset format: no deletion, no force-push, pull request required (single maintainer, so zero approvals — but every review thread resolved, stale reviews dismissed on push, squash merges only), and the status checks `ci (22)`, `ci (24)`, `windows` and `conformance` required and up to date with `main`. The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting or moving a `v*` tag. Import a file after editing it: Settings → Rules → Rulesets → Import a ruleset.
+The rules for `main` are versioned in [.github/rulesets/main.json](.github/rulesets/main.json), GitHub's ruleset format: no deletion, no force-push, pull request required (single maintainer, so zero approvals — but every review thread resolved, stale reviews dismissed on push, squash merges only), and seven status checks required and up to date with `main`: `ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows` and `conformance-macos`. The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting, moving or updating a `v*` tag, with an empty `bypass_actors` — **a pushed tag is permanent for everyone, the repository owner included.** Import a file after editing it: Settings → Rules → Rulesets → Import a ruleset.
+
+Two consequences worth stating once. The ruleset requires a pull request, and `bypass_mode: "pull_request"` lets an admin merge one whose checks are red — it does not let anyone push directly to `main`. So on a repository whose `main` does not exist yet, **the rulesets are imported after the first push**, never before: there is no legal path to seed the branch otherwise. And below 1.0.0, publishing a GitHub Release starts two workflows: `release-assets` builds and attests the tarball, while `publish` sits at the `npm-publish` environment and then fails on *"Refuse a pre-1.0 publication"*. That red run is deliberate — it is the only proof the 1.0 guard still works.
 
 ## License
 

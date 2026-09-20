@@ -1,5 +1,5 @@
 {
-  "$comment": "The registry of every error code pkinative throws. The error-parity rule of scripts/verify-docs.ts keeps it in bidirectional sync with the code unions and class membership of src/types/pki-errors.ts, and checks that every throw site's message starts with 'pkinative: '. Codes are frozen from 0.9.0: removal or renaming is semver-major, addition semver-minor.",
+  "$comment": "The registry of every error code pkinative throws. The error-parity rule of scripts/verify-docs.ts keeps it in bidirectional sync with the code unions and class membership of src/types/pki-errors.ts, and checks that every throw site's message starts with 'pkinative: '. Codes are frozen from 0.8.0: removal or renaming is semver-major, addition semver-minor. PKCS#12 is the last subsystem that adds codes, so 0.8.0 is the first version at which the vocabulary is complete, and 0.9.0 exists to prove no rename is needed.",
   "package": "pkinative",
   "verifiedOn": "2026-09-15",
   "errors": [

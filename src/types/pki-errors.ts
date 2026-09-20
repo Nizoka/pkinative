@@ -7,7 +7,7 @@
  *
  * Every error carries a stable, machine-readable {@link PkiErrorCode} — the
  * contract agents and wrappers branch on without parsing messages. The
- * vocabulary is frozen from 0.9.0: removing or renaming a code is then
+ * vocabulary is frozen from 0.8.0: removing or renaming a code is then
  * semver-major, adding one semver-minor; until then every code records the
  * version that introduced it. The registry is `docs/data/errors.json`; the
  * `error-parity` rule of `scripts/verify-docs.ts` keeps the two in
@@ -75,7 +75,7 @@ export type PkiLimitErrorCode =
     | 'PKI_LIMIT_INVALID';   // the limits override itself is invalid (configured/observed are NaN)
 
 /**
- * Every stable error code pkinative can throw. Frozen from 0.9.0:
+ * Every stable error code pkinative can throw. Frozen from 0.8.0:
  * removal or renaming is semver-major; additions are semver-minor.
  */
 export type PkiErrorCode =

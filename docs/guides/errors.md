@@ -11,7 +11,7 @@
 | `PkiCertificateError` | The RFC 5280 certificate structure | `code`, `path`, `offset` |
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 
-Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.9 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.9 the vocabulary is frozen under semantic versioning. Diagnostic codes are additions-only already: none is ever renamed or removed.
+Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.8 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.8 the vocabulary is frozen under semantic versioning. PKCS#12 is the last subsystem that introduces codes, so 0.8 is the first version at which the vocabulary is complete — and 0.9 exists to prove that nothing needed renaming after all. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
 Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, `PkiEncodingErrorCode`, `PkiCertificateErrorCode` and `PkiLimitErrorCode` on the three subclasses. `PkiErrorCode` is the union of all four — the type to write when you store or pass a code without caring which class raised it.
 

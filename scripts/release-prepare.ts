@@ -12,8 +12,16 @@
  *   3. docs/index.html JSON-LD `softwareVersion` and the verified-on date
  *   4. CITATION.cff `version` and `date-released`
  *   5. CHANGELOG.md `## [Unreleased]` → `## [X.Y.Z] – YYYY-MM-DD`
- *   6. release-notes/vX.Y.Z.md scaffolded from release-notes/TEMPLATE.md
+ *   6. every documented release-tarball install URL and `gh attestation
+ *      verify` file name outside release-notes/ — README.md, the agent brief,
+ *      the quick start and docs/index.html (both the code block and the copy
+ *      button's data-copy, which no rule reads, so a stale one shipped the
+ *      previous version's command to anyone who clicked Copy)
+ *   7. release-notes/vX.Y.Z.md scaffolded from release-notes/TEMPLATE.md
  *      when it does not exist yet
+ *
+ * An old release note keeps its old URL: release-notes/ is deliberately not
+ * touched, and `install-url-version` skips it for the same reason.
  *
  * It never reserialises JSON, YAML or XML: each edit is a targeted regex on
  * the one field it owns, so formatting and key order survive. It does not
@@ -43,6 +51,12 @@ interface Edit {
     readonly replace: (version: string, date: string) => string;
 }
 
+/** Every occurrence, not the first: docs/index.html carries two. */
+const TARBALL = /releases\/download\/v[0-9][^/\s]*\/pkinative-[0-9][^\s"')`]*\.tgz/g;
+const ATTESTED = /gh attestation verify pkinative-[0-9][^\s]*\.tgz/g;
+const tarball = (v: string): string => `releases/download/v${v}/pkinative-${v}.tgz`;
+const attested = (v: string): string => `gh attestation verify pkinative-${v}.tgz`;
+
 export const EDITS: readonly Edit[] = [
     { file: 'package.json', what: 'version', pattern: /("name": "pkinative",\s*\n\s*"version": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
     { file: 'package-lock.json', what: 'root version', pattern: /("name": "pkinative",\s*\n\s*"version": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
@@ -54,6 +68,19 @@ export const EDITS: readonly Edit[] = [
     { file: 'CITATION.cff', what: 'version', pattern: /^(version: ).+$/m, replace: (v) => `$1${v}` },
     { file: 'CITATION.cff', what: 'date-released', pattern: /^(date-released: ).+$/m, replace: (_v, d) => `$1${d}` },
     { file: 'CHANGELOG.md', what: 'Unreleased heading', pattern: /^## \[Unreleased\]$/m, replace: (v, d) => `## [${v}] – ${d}` },
+
+    // Below 1.0.0 the documented install is the attested release tarball, and
+    // `install-url-version` requires every one of these to name the current
+    // version — so before this block a bump failed verify:docs, a step of
+    // every gate profile, on every single release. The generated pages
+    // (quickstart.html, llms-full.txt) are fixed by the `npm run docs:all`
+    // that follows.
+    { file: 'README.md', what: 'release tarball URL', pattern: TARBALL, replace: (v) => tarball(v) },
+    { file: 'README.md', what: 'attestation tarball name', pattern: ATTESTED, replace: (v) => attested(v) },
+    { file: 'docs/agent-brief.md', what: 'release tarball URL', pattern: TARBALL, replace: (v) => tarball(v) },
+    { file: 'docs/guides/quickstart.md', what: 'release tarball URL', pattern: TARBALL, replace: (v) => tarball(v) },
+    { file: 'docs/guides/quickstart.md', what: 'attestation tarball name', pattern: ATTESTED, replace: (v) => attested(v) },
+    { file: 'docs/index.html', what: 'install command (code and data-copy)', pattern: TARBALL, replace: (v) => tarball(v) },
 ];
 
 function parseArgs(argv: readonly string[]): { version: string; date: string; dryRun: boolean } | null {
@@ -83,6 +110,12 @@ function main(): number {
             continue;
         }
         const before = texts.get(edit.file) ?? readFileSync(path, 'utf8');
+        // The tarball patterns are global AND shared by several rows, so one
+        // regex object carries state across iterations. `test` advances
+        // `lastIndex` on a match; `String.replace` happens to reset it for a
+        // global regex, which is the only reason this works today — and is
+        // one refactor away from silently skipping a file's first match.
+        edit.pattern.lastIndex = 0;
         if (!edit.pattern.test(before)) {
             console.error(`FAIL  ${edit.file}: ${edit.what} not found`);
             failures++;
