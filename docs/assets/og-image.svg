@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="pkinative — native X.509 for TypeScript: strict DER, RFC 5280, PEM and OIDs, with zero dependencies">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="pkinative — native PKI for TypeScript: strict DER, RFC 5280, PEM and OIDs, with zero dependencies">
 <!--
   pkinative Open Graph / social share image (1200x630).
   Editable vector source. Rasterise to og-image.png with headless
@@ -32,6 +32,10 @@
       <stop offset="0%" stop-color="#3B82F6"/>
       <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
+    <linearGradient id="logo-grad-r" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="37" y2="37" gradientTransform="rotate(45 20 20)">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
   </defs>
 
   <rect width="1200" height="630" fill="url(#bg)"/>
@@ -45,12 +49,15 @@
     <g transform="scale(1.85)">
       <rect x="3" y="3" width="34" height="34" rx="8" fill="url(#logo-grad)"/>
       <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
-      <path d="M9.5 10h5.4L26.5 30h-5.4z M21.1 10h5.4L14.9 30H9.5z" fill="#ffffff"/>
-      <g fill="url(#logo-grad)">
-        <path d="M18 15.35L18.75 14.05 21.45 18.71 20.7 20z"/>
-        <path d="M18 24.65L17.25 25.95 14.55 21.29 15.3 20z"/>
+      <g transform="rotate(-45 20 20)">
+        <circle cx="20" cy="12.4" r="6" fill="#ffffff"/>
+        <rect x="17.7" y="16" width="4.6" height="14.8" rx="0.7" fill="#ffffff"/>
+        <g fill="url(#logo-grad-r)">
+          <circle cx="20" cy="12.4" r="2.6"/>
+          <rect x="20.2" y="22.6" width="2.1" height="2" rx="0.35"/>
+          <rect x="20.2" y="26.4" width="2.1" height="2" rx="0.35"/>
+        </g>
       </g>
-      <rect x="28" y="26.2" width="3.8" height="3.8" rx="1.3" fill="#ffffff"/>
     </g>
     <text x="92" y="50" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
           font-size="40" font-weight="700" fill="#f8fafc" letter-spacing="-0.5">pkinative</text>
@@ -59,9 +66,12 @@
         font-size="22" fill="#64748b">pkinative.dev</text>
 
   <!-- Headline: the structural sibling of zipnative's "Native ZIP / for
-       TypeScript" — a noun phrase naming the thing, not a slogan. -->
+       TypeScript" — a noun phrase naming the thing, not a slogan. It names
+       the domain rather than X.509, for the same reason the mark is a key:
+       CMS, OCSP, CRL, timestamps and PKCS#8/#12 are all in scope by 1.0 and
+       none of them is X.509. The concrete terms are on the pills below. -->
   <text x="80" y="280" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="92" font-weight="800" fill="#f8fafc" letter-spacing="-2">Native X.509</text>
+        font-size="92" font-weight="800" fill="#f8fafc" letter-spacing="-2">Native PKI</text>
   <text x="80" y="380" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
         font-size="92" font-weight="800" fill="url(#accent)" letter-spacing="-2">for TypeScript</text>
 

@@ -1,11 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
-  <desc>pkinative logo — the X-series mark: a woven X monogram with the dot of dotted notation, for the ITU-T X.509 and X.690 recommendations it reads</desc>
+  <desc>pkinative logo — the family tile with a key: public key infrastructure, which is what the name says and what the library will be through 1.0</desc>
   <defs>
     <!-- userSpaceOnUse over the tile's own box. Identical to the siblings'
          objectBoundingBox ramp on this rect, but it lets the counter-shapes
          below take the tile's exact local colour instead of re-running the
-         whole ramp inside a three-unit quad. -->
+         whole ramp inside a two-unit square. -->
     <linearGradient id="logo-grad" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="37" y2="37">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <!-- The same ramp, counter-rotated so that shapes inside the key's
+         rotated group still sample the tile's gradient rather than a
+         rotated copy of it. rotate(45) cancels the group's rotate(-45). -->
+    <linearGradient id="logo-grad-r" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="37" y2="37"
+                    gradientTransform="rotate(45 20 20)">
       <stop offset="0%" stop-color="#3B82F6"/>
       <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
@@ -15,14 +23,18 @@
   <!-- Folded corner — the family mark shared with pdfnative and zipnative -->
   <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
   <path d="M25.5 3L37 16" stroke="#ffffff" stroke-width="0.8" opacity="0.35" fill="none"/>
-  <!-- X monogram: two straps with horizontal terminals, a letterform not a symbol -->
-  <path d="M9.5 10h5.4L26.5 30h-5.4z M21.1 10h5.4L14.9 30H9.5z" fill="#ffffff"/>
-  <!-- The crossing woven: the descending strap passes over, so the ascending
-       one is cut on both sides of it. Fades below ~20px, as intended. -->
-  <g fill="url(#logo-grad)">
-    <path d="M18 15.35L18.75 14.05 21.45 18.71 20.7 20z"/>
-    <path d="M18 24.65L17.25 25.95 14.55 21.29 15.3 20z"/>
+  <!-- The key, drawn upright and rotated onto the tile's diagonal so it
+       fills the square the way zipnative's Z does. -->
+  <g transform="rotate(-45 20 20)">
+    <circle cx="20" cy="12.4" r="6" fill="#ffffff"/>
+    <rect x="17.7" y="16" width="4.6" height="14.8" rx="0.7" fill="#ffffff"/>
+    <!-- The bow's eye and the two wards, cut out of the white body in the
+         tile's own gradient — the technique zipnative uses for its zipper
+         teeth, which is what makes the two marks read as a pair. -->
+    <g fill="url(#logo-grad-r)">
+      <circle cx="20" cy="12.4" r="2.6"/>
+      <rect x="20.2" y="22.6" width="2.1" height="2" rx="0.35"/>
+      <rect x="20.2" y="26.4" width="2.1" height="2" rx="0.35"/>
+    </g>
   </g>
-  <!-- The dot of dotted notation: X.509, X.690, X.500 -->
-  <rect x="28" y="26.2" width="3.8" height="3.8" rx="1.3" fill="#ffffff"/>
 </svg>
