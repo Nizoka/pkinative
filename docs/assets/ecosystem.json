@@ -47,9 +47,9 @@
     "socialImages": [
       { "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
         "svg": "docs/assets/og-image.svg", "png": "docs/assets/og-image.png", "width": 1200, "height": 630,
-        "svgSha256": "7b7685cc6218f786085b7e70442f59ea514ff74f8aa86e29866eab5fb171f81d" },
+        "svgSha256": "d615fb60aba0256d17c51fa7d14bf027c3213d14d72ce66c4502cee832e05b4c" },
       { "svg": "docs/assets/social-preview.svg", "png": "docs/assets/social-preview.png", "width": 1280, "height": 640,
-        "svgSha256": "ee042874ce38188b094c66a5b9a04fb4f73fc958d63a9304653fbe5a192c6152" }
+        "svgSha256": "85ac3bcde046847fc88d9ae18aa89da909c7b2cfd251ba21c6531a6333eb3d36" }
     ]
   }
 }

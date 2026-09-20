@@ -1,5 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="pkinative">
-  <path d="M32 4 8 13v17c0 15 10.4 26.6 24 30 13.6-3.4 24-15 24-30V13Z" fill="#2563eb"/>
-  <circle cx="26" cy="30" r="8" fill="none" stroke="#ffffff" stroke-width="4"/>
-  <path d="M33 30h15m-5 0v7m-5-7v5" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <desc>pkinative — zero-dependency TypeScript toolkit for X.509 certificates and ASN.1 DER</desc>
+  <defs>
+    <!-- Vertical gradient: keeps the mark readable at 16px tab size -->
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="2" y1="2" x2="2" y2="30">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <!-- Tile -->
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#g)"/>
+  <!-- Folded corner — the family mark, opacity raised for tiny sizes -->
+  <path d="M20.5 2h4.5a5 5 0 0 1 5 5v6L20.5 2z" fill="#93C5FD" opacity="0.5"/>
+  <!-- X monogram, weave dropped: a 0.6px sliver is mud at 16px -->
+  <path d="M7.5 8.5h4.4L21 24h-4.4z M16.6 8.5h4.4L11.9 24H7.5z" fill="#ffffff"/>
+  <rect x="22.3" y="20.6" width="3.4" height="3.4" rx="1.15" fill="#ffffff"/>
 </svg>

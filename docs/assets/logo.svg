@@ -1,6 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" role="img" aria-label="pkinative">
-  <path d="M32 4 8 13v17c0 15 10.4 26.6 24 30 13.6-3.4 24-15 24-30V13Z" fill="#2563eb"/>
-  <circle cx="26" cy="30" r="8" fill="none" stroke="#ffffff" stroke-width="4"/>
-  <path d="M33 30h15m-5 0v7m-5-7v5" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
-  <text x="72" y="42" font-family="-apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">pkinative</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <desc>pkinative logo — the X-series mark: a woven X monogram with the dot of dotted notation, for the ITU-T X.509 and X.690 recommendations it reads</desc>
+  <defs>
+    <!-- userSpaceOnUse over the tile's own box. Identical to the siblings'
+         objectBoundingBox ramp on this rect, but it lets the counter-shapes
+         below take the tile's exact local colour instead of re-running the
+         whole ramp inside a three-unit quad. -->
+    <linearGradient id="logo-grad" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="37" y2="37">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <!-- Tile -->
+  <rect x="3" y="3" width="34" height="34" rx="8" fill="url(#logo-grad)"/>
+  <!-- Folded corner — the family mark shared with pdfnative and zipnative -->
+  <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
+  <path d="M25.5 3L37 16" stroke="#ffffff" stroke-width="0.8" opacity="0.35" fill="none"/>
+  <!-- X monogram: two straps with horizontal terminals, a letterform not a symbol -->
+  <path d="M9.5 10h5.4L26.5 30h-5.4z M21.1 10h5.4L14.9 30H9.5z" fill="#ffffff"/>
+  <!-- The crossing woven: the descending strap passes over, so the ascending
+       one is cut on both sides of it. Fades below ~20px, as intended. -->
+  <g fill="url(#logo-grad)">
+    <path d="M18 15.35L18.75 14.05 21.45 18.71 20.7 20z"/>
+    <path d="M18 24.65L17.25 25.95 14.55 21.29 15.3 20z"/>
+  </g>
+  <!-- The dot of dotted notation: X.509, X.690, X.500 -->
+  <rect x="28" y="26.2" width="3.8" height="3.8" rx="1.3" fill="#ffffff"/>
 </svg>

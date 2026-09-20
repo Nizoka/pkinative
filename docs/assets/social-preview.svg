@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="pkinative — read the certificates your software trusts">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="pkinative — strict by default, complete by RFC 5280, honest about what it refuses">
 <!--
   pkinative GitHub social preview (1280x640 — the repository "Social preview"
   slot, a different crop from the 1200x630 Open Graph card).
@@ -6,25 +6,86 @@
   Chromium/Edge using a window size of 1280x640 and the screenshot flag:
     msedge ++headless ++disable-gpu ++hide-scrollbars ++window-size=1280,640
            ++screenshot=social-preview.png social-preview.svg
-  (replace ++ with double dashes). The committed PNG is the artefact of
+  (replace ++ with double dashes). Upload the PNG by hand in GitHub
+  Settings -> General -> Social preview. The committed PNG is the artefact of
   record; docs/assets/ecosystem.json records the SHA-256 of this file, so
   editing it without re-rasterising fails the social-images rule of
   `npm run verify:docs`. Text renders through the system font stack, so
-  rasterise on a machine with Segoe UI or equivalent.
-  The artwork is og-image.svg inset by 40x5, which keeps the two cards
-  identical and leaves GitHub room to crop. Every id is sp-* namespaced so
-  this file can be inlined next to the og image without clashing.
+  rasterise on a machine with Segoe UI or equivalent. All text stays at
+  least 40px inside every edge, GitHub's recommended safe area.
   Brand charter (shared with pdfnative and zipnative): primary #2563eb,
-  primary-dim #60a5fa on bg #0f172a, text #f1f5f9 / #e2e8f0.
+  accent #1d4ed8, primary-dim #3b82f6 on bg #0f172a / bg-alt #1e293b.
+  Every id is sp-* namespaced so this file can be inlined next to the og
+  image without clashing.
 -->
-  <rect width="1280" height="640" fill="#0f172a"/>
-  <g id="sp-art" transform="translate(40,5)">
-    <path d="M150 150 90 172v43c0 38 26 66 60 75 34-9 60-37 60-75v-43Z" fill="#2563eb"/>
-    <circle cx="135" cy="215" r="20" fill="none" stroke="#ffffff" stroke-width="9"/>
-    <path d="M153 215h37m-12 0v17m-12-17v12" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
-    <text x="250" y="235" font-family="-apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="84" font-weight="700" fill="#f1f5f9">pkinative</text>
-    <text x="90" y="380" font-family="-apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="44" fill="#e2e8f0">Read the certificates your software trusts —</text>
-    <text x="90" y="440" font-family="-apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="44" fill="#e2e8f0">strictly, safely, on every runtime.</text>
-    <text x="90" y="540" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="30" fill="#60a5fa">0 dependencies · strict DER · RFC 5280 · x509-limbo · Wycheproof</text>
+  <defs>
+    <linearGradient id="sp-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1326"/>
+      <stop offset="55%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="sp-glow" cx="50%" cy="8%" r="60%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sp-accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="sp-logo-grad" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="37" y2="37">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#sp-bg)"/>
+  <rect width="1280" height="640" fill="url(#sp-glow)"/>
+  <rect x="0.5" y="0.5" width="1279" height="639" fill="none" stroke="#1e293b"/>
+  <rect x="0" y="0" width="1280" height="6" fill="url(#sp-accent)"/>
+
+  <!-- Centred mark; the fold hairline is dropped at this scale, as the
+       siblings drop theirs. -->
+  <g transform="translate(566, 96)">
+    <g transform="scale(3.7)">
+      <rect x="3" y="3" width="34" height="34" rx="8" fill="url(#sp-logo-grad)"/>
+      <path d="M25.5 3h5a6 6 0 0 1 6.5 6.5V16L25.5 3z" fill="#93C5FD" opacity="0.35"/>
+      <path d="M9.5 10h5.4L26.5 30h-5.4z M21.1 10h5.4L14.9 30H9.5z" fill="#ffffff"/>
+      <g fill="url(#sp-logo-grad)">
+        <path d="M18 15.35L18.75 14.05 21.45 18.71 20.7 20z"/>
+        <path d="M18 24.65L17.25 25.95 14.55 21.29 15.3 20z"/>
+      </g>
+      <rect x="28" y="26.2" width="3.8" height="3.8" rx="1.3" fill="#ffffff"/>
+    </g>
   </g>
+
+  <text x="640" y="356" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="84" font-weight="800" fill="#f8fafc" letter-spacing="-2">pkinative</text>
+
+  <text x="640" y="416" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="30" font-weight="500" fill="#e2e8f0">Strict by default · complete by RFC 5280 · honest about what it refuses</text>
+  <text x="640" y="458" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="23" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · 0.1 reads, 0.3 verifies</text>
+
+  <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+     font-size="22" fill="#cbd5e1" text-anchor="middle">
+    <rect x="185" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="261" y="533">Strict DER</text>
+    <rect x="353" y="502" width="148" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="427" y="533">RFC 5280</text>
+    <rect x="517" y="502" width="98" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="566" y="533">PEM</text>
+    <rect x="631" y="502" width="102" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="682" y="533">OIDs</text>
+    <rect x="749" y="502" width="160" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="829" y="533" fill="#bfdbfe">x509-limbo</text>
+    <rect x="925" y="502" width="170" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="1010" y="533" fill="#bfdbfe">Wycheproof</text>
+  </g>
+
+  <text x="640" y="600" text-anchor="middle"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="20" fill="#475569">pkinative.dev · library · MIT · open source · pre-1.0 is a git tag, not an npm release</text>
 </svg>

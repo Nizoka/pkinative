@@ -12,7 +12,14 @@ import { join } from 'node:path';
 
 const ROOT = process.cwd();
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-/** Both cards are flat fills over a dark ground; 46 KB today, and 600 KB is the point at which a card starts costing the reader. */
+/**
+ * 358 KB and 406 KB today — a diagonal gradient and a radial glow over a
+ * dark ground, the same construction as the two sibling projects, whose own
+ * cards weigh 360 KB and 400 KB. 600 KB is the point at which a card starts
+ * costing the reader, and the headroom is deliberately thin: a second glow
+ * or a noise texture would not fit, and should not be added without
+ * measuring.
+ */
 const BUDGET_BYTES = 600 * 1024;
 
 interface SocialImage {
