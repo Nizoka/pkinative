@@ -1,20 +1,283 @@
-/* pkinative.dev — guide pages. Tokens come from ../style.css. */
+/* ═══════════════════════════════════════════════════════════════
+   pkinative.dev — Guide pages
+   Pre-rendered from the companion .md by build-guides.ts. Inherits every
+   token from ../style.css and defines none of its own.
+   ═══════════════════════════════════════════════════════════════ */
 
-.guide-header { max-width: var(--max-w); margin: 0 auto; padding: 0 1.5rem; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--c-border); }
-.guide-header nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-.guide-header nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.guide-shell {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 80px 24px 80px;
+}
 
-.guide { max-width: var(--text-w); margin: 0 auto; padding: 2.5rem 1.5rem 1rem; }
-.guide h1 { font-size: 2.2rem; line-height: 1.2; letter-spacing: -.02em; margin-bottom: 1rem; }
-.guide h2 { font-size: 1.45rem; margin: 2.25rem 0 .75rem; padding-top: .5rem; border-top: 1px solid var(--c-border); }
-.guide h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
-.guide p, .guide ul, .guide ol, .guide pre, .guide table { margin-bottom: 1rem; }
-.guide ul, .guide ol { padding-left: 1.5rem; }
-.guide li + li { margin-top: .3rem; }
-.guide blockquote { border-left: 4px solid var(--c-primary); background: var(--c-bg-alt); padding: .9rem 1.2rem; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 1.5rem; font-size: 1.08rem; }
-.guide blockquote p { margin: 0; }
-.heading-anchor { opacity: 0; margin-left: .4rem; font-weight: 400; color: var(--c-text-muted); }
-.guide h2:hover .heading-anchor, .guide h3:hover .heading-anchor, .heading-anchor:focus { opacity: 1; }
-.guide-list { list-style: none; padding: 0; }
-.guide-list li { padding: .75rem 0; border-bottom: 1px solid var(--c-border); }
-.guide-footer { max-width: var(--text-w); margin: 2rem auto 3rem; padding: 1rem 1.5rem 0; border-top: 1px solid var(--c-border); color: var(--c-text-muted); font-size: .9rem; }
+.guide-breadcrumb {
+  font-size: 13px;
+  color: var(--c-text-muted);
+  margin-bottom: 12px;
+}
+
+.guide-breadcrumb a { color: var(--c-text-dim); }
+
+.guide-content {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--c-text);
+}
+
+.guide-content h1,
+.guide-content h2,
+.guide-content h3,
+.guide-content h4 {
+  letter-spacing: -0.01em;
+  font-weight: 800;
+  scroll-margin-top: calc(var(--nav-h) + 16px);
+}
+
+.guide-content h1 { font-size: 36px; margin: 0 0 24px; letter-spacing: -0.02em; }
+.guide-content h2 { font-size: 26px; margin: 56px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--c-border); }
+.guide-content h3 { font-size: 20px; margin: 36px 0 10px; }
+.guide-content h4 { font-size: 17px; margin: 28px 0 8px; }
+
+.guide-content p { margin: 0 0 16px; }
+.guide-content ul,
+.guide-content ol { margin: 0 0 16px; padding-left: 28px; }
+.guide-content li { margin: 4px 0; }
+.guide-content li > p { margin: 0 0 8px; }
+
+.guide-content code {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.92em;
+  background: var(--c-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.guide-content pre {
+  background: var(--c-code-bg);
+  color: var(--c-code-text);
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guide-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.guide-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+
+.guide-content th,
+.guide-content td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* Wide tables scroll inside themselves on narrow viewports instead of
+   overflowing the page. style.css only covers ≤480px; guides need it sooner. */
+@media (max-width: 768px) {
+  .guide-content table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+.guide-content th {
+  background: var(--c-bg-alt);
+  font-weight: 700;
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 12px;
+}
+
+/* The lede of every guide is a blockquote under the h1, and this is what
+   makes it read as one — the same callout treatment as both siblings. */
+.guide-content blockquote {
+  border-left: 4px solid var(--c-primary);
+  background: var(--c-bg-alt);
+  padding: 12px 18px;
+  margin: 0 0 20px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--c-text-dim);
+}
+
+.guide-content blockquote p:last-child { margin-bottom: 0; }
+
+.guide-content hr {
+  border: none;
+  border-top: 1px solid var(--c-border);
+  margin: 36px 0;
+}
+
+.guide-content a { font-weight: 500; }
+
+.guide-content img { display: block; margin: 0 auto 20px; }
+
+.guide-loading,
+.guide-error {
+  padding: 24px;
+  text-align: center;
+  color: var(--c-text-muted);
+  font-size: 14px;
+}
+
+.guide-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  line-height: 1.7;
+}
+
+.guide-error code {
+  background: rgba(0,0,0,.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: .9em;
+}
+
+[data-theme="dark"] .guide-error {
+  background: #450a0a;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+[data-theme="dark"] .guide-error code {
+  background: rgba(255,255,255,.08);
+}
+
+.guide-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.guide-toc-list li {
+  background: var(--c-bg-card);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 16px 18px;
+  transition: border-color .15s, transform .1s;
+}
+
+.guide-toc-list li:hover {
+  border-color: var(--c-primary);
+  transform: translateY(-1px);
+}
+
+.guide-toc-list a {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.guide-toc-list .guide-toc-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--c-text-dim);
+}
+
+/* ── Pre-rendered guide enhancements (build-guides.ts + guide.js) ── */
+
+.heading-anchor {
+  margin-left: 8px;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: var(--c-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  text-decoration: none;
+}
+
+.guide-content h2:hover .heading-anchor,
+.guide-content h3:hover .heading-anchor,
+.guide-content h4:hover .heading-anchor,
+.heading-anchor:focus-visible {
+  opacity: 1;
+}
+
+.pre-wrap { position: relative; }
+
+.pre-wrap .copy-btn {
+  user-select: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pre-wrap:hover .copy-btn,
+.pre-wrap .copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.guide-source-bar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 0 0 18px;
+  font-size: 13px;
+}
+
+.guide-source-btn {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.guide-source-btn:hover { border-color: var(--c-primary); }
+
+.guide-source-link { color: var(--c-text-dim); }
+
+/* Touch devices have no reliable :hover — the copy buttons and heading
+   anchors must be visible there, with WCAG 2.5.8-sized targets. */
+@media (hover: none), (pointer: coarse) {
+  .pre-wrap .copy-btn,
+  .heading-anchor {
+    opacity: 1;
+  }
+  .heading-anchor {
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .guide-shell { padding: 48px 14px; }
+}
