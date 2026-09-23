@@ -6,23 +6,28 @@ coverage/
 Thumbs.db
 .env
 .env.*
-.vscode/
+
+# Editor state is personal; .vscode/settings.json is not. It carries the
+# token-economy and determinism settings an agent session depends on —
+# NO_COLOR, a short scrollback, a -NoProfile shell — so it is committed and
+# everything else under .vscode/ is not.
+.vscode/*
+!.vscode/settings.json
 
 # Generated outputs: gate logs, downloaded conformance corpora, audit ledgers.
 # Nothing under test-output/ is ever committed.
 test-output/
-
-# Draft release notes (copy-paste helpers, never committed)
-release-notes/draft-*.md
 
 # AI-agent issue drafts (HITL staging; keep README + TEMPLATE, ignore the rest)
 .github/drafts/*.md
 !.github/drafts/README.md
 !.github/drafts/TEMPLATE.md
 
-# Release PR description scratchpads (per-version, never committed;
-# the committed template is release-notes/PR_TEMPLATE.md)
-RELEASE_PR_*.md
+# release-notes/draft/PR-vX.Y.Z.md is deliberately NOT ignored. The body of a
+# release pull request is the auditable record of what that release claimed
+# and what was actually run, so it is reviewed like code and kept like code.
+# It replaced a git-ignored RELEASE_PR_*.md scratchpad at the repository root,
+# which could prove nothing a year later; that pattern is gone.
 
 # Claude Code per-machine settings (the shared ones are .claude/settings.json)
 .claude/settings.local.json

@@ -71,14 +71,14 @@
       "hooks": [
         {
           "event": "PreToolUse",
-          "matcher": "Bash",
+          "matcher": "Bash and PowerShell — every tool that reaches a shell carries its own matcher, because a hook that is never invoked parses nothing",
           "command": "node .claude/hooks/guard.mjs",
           "denies": ["npm publish|unpublish|deprecate|dist-tag|version <bump>", "npx npm publish", "gh pr create|edit|close|merge|comment", "gh issue create|edit|close|comment", "gh release *", "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F", "git push (any form)", "git add --renormalize", "git tag (except list forms)"],
           "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
           "tests": "tests/tools/guard.test.ts"
         }
       ],
-      "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, social images) and Bash on the HITL commands above",
+      "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, social images), and the HITL commands above denied once per shell tool — Bash(...) and PowerShell(...) — since a family denied for one and allowed for the other is not denied",
       "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
       "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
       "skills": []

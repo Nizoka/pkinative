@@ -139,6 +139,31 @@ describe('every workflow job', () => {
         }
     });
 
+    it('should skip harden-runner on macOS, and only there, with the reason written down', () => {
+        // The action supports Windows in audit mode only and does not support
+        // macOS at all. pdfnative-mcp, whose CI actually runs, carves it out
+        // explicitly; pkinative carried a comment asserting the action
+        // "records that the platform is unsupported and continues" — an
+        // untested claim, since this repository's CI has never executed.
+        // The carve-out is the evidence-based position, and an exemption
+        // nobody can see is an exemption that spreads.
+        const withMacos = workflowFiles.filter((f) => readWorkflow(f).includes('macos-latest'));
+        expect(withMacos.sort(), 'the matrices that reach macOS').toEqual(['ci.yml', 'conformance.yml']);
+        for (const f of withMacos) {
+            const first = [...jobSteps(readWorkflow(f)).values()].flatMap((steps) => steps.slice(0, 1));
+            for (const step of first) {
+                expect(step, `${f}: the harden-runner step must name its own exemption`).toMatch(/if:\s*runner\.os != 'macOS'/);
+            }
+            expect(readWorkflow(f), `${f}: the reason must be in the file, not only in a commit message`)
+                .toContain('does not support macOS');
+        }
+        // Everywhere else the step is unconditional: a blanket `if:` would
+        // turn one platform's limitation into a hole on every runner.
+        for (const f of workflowFiles.filter((x) => !withMacos.includes(x))) {
+            expect(readWorkflow(f), `${f}: no macOS runner, so no exemption`).not.toContain("runner.os != 'macOS'");
+        }
+    });
+
     it('should install dependencies with --ignore-scripts', () => {
         for (const f of workflowFiles) {
             for (const m of readWorkflow(f).matchAll(/run: npm ci\b[^\n]*/g)) {

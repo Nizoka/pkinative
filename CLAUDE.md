@@ -33,12 +33,13 @@ Everything in AGENTS.md applies. This file adds only what is specific to Claude 
 
 ## Hooks and permissions in force
 
-- `.claude/hooks/guard.mjs` (PreToolUse on Bash) denies `npm publish`/`unpublish`/`deprecate`/`dist-tag`/`version <bump>`, `gh pr|issue create|edit|close|comment` (+ `pr merge`),
+- `.claude/hooks/guard.mjs` (PreToolUse on **Bash and PowerShell**) denies `npm publish`/`unpublish`/`deprecate`/`dist-tag`/`version <bump>`, `gh pr|issue create|edit|close|comment` (+ `pr merge`),
   `gh release`, writing `gh api`, any `git push`, `git tag <name>` and `git add --renormalize` — in the whole command, every `&&`/`;`/`|` segment, `$( )`/backticks and
   `sh -c`/`pwsh -Command`/`node -e`/`npx -c` payloads (a quoted string holding one is refused too — write such strings with Edit, never via echo/heredoc).
   Those are submitted by the maintainer (.github/AGENT_RULES.md §5) — prepare, then stop. `tests/tools/guard.test.ts` is the rule table's contract.
-- `permissions.deny` in `.claude/settings.json` blocks Read on the generated bulk files listed above and a subset of the GitHub write commands (the guard hook enforces the full list).
-  `permissions.allow` pre-approves `npm run`, `npx vitest`, `npx tsx scripts/*`, `npx tsc`, `npx eslint`, `node -e` and read-only git.
+- `permissions.deny` in `.claude/settings.json` blocks Read on the generated bulk files listed above and a subset of the GitHub write commands, **once per shell tool** — a family denied for one shell and allowed for another is not denied.
+  `permissions.allow` pre-approves `npm run`, `npx vitest`, `npx tsx scripts/*`, `npx tsc`, `npx eslint`, `node -e` and read-only git, likewise per tool.
+  `GUARDED_SHELL_TOOLS` (`scripts/lib/agent-config.ts`) is the list; `agent-config-parity` fails on a tool missing either half.
 
 ## Plan mode
 

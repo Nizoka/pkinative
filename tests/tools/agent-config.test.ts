@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     CLAUDE_CONTEXT_BUDGET,
     EOL_LF_MODE,
+    GUARDED_SHELL_TOOLS,
     HITL_BASH_DENY_FAMILIES,
     bannerFor,
     checkAgentConfigParity,
@@ -43,14 +44,21 @@ const SETTINGS = JSON.stringify({
             'Read(dist/**)',
             'Read(coverage/**)',
             'Read(package-lock.json)',
-            'Bash(npm publish*)',
-            'Bash(git push *)',
-            'Bash(gh pr create*)',
-            'Bash(gh issue create*)',
-            'Bash(gh release *)',
+            ...GUARDED_SHELL_TOOLS.flatMap((tool) => [
+                `${tool}(npm publish*)`,
+                `${tool}(git push *)`,
+                `${tool}(gh pr create*)`,
+                `${tool}(gh issue create*)`,
+                `${tool}(gh release *)`,
+            ]),
         ],
     },
-    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node .claude/hooks/guard.mjs' }] }] },
+    hooks: {
+        PreToolUse: GUARDED_SHELL_TOOLS.map((matcher) => ({
+            matcher,
+            hooks: [{ type: 'command', command: 'node .claude/hooks/guard.mjs' }],
+        })),
+    },
 });
 
 const CLAUDE_MD = `@AGENTS.md\n\n## Token discipline\n\n- Never Read \`dist/\`, \`coverage/\`, \`package-lock.json\`.\n  The deny list in \`.claude/settings.json\` applies to Read.\n- Other bullet \`docs/assets/api.json\`.\n`;
@@ -119,10 +127,29 @@ describe('agent-config — agent-config-parity', () => {
         expect(findings.map((f) => f.message)).toEqual([expect.stringContaining('Read(coverage/**)')]);
     });
 
+    it('should require the deny list and a guard matcher for every shell tool, not only Bash', () => {
+        // A family denied for one shell and allowed for the other is not
+        // denied. On a Windows machine PowerShell is the primary shell, so
+        // the Bash-only list this repository shipped until now had a door
+        // in it — and guard.mjs, which already parses `pwsh -Command`
+        // payloads, was never invoked to use them.
+        expect(GUARDED_SHELL_TOOLS).toEqual(['Bash', 'PowerShell']);
+        for (const tool of GUARDED_SHELL_TOOLS) {
+            const noRelease = SETTINGS.replace(`"${tool}(gh release *)"`, `"${tool}(gh run *)"`);
+            expect(checkAgentConfigParity({ settingsText: noRelease, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message))
+                .toEqual([expect.stringContaining(`${tool}(gh release`)]);
+
+            const unmatched = JSON.stringify({
+                ...JSON.parse(SETTINGS) as Record<string, unknown>,
+                hooks: { PreToolUse: GUARDED_SHELL_TOOLS.filter((t) => t !== tool).map((matcher) => ({ matcher, hooks: [{ type: 'command', command: 'node .claude/hooks/guard.mjs' }] })) },
+            });
+            expect(checkAgentConfigParity({ settingsText: unmatched, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message))
+                .toEqual([expect.stringContaining(`no ${tool} matcher`)]);
+        }
+    });
+
     it('should fail on a missing HITL family, a non-empty attribution, an unwired hook, a broken hook and invalid JSON', () => {
         expect(HITL_BASH_DENY_FAMILIES).toHaveLength(5);
-        const noRelease = SETTINGS.replace('"Bash(gh release *)"', '"Bash(gh run *)"');
-        expect(checkAgentConfigParity({ settingsText: noRelease, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message)).toEqual([expect.stringContaining('Bash(gh release')]);
         const trailer = SETTINGS.replace('"commit":""', '"commit":"Co-Authored-By: x"');
         expect(checkAgentConfigParity({ settingsText: trailer, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message)).toEqual([expect.stringContaining('attribution.commit')]);
         const unwired = SETTINGS.replace('guard.mjs', 'other.mjs');

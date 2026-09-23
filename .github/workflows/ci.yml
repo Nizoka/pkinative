@@ -67,11 +67,13 @@ jobs:
           - { name: macos, os: macos-latest, node-version: 22, slug: macos, audit: false }
 
     steps:
-      # Harden-Runner monitors Linux runners; on Windows and macOS it records
-      # that the platform is unsupported and continues, and the step stays
-      # first so the workflow invariant (tests/tools/workflows.test.ts) holds
-      # everywhere.
+      # Harden-Runner supports Windows runners in audit mode only, so this job
+      # can never move to `egress-policy: block`. The action also
+      # does not support macOS at all, which is why it is skipped there
+      # rather than left to fail. The step stays first on every other runner,
+      # so the workflow invariant (tests/tools/workflows.test.ts) holds.
       - name: Harden the runner
+        if: runner.os != 'macOS'
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit

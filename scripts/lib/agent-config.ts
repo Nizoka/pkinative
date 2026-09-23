@@ -167,6 +167,18 @@ export interface ClaudeSettings {
 export const HITL_BASH_DENY_FAMILIES: readonly string[] = ['npm publish', 'git push', 'gh pr create', 'gh issue create', 'gh release'];
 
 /**
+ * Every tool that can reach a shell, and must therefore carry the deny list
+ * **and** a guard-hook matcher.
+ *
+ * `Bash` alone was the whole list until a Windows maintainer pointed out the
+ * obvious: their primary shell is PowerShell. A deny list written only for
+ * `Bash` is a deny list with a door in it — `guard.mjs` already parses
+ * `pwsh -Command` payloads, but a hook that is never invoked parses nothing.
+ * Adding a tool here is what makes both halves fail closed at once.
+ */
+export const GUARDED_SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell'];
+
+/**
  * The globs of the "Never Read …" bullet in CLAUDE.md §Token discipline: the
  * backticked tokens of the bullet line and its indented continuation lines.
  */
@@ -225,14 +237,18 @@ export function checkAgentConfigParity(input: AgentConfigInput): Finding[] {
             out.push(error(SETTINGS, `CLAUDE.md says "Never Read \`${glob}\`" but permissions.deny has no ${entry}`));
         }
     }
-    for (const family of HITL_BASH_DENY_FAMILIES) {
-        if (!deny.some((d) => d.startsWith(`Bash(${family}`))) {
-            out.push(error(SETTINGS, `permissions.deny has no Bash(${family}…) entry — the HITL gate is enforced twice, by the deny list and by the hook`));
+    for (const tool of GUARDED_SHELL_TOOLS) {
+        for (const family of HITL_BASH_DENY_FAMILIES) {
+            if (!deny.some((d) => d.startsWith(`${tool}(${family}`))) {
+                out.push(error(SETTINGS, `permissions.deny has no ${tool}(${family}…) entry — the HITL gate is enforced twice, by the deny list and by the hook, and once per shell tool`));
+            }
         }
     }
     const pre = Array.isArray(settings.hooks?.PreToolUse) ? (settings.hooks.PreToolUse as Array<{ matcher?: unknown; hooks?: Array<{ command?: unknown }> }>) : [];
-    const wired = pre.some((h) => h.matcher === 'Bash' && (h.hooks ?? []).some((x) => typeof x.command === 'string' && x.command.includes('guard.mjs')));
-    if (!wired) out.push(error(SETTINGS, 'hooks.PreToolUse has no Bash matcher running .claude/hooks/guard.mjs'));
+    for (const tool of GUARDED_SHELL_TOOLS) {
+        const wired = pre.some((h) => h.matcher === tool && (h.hooks ?? []).some((x) => typeof x.command === 'string' && x.command.includes('guard.mjs')));
+        if (!wired) out.push(error(SETTINGS, `hooks.PreToolUse has no ${tool} matcher running .claude/hooks/guard.mjs — a shell tool without a matcher is a door around the guard`));
+    }
     if (!input.hook.exists) {
         out.push(error(HOOK, 'missing — settings.json wires it as the PreToolUse hook on Bash'));
     } else if (input.hook.checkStatus !== 0) {

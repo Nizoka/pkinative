@@ -72,6 +72,10 @@ const llmsIndexQuality: Rule = {
 const LINK_SOURCES = (ctx: RuleContext): string[] => [
     'README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'THIRD-PARTY-NOTICES.md', 'tests/fixtures/PROVENANCE.md',
     ...ctx.list('docs').filter((p) => p.endsWith('.md') || p.endsWith('.html')),
+    // The committed pull-request bodies. A shipped release note is frozen
+    // history and is never rewritten; a PR draft is live prose that links
+    // into the repository, so a link that rots there rots in the record.
+    ...ctx.list('release-notes/draft').filter((p) => p.endsWith('.md')),
 ];
 
 function linksOf(path: string, text: string): Array<{ target: string; line: number }> {
@@ -562,6 +566,59 @@ const playgroundFreshness: Rule = {
     },
 };
 
+/**
+ * The committed pull-request bodies — the record of what each release
+ * claimed and what was actually run.
+ *
+ * A release note says what shipped; a PR body says *how anyone knows*. The
+ * distinction only survives if the archive is complete, so this rule
+ * requires one body per release note, with the sections the release audit
+ * reads by name and the checkbox that forbids a figure typed from memory.
+ * Without it the convention lasts exactly as long as whoever remembers it.
+ */
+const releasePrDrafts: Rule = {
+    id: 'release-pr-drafts',
+    summary: 'Every release note has a committed release-notes/draft/PR-vX.Y.Z.md carrying the sections the release audit reads by name — Independent audit, Validation, the maintainer steps and the self-review checklist — and no draft carries a Co-Authored-By trailer.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const notes = ctx.list('release-notes').filter((p) => /\/v\d+\.\d+\.\d+\.md$/.test(p));
+        const drafts = new Set(ctx.list('release-notes/draft').filter((p) => p.endsWith('.md')));
+
+        for (const note of notes) {
+            const version = /v(\d+\.\d+\.\d+)\.md$/.exec(note)?.[1] ?? '';
+            const draft = `release-notes/draft/PR-v${version}.md`;
+            if (!drafts.has(draft)) {
+                out.push(error(draft, `missing — ${note} shipped, so the body of its pull request is part of the record. Scaffold it with \`npx tsx scripts/release-prepare.ts --version ${version}\``));
+                continue;
+            }
+            const text = ctx.read(draft) ?? '';
+            if (!new RegExp(`^# release: v${version.replace(/\./g, '\\.')} — .+`, 'm').test(text)) {
+                out.push(error(draft, `must start with "# release: v${version} — <headline>", the title the pull request carries`));
+            }
+            for (const section of ['Independent audit', 'Validation', 'Human-in-the-loop — steps for the maintainer', 'Self-review checklist']) {
+                if (!new RegExp(`^## ${section.replace(/[—]/g, '—')}`, 'm').test(text)) {
+                    out.push(error(draft, `lacks the "## ${section}" section (release-notes/PR_TEMPLATE.md); the release audit reads it by name`));
+                }
+            }
+            if (!text.includes('not typed from memory')) {
+                out.push(error(draft, 'lacks the self-review line "Every count above was produced by a command on this branch, not typed from memory" — the one instruction this template exists to carry'));
+            }
+            // An actual trailer starts its line. The checklist item that
+            // forbids one necessarily names it, and flagging that would make
+            // the rule refuse the very sentence it exists to enforce.
+            if (/^Co-Authored-By:/im.test(text)) {
+                out.push(error(draft, 'carries a Co-Authored-By trailer; `attribution.commit` is empty on purpose and the record must match', lineContaining(text, 'Co-Authored-By:')));
+            }
+        }
+
+        for (const draft of drafts) {
+            const version = /PR-v(\d+\.\d+\.\d+)\.md$/.exec(draft)?.[1];
+            if (version === undefined) out.push(error(draft, 'is not named PR-vX.Y.Z.md — the directory holds one body per release and nothing else'));
+        }
+        return out;
+    },
+};
+
 const releaseNotes: Rule = {
     id: 'release-notes',
     summary: 'Every release-notes/vX.Y.Z.md is titled "pkinative vX.Y.Z" and carries Highlights, Known limitations, Install, Upgrade, Downstream integration notes and Links.',
@@ -581,5 +638,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, playgroundFreshness, releaseNotes,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, playgroundFreshness, releaseNotes, releasePrDrafts,
 ];

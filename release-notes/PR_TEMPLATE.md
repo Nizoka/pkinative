@@ -1,60 +1,104 @@
 # Release pull-request template
 
-The body of the release pull request. Copy it into `RELEASE_PR_v{{version}}.md`
-at the repository root (git-ignored — the per-version scratch file is never
-committed; this template is), replace `{{version}}`, `{{date}}` and
-`{{headline}}`, and fill every section from the facts of the branch. The
-Verification section is a record of what actually ran, not a promise:
-paste the numbers the gate printed, and mark anything not yet run as PENDING.
+The body of the release pull request. `scripts/release-prepare.ts` copies the
+fenced block below into `release-notes/draft/PR-vX.Y.Z.md` and resolves
+`X.Y.Z` and `YYYY-MM-DD`; you fill the rest and the maintainer pastes the
+result into the GitHub pull request verbatim.
+
+**The per-version bodies are committed.** They are the auditable record of
+what each release claimed and what was actually run — the one place a reader
+can check, a year later, whether the numbers in a release note came from a
+command or from somebody's memory. A git-ignored scratch file at the
+repository root cannot serve that purpose, which is why this convention
+replaced one.
+
+**Keep the section order.** The release audit (`/release-audit`) reads
+*Independent audit* and *Validation* by name.
+
+**Every figure here comes from a command you ran on the release branch** —
+the gate's own summary, `npm run test:coverage`, `npx tsx
+scripts/verify-docs.ts`, `npx tsx scripts/verify-bundle.ts`, the conformance
+runner. A command that was not run is marked `not run`, never guessed, and a
+number typed from memory is the failure this instruction exists to prevent.
 
 ---
 
-# release: v{{version}} — {{headline}}
+```markdown
+# release: vX.Y.Z — <headline>
+
+> **Branch:** `chore/release-vX.Y.Z` → `main`
+> **Type:** <Minor | Patch> release (<additive, fully backward-compatible with vA.B.C | breaking: …>)
+> **Milestone:** <the ROADMAP.md band this closes, or "none">
 
 ## Summary
 
 <!-- One paragraph: what the release is about, the compatibility statement
-     (zero runtime dependencies, breaking changes or none, exports added /
-     removed, error codes added), and the conformance figures. -->
+     (zero runtime dependencies, breaking changes or none, exports added or
+     removed, error codes added), and the conformance figures.
 
-## What's in it
+     Counts: N public exports · N error codes · N diagnostic codes · N named
+     limits · N verify-docs rules · N bundle probes · N tests · N % statements. -->
 
-| Area | Change |
+## Changes
+
+### Engine surface
+
+<!-- New, changed or removed exports. "none" if the engine did not move. -->
+
+### Tooling (scripts/)
+
+### CI and repository (.github/, root)
+
+### Agent layer (.claude/, AGENTS.md, governance)
+
+### Tests and conformance
+
+### Documentation
+
+## Independent audit
+
+`/release-audit release-notes/vX.Y.Z.md vA.B.C` — <PENDING | GO | NO-GO>
+
+<!-- When run: the ledger summary — how many auditors, how many findings
+     confirmed / downgraded / rejected / duplicated, and the fix commit for
+     every confirmed blocker and major. -->
+
+## Validation (what actually ran, on <OS>, Node <version>)
+
+| Command | Result |
 |---|---|
-| <!-- e.g. ASN.1 --> | <!-- the public surface, one row per workstream --> |
-| Issues | <!-- #NN closed, with the one-line fix --> |
-| Conformance | <!-- corpus pins, counts, expectation changes --> |
-| Docs | <!-- guides, registries, recipes added or updated --> |
+| `npx tsx scripts/gate.ts --publish --require-all` | <the gate's own summary line> |
+| `npm run test:coverage` | <N tests across M files; statements / branches / functions / lines> |
+| `npm run verify:bundle` | <N probes, largest X KB against budget Y KB> |
+| `npx tsx scripts/verify-docs.ts` | <N rules, 0 errors> |
+| `npx tsx scripts/validate-certs.ts --require-all` | <L0–L5 verdicts, corpus counts> |
+| `npm run check:package` | <attw + publint> |
+| `npm run smoke:install` | <ESM and CJS load from the packed tarball> |
+| `npm pack --dry-run` | <file count, packed size> |
+| `npm ls --omit=dev --all` | <pkinative alone> |
 
-## Deferred
+## Backward compatibility
 
-<!-- What was scoped out and why, so the next release starts from a decision
-     rather than a rediscovery. Delete the section if nothing was deferred. -->
+<!-- Every public export keeps its signature, or the exact list of what moved
+     and the one-line migration for each. Below 1.0 a minor may change the
+     API; say so here and in the release note's Downstream integration notes. -->
 
-- ...
+## Out of scope (tracked in ROADMAP.md)
 
-## Docs & registries
+## Human-in-the-loop — steps for the maintainer
 
-- Release note `release-notes/v{{version}}.md` and the `CHANGELOG.md` entry `## [{{version}}] – {{date}}`.
-- Manifest `docs/assets/ecosystem.json`: version {{version}}, `verifiedOn` {{date}}, counts updated.
-- <!-- errors.json, diagnostics.json, limits.json, guides, recipes -->
+1. Squash-merge to `main` with the title `release: vX.Y.Z — <headline>`.
+2. Wait for the seven required checks: `ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows`, `conformance-macos`.
+3. Tag `vX.Y.Z` on the merge commit and push it. **`tags.json` has an empty `bypass_actors`: a pushed tag can never be moved or deleted, by anyone.**
+4. Publish the GitHub Release (title `vX.Y.Z — <headline>`, body = `release-notes/vX.Y.Z.md`).
+   Below 1.0.0 expect `release-assets` green and `publish` red — the pre-1.0 refusal is deliberate and is the only proof the 1.0 guard still works.
+5. <Anything version-specific: a ruleset re-import, an npm name reservation, a social image upload.>
 
-## Verification
+## Self-review checklist
 
-The release gate is `npx tsx scripts/gate.ts --publish --require-all`. Each line names the individual gate and what it reported on the release commit:
-
-- [ ] `npm run typecheck:all` — clean (src + tests + scripts).
-- [ ] `npm run lint` — clean.
-- [ ] `npm run test:coverage` — N tests across M files; statements / branches / functions / lines against the thresholds in vitest.config.ts.
-- [ ] `npm run build` and `npm run check:package` — ESM, CJS, declarations; attw and publint clean.
-- [ ] `npm run verify:bundle` — every probe within budget.
-- [ ] Conformance — N limbo certificates, N Wycheproof vectors; every expectation met.
-- [ ] `npm run verify:docs` — all rules passed.
-- [ ] `npm ls --omit=dev --all` — pkinative alone.
-
-## Merge checklist
-
-- [ ] CI green (`ci (22)`, `ci (24)`, `windows`).
-- [ ] `release-notes/v{{version}}.md` reviewed; release date adjusted if the tag is not cut on {{date}}.
-- [ ] Squash-merge to `main` with the title `release: v{{version}} — {{headline}}`.
-- [ ] The maintainer tags `v{{version}}` on the merge commit and publishes the GitHub Release (title `v{{version}} — {{headline}}`, body = the release note).
+- [ ] Every count above was produced by a command on this branch, not typed from memory.
+- [ ] `git diff --stat` on the release commit reads as the bump and the regenerated files, nothing else.
+- [ ] The release note carries all six mandatory sections and the CHANGELOG entry mirrors it.
+- [ ] No `Co-Authored-By` trailer and no "generated with" footer anywhere on the branch.
+- [ ] The independent audit ledger is attached above, with a fix commit for every confirmed blocker and major — or the section says PENDING and this PR is not ready to merge.
+```

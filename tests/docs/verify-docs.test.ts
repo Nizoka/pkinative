@@ -97,6 +97,10 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A hash typo would also fire, but proving that would prove nothing.
     'playground-freshness': (f) => edit(f, 'src/oid/oid-names.ts', /\n$/, '\n// a source edited without rebuilding the playground\n'),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
+    // The defect this rule exists for: a release whose pull-request body is
+    // not in the record, so nobody can check a year later whether a figure
+    // came from a command or from somebody's memory.
+    'release-pr-drafts': (f) => { delete f['release-notes/draft/PR-v0.1.0.md']; },
     'corpus-pin-parity': (f) => edit(f, 'THIRD-PARTY-NOTICES.md', '118721335e675edde10015df89b138cf292d7554', '0000000000000000000000000000000000000000'),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };

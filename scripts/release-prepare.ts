@@ -144,12 +144,26 @@ function main(): number {
         texts.set(edit.file, before.replace(edit.pattern, edit.replace(args.version, args.date)));
         console.log(`edit  ${edit.file}: ${edit.what}`);
     }
-    const note = `release-notes/v${args.version}.md`;
-    if (!existsSync(join(ROOT, note))) {
-        const template = readFileSync(join(ROOT, 'release-notes', 'TEMPLATE.md'), 'utf8');
-        const body = /```markdown\n([\s\S]*?)\n```\n/.exec(template)?.[1] ?? '';
-        texts.set(note, `${body.replace(/X\.Y\.Z/g, args.version).replace(/YYYY-MM-DD/g, args.date).replace(/\\`\\`\\`/g, '```')}\n`);
-        console.log(`new   ${note} (from the template — fill it in)`);
+    // Two scaffolds, from the fenced block of their template. The release
+    // note is the published artefact; the PR draft is the auditable record of
+    // what the release claimed and what was run, and it is committed for
+    // exactly that reason — a git-ignored scratch file proves nothing a year
+    // later. Neither is overwritten if it already exists.
+    const scaffolds: ReadonlyArray<readonly [target: string, template: string, what: string]> = [
+        [`release-notes/v${args.version}.md`, 'release-notes/TEMPLATE.md', 'the release note'],
+        [`release-notes/draft/PR-v${args.version}.md`, 'release-notes/PR_TEMPLATE.md', 'the pull-request body'],
+    ];
+    for (const [target, template, what] of scaffolds) {
+        if (existsSync(join(ROOT, target))) continue;
+        const source = readFileSync(join(ROOT, template), 'utf8');
+        const body = /```markdown\n([\s\S]*?)\n```\n/.exec(source)?.[1] ?? '';
+        if (body === '') {
+            console.error(`FAIL  ${template}: no fenced \`\`\`markdown block to scaffold from`);
+            failures++;
+            continue;
+        }
+        texts.set(target, `${body.replace(/X\.Y\.Z/g, args.version).replace(/YYYY-MM-DD/g, args.date).replace(/\\`\\`\\`/g, '```')}\n`);
+        console.log(`new   ${target} (${what}, from the template — fill it in)`);
     }
     if (failures > 0) return 1;
     if (!args.dryRun) for (const [file, text] of texts) writeFileSync(join(ROOT, file), text);

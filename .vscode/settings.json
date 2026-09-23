@@ -1,0 +1,37 @@
+{
+  "//": "Committed on purpose: these are token-economy and determinism settings for agent sessions, not personal preferences. Colour codes and a long scrollback cost context for nothing when a tool's output is read by a model; -NoProfile keeps a machine's profile from changing what a command prints.",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "args": ["-NoLogo", "-NoProfile"]
+    }
+  },
+  "terminal.integrated.env.windows": {
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "terminal.integrated.env.linux": {
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "terminal.integrated.env.osx": {
+    "NO_COLOR": "1",
+    "FORCE_COLOR": "0"
+  },
+  "terminal.integrated.scrollback": 500,
+  "terminal.integrated.gpuAcceleration": "off",
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "search.exclude": {
+    "**/dist": true,
+    "**/coverage": true,
+    "**/test-output": true,
+    "**/node_modules": true,
+    "docs/llms-full.txt": true,
+    "docs/llms-index.json": true,
+    "docs/playground/pkinative.js": true
+  }
+}
