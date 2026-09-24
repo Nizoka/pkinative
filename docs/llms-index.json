@@ -1,7 +1,7 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-09-20",
+  "verifiedOn": "2026-09-24",
   "artefacts": [
     {
       "url": "llms.txt",
@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 3416,
-      "approxTokens": 854
+      "bytes": 3862,
+      "approxTokens": 966
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 66712,
-      "approxTokens": 16678
+      "bytes": 66745,
+      "approxTokens": 16686
     },
     {
       "url": "llms-recipes.txt",
@@ -67,7 +67,7 @@
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.3 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12772,
-      "approxTokens": 3193
+      "bytes": 12805,
+      "approxTokens": 3201
     },
     {
       "title": "Use cases",

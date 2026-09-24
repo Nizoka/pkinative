@@ -1,9 +1,9 @@
 {
   "$comment": "Single source of truth for every version, milestone, contract and count quoted in the pkinative documentation. scripts/verify-docs.ts holds package.json, CITATION.cff, CHANGELOG.md and the prose to it; update this file, not the prose. verifiedOn is the date of the last documentation audit.",
-  "verifiedOn": "2026-09-20",
+  "verifiedOn": "2026-09-24",
   "packages": {
     "pkinative": {
-      "version": "0.2.0",
+      "version": "0.3.0",
       "repo": "https://github.com/Nizoka/pkinative",
       "status": "active",
       "engine": { "node": ">=22" },

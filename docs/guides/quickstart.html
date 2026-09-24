@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quick start — pkinative</title>
-  <meta name="description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta name="description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.3 as it is tested; every export named here is in docs/assets/api.json.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/quickstart.html">
   <meta property="og:title" content="Quick start — pkinative">
-  <meta property="og:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta property="og:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.3 as it is tested; every export named here is in docs/assets/api.json.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Quick start — pkinative">
-  <meta name="twitter:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.1 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta name="twitter:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.3 as it is tested; every export named here is in docs/assets/api.json.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/quickstart.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/quickstart.html">
@@ -55,13 +55,13 @@
     <article id="guide-content" class="guide-content" data-md="quickstart.md" data-prerendered="true">
       <h1 id="quick-start">Quick start</h1>
       <blockquote>
-      <p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 0.1 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
+      <p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 0.3 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
       </blockquote>
       <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
-      <p>pkinative 0.1 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:</p>
-      <pre><code class="language-bash">npm install https://github.com/Nizoka/pkinative/releases/download/v0.2.0/pkinative-0.2.0.tgz
+      <p>pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:</p>
+      <pre><code class="language-bash">npm install https://github.com/Nizoka/pkinative/releases/download/v0.3.0/pkinative-0.3.0.tgz
       </code></pre>
-      <p><code>gh attestation verify pkinative-0.2.0.tgz --repo Nizoka/pkinative</code> checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
+      <p><code>gh attestation verify pkinative-0.3.0.tgz --repo Nizoka/pkinative</code> checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
       <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
       <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
       <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
@@ -103,7 +103,7 @@
       </tr>
       <tr>
       <td><code>signatureValue</code></td>
-      <td><code>{ bytes, unusedBits }</code> — the signature, not verified in 0.1</td>
+      <td><code>{ bytes, unusedBits }</code> — the signature; <code>verifyCertificateSignature(cert, issuer)</code> checks it</td>
       </tr>
       <tr>
       <td><code>issuer</code>, <code>subject</code></td>

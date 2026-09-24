@@ -19,8 +19,8 @@ authors:
 repository-code: "https://github.com/Nizoka/pkinative"
 url: "https://github.com/Nizoka/pkinative"
 license: MIT
-version: 0.2.0
-date-released: 2026-09-20
+version: 0.3.0
+date-released: 2026-09-24
 keywords:
   - pki
   - x509

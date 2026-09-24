@@ -1,6 +1,6 @@
 # pkinative — brief for AI coding agents
 
-Paste this into a coding agent's context before it writes code that reads certificates with pkinative 0.1.
+Paste this into a coding agent's context before it writes code that reads certificates with pkinative 0.3.
 
 ## Import
 
@@ -41,7 +41,7 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 
 ## Do not
 
-- Do not claim pkinative verifies signatures or validates chains: 0.1 parses only (verification arrives in 0.3, path validation in 0.5).
-- Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto.
+- Do not claim pkinative validates a chain. 0.3 verifies **one signature against one issuer** (`verifyCertificateSignature`); a trust anchor, a validity window, name constraints, policies and revocation are RFC 5280 §6 and arrive in 0.5. A verified signature is not a trusted certificate, and saying otherwise is the most expensive mistake on this page.
+- Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto. pkinative generates and exports no key: `createCertificate` takes a SubjectPublicKeyInfo in DER and a private `CryptoKey` it only hands to `subtle.sign`, so the one `crypto.subtle.exportKey('spki', …)` call is yours to write.
 - Do not raise a limit (`options.limits`) for untrusted input.
-- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.2 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.2.0/pkinative-0.2.0.tgz`.
+- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.3 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.3.0/pkinative-0.3.0.tgz`.

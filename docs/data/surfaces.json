@@ -1,6 +1,6 @@
 {
   "$comment": "What pkinative can do, the export that does it, and the version that brought it — the machine-readable twin of docs/guides/choose.md. Satellites (pkinative-cli, pkinative-mcp) arrive at 1.0.0 (ROADMAP.md); until then every capability is library-only.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "capabilities": [
     { "id": "errors", "capability": "Fail with a typed error carrying a stable, machine-readable code, never a bare TypeError", "exports": ["PkiError", "PkiEncodingError", "PkiCertificateError", "PkiLimitError"], "since": "0.1.0" },
     { "id": "limits", "capability": "Bound every loop over untrusted bytes with a named, CWE-tagged limit", "exports": ["DEFAULT_PKI_LIMITS"], "since": "0.1.0" },

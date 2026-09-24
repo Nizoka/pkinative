@@ -1,16 +1,16 @@
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.1 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.3 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
-pkinative 0.1 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
+pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v0.2.0/pkinative-0.2.0.tgz
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.3.0/pkinative-0.3.0.tgz
 ```
 
-`gh attestation verify pkinative-0.2.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`gh attestation verify pkinative-0.3.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
 
 ## Read a certificate
 
@@ -41,7 +41,7 @@ Every field is listed with its type in `docs/assets/api.json` (the `members` of 
 | `version` | `1`, `2` or `3` (the encoded INTEGER is 0, 1 or 2) |
 | `serialNumber` | `{ bytes, hex, value }` — the content octets, their lowercase hex, and a `bigint` |
 | `signatureAlgorithm`, `tbsSignatureAlgorithm` | `{ oid, parameters, der }`; RFC 5280 requires the two to be equal (a diagnostic says when they are not) |
-| `signatureValue` | `{ bytes, unusedBits }` — the signature, not verified in 0.1 |
+| `signatureValue` | `{ bytes, unusedBits }` — the signature; `verifyCertificateSignature(cert, issuer)` checks it |
 | `issuer`, `subject` | `{ rdns, der }`: each RDN a list of `{ type, value, valueDer }`, `value` a `{ stringType, value, raw }` string when the attribute is one |
 | `validity` | `{ notBefore, notAfter }`, each `{ type, epochMilliseconds, text }` |
 | `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87` add `key`; `unknown` adds nothing |
