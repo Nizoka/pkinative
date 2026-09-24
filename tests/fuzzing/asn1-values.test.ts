@@ -73,9 +73,18 @@ describe('fuzzing — time rollover', () => {
 
 describe('fuzzing — string type confusion', () => {
     it('should agree with a fatal TextDecoder on random UTF8String content, and type every refusal', () => {
+        // 5 000 iterations across eight string tags is 40 000 decode-and-read
+        // cycles. The assertions are collected and asserted once at the end
+        // rather than called inside the loop: vitest builds an assertion
+        // object per `expect`, and 45 000 of them cost more than the work
+        // being measured — enough to push this suite past the 30 s timeout
+        // when the machine is busy, which is a flake on a slow runner rather
+        // than a finding. The search budget is unchanged; only the
+        // bookkeeping moved out of the hot path.
         const seed = 0x5eed_0007;
         const rng = createPrng(seed);
         const fatal = new TextDecoder('utf-8', { fatal: true });
+        const mismatches: string[] = [];
         for (let iteration = 0; iteration < 5000; iteration++) {
             const content = Uint8Array.from({ length: rng.int(16) }, () => (rng.int(3) === 0 ? rng.int(128) : 0x80 + rng.int(128)));
             let reference: string | null;
@@ -84,12 +93,20 @@ describe('fuzzing — string type confusion', () => {
             } catch {
                 reference = null;
             }
-            expect(decodeUtf8(content)).toBe(reference);
+            const mine = decodeUtf8(content);
+            if (mine !== reference) mismatches.push(`seed ${seed} iteration ${iteration}: decodeUtf8 ${JSON.stringify(mine)} vs TextDecoder ${JSON.stringify(reference)}`);
             for (const tag of [12, 18, 19, 20, 22, 26, 28, 30]) {
                 const input = universal(tag, content);
                 const result = outcome(`seed ${seed} iteration ${iteration} tag ${tag}`, input, () => readString(decodeAsn1(input), { onDiagnostic: () => undefined }));
-                expect(['ok', 'PKI_ASN1_STRING_INVALID']).toContain(result);
+                if (result !== 'ok' && result !== 'PKI_ASN1_STRING_INVALID') {
+                    mismatches.push(`seed ${seed} iteration ${iteration} tag ${tag}: ${result}`);
+                }
             }
         }
-    });
+        expect(mismatches).toEqual([]);
+        // An explicit budget, like the 20 000-mutation suite next door: the
+        // default 30 s is what this test silently ran against before, and a
+        // search budget whose time limit is implicit is one slow runner away
+        // from being a flake nobody can reproduce.
+    }, 60_000);
 });
