@@ -58,6 +58,7 @@ describe('every workflow', () => {
             'conformance.yml',
             'dependency-review.yml',
             'docs.yml',
+            'fuzz.yml',
             'publish.yml',
             'release-assets.yml',
             'scorecard.yml',
@@ -92,7 +93,13 @@ describe('every workflow', () => {
                 const ref = m[1];
                 if (ref.startsWith('./')) continue; // local composite action
                 expect(ref, `${label}: ${ref}`).toMatch(/^[^@\s]+@[0-9a-f]{40}$/);
-                expect(m[0], `${label}: ${ref} lacks a "# vX.Y.Z" comment`).toMatch(/#\s*v\d+\.\d+\.\d+\s*$/);
+                // The comment must name a tag that EXISTS upstream, which is
+                // why one component is allowed: ClusterFuzzLite publishes `v1`
+                // and nothing else, and demanding three would force the
+                // comment to invent a `v1.0.0` nobody could resolve. A
+                // version comment that cannot be checked is worse than a
+                // short one.
+                expect(m[0], `${label}: ${ref} lacks a "# vX[.Y[.Z]]" comment`).toMatch(/#\s*v\d+(?:\.\d+){0,2}\s*$/);
             }
         }
     });

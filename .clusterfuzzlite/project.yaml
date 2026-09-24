@@ -1,0 +1,3 @@
+# pkinative — ClusterFuzzLite project configuration.
+# https://google.github.io/clusterfuzzlite/build-integration/
+language: javascript

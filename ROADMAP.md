@@ -17,7 +17,7 @@ pkinative grows in milestones, each one a git tag with its own release note. Ver
 
 - [x] Certificate signing requests and certificates built from typed descriptions, signed by a Web Crypto key
 - [x] Signature verification of a certificate against its issuer through Web Crypto (RSA PKCS#1 v1.5 and PSS, ECDSA P-256/384/521, Ed25519 and Ed448)
-- [ ] Continuous fuzzing (ClusterFuzzLite with Jazzer.js)
+- [x] Continuous fuzzing (ClusterFuzzLite with Jazzer.js), non-blocking by construction — it is not one of the contexts the ruleset requires
 
 `generateKey` and `exportKey` stay refused in `src/` here and in every later version, so the key never belongs to pkinative: a builder takes a SubjectPublicKeyInfo in DER and a private key only as an opaque handle it passes straight to `subtle.sign`. Neither `crypto` nor `build` imports `x509`, and `verify-bundle` weighs both claims on the built artefact rather than asserting them in a diagram.
 

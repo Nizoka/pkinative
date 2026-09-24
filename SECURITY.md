@@ -78,6 +78,9 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 - Every truncation point and every single-octet mutation of the test certificates ends in a certificate or a `PkiError` (`tests/fuzzing/`); seeded suites cover length encodings, nesting, tags, integers, times, strings, BER forms and PEM.
 - The conformance gate ([docs/guides/conformance.md](docs/guides/conformance.md)) runs the built package over 30 361 unique x509-limbo certificates and 1 530 Wycheproof ECDSA vectors, pinned by commit and SHA-256, and holds every answer to OpenSSL.
 - A certificate is refused only where every x509-limbo case using it expects failure; any other refusal, and any exception that is not a `PkiError`, fails the gate.
+- Coverage-guided fuzzing runs through ClusterFuzzLite (`.clusterfuzzlite/`, `.github/workflows/fuzz.yml`) over three targets — the X.690 decoder in both rule sets, the RFC 5280 parser with and without extension decoding, and PEM together with the OID codec, which also asserts that `encodeOid(decodeOid(x))` returns the input byte for byte. It is **not** a required status check: the seeded suites are the blocking half, and this one explores. Jazzer.js is installed inside the build image and never in `package.json`, so the zero-dependency promise is unaffected. The same three target files are executed against `src/` by `tests/fuzzing/targets.test.ts` on every gate run, including an assertion that a target still rethrows what is not a `PkiError` — a target that swallowed everything would search for a week and report nothing.
+
+> The ClusterFuzzLite workflow has **not yet executed**: this repository has no pushed history at the time of writing. What is proven locally is that the targets load, run and propagate correctly; what is unproven is the container wiring. The first scheduled run is the evidence, and this note stands until then.
 
 ### Code Safety
 
