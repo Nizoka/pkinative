@@ -58,6 +58,10 @@ export {
     encodeString,
     encodeTime,
     encodeAsn1Node,
+    encodeEnumerated,
+    encodeExplicit,
+    encodeImplicit,
+    encodeNamedBits,
 } from './asn1/asn1-encode.js';
 export type {
     TagClass,
@@ -159,3 +163,35 @@ export type {
 export { verifyCertificateSignature, verifySelfSignature } from './crypto/x509-verify.js';
 export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
 export { canVerify } from './crypto/webcrypto.js';
+
+// ── 8. Building — certificates and requests, signed through Web Crypto ─
+
+export { createCertificate, signatureAlgorithmDer } from './build/build-certificate.js';
+export type { CreateOptions } from './build/build-certificate.js';
+export { createCertificationRequest } from './build/build-csr.js';
+export { canSign } from './crypto/webcrypto.js';
+export {
+    encodeAlgorithmIdentifier,
+    encodeAttribute,
+    encodeAuthorityKeyIdentifier,
+    encodeBasicConstraints,
+    encodeDistinguishedName,
+    encodeExtendedKeyUsage,
+    encodeExtension,
+    encodeExtensions,
+    encodeKeyUsage,
+    encodeNameAttribute,
+    encodeSubjectAltName,
+    encodeSubjectKeyIdentifier,
+    encodeSubjectPublicKeyInfo,
+    encodeValidity,
+    KEY_USAGE_BITS,
+} from './build/build-structures.js';
+export type {
+    CertificateDescription,
+    CertificationRequestDescription,
+    ExtensionDescription,
+    NameAttribute,
+    NameDescription,
+} from './types/build-types.js';
+export type { SignatureAlgorithm, SignatureHash, SigningKey } from './types/crypto-types.js';

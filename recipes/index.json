@@ -124,11 +124,15 @@
     },
     {
       "file": "asn1-primitives.ts",
-      "task": "Encode and read the BOOLEAN, NULL, BIT STRING and OCTET STRING primitives, reach an arbitrary tag with encodeTlv, and see what DER's SET OF ordering does",
+      "task": "Encode and read the BOOLEAN, NULL, BIT STRING and OCTET STRING primitives, tell EXPLICIT tagging from IMPLICIT, reach an arbitrary tag with encodeTlv, and see what DER's SET OF ordering does",
       "surface": [
         "decodeAsn1",
         "decodeAsn1Sequence",
         "encodeBoolean",
+        "encodeEnumerated",
+        "encodeExplicit",
+        "encodeImplicit",
+        "encodeNamedBits",
         "encodeNull",
         "encodeInteger",
         "encodeOctetString",
@@ -149,7 +153,10 @@
         "setOf=3109020101020102020103",
         "set=3109020103020101020102",
         "sorted=true",
-        "explicit=a003010100"
+        "explicit=a003010100",
+        "tagging=a003010100 800100 true",
+        "enumerated=0a0101",
+        "namedBits=03020284"
       ]
     },
     {
@@ -196,6 +203,44 @@
         "x25519SelfSignature=false",
         "couldNotCheck=none",
         "lenient=true"
+      ]
+    },
+    {
+      "file": "create-certificate.ts",
+      "task": "Issue a root, a certificate it signs and a PKCS#10 request, with keys the caller holds and pkinative never sees",
+      "surface": [
+        "canSign",
+        "createCertificate",
+        "createCertificationRequest",
+        "signatureAlgorithmDer",
+        "encodeAlgorithmIdentifier",
+        "encodeAttribute",
+        "encodeAuthorityKeyIdentifier",
+        "encodeBasicConstraints",
+        "encodeDistinguishedName",
+        "encodeExtendedKeyUsage",
+        "encodeExtension",
+        "encodeExtensions",
+        "encodeKeyUsage",
+        "encodeNameAttribute",
+        "encodeSubjectAltName",
+        "encodeSubjectKeyIdentifier",
+        "encodeSubjectPublicKeyInfo",
+        "encodeValidity",
+        "KEY_USAGE_BITS",
+        "getExtension"
+      ],
+      "since": "0.3.0",
+      "expects": [
+        "available=yes",
+        "root=CN=pkinative example root,C=US v3 self=true diag=0",
+        "leaf=CN=host.example signedByRoot=true diag=0",
+        "leafExtensions=basicConstraints,keyUsage,extendedKeyUsage,subjectAltName,authorityKeyIdentifier",
+        "leafUsage=digitalSignature",
+        "leafNames=dNSName,uniformResourceIdentifier",
+        "keyUsageBits=5,6",
+        "csrIsDer=true",
+        "pieces=300d06092a864886f70d01010b0500 300806035504030c0161 300c310a300806035504030c0161 301e 30090603551d1304023000 300b30090603551d1304023000 300806022a0331023000 300e 300a06082a8648ce3d040302"
       ]
     }
   ]

@@ -23,8 +23,19 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
 - **No object keys from input.** Decoded names and OIDs go into arrays or `Map`s, never into plain object keys
   (prototype pollution, CWE-1321).
 - **No secret-dependent cryptography, ever.** `src/` holds no modular exponentiation, no elliptic-curve scalar
-  multiplication, no key generation, no signing. Hashing covers public data only. Verification (0.3) goes through
-  Web Crypto.
+  multiplication and no signature algorithm. Hashing covers public data only. Signing and verification are each
+  one call to Web Crypto with a key the **caller** owns.
+- **Web Crypto has exactly one door**, `src/crypto/webcrypto.ts`: the only module that may name `importKey`,
+  `verify` or `sign`. `KEY_OPERATION_POLICY` (`scripts/lib/architecture.ts`) is the table, it is per module and
+  not per layer, and `tests/tools/architecture.test.ts` enforces it from the syntax tree — a declaration in an
+  interface counts. Adding a key operation anywhere means editing that table in its own reviewed commit.
+- **`generateKey` and `exportKey` are refused in every version.** That is why `createCertificate` takes
+  `subjectPublicKey` as SubjectPublicKeyInfo **DER** and not a `CryptoKey`: extracting the public half is one
+  line in the caller's code, where it is visible, and an API that hid it would make this promise unverifiable.
+  A private key reaches `src/` only as an opaque handle passed straight to `subtle.sign`.
+- **Verification fails closed; signing does not.** A host that throws during `verify` is a `false`, because "no"
+  is a legitimate verdict. A signature that did not happen has no safe falsy value — an empty signature is a
+  certificate that verifies nowhere and looks valid until someone checks — so `signData` throws.
 - No `eval`/`Function`/`setTimeout(string)`. No sockets. No filesystem. No `process`. No dynamic `import()`.
 - Fuzzing tests must assert: a clean typed error (a `PkiError` subclass), no hang, bounded memory — for every
   truncation point and corruption class.

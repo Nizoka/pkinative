@@ -3,15 +3,20 @@
  *
  * `asn1-and-oids.ts` builds a SEQUENCE; this one covers what is left — the
  * BOOLEAN, NULL, BIT STRING and OCTET STRING pairs, `encodeTlv` for a tag
- * no named encoder covers, the SET/SET OF distinction DER cares about, and
- * `decodeAsn1Sequence` for values placed back to back with no container.
+ * no named encoder covers, the SET/SET OF distinction DER cares about, the
+ * two taggings an ASN.1 module writes as `[0]`, and `decodeAsn1Sequence`
+ * for values placed back to back with no container.
  */
 import {
     decodeAsn1,
     decodeAsn1Sequence,
     encodeBitString,
     encodeBoolean,
+    encodeEnumerated,
+    encodeExplicit,
+    encodeImplicit,
     encodeInteger,
+    encodeNamedBits,
     encodeNull,
     encodeOctetString,
     encodeSet,
@@ -60,6 +65,28 @@ export default function run(): Record<string, string> {
     // context-specific constructed tag that wraps an optional field.
     const explicit = encodeTlv('context', 0, true, encodeBoolean(false));
 
+    // The same thing, said once: encodeExplicit wraps a complete TLV in a
+    // constructed context tag, so [0] BOOLEAN FALSE is two headers deep.
+    // encodeImplicit instead REPLACES the value's own tag, keeping its
+    // constructed bit — which is why the two produce different bytes for the
+    // same inner value, and why an ASN.1 module's `IMPLICIT` is never a
+    // wrapper. Get these backwards and the structure decodes as a shape
+    // nobody declared.
+    const asExplicit = hex(encodeExplicit(0, encodeBoolean(false)));
+    const asImplicit = hex(encodeImplicit(0, encodeBoolean(false)));
+
+    // ENUMERATED is INTEGER's twin with tag 10: a CRL's reasonCode (RFC 5280
+    // §5.3.1) is one, and writing it as an INTEGER is a structure a CRL
+    // reader will refuse. 1 is keyCompromise.
+    const reason = hex(encodeEnumerated(1));
+
+    // A BIT STRING of NAMED bits is not a BIT STRING of bytes: X.690 §11.2.2
+    // makes DER drop every trailing zero bit, so the encoder takes the bit
+    // numbers and the length falls out. Bits 0 and 5 — digitalSignature and
+    // keyCertSign in a KeyUsage — need six bits, so two of one octet's eight
+    // are used and the padding count is 2.
+    const named = hex(encodeNamedBits([0, 5]));
+
     return {
         stream: `${String(flag)} ${String(nothing)} ${String(small)} ${hex(octets)}`,
         bitString: `${hex(bits.bytes)}/${String(bits.unusedBits)}`,
@@ -67,5 +94,8 @@ export default function run(): Record<string, string> {
         set,
         sorted: String(setOf !== set),
         explicit: hex(explicit),
+        tagging: `${asExplicit} ${asImplicit} ${String(asExplicit !== asImplicit)}`,
+        enumerated: reason,
+        namedBits: named,
     };
 }

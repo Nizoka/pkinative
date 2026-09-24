@@ -53,9 +53,15 @@ export interface EdKeyImportParams {
 /** Every import parameter pkinative passes. */
 export type ImportParams = RsaHashedImportParams | EcKeyImportParams | EdKeyImportParams;
 
-/** RSASSA-PKCS1-v1_5, Ed25519 and Ed448 verify by name alone. */
+/** RSASSA-PKCS1-v1_5, Ed25519 and Ed448 sign and verify by name alone. */
 export interface NamedVerifyParams {
     readonly name: string;
+}
+
+/** RSA-PSS signing parameters — the same shape verification takes. */
+export interface RsaPssSignParams {
+    readonly name: 'RSA-PSS';
+    readonly saltLength: number;
 }
 
 /** RSA-PSS carries the salt length, in bytes, read from the certificate's parameters. */
@@ -86,6 +92,13 @@ export interface SubtleDigest {
 export interface SubtlePublicKey {
     importKey(format: 'spki', keyData: Uint8Array, algorithm: ImportParams, extractable: boolean, keyUsages: readonly string[]): Promise<CryptoKeyHandle>;
     verify(algorithm: VerifyParams, key: CryptoKeyHandle, signature: Uint8Array, data: Uint8Array): Promise<boolean>;
+    /**
+     * Signs with a key the **caller** imported and holds. There is no
+     * `importKey` for a private key here and no `exportKey` anywhere: the
+     * only thing pkinative ever does with a signing key is hand it back to
+     * the host with the bytes to cover.
+     */
+    sign(algorithm: VerifyParams, key: CryptoKeyHandle, data: Uint8Array): Promise<ArrayBuffer>;
 }
 
 /** The shape of `globalThis` as far as Web Crypto is concerned. */

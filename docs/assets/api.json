@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 133,
+  "exportCount": 165,
   "exports": [
     {
       "name": "AccessDescription",
@@ -472,6 +472,72 @@
       ]
     },
     {
+      "name": "CertificateDescription",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export interface CertificateDescription",
+      "summary": "What a certificate is built from.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "serialNumber",
+          "type": "bigint | Uint8Array",
+          "optional": false,
+          "summary": "The serial."
+        },
+        {
+          "name": "issuerDer",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The issuer name, as the **DER of the issuing certificate's subject**."
+        },
+        {
+          "name": "issuer",
+          "type": "NameDescription | undefined",
+          "optional": true,
+          "summary": "The issuer name to build, when there is no certificate to copy it from."
+        },
+        {
+          "name": "subject",
+          "type": "NameDescription",
+          "optional": false,
+          "summary": "The subject name to build."
+        },
+        {
+          "name": "subjectDer",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The subject name as DER, used instead of `subject` when given."
+        },
+        {
+          "name": "notBefore",
+          "type": "number",
+          "optional": false,
+          "summary": "Start of validity, in epoch milliseconds."
+        },
+        {
+          "name": "notAfter",
+          "type": "number",
+          "optional": false,
+          "summary": "End of validity, in epoch milliseconds."
+        },
+        {
+          "name": "subjectPublicKey",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The subject's public key, as a complete SubjectPublicKeyInfo in DER — `new Uint8Array(await crypto.subtle.exportKey('spki', publicKey))`."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly ExtensionDescription[] | undefined",
+          "optional": true,
+          "summary": "The extensions, in the order they are placed."
+        }
+      ]
+    },
+    {
       "name": "CertificatePoliciesExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -514,6 +580,42 @@
       ]
     },
     {
+      "name": "CertificationRequestDescription",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export interface CertificationRequestDescription",
+      "summary": "What a PKCS#10 certification request is built from.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "subject",
+          "type": "NameDescription",
+          "optional": false,
+          "summary": "The subject name to build."
+        },
+        {
+          "name": "subjectDer",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The subject name as DER, used instead of `subject` when given."
+        },
+        {
+          "name": "subjectPublicKey",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The requester's public key, as a complete SubjectPublicKeyInfo in DER."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly ExtensionDescription[] | undefined",
+          "optional": true,
+          "summary": "Extensions to request, carried in the `extensionRequest` attribute (PKCS#9, OID 1.2.840.113549.1.9.14)."
+        }
+      ]
+    },
+    {
       "name": "CpsQualifier",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -540,6 +642,24 @@
           "type": "string",
           "optional": false,
           "summary": "Where the certification practice statement is published."
+        }
+      ]
+    },
+    {
+      "name": "CreateOptions",
+      "kind": "type",
+      "module": "src/build/build-certificate.ts",
+      "signature": "export interface CreateOptions",
+      "summary": "Options shared by the two creation entry points.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Bounds on what is built — `maxNameAttributes` and `maxExtensions` apply."
         }
       ]
     },
@@ -989,6 +1109,36 @@
       ]
     },
     {
+      "name": "ExtensionDescription",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export interface ExtensionDescription",
+      "summary": "One extension to place in a certificate or request.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The extension OID."
+        },
+        {
+          "name": "critical",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether a relying party that does not understand it must reject the certificate."
+        },
+        {
+          "name": "value",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The DER encoding of the extension's value — what goes inside `extnValue`'s OCTET STRING."
+        }
+      ]
+    },
+    {
       "name": "FingerprintAlgorithm",
       "kind": "type",
       "module": "src/types/hash-types.ts",
@@ -1239,6 +1389,17 @@
       ]
     },
     {
+      "name": "KEY_USAGE_BITS",
+      "kind": "constant",
+      "module": "src/build/build-structures.ts",
+      "signature": "export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map([ ['digitalSignature', 0], ['nonRepudiation', 1], ['keyEncipherment', 2], ['dataEncipherment', 3], ['keyAgreement', 4], ['keyCertSign', 5], ['cRLSign', 6], ['encipherOnly', 7], ['decipherOnly', 8], ])",
+      "summary": "The `KeyUsage` bit positions of RFC 5280 §4.2.1.3, in their defined order.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "KeyUsageExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -1298,6 +1459,36 @@
       "members": null
     },
     {
+      "name": "NameAttribute",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export interface NameAttribute",
+      "summary": "One `AttributeTypeAndValue` of a distinguished name.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "type",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type OID, e.g. `2.5.4.3` for commonName."
+        },
+        {
+          "name": "value",
+          "type": "string | Uint8Array",
+          "optional": false,
+          "summary": "The value."
+        },
+        {
+          "name": "stringType",
+          "type": "'utf8' | 'printable' | 'ia5' | 'numeric' | undefined",
+          "optional": true,
+          "summary": "How a string value is encoded."
+        }
+      ]
+    },
+    {
       "name": "NameConstraintsExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -1344,6 +1535,17 @@
           "summary": "The subtrees names must not fall in; `undefined` when the field is absent."
         }
       ]
+    },
+    {
+      "name": "NameDescription",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export type NameDescription = ReadonlyArray<readonly NameAttribute[]>",
+      "summary": "A distinguished name to build: one array per RDN, most significant first — `[[{ type: '2.5.4.6', value: 'US' }], [{ type: '2.5.4.3', value: 'Example CA' }]]` is `C=US, CN=Example CA`.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "NoticeReference",
@@ -2384,6 +2586,28 @@
       ]
     },
     {
+      "name": "SignatureAlgorithm",
+      "kind": "type",
+      "module": "src/types/crypto-types.ts",
+      "signature": "export type SignatureAlgorithm = | { readonly name: 'RSASSA-PKCS1-v1_5'",
+      "summary": "A signature algorithm, in the shape that maps onto both an RFC 5280 OID and a Web Crypto parameter object.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "SignatureHash",
+      "kind": "type",
+      "module": "src/types/crypto-types.ts",
+      "signature": "export type SignatureHash = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512'",
+      "summary": "The digests RFC 5280 signature algorithms are built on.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "SignedCertificateTimestampListExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -2422,6 +2646,30 @@
           "type": "Uint8Array",
           "optional": false,
           "summary": "The SignedCertificateTimestampList, TLS-encoded."
+        }
+      ]
+    },
+    {
+      "name": "SigningKey",
+      "kind": "type",
+      "module": "src/types/crypto-types.ts",
+      "signature": "export interface SigningKey",
+      "summary": "The key that signs, and what it signs with.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "key",
+          "type": "CryptoKeyHandle",
+          "optional": false,
+          "summary": "A private `CryptoKey` with the `sign` usage, imported by the caller."
+        },
+        {
+          "name": "algorithm",
+          "type": "SignatureAlgorithm",
+          "optional": false,
+          "summary": "The algorithm, which decides both the OID written into the structure and the Web Crypto call."
         }
       ]
     },
@@ -2795,6 +3043,17 @@
       ]
     },
     {
+      "name": "canSign",
+      "kind": "function",
+      "module": "src/crypto/webcrypto.ts",
+      "signature": "export function canSign(): boolean",
+      "summary": "Whether this runtime can sign at all.",
+      "throws": [],
+      "params": [],
+      "returns": "Whether `globalThis.crypto.subtle` offers `sign`. It says nothing about which algorithms the host implements, nor about the key.",
+      "members": null
+    },
+    {
       "name": "canVerify",
       "kind": "function",
       "module": "src/crypto/webcrypto.ts",
@@ -2847,6 +3106,62 @@
         }
       ],
       "returns": "A promise of the digest octets.",
+      "members": null
+    },
+    {
+      "name": "createCertificate",
+      "kind": "function",
+      "module": "src/build/build-certificate.ts",
+      "signature": "export async function createCertificate(description: CertificateDescription, signer: SigningKey, options?: CreateOptions): Promise<Uint8Array>",
+      "summary": "Build and sign an RFC 5280 certificate.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "description",
+          "description": "What the certificate says."
+        },
+        {
+          "name": "signer",
+          "description": "The key that signs it, and the algorithm it signs with."
+        },
+        {
+          "name": "options",
+          "description": "See {@link CreateOptions}."
+        }
+      ],
+      "returns": "The complete certificate, in DER.",
+      "members": null
+    },
+    {
+      "name": "createCertificationRequest",
+      "kind": "function",
+      "module": "src/build/build-csr.ts",
+      "signature": "export async function createCertificationRequest( description: CertificationRequestDescription, signer: SigningKey, options?: CreateOptions, ): Promise<Uint8Array>",
+      "summary": "Build and sign a PKCS#10 certification request.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "description",
+          "description": "What the request asks for."
+        },
+        {
+          "name": "signer",
+          "description": "The key that signs it — the private half of `subjectPublicKey`."
+        },
+        {
+          "name": "options",
+          "description": "See {@link CreateOptions}."
+        }
+      ],
+      "returns": "The complete `CertificationRequest`, in DER.",
       "members": null
     },
     {
@@ -2974,6 +3289,28 @@
       "members": null
     },
     {
+      "name": "encodeAlgorithmIdentifier",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeAlgorithmIdentifier(oid: string, parameters?: Uint8Array): Uint8Array",
+      "summary": "Encode an `AlgorithmIdentifier`, with the parameters its OID requires.",
+      "throws": [
+        "PkiEncodingError"
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "The algorithm OID."
+        },
+        {
+          "name": "parameters",
+          "description": "The encoded parameters. Omitted, the RFC 3279 rule decides: NULL for the PKCS#1 v1.5 family, absent for everything else."
+        }
+      ],
+      "returns": "The `AlgorithmIdentifier` encoding.",
+      "members": null
+    },
+    {
       "name": "encodeAsn1Node",
       "kind": "function",
       "module": "src/asn1/asn1-encode.ts",
@@ -2989,6 +3326,65 @@
         }
       ],
       "returns": "The DER encoding of the tree.",
+      "members": null
+    },
+    {
+      "name": "encodeAttribute",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeAttribute(oid: string, values: readonly Uint8Array[]): Uint8Array",
+      "summary": "Encode an `Attribute` — a type OID and a SET OF values.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "The attribute type OID."
+        },
+        {
+          "name": "values",
+          "description": "The DER encodings of the values."
+        }
+      ],
+      "returns": "The `Attribute` encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeAuthorityKeyIdentifier",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeAuthorityKeyIdentifier(keyIdentifier: Uint8Array): Uint8Array",
+      "summary": "`authorityKeyIdentifier` (RFC 5280 §4.2.1.1) with the issuer's key identifier.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "keyIdentifier",
+          "description": "The issuing certificate's subjectKeyIdentifier octets."
+        }
+      ],
+      "returns": "The extension value's DER.",
+      "members": null
+    },
+    {
+      "name": "encodeBasicConstraints",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeBasicConstraints(options: { readonly cA: boolean; readonly pathLenConstraint?: number | undefined }): Uint8Array",
+      "summary": "`basicConstraints` (RFC 5280 §4.2.1.9).",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "options",
+          "description": "`cA`, and `pathLenConstraint` for a CA that limits how many intermediates may follow it."
+        }
+      ],
+      "returns": "The extension value's DER.",
       "members": null
     },
     {
@@ -3030,6 +3426,162 @@
       "members": null
     },
     {
+      "name": "encodeDistinguishedName",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeDistinguishedName(name: NameDescription, options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array",
+      "summary": "Encode a `Name` (an RDNSequence).",
+      "throws": [
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "name",
+          "description": "The RDNs, most significant first."
+        },
+        {
+          "name": "options",
+          "description": "`limits` bounds the attribute count."
+        }
+      ],
+      "returns": "The `Name` encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeEnumerated",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeEnumerated(value: bigint | number): Uint8Array",
+      "summary": "Encode an ENUMERATED (X.690 §8.4), whose content is an INTEGER's.",
+      "throws": [
+        "PkiEncodingError"
+      ],
+      "params": [
+        {
+          "name": "value",
+          "description": "The enumeration value."
+        }
+      ],
+      "returns": "The ENUMERATED encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeExplicit",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array",
+      "summary": "Wrap an already-encoded value in an explicit tag: `[n] EXPLICIT`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "tagNumber",
+          "description": "The tag number."
+        },
+        {
+          "name": "inner",
+          "description": "The encoding of the value being tagged."
+        },
+        {
+          "name": "options",
+          "description": "`tagClass` defaults to `'context'`."
+        }
+      ],
+      "returns": "The tagged encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeExtendedKeyUsage",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeExtendedKeyUsage(purposes: readonly string[]): Uint8Array",
+      "summary": "`extendedKeyUsage` (RFC 5280 §4.2.1.12): a SEQUENCE OF key-purpose OIDs.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "purposes",
+          "description": "The purpose OIDs, e.g. `1.3.6.1.5.5.7.3.1` for serverAuth."
+        }
+      ],
+      "returns": "The extension value's DER.",
+      "members": null
+    },
+    {
+      "name": "encodeExtension",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeExtension(extension: ExtensionDescription): Uint8Array",
+      "summary": "Encode one `Extension`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "extension",
+          "description": "The OID, the criticality and the value's DER."
+        }
+      ],
+      "returns": "The `Extension` encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeExtensions",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array",
+      "summary": "Encode an `Extensions` SEQUENCE.",
+      "throws": [
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "extensions",
+          "description": "The extensions, in the order they are placed."
+        },
+        {
+          "name": "options",
+          "description": "`limits` bounds the count."
+        }
+      ],
+      "returns": "The `Extensions` encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeImplicit",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array",
+      "summary": "Re-tag an already-encoded value in place: `[n] IMPLICIT`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "tagNumber",
+          "description": "The replacement tag number."
+        },
+        {
+          "name": "encoded",
+          "description": "A complete DER encoding whose identifier is replaced."
+        },
+        {
+          "name": "options",
+          "description": "`tagClass` defaults to `'context'`."
+        }
+      ],
+      "returns": "The re-tagged encoding.",
+      "members": null
+    },
+    {
       "name": "encodeInteger",
       "kind": "function",
       "module": "src/asn1/asn1-encode.ts",
@@ -3045,6 +3597,61 @@
         }
       ],
       "returns": "The INTEGER encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeKeyUsage",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeKeyUsage(usages: Iterable<string>): Uint8Array",
+      "summary": "`keyUsage` (RFC 5280 §4.2.1.3).",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "usages",
+          "description": "The usage names, in any order — {@link KEY_USAGE_BITS} lists them."
+        }
+      ],
+      "returns": "The extension value's DER, with every trailing zero bit dropped.",
+      "members": null
+    },
+    {
+      "name": "encodeNameAttribute",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeNameAttribute(attribute: NameAttribute): Uint8Array",
+      "summary": "Encode one `AttributeTypeAndValue`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "attribute",
+          "description": "The type OID and its value."
+        }
+      ],
+      "returns": "The `AttributeTypeAndValue` encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeNamedBits",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeNamedBits(bits: Iterable<number>): Uint8Array",
+      "summary": "Encode a named-bit BIT STRING with the DER trailing-zero rule.",
+      "throws": [
+        "PkiEncodingError"
+      ],
+      "params": [
+        {
+          "name": "bits",
+          "description": "The set positions, counted from bit 0 as the most significant bit of the first octet."
+        }
+      ],
+      "returns": "The BIT STRING encoding, with no trailing zero bit.",
       "members": null
     },
     {
@@ -3214,6 +3821,70 @@
       "members": null
     },
     {
+      "name": "encodeSubjectAltName",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeSubjectAltName(names: ReadonlyArray<{ readonly kind: 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier'; readonly value: string } | { readonly kind: 'directoryNameDer'; readonly value: Uint8Array }>): Uint8Array",
+      "summary": "`subjectAltName` (RFC 5280 §4.2.1.6) over the text forms.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "names",
+          "description": "The names, in the order they are placed."
+        }
+      ],
+      "returns": "The extension value's DER.",
+      "members": null
+    },
+    {
+      "name": "encodeSubjectKeyIdentifier",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeSubjectKeyIdentifier(keyIdentifier: Uint8Array): Uint8Array",
+      "summary": "`subjectKeyIdentifier` (RFC 5280 §4.2.1.2): an OCTET STRING, conventionally the SHA-1 of the subject public key's bits.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "keyIdentifier",
+          "description": "The identifier octets."
+        }
+      ],
+      "returns": "The extension value's DER.",
+      "members": null
+    },
+    {
+      "name": "encodeSubjectPublicKeyInfo",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeSubjectPublicKeyInfo(algorithmOid: string, publicKey: Uint8Array, parameters?: Uint8Array): Uint8Array",
+      "summary": "Encode a `SubjectPublicKeyInfo` from its parts.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "algorithmOid",
+          "description": "The key algorithm OID, e.g. `1.2.840.113549.1.1.1`."
+        },
+        {
+          "name": "publicKey",
+          "description": "The key bits, as the BIT STRING's octets."
+        },
+        {
+          "name": "parameters",
+          "description": "The algorithm parameters, following the RFC 3279 rule when omitted."
+        }
+      ],
+      "returns": "The `SubjectPublicKeyInfo` encoding.",
+      "members": null
+    },
+    {
       "name": "encodeTime",
       "kind": "function",
       "module": "src/asn1/asn1-encode.ts",
@@ -3264,6 +3935,29 @@
         }
       ],
       "returns": "The encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeValidity",
+      "kind": "function",
+      "module": "src/build/build-structures.ts",
+      "signature": "export function encodeValidity(notBefore: number, notAfter: number): Uint8Array",
+      "summary": "Encode a `Validity`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "notBefore",
+          "description": "Start, in epoch milliseconds."
+        },
+        {
+          "name": "notAfter",
+          "description": "End, in epoch milliseconds."
+        }
+      ],
+      "returns": "The `Validity` encoding.",
       "members": null
     },
     {
@@ -3576,6 +4270,24 @@
         }
       ],
       "returns": "The type, the instant in epoch milliseconds and the encoded text. UTCTime years 50–99 are 1950–1999, 00–49 are 2000–2049.",
+      "members": null
+    },
+    {
+      "name": "signatureAlgorithmDer",
+      "kind": "function",
+      "module": "src/build/build-certificate.ts",
+      "signature": "export function signatureAlgorithmDer(signer: SigningKey): Uint8Array",
+      "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
+      "throws": [
+        "PkiCryptoError"
+      ],
+      "params": [
+        {
+          "name": "signer",
+          "description": "The key and the algorithm; only the algorithm is read."
+        }
+      ],
+      "returns": "The `AlgorithmIdentifier` encoding.",
       "members": null
     },
     {

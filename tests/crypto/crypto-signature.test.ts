@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ecdsaDerToRaw } from '../../src/crypto/crypto-signature.js';
+import { ecdsaDerToRaw, ecdsaRawToDer } from '../../src/crypto/crypto-signature.js';
 
 /**
  * The DER ↔ P1363 converter, which is the one piece of signature handling
@@ -124,5 +124,58 @@ describe('ecdsaDerToRaw', () => {
         // fields, and a converter that stops after the second would let
         // that third one ride along unexamined.
         expect(ecdsaDerToRaw(wrap('020101020101 0500'.replace(' ', '')), 32)).toBeNull();
+    });
+});
+
+describe('ecdsaRawToDer', () => {
+    it('should produce an encoding ecdsaDerToRaw reads back unchanged', () => {
+        for (const size of [32, 48, 66]) {
+            for (const fill of [0x01, 0x7f, 0x80, 0xff]) {
+                const raw = new Uint8Array(size * 2).fill(fill);
+                const der = ecdsaRawToDer(raw, size);
+                expect(hex(ecdsaDerToRaw(der, size) ?? new Uint8Array()), `size ${String(size)} fill ${String(fill)}`).toBe(hex(raw));
+            }
+        }
+    });
+
+    it('should pad a high-bit value so it is never read as negative', () => {
+        // 0x80… would be a negative INTEGER, and a negative r is a different
+        // signature wearing the same bytes; DER prepends one zero octet.
+        const raw = new Uint8Array(64);
+        raw[0] = 0x80;
+        raw[32] = 0x01;
+        const der = ecdsaRawToDer(raw, 32);
+        // r: INTEGER, 33 content octets, the first of them the pad.
+        expect([der[2], der[3], der[4], der[5]]).toEqual([0x02, 0x21, 0x00, 0x80]);
+        // s needs no pad: 32 octets beginning with 0x01.
+        expect([der[37], der[38], der[39]]).toEqual([0x02, 0x20, 0x01]);
+        expect(hex(ecdsaDerToRaw(der, 32) ?? new Uint8Array())).toBe(hex(raw));
+    });
+
+    it('should strip leading zeroes, as DER minimality requires', () => {
+        const raw = new Uint8Array(64);
+        raw[31] = 0x09;
+        raw[63] = 0x0a;
+        // r and s are each one octet once the padding is gone.
+        expect(hex(ecdsaRawToDer(raw, 32))).toBe('300602010902010a');
+    });
+
+    it('should keep one octet when the whole coordinate is zero', () => {
+        expect(hex(ecdsaRawToDer(new Uint8Array(64), 32))).toBe('3006020100020100');
+    });
+
+    it('should use the one-octet long form when P-521 needs it', () => {
+        const raw = new Uint8Array(132).fill(0x7f);
+        const der = ecdsaRawToDer(raw, 66);
+        expect(der[0]).toBe(0x30);
+        expect(der[1]).toBe(0x81);
+        expect(ecdsaDerToRaw(der, 66)).not.toBeNull();
+    });
+
+    it('should refuse a signature whose length does not match the curve', () => {
+        // A P-256 key with a P-384 curve named: the two disagree, and a
+        // silently truncated signature would verify nowhere.
+        expect(() => ecdsaRawToDer(new Uint8Array(64), 48))
+            .toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('disagree') }));
     });
 });

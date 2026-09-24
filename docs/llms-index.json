@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 63860,
-      "approxTokens": 15965
+      "bytes": 66712,
+      "approxTokens": 16678
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 21281,
-      "approxTokens": 5320
+      "bytes": 29564,
+      "approxTokens": 7391
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 125401,
-      "approxTokens": 31350
+      "bytes": 149176,
+      "approxTokens": 37294
     },
     {
       "url": "data/errors.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 2990,
-      "approxTokens": 748
+      "bytes": 3716,
+      "approxTokens": 929
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 4474,
-      "approxTokens": 1119
+      "bytes": 4730,
+      "approxTokens": 1183
     }
   ],
   "guides": [
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12720,
-      "approxTokens": 3180
+      "bytes": 12772,
+      "approxTokens": 3193
     },
     {
       "title": "Use cases",
-      "summary": "Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.",
+      "summary": "Six jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -96,10 +96,11 @@
         "pin-a-public-key-not-a-certificate",
         "gate-a-der-round-trip",
         "check-one-link-of-a-chain",
+        "issue-a-certificate-without-ever-holding-the-key",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 15205,
-      "approxTokens": 3801
+      "bytes": 18005,
+      "approxTokens": 4501
     },
     {
       "title": "Security model",

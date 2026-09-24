@@ -9,7 +9,7 @@ pkinative is a zero-runtime-dependency TypeScript toolkit for public-key infrast
 Third library of the *native* family, under the doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
 - **Zero deps.** Never add a runtime dependency. Dev deps need a written justification.
-- **No secret-dependent cryptography.** No signing, key generation or arithmetic on secret material in TypeScript — Web Crypto only (from 0.3). Hashing covers public data.
+- **No secret-dependent cryptography.** No key generation, no arithmetic on secret material, no signing algorithm in TypeScript: signing and verification are one call to Web Crypto with the caller's key. Hashing covers public data.
 - **No classes, no module-level side effects.** Closure factories return interfaces; the only classes are the `PkiError` family in `src/types/pki-errors.ts`. `sideEffects: false` is probed.
 - **TypeScript strict** plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`. No `any`; ESM-first; `.js` import extensions; one entry point, `src/index.ts`.
 - **Untrusted input everywhere.** Every loop over input bytes consults a named, CWE-tagged limit (`src/core/pki-limits.ts`); the decoder is iterative; DER is strict by default.
@@ -42,6 +42,8 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/oid/` | OID name registry — data that only `getOidName` pulls in | `.github/instructions/pki-core.instructions.md` |
 | `src/hash/` | SHA-1/256/384/512 over public data, certificate fingerprints | `.github/instructions/performance.instructions.md` |
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
+| `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
+| `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
@@ -59,10 +61,11 @@ pem    → types, core
 oid    → (nothing)
 x509   → types, core, asn1
 crypto → types, core, asn1
+build  → types, core, asn1, crypto
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid` (the registry stays out of the parser's bundle), `pem` never imports `asn1` (PEM is an envelope), and **`crypto` never imports `x509`**: the verifier consumes parsed data, so verification ships no parser.
+`x509` never imports `oid` (the registry stays out of the parser's bundle), `pem` never imports `asn1`, and **neither `crypto` nor `build` imports `x509`** — the verifier consumes parsed data, the builder writes bytes.
 **Web Crypto has one door.** Only `src/crypto/webcrypto.ts` may name `importKey`, `verify` or `sign`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` in every version.
 
 ## Conventions
@@ -75,8 +78,7 @@ crypto → types, core, asn1
 
 ## Finding a symbol
 
-- Public export → grep `docs/assets/api.json` for `"name":"<Export>"`; every entry lists its `module`.
-- Internal symbol → grep `^export function <name>` (or `^export const <name>`) in `src/`.
+- Public export → grep `docs/assets/api.json` for `"name":"<Export>"` (every entry lists its `module`); internal symbol → grep `^export function <name>` in `src/`.
 - README.md and ROADMAP.md are long: `grep -n "^## "` first, then read a line range. CHANGELOG.md: the top entry only.
 
 ## Never touch
@@ -115,5 +117,4 @@ Issue drafts go to `.github/drafts/` and are validated with `npm run verify:issu
 
 - [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project; its PAdES/LTV signature stack is the origin of pkinative and will consume it from the 0.7 milestone.
 - [zipnative](https://github.com/Nizoka/zipnative) — the sibling whose error vocabulary, limits and conformance-gate patterns pkinative inherits.
-
-See also: [ROADMAP.md](ROADMAP.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).
+- See also: [ROADMAP.md](ROADMAP.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).

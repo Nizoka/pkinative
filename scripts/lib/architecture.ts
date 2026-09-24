@@ -49,6 +49,9 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // The invariant to defend: the verifier consumes parsed data, it does
     // not parse. It is why verification never ships the certificate parser.
     crypto: ['types', 'core', 'asn1'],
+    // build signs what it encodes, so it reaches crypto; it never reaches
+    // x509, because nothing here reads a certificate.
+    build: ['types', 'core', 'asn1', 'crypto'],
 });
 
 export const ENTRY = 'src/index.ts';

@@ -480,6 +480,7 @@ var TAG_BIT_STRING = 3;
 var TAG_OCTET_STRING = 4;
 var TAG_NULL = 5;
 var TAG_OID = 6;
+var TAG_ENUMERATED = 10;
 var TAG_UTF8_STRING = 12;
 var TAG_SEQUENCE = 16;
 var TAG_SET = 17;
@@ -1624,6 +1625,45 @@ function encodeBitString(bytes, unusedBits = 0) {
 }
 function encodeOctetString(bytes) {
   return encodeTlv("universal", TAG_OCTET_STRING, false, assertBytes(bytes, "encodeOctetString bytes"));
+}
+function encodeEnumerated(value) {
+  return encodeTlv("universal", TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
+}
+function encodeExplicit(tagNumber, inner, options) {
+  return encodeTlv(options?.tagClass ?? "context", tagNumber, true, assertBytes(inner, "encodeExplicit inner"));
+}
+function encodeImplicit(tagNumber, encoded, options) {
+  const bytes = assertBytes(encoded, "encodeImplicit encoded");
+  if (bytes.length < 2) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets \u2014 pass the output of another encoder");
+  }
+  const view = byteView(bytes);
+  const identifier = view.getUint8(0);
+  if (view.getUint8(1) === 128) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit cannot re-tag an indefinite-length value \u2014 DER has no indefinite form, so encode the inner value definitely first");
+  }
+  const retagged = encodeTlv(options?.tagClass ?? "context", tagNumber, (identifier & 32) !== 0, new Uint8Array(0));
+  const header = retagged.length - 1;
+  const out = new Uint8Array(header + bytes.length - 1);
+  out.set(retagged.subarray(0, header));
+  out.set(bytes.subarray(1), header);
+  return out;
+}
+function encodeNamedBits(bits) {
+  let highest = -1;
+  const positions = [];
+  for (const bit of bits) {
+    if (!Number.isInteger(bit) || bit < 0 || bit > 65535) {
+      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
+    }
+    positions.push(bit);
+    if (bit > highest) highest = bit;
+  }
+  if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
+  const octets = new Uint8Array((highest >> 3) + 1);
+  const view = byteView(octets);
+  for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | 128 >> (bit & 7));
+  return encodeBitString(octets, 7 - (highest & 7));
 }
 function encodeObjectIdentifier(oid) {
   return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
@@ -4192,6 +4232,58 @@ function resolveAlgorithm(algorithm, key) {
 function coordinateBytes(curve) {
   return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
 }
+var OID_BY_SIGNATURE = /* @__PURE__ */ new Map([
+  ["RSASSA-PKCS1-v1_5/SHA-1", "1.2.840.113549.1.1.5"],
+  ["RSASSA-PKCS1-v1_5/SHA-256", "1.2.840.113549.1.1.11"],
+  ["RSASSA-PKCS1-v1_5/SHA-384", "1.2.840.113549.1.1.12"],
+  ["RSASSA-PKCS1-v1_5/SHA-512", "1.2.840.113549.1.1.13"],
+  ["ECDSA/SHA-1", "1.2.840.10045.4.1"],
+  ["ECDSA/SHA-256", "1.2.840.10045.4.3.2"],
+  ["ECDSA/SHA-384", "1.2.840.10045.4.3.3"],
+  ["ECDSA/SHA-512", "1.2.840.10045.4.3.4"]
+]);
+var EDWARDS_OID = /* @__PURE__ */ Object.freeze({
+  Ed25519: "1.3.101.112",
+  Ed448: "1.3.101.113"
+});
+var OID_BY_HASH = /* @__PURE__ */ new Map([
+  ["SHA-1", "1.3.14.3.2.26"],
+  ["SHA-256", "2.16.840.1.101.3.4.2.1"],
+  ["SHA-384", "2.16.840.1.101.3.4.2.2"],
+  ["SHA-512", "2.16.840.1.101.3.4.2.3"]
+]);
+var HASH_BYTES = /* @__PURE__ */ new Map([
+  ["SHA-1", 20],
+  ["SHA-256", 32],
+  ["SHA-384", 48],
+  ["SHA-512", 64]
+]);
+function resolveSigner(algorithm) {
+  if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
+    return { oid: EDWARDS_OID[algorithm.name], signParams: { name: algorithm.name }, curve: void 0, pss: void 0 };
+  }
+  if (algorithm.name === "RSA-PSS") {
+    const hashOid = OID_BY_HASH.get(algorithm.hash);
+    const size = HASH_BYTES.get(algorithm.hash);
+    if (hashOid === void 0 || size === void 0) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, "1.2.840.113549.1.1.10");
+    const saltLength = algorithm.saltLength ?? size;
+    if (!Number.isInteger(saltLength) || saltLength < 0) {
+      throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, "1.2.840.113549.1.1.10");
+    }
+    return {
+      oid: "1.2.840.113549.1.1.10",
+      signParams: { name: "RSA-PSS", saltLength },
+      curve: void 0,
+      pss: { hashOid, saltLength }
+    };
+  }
+  const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
+  if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
+  if (algorithm.name === "ECDSA") {
+    return { oid, signParams: { name: "ECDSA", hash: { name: algorithm.hash } }, curve: algorithm.namedCurve, pss: void 0 };
+  }
+  return { oid, signParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, pss: void 0 };
+}
 
 // src/crypto/crypto-signature.ts
 var SEQUENCE_OCTET = 48;
@@ -4219,6 +4311,40 @@ function ecdsaDerToRaw(der, size) {
   raw.set(s.value, size * 2 - s.value.length);
   return raw;
 }
+function ecdsaRawToDer(raw, size) {
+  if (raw.length !== size * 2) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} \u2014 the curve and the signing key disagree`
+    );
+  }
+  const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
+  const header = body.length < 128 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 129, body.length];
+  return concat(Uint8Array.from(header), body);
+}
+function derInteger(value) {
+  const view = byteView(value);
+  let at = 0;
+  while (at < value.length - 1 && view.getUint8(at) === 0) at++;
+  const trimmed = value.subarray(at);
+  const pad2 = (view.getUint8(at) & 128) !== 0 ? 1 : 0;
+  const out = new Uint8Array(2 + pad2 + trimmed.length);
+  out[0] = INTEGER_OCTET;
+  out[1] = pad2 + trimmed.length;
+  out.set(trimmed, 2 + pad2);
+  return out;
+}
+function concat(...parts) {
+  let length = 0;
+  for (const part of parts) length += part.length;
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
 function readInteger2(der, view, at, size) {
   if (at + 2 > der.length || view.getUint8(at) !== INTEGER_OCTET) return null;
   const length = view.getUint8(at + 1);
@@ -4239,6 +4365,11 @@ function readInteger2(der, view, at, size) {
 function publicKeySubtle() {
   const subtle = globalThis.crypto?.subtle;
   if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.verify !== "function") return null;
+  return subtle;
+}
+function signingSubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.sign !== "function") return null;
   return subtle;
 }
 function canVerify() {
@@ -4275,6 +4406,28 @@ async function verifySignature(key, params, signature, data) {
     return false;
   }
 }
+function canSign() {
+  return signingSubtle() !== null;
+}
+async function signData(key, params, data) {
+  const subtle = signingSubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed \u2014 call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      params.name
+    );
+  }
+  try {
+    return new Uint8Array(await subtle.sign(params, key, data));
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) \u2014 check that the key is private, carries the "sign" usage, and matches the algorithm named`,
+      params.name
+    );
+  }
+}
 
 // src/crypto/x509-verify.ts
 async function verifyCertificateSignature(certificate, issuer, options) {
@@ -4308,6 +4461,230 @@ function assertCertificate(value, what) {
   return value;
 }
 
-export { DEFAULT_PKI_LIMITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canVerify, computeFingerprint, computeFingerprintAsync, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAsn1Node, encodeBitString, encodeBoolean, encodeInteger, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeTime, encodeTlv, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, verifyCertificateSignature, verifySelfSignature };
+// src/build/build-structures.ts
+var PARAMETERS_NULL = /* @__PURE__ */ new Set([
+  "1.2.840.113549.1.1.1",
+  "1.2.840.113549.1.1.5",
+  "1.2.840.113549.1.1.11",
+  "1.2.840.113549.1.1.12",
+  "1.2.840.113549.1.1.13"
+]);
+function encodeAlgorithmIdentifier(oid, parameters) {
+  const fields = [encodeObjectIdentifier(oid)];
+  if (parameters !== void 0) fields.push(assertBytes(parameters, "encodeAlgorithmIdentifier parameters"));
+  else if (PARAMETERS_NULL.has(oid)) fields.push(encodeNull());
+  return encodeSequence(fields);
+}
+function encodeNameAttribute(attribute) {
+  const { type, value, stringType } = attribute;
+  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(stringType ?? "utf8", value) : null;
+  if (encoded === null) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
+  }
+  return encodeSequence([encodeObjectIdentifier(type), encoded]);
+}
+function encodeDistinguishedName(name, options) {
+  if (!Array.isArray(name)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
+  }
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  let attributes = 0;
+  const rdns = [];
+  for (const rdn of name) {
+    if (!Array.isArray(rdn) || rdn.length === 0) {
+      throw new PkiError("PKI_INVALID_INPUT", "pkinative: every relative distinguished name is a non-empty array of attributes");
+    }
+    attributes += rdn.length;
+    enforceLimit(limits, "maxNameAttributes", attributes, "the name being built");
+    rdns.push(encodeSetOf(rdn.map(encodeNameAttribute)));
+  }
+  return encodeSequence(rdns);
+}
+function encodeValidity(notBefore, notAfter) {
+  if (!Number.isFinite(notBefore) || !Number.isFinite(notAfter)) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: notBefore and notAfter are epoch milliseconds, and both must be finite numbers");
+  }
+  if (notAfter < notBefore) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: notAfter (${new Date(notAfter).toISOString()}) precedes notBefore (${new Date(notBefore).toISOString()}) \u2014 a certificate valid for a negative interval is valid nowhere`
+    );
+  }
+  return encodeSequence([encodeTime(notBefore), encodeTime(notAfter)]);
+}
+function encodeExtension(extension) {
+  const fields = [encodeObjectIdentifier(extension.oid)];
+  if (extension.critical === true) fields.push(encodeBoolean(true));
+  fields.push(encodeOctetString(assertBytes(extension.value, `extension ${extension.oid} value`)));
+  return encodeSequence(fields);
+}
+function encodeExtensions(extensions, options) {
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  enforceLimit(limits, "maxExtensions", extensions.length, "the extensions being built");
+  const seen = /* @__PURE__ */ new Set();
+  for (const extension of extensions) {
+    if (seen.has(extension.oid)) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: extension ${extension.oid} appears twice; RFC 5280 \xA74.2 allows one instance, and which one a verifier reads is undefined`);
+    }
+    seen.add(extension.oid);
+  }
+  return encodeSequence(extensions.map(encodeExtension));
+}
+function encodeAttribute(oid, values) {
+  return encodeSequence([encodeObjectIdentifier(oid), encodeSetOf(values)]);
+}
+function encodeSubjectPublicKeyInfo(algorithmOid, publicKey, parameters) {
+  return encodeSequence([
+    encodeAlgorithmIdentifier(algorithmOid, parameters),
+    // A public key is a whole number of octets: no unused bits, ever.
+    encodeBitString(assertBytes(publicKey, "encodeSubjectPublicKeyInfo publicKey"), 0)
+  ]);
+}
+function encodeBasicConstraints(options) {
+  const fields = [];
+  if (options.cA) fields.push(encodeBoolean(true));
+  if (options.pathLenConstraint !== void 0) {
+    if (!Number.isInteger(options.pathLenConstraint) || options.pathLenConstraint < 0) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: pathLenConstraint must be a non-negative integer, got ${String(options.pathLenConstraint)}`);
+    }
+    if (!options.cA) {
+      throw new PkiError("PKI_API_MISUSE", "pkinative: pathLenConstraint is meaningful only when cA is true (RFC 5280 \xA74.2.1.9) \u2014 an end-entity certificate constrains no path");
+    }
+    fields.push(encodeInteger(options.pathLenConstraint));
+  }
+  return encodeSequence(fields);
+}
+var KEY_USAGE_BITS = /* @__PURE__ */ new Map([
+  ["digitalSignature", 0],
+  ["nonRepudiation", 1],
+  ["keyEncipherment", 2],
+  ["dataEncipherment", 3],
+  ["keyAgreement", 4],
+  ["keyCertSign", 5],
+  ["cRLSign", 6],
+  ["encipherOnly", 7],
+  ["decipherOnly", 8]
+]);
+function encodeKeyUsage(usages) {
+  const bits = [];
+  for (const usage of usages) {
+    const bit = KEY_USAGE_BITS.get(usage);
+    if (bit === void 0) {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${usage} is not a KeyUsage of RFC 5280 \xA74.2.1.3 \u2014 one of ${[...KEY_USAGE_BITS.keys()].join(", ")}`);
+    }
+    bits.push(bit);
+  }
+  return encodeNamedBits(bits);
+}
+function encodeExtendedKeyUsage(purposes) {
+  if (purposes.length === 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: an extendedKeyUsage with no purpose permits nothing and is refused by RFC 5280 \xA74.2.1.12");
+  }
+  return encodeSequence(purposes.map(encodeObjectIdentifier));
+}
+function encodeSubjectKeyIdentifier(keyIdentifier) {
+  return encodeOctetString(assertBytes(keyIdentifier, "subjectKeyIdentifier"));
+}
+function encodeAuthorityKeyIdentifier(keyIdentifier) {
+  return encodeSequence([encodeImplicit(0, encodeOctetString(assertBytes(keyIdentifier, "authorityKeyIdentifier")))]);
+}
+function encodeSubjectAltName(names) {
+  if (names.length === 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: a subjectAltName with no name is refused by RFC 5280 \xA74.2.1.6 \u2014 omit the extension instead");
+  }
+  const tags = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
+  return encodeSequence(names.map((name) => {
+    if (name.kind === "directoryNameDer") return encodeExplicit(4, assertBytes(name.value, "directoryName"));
+    const tag = tags[name.kind];
+    if (tag === void 0) {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes \u2014 pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
+    }
+    return encodeImplicit(tag, encodeString("ia5", name.value));
+  }));
+}
+
+// src/build/build-certificate.ts
+function signatureAlgorithmDer(signer) {
+  const resolved = resolveSigner(signer.algorithm);
+  if (resolved.pss === void 0) return encodeAlgorithmIdentifier(resolved.oid);
+  const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid);
+  return encodeAlgorithmIdentifier(resolved.oid, encodeSequence([
+    encodeExplicit(0, hash),
+    encodeExplicit(1, encodeAlgorithmIdentifier("1.2.840.113549.1.1.8", hash)),
+    encodeExplicit(2, encodeInteger(resolved.pss.saltLength))
+  ]));
+}
+function encodeSerial(serial) {
+  if (typeof serial === "bigint") {
+    if (serial < 0n) {
+      throw new PkiError("PKI_API_MISUSE", "pkinative: a certificate serial number must be positive (RFC 5280 \xA74.1.2.2) \u2014 a negative serial is refused by most relying parties");
+    }
+    return encodeInteger(serial);
+  }
+  const bytes = assertBytes(serial, "serialNumber");
+  const first = bytes[0];
+  if (first === void 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: a certificate serial number cannot be empty \u2014 an INTEGER has at least one content octet (X.690 \xA78.3.1); pass a bigint, or the octets of an existing serial");
+  }
+  const second = bytes[1];
+  if (second !== void 0 && (first === 0 && second < 128 || first === 255 && second >= 128)) {
+    throw new PkiError("PKI_API_MISUSE", `pkinative: the serial number's leading 0x${first.toString(16).padStart(2, "0")} octet is redundant, and DER requires the shortest form (X.690 \xA78.3.2) \u2014 drop it, or pass a bigint and let pkinative encode it`);
+  }
+  return encodeTlv("universal", 2, false, bytes);
+}
+async function signAndWrap(tbs, signer) {
+  const resolved = resolveSigner(signer.algorithm);
+  const raw = await signData(signer.key, resolved.signParams, tbs);
+  const signature = resolved.curve === void 0 ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
+  return encodeSequence([tbs, signatureAlgorithmDer(signer), encodeBitString(signature, 0)]);
+}
+async function createCertificate(description, signer, options) {
+  const limits = options?.limits === void 0 ? void 0 : { limits: options.limits };
+  const subject = description.subjectDer !== void 0 ? assertBytes(description.subjectDer, "subjectDer") : encodeDistinguishedName(description.subject, limits);
+  const issuer = description.issuerDer !== void 0 ? assertBytes(description.issuerDer, "issuerDer") : description.issuer !== void 0 ? encodeDistinguishedName(description.issuer, limits) : subject;
+  const extensions = description.extensions ?? [];
+  const fields = [
+    // v3 whenever there are extensions, v1 otherwise. RFC 5280 §4.1.2.1
+    // makes the version DEFAULT v1, so a v1 certificate omits the field
+    // entirely — writing [0] EXPLICIT INTEGER 0 is a DER violation.
+    ...extensions.length > 0 ? [encodeExplicit(0, encodeInteger(2))] : [],
+    encodeSerial(description.serialNumber),
+    // tbsCertificate.signature is the field the signature covers; the
+    // outer one is not. They must be equal, and they are, because both
+    // come from the same call.
+    signatureAlgorithmDer(signer),
+    issuer,
+    encodeValidity(description.notBefore, description.notAfter),
+    subject,
+    assertBytes(description.subjectPublicKey, "subjectPublicKey")
+  ];
+  if (extensions.length > 0) fields.push(encodeExplicit(3, encodeExtensions(extensions, limits)));
+  return signAndWrap(encodeSequence(fields), signer);
+}
+
+// src/build/build-csr.ts
+var EXTENSION_REQUEST = "1.2.840.113549.1.9.14";
+async function createCertificationRequest(description, signer, options) {
+  const limits = options?.limits === void 0 ? void 0 : { limits: options.limits };
+  const subject = description.subjectDer !== void 0 ? assertBytes(description.subjectDer, "subjectDer") : encodeDistinguishedName(description.subject, limits);
+  const extensions = description.extensions ?? [];
+  const attributes = extensions.length === 0 ? [] : [encodeAttribute(EXTENSION_REQUEST, [encodeExtensions(extensions, limits)])];
+  const info = encodeSequence([
+    // version is 0 for a PKCS#10 v1 request, and unlike the certificate's
+    // it is not DEFAULT: it is written even when it is zero.
+    encodeInteger(0),
+    subject,
+    assertBytes(description.subjectPublicKey, "subjectPublicKey"),
+    // `attributes [0] IMPLICIT SET OF Attribute` — RFC 2986's module is
+    // IMPLICIT TAGS, so [0] *replaces* the SET's tag rather than wrapping
+    // it: the content is the sorted attribute encodings directly, and the
+    // constructed bit comes from the SET the tag replaced. The field is
+    // present even when empty, because an empty SET is not an absent one.
+    encodeImplicit(0, encodeSetOf(attributes))
+  ]);
+  return signAndWrap(info, signer);
+}
+
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, verifyCertificateSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

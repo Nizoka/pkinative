@@ -21,6 +21,7 @@ import {
     STRING_TAGS,
     TAG_BIT_STRING,
     TAG_BOOLEAN,
+    TAG_ENUMERATED,
     TAG_CLASSES,
     TAG_GENERALIZED_TIME,
     TAG_INTEGER,
@@ -230,6 +231,113 @@ export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array {
  */
 export function encodeOctetString(bytes: Uint8Array): Uint8Array {
     return encodeTlv('universal', TAG_OCTET_STRING, false, assertBytes(bytes, 'encodeOctetString bytes'));
+}
+
+/**
+ * Encode an ENUMERATED (X.690 §8.4), whose content is an INTEGER's.
+ *
+ * RFC 5280's `CRLReason` and RFC 6960's `OCSPResponseStatus` are ENUMERATED,
+ * not INTEGER: a reader that expects tag 10 rejects tag 2, so the two are not
+ * interchangeable however similar their content octets.
+ *
+ * @param value The enumeration value.
+ * @returns The ENUMERATED encoding.
+ * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` when `value` is not a safe integer.
+ */
+export function encodeEnumerated(value: bigint | number): Uint8Array {
+    return encodeTlv('universal', TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
+}
+
+/**
+ * Wrap an already-encoded value in an explicit tag: `[n] EXPLICIT`.
+ *
+ * Explicit tagging keeps the inner type's own header and adds a constructed
+ * one around it, which is what RFC 5280 means by `[0] EXPLICIT Version` or
+ * `[3] EXPLICIT Extensions`.
+ *
+ * @param tagNumber The tag number.
+ * @param inner     The encoding of the value being tagged.
+ * @param options   `tagClass` defaults to `'context'`.
+ * @returns The tagged encoding.
+ * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array.
+ */
+export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
+    return encodeTlv(options?.tagClass ?? 'context', tagNumber, true, assertBytes(inner, 'encodeExplicit inner'));
+}
+
+/**
+ * Re-tag an already-encoded value in place: `[n] IMPLICIT`.
+ *
+ * Implicit tagging **replaces** the inner type's identifier octet instead of
+ * wrapping it, so the constructed bit of the original type has to be carried
+ * over — an implicitly tagged SEQUENCE stays constructed, an implicitly
+ * tagged IA5String stays primitive. Getting that bit wrong is the classic
+ * implicit-tagging defect, and it is why this takes an encoding rather than
+ * a tag number and some content: the bit is read from the value, never
+ * guessed.
+ *
+ * @param tagNumber The replacement tag number.
+ * @param encoded   A complete DER encoding whose identifier is replaced.
+ * @param options   `tagClass` defaults to `'context'`.
+ * @returns The re-tagged encoding.
+ * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `encoded` is not a Uint8Array.
+ * @throws {PkiError} `PKI_API_MISUSE` when `encoded` is empty or carries an indefinite length, which has no implicit form under DER.
+ */
+export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
+    const bytes = assertBytes(encoded, 'encodeImplicit encoded');
+    if (bytes.length < 2) {
+        throw new PkiError('PKI_API_MISUSE', 'pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets — pass the output of another encoder');
+    }
+    const view = byteView(bytes);
+    const identifier = view.getUint8(0);
+    if (view.getUint8(1) === 0x80) {
+        throw new PkiError('PKI_API_MISUSE', 'pkinative: encodeImplicit cannot re-tag an indefinite-length value — DER has no indefinite form, so encode the inner value definitely first');
+    }
+    // The constructed bit belongs to the type being re-tagged, not to the
+    // tag replacing it; carrying it over is the whole contract here.
+    const retagged = encodeTlv(options?.tagClass ?? 'context', tagNumber, (identifier & 0x20) !== 0, new Uint8Array(0));
+    const header = retagged.length - 1;
+    const out = new Uint8Array(header + bytes.length - 1);
+    out.set(retagged.subarray(0, header));
+    out.set(bytes.subarray(1), header);
+    return out;
+}
+
+/**
+ * Encode a named-bit BIT STRING with the DER trailing-zero rule.
+ *
+ * `KeyUsage` and `ReasonFlags` are `BIT STRING` types with named positions,
+ * and DER requires every trailing zero bit to be dropped (X.690 §11.2.2).
+ * An encoder that pads to a whole octet produces a value a strict reader
+ * diagnoses and a signature covers — which is why this trims rather than
+ * leaving the caller to compute `unusedBits` and get it wrong.
+ *
+ * @param bits The set positions, counted from bit 0 as the most significant bit of the first octet.
+ * @returns The BIT STRING encoding, with no trailing zero bit.
+ * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` when a position is not a non-negative safe integer.
+ */
+export function encodeNamedBits(bits: Iterable<number>): Uint8Array {
+    let highest = -1;
+    const positions: number[] = [];
+    for (const bit of bits) {
+        if (!Number.isInteger(bit) || bit < 0 || bit > 0xffff) {
+            throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
+        }
+        positions.push(bit);
+        if (bit > highest) highest = bit;
+    }
+    // Every bit clear is the empty BIT STRING, not one zero octet: DER drops
+    // trailing zeroes, and every bit of a single zero octet is trailing.
+    if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
+    const octets = new Uint8Array((highest >> 3) + 1);
+    // A DataView reads a byte as a number rather than `number | undefined`,
+    // so the read side of the or-assignment needs no fallback that could
+    // never fire — the index is bounded by `highest` two lines above.
+    const view = byteView(octets);
+    for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | (0x80 >> (bit & 7)));
+    return encodeBitString(octets, 7 - (highest & 7));
 }
 
 /**

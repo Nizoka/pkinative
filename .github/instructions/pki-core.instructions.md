@@ -35,11 +35,22 @@ applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**"
 - A recognised extension whose value does not match its ASN.1 definition throws `PKI_X509_EXTENSION_MALFORMED`;
   `decodeExtensions: false` defers that decision to the caller
 - An unknown extension is kept raw (`kind: 'unknown'`); an unknown *critical* extension also raises a diagnostic
-- 0.1 parses; it never verifies signatures and never builds or validates a chain — never imply otherwise in a name
-  or a doc comment
+- `x509/` parses and nothing more: it never verifies a signature, never writes a structure and never builds or
+  validates a chain. Verification lives in `crypto/`, creation in `build/`, and **path validation does not exist
+  yet** (0.5) — never imply otherwise in a name or a doc comment
+- `build/` writes what `x509/` reads, and the two are held together by one rule: every structure a recipe or a
+  test builds is parsed back with `onDiagnostic`, and **zero diagnostics** is the assertion. A builder whose
+  output its own reader complains about has written what someone else's reader will refuse
+- Any builder input that must match a parsed object byte for byte takes DER and is named `…Der` (`issuerDer`,
+  `subjectDer`): a name re-encoded from its decoded attributes does not reproduce a TeletexString, and a chain
+  whose two names differ by one octet is a chain nothing will build
 
 ## Module boundaries
-- `asn1/` knows nothing of certificates; `x509/` reaches bytes only through `asn1/`
+- `asn1/` knows nothing of certificates; `x509/` reaches bytes only through `asn1/`. The structural encoders
+  (`encodeAlgorithmIdentifier`, `encodeDistinguishedName`, `encodeExtensions`, …) live in `build/` for the same
+  reason — a certificate structure is not an ASN.1 primitive
+- Neither `crypto/` nor `build/` imports `x509/`: the verifier consumes already-parsed data, the builder writes
+  bytes, and `tests/tools/verify-bundle.test.ts` proves on the artefact that neither ships the parser
 - `x509/` does not import `oid/` (the name registry is tree-shaken data); it keeps its own internal OID constants
 - `pem/` does not import `asn1/`: PEM is a text envelope, not a decoder of its content
 - `x509/` does not import `pem/` and exports no PEM entry point (as Go separates `encoding/pem` from `crypto/x509`):

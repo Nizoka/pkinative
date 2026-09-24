@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Use cases — pkinative</title>
-  <meta name="description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
+  <meta name="description" content="Six jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/use-cases.html">
   <meta property="og:title" content="Use cases — pkinative">
-  <meta property="og:description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
+  <meta property="og:description" content="Six jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Use cases — pkinative">
-  <meta name="twitter:description" content="Five jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.">
+  <meta name="twitter:description" content="Six jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/use-cases.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases.html">
@@ -55,7 +55,7 @@
     <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
       <h1 id="use-cases">Use cases</h1>
       <blockquote>
-      <p><strong>Five jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.</p>
+      <p><strong>Six jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.</p>
       </blockquote>
       <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.</p>
       <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
@@ -222,8 +222,38 @@
       </code></pre>
       <p><strong>Three answers, and the third is the one people get wrong.</strong> <code>true</code> and <code>false</code> are verdicts; a <code>PkiCryptoError</code> is not. A signature whose bytes are malformed, whose issuer key is of the wrong family, or whose two <code>signatureAlgorithm</code> fields disagree is <code>false</code> — fail closed, so a caller who forgets the <code>catch</code> gets &quot;not verified&quot; instead of an exception that some layer above may swallow into a success path.</p>
       <p>Verification runs in <a href="https://www.w3.org/TR/WebCryptoAPI/" target="_blank" rel="noopener">Web Crypto</a>, never in TypeScript: the key is imported from the SubjectPublicKeyInfo with <code>extractable: false</code> and the single usage <code>verify</code>, and pkinative never sees its bits. That is the whole of <a href="https://github.com/Nizoka/pkinative/blob/main/src/crypto/webcrypto.ts" target="_blank" rel="noopener"><code>src/crypto/webcrypto.ts</code></a>, sixty lines, and it is the only file in the library that may name a key operation at all.</p>
+      <h2 id="issue-a-certificate-without-ever-holding-the-key">Issue a certificate, without ever holding the key <a class="heading-anchor" href="#issue-a-certificate-without-ever-holding-the-key" aria-label="Link to this section">#</a></h2>
+      <p>The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages.</p>
+      <pre><code class="language-ts">import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from &#39;pkinative&#39;;
+
+      export async function issue(spki: Uint8Array, signer: SigningKey): Promise&lt;Uint8Array&gt; {
+          // 128 random bits, forced into 0x40–0x7f at the top: positive, and never
+          // a redundant leading octet DER would refuse. A counter is not a serial.
+          const serial = crypto.getRandomValues(new Uint8Array(16));
+          serial[0] = (serial[0]! &amp; 0x7f) | 0x40;
+
+          const description: CertificateDescription = {
+              serialNumber: serial,
+              subject: [[{ type: &#39;2.5.4.3&#39;, value: &#39;host.example&#39; }]],
+              notBefore: Date.now(),
+              notAfter: Date.now() + 90 * 86_400_000,
+              subjectPublicKey: spki,          // SubjectPublicKeyInfo DER, not a CryptoKey
+              extensions: [
+                  { oid: &#39;2.5.29.19&#39;, critical: true, value: encodeBasicConstraints({ cA: false }) },
+                  { oid: &#39;2.5.29.15&#39;, critical: true, value: encodeKeyUsage([&#39;digitalSignature&#39;]) },
+              ],
+          };
+          return createCertificate(description, signer);
+      }
+      </code></pre>
+      <p><strong><code>subjectPublicKey</code> is DER, and that is the point.</strong> pkinative cannot take your <code>CryptoKey</code> and pull the public half out of it, because <code>exportKey</code> is refused inside <code>src/</code> in every version — the same rule that refuses <code>generateKey</code>. So the one line that extracts it is <em>yours</em>, in your code, where you can see it:</p>
+      <pre><code class="language-ts">const spki = new Uint8Array(await crypto.subtle.exportKey(&#39;spki&#39;, publicKey));
+      </code></pre>
+      <p>An API that took a <code>CryptoKey</code> would be one line shorter and would make the library&#39;s central security claim unverifiable. This is the trade, stated rather than hidden.</p>
+      <p>The description types are ordinary data, so a certificate can be built in one place and signed in another: <a href="../assets/api.json"><code>CertificateDescription</code></a>, <a href="../assets/api.json"><code>CertificationRequestDescription</code></a>, <a href="../assets/api.json"><code>NameDescription</code></a>, <a href="../assets/api.json"><code>NameAttribute</code></a>, <a href="../assets/api.json"><code>ExtensionDescription</code></a> and <a href="../assets/api.json"><code>CreateOptions</code></a> — the last carrying the same <code>limits</code> every other entry point takes, because an extension list assembled from attacker-supplied data is still a loop over untrusted input.</p>
+      <p><strong>Pass the issuer&#39;s own bytes, not its name.</strong> <code>issuerDer: root.subject.der</code> copies the issuing certificate&#39;s encoding octet for octet. Re-describing that name and letting it round-trip through the string-type chooser will not reproduce a TeletexString, and a chain whose two names differ by one octet is a chain nothing will build. The full worked example, root and leaf and request, is <a href="https://github.com/Nizoka/pkinative/blob/main/recipes/create-certificate.ts" target="_blank" rel="noopener"><code>recipes/create-certificate.ts</code></a>.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
-      <p>Each of the five is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <p>Each of the six is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>
       <thead>
       <tr>
@@ -233,11 +263,6 @@
       </tr>
       </thead>
       <tbody><tr>
-      <td>Build a CSR or a certificate</td>
-      <td>0.3, signed by a Web Crypto key</td>
-      <td>@peculiar/x509</td>
-      </tr>
-      <tr>
       <td>Decide whether a chain is trusted</td>
       <td>0.5, RFC 5280 §6</td>
       <td>pkijs; on Node.js, your TLS stack</td>

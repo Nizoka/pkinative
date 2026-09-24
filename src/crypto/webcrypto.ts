@@ -31,6 +31,13 @@ function publicKeySubtle(): SubtlePublicKey | null {
     return subtle as SubtlePublicKey;
 }
 
+/** The host's `crypto.subtle`, or null when it cannot sign. */
+function signingSubtle(): SubtlePublicKey | null {
+    const subtle = (globalThis as WebCryptoHost).crypto?.subtle;
+    if (subtle === undefined || typeof subtle.sign !== 'function') return null;
+    return subtle as SubtlePublicKey;
+}
+
 /**
  * Whether this runtime can verify a signature at all.
  *
@@ -101,5 +108,58 @@ export async function verifySignature(key: CryptoKeyHandle, params: VerifyParams
         return await subtle.verify(params, key, signature, data);
     } catch {
         return false;
+    }
+}
+
+/**
+ * Whether this runtime can sign at all.
+ *
+ * The counterpart of {@link canVerify}, and worth asking before building a
+ * certificate rather than catching an exception half way through one.
+ *
+ * @returns Whether `globalThis.crypto.subtle` offers `sign`. It says nothing
+ *   about which algorithms the host implements, nor about the key.
+ * @throws Never — a missing host is the answer, not an error.
+ */
+export function canSign(): boolean {
+    return signingSubtle() !== null;
+}
+
+/**
+ * Sign bytes with a key the caller holds.
+ *
+ * pkinative never creates, imports or exports a private key: the
+ * `CryptoKeyHandle` arrives from the caller's own `importKey` or
+ * `generateKey`, and the only thing done with it here is this call. That is
+ * why `generateKey` and `exportKey` can stay refused in `src/` forever
+ * (`KEY_OPERATION_POLICY`), and why a reviewer can confirm the claim by
+ * reading this one function.
+ *
+ * A failure is **not** treated as "unsigned": unlike verification, where
+ * "no" is a legitimate answer, a signature that did not happen has no safe
+ * falsy value — an empty signature is a certificate that verifies nowhere
+ * and looks valid until someone checks. So this throws.
+ *
+ * @param key    A private key with the `sign` usage.
+ * @param params The algorithm, already resolved.
+ * @param data   The bytes to cover — `tbsCertificate` for a certificate.
+ * @returns The signature octets, in whatever form Web Crypto returns
+ *   (raw `r ‖ s` for ECDSA; the caller converts).
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot
+ *   sign; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key — the
+ *   wrong algorithm for it, a missing `sign` usage, or an algorithm it does
+ *   not implement.
+ */
+export async function signData(key: CryptoKeyHandle, params: VerifyParams, data: Uint8Array): Promise<Uint8Array> {
+    const subtle = signingSubtle();
+    if (subtle === null) {
+        throw new PkiCryptoError('PKI_CRYPTO_UNAVAILABLE',
+            'pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed — call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)', params.name);
+    }
+    try {
+        return new Uint8Array(await subtle.sign(params, key, data));
+    } catch (cause) {
+        throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
+            `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) — check that the key is private, carries the "sign" usage, and matches the algorithm named`, params.name);
     }
 }

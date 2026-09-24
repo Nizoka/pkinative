@@ -21,15 +21,19 @@
  * @module crypto/crypto-signature
  */
 
+import { byteView } from '../core/bytes.js';
+import { PkiError } from '../types/pki-errors.js';
+
 /**
  * Identifier **octets**, not tag numbers.
  *
  * `asn1-tags.ts` holds tag numbers — `TAG_SEQUENCE` is 16 — because that is
- * what a decoded node carries. This module reads raw bytes, where a
- * constructed universal SEQUENCE is `0x30`: the tag number with the
+ * what a decoded node carries. This module reads and writes raw bytes, where
+ * a constructed universal SEQUENCE is `0x30`: the tag number with the
  * constructed bit set. The two happen to coincide for INTEGER (`0x02`),
  * which is exactly why mixing them up is worth naming here rather than
- * importing a constant that means something else.
+ * importing a constant that means something else — it cost this repository
+ * an ECDSA verifier that rejected every signature.
  */
 const SEQUENCE_OCTET = 0x30;
 const INTEGER_OCTET = 0x02;
@@ -81,6 +85,61 @@ export function ecdsaDerToRaw(der: Uint8Array, size: number): Uint8Array | null 
     raw.set(r.value, size - r.value.length);
     raw.set(s.value, size * 2 - s.value.length);
     return raw;
+}
+
+/**
+ * Convert a raw `r ‖ s` signature back to a DER `Ecdsa-Sig-Value`.
+ *
+ * The direction creation needs: Web Crypto's `sign` returns P1363 and a
+ * certificate carries DER. Producing the *canonical* encoding matters as
+ * much here as refusing a non-canonical one matters on the way in — a
+ * certificate whose signature is non-minimal is one a strict verifier
+ * refuses, and it would be this library that made it.
+ *
+ * @param raw A signature of exactly `2 × size` bytes.
+ * @returns The DER `SEQUENCE { INTEGER r, INTEGER s }`.
+ * @throws {PkiError} `PKI_API_MISUSE` when `raw` is not twice `size`, which
+ *   means the curve and the signature disagree.
+ */
+export function ecdsaRawToDer(raw: Uint8Array, size: number): Uint8Array {
+    if (raw.length !== size * 2) {
+        throw new PkiError('PKI_API_MISUSE',
+            `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} — the curve and the signing key disagree`);
+    }
+    const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
+    const header = body.length < 0x80 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 0x81, body.length];
+    return concat(Uint8Array.from(header), body);
+}
+
+/** One coordinate as a minimal, non-negative DER INTEGER. */
+function derInteger(value: Uint8Array): Uint8Array {
+    // Strip leading zeroes (DER minimality), then restore exactly one when
+    // the high bit would otherwise read as a sign bit.
+    const view = byteView(value);
+    let at = 0;
+    // Stops one short of the end, so at least one octet always survives —
+    // an all-zero coordinate keeps its single zero rather than becoming an
+    // empty INTEGER, which DER has no form for.
+    while (at < value.length - 1 && view.getUint8(at) === 0x00) at++;
+    const trimmed = value.subarray(at);
+    const pad = (view.getUint8(at) & 0x80) !== 0 ? 1 : 0;
+    const out = new Uint8Array(2 + pad + trimmed.length);
+    out[0] = INTEGER_OCTET;
+    out[1] = pad + trimmed.length;
+    out.set(trimmed, 2 + pad);
+    return out;
+}
+
+function concat(...parts: readonly Uint8Array[]): Uint8Array {
+    let length = 0;
+    for (const part of parts) length += part.length;
+    const out = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+        out.set(part, at);
+        at += part.length;
+    }
+    return out;
 }
 
 /** One INTEGER of the pair, as a non-negative big-endian value of at most `size` bytes. */

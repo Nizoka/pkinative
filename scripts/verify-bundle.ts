@@ -69,6 +69,11 @@ export const PROBES: readonly Probe[] = [
     { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 9 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
     { exports: ['getOidName'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // The builder from the same angle: writing a certificate ships no reader.
+    // It carries the ASN.1 *encoders* by necessity, so the decoder marker is
+    // the one that matters here — an app that only issues certificates must
+    // not pay for the parser, the name registry or the hashes.
+    { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 20 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     { exports: ['*'], maxBytes: 118 * 1024, mustNotContain: [] },
 ];
 

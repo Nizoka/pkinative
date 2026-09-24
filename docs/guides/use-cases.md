@@ -1,6 +1,6 @@
 # Use cases
 
-> **Five jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one. None validates a chain — that is 0.5.
+> **Six jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -197,13 +197,52 @@ export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Prom
 
 Verification runs in [Web Crypto](https://www.w3.org/TR/WebCryptoAPI/), never in TypeScript: the key is imported from the SubjectPublicKeyInfo with `extractable: false` and the single usage `verify`, and pkinative never sees its bits. That is the whole of [`src/crypto/webcrypto.ts`](../../src/crypto/webcrypto.ts), sixty lines, and it is the only file in the library that may name a key operation at all.
 
+## Issue a certificate, without ever holding the key
+
+The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages.
+
+```ts
+import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from 'pkinative';
+
+export async function issue(spki: Uint8Array, signer: SigningKey): Promise<Uint8Array> {
+    // 128 random bits, forced into 0x40–0x7f at the top: positive, and never
+    // a redundant leading octet DER would refuse. A counter is not a serial.
+    const serial = crypto.getRandomValues(new Uint8Array(16));
+    serial[0] = (serial[0]! & 0x7f) | 0x40;
+
+    const description: CertificateDescription = {
+        serialNumber: serial,
+        subject: [[{ type: '2.5.4.3', value: 'host.example' }]],
+        notBefore: Date.now(),
+        notAfter: Date.now() + 90 * 86_400_000,
+        subjectPublicKey: spki,          // SubjectPublicKeyInfo DER, not a CryptoKey
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) },
+        ],
+    };
+    return createCertificate(description, signer);
+}
+```
+
+**`subjectPublicKey` is DER, and that is the point.** pkinative cannot take your `CryptoKey` and pull the public half out of it, because `exportKey` is refused inside `src/` in every version — the same rule that refuses `generateKey`. So the one line that extracts it is *yours*, in your code, where you can see it:
+
+```ts
+const spki = new Uint8Array(await crypto.subtle.exportKey('spki', publicKey));
+```
+
+An API that took a `CryptoKey` would be one line shorter and would make the library's central security claim unverifiable. This is the trade, stated rather than hidden.
+
+The description types are ordinary data, so a certificate can be built in one place and signed in another: [`CertificateDescription`](../assets/api.json), [`CertificationRequestDescription`](../assets/api.json), [`NameDescription`](../assets/api.json), [`NameAttribute`](../assets/api.json), [`ExtensionDescription`](../assets/api.json) and [`CreateOptions`](../assets/api.json) — the last carrying the same `limits` every other entry point takes, because an extension list assembled from attacker-supplied data is still a loop over untrusted input.
+
+**Pass the issuer's own bytes, not its name.** `issuerDer: root.subject.der` copies the issuing certificate's encoding octet for octet. Re-describing that name and letting it round-trip through the string-type chooser will not reproduce a TeletexString, and a chain whose two names differ by one octet is a chain nothing will build. The full worked example, root and leaf and request, is [`recipes/create-certificate.ts`](../../recipes/create-certificate.ts).
+
 ## What none of these do yet
 
-Each of the five is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the six is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Build a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
 | Decide whether a chain is trusted | 0.5, RFC 5280 §6 | pkijs; on Node.js, your TLS stack |
 | Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
 
