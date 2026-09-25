@@ -7,10 +7,10 @@
 pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v0.3.0/pkinative-0.3.0.tgz
+npm install https://github.com/Nizoka/pkinative/releases/download/v0.4.0/pkinative-0.4.0.tgz
 ```
 
-`gh attestation verify pkinative-0.3.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`gh attestation verify pkinative-0.4.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
 
 ## Read a certificate
 
