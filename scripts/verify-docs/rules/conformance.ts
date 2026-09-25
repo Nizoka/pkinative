@@ -10,11 +10,14 @@
  * @module scripts/verify-docs/rules/conformance
  */
 
+import { CLAUSES } from '../../lib/clauses.js';
 import { CORPORA, checksumPath, parseChecksums } from '../../lib/corpora.js';
 import { error, readJson, type Finding, type Rule } from '../context.js';
 
 const NOTICES = 'THIRD-PARTY-NOTICES.md';
 const ECOSYSTEM = 'docs/assets/ecosystem.json';
+const DIAGNOSTICS = 'docs/data/diagnostics.json';
+const CLAUSE_TABLE = 'scripts/lib/clauses.ts';
 
 const corpusPinParity: Rule = {
     id: 'corpus-pin-parity',
@@ -92,4 +95,46 @@ const validatorRecordParity: Rule = {
     },
 };
 
-export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity];
+/**
+ * The clause table cannot quietly stop meaning anything.
+ *
+ * Three ways it could, each closed: a clause naming a diagnostic code that
+ * does not exist (so it can never fire, and the runner's "silent miss" check
+ * becomes vacuous); a clause with neither a diagnostic nor a written waiver
+ * (a sentence nobody enforces, kept for the look of the table); and a
+ * documented level count that no longer matches the levels the runner has.
+ */
+const clauseTableComplete: Rule = {
+    id: 'clause-table-complete',
+    summary: 'Every L5 clause cites a real section, quotes a normative sentence, and names either a diagnostic code that exists in docs/data/diagnostics.json or a written waiver; the conformance guide documents L5.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const registry = readJson<{ diagnostics: Array<{ code: string }> }>(ctx, DIAGNOSTICS);
+        if ('finding' in registry) return [registry.finding];
+        const known = new Set(registry.value.diagnostics.map((d) => d.code));
+
+        for (const clause of CLAUSES) {
+            if (clause.diagnostic === null) {
+                if ((clause.waiver ?? '').trim().length < 20) {
+                    out.push(error(CLAUSE_TABLE, `${clause.id} names no diagnostic and no waiver — a clause the product does not report is a sentence nobody enforces`));
+                }
+            } else if (!known.has(clause.diagnostic)) {
+                out.push(error(CLAUSE_TABLE, `${clause.id} names ${clause.diagnostic}, which is not in ${DIAGNOSTICS} — a clause pointing at a code that cannot fire makes the runner's silent-miss check vacuous`));
+            }
+            if (!/\b(MUST|SHOULD|shall|MAY)\b/.test(clause.quote)) {
+                out.push(error(CLAUSE_TABLE, `${clause.id} quotes no normative keyword — "${clause.quote.slice(0, 60)}…" reads as a paraphrase, and a clause nobody can find in the RFC is a clause somebody invented`));
+            }
+            if (clause.unexercisedBy !== undefined && clause.unexercisedBy.reason.trim().length < 40) {
+                out.push(error(CLAUSE_TABLE, `${clause.id} waives corpus coverage without saying why the corpus cannot reach it`));
+            }
+        }
+
+        // The guide names the levels; L5 exists and must be described there,
+        // or the conformance claim lives only in a script nobody reads.
+        const guide = ctx.read(GUIDE) ?? '';
+        if (!guide.includes('L5')) out.push(error(GUIDE, 'does not describe conformance level L5 — the clause checker is the difference between a regression detector and an authority, and it is not documented'));
+        return out;
+    },
+};
+
+export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity, clauseTableComplete];

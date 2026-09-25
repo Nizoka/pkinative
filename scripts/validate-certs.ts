@@ -48,8 +48,10 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
+import { CLAUSES } from './lib/clauses.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
+import { evaluateClauses } from './validators/rfc5280-clauses.js';
 import {
     VALIDATORS,
     compareRecord,
@@ -71,7 +73,7 @@ const ENCODING_FLAGS: ReadonlySet<string> = new Set(['BerEncodedSignature', 'Inv
 
 const args = process.argv.slice(2);
 const levelAt = args.indexOf('--level');
-const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 4;
+const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 5;
 const requireAll = args.includes('--require-all');
 const updateBaseline = args.includes('--update-baseline');
 
@@ -324,6 +326,8 @@ async function main(): Promise<number> {
 
     if (level >= 4) runCrossValidators(pki, certificates, parsed);
 
+    if (level >= 5) runClauseChecker(certificates, parsed);
+
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
     let vectors = 0;
     for (const file of corpus('wycheproof').files) {
@@ -356,6 +360,82 @@ async function main(): Promise<number> {
     if (vectors !== declared.wycheproof?.tests) fail(`Wycheproof: ${vectors} vectors; ecosystem.json declares ${String(declared.wycheproof?.tests)} (canary)`);
     record('WP', `wycheproof@${corpus('wycheproof').commit.slice(0, 12)}: ${vectors} ECDSA vectors on P-256, P-384 and P-521`);
     return report();
+}
+
+// ── L5 — RFC 5280, clause by clause ─────────────────────────────────
+
+/**
+ * L1–L4 prove **agreement**. L5 proves **attribution**: which sentence of
+ * RFC 5280 a certificate violates, and whether pkinative says so.
+ *
+ * The checker in `scripts/validators/rfc5280-clauses.ts` decides each clause
+ * from the raw bytes, without importing `src/`. This function compares its
+ * verdicts with pkinative's diagnostics and fails on three things:
+ *
+ *   - a clause that **no certificate in the corpus exercises** — a clause
+ *     nothing triggers proves nothing, and a table full of them yields a
+ *     number rather than evidence;
+ *   - a clause that fails while pkinative emits no matching diagnostic —
+ *     a violation the product is silent about;
+ *   - for a clause marked `exhaustive`, a diagnostic with no clause failure
+ *     behind it — the two readings disagree, and one of them is wrong.
+ */
+function runClauseChecker(certificates: ReadonlyMap<string, Uint8Array>, parsed: ReadonlyMap<string, Pki.Certificate>): void {
+    const applicable = new Map<string, number>();
+    const failed = new Map<string, number>();
+    const silent = new Map<string, string>();
+    const phantom = new Map<string, string>();
+    for (const clause of CLAUSES) { applicable.set(clause.id, 0); failed.set(clause.id, 0); }
+
+    for (const [hash, cert] of parsed) {
+        const der = certificates.get(hash);
+        if (der === undefined) continue;
+        const verdicts = evaluateClauses(der);
+        for (const clause of CLAUSES) {
+            const verdict = verdicts.get(clause.id);
+            if (verdict === undefined || verdict === 'not-applicable') continue;
+            applicable.set(clause.id, (applicable.get(clause.id) ?? 0) + 1);
+            if (clause.diagnostic === null) continue;
+
+            const emitted = cert.diagnostics.some((d) => d.code === clause.diagnostic
+                && (clause.paths === undefined || clause.paths.some((p) => d.path.includes(p))));
+            if (verdict === 'fail') {
+                failed.set(clause.id, (failed.get(clause.id) ?? 0) + 1);
+                if (!emitted && !silent.has(clause.id)) silent.set(clause.id, hash);
+            } else if (emitted && clause.exhaustive && !phantom.has(clause.id)) {
+                phantom.set(clause.id, hash);
+            }
+        }
+    }
+
+    for (const clause of CLAUSES) {
+        const seen = applicable.get(clause.id) ?? 0;
+        if (seen === 0) {
+            if (clause.unexercisedBy === undefined) {
+                fail(`L5 ${clause.id}: no certificate in the corpus exercises it — a clause nothing triggers proves nothing about the parser. Either the corpus changed, or the clause needs a reviewed unexercisedBy naming the suite that does exercise it`);
+            }
+            continue;
+        }
+        // The converse, and it matters as much: a waiver that stops being
+        // true is a waiver that hides a clause nobody checks any more.
+        if (clause.unexercisedBy !== undefined) {
+            fail(`L5 ${clause.id}: declares unexercisedBy ${clause.unexercisedBy.corpus}, yet ${String(seen)} certificate(s) exercise it — remove the waiver, the corpus now covers this clause`);
+        }
+        const hash = silent.get(clause.id);
+        if (hash !== undefined) {
+            fail(`L5 ${clause.id}: ${hash} violates ${clause.section} and pkinative emits no ${String(clause.diagnostic)} — "${clause.quote}"`);
+        }
+        const ghost = phantom.get(clause.id);
+        if (ghost !== undefined) {
+            fail(`L5 ${clause.id}: ${ghost} satisfies ${clause.section} by the independent reading, yet pkinative emits ${String(clause.diagnostic)} — the two readings disagree and one is wrong`);
+        }
+    }
+
+    const violated = [...failed].filter(([, n]) => n > 0).length;
+    const total = [...failed.values()].reduce((a, b) => a + b, 0);
+    const waived = CLAUSES.filter((c) => c.unexercisedBy !== undefined).length;
+    const corpusExercised = CLAUSES.length - waived;
+    record('L5', `${CLAUSES.length} RFC 5280 clauses: ${corpusExercised} exercised by the corpus (${waived} waived to tests/conformance/clauses.test.ts), ${violated} violated by ${total} certificate readings, every violation attributed to its diagnostic`);
 }
 
 // ── L4 — confrontation with other implementations ───────────────────

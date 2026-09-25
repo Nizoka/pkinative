@@ -105,6 +105,9 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // Two benchmarks with one name: every results table is keyed by name, so
     // the record becomes unreadable exactly when someone comes back to it.
     'bench-parity': (f) => edit(f, 'bench/asn1-x509.bench.ts', "bench('encodeExtensions — 3 extensions'", "bench('encodeDistinguishedName — 2 RDNs'"),
+    // The conformance guide stops describing the level that makes the gate an
+    // authority rather than a regression detector.
+    'clause-table-complete': (f) => edit(f, 'docs/guides/conformance.md', /- \*\*L5 —[\s\S]*?\n- \*\*Wycheproof/, '- **Wycheproof'),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };
 
