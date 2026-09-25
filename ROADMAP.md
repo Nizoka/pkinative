@@ -28,6 +28,8 @@ pkinative grows in milestones, each one a git tag with its own release note. Ver
 - [x] An output-byte baseline for created artefacts, each entry recording the release its hash came from (`scripts/verify-samples.ts`, `scripts/data/output-bytes.json`, gate step `verify:samples`)
 - [x] `bench.yml` — a weekly performance trend, explicitly non-blocking and never a required check, held to `bench/RESULTS.md` by `bench-parity`
 
+- [x] An `interop_report.md` issue template — the write direction has a different burden of proof from a conformance report, because when another tool refuses what pkinative wrote the bytes are ours
+
 The write direction of the matrix is impossible before 0.3 creates anything, and the clause checker is what turns a conformance gate from a regression detector into an authority. Both must exist **before** path validation, not after: 0.5 is where a wrong answer becomes expensive.
 
 ## 0.5.x — M3: Path validation and revocation
