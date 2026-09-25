@@ -25,7 +25,7 @@ pkinative grows in milestones, each one a git tag with its own release note. Ver
 
 - [ ] A foreign-tool interop matrix, both directions, blocking on Linux, Windows and macOS: OpenSSL, GnuTLS, `certutil`, `keytool`, macOS `security` and Python `cryptography` read what pkinative writes, and read what pkinative read
 - [ ] Conformance level L5 — RFC 5280 §4 checked clause by clause, by an engine-independent parser, with every clause exercised by a corpus certificate and every verdict tied to a diagnostic or a reviewed waiver
-- [ ] An output-byte baseline for created artefacts, each entry recording the release its hash came from
+- [x] An output-byte baseline for created artefacts, each entry recording the release its hash came from (`scripts/verify-samples.ts`, `scripts/data/output-bytes.json`, gate step `verify:samples`)
 - [x] `bench.yml` — a weekly performance trend, explicitly non-blocking and never a required check, held to `bench/RESULTS.md` by `bench-parity`
 
 The write direction of the matrix is impossible before 0.3 creates anything, and the clause checker is what turns a conformance gate from a regression detector into an authority. Both must exist **before** path validation, not after: 0.5 is where a wrong answer becomes expensive.

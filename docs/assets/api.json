@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 165,
+  "exportCount": 166,
   "exports": [
     {
       "name": "AccessDescription",
@@ -1221,6 +1221,17 @@
       "module": "src/types/x509-types.ts",
       "signature": "export type GeneralName = | OtherGeneralName | TextGeneralName | OpaqueGeneralName | DirectoryGeneralName | IpAddressGeneralName | RegisteredIdGeneralName",
       "summary": "One GeneralName (RFC 5280 §4.2.1.6), discriminated by `kind`.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "GeneralNameDescription",
+      "kind": "type",
+      "module": "src/build/build-structures.ts",
+      "signature": "export type GeneralNameDescription = /** `[1]`, `[2]` and `[6]`: an IA5String, implicitly tagged, so it stays primitive. */ | { readonly kind: 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier'",
+      "summary": "A GeneralName this encoder writes.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -3824,8 +3835,8 @@
       "name": "encodeSubjectAltName",
       "kind": "function",
       "module": "src/build/build-structures.ts",
-      "signature": "export function encodeSubjectAltName(names: ReadonlyArray<{ readonly kind: 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier'; readonly value: string } | { readonly kind: 'directoryNameDer'; readonly value: Uint8Array }>): Uint8Array",
-      "summary": "`subjectAltName` (RFC 5280 §4.2.1.6) over the text forms.",
+      "signature": "export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): Uint8Array",
+      "summary": "`subjectAltName` (RFC 5280 §4.2.1.6), and `issuerAltName`, which has the same value syntax.",
       "throws": [
         "PkiEncodingError",
         "PkiError"

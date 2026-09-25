@@ -4595,6 +4595,14 @@ function encodeSubjectAltName(names) {
   const tags = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
   return encodeSequence(names.map((name) => {
     if (name.kind === "directoryNameDer") return encodeExplicit(4, assertBytes(name.value, "directoryName"));
+    if (name.kind === "iPAddress") {
+      const address = assertBytes(name.value, "iPAddress");
+      if (address.length !== 4 && address.length !== 16) {
+        throw new PkiError("PKI_INVALID_OPTION", `pkinative: an iPAddress in a subjectAltName is 4 octets (IPv4) or 16 (IPv6), not ${String(address.length)} \u2014 the 8- and 32-octet forms carry a mask and belong to nameConstraints (RFC 5280 \xA74.2.1.6)`);
+      }
+      return encodeImplicit(7, encodeOctetString(address));
+    }
+    if (name.kind === "registeredID") return encodeImplicit(8, encodeObjectIdentifier(name.value));
     const tag = tags[name.kind];
     if (tag === void 0) {
       throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes \u2014 pass a directoryNameDer, or build the GeneralName with encodeImplicit`);

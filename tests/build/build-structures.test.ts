@@ -222,8 +222,35 @@ describe('the extension values', () => {
 
     it('should refuse an empty subjectAltName and an unknown name form', () => {
         expect(() => encodeSubjectAltName([])).toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
-        expect(() => encodeSubjectAltName([{ kind: 'iPAddress', value: '10.0.0.1' } as never]))
+        expect(() => encodeSubjectAltName([{ kind: 'x400Address', value: 'nope' } as never]))
             .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION' }));
+    });
+
+    it('should write an iPAddress in network byte order, both families', () => {
+        // [7] IMPLICIT OCTET STRING, so the tag is replaced and the value
+        // stays primitive: 87 04 for IPv4, 87 10 for IPv6.
+        const v4 = encodeSubjectAltName([{ kind: 'iPAddress', value: Uint8Array.of(192, 0, 2, 1) }]);
+        expect(hex(v4)).toBe('30068704c0000201');
+        const v6 = encodeSubjectAltName([{ kind: 'iPAddress', value: Uint8Array.of(0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1) }]);
+        expect(hex(v6)).toBe('3012871020010db8000000000000000000000001');
+    });
+
+    it.each([
+        { name: 'three octets', value: Uint8Array.of(10, 0, 1) },
+        { name: 'the 8-octet nameConstraints form', value: new Uint8Array(8) },
+        { name: 'the 32-octet nameConstraints form', value: new Uint8Array(32) },
+    ])('should refuse an iPAddress of $name, which means nothing in a subjectAltName', ({ value }) => {
+        expect(() => encodeSubjectAltName([{ kind: 'iPAddress', value }]))
+            .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION', message: expect.stringContaining('nameConstraints') }));
+    });
+
+    it('should refuse an iPAddress that is not bytes at all', () => {
+        expect(() => encodeSubjectAltName([{ kind: 'iPAddress', value: '192.0.2.1' as never }]))
+            .toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+    });
+
+    it('should write a registeredID as an implicitly tagged OID', () => {
+        expect(hex(encodeSubjectAltName([{ kind: 'registeredID', value: '1.2.3' }]))).toBe('300488022a03');
     });
 });
 

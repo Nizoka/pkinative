@@ -187,6 +187,7 @@ export {
     encodeValidity,
     KEY_USAGE_BITS,
 } from './build/build-structures.js';
+export type { GeneralNameDescription } from './build/build-structures.js';
 export type {
     CertificateDescription,
     CertificationRequestDescription,

@@ -315,31 +315,60 @@ export function encodeAuthorityKeyIdentifier(keyIdentifier: Uint8Array): Uint8Ar
     return encodeSequence([encodeImplicit(0, encodeOctetString(assertBytes(keyIdentifier, 'authorityKeyIdentifier')))]);
 }
 
+/** A GeneralName this encoder writes. See {@link encodeSubjectAltName}. */
+export type GeneralNameDescription =
+    /** `[1]`, `[2]` and `[6]`: an IA5String, implicitly tagged, so it stays primitive. */
+    | { readonly kind: 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier'; readonly value: string }
+    /**
+     * `[7]`: the address in **network byte order** — 4 octets for IPv4, 16
+     * for IPv6, and nothing else. It takes bytes rather than text on
+     * purpose: the same rule as `issuerDer`, applied to a value that must be
+     * exact. `'192.0.2.1'` has one encoding, but `'::ffff:192.0.2.1'`,
+     * `'2001:db8::1'` and `'2001:0db8:0000:0000:0000:0000:0000:0001'` are
+     * three spellings a text parser has to choose between, and a certificate
+     * that names the wrong host because a `::` expanded differently is not a
+     * bug anyone finds quickly.
+     */
+    | { readonly kind: 'iPAddress'; readonly value: Uint8Array }
+    /** `[8]`: an OBJECT IDENTIFIER, implicitly tagged. */
+    | { readonly kind: 'registeredID'; readonly value: string }
+    /** `[4]` **explicit**, because a Name is itself constructed. Takes the DER of a Name. */
+    | { readonly kind: 'directoryNameDer'; readonly value: Uint8Array };
+
 /**
- * `subjectAltName` (RFC 5280 §4.2.1.6) over the text forms.
- *
- * The three that carry an IA5String — `dNSName`, `rfc822Name` and
- * `uniformResourceIdentifier` — are implicitly tagged, so they stay
- * primitive. A `directoryName` is `[4]` **explicit** because its content is
- * itself constructed; that form takes DER and is passed through.
+ * `subjectAltName` (RFC 5280 §4.2.1.6), and `issuerAltName`, which has the
+ * same value syntax.
  *
  * @param names The names, in the order they are placed.
  * @returns The extension value's DER.
  * @throws {PkiError} `PKI_API_MISUSE` for an empty list, which RFC 5280
  *   refuses; `PKI_INVALID_OPTION` for a GeneralName form this encoder does
- *   not write — build that one with `encodeImplicit` and place it yourself.
+ *   not write — build that one with `encodeImplicit` and place it yourself —
+ *   or for an `iPAddress` that is not 4 or 16 octets.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for a character an IA5String cannot carry.
+ * @throws {PkiError} `PKI_OID_INVALID` for a malformed `registeredID`.
  */
-export function encodeSubjectAltName(names: ReadonlyArray<{ readonly kind: 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier'; readonly value: string } | { readonly kind: 'directoryNameDer'; readonly value: Uint8Array }>): Uint8Array {
+export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): Uint8Array {
     if (names.length === 0) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: a subjectAltName with no name is refused by RFC 5280 §4.2.1.6 — omit the extension instead');
     }
     const tags: Readonly<Record<string, number>> = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
     return encodeSequence(names.map((name) => {
         if (name.kind === 'directoryNameDer') return encodeExplicit(4, assertBytes(name.value, 'directoryName'));
+        if (name.kind === 'iPAddress') {
+            const address = assertBytes(name.value, 'iPAddress');
+            // RFC 5280 §4.2.1.6: 4 or 16 octets in a subjectAltName. The
+            // 8-and-32-octet forms carrying a mask belong to nameConstraints
+            // and are refused here, where they would mean nothing.
+            if (address.length !== 4 && address.length !== 16) {
+                throw new PkiError('PKI_INVALID_OPTION', `pkinative: an iPAddress in a subjectAltName is 4 octets (IPv4) or 16 (IPv6), not ${String(address.length)} — the 8- and 32-octet forms carry a mask and belong to nameConstraints (RFC 5280 §4.2.1.6)`);
+            }
+            return encodeImplicit(7, encodeOctetString(address));
+        }
+        if (name.kind === 'registeredID') return encodeImplicit(8, encodeObjectIdentifier(name.value));
         const tag = tags[name.kind];
         if (tag === undefined) {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes — pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${String((name as { kind: string }).kind)} is not a GeneralName form this encoder writes — pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
         }
         return encodeImplicit(tag, encodeString('ia5', name.value));
     }));

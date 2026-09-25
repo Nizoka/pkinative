@@ -163,6 +163,13 @@ export const STEPS: readonly Step[] = [
     },
     { id: 'check:package', npmScript: 'check:package', profiles: ['ci', 'publish'] },
     { id: 'verify:bundle', npmScript: 'verify:bundle', profiles: ['ci', 'publish'] },
+    // The other direction from the conformance gate: L0-L4 ask whether
+    // pkinative reads bytes the way everyone else does, and say nothing about
+    // the bytes it writes. An encoder can drift — a string type swapped, a
+    // DEFAULT emitted, a SET reordered — with every structural assertion
+    // still green, because the structure is still right. These are the bytes
+    // a relying party hashes.
+    { id: 'verify:samples', npmScript: 'verify:samples', profiles: ['fast', 'ci', 'publish'] },
     { id: 'smoke:install', npmScript: 'smoke:install', profiles: ['ci', 'publish'] },
     // The second layer of the playground's freshness guard. verify:docs
     // fingerprints the inputs hermetically; this re-derives the file from the

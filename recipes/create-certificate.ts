@@ -38,6 +38,7 @@ import {
     signatureAlgorithmDer,
     verifyCertificateSignature,
     verifySelfSignature,
+    type GeneralNameDescription,
     type SigningKey,
 } from 'pkinative';
 
@@ -66,6 +67,17 @@ export default async function run(): Promise<Record<string, string>> {
     // A key identifier is conventionally a digest of the key bits; any
     // stable value does, and this recipe needs a deterministic one.
     const caKeyId = new Uint8Array(20).fill(0xca);
+
+    // An iPAddress takes BYTES, in network byte order, not text — the same
+    // rule as `issuerDer`, applied to a value that must be exact. '2001:db8::1'
+    // and '2001:0db8:0000:…:0001' are two spellings of one address, and a
+    // certificate that names the wrong host because a `::` expanded
+    // differently is not a bug anyone finds quickly.
+    const names: GeneralNameDescription[] = [
+        { kind: 'dNSName', value: 'host.example' },
+        { kind: 'uniformResourceIdentifier', value: 'https://host.example/' },
+        { kind: 'iPAddress', value: Uint8Array.of(192, 0, 2, 1) },
+    ];
 
     const rootDer = await createCertificate({
         serialNumber: 0x0123456789abcdefn,
@@ -98,10 +110,7 @@ export default async function run(): Promise<Record<string, string>> {
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) },
             { oid: '2.5.29.37', value: encodeExtendedKeyUsage(['1.3.6.1.5.5.7.3.1']) },
-            { oid: '2.5.29.17', value: encodeSubjectAltName([
-                { kind: 'dNSName', value: 'host.example' },
-                { kind: 'uniformResourceIdentifier', value: 'https://host.example/' },
-            ]) },
+            { oid: '2.5.29.17', value: encodeSubjectAltName(names) },
             { oid: '2.5.29.35', value: encodeAuthorityKeyIdentifier(caKeyId) },
         ],
     }, ca.signer);

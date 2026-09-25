@@ -228,6 +228,7 @@
         "encodeSubjectPublicKeyInfo",
         "encodeValidity",
         "KEY_USAGE_BITS",
+        "GeneralNameDescription",
         "getExtension"
       ],
       "since": "0.3.0",
@@ -237,7 +238,7 @@
         "leaf=CN=host.example signedByRoot=true diag=0",
         "leafExtensions=basicConstraints,keyUsage,extendedKeyUsage,subjectAltName,authorityKeyIdentifier",
         "leafUsage=digitalSignature",
-        "leafNames=dNSName,uniformResourceIdentifier",
+        "leafNames=dNSName,uniformResourceIdentifier,iPAddress",
         "keyUsageBits=5,6",
         "csrIsDer=true",
         "pieces=300d06092a864886f70d01010b0500 300806035504030c0161 300c310a300806035504030c0161 301e 30090603551d1304023000 300b30090603551d1304023000 300806022a0331023000 300e 300a06082a8648ce3d040302"
