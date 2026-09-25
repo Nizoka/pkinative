@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **feat(bench): a performance trend, and a rule that keeps it attributable** — `bench.yml` archives `npm run bench` weekly with the run context written into the artefact beside the numbers, because a number without its machine is not evidence and a reader six months later will not have the run page open. It is never a required check: a shared runner varies 2-5x run to run, so a blocking budget either fires false-red every week or is loose enough to miss a real regression, and both teach people to ignore it. There is deliberately no `continue-on-error: true` either — it blocks nothing already, so a green square over a crashed run would hide the one thing the workflow can still report, that the benchmarks stopped running at all. The 0.3 creation paths get benchmarks of their own, and the new `bench-parity` rule closes the three ways a performance record rots: two benchmarks may not share a name (every results table is keyed by name), every dated section of `bench/RESULTS.md` declares where its numbers came from or says in writing why the usual context does not apply, and the workflow must actually run `npm run bench` while never appearing among the ruleset's required contexts.
+
 ## [0.3.0] – 2026-09-24
 
 ### Added

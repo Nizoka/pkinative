@@ -53,6 +53,7 @@ describe('every workflow', () => {
         // workflow could shadow one of them without any other test noticing.
         expect(workflowFiles).toEqual([
             'audit.yml',
+            'bench.yml',
             'ci.yml',
             'codeql.yml',
             'conformance.yml',

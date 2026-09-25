@@ -102,6 +102,9 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // came from a command or from somebody's memory.
     'release-pr-drafts': (f) => { delete f['release-notes/draft/PR-v0.1.0.md']; },
     'corpus-pin-parity': (f) => edit(f, 'THIRD-PARTY-NOTICES.md', '118721335e675edde10015df89b138cf292d7554', '0000000000000000000000000000000000000000'),
+    // Two benchmarks with one name: every results table is keyed by name, so
+    // the record becomes unreadable exactly when someone comes back to it.
+    'bench-parity': (f) => edit(f, 'bench/asn1-x509.bench.ts', "bench('encodeExtensions — 3 extensions'", "bench('encodeDistinguishedName — 2 RDNs'"),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };
 

@@ -2,6 +2,32 @@
 
 Numbers with no run context are not evidence: every table below says where, when and how it was measured. Re-run with `npm run bench` before and after any change to a hot path (performance.instructions.md) and add a dated section; never overwrite one.
 
+## 2026-09-25 — 0.3.0, the creation paths measured for the first time
+
+- **Command:** `npm run bench` (`vitest bench --run`, vitest 4.1.11, default tinybench warm-up and iterations)
+- **Runtime:** Node.js v22.17.0, win32 x64
+- **Machine:** Intel Core i7-4510U @ 2.00 GHz, 4 logical cores, laptop on mains power, otherwise idle
+- **Inputs:** as the 2026-09-19 section, plus a two-RDN name, a three-extension list and one ECDSA P-256 key generated once for the whole file
+
+| Benchmark | ops/s | mean (ms) | p99 (ms) | rme |
+|---|---:|---:|---:|---:|
+| `decodeAsn1` — ISRG Root X1 | 24 386 | 0.041 | 0.113 | ±12.6 % |
+| `decodeAsn1` — letsencrypt.org leaf | 24 820 | 0.040 | 0.138 | ±1.3 % |
+| `parseCertificate` — ISRG Root X1 | 5 555 | 0.180 | 0.541 | ±2.7 % |
+| `parseCertificate` — leaf, ten extensions decoded | 6 706 | 0.149 | 0.433 | ±2.7 % |
+| `parseCertificate` — leaf, `decodeExtensions: false` | 11 876 | 0.084 | 0.250 | ±1.3 % |
+| `decodePem` — six-certificate bundle | 8 080 | 0.124 | 0.284 | ±1.1 % |
+| `computeFingerprint` SHA-256 — leaf | 64 579 | 0.016 | 0.062 | ±0.8 % |
+| `encodeDistinguishedName` — two RDNs | 73 302 | 0.014 | 0.033 | ±0.9 % |
+| `encodeExtensions` — three extensions | 49 675 | 0.020 | 0.049 | ±1.9 % |
+| `createCertificate` — v3, three extensions | 2 888 | 0.346 | 0.741 | ±1.5 % |
+
+**Read the last row for what it is.** An ECDSA P-256 signature dominates `createCertificate`: pkinative's own share is the two rows above it, which together account for roughly 0.034 ms of the 0.346 ms. The row is here to catch an encoder that starts allocating per byte, not to quote as pkinative's signing speed — that number belongs to whatever implements Web Crypto on your runtime, and would move if you changed nothing in this library.
+
+**The parsing rows are not comparable with the 2026-09-19 section**, even though the code is unchanged in behaviour: that run was on a loaded machine and this one on an idle one, and the difference (`decodeAsn1` reads 72 % faster) is the load, not the library. It is recorded rather than quietly overwritten because a table that only keeps the flattering run is not a record. The two sections that *can* be compared are 2026-09-19 and 2026-09-20, which were taken under the same conditions on purpose.
+
+The first `decodeAsn1` row again carries a high relative error. That is JIT warm-up on the first benchmark of the run, as in every section here, and not a property of the decoder.
+
 ## 2026-09-20 — the 100 % branch-coverage rewrites
 
 - **Runtime / machine:** as the 2026-09-19 section, under heavy concurrent load.
