@@ -183,6 +183,12 @@ export const STEPS: readonly Step[] = [
         id: 'conformance', npmScript: 'conformance', profiles: ['publish'],
         skipWhen: () => (corporaReady(REPO_ROOT) ? null : 'corpora not fetched or not matching their pins — run npm run conformance:fetch'),
     },
+    // The write direction. Foreign tools reading what pkinative produces —
+    // the arrow L0-L5 never point along, and the one with no corpus, because
+    // nobody publishes a set of certificates a library is supposed to have
+    // written. It shells out to whatever is installed, so it is publish-only:
+    // a contributor laptop without OpenSSL must not go red for that.
+    { id: 'interop', npmScript: 'interop', profiles: ['publish'] },
 ];
 
 // ── Running a step ──────────────────────────────────────────────────

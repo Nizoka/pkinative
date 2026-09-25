@@ -33,6 +33,20 @@
   A clause nothing triggers proves nothing, so every clause must be exercised by at least one corpus certificate — or carry a reviewed waiver saying why the corpus cannot reach it and naming the suite that does. Two do: x509-limbo holds no certificate with a unique identifier, and none with a multi-valued relative distinguished name, because neither bears on path validation. `tests/conformance/clauses.test.ts` builds a violating and a conforming certificate for **every** clause, which is also the only thing that could catch an evaluator that always answers "pass". §6 doubles this table and arrives with 0.5; the completeness assertion becomes blocking at 0.9.
 - **Wycheproof.** Every ECDSA signature is decoded as a strict `Ecdsa-Sig-Value`: every valid vector must decode, and every vector flagged `BerEncodedSignature`, `InvalidEncoding` or `InvalidTypesInSignature` must be refused.
 
+## The write direction
+
+Everything above points one way: bytes someone else produced, read by pkinative. From 0.3 the arrow also points outward, and that direction has **no corpus** — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.
+
+`npm run interop` (`scripts/run-interop.ts`) hands every artefact of the sample catalogue to each foreign tool it can find, and requires agreement on facts that have exactly one right answer: the serial number as an integer, the subject common name, the DNS names, whether the chain verifies, and whether the PKCS#10 request's self-signature checks out. The artefacts are the same ones `verify:samples` freezes by hash, so the bytes a baseline blesses are the bytes OpenSSL is asked to read — two catalogues would each be green about something the other never saw.
+
+Three details decide whether the result means anything:
+
+- **A tool that refuses an artefact is a finding about pkinative.** This is the opposite of the read direction, where a foreign acceptance policy stricter than ours is not our defect. Here the bytes are ours.
+- **A tool this runner cannot parse is a defect in the runner, never evidence about the certificate.** The two are separate states because conflating them is how a gate ends up red in one language and green in another: Windows `certutil` reads the artefacts perfectly and prints *"Numéro de série"* on a French system, and a runner with two states reported a good certificate as refused.
+- **Each tool declares which fields it can supply**, exactly as the L4 validators do, and a tool that compares nothing fails as vacuous. Windows CryptoAPI supplies the serial and the subject — both API values, identical in every locale — and does not supply DNS names, because reaching them from Windows PowerShell 5.1 means `X509Extension.Format()`, whose output is translated.
+
+Today `openssl` and Windows CryptoAPI run, on all three platforms, blocking: the matrix runs inside the `conformance` job, whose three contexts the ruleset already requires. GnuTLS `certtool`, Windows `certutil`, `keytool`, macOS `security` and Python `cryptography` are declared in `scripts/lib/interop.ts` with the reason each is pending, and `interop-matrix-declared` holds that list to ROADMAP.md in both directions so a gap cannot quietly disappear. `--require-all`, which turns a missing tool into a failure, goes on in the commit that lands the last of them.
+
 ## What is not claimed yet
 
 x509-limbo also scores path validation — whether a chain should be accepted. pkinative 0.1 does not validate paths, so no SUCCESS/FAILURE score is claimed before 0.5; the gate checks only what 0.1 does: parsing, refusing and re-encoding.

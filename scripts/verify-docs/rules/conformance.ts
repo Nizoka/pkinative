@@ -12,12 +12,16 @@
 
 import { CLAUSES } from '../../lib/clauses.js';
 import { CORPORA, checksumPath, parseChecksums } from '../../lib/corpora.js';
+import { IMPLEMENTED_TOOLS, PENDING_TOOLS } from '../../lib/interop.js';
 import { error, readJson, type Finding, type Rule } from '../context.js';
 
 const NOTICES = 'THIRD-PARTY-NOTICES.md';
 const ECOSYSTEM = 'docs/assets/ecosystem.json';
 const DIAGNOSTICS = 'docs/data/diagnostics.json';
 const CLAUSE_TABLE = 'scripts/lib/clauses.ts';
+const INTEROP = 'scripts/lib/interop.ts';
+const ROADMAP = 'ROADMAP.md';
+const CONFORMANCE_WORKFLOW = '.github/workflows/conformance.yml';
 
 const corpusPinParity: Rule = {
     id: 'corpus-pin-parity',
@@ -137,4 +141,56 @@ const clauseTableComplete: Rule = {
     },
 };
 
-export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity, clauseTableComplete];
+/**
+ * A gap written down is a gap someone can close; a gap only the code knows
+ * about is a matrix that looks complete and is not.
+ *
+ * ROADMAP.md promises six tools in both directions. This rule holds that
+ * promise to `scripts/lib/interop.ts`: every tool named in the roadmap line
+ * is either implemented or listed as pending with a reason, and every pending
+ * tool carries one long enough to act on. It also refuses a pending list that
+ * has emptied without `--require-all` being turned on in the workflow, which
+ * is the one moment the matrix stops being partly aspirational.
+ */
+const interopMatrixDeclared: Rule = {
+    id: 'interop-matrix-declared',
+    summary: 'Every interoperability tool is implemented or listed as pending with a reason; ROADMAP.md names them all; and when nothing is pending the conformance workflow runs the matrix with --require-all.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const declared = new Set([...IMPLEMENTED_TOOLS, ...PENDING_TOOLS.map((t) => t.id)]);
+        if (IMPLEMENTED_TOOLS.length === 0) out.push(error(INTEROP, 'implements no tool at all — a write-direction matrix with no reader proves nothing'));
+
+        for (const tool of PENDING_TOOLS) {
+            if (tool.why.trim().length < 40) out.push(error(INTEROP, `${tool.id} is pending without a reason anyone could act on`));
+            if (IMPLEMENTED_TOOLS.includes(tool.id)) out.push(error(INTEROP, `${tool.id} is listed as both implemented and pending`));
+        }
+
+        const roadmap = ctx.read(ROADMAP) ?? '';
+        const line = /^- \[[ x]\] A foreign-tool interop matrix[^\n]*$/m.exec(roadmap)?.[0];
+        if (line === undefined) {
+            out.push(error(ROADMAP, 'no longer carries the interop-matrix line the 0.4.0 band promises'));
+        } else {
+            // The roadmap names tools in prose (`OpenSSL`, `certtool`, …); the
+            // check is that every declared id is recognisable in it, so a tool
+            // cannot be added to the code and quietly left out of the promise,
+            // nor promised and never declared.
+            for (const id of declared) {
+                const word = (id.split('-').pop() ?? id).toLowerCase();
+                if (!line.toLowerCase().includes(word)) {
+                    out.push(error(ROADMAP, `the interop-matrix line does not mention ${id} (looked for "${word}") — the roadmap and scripts/lib/interop.ts must promise the same matrix`));
+                }
+            }
+        }
+
+        const workflow = ctx.read(CONFORMANCE_WORKFLOW) ?? '';
+        const runsMatrix = /run:\s*npm run interop/.test(workflow);
+        if (!runsMatrix) {
+            out.push(error(CONFORMANCE_WORKFLOW, 'does not run the interoperability matrix — its three contexts are already required, so this is where the write direction becomes blocking on Linux, Windows and macOS'));
+        } else if (PENDING_TOOLS.length === 0 && !/npm run interop[^\n]*--require-all/.test(workflow)) {
+            out.push(error(CONFORMANCE_WORKFLOW, 'nothing is pending any more, so the matrix must run with --require-all — a tool missing from a runner has to go red, not skip'));
+        }
+        return out;
+    },
+};
+
+export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity, clauseTableComplete, interopMatrixDeclared];

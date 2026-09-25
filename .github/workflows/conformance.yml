@@ -98,6 +98,20 @@ jobs:
       - name: Run the conformance gate (blocking)
         run: npx tsx scripts/validate-certs.ts --require-all
 
+      # The write direction: foreign tools reading what pkinative produces.
+      # This job's three contexts are already required by the ruleset, so the
+      # matrix becomes blocking on Linux, Windows and macOS without the
+      # ruleset changing at all.
+      #
+      # Deliberately NOT --require-all yet. Four tools in PENDING_TOOLS are
+      # declared and not implemented, and --require-all turns each of them
+      # into a failure; turning it on now would make the job red for work that
+      # is scheduled rather than missed. It goes on in the commit that lands
+      # the last pending tool, and `interop-matrix-declared` holds the list in
+      # ROADMAP.md to the list in the runner until then.
+      - name: Run the interoperability matrix (blocking)
+        run: npm run interop
+
       - name: Upload the conformance report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
