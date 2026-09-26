@@ -30,6 +30,10 @@ export type {
     PkiParseOptions,
     EncodingRules,
 } from './types/pki-types.js';
+// The third vocabulary. A reason is RETURNED in a report, never thrown and
+// never emitted; src/types/pki-reasons.ts carries the table of the three and
+// says why neither of the other two could do this job.
+export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 
 // ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────
 

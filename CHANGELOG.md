@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **feat(core): `PkiReasonCode`, the third vocabulary — landed before the code that needs it, on purpose** — a validation answers a different question from a parser, and neither existing registry can carry it. A validation produces *several* reasons at once (expired **and** revoked **and** outside a name constraint) where an exception carries one; the error vocabulary freezes at 0.8 while validation reasons grow with the standards; and on the diagnostics side the severity model is wrong for a verdict, with `strict: true` turning "this certificate is revoked" into a thrown `PKI_STRICT_DIAGNOSTIC`. So: `PkiReasonCode` and `PkiReason` in `src/types/pki-reasons.ts`, one factory per code in `src/core/pki-reasons.ts`, the registry in `docs/data/reasons.json`, and the rule this establishes for everything after it — **primitives return and throw, compositions report, exactly one layer converts.** The piece that makes it affordable is `PKI_REASON_INPUT_MALFORMED`, which carries in `errorCode` the `PkiErrorCode` that *would* have been thrown: a report promises never to throw for a malformed input **without copying 47 encoding codes into a second vocabulary** that would then have to be frozen too. The reason registry wraps the error registry; it never mirrors it. `reason-parity` holds all of it: bidirectional sync, a factory per code, the three registries disjoint, no `PKI_REASON_*` inside a `throw`, and no reason message starting with `pkinative: ` — the *inverse* of the error rule, because that prefix marks what is thrown and keeping it exclusive is what lets a log reader tell a verdict from an exception. Both of those last two checks are decided from the syntax tree rather than from the text: the first draft scanned the source with a regex and failed on this module's own explanation of itself, and on a `.replace(/^pkinative: /, '')` that strips the prefix rather than adding one.
+
+  This is 0.5's first commit and it contains no validation logic at all. Taken late, it is the irrecoverable decision of the whole programme: 0.5 would ship path failures as error codes, 0.7 and pdfnative's migration would be built on `try/catch`, the x509-limbo scorer would score on exception codes, and 0.9 would have to choose between freezing wrong codes forever and breaking every consumer three months before 1.0.
+
 ## [0.4.0] – 2026-09-25
 
 ### Added

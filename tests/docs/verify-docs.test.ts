@@ -111,6 +111,11 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The workflow stops running the write direction, so the matrix becomes a
     // script nothing invokes on the three platforms that matter.
     'interop-matrix-declared': (f) => edit(f, '.github/workflows/conformance.yml', 'run: npm run interop', 'run: echo skipped'),
+    // A reason message takes the prefix that belongs to thrown errors, which
+    // is how a log reader stops being able to tell a verdict from an
+    // exception. Decided from the syntax tree, so this has to be a real
+    // string literal and not a mention in a comment.
+    'reason-parity': (f) => edit(f, 'src/core/pki-reasons.ts', "'the issuer\\'s public key does not verify", "'pkinative: the issuer\\'s public key does not verify"),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };
 

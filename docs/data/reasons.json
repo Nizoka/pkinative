@@ -1,0 +1,23 @@
+{
+  "$comment": "The registry of every validation reason pkinative can return. The reason-parity rule of scripts/verify-docs.ts keeps it in bidirectional sync with the PkiReasonCode union of src/types/pki-reasons.ts and requires a factory for every code in src/core/pki-reasons.ts. A reason is RETURNED in a report, never thrown and never emitted: reason-parity refuses a PKI_REASON_* literal inside a throw, refuses a message beginning with 'pkinative: ' (that prefix marks what is thrown, and keeping it exclusive is what lets a log reader tell an exception from a verdict), and requires the three registries to be disjoint. Unlike PkiErrorCode this vocabulary does NOT freeze at 0.8 — the set of reasons a chain can be rejected grows with the standards — but a removal or a rename is still semver-major.",
+  "package": "pkinative",
+  "verifiedOn": "2026-09-25",
+  "reasons": [
+    { "code": "PKI_REASON_INPUT_MALFORMED", "since": "0.5.0", "returnedWhen": "The bytes are not the structure they claim to be.", "remedy": "Read the errorCode field: it carries the PkiErrorCode the parser would have thrown, so the reason registry wraps the error registry instead of duplicating it.", "standard": "ITU-T X.690" },
+
+    { "code": "PKI_REASON_NOT_YET_VALID", "since": "0.5.0", "returnedWhen": "The validation instant is before the certificate's notBefore.", "remedy": "Validate at an instant inside the window, or obtain a certificate that is already valid.", "standard": "RFC 5280 §6.1.3 (a)(2)" },
+    { "code": "PKI_REASON_EXPIRED", "since": "0.5.0", "returnedWhen": "The validation instant is after the certificate's notAfter.", "remedy": "Renew the certificate. Validating at an earlier instant is only correct when checking a signature made then.", "standard": "RFC 5280 §6.1.3 (a)(2)" },
+    { "code": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION", "since": "0.5.0", "returnedWhen": "A certificate carries a critical extension this implementation does not recognise.", "remedy": "RFC 5280 requires refusal, not tolerance: an extension marked critical is one the issuer says must be understood.", "standard": "RFC 5280 §6.1.3 (f)" },
+
+    { "code": "PKI_REASON_ISSUER_NOT_FOUND", "since": "0.5.0", "returnedWhen": "No supplied certificate has a subject equal to this certificate's issuer.", "remedy": "Supply the intermediate certificates. A server that sends only its leaf is the usual cause.", "standard": "RFC 5280 §6.1" },
+    { "code": "PKI_REASON_SIGNATURE_INVALID", "since": "0.5.0", "returnedWhen": "The issuer's public key does not verify the certificate's signature.", "remedy": "A verdict, not an incident: these bytes were not signed by that key.", "standard": "RFC 5280 §6.1.3 (a)(1)" },
+    { "code": "PKI_REASON_SIGNATURE_NOT_CHECKED", "since": "0.5.0", "returnedWhen": "The signature could not be checked here — no Web Crypto, or an algorithm this runtime refuses.", "remedy": "This says nothing about whether the signature is valid. Ask again on a runtime that implements the algorithm; never treat it as a rejection.", "standard": "RFC 5280 §6.1.3 (a)(1)" },
+
+    { "code": "PKI_REASON_NO_TRUST_ANCHOR", "since": "0.5.0", "returnedWhen": "The chain does not end at any supplied trust anchor.", "remedy": "Supply the root. A signature that verifies is not a certificate that is trusted.", "standard": "RFC 5280 §6.1.1 (d)" },
+    { "code": "PKI_REASON_NOT_A_CA", "since": "0.5.0", "returnedWhen": "A certificate issued another without asserting cA in basicConstraints, or keyCertSign in keyUsage.", "remedy": "Only a CA certificate may issue. This is the check whose absence caused the 2008 Basic Constraints attacks.", "standard": "RFC 5280 §6.1.4 (k)" },
+    { "code": "PKI_REASON_PATH_TOO_LONG", "since": "0.5.0", "returnedWhen": "A pathLenConstraint in the chain, or the caller's own bound, is exceeded.", "remedy": "Shorten the chain, or use a CA whose constraint permits it.", "standard": "RFC 5280 §6.1.4 (l)" },
+    { "code": "PKI_REASON_PATH_LOOPS", "since": "0.5.0", "returnedWhen": "The same certificate appears twice in the chain.", "remedy": "Remove the duplicate. A path that revisits a certificate is not a path.", "standard": "RFC 5280 §6.1" },
+
+    { "code": "PKI_REASON_LIMIT_EXCEEDED", "since": "0.5.0", "returnedWhen": "A named PkiLimits bound stopped the search.", "remedy": "The limit field names it. Raise it only for input you trust; path building is exponential in the candidate set.", "standard": "CWE-400" }
+  ]
+}

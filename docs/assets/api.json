@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 166,
+  "exportCount": 168,
   "exports": [
     {
       "name": "AccessDescription",
@@ -2160,6 +2160,65 @@
           "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
         }
       ]
+    },
+    {
+      "name": "PkiReason",
+      "kind": "type",
+      "module": "src/types/pki-reasons.ts",
+      "signature": "export interface PkiReason",
+      "summary": "One reason a validation said no.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "code",
+          "type": "PkiReasonCode",
+          "optional": false,
+          "summary": "Which reason this is."
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "optional": false,
+          "summary": "What happened and what the caller can do about it."
+        },
+        {
+          "name": "standard",
+          "type": "string",
+          "optional": false,
+          "summary": "The clause that decides the case, e.g. `RFC 5280 §6.1.3`."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "summary": "Where in the input, e.g. `path[1].tbsCertificate.validity`."
+        },
+        {
+          "name": "errorCode",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "For `PKI_REASON_INPUT_MALFORMED` only: the code that would have been thrown."
+        },
+        {
+          "name": "limit",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "For `PKI_REASON_LIMIT_EXCEEDED` only: the `PkiLimits` key that stopped the search."
+        }
+      ]
+    },
+    {
+      "name": "PkiReasonCode",
+      "kind": "type",
+      "module": "src/types/pki-reasons.ts",
+      "signature": "export type PkiReasonCode = // ── The input, wrapped rather than duplicated ── /** The bytes are not the structure they claim to be. `errorCode` carries the `PkiErrorCode` that would have been thrown. */ | 'PKI_REASON_INPUT_MALFORMED' // ── The certificate, on its own ── /** The validation instant is before `notBefore`. */ | 'PKI_REASON_NOT_YET_VALID' /** The validation instant is after `notAfter`. */ | 'PKI_REASON_EXPIRED' /** A critical extension no implementation here recognises",
+      "summary": "Why a validation said no.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiTime",

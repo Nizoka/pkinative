@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 71103,
-      "approxTokens": 17776
+      "bytes": 74667,
+      "approxTokens": 18667
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 149551,
-      "approxTokens": 37388
+      "bytes": 151778,
+      "approxTokens": 37945
     },
     {
       "url": "data/errors.json",
@@ -135,11 +135,12 @@
       "approxTokens": 2690
     },
     {
-      "title": "Errors and diagnostics",
-      "summary": "Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.",
+      "title": "Errors, diagnostics and reasons",
+      "summary": "Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.",
       "html": "guides/errors.html",
       "markdown": "guides/errors.md",
       "anchors": [
+        "three-vocabularies-three-questions",
         "the-error-classes",
         "the-line-pkicryptoerror-draws",
         "error-codes",
@@ -149,10 +150,11 @@
         "certificates",
         "limits",
         "verification-that-could-not-run",
-        "diagnostics"
+        "diagnostics",
+        "reasons"
       ],
-      "bytes": 8048,
-      "approxTokens": 2012
+      "bytes": 11612,
+      "approxTokens": 2903
     },
     {
       "title": "Choosing a PKI library",

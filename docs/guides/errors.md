@@ -1,6 +1,27 @@
-# Errors and diagnostics
+# Errors, diagnostics and reasons
 
-> **Every failure has a stable code, and every code has a cause and a remedy.** Branch on `error.code`; the message is for people. The machine-readable registries are `docs/data/errors.json` and `docs/data/diagnostics.json`.
+> **Every failure has a stable code, and every code has a cause and a remedy.** Branch on the code; the message is for people. The machine-readable registries are `docs/data/errors.json`, `docs/data/diagnostics.json` and `docs/data/reasons.json`.
+
+## Three vocabularies, three questions
+
+They are separate because they answer different questions, and one registry answering two of them is one registry answering neither well.
+
+| Vocabulary | The question | About | How it travels |
+|---|---|---|---|
+| `PkiErrorCode` | "Is this the structure it claims to be, and is the API being used correctly?" — **no** | the input, or the call | **thrown** |
+| `PkiDiagnosticCode` | "It is that structure, but it deviates from a profile." | **one object** | **emitted** (`onDiagnostic`, `strict`, `console.warn`) |
+| `PkiReasonCode` | "The input is well formed, and the **judgement** you asked for is *no* — here is why." | a **relation** | **returned**, in a report |
+
+The rule this establishes, and that every composed operation follows:
+
+> **Primitives return and throw. Compositions report.** Exactly one layer converts, and it is the only place in `src/` that catches a `PkiError`.
+
+Two consequences worth knowing before you write a `catch`:
+
+- **A reason message never starts with `pkinative: `.** That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. `reason-parity` refuses it.
+- **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 47 encoding codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
+
+Unlike `PkiErrorCode`, which freezes at 0.8, the reason vocabulary is **not frozen**: the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major.
 
 ## The error classes
 
@@ -82,3 +103,17 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
+
+## Reasons
+
+A reason is why a **judgement** came out negative: `{ code, message, standard, path }`, plus `errorCode` or `limit` where they apply. It is returned inside a report, never thrown and never printed — and several are returned together whenever several apply, because a certificate can be expired *and* outside a name constraint, and a report that stopped at the first would hide the work still to do.
+
+- **The input, wrapped** — `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the `PkiErrorCode` that would have been thrown.
+- **The certificate alone** — `PKI_REASON_NOT_YET_VALID`, `PKI_REASON_EXPIRED`, `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
+- **The link to the issuer** — `PKI_REASON_ISSUER_NOT_FOUND`, `PKI_REASON_SIGNATURE_INVALID`, `PKI_REASON_SIGNATURE_NOT_CHECKED`.
+- **The chain** — `PKI_REASON_NO_TRUST_ANCHOR`, `PKI_REASON_NOT_A_CA`, `PKI_REASON_PATH_TOO_LONG`, `PKI_REASON_PATH_LOOPS`.
+- **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
+
+**`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
+
+`docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. The reports that return them arrive with path validation in 0.5; the vocabulary lands first, deliberately, so that no verdict is ever expressed as an exception code and then has to be migrated.

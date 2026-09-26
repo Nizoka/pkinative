@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Errors and diagnostics — pkinative</title>
-  <meta name="description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.">
+  <title>Errors, diagnostics and reasons — pkinative</title>
+  <meta name="description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="pkinative">
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/errors.html">
-  <meta property="og:title" content="Errors and diagnostics — pkinative">
-  <meta property="og:description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.">
+  <meta property="og:title" content="Errors, diagnostics and reasons — pkinative">
+  <meta property="og:description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Errors and diagnostics — pkinative">
-  <meta name="twitter:description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on error.code; the message is for people. The machine-readable registries are docs/data/errors.json and docs/data/diagnostics.json.">
+  <meta name="twitter:title" content="Errors, diagnostics and reasons — pkinative">
+  <meta name="twitter:description" content="Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/errors.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/errors.html">
@@ -51,12 +51,52 @@
     </div>
   </nav>
   <main class="guide-shell" id="main-content" tabindex="-1">
-    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Errors and diagnostics</p>
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Errors, diagnostics and reasons</p>
     <article id="guide-content" class="guide-content" data-md="errors.md" data-prerendered="true">
-      <h1 id="errors-and-diagnostics">Errors and diagnostics</h1>
+      <h1 id="errors-diagnostics-and-reasons">Errors, diagnostics and reasons</h1>
       <blockquote>
-      <p><strong>Every failure has a stable code, and every code has a cause and a remedy.</strong> Branch on <code>error.code</code>; the message is for people. The machine-readable registries are <code>docs/data/errors.json</code> and <code>docs/data/diagnostics.json</code>.</p>
+      <p><strong>Every failure has a stable code, and every code has a cause and a remedy.</strong> Branch on the code; the message is for people. The machine-readable registries are <code>docs/data/errors.json</code>, <code>docs/data/diagnostics.json</code> and <code>docs/data/reasons.json</code>.</p>
       </blockquote>
+      <h2 id="three-vocabularies-three-questions">Three vocabularies, three questions <a class="heading-anchor" href="#three-vocabularies-three-questions" aria-label="Link to this section">#</a></h2>
+      <p>They are separate because they answer different questions, and one registry answering two of them is one registry answering neither well.</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Vocabulary</th>
+      <th>The question</th>
+      <th>About</th>
+      <th>How it travels</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>PkiErrorCode</code></td>
+      <td>&quot;Is this the structure it claims to be, and is the API being used correctly?&quot; — <strong>no</strong></td>
+      <td>the input, or the call</td>
+      <td><strong>thrown</strong></td>
+      </tr>
+      <tr>
+      <td><code>PkiDiagnosticCode</code></td>
+      <td>&quot;It is that structure, but it deviates from a profile.&quot;</td>
+      <td><strong>one object</strong></td>
+      <td><strong>emitted</strong> (<code>onDiagnostic</code>, <code>strict</code>, <code>console.warn</code>)</td>
+      </tr>
+      <tr>
+      <td><code>PkiReasonCode</code></td>
+      <td>&quot;The input is well formed, and the <strong>judgement</strong> you asked for is <em>no</em> — here is why.&quot;</td>
+      <td>a <strong>relation</strong></td>
+      <td><strong>returned</strong>, in a report</td>
+      </tr>
+      </tbody></table>
+      <p>The rule this establishes, and that every composed operation follows:</p>
+      <blockquote>
+      <p><strong>Primitives return and throw. Compositions report.</strong> Exactly one layer converts, and it is the only place in <code>src/</code> that catches a <code>PkiError</code>.</p>
+      </blockquote>
+      <p>Two consequences worth knowing before you write a <code>catch</code>:</p>
+      <ul>
+      <li><strong>A reason message never starts with <code>pkinative: </code>.</strong> That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. <code>reason-parity</code> refuses it.</li>
+      <li><strong>A reason never duplicates an error code.</strong> <code>PKI_REASON_INPUT_MALFORMED</code> carries in its <code>errorCode</code> field the <code>PkiErrorCode</code> that <em>would</em> have been thrown, so a report can promise never to throw for a malformed input without copying 47 encoding codes into a second vocabulary — which would then have to be frozen too. The reason registry <strong>wraps</strong> the error registry; it never mirrors it.</li>
+      </ul>
+      <p>Unlike <code>PkiErrorCode</code>, which freezes at 0.8, the reason vocabulary is <strong>not frozen</strong>: the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major.</p>
       <h2 id="the-error-classes">The error classes <a class="heading-anchor" href="#the-error-classes" aria-label="Link to this section">#</a></h2>
       <table>
       <thead>
@@ -155,6 +195,17 @@
       <li><strong>Accepted tolerances</strong> — <code>PKI_DIAG_BER_CONSTRUCT_ACCEPTED</code>, <code>PKI_DIAG_PEM_LAX_ACCEPTED</code>: the input used a construct you allowed with <code>encodingRules: &#39;ber&#39;</code> or <code>mode: &#39;lax&#39;</code>.</li>
       </ul>
       <p><code>docs/data/diagnostics.json</code> gives each one&#39;s cause, remedy and the clause it cites.</p>
+      <h2 id="reasons">Reasons <a class="heading-anchor" href="#reasons" aria-label="Link to this section">#</a></h2>
+      <p>A reason is why a <strong>judgement</strong> came out negative: <code>{ code, message, standard, path }</code>, plus <code>errorCode</code> or <code>limit</code> where they apply. It is returned inside a report, never thrown and never printed — and several are returned together whenever several apply, because a certificate can be expired <em>and</em> outside a name constraint, and a report that stopped at the first would hide the work still to do.</p>
+      <ul>
+      <li><strong>The input, wrapped</strong> — <code>PKI_REASON_INPUT_MALFORMED</code>, carrying in <code>errorCode</code> the <code>PkiErrorCode</code> that would have been thrown.</li>
+      <li><strong>The certificate alone</strong> — <code>PKI_REASON_NOT_YET_VALID</code>, <code>PKI_REASON_EXPIRED</code>, <code>PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION</code>.</li>
+      <li><strong>The link to the issuer</strong> — <code>PKI_REASON_ISSUER_NOT_FOUND</code>, <code>PKI_REASON_SIGNATURE_INVALID</code>, <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code>.</li>
+      <li><strong>The chain</strong> — <code>PKI_REASON_NO_TRUST_ANCHOR</code>, <code>PKI_REASON_NOT_A_CA</code>, <code>PKI_REASON_PATH_TOO_LONG</code>, <code>PKI_REASON_PATH_LOOPS</code>.</li>
+      <li><strong>Your own limits</strong> — <code>PKI_REASON_LIMIT_EXCEEDED</code>, with <code>limit</code> naming the bound that stopped the search.</li>
+      </ul>
+      <p><strong><code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> is not a rejection.</strong> A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as <code>PKI_REASON_SIGNATURE_INVALID</code> turns &quot;ask me elsewhere&quot; into &quot;this certificate is bad&quot;, which is the most expensive confusion available in this vocabulary — the same distinction <code>PkiCryptoError</code> draws on the throwing side.</p>
+      <p><code>docs/data/reasons.json</code> gives each one&#39;s cause, remedy and the clause it cites. The reports that return them arrive with path validation in 0.5; the vocabulary lands first, deliberately, so that no verdict is ever expressed as an exception code and then has to be migrated.</p>
     </article>
   </main>
   <footer class="footer">

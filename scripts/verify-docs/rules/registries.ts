@@ -15,7 +15,7 @@
 
 import ts from 'typescript';
 import { KEY_OPERATION_POLICY, WEBCRYPTO_HOST_MODULES } from '../../lib/architecture.js';
-import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
+import { error, lineContaining, lineOf, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 export const ERRORS_SOURCE = 'src/types/pki-errors.ts';
 export const TYPES_SOURCE = 'src/types/pki-types.ts';
@@ -24,6 +24,9 @@ export const LIMITS_SOURCE = 'src/core/pki-limits.ts';
 export const ERRORS_REGISTRY = 'docs/data/errors.json';
 export const DIAGNOSTICS_REGISTRY = 'docs/data/diagnostics.json';
 export const LIMITS_REGISTRY = 'docs/data/limits.json';
+export const REASONS_SOURCE = 'src/types/pki-reasons.ts';
+export const REASON_FACTORIES = 'src/core/pki-reasons.ts';
+export const REASONS_REGISTRY = 'docs/data/reasons.json';
 const SECURITY = 'SECURITY.md';
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const MESSAGE_PREFIX = 'pkinative: ';
@@ -211,6 +214,113 @@ const diagnosticsParity: Rule = {
     },
 };
 
+// ── reason-parity ────────────────────────────────────────────────────
+
+/**
+ * The third vocabulary, and the rules that keep it a third one.
+ *
+ * Bidirectional sync with the registry and a factory per code are the same
+ * contract the other two registries carry. Four more are specific to
+ * reasons, and each closes a way this vocabulary could quietly collapse back
+ * into one of the others:
+ *
+ *   - **A reason is never thrown.** A `PKI_REASON_*` literal inside a `throw`
+ *     means a composition that was supposed to report has started raising,
+ *     and every caller's `try` block silently changes meaning.
+ *   - **A reason message never starts with `pkinative: `.** That prefix marks
+ *     what is thrown. This is the *inverse* of the rule `error-parity`
+ *     enforces, and keeping the prefix exclusive is what lets someone reading
+ *     a log tell an exception from a verdict.
+ *   - **The three registries are disjoint.** One condition reported under two
+ *     codes is two answers to the same question.
+ *   - **The reason registry never duplicates the error registry.** It wraps
+ *     it: `PKI_REASON_INPUT_MALFORMED` carries the `PkiErrorCode` that would
+ *     have been thrown, which is what keeps 47 encoding codes out of a second
+ *     vocabulary that would then have to be frozen too.
+ */
+const reasonParity: Rule = {
+    id: 'reason-parity',
+    summary: 'docs/data/reasons.json lists exactly the PkiReasonCode union, each with since, returnedWhen, remedy and standard and a factory; no reason is ever thrown, no reason message carries the thrown-error prefix, and the three vocabularies are disjoint.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const typesText = ctx.read(REASONS_SOURCE);
+        if (typesText === null) return [error(REASONS_SOURCE, 'missing — the PkiReasonCode union')];
+        const codes = stringLiteralUnions(parse(REASONS_SOURCE, typesText)).get('PkiReasonCode') ?? [];
+        if (codes.length === 0) out.push(error(REASONS_SOURCE, 'declares no PkiReasonCode union'));
+
+        const factories = ctx.read(REASON_FACTORIES) ?? '';
+        for (const code of codes) {
+            if (!factories.includes(`'${code}'`)) out.push(error(REASON_FACTORIES, `${code} has no factory — every reason message is written in one place`));
+            if (!/^PKI_REASON_[A-Z0-9_]+$/.test(code)) out.push(error(REASONS_SOURCE, `${code} does not follow PKI_REASON_<SUBJECT>_<CONDITION>`));
+        }
+
+        const registry = readJson<{ reasons?: Array<{ code?: unknown; since?: unknown; returnedWhen?: unknown; remedy?: unknown; standard?: unknown }> }>(ctx, REASONS_REGISTRY);
+        if ('finding' in registry) return [...out, registry.finding];
+        const regText = ctx.read(REASONS_REGISTRY) ?? '';
+        const known = new Set(codes);
+        const listed = new Set<string>();
+        for (const entry of registry.value.reasons ?? []) {
+            const code = typeof entry.code === 'string' ? entry.code : '';
+            const line = lineContaining(regText, `"${code}"`);
+            if (listed.has(code)) out.push(error(REASONS_REGISTRY, `${code} is listed twice`, line));
+            listed.add(code);
+            if (!known.has(code)) { out.push(error(REASONS_REGISTRY, `"${code}" is not in the PkiReasonCode union`, line)); continue; }
+            if (typeof entry.since !== 'string' || !SEMVER.test(entry.since)) out.push(error(REASONS_REGISTRY, `${code} needs "since"`, line));
+            for (const field of ['returnedWhen', 'remedy', 'standard'] as const) {
+                if (!nonEmpty(entry[field])) out.push(error(REASONS_REGISTRY, `${code} needs a non-empty "${field}"`, line));
+            }
+        }
+        for (const code of codes) {
+            if (!listed.has(code)) out.push(error(REASONS_REGISTRY, `${code} has no entry — add it with since, returnedWhen, remedy and standard`));
+        }
+
+        // A reason that can be thrown is not a reason. Decided from the
+        // syntax tree, not from the text: a regex over the source reads doc
+        // comments too, and the sentence "the code that would have been
+        // thrown" is exactly what this module has to be able to write about
+        // itself. The first draft of this rule failed on its own explanation.
+        for (const path of ctx.list('src').filter((p) => p.endsWith('.ts'))) {
+            const text = ctx.read(path) ?? '';
+            if (!text.includes('PKI_REASON_')) continue;
+            const walk = (node: ts.Node, inThrow: boolean): void => {
+                const throwing = inThrow || ts.isThrowStatement(node);
+                if (throwing && ts.isStringLiteral(node) && /^PKI_REASON_[A-Z0-9_]+$/.test(node.text)) {
+                    out.push(error(path, `${node.text} appears inside a throw — reasons are returned in a report, never raised; a composition that starts throwing changes what every caller's try block means`, lineOf(text, node.getStart())));
+                }
+                node.forEachChild((child) => { walk(child, throwing); });
+            };
+            walk(parse(path, text), false);
+        }
+
+        // The prefix belongs to thrown errors, exclusively — and again the
+        // test is on what a message *is*, not on what the file mentions:
+        // `detail.replace(/^pkinative: /, '')` strips the prefix rather than
+        // adding one, and a text scan cannot tell those apart.
+        const factoryFile = parse(REASON_FACTORIES, factories);
+        const startsWithPrefix = (node: ts.Node): boolean => {
+            if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text.startsWith(MESSAGE_PREFIX);
+            if (ts.isTemplateExpression(node)) return node.head.text.startsWith(MESSAGE_PREFIX);
+            return false;
+        };
+        const walkFactories = (node: ts.Node): void => {
+            if (startsWithPrefix(node)) {
+                out.push(error(REASON_FACTORIES, `a reason message starts with "${MESSAGE_PREFIX}" — that prefix marks what is thrown, and a log reader tells a verdict from an exception by it`, lineOf(factories, node.getStart())));
+            }
+            node.forEachChild(walkFactories);
+        };
+        walkFactories(factoryFile);
+
+        // Three vocabularies, no overlap.
+        const errorCodes = new Set(stringLiteralUnions(parse(ERRORS_SOURCE, ctx.read(ERRORS_SOURCE) ?? '')).get('PkiErrorCode') ?? []);
+        const diagnosticCodes = new Set(stringLiteralUnions(parse(TYPES_SOURCE, ctx.read(TYPES_SOURCE) ?? '')).get('PkiDiagnosticCode') ?? []);
+        for (const code of codes) {
+            if (errorCodes.has(code)) out.push(error(REASONS_SOURCE, `${code} is also a PkiErrorCode — one condition reported under two codes is two answers to the same question`));
+            if (diagnosticCodes.has(code)) out.push(error(REASONS_SOURCE, `${code} is also a PkiDiagnosticCode`));
+        }
+        return out;
+    },
+};
+
 // ── limits-parity ────────────────────────────────────────────────────
 
 interface LimitFacts {
@@ -390,7 +500,7 @@ const keyOperationParity: Rule = {
     },
 };
 
-export const REGISTRY_RULES: readonly Rule[] = [errorParity, diagnosticsParity, limitsParity, keyOperationParity];
+export const REGISTRY_RULES: readonly Rule[] = [errorParity, diagnosticsParity, reasonParity, limitsParity, keyOperationParity];
 
 /** Exported for tests: the codes the registries hold, read the way the rules read them. */
 export function registryCodes(ctx: RuleContext): { errors: string[]; diagnostics: string[] } {
