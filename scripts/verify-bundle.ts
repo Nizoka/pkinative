@@ -52,8 +52,11 @@ const MARKERS = {
 } as const;
 
 /**
- * Measured 2026-09-20 (esbuild 0.28.1, minified ESM): 10.3, 8.6, 55.6,
- * 7.6, 14.6, 12.7 and 101.6 KB. Each budget is the measurement plus 15 %.
+ * Measured 2026-09-26 (esbuild 0.28.1, minified ESM): 10.5, 9.4, 55.7, 7.6,
+ * 14.6, 12.8, 17.2, 7.4 and 116.9 KB. Each budget is the measurement plus
+ * roughly 15 %, and the leaf budgets are the invariant: they are never
+ * relaxed, because they are the only executable proof that `LAYERS`
+ * describes the artefact and not just the diagram.
  *
  * The verification probe is the one that earns its place. AGENTS.md
  * §Architecture claims `crypto` never imports `x509`; this measures the
@@ -74,7 +77,14 @@ export const PROBES: readonly Probe[] = [
     // the one that matters here — an app that only issues certificates must
     // not pay for the parser, the name registry or the hashes.
     { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 20 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
-    { exports: ['*'], maxBytes: 118 * 1024, mustNotContain: [] },
+    // "§6 is synchronous and pure", weighed. The Web Crypto marker is the one
+    // that matters: signature verdicts reach `validateCertificatePath` as
+    // data, so a bundle that retained the bridge would mean the claim had
+    // quietly stopped being true. The ASN.1 decoder must be absent too — a
+    // path validator that decodes anything is a layer upstream that failed to
+    // expose it.
+    { exports: ['validateCertificatePath'], maxBytes: 10 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    { exports: ['*'], maxBytes: 132 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

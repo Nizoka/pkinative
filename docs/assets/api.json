@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 168,
+  "exportCount": 173,
   "exports": [
     {
       "name": "AccessDescription",
@@ -709,7 +709,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -1810,6 +1810,78 @@
       ]
     },
     {
+      "name": "PathValidationInput",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export interface PathValidationInput",
+      "summary": "What to validate, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certificates",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The chain, **leaf first**, as parsed certificates."
+        },
+        {
+          "name": "trustAnchors",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The certificates the caller trusts a priori."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to validate at, in epoch milliseconds."
+        },
+        {
+          "name": "signatures",
+          "type": "readonly SignatureResult[] | undefined",
+          "optional": true,
+          "summary": "Signature verdicts computed beforehand — by `verifyCertificateSignature`, or by whatever the caller trusts."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        }
+      ]
+    },
+    {
+      "name": "PathValidationReport",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export interface PathValidationReport",
+      "summary": "The verdict, and every reason behind it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only when `reasons` is empty; the two are one answer, not two."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the answer is no, not just the first."
+        },
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
+        }
+      ]
+    },
+    {
       "name": "PemBlock",
       "kind": "type",
       "module": "src/types/pem-types.ts",
@@ -2122,6 +2194,12 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of policies or policy mappings in one extension."
+        },
+        {
+          "name": "maxChainLength",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of certificates a certification path may hold."
         }
       ]
     },
@@ -2672,6 +2750,53 @@
       "module": "src/types/crypto-types.ts",
       "signature": "export type SignatureHash = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512'",
       "summary": "The digests RFC 5280 signature algorithms are built on.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "SignatureResult",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export interface SignatureResult",
+      "summary": "One already-computed signature result, keyed by the certificate it covers.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certificate",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate whose signature was checked."
+        },
+        {
+          "name": "verdict",
+          "type": "SignatureVerdict",
+          "optional": false,
+          "summary": "What came of checking it."
+        },
+        {
+          "name": "errorCode",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "For `'not-checked'`: the `PkiCryptoError.code` that explains why."
+        },
+        {
+          "name": "detail",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "For `'not-checked'`: the error's own message."
+        }
+      ]
+    },
+    {
+      "name": "SignatureVerdict",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export type SignatureVerdict = 'valid' | 'invalid' | 'not-checked'",
+      "summary": "Whether one certificate's signature was checked against its issuer, and what came of it.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -4358,6 +4483,24 @@
         }
       ],
       "returns": "The `AlgorithmIdentifier` encoding.",
+      "members": null
+    },
+    {
+      "name": "validateCertificatePath",
+      "kind": "function",
+      "module": "src/path/path-validate.ts",
+      "signature": "export function validateCertificatePath(input: PathValidationInput): PathValidationReport",
+      "summary": "Validate a certification path (RFC 5280 §6).",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "What to validate, and everything needed to judge it."
+        }
+      ],
+      "returns": "The verdict and every reason behind it.",
       "members": null
     },
     {

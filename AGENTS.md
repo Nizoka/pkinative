@@ -44,6 +44,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
 | `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
+| `src/path/` | RFC 5280 §6 path validation — synchronous, never throwing, reporting `PkiReason` | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
@@ -62,10 +63,11 @@ oid    → (nothing)
 x509   → types, core, asn1
 crypto → types, core, asn1
 build  → types, core, asn1, crypto
+path   → types, core, x509
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid` (the registry stays out of the parser's bundle), `pem` never imports `asn1`, and **neither `crypto` nor `build` imports `x509`** — the verifier consumes parsed data, the builder writes bytes.
+`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**, and `path` imports neither `asn1` (it decodes nothing) nor `crypto` (verdicts arrive precomputed, so §6 stays synchronous and pure).
 **Web Crypto has one door.** Only `src/crypto/webcrypto.ts` may name `importKey`, `verify` or `sign`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` in every version.
 
 ## Conventions
@@ -78,8 +80,7 @@ build  → types, core, asn1, crypto
 
 ## Finding a symbol
 
-- Public export → grep `docs/assets/api.json` for `"name":"<Export>"` (every entry lists its `module`); internal symbol → grep `^export function <name>` in `src/`.
-- README.md and ROADMAP.md are long: `grep -n "^## "` first, then read a line range. CHANGELOG.md: the top entry only.
+- Public export → grep `docs/assets/api.json` for `"name":"<Export>"` (each lists its `module`); internal → grep `^export function <name>` in `src/`. README.md and ROADMAP.md are long: `grep -n "^## "` first, then a range.
 
 ## Never touch
 
@@ -91,7 +92,6 @@ build  → types, core, asn1, crypto
 
 | File | Regenerate with |
 |---|---|
-| `.claude/rules/*.md` | `npm run agents:rules` (from `.github/instructions/*.instructions.md`) |
 | `docs/assets/api.json` | `npm run docs:api` (from the TSDoc of every export of `src/index.ts`) |
 | `scripts/data/limbo-refusals.json` | `npx tsx scripts/validate-certs.ts --update-baseline` — then review every changed entry |
 | `dist/`, `coverage/`, `test-output/` | `npm run build`, `npm run test:coverage`, `npm run gate` |
@@ -115,6 +115,6 @@ Issue drafts go to `.github/drafts/` and are validated with `npm run verify:issu
 
 ## Ecosystem
 
-- [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project; its PAdES/LTV signature stack is the origin of pkinative and will consume it from the 0.7 milestone.
+- [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project, whose PAdES/LTV stack is pkinative's origin and will consume it from 0.7.
 - [zipnative](https://github.com/Nizoka/zipnative) — the sibling whose error vocabulary, limits and conformance-gate patterns pkinative inherits.
 - See also: [ROADMAP.md](ROADMAP.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).

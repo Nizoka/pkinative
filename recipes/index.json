@@ -243,6 +243,31 @@
         "csrIsDer=true",
         "pieces=300d06092a864886f70d01010b0500 300806035504030c0161 300c310a300806035504030c0161 301e 30090603551d1304023000 300b30090603551d1304023000 300806022a0331023000 300e 300a06082a8648ce3d040302"
       ]
+    },
+    {
+      "file": "validate-path.ts",
+      "task": "Validate a certification path against a trust anchor, and read every reason a report gives instead of catching one exception",
+      "surface": [
+        "validateCertificatePath",
+        "PathValidationInput",
+        "PathValidationReport",
+        "SignatureResult",
+        "SignatureVerdict",
+        "PkiReason",
+        "PkiReasonCode",
+        "verifyCertificateSignature",
+        "parseCertificate"
+      ],
+      "since": "0.5.0",
+      "expects": [
+        "chain=valid, 2 certificates",
+        "anchorOutsideChain=valid, 1 certificates",
+        "noAnchor=PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+        "expired=PKI_REASON_EXPIRED,PKI_REASON_EXPIRED",
+        "unverified=PKI_REASON_SIGNATURE_NOT_CHECKED",
+        "leafCannotIssue=refused",
+        "neverThrows=true"
+      ]
     }
   ]
 }

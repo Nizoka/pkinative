@@ -50,7 +50,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxExtensions: 256,
   maxGeneralNames: 1e4,
   maxNameAttributes: 1024,
-  maxPolicies: 1024
+  maxPolicies: 1024,
+  maxChainLength: 10
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -103,52 +104,99 @@ function enforceLimit(limits, limit, observed, context) {
   }
 }
 
-// src/core/bytes.ts
-function assertBytes(input, what) {
-  if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === "[object Uint8Array]") {
-    return input;
-  }
-  throw new PkiError(
-    "PKI_INVALID_INPUT",
-    `pkinative: ${what} must be a Uint8Array, got ${input === null ? "null" : typeof input} \u2014 decode PEM text with decodePem() first`
+// src/core/pki-reasons.ts
+function _reason(code, standard, message, path, extra) {
+  return Object.freeze({ code, message, standard, path, errorCode: extra?.errorCode, limit: extra?.limit });
+}
+function notYetValidReason(path, notBefore, at) {
+  return _reason(
+    "PKI_REASON_NOT_YET_VALID",
+    "RFC 5280 \xA76.1.3 (a)(2)",
+    `the certificate is not valid until ${new Date(notBefore).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
+    path
   );
 }
-function byteView(data) {
-  return new DataView(data.buffer, data.byteOffset, data.byteLength);
+function expiredReason(path, notAfter, at) {
+  return _reason(
+    "PKI_REASON_EXPIRED",
+    "RFC 5280 \xA76.1.3 (a)(2)",
+    `the certificate expired on ${new Date(notAfter).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
+    path
+  );
 }
-function compareOctets(a, b) {
-  const av = byteView(a);
-  const bv = byteView(b);
-  const min = Math.min(a.length, b.length);
-  for (let i = 0; i < min; i++) {
-    const diff = av.getUint8(i) - bv.getUint8(i);
-    if (diff !== 0) return diff;
-  }
-  return a.length - b.length;
+function unrecognisedCriticalExtensionReason(path, oid) {
+  return _reason(
+    "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "RFC 5280 \xA76.1.3 (f)",
+    `the certificate carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
+    path
+  );
 }
-var HEX_DIGITS = "0123456789abcdef";
-function toHex(bytes, separator = "") {
-  const parts = [];
-  for (const b of bytes) parts.push(HEX_DIGITS.charAt(b >> 4) + HEX_DIGITS.charAt(b & 15));
-  return parts.join(separator);
+function issuerNotFoundReason(path, issuer) {
+  return _reason(
+    "PKI_REASON_ISSUER_NOT_FOUND",
+    "RFC 5280 \xA76.1",
+    `no supplied certificate has the subject ${issuer}, so this certificate has no issuer to check it against`,
+    path
+  );
 }
-function bytesEqual(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
+function signatureInvalidReason(path) {
+  return _reason(
+    "PKI_REASON_SIGNATURE_INVALID",
+    "RFC 5280 \xA76.1.3 (a)(1)",
+    "the issuer's public key does not verify this certificate's signature",
+    path
+  );
 }
-function concatBytes(parts) {
-  let length = 0;
-  for (const part of parts) length += part.length;
-  const out = new Uint8Array(length);
-  let at = 0;
-  for (const part of parts) {
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
+function signatureNotCheckedReason(path, errorCode, detail) {
+  return _reason(
+    "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "RFC 5280 \xA76.1.3 (a)(1)",
+    `the signature could not be checked here (${errorCode}): ${detail.replace(/^pkinative: /, "")} \u2014 this says nothing about whether the signature is valid`,
+    path,
+    { errorCode }
+  );
+}
+function noTrustAnchorReason(path) {
+  return _reason(
+    "PKI_REASON_NO_TRUST_ANCHOR",
+    "RFC 5280 \xA76.1.1 (d)",
+    "the chain does not end at any of the trust anchors supplied; a signature that verifies is not a certificate that is trusted",
+    path
+  );
+}
+function notACaReason(path, why) {
+  return _reason(
+    "PKI_REASON_NOT_A_CA",
+    "RFC 5280 \xA76.1.4 (k)",
+    why === "basicConstraints" ? "a certificate in the chain issued another without asserting cA in basicConstraints" : "a certificate in the chain issued another without asserting keyCertSign in keyUsage",
+    path
+  );
+}
+function pathTooLongReason(path, allowed) {
+  return _reason(
+    "PKI_REASON_PATH_TOO_LONG",
+    "RFC 5280 \xA76.1.4 (l)",
+    `the chain is longer than the ${String(allowed)} intermediate certificate(s) a pathLenConstraint in it allows`,
+    path
+  );
+}
+function pathLoopsReason(path) {
+  return _reason(
+    "PKI_REASON_PATH_LOOPS",
+    "RFC 5280 \xA76.1",
+    "the same certificate appears twice in the chain; a path that revisits a certificate is not a path",
+    path
+  );
+}
+function limitExceededReason(path, limit, configured) {
+  return _reason(
+    "PKI_REASON_LIMIT_EXCEEDED",
+    "CWE-400",
+    `validation stopped at the ${limit} limit of ${String(configured)}; raise it only for input you trust`,
+    path,
+    { limit }
+  );
 }
 
 // src/core/pki-diagnostics.ts
@@ -471,6 +519,54 @@ function noteBer(ctx, construct, offset) {
   if (ctx.berReported.has(construct)) return;
   ctx.berReported.add(construct);
   ctx.emitter.emit(berConstructAcceptedDiagnostic(construct, offset));
+}
+
+// src/core/bytes.ts
+function assertBytes(input, what) {
+  if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === "[object Uint8Array]") {
+    return input;
+  }
+  throw new PkiError(
+    "PKI_INVALID_INPUT",
+    `pkinative: ${what} must be a Uint8Array, got ${input === null ? "null" : typeof input} \u2014 decode PEM text with decodePem() first`
+  );
+}
+function byteView(data) {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength);
+}
+function compareOctets(a, b) {
+  const av = byteView(a);
+  const bv = byteView(b);
+  const min = Math.min(a.length, b.length);
+  for (let i = 0; i < min; i++) {
+    const diff = av.getUint8(i) - bv.getUint8(i);
+    if (diff !== 0) return diff;
+  }
+  return a.length - b.length;
+}
+var HEX_DIGITS = "0123456789abcdef";
+function toHex(bytes, separator = "") {
+  const parts = [];
+  for (const b of bytes) parts.push(HEX_DIGITS.charAt(b >> 4) + HEX_DIGITS.charAt(b & 15));
+  return parts.join(separator);
+}
+function bytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+function concatBytes(parts) {
+  let length = 0;
+  for (const part of parts) length += part.length;
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
 }
 
 // src/asn1/asn1-tags.ts
@@ -1277,6 +1373,934 @@ function readString(node, options) {
   return _readString(checked, ctx, implicitType, "");
 }
 
+// src/asn1/asn1-oid.ts
+var EXACT_LIMIT = 70368744177663;
+function _decodeOid(content, offset, ctx) {
+  if (content.length === 0) {
+    throw new PkiEncodingError(
+      "PKI_OID_INVALID",
+      `pkinative: the OBJECT IDENTIFIER at offset ${offset} has no content octet (X.690 \xA78.19.2)`,
+      offset
+    );
+  }
+  enforceLimit(ctx.limits, "maxOidBytes", content.length, "the OBJECT IDENTIFIER content length");
+  const arcs = [];
+  let value = 0;
+  let big = null;
+  let inArc = false;
+  for (const octet of content) {
+    if (!inArc && octet === 128) {
+      throw new PkiEncodingError(
+        "PKI_OID_INVALID",
+        `pkinative: a subidentifier of the OBJECT IDENTIFIER at offset ${offset} starts with 0x80, a non-minimal form X.690 \xA78.19.2 forbids`,
+        offset
+      );
+    }
+    inArc = true;
+    if (big === null && value > EXACT_LIMIT) big = BigInt(value);
+    if (big === null) value = value * 128 + (octet & 127);
+    else big = big * 128n + BigInt(octet & 127);
+    if ((octet & 128) !== 0) continue;
+    if (arcs.length === 0) {
+      if (big === null) {
+        if (value < 40) arcs.push("0", String(value));
+        else if (value < 80) arcs.push("1", String(value - 40));
+        else arcs.push("2", String(value - 80));
+      } else {
+        arcs.push("2", String(big - 80n));
+      }
+    } else {
+      arcs.push(big === null ? String(value) : String(big));
+    }
+    value = 0;
+    big = null;
+    inArc = false;
+  }
+  if (inArc) {
+    throw new PkiEncodingError(
+      "PKI_OID_INVALID",
+      `pkinative: the OBJECT IDENTIFIER at offset ${offset} ends inside a subidentifier \u2014 the input is truncated or corrupt`,
+      offset
+    );
+  }
+  return arcs.join(".");
+}
+function decodeOid(content, options) {
+  return _decodeOid(assertBytes(content, "decodeOid content"), 0, createAsn1Context(options));
+}
+function _readObjectIdentifier(node, ctx) {
+  expectUniversal(node, TAG_OID);
+  if (node.constructed) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_CONSTRUCTED_FORM_INVALID",
+      `pkinative: the OBJECT IDENTIFIER at offset ${node.offset} is constructed, but X.690 encodes it in primitive form only`,
+      node.offset
+    );
+  }
+  return _decodeOid(node.content, node.offset, ctx);
+}
+function readObjectIdentifier(node, options) {
+  return _readObjectIdentifier(assertNode(node, "readObjectIdentifier"), createAsn1Context(options));
+}
+var DOTTED = /^(?:[01]\.(?:[0-9]|[123][0-9])|2\.(?:0|[1-9][0-9]*))(?:\.(?:0|[1-9][0-9]*))*$/;
+function isValidOid(oid) {
+  return typeof oid === "string" && DOTTED.test(oid);
+}
+function encodeOid(oid) {
+  if (typeof oid !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeOid expects a dotted-decimal string, got ${typeof oid}`);
+  }
+  if (!isValidOid(oid)) {
+    throw new PkiEncodingError(
+      "PKI_OID_INVALID",
+      `pkinative: "${oid.length > 64 ? `${oid.slice(0, 61)}\u2026` : oid}" is not a dotted-decimal OID \u2014 use two or more decimal arcs without leading zeros, a first arc of 0, 1 or 2, and a second arc of at most 39 under 0 and 1`
+    );
+  }
+  const subidentifiers = [];
+  let head = null;
+  for (const arc of oid.split(".")) {
+    const value = BigInt(arc);
+    if (head === null) head = value * 40n;
+    else if (subidentifiers.length === 0) subidentifiers.push(head + value);
+    else subidentifiers.push(value);
+  }
+  const out = [];
+  for (const sub of subidentifiers) {
+    const digits = [];
+    let rest = sub;
+    do {
+      digits.unshift(Number(rest & 0x7fn));
+      rest >>= 7n;
+    } while (rest > 0n);
+    let remaining = digits.length;
+    for (const digit of digits) {
+      remaining--;
+      out.push(digit | (remaining > 0 ? 128 : 0));
+    }
+  }
+  return Uint8Array.from(out);
+}
+
+// src/x509/x509-fields.ts
+var REMEDIES = /* @__PURE__ */ Object.freeze({
+  PKI_X509_STRUCTURE_INVALID: "check that the input is a certificate, not a CSR, a CRL or a key",
+  PKI_X509_VERSION_INVALID: "the input is not a certificate version RFC 5280 defines",
+  PKI_X509_NAME_INVALID: "the issuer encoded the name wrongly",
+  PKI_X509_VALIDITY_INVALID: "the issuer encoded the validity period wrongly",
+  PKI_X509_SPKI_INVALID: "the issuer encoded the public key wrongly",
+  PKI_X509_UNIQUE_ID_INVALID: "the issuer encoded the certificate wrongly",
+  PKI_X509_EXTENSIONS_EMPTY: "the issuer encoded the certificate wrongly",
+  PKI_X509_EXTENSION_DUPLICATE: "which instance a verifier reads is undefined, so the certificate is refused",
+  PKI_X509_EXTENSION_MALFORMED: "parse with decodeExtensions: false to keep every extension raw",
+  PKI_X509_GENERAL_NAME_INVALID: "the issuer encoded the name wrongly"
+});
+function certificateError(code, path, offset, why) {
+  return new PkiCertificateError(code, `pkinative: ${path} at offset ${offset} ${why} \u2014 ${REMEDIES[code]}`, path, offset);
+}
+function expectUniversalField(node, tagNumber, path, code, parentOffset) {
+  const expected = tagLabel("universal", tagNumber);
+  if (node === void 0) throw certificateError(code, path, parentOffset, `is missing; expected ${expected}`);
+  if (node.tagClass !== "universal" || node.tagNumber !== tagNumber) {
+    throw certificateError(code, path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; expected ${expected}`);
+  }
+  return node;
+}
+
+// src/x509/x509-ext-shared.ts
+var MALFORMED = "PKI_X509_EXTENSION_MALFORMED";
+function baseOf(input) {
+  return { oid: input.oid, critical: input.critical, valueDer: input.valueDer };
+}
+function malformed(path, offset, why) {
+  return certificateError(MALFORMED, path, offset, why);
+}
+function expectSequence(node, path, parentOffset) {
+  return expectUniversalField(node, TAG_SEQUENCE, path, MALFORMED, parentOffset);
+}
+function expectNonEmpty(seq, path, what) {
+  if (seq.children.length === 0) throw malformed(path, seq.offset, `holds no ${what}; the extension requires at least one`);
+}
+function contextFields(children, maxTag, path) {
+  const fields = new Array(maxTag + 1).fill(void 0);
+  let last = -1;
+  for (const child of children) {
+    if (child.tagClass !== "context" || child.tagNumber > maxTag || child.tagNumber <= last) {
+      throw malformed(path, child.offset, `holds ${tagLabel(child.tagClass, child.tagNumber)} where only [0] to [${maxTag}], once each and in order, may appear`);
+    }
+    fields[child.tagNumber] = child;
+    last = child.tagNumber;
+  }
+  return fields;
+}
+function readCount(node, ctx, path) {
+  const value = _readInteger(node, ctx);
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw malformed(path, node.offset, `is ${String(value)}; expected an integer from 0 to 2^53 \u2212 1`);
+  }
+  return Number(value);
+}
+function bitAt(view, index) {
+  return view.getUint8(index >> 3) >> 7 - (index & 7) & 1;
+}
+function readNamedBits(bits, names, ctx, path, offset) {
+  const total = bits.bytes.length * 8 - bits.unusedBits;
+  const view = byteView(bits.bytes);
+  const set = [];
+  for (let i = 0; i < total; i++) {
+    if (bitAt(view, i) === 0) continue;
+    const name = names[i];
+    if (name === void 0) throw malformed(path, offset, `sets bit ${i}, beyond the ${names.length} named bits`);
+    set.push(name);
+  }
+  if (total > 0 && bitAt(view, total - 1) === 0) ctx.emitter.emit(namedBitsTrailingZeroDiagnostic(path, offset));
+  return set;
+}
+
+// src/x509/x509-name.ts
+var CODE = "PKI_X509_NAME_INVALID";
+function inDerSetOrder(elements) {
+  for (let k = 1; k < elements.length; k++) {
+    if (compareOctets(elements[k - 1].bytes, elements[k].bytes) > 0) return false;
+  }
+  return true;
+}
+function readRdn(set, ctx, rdnPath, budget) {
+  if (!set.constructed || set.children.length === 0) {
+    throw certificateError(CODE, rdnPath, set.offset, "is an empty relative distinguished name; RFC 5280 requires at least one attribute");
+  }
+  const atvs = [];
+  for (let j = 0; j < set.children.length; j++) {
+    budget.count++;
+    enforceLimit(ctx.limits, "maxNameAttributes", budget.count, `the attributes of ${budget.scope}`);
+    const atvPath = `${rdnPath}[${j}]`;
+    const atv = expectUniversalField(set.children[j], TAG_SEQUENCE, atvPath, CODE, set.offset);
+    if (atv.children.length !== 2) {
+      throw certificateError(CODE, atvPath, atv.offset, `holds ${atv.children.length} values; an AttributeTypeAndValue is a type OID and one value`);
+    }
+    const type = _readObjectIdentifier(expectUniversalField(atv.children[0], TAG_OID, `${atvPath}.type`, CODE, atv.offset), ctx);
+    const valueNode = atv.children[1];
+    const value = valueNode.tagClass === "universal" && stringTypeOfTag(valueNode.tagNumber) !== void 0 ? _readString(valueNode, ctx, void 0, `${atvPath}.value`) : void 0;
+    const attribute = { type, value, valueDer: valueNode.bytes };
+    atvs.push(Object.freeze(attribute));
+  }
+  if (!inDerSetOrder(set.children)) ctx.emitter.emit(rdnSetNotSortedDiagnostic(rdnPath, set.offset));
+  return Object.freeze(atvs);
+}
+function _readName(node, ctx, path, parentOffset) {
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE, parentOffset);
+  const rdns = [];
+  const budget = { count: 0, scope: path };
+  for (let i = 0; i < seq.children.length; i++) {
+    const rdnPath = `${path}.rdns[${i}]`;
+    rdns.push(readRdn(expectUniversalField(seq.children[i], TAG_SET, rdnPath, CODE, seq.offset), ctx, rdnPath, budget));
+  }
+  const name = { rdns: Object.freeze(rdns), der: seq.bytes };
+  return Object.freeze(name);
+}
+function _readRelativeDistinguishedName(node, ctx, path) {
+  return readRdn(node, ctx, path, { count: 0, scope: path });
+}
+
+// src/x509/x509-general-name.ts
+var CODE2 = "PKI_X509_GENERAL_NAME_INVALID";
+function formatIpv4(bytes) {
+  return bytes.join(".");
+}
+function formatIpv6(bytes) {
+  const groups = [];
+  const view = byteView(bytes);
+  for (let i = 0; i < 16; i += 2) groups.push(view.getUint16(i));
+  let bestStart = 0;
+  let bestLength = 0;
+  for (let i = 0; i < 8; ) {
+    if (groups[i] !== 0) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < 8 && groups[j] === 0) j++;
+    if (j - i > bestLength) {
+      bestStart = i;
+      bestLength = j - i;
+    }
+    i = j;
+  }
+  const hex = groups.map((g) => g.toString(16));
+  if (bestLength < 2) return hex.join(":");
+  return `${hex.slice(0, bestStart).join(":")}::${hex.slice(bestStart + bestLength).join(":")}`;
+}
+function readIpAddress(node, ctx, path, inNameConstraints) {
+  const bytes = stringContent(node, ctx, TAG_OCTET_STRING, "OCTET STRING");
+  const half = inNameConstraints ? bytes.length / 2 : bytes.length;
+  if (half !== 4 && half !== 16 || inNameConstraints && bytes.length % 2 !== 0) {
+    throw certificateError(CODE2, path, node.offset, inNameConstraints ? `is an iPAddress of ${bytes.length} octets; in name constraints it is 8 (IPv4 and mask) or 32 (IPv6 and mask)` : `is an iPAddress of ${bytes.length} octets; it is 4 (IPv4) or 16 (IPv6)`);
+  }
+  const format = half === 4 ? formatIpv4 : formatIpv6;
+  const name = {
+    kind: "iPAddress",
+    version: half === 4 ? 4 : 6,
+    address: format(bytes.subarray(0, half)),
+    mask: inNameConstraints ? format(bytes.subarray(half)) : void 0,
+    bytes,
+    der: node.bytes
+  };
+  return Object.freeze(name);
+}
+function _readGeneralName(node, ctx, path, inNameConstraints) {
+  if (node.tagClass !== "context") {
+    throw certificateError(CODE2, path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a GeneralName carries a context-specific tag [0] to [8]`);
+  }
+  const der = node.bytes;
+  switch (node.tagNumber) {
+    case 0: {
+      if (!node.constructed || node.children.length !== 2) {
+        throw certificateError(CODE2, path, node.offset, "is not an otherName: a type-id OID followed by a value under an explicit [0] tag");
+      }
+      const typeNode = node.children[0];
+      const wrapper = node.children[1];
+      if (typeNode.tagClass !== "universal" || typeNode.tagNumber !== TAG_OID) {
+        throw certificateError(CODE2, `${path}.typeId`, typeNode.offset, `is ${tagLabel(typeNode.tagClass, typeNode.tagNumber)}; expected OBJECT IDENTIFIER`);
+      }
+      if (wrapper.tagClass !== "context" || wrapper.tagNumber !== 0 || !wrapper.constructed || wrapper.children.length !== 1) {
+        throw certificateError(CODE2, `${path}.value`, wrapper.offset, "is not one value under an explicit [0] tag");
+      }
+      const name = { kind: "otherName", typeId: _readObjectIdentifier(typeNode, ctx), value: wrapper.children[0], der };
+      return Object.freeze(name);
+    }
+    case 1:
+    case 2:
+    case 6: {
+      const value = decodeAsciiSubset(stringContent(node, ctx, TAG_OCTET_STRING, "IA5String"), isIa5Octet);
+      if (value === null) {
+        throw certificateError(CODE2, path, node.offset, "contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5");
+      }
+      const kind = node.tagNumber === 1 ? "rfc822Name" : node.tagNumber === 2 ? "dNSName" : "uniformResourceIdentifier";
+      const name = { kind, value, der };
+      return Object.freeze(name);
+    }
+    case 3:
+    case 5: {
+      const kind = node.tagNumber === 3 ? "x400Address" : "ediPartyName";
+      if (!node.constructed) throw certificateError(CODE2, path, node.offset, `is primitive; ${kind} is a constructed type`);
+      const name = { kind, value: node, der };
+      return Object.freeze(name);
+    }
+    case 4: {
+      if (!node.constructed || node.children.length !== 1) {
+        throw certificateError(CODE2, path, node.offset, "is not a directoryName: one Name under an explicit [4] tag");
+      }
+      const name = { kind: "directoryName", name: _readName(node.children[0], ctx, `${path}.directoryName`, node.offset), der };
+      return Object.freeze(name);
+    }
+    case 7:
+      return readIpAddress(node, ctx, path, inNameConstraints);
+    case 8: {
+      if (node.constructed) throw certificateError(CODE2, path, node.offset, "is constructed; a registeredID is a primitive OBJECT IDENTIFIER");
+      const name = { kind: "registeredID", oid: _readObjectIdentifier(node, ctx), der };
+      return Object.freeze(name);
+    }
+    default:
+      throw certificateError(CODE2, path, node.offset, `carries the tag [${node.tagNumber}]; GeneralName defines [0] to [8]`);
+  }
+}
+function _readGeneralNames(node, ctx, path, inNameConstraints) {
+  return _readGeneralNameList(expectUniversalField(node, TAG_SEQUENCE, path, CODE2, node.offset), ctx, path, inNameConstraints);
+}
+function _readGeneralNameList(container, ctx, path, inNameConstraints) {
+  if (!container.constructed) {
+    throw certificateError(CODE2, path, container.offset, "is primitive; GeneralNames is a constructed SEQUENCE OF GeneralName");
+  }
+  enforceLimit(ctx.limits, "maxGeneralNames", container.children.length, `the names of ${path}`);
+  const names = [];
+  for (let i = 0; i < container.children.length; i++) {
+    names.push(_readGeneralName(container.children[i], ctx, `${path}[${i}]`, inNameConstraints));
+  }
+  return Object.freeze(names);
+}
+
+// src/x509/x509-ext-constraints.ts
+var KEY_USAGES = [
+  "digitalSignature",
+  "nonRepudiation",
+  "keyEncipherment",
+  "dataEncipherment",
+  "keyAgreement",
+  "keyCertSign",
+  "cRLSign",
+  "encipherOnly",
+  "decipherOnly"
+];
+function defaultEncoded(ctx, path, offset, value) {
+  ctx.emitter.emit(defaultEncodedDiagnostic(path, value, offset));
+}
+function decodeBasicConstraints(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  let index = 0;
+  let cA = false;
+  const first = seq.children[0];
+  if (first !== void 0 && first.tagClass === "universal" && first.tagNumber === TAG_BOOLEAN) {
+    cA = _readBoolean(first, ctx);
+    if (!cA) defaultEncoded(ctx, `${path}.cA`, first.offset, "FALSE");
+    index = 1;
+  }
+  let pathLenConstraint;
+  const second = seq.children[index];
+  if (second !== void 0) {
+    const lengthPath = `${path}.pathLenConstraint`;
+    pathLenConstraint = readCount(expectUniversalField(second, TAG_INTEGER, lengthPath, MALFORMED, seq.offset), ctx, lengthPath);
+    index++;
+  }
+  if (index !== seq.children.length) {
+    throw malformed(path, seq.offset, `holds ${seq.children.length} values; BasicConstraints is an optional cA flag and an optional pathLenConstraint`);
+  }
+  if (pathLenConstraint !== void 0 && !cA) ctx.emitter.emit(pathLenWithoutCaDiagnostic());
+  const extension = { ...baseOf(input), kind: "basicConstraints", cA, pathLenConstraint };
+  return Object.freeze(extension);
+}
+function decodeKeyUsage(input) {
+  const { node, ctx, path } = input;
+  const bitsNode = expectUniversalField(node, TAG_BIT_STRING, path, MALFORMED, node.offset);
+  const bits = _readBitString(bitsNode, ctx);
+  const usages = readNamedBits(bits, KEY_USAGES, ctx, path, bitsNode.offset);
+  if (usages.length === 0) ctx.emitter.emit(keyUsageEmptyDiagnostic());
+  const extension = { ...baseOf(input), kind: "keyUsage", usages: Object.freeze(usages), bits };
+  return Object.freeze(extension);
+}
+function decodeExtendedKeyUsage(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "KeyPurposeId");
+  const purposes = seq.children.map((child, i) => _readObjectIdentifier(expectUniversalField(child, TAG_OID, `${path}[${i}]`, MALFORMED, seq.offset), ctx));
+  const extension = { ...baseOf(input), kind: "extendedKeyUsage", purposes: Object.freeze(purposes) };
+  return Object.freeze(extension);
+}
+function readSubtree(node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  const baseNode = seq.children[0];
+  if (baseNode === void 0) throw malformed(path, seq.offset, "holds no base; a GeneralSubtree is a GeneralName and optional bounds");
+  const base = _readGeneralName(baseNode, ctx, `${path}.base`, true);
+  const [minimumNode, maximumNode] = contextFields(seq.children.slice(1), 1, path);
+  let minimum = 0;
+  if (minimumNode !== void 0) {
+    minimum = readCount(minimumNode, ctx, `${path}.minimum`);
+    if (minimum === 0) defaultEncoded(ctx, `${path}.minimum`, minimumNode.offset, "0");
+  }
+  const maximum = maximumNode === void 0 ? void 0 : readCount(maximumNode, ctx, `${path}.maximum`);
+  const subtree = { base, minimum, maximum };
+  return Object.freeze(subtree);
+}
+function readSubtrees(node, ctx, path) {
+  if (node === void 0) return void 0;
+  if (!node.constructed || node.children.length === 0) {
+    throw malformed(path, node.offset, "is not a non-empty SEQUENCE OF GeneralSubtree under its implicit tag");
+  }
+  enforceLimit(ctx.limits, "maxGeneralNames", node.children.length, `the subtrees of ${path}`);
+  return Object.freeze(node.children.map((child, i) => readSubtree(child, ctx, `${path}[${i}]`)));
+}
+function decodeNameConstraints(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  const [permitted, excluded] = contextFields(seq.children, 1, path);
+  const extension = {
+    ...baseOf(input),
+    kind: "nameConstraints",
+    permittedSubtrees: readSubtrees(permitted, ctx, `${path}.permittedSubtrees`),
+    excludedSubtrees: readSubtrees(excluded, ctx, `${path}.excludedSubtrees`)
+  };
+  if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
+  return Object.freeze(extension);
+}
+function decodePolicyConstraints(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  const [requireNode, inhibitNode] = contextFields(seq.children, 1, path);
+  const extension = {
+    ...baseOf(input),
+    kind: "policyConstraints",
+    requireExplicitPolicy: requireNode === void 0 ? void 0 : readCount(requireNode, ctx, `${path}.requireExplicitPolicy`),
+    inhibitPolicyMapping: inhibitNode === void 0 ? void 0 : readCount(inhibitNode, ctx, `${path}.inhibitPolicyMapping`)
+  };
+  if (requireNode === void 0 && inhibitNode === void 0) ctx.emitter.emit(policyConstraintsEmptyDiagnostic());
+  return Object.freeze(extension);
+}
+function decodeInhibitAnyPolicy(input) {
+  const { node, ctx, path } = input;
+  const skipCerts = readCount(expectUniversalField(node, TAG_INTEGER, path, MALFORMED, node.offset), ctx, path);
+  const extension = { ...baseOf(input), kind: "inhibitAnyPolicy", skipCerts };
+  return Object.freeze(extension);
+}
+
+// src/x509/x509-ext-distribution.ts
+var REASONS = [
+  "unused",
+  "keyCompromise",
+  "cACompromise",
+  "affiliationChanged",
+  "superseded",
+  "cessationOfOperation",
+  "certificateHold",
+  "privilegeWithdrawn",
+  "aACompromise"
+];
+function readDistributionPoint(node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  const [nameNode, reasonsNode, issuerNode] = contextFields(seq.children, 2, path);
+  let fullName;
+  let nameRelativeToCRLIssuer;
+  if (nameNode !== void 0) {
+    const namePath = `${path}.distributionPoint`;
+    const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] : void 0;
+    if (choice?.tagClass === "context" && choice.tagNumber === 0) {
+      fullName = _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false);
+    } else if (choice?.tagClass === "context" && choice.tagNumber === 1) {
+      nameRelativeToCRLIssuer = _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`);
+    } else {
+      throw malformed(namePath, nameNode.offset, "is not one DistributionPointName \u2014 fullName [0] or nameRelativeToCRLIssuer [1] \u2014 under an explicit [0] tag");
+    }
+  }
+  let reasons;
+  if (reasonsNode !== void 0) {
+    reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), REASONS, ctx, `${path}.reasons`, reasonsNode.offset));
+  }
+  const point = {
+    fullName,
+    nameRelativeToCRLIssuer,
+    reasons,
+    cRLIssuer: issuerNode === void 0 ? void 0 : _readGeneralNameList(issuerNode, ctx, `${path}.cRLIssuer`, false)
+  };
+  return Object.freeze(point);
+}
+function readDistributionPoints(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "DistributionPoint");
+  enforceLimit(ctx.limits, "maxGeneralNames", seq.children.length, `the distribution points of ${path}`);
+  return Object.freeze(seq.children.map((child, i) => readDistributionPoint(child, ctx, `${path}[${i}]`)));
+}
+function decodeCrlDistributionPoints(input) {
+  const extension = { ...baseOf(input), kind: "crlDistributionPoints", points: readDistributionPoints(input) };
+  return Object.freeze(extension);
+}
+function decodeFreshestCrl(input) {
+  const extension = { ...baseOf(input), kind: "freshestCRL", points: readDistributionPoints(input) };
+  return Object.freeze(extension);
+}
+function readAccessDescriptions(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "AccessDescription");
+  enforceLimit(ctx.limits, "maxGeneralNames", seq.children.length, `the access descriptions of ${path}`);
+  return Object.freeze(seq.children.map((child, i) => {
+    const descriptionPath = `${path}[${i}]`;
+    const pair = expectSequence(child, descriptionPath, seq.offset);
+    if (pair.children.length !== 2) {
+      throw malformed(descriptionPath, pair.offset, `holds ${pair.children.length} values; an AccessDescription is an accessMethod and an accessLocation`);
+    }
+    const methodNode = expectUniversalField(pair.children[0], TAG_OID, `${descriptionPath}.accessMethod`, MALFORMED, pair.offset);
+    return Object.freeze({
+      accessMethod: _readObjectIdentifier(methodNode, ctx),
+      accessLocation: _readGeneralName(pair.children[1], ctx, `${descriptionPath}.accessLocation`, false)
+    });
+  }));
+}
+function decodeAuthorityInfoAccess(input) {
+  const extension = { ...baseOf(input), kind: "authorityInfoAccess", descriptions: readAccessDescriptions(input) };
+  return Object.freeze(extension);
+}
+function decodeSubjectInfoAccess(input) {
+  const extension = { ...baseOf(input), kind: "subjectInfoAccess", descriptions: readAccessDescriptions(input) };
+  return Object.freeze(extension);
+}
+
+// src/x509/x509-ext-identifiers.ts
+function decodeSubjectKeyIdentifier(input) {
+  const { node, ctx, path } = input;
+  const keyIdentifier = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
+  const extension = { ...baseOf(input), kind: "subjectKeyIdentifier", keyIdentifier };
+  return Object.freeze(extension);
+}
+function decodeAuthorityKeyIdentifier(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  const [keyNode, issuerNode, serialNode] = contextFields(seq.children, 2, path);
+  let authorityCertSerialNumber;
+  if (serialNode !== void 0) {
+    const serial = { bytes: serialNode.content, hex: toHex(serialNode.content), value: _readInteger(serialNode, ctx) };
+    authorityCertSerialNumber = Object.freeze(serial);
+  }
+  const extension = {
+    ...baseOf(input),
+    kind: "authorityKeyIdentifier",
+    keyIdentifier: keyNode === void 0 ? void 0 : _readOctetString(keyNode, ctx),
+    authorityCertIssuer: issuerNode === void 0 ? void 0 : _readGeneralNameList(issuerNode, ctx, `${path}.authorityCertIssuer`, false),
+    authorityCertSerialNumber
+  };
+  if (issuerNode === void 0 !== (serialNode === void 0)) ctx.emitter.emit(akiIssuerSerialUnpairedDiagnostic());
+  return Object.freeze(extension);
+}
+function decodeSubjectAltName(input) {
+  const names = _readGeneralNames(input.node, input.ctx, input.path, false);
+  if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+  const extension = { ...baseOf(input), kind: "subjectAltName", names };
+  return Object.freeze(extension);
+}
+function decodeIssuerAltName(input) {
+  const names = _readGeneralNames(input.node, input.ctx, input.path, false);
+  if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+  const extension = { ...baseOf(input), kind: "issuerAltName", names };
+  return Object.freeze(extension);
+}
+function decodeSignedCertificateTimestampList(input) {
+  const { node, ctx, path } = input;
+  const list = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
+  const extension = { ...baseOf(input), kind: "signedCertificateTimestampList", list };
+  return Object.freeze(extension);
+}
+function decodeOcspNoCheck(input) {
+  const { node, path } = input;
+  const value = expectUniversalField(node, TAG_NULL, path, MALFORMED, node.offset);
+  if (value.contentLength !== 0) throw malformed(path, value.offset, `is a NULL with ${value.contentLength} content octets; X.690 \xA78.8.2 allows none`);
+  const extension = { ...baseOf(input), kind: "ocspNoCheck" };
+  return Object.freeze(extension);
+}
+
+// src/x509/x509-ext-policies.ts
+var OID_CPS = "1.3.6.1.5.5.7.2.1";
+var OID_USER_NOTICE = "1.3.6.1.5.5.7.2.2";
+var DISPLAY_TEXT = /* @__PURE__ */ new Set(["ia5", "visible", "bmp", "utf8"]);
+function readOid(node, ctx, path, parentOffset) {
+  return _readObjectIdentifier(expectUniversalField(node, TAG_OID, path, MALFORMED, parentOffset), ctx);
+}
+function readText(node, ctx, path, allowed, what) {
+  if (node.tagClass !== "universal" || stringTypeOfTag(node.tagNumber) === void 0) {
+    throw malformed(path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; expected ${what}`);
+  }
+  const text = _readString(node, ctx, void 0, path);
+  if (!allowed.has(text.stringType)) throw malformed(path, node.offset, `is a ${text.stringType} string; expected ${what}`);
+  return text;
+}
+var displayText = (node, ctx, path) => readText(node, ctx, path, DISPLAY_TEXT, "DisplayText: an IA5String, VisibleString, BMPString or UTF8String");
+function readNoticeReference(node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  if (seq.children.length !== 2) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a NoticeReference is an organization and its notice numbers`);
+  const organization = displayText(seq.children[0], ctx, `${path}.organization`);
+  const numbers = expectSequence(seq.children[1], `${path}.noticeNumbers`, seq.offset);
+  enforceLimit(ctx.limits, "maxPolicies", numbers.children.length, `the notice numbers of ${path}`);
+  const noticeNumbers = numbers.children.map((child, i) => _readInteger(expectUniversalField(child, TAG_INTEGER, `${path}.noticeNumbers[${i}]`, MALFORMED, numbers.offset), ctx));
+  const reference = { organization, noticeNumbers: Object.freeze(noticeNumbers) };
+  return Object.freeze(reference);
+}
+function readUserNotice(oid, node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  let index = 0;
+  let noticeRef;
+  const first = seq.children[0];
+  if (first !== void 0 && first.tagClass === "universal" && first.tagNumber === TAG_SEQUENCE) {
+    noticeRef = readNoticeReference(first, ctx, `${path}.noticeRef`);
+    index = 1;
+  }
+  let explicitText;
+  const text = seq.children[index];
+  if (text !== void 0) {
+    explicitText = displayText(text, ctx, `${path}.explicitText`);
+    index++;
+  }
+  if (index !== seq.children.length) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a UserNotice is an optional noticeRef and an optional explicitText`);
+  const qualifier = { kind: "userNotice", oid, noticeRef, explicitText };
+  return Object.freeze(qualifier);
+}
+function readQualifier(node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  if (seq.children.length !== 2) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a PolicyQualifierInfo is a qualifier OID and its qualifier`);
+  const oid = readOid(seq.children[0], ctx, `${path}.policyQualifierId`, seq.offset);
+  const value = seq.children[1];
+  if (oid === OID_CPS) {
+    const uri = readText(value, ctx, `${path}.qualifier`, /* @__PURE__ */ new Set(["ia5"]), "a CPSuri IA5String").value;
+    const qualifier2 = { kind: "cps", oid, uri };
+    return Object.freeze(qualifier2);
+  }
+  if (oid === OID_USER_NOTICE) return readUserNotice(oid, value, ctx, `${path}.qualifier`);
+  const qualifier = { kind: "unknown", oid, qualifier: value };
+  return Object.freeze(qualifier);
+}
+function readPolicy(node, ctx, path) {
+  const seq = expectSequence(node, path, node.offset);
+  if (seq.children.length < 1 || seq.children.length > 2) {
+    throw malformed(path, seq.offset, `holds ${seq.children.length} values; a PolicyInformation is a policy OID and optional qualifiers`);
+  }
+  const policyIdentifier = readOid(seq.children[0], ctx, `${path}.policyIdentifier`, seq.offset);
+  let qualifiers = [];
+  const qualifiersNode = seq.children[1];
+  if (qualifiersNode !== void 0) {
+    const qualifiersPath = `${path}.policyQualifiers`;
+    const list = expectSequence(qualifiersNode, qualifiersPath, seq.offset);
+    expectNonEmpty(list, qualifiersPath, "PolicyQualifierInfo");
+    enforceLimit(ctx.limits, "maxPolicies", list.children.length, `the qualifiers of ${path}`);
+    qualifiers = list.children.map((child, i) => readQualifier(child, ctx, `${qualifiersPath}[${i}]`));
+  }
+  const policy = { policyIdentifier, qualifiers: Object.freeze(qualifiers) };
+  return Object.freeze(policy);
+}
+function decodeCertificatePolicies(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "PolicyInformation");
+  enforceLimit(ctx.limits, "maxPolicies", seq.children.length, `the policies of ${path}`);
+  const policies = seq.children.map((child, i) => readPolicy(child, ctx, `${path}[${i}]`));
+  const seen = /* @__PURE__ */ new Set();
+  for (const policy of policies) {
+    if (seen.has(policy.policyIdentifier)) ctx.emitter.emit(policyDuplicateDiagnostic(policy.policyIdentifier));
+    seen.add(policy.policyIdentifier);
+  }
+  const extension = { ...baseOf(input), kind: "certificatePolicies", policies: Object.freeze(policies) };
+  return Object.freeze(extension);
+}
+function decodePolicyMappings(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "policy mapping");
+  enforceLimit(ctx.limits, "maxPolicies", seq.children.length, `the mappings of ${path}`);
+  const mappings = seq.children.map((child, i) => {
+    const mappingPath = `${path}[${i}]`;
+    const pair = expectSequence(child, mappingPath, seq.offset);
+    if (pair.children.length !== 2) throw malformed(mappingPath, pair.offset, `holds ${pair.children.length} values; a mapping is an issuerDomainPolicy and a subjectDomainPolicy`);
+    return Object.freeze({
+      issuerDomainPolicy: readOid(pair.children[0], ctx, `${mappingPath}.issuerDomainPolicy`, pair.offset),
+      subjectDomainPolicy: readOid(pair.children[1], ctx, `${mappingPath}.subjectDomainPolicy`, pair.offset)
+    });
+  });
+  const extension = { ...baseOf(input), kind: "policyMappings", mappings: Object.freeze(mappings) };
+  return Object.freeze(extension);
+}
+
+// src/x509/x509-extensions.ts
+var DECODERS = /* @__PURE__ */ new Map([
+  ["2.5.29.14", decodeSubjectKeyIdentifier],
+  ["2.5.29.15", decodeKeyUsage],
+  ["2.5.29.17", decodeSubjectAltName],
+  ["2.5.29.18", decodeIssuerAltName],
+  ["2.5.29.19", decodeBasicConstraints],
+  ["2.5.29.30", decodeNameConstraints],
+  ["2.5.29.31", decodeCrlDistributionPoints],
+  ["2.5.29.32", decodeCertificatePolicies],
+  ["2.5.29.33", decodePolicyMappings],
+  ["2.5.29.35", decodeAuthorityKeyIdentifier],
+  ["2.5.29.36", decodePolicyConstraints],
+  ["2.5.29.37", decodeExtendedKeyUsage],
+  ["2.5.29.46", decodeFreshestCrl],
+  ["2.5.29.54", decodeInhibitAnyPolicy],
+  ["1.3.6.1.5.5.7.1.1", decodeAuthorityInfoAccess],
+  ["1.3.6.1.5.5.7.1.11", decodeSubjectInfoAccess],
+  ["1.3.6.1.4.1.11129.2.4.2", decodeSignedCertificateTimestampList],
+  ["1.3.6.1.5.5.7.48.1.5", decodeOcspNoCheck]
+]);
+function _decodeExtension(data, start, oid, critical, valueDer, ctx, path) {
+  const decoder = DECODERS.get(oid);
+  if (decoder === void 0) {
+    if (critical) ctx.emitter.emit(unknownCriticalExtensionDiagnostic(oid, path));
+    const extension = { kind: "unknown", oid, critical, valueDer };
+    return Object.freeze(extension);
+  }
+  try {
+    const node = decodeValueAt(data, start, ctx);
+    const end = node.offset + node.bytes.length;
+    if (end !== data.length) throw malformed(path, end, `has ${data.length - end} octet(s) after the extension value inside extnValue`);
+    return decoder({ node, ctx, path, oid, critical, valueDer });
+  } catch (error) {
+    if (error instanceof PkiEncodingError) {
+      throw malformed(path, error.offset ?? start, `does not match its ASN.1 definition (${error.code})`);
+    }
+    throw error;
+  }
+}
+function decodeExtensionValue(oid, valueDer, options) {
+  if (typeof oid !== "string") throw new PkiError("PKI_INVALID_INPUT", `pkinative: decodeExtensionValue expects the extension OID as a dotted string, got ${typeof oid}`);
+  if (!isValidOid(oid)) throw new PkiEncodingError("PKI_OID_INVALID", `pkinative: "${oid.slice(0, 64)}" is not a dotted-decimal OID X.660 allows \u2014 pass the extnID, e.g. 2.5.29.17`);
+  const bytes = assertBytes(valueDer, "decodeExtensionValue value");
+  const critical = options?.critical ?? false;
+  if (typeof critical !== "boolean") throw new PkiError("PKI_INVALID_OPTION", `pkinative: critical must be a boolean, got ${typeof critical}`);
+  return _decodeExtension(bytes, 0, oid, critical, bytes, createAsn1Context(options), "extnValue");
+}
+function getExtension(certificate, kind) {
+  if (typeof certificate !== "object" || certificate === null || !Array.isArray(certificate.extensions)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: getExtension expects a certificate returned by parseCertificate, got ${certificate === null ? "null" : typeof certificate}`);
+  }
+  for (const extension of certificate.extensions) {
+    if (extension.kind === kind) return extension;
+  }
+  return void 0;
+}
+
+// src/x509/x509-name-format.ts
+var SHORT_NAMES = /* @__PURE__ */ new Map([
+  ["2.5.4.3", "CN"],
+  ["2.5.4.7", "L"],
+  ["2.5.4.8", "ST"],
+  ["2.5.4.10", "O"],
+  ["2.5.4.11", "OU"],
+  ["2.5.4.6", "C"],
+  ["2.5.4.9", "STREET"],
+  ["0.9.2342.19200300.100.1.25", "DC"],
+  ["0.9.2342.19200300.100.1.1", "UID"]
+]);
+var SPECIAL = '"+,;<>\\';
+var BIDI_CONTROLS = /* @__PURE__ */ new Set([1564, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8294, 8295, 8296, 8297]);
+var hex2 = (octet) => `\\${octet.toString(16).padStart(2, "0")}`;
+function hexpairs(code) {
+  if (code < 128) return hex2(code);
+  if (code < 2048) return hex2(192 | code >> 6) + hex2(128 | code & 63);
+  return hex2(224 | code >> 12) + hex2(128 | code >> 6 & 63) + hex2(128 | code & 63);
+}
+function escapeValue(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    const code = text.charCodeAt(i);
+    if (code < 32 || code >= 127 && code <= 159 || BIDI_CONTROLS.has(code)) out += hexpairs(code);
+    else if (SPECIAL.includes(ch)) out += `\\${ch}`;
+    else if (i === 0 && (ch === " " || ch === "#") || i === text.length - 1 && ch === " ") out += `\\${ch}`;
+    else out += ch;
+  }
+  return out;
+}
+function formatAttribute(attribute) {
+  const short = SHORT_NAMES.get(attribute.type);
+  if (short === void 0 || attribute.value === void 0) return `${short ?? attribute.type}=#${toHex(attribute.valueDer)}`;
+  return `${short}=${escapeValue(attribute.value.value)}`;
+}
+function formatDistinguishedName(name) {
+  if (typeof name !== "object" || name === null || !Array.isArray(name.rdns)) {
+    throw new PkiError(
+      "PKI_INVALID_INPUT",
+      `pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, got ${name === null ? "null" : typeof name}`
+    );
+  }
+  const parts = [];
+  for (const rdn of name.rdns) {
+    if (!Array.isArray(rdn)) {
+      throw new PkiError(
+        "PKI_INVALID_INPUT",
+        "pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, whose rdns are arrays of attributes"
+      );
+    }
+    parts.push(rdn.map(formatAttribute).join("+"));
+  }
+  parts.reverse();
+  return parts.join(",");
+}
+
+// src/path/path-validate.ts
+var PROCESSED_CRITICAL_EXTENSIONS = /* @__PURE__ */ new Set([
+  "2.5.29.19",
+  // basicConstraints — §6.1.4 (k), (l)
+  "2.5.29.15",
+  // keyUsage — §6.1.4 (n)
+  "2.5.29.17",
+  // subjectAltName: read, and constrained only once nameConstraints lands
+  "2.5.29.37"
+  // extKeyUsage: not a §6 input; carried so a leaf that marks it critical still validates
+]);
+var _hex = (bytes) => {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+};
+function checkValidity(certificate, at, path) {
+  const { notBefore, notAfter } = certificate.validity;
+  if (at < notBefore.epochMilliseconds) return notYetValidReason(`${path}.validity`, notBefore.epochMilliseconds, at);
+  if (at > notAfter.epochMilliseconds) return expiredReason(`${path}.validity`, notAfter.epochMilliseconds, at);
+  return null;
+}
+function checkCriticalExtensions(certificate, path) {
+  const out = [];
+  for (const extension of certificate.extensions) {
+    if (extension.critical && !PROCESSED_CRITICAL_EXTENSIONS.has(extension.oid)) {
+      out.push(unrecognisedCriticalExtensionReason(`${path}.extensions`, extension.oid));
+    }
+  }
+  return out;
+}
+function checkSignature(certificate, context, path) {
+  const result = context.signatures.get(_hex(certificate.der));
+  if (result === void 0) {
+    return signatureNotCheckedReason(path, "PKI_CRYPTO_UNAVAILABLE", "no signature verdict was supplied for this certificate");
+  }
+  if (result.verdict === "valid") return null;
+  if (result.verdict === "invalid") return signatureInvalidReason(path);
+  return signatureNotCheckedReason(path, result.errorCode ?? "PKI_CRYPTO_KEY_UNSUPPORTED", result.detail ?? "the signature could not be checked");
+}
+function checkIssuingCapability(issuer, state, path) {
+  const out = [];
+  const basicConstraints = getExtension(issuer, "basicConstraints");
+  const keyUsage = getExtension(issuer, "keyUsage");
+  if (basicConstraints?.cA !== true) out.push(notACaReason(path, "basicConstraints"));
+  if (keyUsage !== void 0 && !keyUsage.usages.includes("keyCertSign")) out.push(notACaReason(path, "keyUsage"));
+  if (state.maxPathLength <= 0) out.push(pathTooLongReason(path, 0));
+  state.maxPathLength -= 1;
+  const constraint = basicConstraints?.pathLenConstraint;
+  if (constraint !== void 0 && constraint < state.maxPathLength) state.maxPathLength = constraint;
+  return out;
+}
+function validateCertificatePath(input) {
+  const limits = resolveLimits(input.limits);
+  const signatures = /* @__PURE__ */ new Map();
+  for (const result of input.signatures ?? []) {
+    signatures.set(_hex(result.certificate.der), { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail });
+  }
+  const context = {
+    at: input.at,
+    signatures,
+    trustAnchorSubjects: new Set(input.trustAnchors.map((c) => _hex(c.subject.der))),
+    maxPathLength: limits.maxChainLength,
+    maxCertificates: limits.maxChainLength
+  };
+  const state = {
+    maxPathLength: context.maxPathLength,
+    expectedIssuer: null,
+    seen: /* @__PURE__ */ new Set(),
+    reasons: []
+  };
+  const walked = [];
+  let anchored = false;
+  for (const [index, certificate] of input.certificates.entries()) {
+    const path = `path[${String(index)}]`;
+    if (index >= context.maxCertificates) {
+      state.reasons.push(limitExceededReason(path, "maxChainLength", context.maxCertificates));
+      break;
+    }
+    const fingerprint = _hex(certificate.der);
+    if (state.seen.has(fingerprint)) {
+      state.reasons.push(pathLoopsReason(path));
+      break;
+    }
+    state.seen.add(fingerprint);
+    walked.push(certificate);
+    if (state.expectedIssuer !== null && _hex(certificate.subject.der) !== _hex(state.expectedIssuer.der)) {
+      state.reasons.push(issuerNotFoundReason(path, formatDistinguishedName(state.expectedIssuer)));
+      break;
+    }
+    const validity = checkValidity(certificate, context.at, path);
+    if (validity !== null) state.reasons.push(validity);
+    state.reasons.push(...checkCriticalExtensions(certificate, path));
+    if (context.trustAnchorSubjects.has(_hex(certificate.subject.der))) {
+      anchored = true;
+      break;
+    }
+    const signature = checkSignature(certificate, context, path);
+    if (signature !== null) state.reasons.push(signature);
+    state.expectedIssuer = certificate.issuer;
+  }
+  if (!anchored && state.expectedIssuer !== null && context.trustAnchorSubjects.has(_hex(state.expectedIssuer.der))) {
+    anchored = true;
+  }
+  if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
+  for (let index = walked.length - 1; index >= 1; index -= 1) {
+    state.reasons.push(...checkIssuingCapability(walked[index], state, `path[${String(index)}]`));
+  }
+  return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
+}
+
 // src/asn1/asn1-time.ts
 var MAX_TIME_OCTETS = 64;
 var UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
@@ -1399,114 +2423,6 @@ function readTime(node, options) {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
   }
   return _readTime(checked, ctx, implicitType);
-}
-
-// src/asn1/asn1-oid.ts
-var EXACT_LIMIT = 70368744177663;
-function _decodeOid(content, offset, ctx) {
-  if (content.length === 0) {
-    throw new PkiEncodingError(
-      "PKI_OID_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${offset} has no content octet (X.690 \xA78.19.2)`,
-      offset
-    );
-  }
-  enforceLimit(ctx.limits, "maxOidBytes", content.length, "the OBJECT IDENTIFIER content length");
-  const arcs = [];
-  let value = 0;
-  let big = null;
-  let inArc = false;
-  for (const octet of content) {
-    if (!inArc && octet === 128) {
-      throw new PkiEncodingError(
-        "PKI_OID_INVALID",
-        `pkinative: a subidentifier of the OBJECT IDENTIFIER at offset ${offset} starts with 0x80, a non-minimal form X.690 \xA78.19.2 forbids`,
-        offset
-      );
-    }
-    inArc = true;
-    if (big === null && value > EXACT_LIMIT) big = BigInt(value);
-    if (big === null) value = value * 128 + (octet & 127);
-    else big = big * 128n + BigInt(octet & 127);
-    if ((octet & 128) !== 0) continue;
-    if (arcs.length === 0) {
-      if (big === null) {
-        if (value < 40) arcs.push("0", String(value));
-        else if (value < 80) arcs.push("1", String(value - 40));
-        else arcs.push("2", String(value - 80));
-      } else {
-        arcs.push("2", String(big - 80n));
-      }
-    } else {
-      arcs.push(big === null ? String(value) : String(big));
-    }
-    value = 0;
-    big = null;
-    inArc = false;
-  }
-  if (inArc) {
-    throw new PkiEncodingError(
-      "PKI_OID_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${offset} ends inside a subidentifier \u2014 the input is truncated or corrupt`,
-      offset
-    );
-  }
-  return arcs.join(".");
-}
-function decodeOid(content, options) {
-  return _decodeOid(assertBytes(content, "decodeOid content"), 0, createAsn1Context(options));
-}
-function _readObjectIdentifier(node, ctx) {
-  expectUniversal(node, TAG_OID);
-  if (node.constructed) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_CONSTRUCTED_FORM_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${node.offset} is constructed, but X.690 encodes it in primitive form only`,
-      node.offset
-    );
-  }
-  return _decodeOid(node.content, node.offset, ctx);
-}
-function readObjectIdentifier(node, options) {
-  return _readObjectIdentifier(assertNode(node, "readObjectIdentifier"), createAsn1Context(options));
-}
-var DOTTED = /^(?:[01]\.(?:[0-9]|[123][0-9])|2\.(?:0|[1-9][0-9]*))(?:\.(?:0|[1-9][0-9]*))*$/;
-function isValidOid(oid) {
-  return typeof oid === "string" && DOTTED.test(oid);
-}
-function encodeOid(oid) {
-  if (typeof oid !== "string") {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeOid expects a dotted-decimal string, got ${typeof oid}`);
-  }
-  if (!isValidOid(oid)) {
-    throw new PkiEncodingError(
-      "PKI_OID_INVALID",
-      `pkinative: "${oid.length > 64 ? `${oid.slice(0, 61)}\u2026` : oid}" is not a dotted-decimal OID \u2014 use two or more decimal arcs without leading zeros, a first arc of 0, 1 or 2, and a second arc of at most 39 under 0 and 1`
-    );
-  }
-  const subidentifiers = [];
-  let head = null;
-  for (const arc of oid.split(".")) {
-    const value = BigInt(arc);
-    if (head === null) head = value * 40n;
-    else if (subidentifiers.length === 0) subidentifiers.push(head + value);
-    else subidentifiers.push(value);
-  }
-  const out = [];
-  for (const sub of subidentifiers) {
-    const digits = [];
-    let rest = sub;
-    do {
-      digits.unshift(Number(rest & 0x7fn));
-      rest >>= 7n;
-    } while (rest > 0n);
-    let remaining = digits.length;
-    for (const digit of digits) {
-      remaining--;
-      out.push(digit | (remaining > 0 ? 128 : 0));
-    }
-  }
-  return Uint8Array.from(out);
 }
 
 // src/asn1/asn1-encode.ts
@@ -3088,31 +4004,6 @@ function formatFingerprint(digest, options) {
   return letterCase === "upper" ? hex.toUpperCase() : hex;
 }
 
-// src/x509/x509-fields.ts
-var REMEDIES = /* @__PURE__ */ Object.freeze({
-  PKI_X509_STRUCTURE_INVALID: "check that the input is a certificate, not a CSR, a CRL or a key",
-  PKI_X509_VERSION_INVALID: "the input is not a certificate version RFC 5280 defines",
-  PKI_X509_NAME_INVALID: "the issuer encoded the name wrongly",
-  PKI_X509_VALIDITY_INVALID: "the issuer encoded the validity period wrongly",
-  PKI_X509_SPKI_INVALID: "the issuer encoded the public key wrongly",
-  PKI_X509_UNIQUE_ID_INVALID: "the issuer encoded the certificate wrongly",
-  PKI_X509_EXTENSIONS_EMPTY: "the issuer encoded the certificate wrongly",
-  PKI_X509_EXTENSION_DUPLICATE: "which instance a verifier reads is undefined, so the certificate is refused",
-  PKI_X509_EXTENSION_MALFORMED: "parse with decodeExtensions: false to keep every extension raw",
-  PKI_X509_GENERAL_NAME_INVALID: "the issuer encoded the name wrongly"
-});
-function certificateError(code, path, offset, why) {
-  return new PkiCertificateError(code, `pkinative: ${path} at offset ${offset} ${why} \u2014 ${REMEDIES[code]}`, path, offset);
-}
-function expectUniversalField(node, tagNumber, path, code, parentOffset) {
-  const expected = tagLabel("universal", tagNumber);
-  if (node === void 0) throw certificateError(code, path, parentOffset, `is missing; expected ${expected}`);
-  if (node.tagClass !== "universal" || node.tagNumber !== tagNumber) {
-    throw certificateError(code, path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; expected ${expected}`);
-  }
-  return node;
-}
-
 // src/x509/x509-algorithm.ts
 var PKCS1_V15 = /* @__PURE__ */ new Set([
   "1.2.840.113549.1.1.1",
@@ -3138,632 +4029,6 @@ function _readAlgorithmIdentifier(node, ctx, path, code, parentOffset) {
   if (PKCS1_V15.has(oid) && !isNull) ctx.emitter.emit(rsaParametersNotNullDiagnostic(`${path}.parameters`, seq.offset));
   const algorithm = { oid, parameters, der: seq.bytes };
   return Object.freeze(algorithm);
-}
-
-// src/x509/x509-ext-shared.ts
-var MALFORMED = "PKI_X509_EXTENSION_MALFORMED";
-function baseOf(input) {
-  return { oid: input.oid, critical: input.critical, valueDer: input.valueDer };
-}
-function malformed(path, offset, why) {
-  return certificateError(MALFORMED, path, offset, why);
-}
-function expectSequence(node, path, parentOffset) {
-  return expectUniversalField(node, TAG_SEQUENCE, path, MALFORMED, parentOffset);
-}
-function expectNonEmpty(seq, path, what) {
-  if (seq.children.length === 0) throw malformed(path, seq.offset, `holds no ${what}; the extension requires at least one`);
-}
-function contextFields(children, maxTag, path) {
-  const fields = new Array(maxTag + 1).fill(void 0);
-  let last = -1;
-  for (const child of children) {
-    if (child.tagClass !== "context" || child.tagNumber > maxTag || child.tagNumber <= last) {
-      throw malformed(path, child.offset, `holds ${tagLabel(child.tagClass, child.tagNumber)} where only [0] to [${maxTag}], once each and in order, may appear`);
-    }
-    fields[child.tagNumber] = child;
-    last = child.tagNumber;
-  }
-  return fields;
-}
-function readCount(node, ctx, path) {
-  const value = _readInteger(node, ctx);
-  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw malformed(path, node.offset, `is ${String(value)}; expected an integer from 0 to 2^53 \u2212 1`);
-  }
-  return Number(value);
-}
-function bitAt(view, index) {
-  return view.getUint8(index >> 3) >> 7 - (index & 7) & 1;
-}
-function readNamedBits(bits, names, ctx, path, offset) {
-  const total = bits.bytes.length * 8 - bits.unusedBits;
-  const view = byteView(bits.bytes);
-  const set = [];
-  for (let i = 0; i < total; i++) {
-    if (bitAt(view, i) === 0) continue;
-    const name = names[i];
-    if (name === void 0) throw malformed(path, offset, `sets bit ${i}, beyond the ${names.length} named bits`);
-    set.push(name);
-  }
-  if (total > 0 && bitAt(view, total - 1) === 0) ctx.emitter.emit(namedBitsTrailingZeroDiagnostic(path, offset));
-  return set;
-}
-
-// src/x509/x509-name.ts
-var CODE = "PKI_X509_NAME_INVALID";
-function inDerSetOrder(elements) {
-  for (let k = 1; k < elements.length; k++) {
-    if (compareOctets(elements[k - 1].bytes, elements[k].bytes) > 0) return false;
-  }
-  return true;
-}
-function readRdn(set, ctx, rdnPath, budget) {
-  if (!set.constructed || set.children.length === 0) {
-    throw certificateError(CODE, rdnPath, set.offset, "is an empty relative distinguished name; RFC 5280 requires at least one attribute");
-  }
-  const atvs = [];
-  for (let j = 0; j < set.children.length; j++) {
-    budget.count++;
-    enforceLimit(ctx.limits, "maxNameAttributes", budget.count, `the attributes of ${budget.scope}`);
-    const atvPath = `${rdnPath}[${j}]`;
-    const atv = expectUniversalField(set.children[j], TAG_SEQUENCE, atvPath, CODE, set.offset);
-    if (atv.children.length !== 2) {
-      throw certificateError(CODE, atvPath, atv.offset, `holds ${atv.children.length} values; an AttributeTypeAndValue is a type OID and one value`);
-    }
-    const type = _readObjectIdentifier(expectUniversalField(atv.children[0], TAG_OID, `${atvPath}.type`, CODE, atv.offset), ctx);
-    const valueNode = atv.children[1];
-    const value = valueNode.tagClass === "universal" && stringTypeOfTag(valueNode.tagNumber) !== void 0 ? _readString(valueNode, ctx, void 0, `${atvPath}.value`) : void 0;
-    const attribute = { type, value, valueDer: valueNode.bytes };
-    atvs.push(Object.freeze(attribute));
-  }
-  if (!inDerSetOrder(set.children)) ctx.emitter.emit(rdnSetNotSortedDiagnostic(rdnPath, set.offset));
-  return Object.freeze(atvs);
-}
-function _readName(node, ctx, path, parentOffset) {
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE, parentOffset);
-  const rdns = [];
-  const budget = { count: 0, scope: path };
-  for (let i = 0; i < seq.children.length; i++) {
-    const rdnPath = `${path}.rdns[${i}]`;
-    rdns.push(readRdn(expectUniversalField(seq.children[i], TAG_SET, rdnPath, CODE, seq.offset), ctx, rdnPath, budget));
-  }
-  const name = { rdns: Object.freeze(rdns), der: seq.bytes };
-  return Object.freeze(name);
-}
-function _readRelativeDistinguishedName(node, ctx, path) {
-  return readRdn(node, ctx, path, { count: 0, scope: path });
-}
-
-// src/x509/x509-general-name.ts
-var CODE2 = "PKI_X509_GENERAL_NAME_INVALID";
-function formatIpv4(bytes) {
-  return bytes.join(".");
-}
-function formatIpv6(bytes) {
-  const groups = [];
-  const view = byteView(bytes);
-  for (let i = 0; i < 16; i += 2) groups.push(view.getUint16(i));
-  let bestStart = 0;
-  let bestLength = 0;
-  for (let i = 0; i < 8; ) {
-    if (groups[i] !== 0) {
-      i++;
-      continue;
-    }
-    let j = i;
-    while (j < 8 && groups[j] === 0) j++;
-    if (j - i > bestLength) {
-      bestStart = i;
-      bestLength = j - i;
-    }
-    i = j;
-  }
-  const hex = groups.map((g) => g.toString(16));
-  if (bestLength < 2) return hex.join(":");
-  return `${hex.slice(0, bestStart).join(":")}::${hex.slice(bestStart + bestLength).join(":")}`;
-}
-function readIpAddress(node, ctx, path, inNameConstraints) {
-  const bytes = stringContent(node, ctx, TAG_OCTET_STRING, "OCTET STRING");
-  const half = inNameConstraints ? bytes.length / 2 : bytes.length;
-  if (half !== 4 && half !== 16 || inNameConstraints && bytes.length % 2 !== 0) {
-    throw certificateError(CODE2, path, node.offset, inNameConstraints ? `is an iPAddress of ${bytes.length} octets; in name constraints it is 8 (IPv4 and mask) or 32 (IPv6 and mask)` : `is an iPAddress of ${bytes.length} octets; it is 4 (IPv4) or 16 (IPv6)`);
-  }
-  const format = half === 4 ? formatIpv4 : formatIpv6;
-  const name = {
-    kind: "iPAddress",
-    version: half === 4 ? 4 : 6,
-    address: format(bytes.subarray(0, half)),
-    mask: inNameConstraints ? format(bytes.subarray(half)) : void 0,
-    bytes,
-    der: node.bytes
-  };
-  return Object.freeze(name);
-}
-function _readGeneralName(node, ctx, path, inNameConstraints) {
-  if (node.tagClass !== "context") {
-    throw certificateError(CODE2, path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a GeneralName carries a context-specific tag [0] to [8]`);
-  }
-  const der = node.bytes;
-  switch (node.tagNumber) {
-    case 0: {
-      if (!node.constructed || node.children.length !== 2) {
-        throw certificateError(CODE2, path, node.offset, "is not an otherName: a type-id OID followed by a value under an explicit [0] tag");
-      }
-      const typeNode = node.children[0];
-      const wrapper = node.children[1];
-      if (typeNode.tagClass !== "universal" || typeNode.tagNumber !== TAG_OID) {
-        throw certificateError(CODE2, `${path}.typeId`, typeNode.offset, `is ${tagLabel(typeNode.tagClass, typeNode.tagNumber)}; expected OBJECT IDENTIFIER`);
-      }
-      if (wrapper.tagClass !== "context" || wrapper.tagNumber !== 0 || !wrapper.constructed || wrapper.children.length !== 1) {
-        throw certificateError(CODE2, `${path}.value`, wrapper.offset, "is not one value under an explicit [0] tag");
-      }
-      const name = { kind: "otherName", typeId: _readObjectIdentifier(typeNode, ctx), value: wrapper.children[0], der };
-      return Object.freeze(name);
-    }
-    case 1:
-    case 2:
-    case 6: {
-      const value = decodeAsciiSubset(stringContent(node, ctx, TAG_OCTET_STRING, "IA5String"), isIa5Octet);
-      if (value === null) {
-        throw certificateError(CODE2, path, node.offset, "contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5");
-      }
-      const kind = node.tagNumber === 1 ? "rfc822Name" : node.tagNumber === 2 ? "dNSName" : "uniformResourceIdentifier";
-      const name = { kind, value, der };
-      return Object.freeze(name);
-    }
-    case 3:
-    case 5: {
-      const kind = node.tagNumber === 3 ? "x400Address" : "ediPartyName";
-      if (!node.constructed) throw certificateError(CODE2, path, node.offset, `is primitive; ${kind} is a constructed type`);
-      const name = { kind, value: node, der };
-      return Object.freeze(name);
-    }
-    case 4: {
-      if (!node.constructed || node.children.length !== 1) {
-        throw certificateError(CODE2, path, node.offset, "is not a directoryName: one Name under an explicit [4] tag");
-      }
-      const name = { kind: "directoryName", name: _readName(node.children[0], ctx, `${path}.directoryName`, node.offset), der };
-      return Object.freeze(name);
-    }
-    case 7:
-      return readIpAddress(node, ctx, path, inNameConstraints);
-    case 8: {
-      if (node.constructed) throw certificateError(CODE2, path, node.offset, "is constructed; a registeredID is a primitive OBJECT IDENTIFIER");
-      const name = { kind: "registeredID", oid: _readObjectIdentifier(node, ctx), der };
-      return Object.freeze(name);
-    }
-    default:
-      throw certificateError(CODE2, path, node.offset, `carries the tag [${node.tagNumber}]; GeneralName defines [0] to [8]`);
-  }
-}
-function _readGeneralNames(node, ctx, path, inNameConstraints) {
-  return _readGeneralNameList(expectUniversalField(node, TAG_SEQUENCE, path, CODE2, node.offset), ctx, path, inNameConstraints);
-}
-function _readGeneralNameList(container, ctx, path, inNameConstraints) {
-  if (!container.constructed) {
-    throw certificateError(CODE2, path, container.offset, "is primitive; GeneralNames is a constructed SEQUENCE OF GeneralName");
-  }
-  enforceLimit(ctx.limits, "maxGeneralNames", container.children.length, `the names of ${path}`);
-  const names = [];
-  for (let i = 0; i < container.children.length; i++) {
-    names.push(_readGeneralName(container.children[i], ctx, `${path}[${i}]`, inNameConstraints));
-  }
-  return Object.freeze(names);
-}
-
-// src/x509/x509-ext-constraints.ts
-var KEY_USAGES = [
-  "digitalSignature",
-  "nonRepudiation",
-  "keyEncipherment",
-  "dataEncipherment",
-  "keyAgreement",
-  "keyCertSign",
-  "cRLSign",
-  "encipherOnly",
-  "decipherOnly"
-];
-function defaultEncoded(ctx, path, offset, value) {
-  ctx.emitter.emit(defaultEncodedDiagnostic(path, value, offset));
-}
-function decodeBasicConstraints(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  let index = 0;
-  let cA = false;
-  const first = seq.children[0];
-  if (first !== void 0 && first.tagClass === "universal" && first.tagNumber === TAG_BOOLEAN) {
-    cA = _readBoolean(first, ctx);
-    if (!cA) defaultEncoded(ctx, `${path}.cA`, first.offset, "FALSE");
-    index = 1;
-  }
-  let pathLenConstraint;
-  const second = seq.children[index];
-  if (second !== void 0) {
-    const lengthPath = `${path}.pathLenConstraint`;
-    pathLenConstraint = readCount(expectUniversalField(second, TAG_INTEGER, lengthPath, MALFORMED, seq.offset), ctx, lengthPath);
-    index++;
-  }
-  if (index !== seq.children.length) {
-    throw malformed(path, seq.offset, `holds ${seq.children.length} values; BasicConstraints is an optional cA flag and an optional pathLenConstraint`);
-  }
-  if (pathLenConstraint !== void 0 && !cA) ctx.emitter.emit(pathLenWithoutCaDiagnostic());
-  const extension = { ...baseOf(input), kind: "basicConstraints", cA, pathLenConstraint };
-  return Object.freeze(extension);
-}
-function decodeKeyUsage(input) {
-  const { node, ctx, path } = input;
-  const bitsNode = expectUniversalField(node, TAG_BIT_STRING, path, MALFORMED, node.offset);
-  const bits = _readBitString(bitsNode, ctx);
-  const usages = readNamedBits(bits, KEY_USAGES, ctx, path, bitsNode.offset);
-  if (usages.length === 0) ctx.emitter.emit(keyUsageEmptyDiagnostic());
-  const extension = { ...baseOf(input), kind: "keyUsage", usages: Object.freeze(usages), bits };
-  return Object.freeze(extension);
-}
-function decodeExtendedKeyUsage(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  expectNonEmpty(seq, path, "KeyPurposeId");
-  const purposes = seq.children.map((child, i) => _readObjectIdentifier(expectUniversalField(child, TAG_OID, `${path}[${i}]`, MALFORMED, seq.offset), ctx));
-  const extension = { ...baseOf(input), kind: "extendedKeyUsage", purposes: Object.freeze(purposes) };
-  return Object.freeze(extension);
-}
-function readSubtree(node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  const baseNode = seq.children[0];
-  if (baseNode === void 0) throw malformed(path, seq.offset, "holds no base; a GeneralSubtree is a GeneralName and optional bounds");
-  const base = _readGeneralName(baseNode, ctx, `${path}.base`, true);
-  const [minimumNode, maximumNode] = contextFields(seq.children.slice(1), 1, path);
-  let minimum = 0;
-  if (minimumNode !== void 0) {
-    minimum = readCount(minimumNode, ctx, `${path}.minimum`);
-    if (minimum === 0) defaultEncoded(ctx, `${path}.minimum`, minimumNode.offset, "0");
-  }
-  const maximum = maximumNode === void 0 ? void 0 : readCount(maximumNode, ctx, `${path}.maximum`);
-  const subtree = { base, minimum, maximum };
-  return Object.freeze(subtree);
-}
-function readSubtrees(node, ctx, path) {
-  if (node === void 0) return void 0;
-  if (!node.constructed || node.children.length === 0) {
-    throw malformed(path, node.offset, "is not a non-empty SEQUENCE OF GeneralSubtree under its implicit tag");
-  }
-  enforceLimit(ctx.limits, "maxGeneralNames", node.children.length, `the subtrees of ${path}`);
-  return Object.freeze(node.children.map((child, i) => readSubtree(child, ctx, `${path}[${i}]`)));
-}
-function decodeNameConstraints(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  const [permitted, excluded] = contextFields(seq.children, 1, path);
-  const extension = {
-    ...baseOf(input),
-    kind: "nameConstraints",
-    permittedSubtrees: readSubtrees(permitted, ctx, `${path}.permittedSubtrees`),
-    excludedSubtrees: readSubtrees(excluded, ctx, `${path}.excludedSubtrees`)
-  };
-  if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
-  return Object.freeze(extension);
-}
-function decodePolicyConstraints(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  const [requireNode, inhibitNode] = contextFields(seq.children, 1, path);
-  const extension = {
-    ...baseOf(input),
-    kind: "policyConstraints",
-    requireExplicitPolicy: requireNode === void 0 ? void 0 : readCount(requireNode, ctx, `${path}.requireExplicitPolicy`),
-    inhibitPolicyMapping: inhibitNode === void 0 ? void 0 : readCount(inhibitNode, ctx, `${path}.inhibitPolicyMapping`)
-  };
-  if (requireNode === void 0 && inhibitNode === void 0) ctx.emitter.emit(policyConstraintsEmptyDiagnostic());
-  return Object.freeze(extension);
-}
-function decodeInhibitAnyPolicy(input) {
-  const { node, ctx, path } = input;
-  const skipCerts = readCount(expectUniversalField(node, TAG_INTEGER, path, MALFORMED, node.offset), ctx, path);
-  const extension = { ...baseOf(input), kind: "inhibitAnyPolicy", skipCerts };
-  return Object.freeze(extension);
-}
-
-// src/x509/x509-ext-distribution.ts
-var REASONS = [
-  "unused",
-  "keyCompromise",
-  "cACompromise",
-  "affiliationChanged",
-  "superseded",
-  "cessationOfOperation",
-  "certificateHold",
-  "privilegeWithdrawn",
-  "aACompromise"
-];
-function readDistributionPoint(node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  const [nameNode, reasonsNode, issuerNode] = contextFields(seq.children, 2, path);
-  let fullName;
-  let nameRelativeToCRLIssuer;
-  if (nameNode !== void 0) {
-    const namePath = `${path}.distributionPoint`;
-    const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] : void 0;
-    if (choice?.tagClass === "context" && choice.tagNumber === 0) {
-      fullName = _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false);
-    } else if (choice?.tagClass === "context" && choice.tagNumber === 1) {
-      nameRelativeToCRLIssuer = _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`);
-    } else {
-      throw malformed(namePath, nameNode.offset, "is not one DistributionPointName \u2014 fullName [0] or nameRelativeToCRLIssuer [1] \u2014 under an explicit [0] tag");
-    }
-  }
-  let reasons;
-  if (reasonsNode !== void 0) {
-    reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), REASONS, ctx, `${path}.reasons`, reasonsNode.offset));
-  }
-  const point = {
-    fullName,
-    nameRelativeToCRLIssuer,
-    reasons,
-    cRLIssuer: issuerNode === void 0 ? void 0 : _readGeneralNameList(issuerNode, ctx, `${path}.cRLIssuer`, false)
-  };
-  return Object.freeze(point);
-}
-function readDistributionPoints(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  expectNonEmpty(seq, path, "DistributionPoint");
-  enforceLimit(ctx.limits, "maxGeneralNames", seq.children.length, `the distribution points of ${path}`);
-  return Object.freeze(seq.children.map((child, i) => readDistributionPoint(child, ctx, `${path}[${i}]`)));
-}
-function decodeCrlDistributionPoints(input) {
-  const extension = { ...baseOf(input), kind: "crlDistributionPoints", points: readDistributionPoints(input) };
-  return Object.freeze(extension);
-}
-function decodeFreshestCrl(input) {
-  const extension = { ...baseOf(input), kind: "freshestCRL", points: readDistributionPoints(input) };
-  return Object.freeze(extension);
-}
-function readAccessDescriptions(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  expectNonEmpty(seq, path, "AccessDescription");
-  enforceLimit(ctx.limits, "maxGeneralNames", seq.children.length, `the access descriptions of ${path}`);
-  return Object.freeze(seq.children.map((child, i) => {
-    const descriptionPath = `${path}[${i}]`;
-    const pair = expectSequence(child, descriptionPath, seq.offset);
-    if (pair.children.length !== 2) {
-      throw malformed(descriptionPath, pair.offset, `holds ${pair.children.length} values; an AccessDescription is an accessMethod and an accessLocation`);
-    }
-    const methodNode = expectUniversalField(pair.children[0], TAG_OID, `${descriptionPath}.accessMethod`, MALFORMED, pair.offset);
-    return Object.freeze({
-      accessMethod: _readObjectIdentifier(methodNode, ctx),
-      accessLocation: _readGeneralName(pair.children[1], ctx, `${descriptionPath}.accessLocation`, false)
-    });
-  }));
-}
-function decodeAuthorityInfoAccess(input) {
-  const extension = { ...baseOf(input), kind: "authorityInfoAccess", descriptions: readAccessDescriptions(input) };
-  return Object.freeze(extension);
-}
-function decodeSubjectInfoAccess(input) {
-  const extension = { ...baseOf(input), kind: "subjectInfoAccess", descriptions: readAccessDescriptions(input) };
-  return Object.freeze(extension);
-}
-
-// src/x509/x509-ext-identifiers.ts
-function decodeSubjectKeyIdentifier(input) {
-  const { node, ctx, path } = input;
-  const keyIdentifier = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
-  const extension = { ...baseOf(input), kind: "subjectKeyIdentifier", keyIdentifier };
-  return Object.freeze(extension);
-}
-function decodeAuthorityKeyIdentifier(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  const [keyNode, issuerNode, serialNode] = contextFields(seq.children, 2, path);
-  let authorityCertSerialNumber;
-  if (serialNode !== void 0) {
-    const serial = { bytes: serialNode.content, hex: toHex(serialNode.content), value: _readInteger(serialNode, ctx) };
-    authorityCertSerialNumber = Object.freeze(serial);
-  }
-  const extension = {
-    ...baseOf(input),
-    kind: "authorityKeyIdentifier",
-    keyIdentifier: keyNode === void 0 ? void 0 : _readOctetString(keyNode, ctx),
-    authorityCertIssuer: issuerNode === void 0 ? void 0 : _readGeneralNameList(issuerNode, ctx, `${path}.authorityCertIssuer`, false),
-    authorityCertSerialNumber
-  };
-  if (issuerNode === void 0 !== (serialNode === void 0)) ctx.emitter.emit(akiIssuerSerialUnpairedDiagnostic());
-  return Object.freeze(extension);
-}
-function decodeSubjectAltName(input) {
-  const names = _readGeneralNames(input.node, input.ctx, input.path, false);
-  if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
-  const extension = { ...baseOf(input), kind: "subjectAltName", names };
-  return Object.freeze(extension);
-}
-function decodeIssuerAltName(input) {
-  const names = _readGeneralNames(input.node, input.ctx, input.path, false);
-  if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
-  const extension = { ...baseOf(input), kind: "issuerAltName", names };
-  return Object.freeze(extension);
-}
-function decodeSignedCertificateTimestampList(input) {
-  const { node, ctx, path } = input;
-  const list = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
-  const extension = { ...baseOf(input), kind: "signedCertificateTimestampList", list };
-  return Object.freeze(extension);
-}
-function decodeOcspNoCheck(input) {
-  const { node, path } = input;
-  const value = expectUniversalField(node, TAG_NULL, path, MALFORMED, node.offset);
-  if (value.contentLength !== 0) throw malformed(path, value.offset, `is a NULL with ${value.contentLength} content octets; X.690 \xA78.8.2 allows none`);
-  const extension = { ...baseOf(input), kind: "ocspNoCheck" };
-  return Object.freeze(extension);
-}
-
-// src/x509/x509-ext-policies.ts
-var OID_CPS = "1.3.6.1.5.5.7.2.1";
-var OID_USER_NOTICE = "1.3.6.1.5.5.7.2.2";
-var DISPLAY_TEXT = /* @__PURE__ */ new Set(["ia5", "visible", "bmp", "utf8"]);
-function readOid(node, ctx, path, parentOffset) {
-  return _readObjectIdentifier(expectUniversalField(node, TAG_OID, path, MALFORMED, parentOffset), ctx);
-}
-function readText(node, ctx, path, allowed, what) {
-  if (node.tagClass !== "universal" || stringTypeOfTag(node.tagNumber) === void 0) {
-    throw malformed(path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; expected ${what}`);
-  }
-  const text = _readString(node, ctx, void 0, path);
-  if (!allowed.has(text.stringType)) throw malformed(path, node.offset, `is a ${text.stringType} string; expected ${what}`);
-  return text;
-}
-var displayText = (node, ctx, path) => readText(node, ctx, path, DISPLAY_TEXT, "DisplayText: an IA5String, VisibleString, BMPString or UTF8String");
-function readNoticeReference(node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  if (seq.children.length !== 2) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a NoticeReference is an organization and its notice numbers`);
-  const organization = displayText(seq.children[0], ctx, `${path}.organization`);
-  const numbers = expectSequence(seq.children[1], `${path}.noticeNumbers`, seq.offset);
-  enforceLimit(ctx.limits, "maxPolicies", numbers.children.length, `the notice numbers of ${path}`);
-  const noticeNumbers = numbers.children.map((child, i) => _readInteger(expectUniversalField(child, TAG_INTEGER, `${path}.noticeNumbers[${i}]`, MALFORMED, numbers.offset), ctx));
-  const reference = { organization, noticeNumbers: Object.freeze(noticeNumbers) };
-  return Object.freeze(reference);
-}
-function readUserNotice(oid, node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  let index = 0;
-  let noticeRef;
-  const first = seq.children[0];
-  if (first !== void 0 && first.tagClass === "universal" && first.tagNumber === TAG_SEQUENCE) {
-    noticeRef = readNoticeReference(first, ctx, `${path}.noticeRef`);
-    index = 1;
-  }
-  let explicitText;
-  const text = seq.children[index];
-  if (text !== void 0) {
-    explicitText = displayText(text, ctx, `${path}.explicitText`);
-    index++;
-  }
-  if (index !== seq.children.length) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a UserNotice is an optional noticeRef and an optional explicitText`);
-  const qualifier = { kind: "userNotice", oid, noticeRef, explicitText };
-  return Object.freeze(qualifier);
-}
-function readQualifier(node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  if (seq.children.length !== 2) throw malformed(path, seq.offset, `holds ${seq.children.length} values; a PolicyQualifierInfo is a qualifier OID and its qualifier`);
-  const oid = readOid(seq.children[0], ctx, `${path}.policyQualifierId`, seq.offset);
-  const value = seq.children[1];
-  if (oid === OID_CPS) {
-    const uri = readText(value, ctx, `${path}.qualifier`, /* @__PURE__ */ new Set(["ia5"]), "a CPSuri IA5String").value;
-    const qualifier2 = { kind: "cps", oid, uri };
-    return Object.freeze(qualifier2);
-  }
-  if (oid === OID_USER_NOTICE) return readUserNotice(oid, value, ctx, `${path}.qualifier`);
-  const qualifier = { kind: "unknown", oid, qualifier: value };
-  return Object.freeze(qualifier);
-}
-function readPolicy(node, ctx, path) {
-  const seq = expectSequence(node, path, node.offset);
-  if (seq.children.length < 1 || seq.children.length > 2) {
-    throw malformed(path, seq.offset, `holds ${seq.children.length} values; a PolicyInformation is a policy OID and optional qualifiers`);
-  }
-  const policyIdentifier = readOid(seq.children[0], ctx, `${path}.policyIdentifier`, seq.offset);
-  let qualifiers = [];
-  const qualifiersNode = seq.children[1];
-  if (qualifiersNode !== void 0) {
-    const qualifiersPath = `${path}.policyQualifiers`;
-    const list = expectSequence(qualifiersNode, qualifiersPath, seq.offset);
-    expectNonEmpty(list, qualifiersPath, "PolicyQualifierInfo");
-    enforceLimit(ctx.limits, "maxPolicies", list.children.length, `the qualifiers of ${path}`);
-    qualifiers = list.children.map((child, i) => readQualifier(child, ctx, `${qualifiersPath}[${i}]`));
-  }
-  const policy = { policyIdentifier, qualifiers: Object.freeze(qualifiers) };
-  return Object.freeze(policy);
-}
-function decodeCertificatePolicies(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  expectNonEmpty(seq, path, "PolicyInformation");
-  enforceLimit(ctx.limits, "maxPolicies", seq.children.length, `the policies of ${path}`);
-  const policies = seq.children.map((child, i) => readPolicy(child, ctx, `${path}[${i}]`));
-  const seen = /* @__PURE__ */ new Set();
-  for (const policy of policies) {
-    if (seen.has(policy.policyIdentifier)) ctx.emitter.emit(policyDuplicateDiagnostic(policy.policyIdentifier));
-    seen.add(policy.policyIdentifier);
-  }
-  const extension = { ...baseOf(input), kind: "certificatePolicies", policies: Object.freeze(policies) };
-  return Object.freeze(extension);
-}
-function decodePolicyMappings(input) {
-  const { node, ctx, path } = input;
-  const seq = expectSequence(node, path, node.offset);
-  expectNonEmpty(seq, path, "policy mapping");
-  enforceLimit(ctx.limits, "maxPolicies", seq.children.length, `the mappings of ${path}`);
-  const mappings = seq.children.map((child, i) => {
-    const mappingPath = `${path}[${i}]`;
-    const pair = expectSequence(child, mappingPath, seq.offset);
-    if (pair.children.length !== 2) throw malformed(mappingPath, pair.offset, `holds ${pair.children.length} values; a mapping is an issuerDomainPolicy and a subjectDomainPolicy`);
-    return Object.freeze({
-      issuerDomainPolicy: readOid(pair.children[0], ctx, `${mappingPath}.issuerDomainPolicy`, pair.offset),
-      subjectDomainPolicy: readOid(pair.children[1], ctx, `${mappingPath}.subjectDomainPolicy`, pair.offset)
-    });
-  });
-  const extension = { ...baseOf(input), kind: "policyMappings", mappings: Object.freeze(mappings) };
-  return Object.freeze(extension);
-}
-
-// src/x509/x509-extensions.ts
-var DECODERS = /* @__PURE__ */ new Map([
-  ["2.5.29.14", decodeSubjectKeyIdentifier],
-  ["2.5.29.15", decodeKeyUsage],
-  ["2.5.29.17", decodeSubjectAltName],
-  ["2.5.29.18", decodeIssuerAltName],
-  ["2.5.29.19", decodeBasicConstraints],
-  ["2.5.29.30", decodeNameConstraints],
-  ["2.5.29.31", decodeCrlDistributionPoints],
-  ["2.5.29.32", decodeCertificatePolicies],
-  ["2.5.29.33", decodePolicyMappings],
-  ["2.5.29.35", decodeAuthorityKeyIdentifier],
-  ["2.5.29.36", decodePolicyConstraints],
-  ["2.5.29.37", decodeExtendedKeyUsage],
-  ["2.5.29.46", decodeFreshestCrl],
-  ["2.5.29.54", decodeInhibitAnyPolicy],
-  ["1.3.6.1.5.5.7.1.1", decodeAuthorityInfoAccess],
-  ["1.3.6.1.5.5.7.1.11", decodeSubjectInfoAccess],
-  ["1.3.6.1.4.1.11129.2.4.2", decodeSignedCertificateTimestampList],
-  ["1.3.6.1.5.5.7.48.1.5", decodeOcspNoCheck]
-]);
-function _decodeExtension(data, start, oid, critical, valueDer, ctx, path) {
-  const decoder = DECODERS.get(oid);
-  if (decoder === void 0) {
-    if (critical) ctx.emitter.emit(unknownCriticalExtensionDiagnostic(oid, path));
-    const extension = { kind: "unknown", oid, critical, valueDer };
-    return Object.freeze(extension);
-  }
-  try {
-    const node = decodeValueAt(data, start, ctx);
-    const end = node.offset + node.bytes.length;
-    if (end !== data.length) throw malformed(path, end, `has ${data.length - end} octet(s) after the extension value inside extnValue`);
-    return decoder({ node, ctx, path, oid, critical, valueDer });
-  } catch (error) {
-    if (error instanceof PkiEncodingError) {
-      throw malformed(path, error.offset ?? start, `does not match its ASN.1 definition (${error.code})`);
-    }
-    throw error;
-  }
-}
-function decodeExtensionValue(oid, valueDer, options) {
-  if (typeof oid !== "string") throw new PkiError("PKI_INVALID_INPUT", `pkinative: decodeExtensionValue expects the extension OID as a dotted string, got ${typeof oid}`);
-  if (!isValidOid(oid)) throw new PkiEncodingError("PKI_OID_INVALID", `pkinative: "${oid.slice(0, 64)}" is not a dotted-decimal OID X.660 allows \u2014 pass the extnID, e.g. 2.5.29.17`);
-  const bytes = assertBytes(valueDer, "decodeExtensionValue value");
-  const critical = options?.critical ?? false;
-  if (typeof critical !== "boolean") throw new PkiError("PKI_INVALID_OPTION", `pkinative: critical must be a boolean, got ${typeof critical}`);
-  return _decodeExtension(bytes, 0, oid, critical, bytes, createAsn1Context(options), "extnValue");
-}
-function getExtension(certificate, kind) {
-  if (typeof certificate !== "object" || certificate === null || !Array.isArray(certificate.extensions)) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: getExtension expects a certificate returned by parseCertificate, got ${certificate === null ? "null" : typeof certificate}`);
-  }
-  for (const extension of certificate.extensions) {
-    if (extension.kind === kind) return extension;
-  }
-  return void 0;
 }
 
 // src/x509/x509-spki.ts
@@ -4065,64 +4330,6 @@ function parseCertificate(der, options) {
     diagnostics: Object.freeze([...ctx.emitter.diagnostics])
   };
   return Object.freeze(certificate);
-}
-
-// src/x509/x509-name-format.ts
-var SHORT_NAMES = /* @__PURE__ */ new Map([
-  ["2.5.4.3", "CN"],
-  ["2.5.4.7", "L"],
-  ["2.5.4.8", "ST"],
-  ["2.5.4.10", "O"],
-  ["2.5.4.11", "OU"],
-  ["2.5.4.6", "C"],
-  ["2.5.4.9", "STREET"],
-  ["0.9.2342.19200300.100.1.25", "DC"],
-  ["0.9.2342.19200300.100.1.1", "UID"]
-]);
-var SPECIAL = '"+,;<>\\';
-var BIDI_CONTROLS = /* @__PURE__ */ new Set([1564, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8294, 8295, 8296, 8297]);
-var hex2 = (octet) => `\\${octet.toString(16).padStart(2, "0")}`;
-function hexpairs(code) {
-  if (code < 128) return hex2(code);
-  if (code < 2048) return hex2(192 | code >> 6) + hex2(128 | code & 63);
-  return hex2(224 | code >> 12) + hex2(128 | code >> 6 & 63) + hex2(128 | code & 63);
-}
-function escapeValue(text) {
-  let out = "";
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charAt(i);
-    const code = text.charCodeAt(i);
-    if (code < 32 || code >= 127 && code <= 159 || BIDI_CONTROLS.has(code)) out += hexpairs(code);
-    else if (SPECIAL.includes(ch)) out += `\\${ch}`;
-    else if (i === 0 && (ch === " " || ch === "#") || i === text.length - 1 && ch === " ") out += `\\${ch}`;
-    else out += ch;
-  }
-  return out;
-}
-function formatAttribute(attribute) {
-  const short = SHORT_NAMES.get(attribute.type);
-  if (short === void 0 || attribute.value === void 0) return `${short ?? attribute.type}=#${toHex(attribute.valueDer)}`;
-  return `${short}=${escapeValue(attribute.value.value)}`;
-}
-function formatDistinguishedName(name) {
-  if (typeof name !== "object" || name === null || !Array.isArray(name.rdns)) {
-    throw new PkiError(
-      "PKI_INVALID_INPUT",
-      `pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, got ${name === null ? "null" : typeof name}`
-    );
-  }
-  const parts = [];
-  for (const rdn of name.rdns) {
-    if (!Array.isArray(rdn)) {
-      throw new PkiError(
-        "PKI_INVALID_INPUT",
-        "pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, whose rdns are arrays of attributes"
-      );
-    }
-    parts.push(rdn.map(formatAttribute).join("+"));
-  }
-  parts.reverse();
-  return parts.join(",");
 }
 
 // src/crypto/crypto-algorithms.ts
@@ -4693,6 +4900,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, verifyCertificateSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

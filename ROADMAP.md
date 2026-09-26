@@ -34,7 +34,16 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 
 ## 0.5.x — M3: Path validation and revocation
 
-- [ ] RFC 5280 §6 path building and validation: name constraints, policies, key usage, path length
+<!-- Landed so far in this band: PkiReasonCode (the third vocabulary), and
+     RFC 5280 §6 for everything a validator can decide without name
+     constraints or a policy tree — both of which are REFUSED rather than
+     ignored until they are implemented, per §6.1.3 (f). -->
+
+
+- [x] `PkiReasonCode` — the third vocabulary, landed **before** the code that needs it: primitives return and throw, compositions report, and exactly one layer converts
+- [x] RFC 5280 §6 validity window, issuer chaining, signature verdicts, `basicConstraints`, `keyUsage`, path length, loop detection and the trust anchor — synchronous, pure, never throwing for a validation issue
+- [ ] RFC 5280 §6 name constraints and the policy tree — **refused, not ignored**, until then (§6.1.3 (f)), so a chain relying on either is never answered "valid" by omission
+- [ ] Path *building*: choosing among candidate issuers, bounded by `maxPathsExplored`
 - [ ] CRL parsing and verification; OCSP request building, response parsing and verification (RFC 6960)
 - [ ] x509-limbo scored on SUCCESS / FAILURE, NIST PKITS
 

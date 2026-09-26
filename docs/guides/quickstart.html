@@ -220,7 +220,7 @@
       </code></pre>
       <p>Never branch on the message. The <a href="errors.html">error guide</a> lists every code with its cause and remedy.</p>
       <h2 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h2>
-      <p>Eleven named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
+      <p>Twelve named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
       <pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
       </code></pre>
       <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
@@ -248,7 +248,7 @@
       <p>Error code unions are in the <a href="errors.html">errors guide</a>.</p>
       <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
       <ul>
-      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 10 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation.</li>
+      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 11 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation.</li>
       <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.</li>
       <li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when it is not yet.</li>
       </ul>

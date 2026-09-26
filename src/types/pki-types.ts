@@ -39,6 +39,8 @@ export interface PkiLimits {
     readonly maxNameAttributes: number;
     /** Maximum number of policies or policy mappings in one extension. CWE-400. */
     readonly maxPolicies: number;
+    /** Maximum number of certificates a certification path may hold. CWE-400. */
+    readonly maxChainLength: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────

@@ -6,7 +6,9 @@
       "version": "0.4.0",
       "repo": "https://github.com/Nizoka/pkinative",
       "status": "active",
-      "engine": { "node": ">=22" },
+      "engine": {
+        "node": ">=22"
+      },
       "site": "https://pkinative.dev",
       "npm": "not published; pre-1.0 versions are git tags with an attested release tarball, the first npm publication is 1.0.0"
     }
@@ -34,39 +36,72 @@
   },
   "derived": {},
   "declared": {
-    "x509-limbo": { "commit": "118721335e675edde10015df89b138cf292d7554", "testcases": 9793, "certificates": 30361, "refused": 564 },
-    "wycheproof": { "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230", "tests": 1530 },
+    "x509-limbo": {
+      "commit": "118721335e675edde10015df89b138cf292d7554",
+      "testcases": 9793,
+      "certificates": 30361,
+      "refused": 564
+    },
+    "wycheproof": {
+      "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230",
+      "tests": 1530
+    },
     "coverageIgnores": 2,
-    "coverageExcludes": ["src/index.ts", "src/types/**"],
+    "coverageExcludes": [
+      "src/index.ts",
+      "src/types/**"
+    ],
     "bundle": {
-      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can.",
-      "dist/index.js": { "maxBytes": 205000 },
-      "dist/index.cjs": { "maxBytes": 207000 },
-      "dist/index.d.ts": { "maxBytes": 119000 },
-      "dist/index.d.cts": { "maxBytes": 119000 },
-      "dist/index.js.map": { "maxBytes": 583000 },
-      "dist/index.cjs.map": { "maxBytes": 583000 }
+      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for the path layer, measured 197186/199073/123108/123108/567735/567738 — the code grew 4.6 % and the declarations 12 %, which is the reason declared.typeSurface exists alongside the byte budget.",
+      "dist/index.js": {
+        "maxBytes": 205000
+      },
+      "dist/index.cjs": {
+        "maxBytes": 207000
+      },
+      "dist/index.d.ts": {
+        "maxBytes": 134000
+      },
+      "dist/index.d.cts": {
+        "maxBytes": 134000
+      },
+      "dist/index.js.map": {
+        "maxBytes": 583000
+      },
+      "dist/index.cjs.map": {
+        "maxBytes": 583000
+      }
     },
     "typeSurface": {
       "$comment": "The declaration file's real driver. Bytes drift with TSDoc wording, so a byte budget alone can be raised without anyone noticing that the surface doubled; these two counts cannot change by accident. Derived from docs/assets/api.json and held to it by type-surface-parity. Revisit subpath exports at 1.0 if dist/index.d.ts passes 200000 bytes.",
-      "exportedTypes": 98,
-      "exportedValues": 70
+      "exportedTypes": 102,
+      "exportedValues": 71
     },
     "playgroundBundle": {
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "92290fc161f1985b45671ee2bc21c95af1d6c755689c5882efa3022abb40ef73",
-      "bundleSha256": "47082fcef3e0ab650ba9930c501fa505d8d6852b69438e2ec2350a884be9823e",
-      "bytes": 189044,
+      "sourceSha256": "fc3195f2e9128cf923832140d32762008d85fbed11d0fed45da2bb95222c49ce",
+      "bundleSha256": "b1e9e9025e2653261a1517bd800a90dfdc1ea8fca9923a2947bbee70765d5bf1",
+      "bytes": 197186,
       "maxBytes": 200000
     },
     "socialImages": [
-      { "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
-        "svg": "docs/assets/og-image.svg", "png": "docs/assets/og-image.png", "width": 1200, "height": 630,
-        "svgSha256": "135682e5bdac859d4a2a9111f2fa4c3b9888c818e9ab2470b07dc58b7b527635" },
-      { "svg": "docs/assets/social-preview.svg", "png": "docs/assets/social-preview.png", "width": 1280, "height": 640,
-        "svgSha256": "4759c3235a653cc187da1d0baf2c156f29a916179665233299a1f0c3f142e172" }
+      {
+        "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
+        "svg": "docs/assets/og-image.svg",
+        "png": "docs/assets/og-image.png",
+        "width": 1200,
+        "height": 630,
+        "svgSha256": "135682e5bdac859d4a2a9111f2fa4c3b9888c818e9ab2470b07dc58b7b527635"
+      },
+      {
+        "svg": "docs/assets/social-preview.svg",
+        "png": "docs/assets/social-preview.png",
+        "width": 1280,
+        "height": 640,
+        "svgSha256": "4759c3235a653cc187da1d0baf2c156f29a916179665233299a1f0c3f142e172"
+      }
     ]
   }
 }

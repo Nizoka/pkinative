@@ -108,7 +108,7 @@ Never branch on the message. The [error guide](errors.md) lists every code with 
 
 ## Limits
 
-Eleven named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
+Twelve named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
 
 ```ts
 parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
@@ -148,6 +148,6 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 10 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation.
+- [recipes/](../../recipes/) — 11 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.

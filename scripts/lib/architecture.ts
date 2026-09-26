@@ -52,6 +52,11 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // build signs what it encodes, so it reaches crypto; it never reaches
     // x509, because nothing here reads a certificate.
     build: ['types', 'core', 'asn1', 'crypto'],
+    // RFC 5280 section 6 reads already-parsed data and returns a verdict. No
+    // asn1: if it needed to decode anything, a layer upstream failed to expose
+    // the data. No crypto: signature verdicts arrive precomputed, which keeps
+    // the state machine synchronous, pure, and fuzzable without a host.
+    path: ['types', 'core', 'x509'],
 });
 
 export const ENTRY = 'src/index.ts';

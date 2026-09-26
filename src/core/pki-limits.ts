@@ -21,6 +21,7 @@
  * | maxGeneralNames   | 10 000  | CWE-400 |
  * | maxNameAttributes | 1 024   | CWE-400 |
  * | maxPolicies       | 1 024   | CWE-400 |
+ * | maxChainLength    | 10      | CWE-400 |
  *
  * @module core/pki-limits
  */
@@ -41,6 +42,7 @@ export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
     maxGeneralNames: 10_000,
     maxNameAttributes: 1024,
     maxPolicies: 1024,
+    maxChainLength: 10,
 });
 
 /**

@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 74667,
-      "approxTokens": 18667
+      "bytes": 77947,
+      "approxTokens": 19487
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 30051,
-      "approxTokens": 7513
+      "bytes": 34466,
+      "approxTokens": 8617
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 151778,
-      "approxTokens": 37945
+      "bytes": 156422,
+      "approxTokens": 39106
     },
     {
       "url": "data/errors.json",
@@ -48,20 +48,20 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 2117,
-      "approxTokens": 529
+      "bytes": 2391,
+      "approxTokens": 598
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 3716,
-      "approxTokens": 929
+      "bytes": 3959,
+      "approxTokens": 990
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 4730,
-      "approxTokens": 1183
+      "bytes": 5186,
+      "approxTokens": 1297
     }
   ],
   "guides": [
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12805,
-      "approxTokens": 3201
+      "bytes": 12822,
+      "approxTokens": 3206
     },
     {
       "title": "Use cases",
-      "summary": "Six jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one and the sixth writes one. None validates a chain — that is 0.5.",
+      "summary": "Seven jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -97,10 +97,11 @@
         "gate-a-der-round-trip",
         "check-one-link-of-a-chain",
         "issue-a-certificate-without-ever-holding-the-key",
+        "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 18005,
-      "approxTokens": 4501
+      "bytes": 21268,
+      "approxTokens": 5317
     },
     {
       "title": "Security model",

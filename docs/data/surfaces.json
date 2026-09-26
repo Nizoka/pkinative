@@ -13,6 +13,7 @@
     { "id": "x509-parse", "capability": "Parse an RFC 5280 certificate: every field, every standard extension, profile concerns as diagnostics", "exports": ["parseCertificate", "getExtension", "decodeExtensionValue", "formatDistinguishedName"], "since": "0.1.0" },
     { "id": "x509-verify", "capability": "Verify a certificate signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448", "exports": ["verifyCertificateSignature", "verifySelfSignature", "canVerify", "PkiCryptoError"], "since": "0.3.0" },
     { "id": "x509-create", "capability": "Build and sign an RFC 5280 certificate or a PKCS#10 request from a typed description, through a Web Crypto key the caller holds", "exports": ["createCertificate", "createCertificationRequest", "canSign", "signatureAlgorithmDer", "encodeAlgorithmIdentifier", "encodeAttribute", "encodeAuthorityKeyIdentifier", "encodeBasicConstraints", "encodeDistinguishedName", "encodeExtendedKeyUsage", "encodeExtension", "encodeExtensions", "encodeKeyUsage", "encodeNameAttribute", "encodeSubjectAltName", "encodeSubjectKeyIdentifier", "encodeSubjectPublicKeyInfo", "encodeValidity", "KEY_USAGE_BITS"], "since": "0.3.0" },
-    { "id": "x509-path", "capability": "Build and validate a certification path (RFC 5280 §6), CRL and OCSP", "exports": [], "since": "0.5.0 (planned)" }
+    { "id": "x509-path", "capability": "Validate a certification path against a trust anchor (RFC 5280 §6) — synchronous, never throwing, and reporting every reason rather than the first", "exports": ["validateCertificatePath"], "since": "0.5.0" },
+    { "id": "x509-revocation", "capability": "Decide whether a certificate is revoked: CRL and OCSP", "exports": [], "since": "0.5.0 (planned)" }
   ]
 }

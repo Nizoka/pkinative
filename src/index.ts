@@ -35,6 +35,11 @@ export type {
 // says why neither of the other two could do this job.
 export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 
+// ── 7. Certification path validation (RFC 5280 section 6) ────────────
+
+export { validateCertificatePath } from './path/path-validate.js';
+export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
+
 // ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────
 
 export { decodeAsn1, decodeAsn1Sequence } from './asn1/asn1-decode.js';
