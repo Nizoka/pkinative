@@ -42,7 +42,8 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 
 - [x] `PkiReasonCode` — the third vocabulary, landed **before** the code that needs it: primitives return and throw, compositions report, and exactly one layer converts
 - [x] RFC 5280 §6 validity window, issuer chaining, signature verdicts, `basicConstraints`, `keyUsage`, path length, loop detection and the trust anchor — synchronous, pure, never throwing for a validation issue
-- [ ] RFC 5280 §6 name constraints and the policy tree — **refused, not ignored**, until then (§6.1.3 (f)), so a chain relying on either is never answered "valid" by omission
+- [x] RFC 5280 §6 name constraints — per-form permitted and excluded subtrees, intersecting down the path, over dNSName, rfc822Name, URI, iPAddress and directoryName, on both the subject and the SAN
+- [ ] RFC 5280 §6 the policy tree — **refused, not ignored**, until then (§6.1.3 (f)), so a chain relying on `policyConstraints`, `policyMappings` or `inhibitAnyPolicy` is never answered "valid" by omission
 - [ ] Path *building*: choosing among candidate issuers, bounded by `maxPathsExplored`
 - [ ] CRL parsing and verification; OCSP request building, response parsing and verification (RFC 6960)
 - [ ] x509-limbo scored on SUCCESS / FAILURE, NIST PKITS

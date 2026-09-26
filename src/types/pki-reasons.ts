@@ -57,6 +57,10 @@ export type PkiReasonCode =
     | 'PKI_REASON_EXPIRED'
     /** A critical extension no implementation here recognises; RFC 5280 §6.1.3 requires refusal. */
     | 'PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION'
+    /** A name in the certificate falls outside the name constraints a CA above it set. */
+    | 'PKI_REASON_NAME_NOT_PERMITTED'
+    /** A name in the certificate falls inside a subtree a CA above it excluded. */
+    | 'PKI_REASON_NAME_EXCLUDED'
 
     // ── The link to the issuer ──
     /** No candidate issuer was supplied whose subject matches this certificate's issuer. */

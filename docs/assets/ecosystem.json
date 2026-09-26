@@ -52,24 +52,24 @@
       "src/types/**"
     ],
     "bundle": {
-      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for the path layer, measured 197186/199073/123108/123108/567735/567738 — the code grew 4.6 % and the declarations 12 %, which is the reason declared.typeSurface exists alongside the byte budget.",
+      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for the path layer and name constraints, measured 204530/206473/129240/129240/594471/594474 at +12 %.",
       "dist/index.js": {
-        "maxBytes": 205000
+        "maxBytes": 230000
       },
       "dist/index.cjs": {
-        "maxBytes": 207000
+        "maxBytes": 232000
       },
       "dist/index.d.ts": {
-        "maxBytes": 134000
+        "maxBytes": 139000
       },
       "dist/index.d.cts": {
-        "maxBytes": 134000
+        "maxBytes": 139000
       },
       "dist/index.js.map": {
-        "maxBytes": 583000
+        "maxBytes": 666000
       },
       "dist/index.cjs.map": {
-        "maxBytes": 583000
+        "maxBytes": 666000
       }
     },
     "typeSurface": {
@@ -81,10 +81,10 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "fc3195f2e9128cf923832140d32762008d85fbed11d0fed45da2bb95222c49ce",
-      "bundleSha256": "b1e9e9025e2653261a1517bd800a90dfdc1ea8fca9923a2947bbee70765d5bf1",
-      "bytes": 197186,
-      "maxBytes": 200000
+      "sourceSha256": "e9fe861e3c1cdd77f9cb24917cd1a35bfaf46996886825cadee0db5d64b6a1cc",
+      "bundleSha256": "242fdd0bb0e085d03ba3f73121cece6e3bc0dd5462fa5e881d77f1affe4df961",
+      "bytes": 204221,
+      "maxBytes": 230000
     },
     "socialImages": [
       {

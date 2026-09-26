@@ -132,6 +132,22 @@ function unrecognisedCriticalExtensionReason(path, oid) {
     path
   );
 }
+function nameNotPermittedReason(path, form, text) {
+  return _reason(
+    "PKI_REASON_NAME_NOT_PERMITTED",
+    "RFC 5280 \xA76.1.3 (b)",
+    `the ${form} "${text}" falls outside the permitted subtrees a CA above this certificate set; a sub-CA cannot issue for names its issuer withheld`,
+    path
+  );
+}
+function nameExcludedReason(path, form, text) {
+  return _reason(
+    "PKI_REASON_NAME_EXCLUDED",
+    "RFC 5280 \xA76.1.3 (c)",
+    `the ${form} "${text}" falls inside an excluded subtree; an exclusion anywhere on the path wins over every permission`,
+    path
+  );
+}
 function issuerNotFoundReason(path, issuer) {
   return _reason(
     "PKI_REASON_ISSUER_NOT_FOUND",
@@ -197,6 +213,152 @@ function limitExceededReason(path, limit, configured) {
     path,
     { limit }
   );
+}
+
+// src/path/path-name-constraints.ts
+var FORMS = ["dNSName", "rfc822Name", "uniformResourceIdentifier", "iPAddress", "directoryName"];
+function initialNameConstraints() {
+  const permitted = {};
+  const excluded = {};
+  for (const form of FORMS) {
+    permitted[form] = null;
+    excluded[form] = [];
+  }
+  return { permitted, excluded };
+}
+function formOf(base) {
+  return FORMS.includes(base.kind) ? base.kind : null;
+}
+var fold = (text) => text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+function dnsMatches(constraint, name) {
+  const c = fold(constraint);
+  const n = fold(name);
+  if (c === "") return true;
+  if (c.startsWith(".")) return n.endsWith(c);
+  return n === c || n.endsWith(`.${c}`);
+}
+function emailMatches(constraint, name) {
+  const c = fold(constraint);
+  const n = fold(name);
+  if (c === "") return true;
+  const at = n.lastIndexOf("@");
+  if (c.includes("@")) return n === c;
+  const host = at >= 0 ? n.slice(at + 1) : n;
+  if (c.startsWith(".")) return host.endsWith(c);
+  return host === c;
+}
+function uriMatches(constraint, uri) {
+  const host = uriHost(uri);
+  if (host === null) return false;
+  return dnsMatches(constraint, host);
+}
+function uriHost(uri) {
+  const schemeEnd = uri.indexOf("://");
+  if (schemeEnd < 0) return null;
+  let authority = uri.slice(schemeEnd + 3);
+  for (const stop of ["/", "?", "#"]) {
+    const at2 = authority.indexOf(stop);
+    if (at2 >= 0) authority = authority.slice(0, at2);
+  }
+  const at = authority.lastIndexOf("@");
+  if (at >= 0) authority = authority.slice(at + 1);
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]");
+    if (close < 0) return null;
+    authority = authority.slice(0, close + 1);
+  } else {
+    const colon = authority.indexOf(":");
+    if (colon >= 0) authority = authority.slice(0, colon);
+  }
+  return authority === "" ? null : authority;
+}
+function ipMatches(constraintBytes, nameBytes) {
+  const width = nameBytes.length;
+  if (constraintBytes.length !== width * 2) return false;
+  for (let i = 0; i < width; i += 1) {
+    const mask = constraintBytes[width + i];
+    if ((nameBytes[i] & mask) !== (constraintBytes[i] & mask)) return false;
+  }
+  return true;
+}
+function directoryMatches(constraint, name) {
+  if (constraint.rdns.length > name.rdns.length) return false;
+  return constraint.rdns.every((rdn, i) => _sameRdn(rdn, name.rdns[i]));
+}
+function _sameRdn(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i];
+    return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
+  });
+}
+function subtreeCovers(subtree, name) {
+  const base = subtree.base;
+  if (base.kind !== name.kind) return false;
+  if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
+  switch (base.kind) {
+    case "dNSName":
+      return name.kind === "dNSName" && dnsMatches(base.value, name.value);
+    case "rfc822Name":
+      return name.kind === "rfc822Name" && emailMatches(base.value, name.value);
+    case "uniformResourceIdentifier":
+      return name.kind === "uniformResourceIdentifier" && uriMatches(base.value, name.value);
+    case "iPAddress":
+      return name.kind === "iPAddress" && ipMatches(base.bytes, name.bytes);
+    case "directoryName":
+      return name.kind === "directoryName" && directoryMatches(base.name, name.name);
+    default:
+      return false;
+  }
+}
+function accumulateNameConstraints(state, permitted, excluded) {
+  if (permitted !== void 0) {
+    const byForm = /* @__PURE__ */ new Map();
+    for (const subtree of permitted) {
+      const form = formOf(subtree.base);
+      if (form === null) continue;
+      byForm.set(form, [...byForm.get(form) ?? [], subtree]);
+    }
+    for (const [form, subtrees] of byForm) {
+      const existing = state.permitted[form];
+      if (existing === null) {
+        state.permitted[form] = subtrees;
+        continue;
+      }
+      state.permitted[form] = subtrees.filter((subtree) => existing.some((outer) => subtreeCovers(outer, subtree.base)));
+    }
+  }
+  for (const subtree of excluded ?? []) {
+    const form = formOf(subtree.base);
+    if (form === null) continue;
+    state.excluded[form] = [...state.excluded[form], subtree];
+  }
+}
+function checkName(state, name) {
+  const form = formOf(name);
+  if (form === null) return null;
+  const text = nameText(name);
+  for (const subtree of state.excluded[form]) {
+    if (subtreeCovers(subtree, name)) return { form, text, why: "excluded" };
+  }
+  const permitted = state.permitted[form];
+  if (permitted === null) return null;
+  if (permitted.some((subtree) => subtreeCovers(subtree, name))) return null;
+  return { form, text, why: "not-permitted" };
+}
+function nameText(name) {
+  switch (name.kind) {
+    case "dNSName":
+    case "rfc822Name":
+    case "uniformResourceIdentifier":
+      return name.value;
+    case "iPAddress":
+      return name.address;
+    case "directoryName":
+      return `directoryName with ${String(name.name.rdns.length)} RDN(s)`;
+    default:
+      return name.kind;
+  }
 }
 
 // src/core/pki-diagnostics.ts
@@ -2197,7 +2359,9 @@ var PROCESSED_CRITICAL_EXTENSIONS = /* @__PURE__ */ new Set([
   "2.5.29.15",
   // keyUsage — §6.1.4 (n)
   "2.5.29.17",
-  // subjectAltName: read, and constrained only once nameConstraints lands
+  // subjectAltName — §6.1.3 (b), (c), against the name constraints
+  "2.5.29.30",
+  // nameConstraints — §6.1.4 (g)
   "2.5.29.37"
   // extKeyUsage: not a §6 input; carried so a leaf that marks it critical still validates
 ]);
@@ -2240,6 +2404,22 @@ function checkIssuingCapability(issuer, state, path) {
   state.maxPathLength -= 1;
   const constraint = basicConstraints?.pathLenConstraint;
   if (constraint !== void 0 && constraint < state.maxPathLength) state.maxPathLength = constraint;
+  return out;
+}
+function checkNamesAgainstConstraints(certificate, names, path) {
+  const out = [];
+  if (certificate.subject.rdns.length > 0) {
+    const asDirectory = { kind: "directoryName", name: certificate.subject, der: certificate.subject.der };
+    const verdict = checkName(names, asDirectory);
+    if (verdict !== null) {
+      out.push(verdict.why === "excluded" ? nameExcludedReason(`${path}.subject`, "subject", formatDistinguishedName(certificate.subject)) : nameNotPermittedReason(`${path}.subject`, "subject", formatDistinguishedName(certificate.subject)));
+    }
+  }
+  for (const entry of getExtension(certificate, "subjectAltName")?.names ?? []) {
+    const verdict = checkName(names, entry);
+    if (verdict === null) continue;
+    out.push(verdict.why === "excluded" ? nameExcludedReason(`${path}.subjectAltName`, verdict.form, verdict.text) : nameNotPermittedReason(`${path}.subjectAltName`, verdict.form, verdict.text));
+  }
   return out;
 }
 function validateCertificatePath(input) {
@@ -2295,8 +2475,13 @@ function validateCertificatePath(input) {
     anchored = true;
   }
   if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
+  const names = initialNameConstraints();
   for (let index = walked.length - 1; index >= 1; index -= 1) {
-    state.reasons.push(...checkIssuingCapability(walked[index], state, `path[${String(index)}]`));
+    const issuer = walked[index];
+    state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
+    const constraints = getExtension(issuer, "nameConstraints");
+    if (constraints !== void 0) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
+    state.reasons.push(...checkNamesAgainstConstraints(walked[index - 1], names, `path[${String(index - 1)}]`));
   }
   return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
 }
@@ -3867,7 +4052,7 @@ function core(input, iv, outputLength) {
   const wh = new Uint32Array(80);
   const wl = new Uint32Array(80);
   const t = new Uint32Array(2);
-  const fold = (i, high, low) => {
+  const fold2 = (i, high, low) => {
     add(t, state[i], state[i + 1], high, low);
     state[i] = t[0];
     state[i + 1] = t[1];
@@ -3937,14 +4122,14 @@ function core(input, iv, outputLength) {
       aH = t[0];
       aL = t[1];
     }
-    fold(0, aH, aL);
-    fold(2, bH, bL);
-    fold(4, cH, cL);
-    fold(6, dH, dL);
-    fold(8, eH, eL);
-    fold(10, fH, fL);
-    fold(12, gH, gL);
-    fold(14, hH, hL);
+    fold2(0, aH, aL);
+    fold2(2, bH, bL);
+    fold2(4, cH, cL);
+    fold2(6, dH, dL);
+    fold2(8, eH, eL);
+    fold2(10, fH, fL);
+    fold2(12, gH, gL);
+    fold2(14, hH, hL);
   }
   const out = new Uint8Array(64);
   const outView = new DataView(out.buffer);

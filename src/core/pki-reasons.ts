@@ -64,6 +64,26 @@ export function unrecognisedCriticalExtensionReason(path: string, oid: string): 
         path);
 }
 
+/**
+ * A name falls outside what a CA above this certificate permitted.
+ *
+ * The message names the form and the value, because "a name is not
+ * permitted" without saying which name is a report nobody can act on — and
+ * the whole point of a name constraint is that one specific name is wrong.
+ */
+export function nameNotPermittedReason(path: string, form: string, text: string): PkiReason {
+    return _reason('PKI_REASON_NAME_NOT_PERMITTED', 'RFC 5280 §6.1.3 (b)',
+        `the ${form} "${text}" falls outside the permitted subtrees a CA above this certificate set; a sub-CA cannot issue for names its issuer withheld`,
+        path);
+}
+
+/** A name falls inside a subtree a CA above this certificate excluded. */
+export function nameExcludedReason(path: string, form: string, text: string): PkiReason {
+    return _reason('PKI_REASON_NAME_EXCLUDED', 'RFC 5280 §6.1.3 (c)',
+        `the ${form} "${text}" falls inside an excluded subtree; an exclusion anywhere on the path wins over every permission`,
+        path);
+}
+
 /** No supplied candidate has a subject equal to this certificate's issuer. */
 export function issuerNotFoundReason(path: string, issuer: string): PkiReason {
     return _reason('PKI_REASON_ISSUER_NOT_FOUND', 'RFC 5280 §6.1',

@@ -11,7 +11,7 @@ import {
     type PathState,
 } from '../../src/path/path-validate.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
-import { encodeBasicConstraints, encodeKeyUsage } from '../../src/build/build-structures.js';
+import { encodeBasicConstraints, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import type { SignatureResult, SignatureVerdict } from '../../src/types/path-types.js';
@@ -62,6 +62,25 @@ async function syntheticLeaf(overrides: { notBefore?: number; notAfter?: number 
         extensions: [
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) },
+        ],
+    }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
+    return parseCertificate(der, quiet);
+}
+
+/** A leaf that chains to R12 and asserts one DNS name in its SAN. */
+async function syntheticLeafWithDns(host: string): Promise<Certificate> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+    const der = await createCertificate({
+        serialNumber: 11n,
+        issuerDer: R12.subject.der,
+        subject: [[{ type: '2.5.4.3', value: host }]],
+        notBefore: AT - 86_400_000,
+        notAfter: AT + 86_400_000,
+        subjectPublicKey: spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
+            { oid: '2.5.29.17', value: encodeSubjectAltName([{ kind: 'dNSName', value: host }]) },
         ],
     }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
     return parseCertificate(der, quiet);
@@ -129,10 +148,12 @@ describe('checkCriticalExtensions — §6.1.3 (f)', () => {
         expect(checkCriticalExtensions(certificate, 'path[0]')).toEqual([]);
     });
 
-    it('should refuse nameConstraints and policyConstraints until they are implemented', () => {
-        // These are the extensions whose silent omission would be a CVE: a
-        // chain the issuing CA constrained, answered "valid".
-        for (const oid of ['2.5.29.30', '2.5.29.36', '2.5.29.33', '2.5.29.54']) {
+    it('should process nameConstraints, and refuse the policy extensions until they are implemented', () => {
+        // The extensions whose silent omission would be a CVE: a chain the
+        // issuing CA constrained, answered "valid". nameConstraints is
+        // processed now; the three policy extensions are still refused.
+        expect(PROCESSED_CRITICAL_EXTENSIONS.has('2.5.29.30')).toBe(true);
+        for (const oid of ['2.5.29.36', '2.5.29.33', '2.5.29.54']) {
             expect(PROCESSED_CRITICAL_EXTENSIONS.has(oid), oid).toBe(false);
         }
     });
@@ -316,6 +337,135 @@ describe('validateCertificatePath', () => {
     it('should still throw for API misuse, which is not a validation issue', () => {
         expect(() => validateCertificatePath({ certificates: [LEAF], trustAnchors: [], at: AT, limits: { maxChainLenght: 3 } as never }))
             .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_INVALID' }));
+    });
+
+    it('should refuse a leaf whose name falls outside its CA’s name constraints', async () => {
+        // The classic attack this check exists for: a CA constrained to
+        // `.example.com` issuing for a host it was never allowed to name.
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'dNSName', value: 'example.com', der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        const outside = await syntheticLeafWithDns('evil.test');
+        const report = validateCertificatePath({
+            certificates: [outside, constrained, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(outside, constrained),
+        });
+        expect(codes(report)).toContain('PKI_REASON_NAME_NOT_PERMITTED');
+        expect(report.valid).toBe(false);
+    });
+
+    it('should accept a leaf whose name is inside its CA’s name constraints', async () => {
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'dNSName', value: 'example.com', der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        const inside = await syntheticLeafWithDns('host.example.com');
+        const report = validateCertificatePath({
+            certificates: [inside, constrained, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(inside, constrained),
+        });
+        expect(codes(report)).not.toContain('PKI_REASON_NAME_NOT_PERMITTED');
+    });
+
+    it('should not constrain the constraining CA by its own subtrees', async () => {
+        // §6.1.4 (g) binds what a CA issues, never the CA itself. R12's own
+        // subject (CN=R12) is nothing like `example.com`, and a validator that
+        // applied a CA's constraints to itself would refuse every constrained
+        // hierarchy in existence.
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'directoryName', name: { rdns: [], der: new Uint8Array(0) }, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        const inside = await syntheticLeafWithDns('host.example.com');
+        const report = validateCertificatePath({
+            certificates: [inside, constrained, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(inside, constrained),
+        });
+        // An empty directoryName subtree is a prefix of every name, so the
+        // leaf passes; what matters is that R12 was never tested against it.
+        expect(codes(report)).not.toContain('PKI_REASON_NAME_NOT_PERMITTED');
+    });
+
+    it('should report an excluded subject and an excluded SAN as excluded, not merely unpermitted', async () => {
+        // The two are different answers: "not permitted" can be fixed by a CA
+        // above granting the name, "excluded" cannot be fixed at all.
+        const excluding = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: undefined,
+                excludedSubtrees: [
+                    { base: { kind: 'dNSName', value: 'banned.test', der: new Uint8Array(0) }, minimum: 0, maximum: undefined },
+                    { base: { kind: 'directoryName', name: { rdns: [], der: new Uint8Array(0) }, der: new Uint8Array(0) }, minimum: 0, maximum: undefined },
+                ] },
+        ] } as unknown as Certificate;
+        const banned = await syntheticLeafWithDns('host.banned.test');
+        const report = validateCertificatePath({
+            certificates: [banned, excluding, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(banned, excluding),
+        });
+        const excluded = report.reasons.filter((r) => r.code === 'PKI_REASON_NAME_EXCLUDED');
+        // One for the subject (every name is below an empty directoryName
+        // subtree) and one for the SAN.
+        expect(excluded.map((r) => r.path).sort()).toEqual(['path[0].subject', 'path[0].subjectAltName']);
+        expect(codes(report)).not.toContain('PKI_REASON_NAME_NOT_PERMITTED');
+    });
+
+    it('should refuse a subject outside a directoryName permitted subtree', async () => {
+        // The subject is constrained too, not only the SAN: testing only the
+        // SAN lets a constrained CA issue for a CN nobody checked.
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'directoryName', name: { rdns: [[{ type: '2.5.4.6', value: undefined, valueDer: Uint8Array.of(0x13, 0x02, 0x46, 0x52) }]], der: new Uint8Array(0) }, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        // The leaf's subject is CN=host.example.com with no country RDN, so it
+        // is not below C=FR.
+        const outside = await syntheticLeafWithDns('host.example.com');
+        const report = validateCertificatePath({
+            certificates: [outside, constrained, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(outside, constrained),
+        });
+        const subject = report.reasons.find((r) => r.path === 'path[0].subject');
+        expect(subject?.code).toBe('PKI_REASON_NAME_NOT_PERMITTED');
+        expect(subject?.message).toContain('host.example.com');
+    });
+
+    it('should not constrain an empty subject as a directoryName', async () => {
+        // RFC 5280 §4.1.2.6 puts the identity in a critical SAN when the
+        // subject is empty; testing that empty name against a directoryName
+        // subtree would refuse a certificate for having no name.
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'directoryName', name: { rdns: [[{ type: '2.5.4.6', value: undefined, valueDer: Uint8Array.of(0x13, 0x02, 0x46, 0x52) }]], der: new Uint8Array(0) }, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        const anonymous = { ...LEAF, subject: { rdns: [], der: new Uint8Array(0) } } as unknown as Certificate;
+        const report = validateCertificatePath({
+            certificates: [anonymous, constrained, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(anonymous, constrained),
+        });
+        expect(report.reasons.filter((r) => r.path === 'path[0].subject')).toEqual([]);
     });
 
     it('should be true only when there is no reason at all', () => {

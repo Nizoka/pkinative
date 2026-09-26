@@ -36,6 +36,8 @@ import {
     expiredReason,
     issuerNotFoundReason,
     limitExceededReason,
+    nameExcludedReason,
+    nameNotPermittedReason,
     noTrustAnchorReason,
     notACaReason,
     notYetValidReason,
@@ -45,10 +47,16 @@ import {
     signatureNotCheckedReason,
     unrecognisedCriticalExtensionReason,
 } from '../core/pki-reasons.js';
+import {
+    accumulateNameConstraints,
+    checkName,
+    initialNameConstraints,
+    type NameConstraintState,
+} from './path-name-constraints.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { PathValidationInput, PathValidationReport, SignatureVerdict } from '../types/path-types.js';
-import type { Certificate, DistinguishedName } from '../types/x509-types.js';
+import type { Certificate, DistinguishedName, GeneralName } from '../types/x509-types.js';
 import { getExtension } from '../x509/x509-extensions.js';
 import { formatDistinguishedName } from '../x509/x509-name-format.js';
 
@@ -64,7 +72,8 @@ import { formatDistinguishedName } from '../x509/x509-name-format.js';
 export const PROCESSED_CRITICAL_EXTENSIONS: ReadonlySet<string> = new Set([
     '2.5.29.19', // basicConstraints — §6.1.4 (k), (l)
     '2.5.29.15', // keyUsage — §6.1.4 (n)
-    '2.5.29.17', // subjectAltName: read, and constrained only once nameConstraints lands
+    '2.5.29.17', // subjectAltName — §6.1.3 (b), (c), against the name constraints
+    '2.5.29.30', // nameConstraints — §6.1.4 (g)
     '2.5.29.37', // extKeyUsage: not a §6 input; carried so a leaf that marks it critical still validates
 ]);
 
@@ -198,6 +207,44 @@ export function checkIssuingCapability(issuer: Certificate, state: PathState, pa
 }
 
 /**
+ * §6.1.3 (b), (c) — every name a certificate asserts, against the
+ * constraints accumulated above it.
+ *
+ * Both the `subject` distinguished name and every `subjectAltName` entry are
+ * tested. Testing only the SAN is the mistake that lets a constrained CA
+ * issue for a CN nobody checked, and testing only the subject misses every
+ * modern certificate, where the identity lives in the SAN.
+ *
+ * @param certificate The certificate under test.
+ * @param names       The accumulated constraints.
+ * @param path        The report path prefix.
+ * @returns One reason per name outside the constraints.
+ */
+export function checkNamesAgainstConstraints(certificate: Certificate, names: NameConstraintState, path: string): PkiReason[] {
+    const out: PkiReason[] = [];
+    // An empty subject asserts nothing, and RFC 5280 §4.1.2.6 requires the
+    // identity to live in a critical SAN in that case. Constraining an empty
+    // name against a directoryName subtree would refuse it for having no name.
+    if (certificate.subject.rdns.length > 0) {
+        const asDirectory: GeneralName = { kind: 'directoryName', name: certificate.subject, der: certificate.subject.der };
+        const verdict = checkName(names, asDirectory);
+        if (verdict !== null) {
+            out.push(verdict.why === 'excluded'
+                ? nameExcludedReason(`${path}.subject`, 'subject', formatDistinguishedName(certificate.subject))
+                : nameNotPermittedReason(`${path}.subject`, 'subject', formatDistinguishedName(certificate.subject)));
+        }
+    }
+    for (const entry of getExtension(certificate, 'subjectAltName')?.names ?? []) {
+        const verdict = checkName(names, entry);
+        if (verdict === null) continue;
+        out.push(verdict.why === 'excluded'
+            ? nameExcludedReason(`${path}.subjectAltName`, verdict.form, verdict.text)
+            : nameNotPermittedReason(`${path}.subjectAltName`, verdict.form, verdict.text));
+    }
+    return out;
+}
+
+/**
  * Validate a certification path (RFC 5280 §6).
  *
  * ```ts
@@ -303,8 +350,17 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
     // other way makes a CA's own constraint apply to its issuer — which
     // refuses every chain under a `pathLenConstraint: 0` intermediate,
     // including the real Let's Encrypt one.
+    // §6.1.4 (g) accumulates name constraints walking **down** from the
+    // anchor, and §6.1.3 (b) and (c) test each certificate against what has
+    // accumulated above it. Both happen in this one descending pass, in that
+    // order: a CA's own constraints bind what it issues, never itself.
+    const names = initialNameConstraints();
     for (let index = walked.length - 1; index >= 1; index -= 1) {
-        state.reasons.push(...checkIssuingCapability(walked[index] as Certificate, state, `path[${String(index)}]`));
+        const issuer = walked[index] as Certificate;
+        state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
+        const constraints = getExtension(issuer, 'nameConstraints');
+        if (constraints !== undefined) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
+        state.reasons.push(...checkNamesAgainstConstraints(walked[index - 1] as Certificate, names, `path[${String(index - 1)}]`));
     }
 
     return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
