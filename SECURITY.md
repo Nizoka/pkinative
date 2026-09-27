@@ -75,6 +75,7 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxChainLength` | 10 | CWE-400 | The certificates one certification path may hold. Path building is exponential in the candidate set, so this is a bound on the walk and not a statement about real hierarchies. |
 | `maxPolicyNodes` | 4 096 | CWE-770 | The live nodes of the RFC 5280 valid_policy_tree. The tree grows multiplicatively with each certificate, and it is the part of section 6 that actually explodes — x509-limbo has cases written for it. |
 | `maxRevokedCertificates` | 1 000 000 | CWE-400 | The entries walked in one CRL `revokedCertificates` list. The list is walked with a lazy TLV cursor rather than decoded into nodes: at three nodes per entry, `maxNodes` would refuse any CRL past roughly 65 000 entries, and real CRLs are larger than that. |
+| `maxOcspResponses` | 256 | CWE-400 | The `SingleResponse` entries of one OCSP response. A client asks about one certificate, so a responder returning hundreds is not answering the question. |
 
 ### Verification of the Parser
 

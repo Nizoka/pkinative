@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Use cases — pkinative</title>
-  <meta name="description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
+  <meta name="description" content="Nine jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/use-cases.html">
   <meta property="og:title" content="Use cases — pkinative">
-  <meta property="og:description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
+  <meta property="og:description" content="Nine jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Use cases — pkinative">
-  <meta name="twitter:description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
+  <meta name="twitter:description" content="Nine jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/use-cases.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases.html">
@@ -55,7 +55,7 @@
     <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
       <h1 id="use-cases">Use cases</h1>
       <blockquote>
-      <p><strong>Eight jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.</p>
+      <p><strong>Nine jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.</p>
       </blockquote>
       <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.</p>
       <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
@@ -331,8 +331,28 @@
       <p><strong><code>UNKNOWN</code> is not <code>[]</code>, and that distinction is the point.</strong> A missing or unsigned list is an absence of evidence. Reporting it as &quot;not revoked&quot; would make the soft-fail decision on your behalf, invisibly. If you want soft-fail, you write it — <code>staleTolerance</code> is the same idea for a lapsed list: a number you chose, not a default that chose for you.</p>
       <p>A list with <strong>no <code>nextUpdate</code> at all is stale</strong>, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.</p>
       <p>And a revocation found on a stale list from the wrong CA is <strong>still reported</strong>. Hiding it behind an earlier failure would be the one direction of error that matters.</p>
+      <h2 id="ask-a-responder-instead-of-downloading-a-list">Ask a responder instead of downloading a list <a class="heading-anchor" href="#ask-a-responder-instead-of-downloading-a-list" aria-label="Link to this section">#</a></h2>
+      <p>The job: OCSP. One question, one answer, no megabyte of CRL.</p>
+      <pre><code class="language-ts">import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from &#39;pkinative&#39;;
+
+      const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
+      const bytes = new Uint8Array(await (await fetch(url, {
+          method: &#39;POST&#39;, headers: { &#39;content-type&#39;: &#39;application/ocsp-request&#39; }, body,
+      })).arrayBuffer());
+
+      const response = parseOcspResponse(bytes);
+      if (response.status !== &#39;successful&#39;) return `the responder declined: ${response.status}`;
+      const basic = response.basicResponse!;
+      if (!await verifyOcspSignature(basic, responderCertificate)) return &#39;not from that responder&#39;;
+
+      for (const single of basic.responses) console.log(single.status.kind);   // &#39;good&#39; | &#39;revoked&#39; | &#39;unknown&#39;
+      </code></pre>
+      <p><strong>Three states, never two.</strong> RFC 6960 §2.2 gives <code>good</code>, <code>revoked</code> and <code>unknown</code>, and <code>unknown</code> is the responder saying it does not know about this certificate. Reducing that to a boolean turns <em>&quot;I have never heard of this serial&quot;</em> into a clean bill of health — the OCSP form of the same mistake <code>PKI_REASON_REVOCATION_UNKNOWN</code> names for CRLs. The six non-<code>successful</code> statuses are the responder declining to answer at all, and each is a reason to look elsewhere rather than a statement about any certificate. A <code>parseOcspResponse</code> result with a non-<code>successful</code> status carries <strong>no</strong> <code>basicResponse</code>, because the protocol carries no body there.</p>
+      <p><strong><code>issuerKeyHash</code> is over the public key bits, not the SubjectPublicKeyInfo.</strong> That is the single most common OCSP client bug: hashing the SPKI produces a request a responder answers <code>unknown</code> to, which a careless client then reports as not revoked. <code>encodeCertId</code> is exported so you can recompute the same three values when matching a response back to your question.</p>
+      <p><code>parseOcspResponse</code> returns an <a href="../assets/api.json"><code>OcspResponse</code></a> whose <code>basicResponse</code> is an <a href="../assets/api.json"><code>OcspBasicResponse</code></a>. <code>CreateOcspRequestOptions</code> carries <code>hashAlgorithm</code> — an <a href="../assets/api.json"><code>OcspHashAlgorithm</code></a>, SHA-1 by default, because RFC 6960 §4.3 makes it mandatory for responders and a SHA-256 <code>CertID</code> is answered <code>unknown</code> by many of them — and <code>nonce</code>, which binds the response to your request. <strong>Supply your own random bytes</strong>: pkinative generates none, and without a nonce a responder may serve a cached answer that an attacker can replay. <code>maxOcspResponses</code> bounds how many <code>SingleResponse</code> entries are read.</p>
+      <p><strong>Which certificate may answer for a CA is not a question this library answers.</strong> <code>basicResponse.certificates</code> are certificates the responder <em>attached</em>; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
-      <p>Each of the eight is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <p>Each of the nine is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>
       <thead>
       <tr>

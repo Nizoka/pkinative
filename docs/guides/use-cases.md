@@ -1,6 +1,6 @@
 # Use cases
 
-> **Eight jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.
+> **Nine jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -323,9 +323,37 @@ A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5
 
 And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
 
+## Ask a responder instead of downloading a list
+
+The job: OCSP. One question, one answer, no megabyte of CRL.
+
+```ts
+import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from 'pkinative';
+
+const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
+const bytes = new Uint8Array(await (await fetch(url, {
+    method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body,
+})).arrayBuffer());
+
+const response = parseOcspResponse(bytes);
+if (response.status !== 'successful') return `the responder declined: ${response.status}`;
+const basic = response.basicResponse!;
+if (!await verifyOcspSignature(basic, responderCertificate)) return 'not from that responder';
+
+for (const single of basic.responses) console.log(single.status.kind);   // 'good' | 'revoked' | 'unknown'
+```
+
+**Three states, never two.** RFC 6960 §2.2 gives `good`, `revoked` and `unknown`, and `unknown` is the responder saying it does not know about this certificate. Reducing that to a boolean turns *"I have never heard of this serial"* into a clean bill of health — the OCSP form of the same mistake `PKI_REASON_REVOCATION_UNKNOWN` names for CRLs. The six non-`successful` statuses are the responder declining to answer at all, and each is a reason to look elsewhere rather than a statement about any certificate. A `parseOcspResponse` result with a non-`successful` status carries **no** `basicResponse`, because the protocol carries no body there.
+
+**`issuerKeyHash` is over the public key bits, not the SubjectPublicKeyInfo.** That is the single most common OCSP client bug: hashing the SPKI produces a request a responder answers `unknown` to, which a careless client then reports as not revoked. `encodeCertId` is exported so you can recompute the same three values when matching a response back to your question.
+
+`parseOcspResponse` returns an [`OcspResponse`](../assets/api.json) whose `basicResponse` is an [`OcspBasicResponse`](../assets/api.json). `CreateOcspRequestOptions` carries `hashAlgorithm` — an [`OcspHashAlgorithm`](../assets/api.json), SHA-1 by default, because RFC 6960 §4.3 makes it mandatory for responders and a SHA-256 `CertID` is answered `unknown` by many of them — and `nonce`, which binds the response to your request. **Supply your own random bytes**: pkinative generates none, and without a nonce a responder may serve a cached answer that an attacker can replay. `maxOcspResponses` bounds how many `SingleResponse` entries are read.
+
+**Which certificate may answer for a CA is not a question this library answers.** `basicResponse.certificates` are certificates the responder *attached*; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.
+
 ## What none of these do yet
 
-Each of the eight is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the nine is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|

@@ -53,7 +53,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxPolicies: 1024,
   maxChainLength: 10,
   maxPolicyNodes: 4096,
-  maxRevokedCertificates: 1e6
+  maxRevokedCertificates: 1e6,
+  maxOcspResponses: 256
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -2682,6 +2683,942 @@ function checkRevocation(input) {
   return out;
 }
 
+// src/asn1/asn1-encode.ts
+function encodeLength(length) {
+  if (length < 128) return [length];
+  const octets = [];
+  let rest = length;
+  while (rest > 0) {
+    octets.unshift(rest % 256);
+    rest = Math.floor(rest / 256);
+  }
+  return [128 | octets.length, ...octets];
+}
+function encodeTlv(tagClass, tagNumber, constructed, content) {
+  const bytes = assertBytes(content, "encodeTlv content");
+  const classIndex = TAG_CLASSES.indexOf(tagClass);
+  if (classIndex < 0) {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: tagClass must be one of ${TAG_CLASSES.join(", ")}, got ${String(tagClass)}`);
+  }
+  if (!Number.isInteger(tagNumber) || tagNumber < 0 || tagNumber > 2147483647 || tagClass === "universal" && tagNumber === 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: tag number ${String(tagNumber)} is outside 0 to 2^31 \u2212 1, or is the reserved universal tag 0 \u2014 pass a valid tag number`
+    );
+  }
+  const leading = classIndex << 6 | (constructed ? 32 : 0);
+  const identifier = [];
+  if (tagNumber < 31) {
+    identifier.push(leading | tagNumber);
+  } else {
+    const digits = [];
+    let rest = tagNumber;
+    do {
+      digits.unshift(rest % 128);
+      rest = Math.floor(rest / 128);
+    } while (rest > 0);
+    identifier.push(leading | 31);
+    let remaining = digits.length;
+    for (const digit of digits) {
+      remaining--;
+      identifier.push(digit | (remaining > 0 ? 128 : 0));
+    }
+  }
+  const header = [...identifier, ...encodeLength(bytes.length)];
+  const out = new Uint8Array(header.length + bytes.length);
+  out.set(header, 0);
+  out.set(bytes, header.length);
+  return out;
+}
+function childrenContent(children, what) {
+  if (!Array.isArray(children)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} expects an array of encodings, got ${typeof children}`);
+  }
+  return concatBytes(children.map((c) => assertBytes(c, `${what} child`)));
+}
+function encodeSequence(children) {
+  return encodeTlv("universal", TAG_SEQUENCE, true, childrenContent(children, "encodeSequence"));
+}
+function encodeSet(children) {
+  return encodeTlv("universal", TAG_SET, true, childrenContent(children, "encodeSet"));
+}
+function encodeSetOf(children) {
+  childrenContent(children, "encodeSetOf");
+  return encodeTlv("universal", TAG_SET, true, concatBytes([...children].sort(compareOctets)));
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function encodeInteger(value) {
+  let v;
+  if (typeof value === "bigint") {
+    v = value;
+  } else if (typeof value === "number" && Number.isSafeInteger(value)) {
+    v = BigInt(value);
+  } else {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
+  }
+  let hex;
+  if (v >= 0n) {
+    hex = v.toString(16);
+    if (hex.length % 2 === 1) hex = `0${hex}`;
+    if (parseInt(hex.slice(0, 2), 16) >= 128) hex = `00${hex}`;
+  } else {
+    let octets = 1;
+    while (v < -(1n << BigInt(octets * 8 - 1))) octets++;
+    hex = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
+  }
+  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex));
+}
+function encodeBoolean(value) {
+  return encodeTlv("universal", TAG_BOOLEAN, false, Uint8Array.of(value ? 255 : 0));
+}
+function encodeNull() {
+  return encodeTlv("universal", TAG_NULL, false, new Uint8Array(0));
+}
+function encodeBitString(bytes, unusedBits = 0) {
+  const data = assertBytes(bytes, "encodeBitString bytes");
+  if (!Number.isInteger(unusedBits) || unusedBits < 0 || unusedBits > 7 || data.length === 0 && unusedBits !== 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`
+    );
+  }
+  if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & (1 << unusedBits) - 1) !== 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: the ${unusedBits} unused bits of the last octet must be zero in DER (X.690 \xA711.2.1) \u2014 clear them before encoding`
+    );
+  }
+  const content = new Uint8Array(data.length + 1);
+  content[0] = unusedBits;
+  content.set(data, 1);
+  return encodeTlv("universal", TAG_BIT_STRING, false, content);
+}
+function encodeOctetString(bytes) {
+  return encodeTlv("universal", TAG_OCTET_STRING, false, assertBytes(bytes, "encodeOctetString bytes"));
+}
+function encodeEnumerated(value) {
+  return encodeTlv("universal", TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
+}
+function encodeExplicit(tagNumber, inner, options) {
+  return encodeTlv(options?.tagClass ?? "context", tagNumber, true, assertBytes(inner, "encodeExplicit inner"));
+}
+function encodeImplicit(tagNumber, encoded, options) {
+  const bytes = assertBytes(encoded, "encodeImplicit encoded");
+  if (bytes.length < 2) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets \u2014 pass the output of another encoder");
+  }
+  const view = byteView(bytes);
+  const identifier = view.getUint8(0);
+  if (view.getUint8(1) === 128) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit cannot re-tag an indefinite-length value \u2014 DER has no indefinite form, so encode the inner value definitely first");
+  }
+  const retagged = encodeTlv(options?.tagClass ?? "context", tagNumber, (identifier & 32) !== 0, new Uint8Array(0));
+  const header = retagged.length - 1;
+  const out = new Uint8Array(header + bytes.length - 1);
+  out.set(retagged.subarray(0, header));
+  out.set(bytes.subarray(1), header);
+  return out;
+}
+function encodeNamedBits(bits) {
+  let highest = -1;
+  const positions = [];
+  for (const bit of bits) {
+    if (!Number.isInteger(bit) || bit < 0 || bit > 65535) {
+      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
+    }
+    positions.push(bit);
+    if (bit > highest) highest = bit;
+  }
+  if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
+  const octets = new Uint8Array((highest >> 3) + 1);
+  const view = byteView(octets);
+  for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | 128 >> (bit & 7));
+  return encodeBitString(octets, 7 - (highest & 7));
+}
+function encodeObjectIdentifier(oid) {
+  return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
+}
+function outOfRange(type, index) {
+  return new PkiEncodingError(
+    "PKI_ASN1_VALUE_OUT_OF_RANGE",
+    `pkinative: the character at index ${index} cannot be encoded as ${tagLabel("universal", STRING_TAGS[type])} \u2014 choose a string type whose character set contains it`
+  );
+}
+function encodeString(type, value) {
+  if (typeof value !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeString expects a string value, got ${typeof value}`);
+  }
+  let content;
+  switch (type) {
+    case "utf8": {
+      const encoded = encodeUtf8(value);
+      if (encoded === null) throw outOfRange(type, [...value].findIndex((c) => c.length === 1 && c.charCodeAt(0) >= 55296 && c.charCodeAt(0) <= 57343));
+      content = encoded;
+      break;
+    }
+    case "printable":
+    case "ia5":
+    case "visible":
+    case "numeric": {
+      const allowed = type === "printable" ? isPrintableOctet : type === "ia5" ? isIa5Octet : type === "visible" ? isVisibleOctet : isNumericOctet;
+      content = new Uint8Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code > 127 || !allowed(code)) throw outOfRange(type, i);
+        content[i] = code;
+      }
+      break;
+    }
+    case "teletex":
+      content = new Uint8Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code > 255) throw outOfRange(type, i);
+        content[i] = code;
+      }
+      break;
+    case "bmp":
+      content = new Uint8Array(value.length * 2);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code >= 55296 && code <= 57343) throw outOfRange(type, i);
+        content[i * 2] = code >> 8;
+        content[i * 2 + 1] = code & 255;
+      }
+      break;
+    case "universal": {
+      const points = [];
+      let index = 0;
+      for (const ch of value) {
+        const lead = ch.charCodeAt(0);
+        const code = ch.length === 2 ? 65536 + (lead - 55296 << 10) + (ch.charCodeAt(1) - 56320) : lead;
+        if (code >= 55296 && code <= 57343) throw outOfRange(type, index);
+        points.push(code >>> 24, code >> 16 & 255, code >> 8 & 255, code & 255);
+        index += ch.length;
+      }
+      content = Uint8Array.from(points);
+      break;
+    }
+    default:
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(", ")}, got ${String(type)}`);
+  }
+  return encodeTlv("universal", STRING_TAGS[type], false, content);
+}
+function pad(value, width) {
+  return String(value).padStart(width, "0");
+}
+function encodeTime(epochMilliseconds, type = "rfc5280") {
+  if (type !== "UTCTime" && type !== "GeneralizedTime" && type !== "rfc5280") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${String(type)}`);
+  }
+  const date = new Date(typeof epochMilliseconds === "number" ? epochMilliseconds : NaN);
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(date.getTime()) || year < 0 || year > 9999) {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: ${String(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
+  }
+  const millisecond = date.getUTCMilliseconds();
+  const resolved = type === "rfc5280" ? year >= 1950 && year <= 2049 ? "UTCTime" : "GeneralizedTime" : type;
+  if (millisecond !== 0 && type !== "GeneralizedTime") {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: ${date.toISOString()} has a fraction of a second, which ${type === "rfc5280" ? "RFC 5280 forbids in certificates" : "UTCTime cannot hold"} \u2014 round to whole seconds`
+    );
+  }
+  const clock = `${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}`;
+  let text;
+  if (resolved === "UTCTime") {
+    if (year < 1950 || year > 2049) {
+      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: UTCTime covers 1950 to 2049 only; ${year} needs GeneralizedTime`);
+    }
+    text = `${pad(year % 100, 2)}${clock}Z`;
+  } else {
+    const fraction = millisecond === 0 ? "" : `.${pad(millisecond, 3).replace(/0+$/, "")}`;
+    text = `${pad(year, 4)}${clock}${fraction}Z`;
+  }
+  const content = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) content[i] = text.charCodeAt(i);
+  return encodeTlv("universal", resolved === "UTCTime" ? TAG_UTC_TIME : TAG_GENERALIZED_TIME, false, content);
+}
+function encodeAsn1Node(node) {
+  const root = assertNode(node, "encodeAsn1Node");
+  const stack = [{ node: root, next: 0, parts: [] }];
+  let result = new Uint8Array(0);
+  while (stack.length > 0) {
+    const top = stack[stack.length - 1];
+    const current = top.node;
+    if (current.indefinite) {
+      throw new PkiError(
+        "PKI_API_MISUSE",
+        `pkinative: the value at offset ${current.offset} was decoded from the BER indefinite length form, which has no DER re-encoding \u2014 decode the original as DER, or keep its bytes`
+      );
+    }
+    let encoded;
+    if (!current.constructed) {
+      encoded = encodeTlv(current.tagClass, current.tagNumber, false, current.content);
+    } else {
+      if (current.tagClass === "universal" && isStringTag(current.tagNumber)) {
+        throw new PkiError(
+          "PKI_API_MISUSE",
+          `pkinative: the ${tagLabel(current.tagClass, current.tagNumber)} at offset ${current.offset} is a constructed string, which has no DER form \u2014 read it with the string reader and encode the result`
+        );
+      }
+      if (top.next < current.children.length) {
+        stack.push({ node: current.children[top.next], next: 0, parts: [] });
+        top.next++;
+        continue;
+      }
+      encoded = encodeTlv(current.tagClass, current.tagNumber, true, concatBytes(top.parts));
+    }
+    stack.pop();
+    const parent = stack[stack.length - 1];
+    if (parent === void 0) result = encoded;
+    else parent.parts.push(encoded);
+  }
+  return result;
+}
+
+// src/build/build-structures.ts
+var PARAMETERS_NULL = /* @__PURE__ */ new Set([
+  "1.2.840.113549.1.1.1",
+  "1.2.840.113549.1.1.5",
+  "1.2.840.113549.1.1.11",
+  "1.2.840.113549.1.1.12",
+  "1.2.840.113549.1.1.13"
+]);
+function encodeAlgorithmIdentifier(oid, parameters) {
+  const fields = [encodeObjectIdentifier(oid)];
+  if (parameters !== void 0) fields.push(assertBytes(parameters, "encodeAlgorithmIdentifier parameters"));
+  else if (PARAMETERS_NULL.has(oid)) fields.push(encodeNull());
+  return encodeSequence(fields);
+}
+function encodeNameAttribute(attribute) {
+  const { type, value, stringType } = attribute;
+  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(stringType ?? "utf8", value) : null;
+  if (encoded === null) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
+  }
+  return encodeSequence([encodeObjectIdentifier(type), encoded]);
+}
+function encodeDistinguishedName(name, options) {
+  if (!Array.isArray(name)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
+  }
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  let attributes = 0;
+  const rdns = [];
+  for (const rdn of name) {
+    if (!Array.isArray(rdn) || rdn.length === 0) {
+      throw new PkiError("PKI_INVALID_INPUT", "pkinative: every relative distinguished name is a non-empty array of attributes");
+    }
+    attributes += rdn.length;
+    enforceLimit(limits, "maxNameAttributes", attributes, "the name being built");
+    rdns.push(encodeSetOf(rdn.map(encodeNameAttribute)));
+  }
+  return encodeSequence(rdns);
+}
+function encodeValidity(notBefore, notAfter) {
+  if (!Number.isFinite(notBefore) || !Number.isFinite(notAfter)) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: notBefore and notAfter are epoch milliseconds, and both must be finite numbers");
+  }
+  if (notAfter < notBefore) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: notAfter (${new Date(notAfter).toISOString()}) precedes notBefore (${new Date(notBefore).toISOString()}) \u2014 a certificate valid for a negative interval is valid nowhere`
+    );
+  }
+  return encodeSequence([encodeTime(notBefore), encodeTime(notAfter)]);
+}
+function encodeExtension(extension) {
+  const fields = [encodeObjectIdentifier(extension.oid)];
+  if (extension.critical === true) fields.push(encodeBoolean(true));
+  fields.push(encodeOctetString(assertBytes(extension.value, `extension ${extension.oid} value`)));
+  return encodeSequence(fields);
+}
+function encodeExtensions(extensions, options) {
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  enforceLimit(limits, "maxExtensions", extensions.length, "the extensions being built");
+  const seen = /* @__PURE__ */ new Set();
+  for (const extension of extensions) {
+    if (seen.has(extension.oid)) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: extension ${extension.oid} appears twice; RFC 5280 \xA74.2 allows one instance, and which one a verifier reads is undefined`);
+    }
+    seen.add(extension.oid);
+  }
+  return encodeSequence(extensions.map(encodeExtension));
+}
+function encodeAttribute(oid, values) {
+  return encodeSequence([encodeObjectIdentifier(oid), encodeSetOf(values)]);
+}
+function encodeSubjectPublicKeyInfo(algorithmOid, publicKey, parameters) {
+  return encodeSequence([
+    encodeAlgorithmIdentifier(algorithmOid, parameters),
+    // A public key is a whole number of octets: no unused bits, ever.
+    encodeBitString(assertBytes(publicKey, "encodeSubjectPublicKeyInfo publicKey"), 0)
+  ]);
+}
+function encodeBasicConstraints(options) {
+  const fields = [];
+  if (options.cA) fields.push(encodeBoolean(true));
+  if (options.pathLenConstraint !== void 0) {
+    if (!Number.isInteger(options.pathLenConstraint) || options.pathLenConstraint < 0) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: pathLenConstraint must be a non-negative integer, got ${String(options.pathLenConstraint)}`);
+    }
+    if (!options.cA) {
+      throw new PkiError("PKI_API_MISUSE", "pkinative: pathLenConstraint is meaningful only when cA is true (RFC 5280 \xA74.2.1.9) \u2014 an end-entity certificate constrains no path");
+    }
+    fields.push(encodeInteger(options.pathLenConstraint));
+  }
+  return encodeSequence(fields);
+}
+var KEY_USAGE_BITS = /* @__PURE__ */ new Map([
+  ["digitalSignature", 0],
+  ["nonRepudiation", 1],
+  ["keyEncipherment", 2],
+  ["dataEncipherment", 3],
+  ["keyAgreement", 4],
+  ["keyCertSign", 5],
+  ["cRLSign", 6],
+  ["encipherOnly", 7],
+  ["decipherOnly", 8]
+]);
+function encodeKeyUsage(usages) {
+  const bits = [];
+  for (const usage of usages) {
+    const bit = KEY_USAGE_BITS.get(usage);
+    if (bit === void 0) {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${usage} is not a KeyUsage of RFC 5280 \xA74.2.1.3 \u2014 one of ${[...KEY_USAGE_BITS.keys()].join(", ")}`);
+    }
+    bits.push(bit);
+  }
+  return encodeNamedBits(bits);
+}
+function encodeExtendedKeyUsage(purposes) {
+  if (purposes.length === 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: an extendedKeyUsage with no purpose permits nothing and is refused by RFC 5280 \xA74.2.1.12");
+  }
+  return encodeSequence(purposes.map(encodeObjectIdentifier));
+}
+function encodeSubjectKeyIdentifier(keyIdentifier) {
+  return encodeOctetString(assertBytes(keyIdentifier, "subjectKeyIdentifier"));
+}
+function encodeAuthorityKeyIdentifier(keyIdentifier) {
+  return encodeSequence([encodeImplicit(0, encodeOctetString(assertBytes(keyIdentifier, "authorityKeyIdentifier")))]);
+}
+function encodeSubjectAltName(names) {
+  if (names.length === 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: a subjectAltName with no name is refused by RFC 5280 \xA74.2.1.6 \u2014 omit the extension instead");
+  }
+  const tags = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
+  return encodeSequence(names.map((name) => {
+    if (name.kind === "directoryNameDer") return encodeExplicit(4, assertBytes(name.value, "directoryName"));
+    if (name.kind === "iPAddress") {
+      const address = assertBytes(name.value, "iPAddress");
+      if (address.length !== 4 && address.length !== 16) {
+        throw new PkiError("PKI_INVALID_OPTION", `pkinative: an iPAddress in a subjectAltName is 4 octets (IPv4) or 16 (IPv6), not ${String(address.length)} \u2014 the 8- and 32-octet forms carry a mask and belong to nameConstraints (RFC 5280 \xA74.2.1.6)`);
+      }
+      return encodeImplicit(7, encodeOctetString(address));
+    }
+    if (name.kind === "registeredID") return encodeImplicit(8, encodeObjectIdentifier(name.value));
+    const tag = tags[name.kind];
+    if (tag === void 0) {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes \u2014 pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
+    }
+    return encodeImplicit(tag, encodeString("ia5", name.value));
+  }));
+}
+
+// src/hash/hash-shared.ts
+var HIGH_WORD_UNIT = 536870912;
+function writeBitLength(target, end, byteLength) {
+  const view = new DataView(target.buffer, target.byteOffset, target.byteLength);
+  view.setUint32(end - 8, Math.floor(byteLength / HIGH_WORD_UNIT), false);
+  view.setUint32(end - 4, byteLength % HIGH_WORD_UNIT * 8, false);
+}
+function padMessage(input, blockSize, lengthOctets) {
+  const total = Math.ceil((input.length + 1 + lengthOctets) / blockSize) * blockSize;
+  const padded = new Uint8Array(total);
+  padded.set(input);
+  padded[input.length] = 128;
+  writeBitLength(padded, total, input.length);
+  return padded;
+}
+
+// src/hash/sha1.ts
+function rotl(x, n) {
+  return (x << n | x >>> 32 - n) >>> 0;
+}
+function sha1(input) {
+  const padded = padMessage(input, 64, 8);
+  const view = new DataView(padded.buffer);
+  const w = new Uint32Array(80);
+  let h0 = 1732584193;
+  let h1 = 4023233417;
+  let h2 = 2562383102;
+  let h3 = 271733878;
+  let h4 = 3285377520;
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
+    for (let j = 16; j < 80; j++) {
+      w[j] = rotl(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
+    }
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    for (let j = 0; j < 80; j++) {
+      let f;
+      let k;
+      if (j < 20) {
+        f = b & c | ~b & d;
+        k = 1518500249;
+      } else if (j < 40) {
+        f = b ^ c ^ d;
+        k = 1859775393;
+      } else if (j < 60) {
+        f = b & c | b & d | c & d;
+        k = 2400959708;
+      } else {
+        f = b ^ c ^ d;
+        k = 3395469782;
+      }
+      const temp = rotl(a, 5) + f + e + k + w[j] >>> 0;
+      e = d;
+      d = c;
+      c = rotl(b, 30);
+      b = a;
+      a = temp;
+    }
+    h0 = h0 + a >>> 0;
+    h1 = h1 + b >>> 0;
+    h2 = h2 + c >>> 0;
+    h3 = h3 + d >>> 0;
+    h4 = h4 + e >>> 0;
+  }
+  const out = new Uint8Array(20);
+  const outView = new DataView(out.buffer);
+  [h0, h1, h2, h3, h4].forEach((word, i) => outView.setUint32(i * 4, word, false));
+  return out;
+}
+
+// src/hash/sha256.ts
+var K = /* @__PURE__ */ new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+function rotr(x, n) {
+  return x >>> n | x << 32 - n;
+}
+function sha256(input) {
+  const padded = padMessage(input, 64, 8);
+  const view = new DataView(padded.buffer);
+  const w = new Uint32Array(64);
+  let h0 = 1779033703;
+  let h1 = 3144134277;
+  let h2 = 1013904242;
+  let h3 = 2773480762;
+  let h4 = 1359893119;
+  let h5 = 2600822924;
+  let h6 = 528734635;
+  let h7 = 1541459225;
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
+    for (let j = 16; j < 64; j++) {
+      const x = w[j - 15];
+      const y = w[j - 2];
+      const s0 = rotr(x, 7) ^ rotr(x, 18) ^ x >>> 3;
+      const s1 = rotr(y, 17) ^ rotr(y, 19) ^ y >>> 10;
+      w[j] = w[j - 16] + s0 + w[j - 7] + s1 >>> 0;
+    }
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    let f = h5;
+    let g = h6;
+    let h = h7;
+    for (let j = 0; j < 64; j++) {
+      const temp1 = h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[j] + w[j] >>> 0;
+      const temp2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b ^ a & c ^ b & c) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1 >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2 >>> 0;
+    }
+    h0 = h0 + a >>> 0;
+    h1 = h1 + b >>> 0;
+    h2 = h2 + c >>> 0;
+    h3 = h3 + d >>> 0;
+    h4 = h4 + e >>> 0;
+    h5 = h5 + f >>> 0;
+    h6 = h6 + g >>> 0;
+    h7 = h7 + h >>> 0;
+  }
+  const out = new Uint8Array(32);
+  const outView = new DataView(out.buffer);
+  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((word, i) => outView.setUint32(i * 4, word, false));
+  return out;
+}
+
+// src/revocation/ocsp-request.ts
+var HASH_OID = Object.freeze({
+  "SHA-1": "1.3.14.3.2.26",
+  "SHA-256": "2.16.840.1.101.3.4.2.1"
+});
+function encodeCertId(certificate, issuer, algorithm = "SHA-1") {
+  assertParsed(certificate, "certificate");
+  assertParsed(issuer, "issuer");
+  const digest = algorithm === "SHA-1" ? sha1 : sha256;
+  const nameHash = digest(issuer.subject.der);
+  const keyHash = digest(issuer.subjectPublicKeyInfo.publicKey.bytes);
+  return encodeSequence([
+    encodeAlgorithmIdentifier(HASH_OID[algorithm], NULL_PARAMETERS),
+    encodeOctetString(nameHash),
+    encodeOctetString(keyHash),
+    encodeTlv("universal", 2, false, certificate.serialNumber.bytes)
+  ]);
+}
+var NULL_PARAMETERS = /* @__PURE__ */ encodeTlv("universal", 5, false, new Uint8Array(0));
+function createOcspRequest(certificate, issuer, options) {
+  const certId = encodeCertId(certificate, issuer, options?.hashAlgorithm ?? "SHA-1");
+  const requestList = encodeSequence([encodeSequence([certId])]);
+  const fields = [requestList];
+  const nonce = options?.nonce;
+  if (nonce !== void 0) {
+    if (!(nonce instanceof Uint8Array)) {
+      throw new PkiError("PKI_INVALID_INPUT", "pkinative: the OCSP nonce must be a Uint8Array of random bytes \u2014 pkinative generates none, so this is yours to produce with crypto.getRandomValues");
+    }
+    fields.push(encodeTlv("context", 2, true, encodeSequence([
+      encodeSequence([
+        encodeTlv("universal", 6, false, Uint8Array.of(43, 6, 1, 5, 5, 7, 48, 1, 2)),
+        encodeOctetString(encodeOctetString(nonce))
+      ])
+    ])));
+  }
+  return encodeSequence([encodeSequence(fields)]);
+}
+function assertParsed(value, what) {
+  if (typeof value !== "object" || value === null || !(value.der instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a Certificate from parseCertificate(), not raw bytes`);
+  }
+}
+
+// src/revocation/ocsp-response.ts
+var STRUCTURE2 = "PKI_X509_STRUCTURE_INVALID";
+var OID_BASIC_RESPONSE = "1.3.6.1.5.5.7.48.1.1";
+var STATUSES = Object.freeze({
+  0: "successful",
+  1: "malformedRequest",
+  2: "internalError",
+  3: "tryLater",
+  5: "sigRequired",
+  6: "unauthorized"
+});
+var REASONS3 = Object.freeze({
+  0: "unspecified",
+  1: "keyCompromise",
+  2: "cACompromise",
+  3: "affiliationChanged",
+  4: "superseded",
+  5: "cessationOfOperation",
+  6: "certificateHold",
+  8: "removeFromCRL",
+  9: "privilegeWithdrawn",
+  10: "aACompromise"
+});
+function ocspError(path, offset, why) {
+  return new PkiCertificateError(STRUCTURE2, `pkinative: ${path} ${why} \u2014 the input is not an RFC 6960 OCSPResponse`, path, offset);
+}
+var decodeAt2 = (der, header, ctx) => decodeValueAt(der, header.offset, ctx);
+function parseOcspResponse(der, options) {
+  const ctx = createAsn1Context(options);
+  const outer = readTlvHeader(der, 0, "OCSPResponse");
+  if (!outer.constructed || outer.tagClass !== "universal" || outer.tagNumber !== 16) {
+    throw ocspError("OCSPResponse", 0, "is not a SEQUENCE");
+  }
+  const parts = [...walkChildren(der, outer, "OCSPResponse")];
+  const statusField = parts[0];
+  if (statusField === void 0 || statusField.tagClass !== "universal" || statusField.tagNumber !== 10) {
+    throw ocspError("OCSPResponse.responseStatus", outer.offset, "is not an ENUMERATED");
+  }
+  if (statusField.length !== 1) {
+    throw ocspError("OCSPResponse.responseStatus", statusField.offset, "is wider than one octet; RFC 6960 defines seven values");
+  }
+  const code = der[statusField.contentStart];
+  const status = STATUSES[code];
+  if (status === void 0) {
+    throw ocspError("OCSPResponse.responseStatus", statusField.offset, `is ${String(code)}, which RFC 6960 \xA74.2.1 does not define (4 is unassigned)`);
+  }
+  const bytesField = parts[1];
+  let basicResponse;
+  if (bytesField !== void 0) {
+    if (bytesField.tagClass !== "context" || bytesField.tagNumber !== 0) {
+      throw ocspError("OCSPResponse.responseBytes", bytesField.offset, "is not [0] EXPLICIT");
+    }
+    basicResponse = readResponseBytes(der, bytesField, ctx);
+  }
+  if (status === "successful" && basicResponse === void 0) {
+    throw ocspError("OCSPResponse", outer.offset, "says successful and carries no responseBytes; RFC 6960 \xA74.2.1 requires one");
+  }
+  if (status !== "successful" && basicResponse !== void 0) {
+    throw ocspError("OCSPResponse", outer.offset, `says ${status} and still carries responseBytes; only a successful response has a body`);
+  }
+  return Object.freeze({
+    der: der.subarray(outer.offset, outer.end),
+    status,
+    basicResponse,
+    diagnostics: ctx.emitter.diagnostics
+  });
+}
+function readResponseBytes(der, field, ctx) {
+  const wrapper = [...walkChildren(der, field, "OCSPResponse.responseBytes")][0];
+  if (wrapper === void 0) throw ocspError("OCSPResponse.responseBytes", field.offset, "is empty");
+  const inner = [...walkChildren(der, wrapper, "ResponseBytes")];
+  const typeField = inner[0];
+  const valueField = inner[1];
+  if (typeField === void 0 || valueField === void 0) {
+    throw ocspError("ResponseBytes", wrapper.offset, "does not hold a responseType and a response");
+  }
+  const responseType = readObjectIdentifier(decodeAt2(der, typeField, ctx));
+  if (responseType !== OID_BASIC_RESPONSE) {
+    throw ocspError("ResponseBytes.responseType", typeField.offset, `is ${responseType}; only id-pkix-ocsp-basic (${OID_BASIC_RESPONSE}) is defined by RFC 6960`);
+  }
+  const body = der.subarray(valueField.contentStart, valueField.end);
+  return readBasicResponse(body, ctx);
+}
+function readBasicResponse(der, ctx) {
+  const outer = readTlvHeader(der, 0, "BasicOCSPResponse");
+  const parts = [...walkChildren(der, outer, "BasicOCSPResponse")];
+  const tbs = parts[0];
+  const algorithmField = parts[1];
+  const signatureField = parts[2];
+  if (tbs === void 0 || algorithmField === void 0 || signatureField === void 0) {
+    throw ocspError("BasicOCSPResponse", outer.offset, "holds fewer than the three required fields");
+  }
+  const signatureNode = decodeAt2(der, signatureField, ctx);
+  if (signatureNode.tagClass !== "universal" || signatureNode.tagNumber !== 3) {
+    throw ocspError("BasicOCSPResponse.signature", signatureField.offset, "is not a BIT STRING");
+  }
+  const certificates = [];
+  const certsField = parts[3];
+  if (certsField !== void 0) {
+    const seq = [...walkChildren(der, certsField, "BasicOCSPResponse.certs")][0];
+    for (const certificate of seq === void 0 ? [] : [...walkChildren(der, seq, "BasicOCSPResponse.certs")]) {
+      enforceLimit(ctx.limits, "maxChainLength", certificates.length + 1, "BasicOCSPResponse.certs");
+      certificates.push(der.subarray(certificate.offset, certificate.end));
+    }
+  }
+  const data = readResponseData(der, tbs, ctx);
+  return Object.freeze({
+    tbsDer: der.subarray(tbs.offset, tbs.end),
+    responderId: data.responderId,
+    producedAt: data.producedAt,
+    responses: data.responses,
+    signatureAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, "BasicOCSPResponse.signatureAlgorithm", STRUCTURE2, outer.offset),
+    signatureValue: Object.freeze({ bytes: signatureNode.content.subarray(1), unusedBits: signatureNode.content[0] ?? 0 }),
+    certificates: Object.freeze(certificates),
+    extensions: data.extensions
+  });
+}
+function readResponseData(der, tbs, ctx) {
+  const fields = [...walkChildren(der, tbs, "ResponseData")];
+  let at = 0;
+  if (fields[0]?.tagClass === "context" && fields[0].tagNumber === 0) at += 1;
+  const idField = fields[at];
+  if (idField === void 0 || idField.tagClass !== "context" || idField.tagNumber !== 1 && idField.tagNumber !== 2) {
+    throw ocspError("ResponseData.responderID", tbs.offset, "is neither byName [1] nor byKey [2]");
+  }
+  at += 1;
+  const responderId = readResponderId(der, idField, ctx);
+  const producedAtField = fields[at];
+  if (producedAtField === void 0) throw ocspError("ResponseData.producedAt", tbs.offset, "is missing");
+  at += 1;
+  const producedAt = _readTime(decodeAt2(der, producedAtField, ctx), ctx, void 0);
+  const responsesField = fields[at];
+  if (responsesField === void 0 || responsesField.tagClass !== "universal" || responsesField.tagNumber !== 16) {
+    throw ocspError("ResponseData.responses", tbs.offset, "is not a SEQUENCE");
+  }
+  at += 1;
+  const responses = [];
+  let index = 0;
+  for (const single of walkChildren(der, responsesField, "ResponseData.responses")) {
+    enforceLimit(ctx.limits, "maxOcspResponses", index + 1, `ResponseData.responses[${String(index)}]`);
+    responses.push(readSingleResponse(der, single, ctx, `ResponseData.responses[${String(index)}]`));
+    index += 1;
+  }
+  const extensionsField = fields[at];
+  const extensions = extensionsField === void 0 ? [] : readExtensions2(der, extensionsField, ctx, "ResponseData.responseExtensions");
+  return { responderId, producedAt, responses: Object.freeze(responses), extensions };
+}
+function readResponderId(der, field, ctx) {
+  const inner = [...walkChildren(der, field, "ResponseData.responderID")][0];
+  if (inner === void 0) throw ocspError("ResponseData.responderID", field.offset, "is empty");
+  if (field.tagNumber === 1) return { kind: "byName", nameDer: der.subarray(inner.offset, inner.end) };
+  const node = decodeAt2(der, inner, ctx);
+  if (node.tagClass !== "universal" || node.tagNumber !== 4) {
+    throw ocspError("ResponseData.responderID", inner.offset, "byKey is not an OCTET STRING");
+  }
+  return { kind: "byKey", keyHash: node.content };
+}
+function readSingleResponse(der, single, ctx, path) {
+  const fields = [...walkChildren(der, single, path)];
+  const idField = fields[0];
+  const statusField = fields[1];
+  const thisUpdateField = fields[2];
+  if (idField === void 0 || statusField === void 0 || thisUpdateField === void 0) {
+    throw ocspError(path, single.offset, "holds fewer than the three required fields");
+  }
+  let at = 3;
+  let nextUpdate;
+  if (fields[at]?.tagClass === "context" && fields[at]?.tagNumber === 0) {
+    const inner = [...walkChildren(der, fields[at], `${path}.nextUpdate`)][0];
+    if (inner !== void 0) nextUpdate = _readTime(decodeAt2(der, inner, ctx), ctx, void 0);
+    at += 1;
+  }
+  const extensionsField = fields[at];
+  return Object.freeze({
+    certId: readCertId(der, idField, ctx, `${path}.certID`),
+    status: readCertStatus(der, statusField, ctx, `${path}.certStatus`),
+    thisUpdate: _readTime(decodeAt2(der, thisUpdateField, ctx), ctx, void 0),
+    nextUpdate,
+    extensions: extensionsField === void 0 ? [] : readExtensions2(der, extensionsField, ctx, `${path}.singleExtensions`)
+  });
+}
+function readCertId(der, field, ctx, path) {
+  const parts = [...walkChildren(der, field, path)];
+  const [algorithmField, nameHashField, keyHashField, serialField] = parts;
+  if (parts.length !== 4 || algorithmField === void 0 || nameHashField === void 0 || keyHashField === void 0 || serialField === void 0) {
+    throw ocspError(path, field.offset, `holds ${String(parts.length)} values where a CertID has four`);
+  }
+  const serialContent = der.subarray(serialField.contentStart, serialField.end);
+  return Object.freeze({
+    hashAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, `${path}.hashAlgorithm`, STRUCTURE2, field.offset),
+    issuerNameHash: decodeAt2(der, nameHashField, ctx).content,
+    issuerKeyHash: decodeAt2(der, keyHashField, ctx).content,
+    serialNumber: Object.freeze({
+      bytes: serialContent,
+      hex: toHex(serialContent),
+      value: readInteger(decodeAt2(der, serialField, ctx))
+    })
+  });
+}
+function readCertStatus(der, field, ctx, path) {
+  if (field.tagClass !== "context") throw ocspError(path, field.offset, "is not a context-tagged CHOICE");
+  if (field.tagNumber === 0) return { kind: "good" };
+  if (field.tagNumber === 2) return { kind: "unknown" };
+  if (field.tagNumber !== 1) throw ocspError(path, field.offset, `is [${String(field.tagNumber)}]; RFC 6960 defines [0] good, [1] revoked and [2] unknown`);
+  const parts = [...walkChildren(der, field, path)];
+  const timeField = parts[0];
+  if (timeField === void 0) throw ocspError(path, field.offset, "is revoked and carries no revocationTime");
+  let reason;
+  const reasonField = parts[1];
+  if (reasonField !== void 0 && reasonField.tagClass === "context" && reasonField.tagNumber === 0) {
+    const inner = [...walkChildren(der, reasonField, `${path}.revocationReason`)][0];
+    if (inner !== void 0 && inner.length === 1) reason = REASONS3[der[inner.contentStart]];
+  }
+  return { kind: "revoked", revocationTime: _readTime(decodeAt2(der, timeField, ctx), ctx, void 0), reason };
+}
+function readExtensions2(der, field, ctx, path) {
+  if (field.tagClass !== "context") throw ocspError(path, field.offset, "is not a context-tagged Extensions field");
+  const wrapper = [...walkChildren(der, field, path)][0];
+  if (wrapper === void 0) return [];
+  const out = [];
+  let index = 0;
+  for (const entry of walkChildren(der, wrapper, path)) {
+    const where2 = `${path}[${String(index)}]`;
+    enforceLimit(ctx.limits, "maxExtensions", index + 1, where2);
+    const node = decodeAt2(der, entry, ctx);
+    const oidNode = node.children[0];
+    const valueNode = node.children[node.children.length - 1];
+    if (oidNode === void 0 || valueNode === void 0 || node.children.length < 2) {
+      throw ocspError(where2, entry.offset, "is not an Extension");
+    }
+    const criticalNode = node.children.length === 3 ? node.children[1] : void 0;
+    out.push(_decodeExtension(
+      der,
+      entry.offset,
+      readObjectIdentifier(oidNode),
+      criticalNode !== void 0 && criticalNode.content[0] !== 0,
+      valueNode.content,
+      ctx,
+      where2
+    ));
+    index += 1;
+  }
+  return Object.freeze(out);
+}
+
 // src/path/path-name-constraints.ts
 var FORMS = ["dNSName", "rfc822Name", "uniformResourceIdentifier", "iPAddress", "directoryName"];
 function initialNameConstraints() {
@@ -3180,304 +4117,6 @@ function validateCertificatePath(input) {
     state.reasons.push(noValidPolicyReason("path"));
   }
   return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
-}
-
-// src/asn1/asn1-encode.ts
-function encodeLength(length) {
-  if (length < 128) return [length];
-  const octets = [];
-  let rest = length;
-  while (rest > 0) {
-    octets.unshift(rest % 256);
-    rest = Math.floor(rest / 256);
-  }
-  return [128 | octets.length, ...octets];
-}
-function encodeTlv(tagClass, tagNumber, constructed, content) {
-  const bytes = assertBytes(content, "encodeTlv content");
-  const classIndex = TAG_CLASSES.indexOf(tagClass);
-  if (classIndex < 0) {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: tagClass must be one of ${TAG_CLASSES.join(", ")}, got ${String(tagClass)}`);
-  }
-  if (!Number.isInteger(tagNumber) || tagNumber < 0 || tagNumber > 2147483647 || tagClass === "universal" && tagNumber === 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: tag number ${String(tagNumber)} is outside 0 to 2^31 \u2212 1, or is the reserved universal tag 0 \u2014 pass a valid tag number`
-    );
-  }
-  const leading = classIndex << 6 | (constructed ? 32 : 0);
-  const identifier = [];
-  if (tagNumber < 31) {
-    identifier.push(leading | tagNumber);
-  } else {
-    const digits = [];
-    let rest = tagNumber;
-    do {
-      digits.unshift(rest % 128);
-      rest = Math.floor(rest / 128);
-    } while (rest > 0);
-    identifier.push(leading | 31);
-    let remaining = digits.length;
-    for (const digit of digits) {
-      remaining--;
-      identifier.push(digit | (remaining > 0 ? 128 : 0));
-    }
-  }
-  const header = [...identifier, ...encodeLength(bytes.length)];
-  const out = new Uint8Array(header.length + bytes.length);
-  out.set(header, 0);
-  out.set(bytes, header.length);
-  return out;
-}
-function childrenContent(children, what) {
-  if (!Array.isArray(children)) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} expects an array of encodings, got ${typeof children}`);
-  }
-  return concatBytes(children.map((c) => assertBytes(c, `${what} child`)));
-}
-function encodeSequence(children) {
-  return encodeTlv("universal", TAG_SEQUENCE, true, childrenContent(children, "encodeSequence"));
-}
-function encodeSet(children) {
-  return encodeTlv("universal", TAG_SET, true, childrenContent(children, "encodeSet"));
-}
-function encodeSetOf(children) {
-  childrenContent(children, "encodeSetOf");
-  return encodeTlv("universal", TAG_SET, true, concatBytes([...children].sort(compareOctets)));
-}
-function hexToBytes(hex) {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-function encodeInteger(value) {
-  let v;
-  if (typeof value === "bigint") {
-    v = value;
-  } else if (typeof value === "number" && Number.isSafeInteger(value)) {
-    v = BigInt(value);
-  } else {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
-  }
-  let hex;
-  if (v >= 0n) {
-    hex = v.toString(16);
-    if (hex.length % 2 === 1) hex = `0${hex}`;
-    if (parseInt(hex.slice(0, 2), 16) >= 128) hex = `00${hex}`;
-  } else {
-    let octets = 1;
-    while (v < -(1n << BigInt(octets * 8 - 1))) octets++;
-    hex = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
-  }
-  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex));
-}
-function encodeBoolean(value) {
-  return encodeTlv("universal", TAG_BOOLEAN, false, Uint8Array.of(value ? 255 : 0));
-}
-function encodeNull() {
-  return encodeTlv("universal", TAG_NULL, false, new Uint8Array(0));
-}
-function encodeBitString(bytes, unusedBits = 0) {
-  const data = assertBytes(bytes, "encodeBitString bytes");
-  if (!Number.isInteger(unusedBits) || unusedBits < 0 || unusedBits > 7 || data.length === 0 && unusedBits !== 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`
-    );
-  }
-  if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & (1 << unusedBits) - 1) !== 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: the ${unusedBits} unused bits of the last octet must be zero in DER (X.690 \xA711.2.1) \u2014 clear them before encoding`
-    );
-  }
-  const content = new Uint8Array(data.length + 1);
-  content[0] = unusedBits;
-  content.set(data, 1);
-  return encodeTlv("universal", TAG_BIT_STRING, false, content);
-}
-function encodeOctetString(bytes) {
-  return encodeTlv("universal", TAG_OCTET_STRING, false, assertBytes(bytes, "encodeOctetString bytes"));
-}
-function encodeEnumerated(value) {
-  return encodeTlv("universal", TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
-}
-function encodeExplicit(tagNumber, inner, options) {
-  return encodeTlv(options?.tagClass ?? "context", tagNumber, true, assertBytes(inner, "encodeExplicit inner"));
-}
-function encodeImplicit(tagNumber, encoded, options) {
-  const bytes = assertBytes(encoded, "encodeImplicit encoded");
-  if (bytes.length < 2) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets \u2014 pass the output of another encoder");
-  }
-  const view = byteView(bytes);
-  const identifier = view.getUint8(0);
-  if (view.getUint8(1) === 128) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit cannot re-tag an indefinite-length value \u2014 DER has no indefinite form, so encode the inner value definitely first");
-  }
-  const retagged = encodeTlv(options?.tagClass ?? "context", tagNumber, (identifier & 32) !== 0, new Uint8Array(0));
-  const header = retagged.length - 1;
-  const out = new Uint8Array(header + bytes.length - 1);
-  out.set(retagged.subarray(0, header));
-  out.set(bytes.subarray(1), header);
-  return out;
-}
-function encodeNamedBits(bits) {
-  let highest = -1;
-  const positions = [];
-  for (const bit of bits) {
-    if (!Number.isInteger(bit) || bit < 0 || bit > 65535) {
-      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
-    }
-    positions.push(bit);
-    if (bit > highest) highest = bit;
-  }
-  if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
-  const octets = new Uint8Array((highest >> 3) + 1);
-  const view = byteView(octets);
-  for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | 128 >> (bit & 7));
-  return encodeBitString(octets, 7 - (highest & 7));
-}
-function encodeObjectIdentifier(oid) {
-  return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
-}
-function outOfRange(type, index) {
-  return new PkiEncodingError(
-    "PKI_ASN1_VALUE_OUT_OF_RANGE",
-    `pkinative: the character at index ${index} cannot be encoded as ${tagLabel("universal", STRING_TAGS[type])} \u2014 choose a string type whose character set contains it`
-  );
-}
-function encodeString(type, value) {
-  if (typeof value !== "string") {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeString expects a string value, got ${typeof value}`);
-  }
-  let content;
-  switch (type) {
-    case "utf8": {
-      const encoded = encodeUtf8(value);
-      if (encoded === null) throw outOfRange(type, [...value].findIndex((c) => c.length === 1 && c.charCodeAt(0) >= 55296 && c.charCodeAt(0) <= 57343));
-      content = encoded;
-      break;
-    }
-    case "printable":
-    case "ia5":
-    case "visible":
-    case "numeric": {
-      const allowed = type === "printable" ? isPrintableOctet : type === "ia5" ? isIa5Octet : type === "visible" ? isVisibleOctet : isNumericOctet;
-      content = new Uint8Array(value.length);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code > 127 || !allowed(code)) throw outOfRange(type, i);
-        content[i] = code;
-      }
-      break;
-    }
-    case "teletex":
-      content = new Uint8Array(value.length);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code > 255) throw outOfRange(type, i);
-        content[i] = code;
-      }
-      break;
-    case "bmp":
-      content = new Uint8Array(value.length * 2);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code >= 55296 && code <= 57343) throw outOfRange(type, i);
-        content[i * 2] = code >> 8;
-        content[i * 2 + 1] = code & 255;
-      }
-      break;
-    case "universal": {
-      const points = [];
-      let index = 0;
-      for (const ch of value) {
-        const lead = ch.charCodeAt(0);
-        const code = ch.length === 2 ? 65536 + (lead - 55296 << 10) + (ch.charCodeAt(1) - 56320) : lead;
-        if (code >= 55296 && code <= 57343) throw outOfRange(type, index);
-        points.push(code >>> 24, code >> 16 & 255, code >> 8 & 255, code & 255);
-        index += ch.length;
-      }
-      content = Uint8Array.from(points);
-      break;
-    }
-    default:
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(", ")}, got ${String(type)}`);
-  }
-  return encodeTlv("universal", STRING_TAGS[type], false, content);
-}
-function pad(value, width) {
-  return String(value).padStart(width, "0");
-}
-function encodeTime(epochMilliseconds, type = "rfc5280") {
-  if (type !== "UTCTime" && type !== "GeneralizedTime" && type !== "rfc5280") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${String(type)}`);
-  }
-  const date = new Date(typeof epochMilliseconds === "number" ? epochMilliseconds : NaN);
-  const year = date.getUTCFullYear();
-  if (Number.isNaN(date.getTime()) || year < 0 || year > 9999) {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: ${String(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
-  }
-  const millisecond = date.getUTCMilliseconds();
-  const resolved = type === "rfc5280" ? year >= 1950 && year <= 2049 ? "UTCTime" : "GeneralizedTime" : type;
-  if (millisecond !== 0 && type !== "GeneralizedTime") {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: ${date.toISOString()} has a fraction of a second, which ${type === "rfc5280" ? "RFC 5280 forbids in certificates" : "UTCTime cannot hold"} \u2014 round to whole seconds`
-    );
-  }
-  const clock = `${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}`;
-  let text;
-  if (resolved === "UTCTime") {
-    if (year < 1950 || year > 2049) {
-      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: UTCTime covers 1950 to 2049 only; ${year} needs GeneralizedTime`);
-    }
-    text = `${pad(year % 100, 2)}${clock}Z`;
-  } else {
-    const fraction = millisecond === 0 ? "" : `.${pad(millisecond, 3).replace(/0+$/, "")}`;
-    text = `${pad(year, 4)}${clock}${fraction}Z`;
-  }
-  const content = new Uint8Array(text.length);
-  for (let i = 0; i < text.length; i++) content[i] = text.charCodeAt(i);
-  return encodeTlv("universal", resolved === "UTCTime" ? TAG_UTC_TIME : TAG_GENERALIZED_TIME, false, content);
-}
-function encodeAsn1Node(node) {
-  const root = assertNode(node, "encodeAsn1Node");
-  const stack = [{ node: root, next: 0, parts: [] }];
-  let result = new Uint8Array(0);
-  while (stack.length > 0) {
-    const top = stack[stack.length - 1];
-    const current = top.node;
-    if (current.indefinite) {
-      throw new PkiError(
-        "PKI_API_MISUSE",
-        `pkinative: the value at offset ${current.offset} was decoded from the BER indefinite length form, which has no DER re-encoding \u2014 decode the original as DER, or keep its bytes`
-      );
-    }
-    let encoded;
-    if (!current.constructed) {
-      encoded = encodeTlv(current.tagClass, current.tagNumber, false, current.content);
-    } else {
-      if (current.tagClass === "universal" && isStringTag(current.tagNumber)) {
-        throw new PkiError(
-          "PKI_API_MISUSE",
-          `pkinative: the ${tagLabel(current.tagClass, current.tagNumber)} at offset ${current.offset} is a constructed string, which has no DER form \u2014 read it with the string reader and encode the result`
-        );
-      }
-      if (top.next < current.children.length) {
-        stack.push({ node: current.children[top.next], next: 0, parts: [] });
-        top.next++;
-        continue;
-      }
-      encoded = encodeTlv(current.tagClass, current.tagNumber, true, concatBytes(top.parts));
-    }
-    stack.pop();
-    const parent = stack[stack.length - 1];
-    if (parent === void 0) result = encoded;
-    else parent.parts.push(encoded);
-  }
-  return result;
 }
 
 // src/oid/oid-registry.ts
@@ -4211,206 +4850,6 @@ ${lines.map((l) => `${l}
 `;
 }
 
-// src/hash/hash-shared.ts
-var HIGH_WORD_UNIT = 536870912;
-function writeBitLength(target, end, byteLength) {
-  const view = new DataView(target.buffer, target.byteOffset, target.byteLength);
-  view.setUint32(end - 8, Math.floor(byteLength / HIGH_WORD_UNIT), false);
-  view.setUint32(end - 4, byteLength % HIGH_WORD_UNIT * 8, false);
-}
-function padMessage(input, blockSize, lengthOctets) {
-  const total = Math.ceil((input.length + 1 + lengthOctets) / blockSize) * blockSize;
-  const padded = new Uint8Array(total);
-  padded.set(input);
-  padded[input.length] = 128;
-  writeBitLength(padded, total, input.length);
-  return padded;
-}
-
-// src/hash/sha1.ts
-function rotl(x, n) {
-  return (x << n | x >>> 32 - n) >>> 0;
-}
-function sha1(input) {
-  const padded = padMessage(input, 64, 8);
-  const view = new DataView(padded.buffer);
-  const w = new Uint32Array(80);
-  let h0 = 1732584193;
-  let h1 = 4023233417;
-  let h2 = 2562383102;
-  let h3 = 271733878;
-  let h4 = 3285377520;
-  for (let offset = 0; offset < padded.length; offset += 64) {
-    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
-    for (let j = 16; j < 80; j++) {
-      w[j] = rotl(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
-    }
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    for (let j = 0; j < 80; j++) {
-      let f;
-      let k;
-      if (j < 20) {
-        f = b & c | ~b & d;
-        k = 1518500249;
-      } else if (j < 40) {
-        f = b ^ c ^ d;
-        k = 1859775393;
-      } else if (j < 60) {
-        f = b & c | b & d | c & d;
-        k = 2400959708;
-      } else {
-        f = b ^ c ^ d;
-        k = 3395469782;
-      }
-      const temp = rotl(a, 5) + f + e + k + w[j] >>> 0;
-      e = d;
-      d = c;
-      c = rotl(b, 30);
-      b = a;
-      a = temp;
-    }
-    h0 = h0 + a >>> 0;
-    h1 = h1 + b >>> 0;
-    h2 = h2 + c >>> 0;
-    h3 = h3 + d >>> 0;
-    h4 = h4 + e >>> 0;
-  }
-  const out = new Uint8Array(20);
-  const outView = new DataView(out.buffer);
-  [h0, h1, h2, h3, h4].forEach((word, i) => outView.setUint32(i * 4, word, false));
-  return out;
-}
-
-// src/hash/sha256.ts
-var K = /* @__PURE__ */ new Uint32Array([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-function rotr(x, n) {
-  return x >>> n | x << 32 - n;
-}
-function sha256(input) {
-  const padded = padMessage(input, 64, 8);
-  const view = new DataView(padded.buffer);
-  const w = new Uint32Array(64);
-  let h0 = 1779033703;
-  let h1 = 3144134277;
-  let h2 = 1013904242;
-  let h3 = 2773480762;
-  let h4 = 1359893119;
-  let h5 = 2600822924;
-  let h6 = 528734635;
-  let h7 = 1541459225;
-  for (let offset = 0; offset < padded.length; offset += 64) {
-    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
-    for (let j = 16; j < 64; j++) {
-      const x = w[j - 15];
-      const y = w[j - 2];
-      const s0 = rotr(x, 7) ^ rotr(x, 18) ^ x >>> 3;
-      const s1 = rotr(y, 17) ^ rotr(y, 19) ^ y >>> 10;
-      w[j] = w[j - 16] + s0 + w[j - 7] + s1 >>> 0;
-    }
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    let f = h5;
-    let g = h6;
-    let h = h7;
-    for (let j = 0; j < 64; j++) {
-      const temp1 = h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[j] + w[j] >>> 0;
-      const temp2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b ^ a & c ^ b & c) >>> 0;
-      h = g;
-      g = f;
-      f = e;
-      e = d + temp1 >>> 0;
-      d = c;
-      c = b;
-      b = a;
-      a = temp1 + temp2 >>> 0;
-    }
-    h0 = h0 + a >>> 0;
-    h1 = h1 + b >>> 0;
-    h2 = h2 + c >>> 0;
-    h3 = h3 + d >>> 0;
-    h4 = h4 + e >>> 0;
-    h5 = h5 + f >>> 0;
-    h6 = h6 + g >>> 0;
-    h7 = h7 + h >>> 0;
-  }
-  const out = new Uint8Array(32);
-  const outView = new DataView(out.buffer);
-  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((word, i) => outView.setUint32(i * 4, word, false));
-  return out;
-}
-
 // src/hash/sha512.ts
 var K_HI = /* @__PURE__ */ new Uint32Array([
   1116352408,
@@ -4881,15 +5320,15 @@ function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
 }
 
 // src/x509/x509-certificate.ts
-var STRUCTURE2 = "PKI_X509_STRUCTURE_INVALID";
+var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
 var OID_SUBJECT_ALT_NAME = "2.5.29.17";
 var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
 function readVersion(field, ctx) {
   const path = "tbsCertificate.version";
   if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE2, path, field.offset, "is not one INTEGER under the explicit [0] tag");
+    throw certificateError(STRUCTURE3, path, field.offset, "is not one INTEGER under the explicit [0] tag");
   }
-  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE2, field.offset);
+  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE3, field.offset);
   const value = _readInteger(node, ctx);
   if (value !== 0n && value !== 1n && value !== 2n) {
     throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
@@ -4920,12 +5359,12 @@ function readValidity(node, ctx, parentOffset) {
   const validity = { notBefore, notAfter };
   return Object.freeze(validity);
 }
-function readExtensions2(field, ctx, input, decode) {
+function readExtensions3(field, ctx, input, decode) {
   const path = "tbsCertificate.extensions";
   if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE2, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
+    throw certificateError(STRUCTURE3, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
   }
-  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE2, field.offset);
+  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE3, field.offset);
   if (seq.children.length === 0) {
     throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
   }
@@ -4934,18 +5373,18 @@ function readExtensions2(field, ctx, input, decode) {
   const extensions = [];
   for (let i = 0; i < seq.children.length; i++) {
     const extPath = `${path}[${i}]`;
-    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE2, seq.offset);
+    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE3, seq.offset);
     if (ext.children.length < 2 || ext.children.length > 3) {
-      throw certificateError(STRUCTURE2, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
+      throw certificateError(STRUCTURE3, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
     }
-    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE2, ext.offset), ctx);
+    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE3, ext.offset), ctx);
     let critical = false;
     if (ext.children.length === 3) {
-      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE2, ext.offset);
+      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE3, ext.offset);
       critical = _readBoolean(flag, ctx);
       if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
     }
-    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE2, ext.offset);
+    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE3, ext.offset);
     const valueDer = _readOctetString(valueNode, ctx);
     if (seen.has(oid)) {
       throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
@@ -4970,11 +5409,11 @@ function parseCertificate(der, options) {
   if (typeof decode !== "boolean") {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
   }
-  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE2, 0);
+  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE3, 0);
   if (cert.children.length !== 3) {
-    throw certificateError(STRUCTURE2, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
+    throw certificateError(STRUCTURE3, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
   }
-  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE2, cert.offset);
+  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE3, cert.offset);
   const fields = tbs.children;
   let index = 0;
   let version = 1;
@@ -4983,11 +5422,11 @@ function parseCertificate(der, options) {
     version = readVersion(first, ctx);
     index = 1;
   }
-  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE2, tbs.offset);
+  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE3, tbs.offset);
   const serialValue = _readInteger(serialNode, ctx);
   if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
   if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
-  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE2, tbs.offset);
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE3, tbs.offset);
   const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
   if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
   const validity = readValidity(fields[index++], ctx, tbs.offset);
@@ -5003,7 +5442,7 @@ function parseCertificate(der, options) {
     const tag = field.tagClass === "context" ? field.tagNumber : -1;
     if (tag !== 1 && tag !== 2 && tag !== 3) {
       throw certificateError(
-        STRUCTURE2,
+        STRUCTURE3,
         `tbsCertificate[${index}]`,
         field.offset,
         `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
@@ -5012,7 +5451,7 @@ function parseCertificate(der, options) {
     const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
     if (tag <= rank) {
       throw certificateError(
-        tag === 3 ? STRUCTURE2 : "PKI_X509_UNIQUE_ID_INVALID",
+        tag === 3 ? STRUCTURE3 : "PKI_X509_UNIQUE_ID_INVALID",
         path,
         field.offset,
         "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
@@ -5020,7 +5459,7 @@ function parseCertificate(der, options) {
     }
     rank = tag;
     if (tag === 3) {
-      extensions = readExtensions2(field, ctx, bytes, decode);
+      extensions = readExtensions3(field, ctx, bytes, decode);
       extensionsPresent = true;
       continue;
     }
@@ -5036,11 +5475,11 @@ function parseCertificate(der, options) {
   if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
     ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
   }
-  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE2, cert.offset);
+  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
   if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
     ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
   }
-  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE2, cert.offset), ctx);
+  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE3, cert.offset), ctx);
   const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
   const certificate = {
     der: cert.bytes,
@@ -5373,7 +5812,8 @@ async function verifyCertificateSignature(certificate, issuer, options) {
   return verifySignedStructure(subject, signer, options?.requireAlgorithmMatch !== false);
 }
 async function verifySignedStructure(signed, signer, requireAlgorithmMatch) {
-  if (requireAlgorithmMatch && !bytesEqual(signed.signatureAlgorithm.der, signed.tbsSignatureAlgorithm.der)) {
+  const inner = signed.tbsSignatureAlgorithm;
+  if (requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
     return false;
   }
   if (signed.signatureValue.unusedBits !== 0) return false;
@@ -5395,6 +5835,13 @@ async function verifyCrlSignature(crl, issuer, options) {
   const signer = assertCertificate(issuer, "issuer");
   return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
 }
+async function verifyOcspSignature(basicResponse, responder) {
+  if (typeof basicResponse !== "object" || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
+  }
+  const signer = assertCertificate(responder, "responder");
+  return verifySignedStructure(basicResponse, signer, false);
+}
 async function verifySelfSignature(certificate, options) {
   const self = assertCertificate(certificate, "certificate");
   if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
@@ -5406,156 +5853,6 @@ function assertCertificate(value, what) {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
   }
   return value;
-}
-
-// src/build/build-structures.ts
-var PARAMETERS_NULL = /* @__PURE__ */ new Set([
-  "1.2.840.113549.1.1.1",
-  "1.2.840.113549.1.1.5",
-  "1.2.840.113549.1.1.11",
-  "1.2.840.113549.1.1.12",
-  "1.2.840.113549.1.1.13"
-]);
-function encodeAlgorithmIdentifier(oid, parameters) {
-  const fields = [encodeObjectIdentifier(oid)];
-  if (parameters !== void 0) fields.push(assertBytes(parameters, "encodeAlgorithmIdentifier parameters"));
-  else if (PARAMETERS_NULL.has(oid)) fields.push(encodeNull());
-  return encodeSequence(fields);
-}
-function encodeNameAttribute(attribute) {
-  const { type, value, stringType } = attribute;
-  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(stringType ?? "utf8", value) : null;
-  if (encoded === null) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
-  }
-  return encodeSequence([encodeObjectIdentifier(type), encoded]);
-}
-function encodeDistinguishedName(name, options) {
-  if (!Array.isArray(name)) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
-  }
-  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
-  let attributes = 0;
-  const rdns = [];
-  for (const rdn of name) {
-    if (!Array.isArray(rdn) || rdn.length === 0) {
-      throw new PkiError("PKI_INVALID_INPUT", "pkinative: every relative distinguished name is a non-empty array of attributes");
-    }
-    attributes += rdn.length;
-    enforceLimit(limits, "maxNameAttributes", attributes, "the name being built");
-    rdns.push(encodeSetOf(rdn.map(encodeNameAttribute)));
-  }
-  return encodeSequence(rdns);
-}
-function encodeValidity(notBefore, notAfter) {
-  if (!Number.isFinite(notBefore) || !Number.isFinite(notAfter)) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: notBefore and notAfter are epoch milliseconds, and both must be finite numbers");
-  }
-  if (notAfter < notBefore) {
-    throw new PkiError(
-      "PKI_API_MISUSE",
-      `pkinative: notAfter (${new Date(notAfter).toISOString()}) precedes notBefore (${new Date(notBefore).toISOString()}) \u2014 a certificate valid for a negative interval is valid nowhere`
-    );
-  }
-  return encodeSequence([encodeTime(notBefore), encodeTime(notAfter)]);
-}
-function encodeExtension(extension) {
-  const fields = [encodeObjectIdentifier(extension.oid)];
-  if (extension.critical === true) fields.push(encodeBoolean(true));
-  fields.push(encodeOctetString(assertBytes(extension.value, `extension ${extension.oid} value`)));
-  return encodeSequence(fields);
-}
-function encodeExtensions(extensions, options) {
-  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
-  enforceLimit(limits, "maxExtensions", extensions.length, "the extensions being built");
-  const seen = /* @__PURE__ */ new Set();
-  for (const extension of extensions) {
-    if (seen.has(extension.oid)) {
-      throw new PkiError("PKI_API_MISUSE", `pkinative: extension ${extension.oid} appears twice; RFC 5280 \xA74.2 allows one instance, and which one a verifier reads is undefined`);
-    }
-    seen.add(extension.oid);
-  }
-  return encodeSequence(extensions.map(encodeExtension));
-}
-function encodeAttribute(oid, values) {
-  return encodeSequence([encodeObjectIdentifier(oid), encodeSetOf(values)]);
-}
-function encodeSubjectPublicKeyInfo(algorithmOid, publicKey, parameters) {
-  return encodeSequence([
-    encodeAlgorithmIdentifier(algorithmOid, parameters),
-    // A public key is a whole number of octets: no unused bits, ever.
-    encodeBitString(assertBytes(publicKey, "encodeSubjectPublicKeyInfo publicKey"), 0)
-  ]);
-}
-function encodeBasicConstraints(options) {
-  const fields = [];
-  if (options.cA) fields.push(encodeBoolean(true));
-  if (options.pathLenConstraint !== void 0) {
-    if (!Number.isInteger(options.pathLenConstraint) || options.pathLenConstraint < 0) {
-      throw new PkiError("PKI_API_MISUSE", `pkinative: pathLenConstraint must be a non-negative integer, got ${String(options.pathLenConstraint)}`);
-    }
-    if (!options.cA) {
-      throw new PkiError("PKI_API_MISUSE", "pkinative: pathLenConstraint is meaningful only when cA is true (RFC 5280 \xA74.2.1.9) \u2014 an end-entity certificate constrains no path");
-    }
-    fields.push(encodeInteger(options.pathLenConstraint));
-  }
-  return encodeSequence(fields);
-}
-var KEY_USAGE_BITS = /* @__PURE__ */ new Map([
-  ["digitalSignature", 0],
-  ["nonRepudiation", 1],
-  ["keyEncipherment", 2],
-  ["dataEncipherment", 3],
-  ["keyAgreement", 4],
-  ["keyCertSign", 5],
-  ["cRLSign", 6],
-  ["encipherOnly", 7],
-  ["decipherOnly", 8]
-]);
-function encodeKeyUsage(usages) {
-  const bits = [];
-  for (const usage of usages) {
-    const bit = KEY_USAGE_BITS.get(usage);
-    if (bit === void 0) {
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${usage} is not a KeyUsage of RFC 5280 \xA74.2.1.3 \u2014 one of ${[...KEY_USAGE_BITS.keys()].join(", ")}`);
-    }
-    bits.push(bit);
-  }
-  return encodeNamedBits(bits);
-}
-function encodeExtendedKeyUsage(purposes) {
-  if (purposes.length === 0) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: an extendedKeyUsage with no purpose permits nothing and is refused by RFC 5280 \xA74.2.1.12");
-  }
-  return encodeSequence(purposes.map(encodeObjectIdentifier));
-}
-function encodeSubjectKeyIdentifier(keyIdentifier) {
-  return encodeOctetString(assertBytes(keyIdentifier, "subjectKeyIdentifier"));
-}
-function encodeAuthorityKeyIdentifier(keyIdentifier) {
-  return encodeSequence([encodeImplicit(0, encodeOctetString(assertBytes(keyIdentifier, "authorityKeyIdentifier")))]);
-}
-function encodeSubjectAltName(names) {
-  if (names.length === 0) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: a subjectAltName with no name is refused by RFC 5280 \xA74.2.1.6 \u2014 omit the extension instead");
-  }
-  const tags = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
-  return encodeSequence(names.map((name) => {
-    if (name.kind === "directoryNameDer") return encodeExplicit(4, assertBytes(name.value, "directoryName"));
-    if (name.kind === "iPAddress") {
-      const address = assertBytes(name.value, "iPAddress");
-      if (address.length !== 4 && address.length !== 16) {
-        throw new PkiError("PKI_INVALID_OPTION", `pkinative: an iPAddress in a subjectAltName is 4 octets (IPv4) or 16 (IPv6), not ${String(address.length)} \u2014 the 8- and 32-octet forms carry a mask and belong to nameConstraints (RFC 5280 \xA74.2.1.6)`);
-      }
-      return encodeImplicit(7, encodeOctetString(address));
-    }
-    if (name.kind === "registeredID") return encodeImplicit(8, encodeObjectIdentifier(name.value));
-    const tag = tags[name.kind];
-    if (tag === void 0) {
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes \u2014 pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
-    }
-    return encodeImplicit(tag, encodeString("ia5", name.value));
-  }));
 }
 
 // src/build/build-certificate.ts
@@ -5640,6 +5937,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

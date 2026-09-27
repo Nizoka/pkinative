@@ -45,6 +45,8 @@ export interface PkiLimits {
     readonly maxPolicyNodes: number;
     /** Maximum number of entries walked in one CRL revokedCertificates list. CWE-400. */
     readonly maxRevokedCertificates: number;
+    /** Maximum number of SingleResponse entries in one OCSP response. CWE-400. */
+    readonly maxOcspResponses: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────

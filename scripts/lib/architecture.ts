@@ -60,7 +60,7 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // CRL and OCSP parsing: structures x509 does not model, read with the same
     // readers. No crypto: a revocation verdict takes a precomputed signature
     // verdict, exactly as section 6 does, so revocation stays synchronous too.
-    revocation: ['types', 'core', 'asn1', 'x509'],
+    revocation: ['types', 'core', 'asn1', 'hash', 'x509', 'build'],
 });
 
 export const ENTRY = 'src/index.ts';

@@ -39,6 +39,10 @@ export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 
 export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
 export { checkRevocation } from './revocation/crl-check.js';
+export { createOcspRequest, encodeCertId } from './revocation/ocsp-request.js';
+export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
+export { parseOcspResponse } from './revocation/ocsp-response.js';
+export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
 export type { RevocationCheckInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';
 export { validateCertificatePath } from './path/path-validate.js';
@@ -173,7 +177,7 @@ export type {
 
 // ── 7. Verification through Web Crypto ───────────────────────────────
 
-export { verifyCertificateSignature, verifyCrlSignature, verifySelfSignature } from './crypto/x509-verify.js';
+export { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from './crypto/x509-verify.js';
 export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
 export { canVerify } from './crypto/webcrypto.js';
 

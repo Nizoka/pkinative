@@ -307,6 +307,41 @@
         "decisionStaleTolerated=clean",
         "oneExtension=300a0603551d1504030a0101"
       ]
+    },
+    {
+      "file": "ocsp.ts",
+      "task": "Build an RFC 6960 OCSP request and read a response, keeping good, revoked and unknown as three states",
+      "surface": [
+        "createOcspRequest",
+        "encodeCertId",
+        "parseOcspResponse",
+        "verifyOcspSignature",
+        "OcspResponse",
+        "OcspBasicResponse",
+        "OcspSingleResponse",
+        "OcspHashAlgorithm",
+        "computeFingerprint",
+        "decodeAsn1",
+        "encodeOctetString",
+        "encodeSequence",
+        "encodeTime",
+        "encodeTlv"
+      ],
+      "since": "0.5.0",
+      "expects": [
+        "requestFields=2",
+        "nonceEchoed=deadbeef01020304",
+        "nameHashBytes=20",
+        "keyHashBytes=20",
+        "keyHashIsOverKeyBits=true",
+        "keyHashIsNotSpkiHash=true",
+        "nameHashIsOverEncodedName=true",
+        "good=successful: good",
+        "threeStates=successful: good | revoked on 2026-05-01 reason=keyCompromise | unknown",
+        "declined=tryLater, no body",
+        "signatureChecked=true / wrongKey=false",
+        "responderNamed=one RDN"
+      ]
     }
   ]
 }

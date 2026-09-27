@@ -29,6 +29,7 @@
 import { bytesEqual } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { CertificateList } from '../types/crl-types.js';
+import type { OcspBasicResponse } from '../types/ocsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { coordinateBytes, resolveAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
@@ -108,7 +109,14 @@ export async function verifyCertificateSignature(
 interface SignedStructure {
     readonly tbsDer: Uint8Array;
     readonly signatureAlgorithm: { readonly der: Uint8Array; readonly oid: string; readonly parameters: unknown };
-    readonly tbsSignatureAlgorithm: { readonly der: Uint8Array };
+    /**
+     * The algorithm named *inside* the covered bytes, where the structure has
+     * one. A certificate and a CRL do; an OCSP response does not — RFC 6960
+     * §4.2.1 names the algorithm once, outside `tbsResponseData` — so this is
+     * optional rather than faked, and the match check is simply skipped where
+     * there is nothing to match against.
+     */
+    readonly tbsSignatureAlgorithm?: { readonly der: Uint8Array } | undefined;
     readonly signatureValue: { readonly bytes: Uint8Array; readonly unusedBits: number };
 }
 
@@ -121,7 +129,8 @@ async function verifySignedStructure(
     // one is not. RFC 5280 §4.1.1.2 and §5.1.1.2 require them equal, and
     // comparing the encodings — not the OIDs — also catches parameters that
     // differ.
-    if (requireAlgorithmMatch && !bytesEqual(signed.signatureAlgorithm.der, signed.tbsSignatureAlgorithm.der)) {
+    const inner = signed.tbsSignatureAlgorithm;
+    if (requireAlgorithmMatch && inner !== undefined && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
         return false;
     }
 
@@ -179,6 +188,41 @@ export async function verifyCrlSignature(
     }
     const signer = assertCertificate(issuer, 'issuer');
     return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
+}
+
+/**
+ * Verify that a responder's key signed this OCSP response.
+ *
+ * ```ts
+ * const response = parseOcspResponse(bytes);
+ * const basic = response.basicResponse;
+ * if (basic === undefined) return `the responder declined: ${response.status}`;
+ * if (!await verifyOcspSignature(basic, responderCertificate)) return 'not from that responder';
+ * ```
+ *
+ * **Which certificate is `responder`, is the question this function does not
+ * answer.** RFC 6960 §4.2.2.2 gives three ways a response may be authorised:
+ * the CA signed it itself, a responder the CA delegated to signed it, or the
+ * client trusts the responder out of band. `basicResponse.certificates` are
+ * certificates the responder *attached* — trusting them because they arrived
+ * would let the responder nominate its own authority, which is the whole point
+ * of that clause. Choosing the responder certificate, and checking that it is
+ * entitled to answer for this CA, is the caller's decision.
+ *
+ * @param basicResponse The `basicResponse` of a successful `OcspResponse`.
+ * @param responder     The certificate whose key is alleged to have signed it.
+ * @returns Whether the responder's key signed `basicResponse.tbsDer`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
+ */
+export async function verifyOcspSignature(basicResponse: OcspBasicResponse, responder: Certificate): Promise<boolean> {
+    if (typeof basicResponse !== 'object' || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
+        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: basicResponse must come from parseOcspResponse(), not raw bytes — and a response whose status is not successful has none');
+    }
+    const signer = assertCertificate(responder, 'responder');
+    // No algorithm-match check: RFC 6960 names the algorithm once, so there is
+    // no second field that could disagree with it.
+    return verifySignedStructure(basicResponse, signer, false);
 }
 
 /**

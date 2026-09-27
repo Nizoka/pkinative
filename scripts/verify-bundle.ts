@@ -52,11 +52,25 @@ const MARKERS = {
 } as const;
 
 /**
- * Measured 2026-09-26 (esbuild 0.28.1, minified ESM): 10.5, 9.4, 55.7, 7.6,
- * 14.6, 12.8, 17.2, 7.4 and 116.9 KB. Each budget is the measurement plus
- * roughly 15 %, and the leaf budgets are the invariant: they are never
- * relaxed, because they are the only executable proof that `LAYERS`
- * describes the artefact and not just the diagram.
+ * Measured 2026-09-27 (esbuild 0.28.1, minified ESM): 12.1, 11.0, 57.3, 9.3,
+ * 16.7, 14.7, 17.9, 16.7, 53.7 and 141.6 KB. Each budget is the measurement
+ * plus roughly 15 %.
+ *
+ * **The `mustNotContain` markers are the invariant and are never relaxed** —
+ * they are the only executable proof that `LAYERS` describes the artefact and
+ * not just the diagram. The byte budgets are a different thing, and this
+ * revision raised three leaves that did not change: `decodeAsn1`, `decodePem`
+ * and `computeFingerprint` each grew about 1.5 KB when four named limits were
+ * added, because `DEFAULT_PKI_LIMITS` is one frozen object and `resolveLimits`
+ * validates against its key set — so every limit's name and default is in
+ * every bundle that touches limits, which is all of them.
+ *
+ * That is the accepted cost of the closed enumeration: a `maxNode` typo is
+ * caught instead of silently leaving a security bound at its default. The
+ * roadmap expects the table to reach roughly 29 limits, so these leaves will
+ * grow by another 3–4 KB on that account alone. Growth from *that* cause is
+ * expected; growth from a marker appearing where it should not be is a
+ * layering violation, and no budget change will make that pass.
  *
  * The verification probe is the one that earns its place. AGENTS.md
  * §Architecture claims `crypto` never imports `x509`; this measures the
@@ -66,12 +80,12 @@ const MARKERS = {
  * Crypto bridge. A layer diagram is a drawing until something weighs it.
  */
 export const PROBES: readonly Probe[] = [
-    { exports: ['decodeAsn1'], maxBytes: 12 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
-    { exports: ['decodePem', 'encodePem'], maxBytes: 10 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['decodeAsn1'], maxBytes: 14 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['decodePem', 'encodePem'], maxBytes: 13 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 64 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
-    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 9 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
-    { exports: ['getOidName'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
-    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 11 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
+    { exports: ['getOidName'], maxBytes: 19 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
+    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The builder from the same angle: writing a certificate ships no reader.
     // It carries the ASN.1 *encoders* by necessity, so the decoder marker is
     // the one that matters here — an app that only issues certificates must

@@ -6,7 +6,7 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 2692,
+      "bytes": 2691,
       "approxTokens": 673
     },
     {
@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 83016,
-      "approxTokens": 20754
+      "bytes": 86030,
+      "approxTokens": 21508
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 43027,
-      "approxTokens": 10757
+      "bytes": 52416,
+      "approxTokens": 13104
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 167715,
-      "approxTokens": 41929
+      "bytes": 179210,
+      "approxTokens": 44803
     },
     {
       "url": "data/errors.json",
@@ -48,14 +48,14 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 2900,
-      "approxTokens": 725
+      "bytes": 3153,
+      "approxTokens": 788
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 4316,
-      "approxTokens": 1079
+      "bytes": 4505,
+      "approxTokens": 1126
     },
     {
       "url": "assets/ecosystem.json",
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12842,
-      "approxTokens": 3211
+      "bytes": 12847,
+      "approxTokens": 3212
     },
     {
       "title": "Use cases",
-      "summary": "Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.",
+      "summary": "Nine jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -100,10 +100,11 @@
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
+        "ask-a-responder-instead-of-downloading-a-list",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 26313,
-      "approxTokens": 6578
+      "bytes": 29324,
+      "approxTokens": 7331
     },
     {
       "title": "Security model",

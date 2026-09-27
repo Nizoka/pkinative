@@ -12,7 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 ## Guides
 
-- [Security model](https://pkinative.dev/guides/security.md): strict DER, the fourteen limits, typed failures, the cryptography boundary
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the fifteen limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when not yet
@@ -125,11 +125,11 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 
-pkinative has 181 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 194 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
-Every certificate, PEM text and DER blob is attacker-controlled. Fourteen named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
+Every certificate, PEM text and DER blob is attacker-controlled. Fifteen named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
 
 ## Conformance
 
@@ -286,7 +286,7 @@ Never branch on the message. The [error guide](errors.md) lists every code with 
 
 ## Limits
 
-Fourteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
+Fifteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
 
 ```ts
 parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
@@ -326,7 +326,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 12 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, revocation lists.
+- [recipes/](../../recipes/) — 13 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, revocation lists, OCSP.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -335,7 +335,7 @@ Error code unions are in the [errors guide](errors.md).
 
 # Use cases
 
-> **Eight jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.
+> **Nine jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -658,9 +658,37 @@ A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5
 
 And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
 
+## Ask a responder instead of downloading a list
+
+The job: OCSP. One question, one answer, no megabyte of CRL.
+
+```ts
+import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from 'pkinative';
+
+const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
+const bytes = new Uint8Array(await (await fetch(url, {
+    method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body,
+})).arrayBuffer());
+
+const response = parseOcspResponse(bytes);
+if (response.status !== 'successful') return `the responder declined: ${response.status}`;
+const basic = response.basicResponse!;
+if (!await verifyOcspSignature(basic, responderCertificate)) return 'not from that responder';
+
+for (const single of basic.responses) console.log(single.status.kind);   // 'good' | 'revoked' | 'unknown'
+```
+
+**Three states, never two.** RFC 6960 §2.2 gives `good`, `revoked` and `unknown`, and `unknown` is the responder saying it does not know about this certificate. Reducing that to a boolean turns *"I have never heard of this serial"* into a clean bill of health — the OCSP form of the same mistake `PKI_REASON_REVOCATION_UNKNOWN` names for CRLs. The six non-`successful` statuses are the responder declining to answer at all, and each is a reason to look elsewhere rather than a statement about any certificate. A `parseOcspResponse` result with a non-`successful` status carries **no** `basicResponse`, because the protocol carries no body there.
+
+**`issuerKeyHash` is over the public key bits, not the SubjectPublicKeyInfo.** That is the single most common OCSP client bug: hashing the SPKI produces a request a responder answers `unknown` to, which a careless client then reports as not revoked. `encodeCertId` is exported so you can recompute the same three values when matching a response back to your question.
+
+`parseOcspResponse` returns an [`OcspResponse`](../assets/api.json) whose `basicResponse` is an [`OcspBasicResponse`](../assets/api.json). `CreateOcspRequestOptions` carries `hashAlgorithm` — an [`OcspHashAlgorithm`](../assets/api.json), SHA-1 by default, because RFC 6960 §4.3 makes it mandatory for responders and a SHA-256 `CertID` is answered `unknown` by many of them — and `nonce`, which binds the response to your request. **Supply your own random bytes**: pkinative generates none, and without a nonce a responder may serve a cached answer that an attacker can replay. `maxOcspResponses` bounds how many `SingleResponse` entries are read.
+
+**Which certificate may answer for a CA is not a question this library answers.** `basicResponse.certificates` are certificates the responder *attached*; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.
+
 ## What none of these do yet
 
-Each of the eight is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the nine is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|

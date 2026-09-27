@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 181,
+  "exportCount": 194,
   "exports": [
     {
       "name": "AccessDescription",
@@ -742,6 +742,30 @@
       ]
     },
     {
+      "name": "CreateOcspRequestOptions",
+      "kind": "type",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export interface CreateOcspRequestOptions",
+      "summary": "Options of createOcspRequest.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "hashAlgorithm",
+          "type": "OcspHashAlgorithm | undefined",
+          "optional": true,
+          "summary": "The digest for the two issuer hashes."
+        },
+        {
+          "name": "nonce",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "A nonce (RFC 6960 §4.4.1), which binds the response to this request."
+        }
+      ]
+    },
+    {
       "name": "CreateOptions",
       "kind": "type",
       "module": "src/build/build-certificate.ts",
@@ -816,7 +840,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -1701,6 +1725,124 @@
       "members": null
     },
     {
+      "name": "OcspBasicResponse",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspBasicResponse",
+      "summary": "A parsed `BasicOCSPResponse` (RFC 6960 §4.2.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `tbsResponseData` bytes the signature covers."
+        },
+        {
+          "name": "responderId",
+          "type": "OcspResponderId",
+          "optional": false,
+          "summary": "How the responder named itself — by name, or by a hash of its key."
+        },
+        {
+          "name": "producedAt",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": "When the responder signed this response."
+        },
+        {
+          "name": "responses",
+          "type": "readonly OcspSingleResponse[]",
+          "optional": false,
+          "summary": "One answer per certificate asked about, in the order the responder gave them."
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the responder signed with."
+        },
+        {
+          "name": "signatureValue",
+          "type": "{ readonly bytes: Uint8Array; readonly unusedBits: number }",
+          "optional": false,
+          "summary": "The signature over `tbsDer`, as a BIT STRING of whole octets."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Certificates the responder attached to help a client build a path to it."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`responseExtensions`, decoded; the nonce echo lives here."
+        }
+      ]
+    },
+    {
+      "name": "OcspCertId",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspCertId",
+      "summary": "The `CertID` of RFC 6960 §4.1.1: which certificate a question or an answer is about.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "hashAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the two hashes were computed with, usually SHA-1 (RFC 6960 §4.1.1)."
+        },
+        {
+          "name": "issuerNameHash",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "Hash of the issuer's encoded `Name` — the DER of the field, not a rendering."
+        },
+        {
+          "name": "issuerKeyHash",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "Hash of the issuer's `subjectPublicKey` BIT STRING content, excluding the tag and the unused-bits octet."
+        },
+        {
+          "name": "serialNumber",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": "The serial of the certificate being asked about."
+        }
+      ]
+    },
+    {
+      "name": "OcspCertStatus",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export type OcspCertStatus = | { readonly kind: 'good' } | { readonly kind: 'revoked'",
+      "summary": "One certificate's status (RFC 6960 §4.2.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "OcspHashAlgorithm",
+      "kind": "type",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export type OcspHashAlgorithm = 'SHA-1' | 'SHA-256'",
+      "summary": "The digests RFC 6960 §4.3 lets a `CertID` use.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "OcspNoCheckExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -1733,6 +1875,106 @@
           "type": "'ocspNoCheck'",
           "optional": false,
           "summary": "Discriminant; `getExtension(cert, 'ocspNoCheck')` returns this type."
+        }
+      ]
+    },
+    {
+      "name": "OcspResponderId",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export type OcspResponderId = /** `byName [1]`: the responder's `Name`, as its encoded DER. */ | { readonly kind: 'byName'",
+      "summary": "How a responder identified itself (RFC 6960 §4.2.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "OcspResponse",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspResponse",
+      "summary": "A parsed `OCSPResponse` (RFC 6960 §4.2.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole response, as a zero-copy view of the input."
+        },
+        {
+          "name": "status",
+          "type": "OcspResponseStatus",
+          "optional": false,
+          "summary": "`successful`, or one of the six ways a responder declines to answer."
+        },
+        {
+          "name": "basicResponse",
+          "type": "OcspBasicResponse | undefined",
+          "optional": false,
+          "summary": "Present only when `status` is `'successful'`; the protocol carries no body otherwise."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "OcspResponseStatus",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export type OcspResponseStatus = | 'successful' | 'malformedRequest' | 'internalError' | 'tryLater' | 'sigRequired' | 'unauthorized'",
+      "summary": "The `OCSPResponseStatus` of RFC 6960 §4.2.1.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "OcspSingleResponse",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspSingleResponse",
+      "summary": "One `SingleResponse` (RFC 6960 §4.2.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certId",
+          "type": "OcspCertId",
+          "optional": false,
+          "summary": "Which certificate this answer is about."
+        },
+        {
+          "name": "status",
+          "type": "OcspCertStatus",
+          "optional": false,
+          "summary": "Good, revoked or unknown — three states, and unknown is not good."
+        },
+        {
+          "name": "thisUpdate",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": "When the responder knew this status to be correct."
+        },
+        {
+          "name": "nextUpdate",
+          "type": "PkiTime | undefined",
+          "optional": false,
+          "summary": "When newer information will be available; absent means the responder has no successor to promise."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`singleExtensions`, decoded; empty when there are none."
         }
       ]
     },
@@ -2343,6 +2585,12 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of entries walked in one CRL revokedCertificates list."
+        },
+        {
+          "name": "maxOcspResponses",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of SingleResponse entries in one OCSP response."
         }
       ]
     },
@@ -3618,6 +3866,32 @@
       "members": null
     },
     {
+      "name": "createOcspRequest",
+      "kind": "function",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export function createOcspRequest(certificate: Certificate, issuer: Certificate, options?: CreateOcspRequestOptions): Uint8Array",
+      "summary": "Build an OCSP request for one certificate.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "certificate",
+          "description": "The certificate being asked about."
+        },
+        {
+          "name": "issuer",
+          "description": "The certificate that issued it."
+        },
+        {
+          "name": "options",
+          "description": "See {@link CreateOcspRequestOptions}."
+        }
+      ],
+      "returns": "The encoded `OCSPRequest`, ready to POST.",
+      "members": null
+    },
+    {
       "name": "decodeAsn1",
       "kind": "function",
       "module": "src/asn1/asn1-decode.ts",
@@ -3876,6 +4150,32 @@
         }
       ],
       "returns": "The BOOLEAN encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeCertId",
+      "kind": "function",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export function encodeCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array",
+      "summary": "Build a `CertID` for one certificate under one issuer.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "certificate",
+          "description": "The certificate being asked about."
+        },
+        {
+          "name": "issuer",
+          "description": "The certificate that issued it."
+        },
+        {
+          "name": "algorithm",
+          "description": "The digest; SHA-1 by default."
+        }
+      ],
+      "returns": "The encoded `CertID`.",
       "members": null
     },
     {
@@ -4584,6 +4884,30 @@
       "members": null
     },
     {
+      "name": "parseOcspResponse",
+      "kind": "function",
+      "module": "src/revocation/ocsp-response.ts",
+      "signature": "export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): OcspResponse",
+      "summary": "Parse an `OCSPResponse`.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The complete OCSPResponse, as returned by a responder."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics."
+        }
+      ],
+      "returns": "The parsed response, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
       "name": "readBitString",
       "kind": "function",
       "module": "src/asn1/asn1-read.ts",
@@ -4865,6 +5189,29 @@
         }
       ],
       "returns": "Whether the issuer's key signed `crl.tbsDer`.",
+      "members": null
+    },
+    {
+      "name": "verifyOcspSignature",
+      "kind": "function",
+      "module": "src/crypto/x509-verify.ts",
+      "signature": "export async function verifyOcspSignature(basicResponse: OcspBasicResponse, responder: Certificate): Promise<boolean>",
+      "summary": "Verify that a responder's key signed this OCSP response.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "basicResponse",
+          "description": "The `basicResponse` of a successful `OcspResponse`."
+        },
+        {
+          "name": "responder",
+          "description": "The certificate whose key is alleged to have signed it."
+        }
+      ],
+      "returns": "Whether the responder's key signed `basicResponse.tbsDer`.",
       "members": null
     },
     {
