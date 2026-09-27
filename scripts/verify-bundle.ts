@@ -97,7 +97,15 @@ export const PROBES: readonly Probe[] = [
     // quietly stopped being true. The ASN.1 decoder must be absent too — a
     // path validator that decodes anything is a layer upstream that failed to
     // expose it.
-    { exports: ['validateCertificatePath'], maxBytes: 18 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    //
+    // 18 KB → 20 KB, measured at 18.5 KB: the name-constraint checker grew by
+    // ~0.5 KB when x509-limbo scoring showed it accepting malformed names,
+    // treating a URI constraint as a domain, ignoring a constrained form it
+    // could not process, and comparing a wildcard as a string (CVE-2025-61727).
+    // Every one of those was a bypass, so the bytes bought correctness rather
+    // than features — and the headroom is named here so the next rise has to be
+    // argued too.
+    { exports: ['validateCertificatePath'], maxBytes: 20 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "Revocation is synchronous and carries no crypto", weighed. The Web
     // Crypto marker is the invariant: `checkRevocation` takes a signature
     // verdict rather than a key, and a bundle retaining the bridge would mean

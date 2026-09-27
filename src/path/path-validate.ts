@@ -411,9 +411,24 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
         const anchor = input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
         if (anchor !== undefined) {
             anchored = true;
-            // Its signature is deliberately not checked: a trust anchor is
+            const path = `path[${String(walked.length)}]`;
+            // Its **signature** is deliberately not checked: a trust anchor is
             // trusted a priori, and a root's self-signature proves only that it
             // is self-consistent.
+            //
+            // Its **validity window and its critical extensions are**, and the
+            // same two checks run when the anchor arrives inside `certificates`
+            // instead — a certificate that is judged differently depending on
+            // which of two inputs the caller put it in is a certificate nobody
+            // can reason about. Trusting a key is not the same as believing its
+            // owner still holds it: an expired root is one whose owner retired
+            // it, and an unknown critical extension on it is an instruction
+            // this validator cannot follow. A relying party that means to trust
+            // an expired anchor anyway can see the reason and decide; one that
+            // never sees it cannot.
+            const validity = checkValidity(anchor, context.at, path);
+            if (validity !== null) state.reasons.push(validity);
+            state.reasons.push(...checkCriticalExtensions(anchor, path));
             walked.push(anchor);
         }
     }
@@ -445,7 +460,14 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
         state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
         const constraints = getExtension(issuer, 'nameConstraints');
         if (constraints !== undefined) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
-        state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
+        // §6.1.3 (b), (c): *"Name constraints are not applied to self-issued
+        // certificates (unless the certificate is the final certificate in the
+        // path)"* — a CA re-keying itself keeps its own name, which its own
+        // constraints need not permit, and refusing that would refuse every
+        // key rollover. The exemption stops at the leaf: a self-issued final
+        // certificate is the identity being judged, not a step in the chain.
+        const selfIssued = _hex(below.subject.der) === _hex(below.issuer.der);
+        if (!selfIssued || index - 1 === 0) state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
         state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
     }
 

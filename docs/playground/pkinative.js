@@ -3731,7 +3731,7 @@ function initialNameConstraints() {
     permitted[form] = null;
     excluded[form] = [];
   }
-  return { permitted, excluded };
+  return { permitted, excluded, unprocessed: /* @__PURE__ */ new Set() };
 }
 function formOf(base) {
   return FORMS.includes(base.kind) ? base.kind : null;
@@ -3757,7 +3757,11 @@ function emailMatches(constraint, name) {
 function uriMatches(constraint, uri) {
   const host = uriHost(uri);
   if (host === null) return false;
-  return dnsMatches(constraint, host);
+  const c = fold(constraint);
+  const h = fold(host);
+  if (c === "") return true;
+  if (c.startsWith(".")) return h.endsWith(c);
+  return h === c;
 }
 function uriHost(uri) {
   const schemeEnd = uri.indexOf("://");
@@ -3799,6 +3803,48 @@ function _sameRdn(a, b) {
     return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
   });
 }
+function wellFormedName(name) {
+  switch (name.kind) {
+    case "dNSName":
+      return _wellFormedHost(name.value);
+    case "rfc822Name": {
+      const at = name.value.indexOf("@");
+      return at > 0 && name.value.indexOf("@", at + 1) < 0 && _wellFormedHost(name.value.slice(at + 1));
+    }
+    case "uniformResourceIdentifier": {
+      const host = uriHost(name.value);
+      return host !== null && (host.startsWith("[") || _wellFormedHost(host));
+    }
+    case "iPAddress":
+      return name.bytes.length === 4 || name.bytes.length === 16;
+    default:
+      return true;
+  }
+}
+function _wellFormedHost(host) {
+  if (host === "" || host.endsWith(".")) return false;
+  return host.split(".").every((label) => label !== "");
+}
+function _starredSet(value) {
+  if (!value.includes("*")) return null;
+  const labels = fold(value).split(".");
+  let last = -1;
+  for (const [index, label] of labels.entries()) if (label.includes("*")) last = index;
+  const parent = labels.slice(last + 1).join(".");
+  return _wellFormedHost(parent) ? { parent, labels: last + 1 } : null;
+}
+function subtreeCoversWildcard(base, parent) {
+  const b = fold(base);
+  if (b === "") return true;
+  if (b.startsWith(".")) return parent === b.slice(1) || parent.endsWith(b);
+  return dnsMatches(b, parent);
+}
+function wildcardMeetsSubtree(base, parent, labels = 1) {
+  if (subtreeCoversWildcard(base, parent)) return true;
+  const b = fold(base);
+  if (b.startsWith(".") || !b.endsWith(`.${parent}`)) return false;
+  return b.slice(0, b.length - parent.length - 1).split(".").length === labels;
+}
 function subtreeCovers(subtree, name) {
   const base = subtree.base;
   if (base.kind !== name.kind) return false;
@@ -3823,7 +3869,10 @@ function accumulateNameConstraints(state, permitted, excluded) {
     const byForm = /* @__PURE__ */ new Map();
     for (const subtree of permitted) {
       const form = formOf(subtree.base);
-      if (form === null) continue;
+      if (form === null) {
+        state.unprocessed.add(subtree.base.kind);
+        continue;
+      }
       byForm.set(form, [...byForm.get(form) ?? [], subtree]);
     }
     for (const [form, subtrees] of byForm) {
@@ -3837,14 +3886,34 @@ function accumulateNameConstraints(state, permitted, excluded) {
   }
   for (const subtree of excluded ?? []) {
     const form = formOf(subtree.base);
-    if (form === null) continue;
+    if (form === null) {
+      state.unprocessed.add(subtree.base.kind);
+      continue;
+    }
     state.excluded[form] = [...state.excluded[form], subtree];
   }
 }
 function checkName(state, name) {
   const form = formOf(name);
-  if (form === null) return null;
+  if (form === null) {
+    return state.unprocessed.has(name.kind) ? { form: "directoryName", text: `${name.kind} \u2014 a constrained name form this validator does not process`, why: "not-permitted" } : null;
+  }
   const text = nameText(name);
+  const constrained = state.permitted[form] !== null || state.excluded[form].length > 0;
+  const set = name.kind === "dNSName" ? _starredSet(name.value) : null;
+  if (set !== null) {
+    const usable = (subtree) => subtree.base.kind === "dNSName" && subtree.minimum === 0 && subtree.maximum === void 0;
+    for (const subtree of state.excluded[form]) {
+      if (usable(subtree) && wildcardMeetsSubtree(subtree.base.value, set.parent, set.labels)) {
+        return { form, text, why: "excluded" };
+      }
+    }
+    const permitted2 = state.permitted[form];
+    if (permitted2 === null) return null;
+    const whole = permitted2.some((subtree) => usable(subtree) && subtreeCoversWildcard(subtree.base.value, set.parent));
+    return whole ? null : { form, text, why: "not-permitted" };
+  }
+  if (constrained && !wellFormedName(name)) return { form, text, why: "not-permitted" };
   for (const subtree of state.excluded[form]) {
     if (subtreeCovers(subtree, name)) return { form, text, why: "excluded" };
   }
@@ -4200,6 +4269,10 @@ function validateCertificatePath(input) {
     const anchor = input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
     if (anchor !== void 0) {
       anchored = true;
+      const path = `path[${String(walked.length)}]`;
+      const validity = checkValidity(anchor, context.at, path);
+      if (validity !== null) state.reasons.push(validity);
+      state.reasons.push(...checkCriticalExtensions(anchor, path));
       walked.push(anchor);
     }
   }
@@ -4218,7 +4291,8 @@ function validateCertificatePath(input) {
     state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
     const constraints = getExtension(issuer, "nameConstraints");
     if (constraints !== void 0) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
-    state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
+    const selfIssued = _hex(below.subject.der) === _hex(below.issuer.der);
+    if (!selfIssued || index - 1 === 0) state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
     state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
   }
   if (wrapUpPolicies(policies, input.initialPolicySet ?? []) === null) {

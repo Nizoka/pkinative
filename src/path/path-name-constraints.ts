@@ -27,6 +27,30 @@
  * thinks about trailing dots, IDNA and userinfo — which is how name
  * constraint bypasses get written.
  *
+ * ## Three ways a name escapes a constraint, and none of them is a match
+ *
+ * Every one of these was found by scoring x509-limbo, and each let a
+ * constrained CA issue a name its issuer had withheld:
+ *
+ * **A malformed name is not inside the permitted namespace.** `.example.com`
+ * is not a host name, and `invalid@address@example.com` is not a mailbox.
+ * §6.1.3 (b) says every name MUST be *located within* the permitted subtrees,
+ * and a name that cannot be located is not within them. Suffix-matching such a
+ * name against `example.com` says "permitted", which is how a CA constrained to
+ * one domain issues for a name no parser agrees on (CWE-436).
+ *
+ * **A wildcard is a set, not a string.** `*.example.com` denotes every
+ * single-label host under `example.com`, so an exclusion of
+ * `bar.example.com` — one of its members — must refuse it, and a permission
+ * must cover the whole set rather than one spelling of it. Comparing the
+ * literal text `*.example.com` finds neither. This is CVE-2025-61727.
+ *
+ * **A constraint on a form this module does not process must refuse, not be
+ * ignored.** §4.2.1.10 is explicit: an implementation either processes every
+ * constrained form or rejects the certificate. Skipping an `otherName`
+ * constraint silently is answering "unconstrained" to a CA that said
+ * "forbidden".
+ *
  * @module path/path-name-constraints
  */
 
@@ -47,6 +71,20 @@ const FORMS: readonly ConstrainedForm[] = ['dNSName', 'rfc822Name', 'uniformReso
 export interface NameConstraintState {
     permitted: Record<ConstrainedForm, GeneralSubtree[] | null>;
     excluded: Record<ConstrainedForm, GeneralSubtree[]>;
+    /**
+     * `GeneralName.kind`s some CA constrained and this module does not process
+     * — `otherName`, `x400Address`, `ediPartyName`, `registeredID`.
+     *
+     * RFC 5280 §4.2.1.10 leaves no third option: *"If a name constraints
+     * extension that is marked as critical imposes constraints on a particular
+     * name form, and an instance of that name form appears in the subject field
+     * or subjectAltName extension of a subsequent certificate, then the
+     * application MUST either process the constraint or reject the
+     * certificate."* Ignoring the constraint answers "unconstrained" to a CA
+     * that said "forbidden", so the kind is remembered here and a name of that
+     * kind is refused below.
+     */
+    readonly unprocessed: Set<string>;
 }
 
 /** A state with no constraint at all — the value §6.1.2 starts from. */
@@ -57,7 +95,7 @@ export function initialNameConstraints(): NameConstraintState {
         permitted[form] = null;
         excluded[form] = [];
     }
-    return { permitted, excluded };
+    return { permitted, excluded, unprocessed: new Set<string>() };
 }
 
 /** The form a subtree's base constrains, or null when this module has no rule for it. */
@@ -104,8 +142,16 @@ export function emailMatches(constraint: string, name: string): boolean {
 }
 
 /**
- * §4.2.1.10, uniformResourceIdentifier: the constraint applies to the
- * **host** of the URI, by the dNSName rules.
+ * §4.2.1.10, uniformResourceIdentifier: the constraint applies to the **host**
+ * of the URI, and — unlike a dNSName constraint — a constraint that does not
+ * begin with a period **specifies one host, not a domain**.
+ *
+ * The RFC spells out the asymmetry: *"When the constraint does not begin with a
+ * period, it specifies a host."* So `example.com` as a dNSName constraint
+ * permits `sub.example.com`, and the same string as a URI constraint does not.
+ * Routing URIs through the dNSName rule — which this function did until
+ * x509-limbo scored it — lets a CA constrained to one host issue for every
+ * subdomain of it.
  *
  * The host is taken by cutting the string, not by parsing a URL. A URI whose
  * authority this cannot find is refused rather than accepted: a constraint
@@ -114,7 +160,11 @@ export function emailMatches(constraint: string, name: string): boolean {
 export function uriMatches(constraint: string, uri: string): boolean {
     const host = uriHost(uri);
     if (host === null) return false;
-    return dnsMatches(constraint, host);
+    const c = fold(constraint);
+    const h = fold(host);
+    if (c === '') return true;
+    if (c.startsWith('.')) return h.endsWith(c);
+    return h === c;
 }
 
 /** The host of a URI, or null when there is no authority to constrain. */
@@ -186,6 +236,132 @@ function _sameRdn(a: RelativeDistinguishedName, b: RelativeDistinguishedName): b
     });
 }
 
+// ── Well-formedness: a name that cannot be located is not inside ─────
+
+/**
+ * Whether a name is well enough formed to be *located* within a namespace.
+ *
+ * §6.1.3 (b) requires every name to be **within** the permitted subtrees. A
+ * name that no two parsers would read the same way is not within anything, and
+ * suffix-matching it anyway is the permissive mistake: `.example.com` ends with
+ * `example.com`, so a constraint permitting that domain would accept a name
+ * that is not a host name at all.
+ *
+ * Only the forms this module constrains are judged, and only for the shapes
+ * §4.2.1.10 relies on — an empty label, a missing or repeated `@`, an address
+ * of the wrong width. This is not a hostname validator: it answers whether the
+ * matching rules below can be trusted on this string, and nothing more.
+ *
+ * @param name The name under test.
+ * @returns Whether the matching rules can be applied to it.
+ */
+export function wellFormedName(name: GeneralName): boolean {
+    switch (name.kind) {
+        case 'dNSName':
+            return _wellFormedHost(name.value);
+        case 'rfc822Name': {
+            const at = name.value.indexOf('@');
+            // Exactly one `@`, a non-empty local part, and a host that is a
+            // host: `invalid@address@example.com` is not a mailbox, and reading
+            // only the last `@` makes it look like one on `example.com`.
+            return at > 0 && name.value.indexOf('@', at + 1) < 0 && _wellFormedHost(name.value.slice(at + 1));
+        }
+        case 'uniformResourceIdentifier': {
+            const host = uriHost(name.value);
+            return host !== null && (host.startsWith('[') || _wellFormedHost(host));
+        }
+        case 'iPAddress':
+            return name.bytes.length === 4 || name.bytes.length === 16;
+        default:
+            // A directoryName is compared on encoded RDNs, which have no
+            // malformed spelling: the decoder either produced a name or threw.
+            return true;
+    }
+}
+
+/**
+ * No empty label, and **no trailing dot**.
+ *
+ * A trailing dot is a query-time spelling of an absolute name; in a certificate
+ * it is outside the preferred name syntax RFC 5280 §4.2.1.6 asks for, and the
+ * matching rules do not strip it. Calling it well formed would leave a name that
+ * silently matches no constraint, which reads as "unconstrained" — so it is
+ * refused where a constraint applies, and diagnosed at parse time where none
+ * does.
+ */
+function _wellFormedHost(host: string): boolean {
+    if (host === '' || host.endsWith('.')) return false;
+    return host.split('.').every((label) => label !== '');
+}
+
+// ── Wildcards: a name that denotes a set (§4.2.1.10 against RFC 9525) ─
+
+/**
+ * What a starred name denotes: the domain below every starred label, and how
+ * many labels the stars stand in for. `null` when there is no star.
+ *
+ * Any star counts, not only a leading `*.`: `w*.example.com` denotes every host
+ * under `example.com` whose label begins with `w`, and a matcher lenient enough
+ * to honour a partial wildcard could expand it onto an excluded name. Treating
+ * the whole label as unknown over-approximates the set, which is the safe
+ * direction — the over-approximation can only refuse, never permit.
+ */
+function _starredSet(value: string): { readonly parent: string; readonly labels: number } | null {
+    if (!value.includes('*')) return null;
+    const labels = fold(value).split('.');
+    let last = -1;
+    for (const [index, label] of labels.entries()) if (label.includes('*')) last = index;
+    const parent = labels.slice(last + 1).join('.');
+    return _wellFormedHost(parent) ? { parent, labels: last + 1 } : null;
+}
+
+/**
+ * Whether a dNSName subtree **covers every name** a starred name denotes.
+ *
+ * True when the subtree covers the parent domain, because a subtree that covers
+ * a domain covers everything below it. This is the question permission asks:
+ * accepting a starred name grants every name it denotes, so one member being
+ * permitted is not enough.
+ *
+ * @param base   The constraint's dNSName.
+ * @param parent The starred name's parent domain, already folded.
+ * @returns Whether the subtree contains the whole set.
+ */
+export function subtreeCoversWildcard(base: string, parent: string): boolean {
+    const b = fold(base);
+    if (b === '') return true;
+    // A leading period names what is strictly below: it covers the whole set
+    // when the parent is at or below that domain, since every member sits one
+    // further label down.
+    if (b.startsWith('.')) return parent === b.slice(1) || parent.endsWith(b);
+    return dnsMatches(b, parent);
+}
+
+/**
+ * Whether a dNSName subtree **intersects** the set a starred name denotes.
+ *
+ * `*.example.com` is every single-label host under `example.com`. An exclusion
+ * of `bar.example.com` names one of its members, so the starred name must be
+ * refused even though the two strings do not match — CVE-2025-61727, and the
+ * reason this function exists rather than a string comparison.
+ *
+ * The set meets the subtree when the subtree covers the whole set, **or** when
+ * the subtree's base is itself a member: as many labels below the parent as
+ * there are starred labels, and not a leading-period base, which denotes only
+ * what lies further below and so holds no member of its own.
+ *
+ * @param base   The constraint's dNSName.
+ * @param parent The starred name's parent domain, already folded.
+ * @param labels How many labels the stars stand in for.
+ * @returns Whether some name the starred name denotes falls inside the subtree.
+ */
+export function wildcardMeetsSubtree(base: string, parent: string, labels = 1): boolean {
+    if (subtreeCoversWildcard(base, parent)) return true;
+    const b = fold(base);
+    if (b.startsWith('.') || !b.endsWith(`.${parent}`)) return false;
+    return b.slice(0, b.length - parent.length - 1).split('.').length === labels;
+}
+
 /**
  * Whether one subtree covers one name. Both must be the same form; a
  * different form is not covered, which is what makes the per-form state
@@ -236,7 +412,10 @@ export function accumulateNameConstraints(
         const byForm = new Map<ConstrainedForm, GeneralSubtree[]>();
         for (const subtree of permitted) {
             const form = formOf(subtree.base);
-            if (form === null) continue;
+            if (form === null) {
+                state.unprocessed.add(subtree.base.kind);
+                continue;
+            }
             byForm.set(form, [...(byForm.get(form) ?? []), subtree]);
         }
         for (const [form, subtrees] of byForm) {
@@ -253,7 +432,10 @@ export function accumulateNameConstraints(
     }
     for (const subtree of excluded ?? []) {
         const form = formOf(subtree.base);
-        if (form === null) continue;
+        if (form === null) {
+            state.unprocessed.add(subtree.base.kind);
+            continue;
+        }
         state.excluded[form] = [...state.excluded[form], subtree];
     }
 }
@@ -276,8 +458,43 @@ export type NameVerdict = { readonly form: ConstrainedForm; readonly text: strin
  */
 export function checkName(state: NameConstraintState, name: GeneralName): NameVerdict {
     const form = formOf(name);
-    if (form === null) return null; // No rule here for this form.
+    if (form === null) {
+        // §4.2.1.10: process every constrained form or reject. A CA constrained
+        // this form and this module cannot evaluate it, so the answer is no —
+        // never "unconstrained", which is what skipping it would say.
+        return state.unprocessed.has(name.kind)
+            ? { form: 'directoryName', text: `${name.kind} — a constrained name form this validator does not process`, why: 'not-permitted' }
+            : null;
+    }
     const text = nameText(name);
+    const constrained = state.permitted[form] !== null || state.excluded[form].length > 0;
+
+    // A starred name denotes a set, so both questions are about the set: any
+    // member inside an exclusion refuses it, and permission must cover every
+    // member. A subtree carrying a minimum or a maximum is skipped for the same
+    // reason `subtreeCovers` refuses it — §4.2.1.10 fixes minimum to 0 and
+    // forbids maximum, so such a subtree is not one this code can honour.
+    const set = name.kind === 'dNSName' ? _starredSet(name.value) : null;
+    if (set !== null) {
+        const usable = (subtree: GeneralSubtree): boolean =>
+            subtree.base.kind === 'dNSName' && subtree.minimum === 0 && subtree.maximum === undefined;
+        for (const subtree of state.excluded[form]) {
+            if (usable(subtree) && wildcardMeetsSubtree((subtree.base as { value: string }).value, set.parent, set.labels)) {
+                return { form, text, why: 'excluded' };
+            }
+        }
+        const permitted = state.permitted[form];
+        if (permitted === null) return null;
+        const whole = permitted.some((subtree) => usable(subtree)
+            && subtreeCoversWildcard((subtree.base as { value: string }).value, set.parent));
+        return whole ? null : { form, text, why: 'not-permitted' };
+    }
+
+    // A malformed name is not located within any namespace. Only reported when
+    // some CA did constrain the form: §6 judges relations, and the syntax of a
+    // name nobody constrained is a profile concern the parser already diagnosed.
+    if (constrained && !wellFormedName(name)) return { form, text, why: 'not-permitted' };
+
     for (const subtree of state.excluded[form]) {
         if (subtreeCovers(subtree, name)) return { form, text, why: 'excluded' };
     }

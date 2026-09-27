@@ -11,6 +11,9 @@ import {
     subtreeCovers,
     uriHost,
     uriMatches,
+    subtreeCoversWildcard,
+    wellFormedName,
+    wildcardMeetsSubtree,
     type NameConstraintState,
 } from '../../src/path/path-name-constraints.js';
 import type { DistinguishedName, GeneralName, GeneralSubtree } from '../../src/types/x509-types.js';
@@ -98,9 +101,28 @@ describe('uriHost and uriMatches — §4.2.1.10', () => {
         expect(uriHost(u)).toBe(host);
     });
 
-    it('should apply the dNSName rules to the host', () => {
-        expect(uriMatches('example.com', 'https://host.example.com/x')).toBe(true);
+    it('should treat a constraint without a leading period as ONE host, not a domain', () => {
+        // The asymmetry the RFC spells out and that this code got wrong until
+        // x509-limbo scored it: "When the constraint does not begin with a
+        // period, it specifies a host." So the same string permits subdomains
+        // as a dNSName constraint and does not as a URI constraint, and routing
+        // URIs through the dNSName rule lets a CA constrained to one host issue
+        // for every subdomain of it.
+        expect(uriMatches('example.com', 'https://example.com/x')).toBe(true);
+        expect(uriMatches('example.com', 'https://host.example.com/x')).toBe(false);
         expect(uriMatches('example.com', 'https://notexample.com/x')).toBe(false);
+        // A leading period is how a URI constraint names a domain — and it does
+        // not match the domain itself.
+        expect(uriMatches('.example.com', 'https://host.example.com/x')).toBe(true);
+        expect(uriMatches('.example.com', 'https://deep.host.example.com/x')).toBe(true);
+        expect(uriMatches('.example.com', 'https://example.com/x')).toBe(false);
+    });
+
+    it('should let an empty constraint match every URI that has a host', () => {
+        // An empty base constrains the form without narrowing it, which is how
+        // a CA says "URIs, but only URIs" — and it still needs a host, because
+        // a constraint that cannot be evaluated is not one that is satisfied.
+        expect(uriMatches('', 'https://anything.test/x')).toBe(true);
     });
 
     it('should refuse a URI whose host it cannot find, rather than accept it', () => {
@@ -197,7 +219,10 @@ describe('subtreeCovers', () => {
     it('should cover every form it does have a rule for', () => {
         expect(subtreeCovers(subtree(dns('example.com')), dns('host.example.com'))).toBe(true);
         expect(subtreeCovers(subtree(email('example.com')), email('a@example.com'))).toBe(true);
-        expect(subtreeCovers(subtree(uri('example.com')), uri('https://host.example.com/'))).toBe(true);
+        // `.example.com`, not `example.com`: a URI constraint without a leading
+        // period specifies one host (§4.2.1.10), unlike the dNSName rule above.
+        expect(subtreeCovers(subtree(uri('.example.com')), uri('https://host.example.com/'))).toBe(true);
+        expect(subtreeCovers(subtree(uri('example.com')), uri('https://example.com/'))).toBe(true);
         expect(subtreeCovers(subtree(ip([192, 0, 2, 0, 255, 255, 255, 0])), ip([192, 0, 2, 7]))).toBe(true);
         expect(subtreeCovers(subtree(directory(name(['2.5.4.6', 'US']))), directory(name(['2.5.4.6', 'US'], ['2.5.4.3', 'h'])))).toBe(true);
     });
@@ -266,7 +291,12 @@ describe('accumulateNameConstraints — §6.1.4 (g)', () => {
         expect(checkName(state, dns('a.secret.example.com'))?.why).toBe('excluded');
     });
 
-    it('should ignore a subtree of a form it has no rule for', () => {
+    it('should refuse a name of a constrained form it cannot process, rather than ignore it', () => {
+        // §4.2.1.10 leaves no third option: process every constrained form or
+        // reject the certificate. Skipping the constraint — which this code did
+        // until x509-limbo scored it — answers "unconstrained" to a CA that
+        // said "forbidden". The five forms with rules stay untouched, which is
+        // the other half: one unprocessable form must not refuse the rest.
         const state = initialNameConstraints();
         const rid: GeneralName = { kind: 'registeredID', oid: '1.2.3', der: new Uint8Array(0) };
         accumulateNameConstraints(state, [{ base: rid, minimum: 0, maximum: undefined }], [{ base: rid, minimum: 0, maximum: undefined }]);
@@ -274,7 +304,12 @@ describe('accumulateNameConstraints — §6.1.4 (g)', () => {
             expect(state.permitted[form], form).toBeNull();
             expect(state.excluded[form], form).toEqual([]);
         }
-        expect(checkName(state, rid)).toBeNull();
+        expect(state.unprocessed.has('registeredID')).toBe(true);
+        expect(checkName(state, rid)?.why).toBe('not-permitted');
+        expect(checkName(state, rid)?.text).toContain('does not process');
+        // A name of a form nobody constrained is still unconstrained.
+        expect(checkName(state, { kind: 'otherName', typeId: '1.2.4', value: new Uint8Array(0), der: new Uint8Array(0) } as unknown as GeneralName)).toBeNull();
+        expect(checkName(state, dns('anything.test'))).toBeNull();
     });
 
     it('should report the form and the value, so the reason can be acted on', () => {
@@ -292,13 +327,178 @@ describe('every form can be excluded, not only permitted', () => {
     it.each([
         { form: 'dNSName', subtree: subtree(dns('bad.test')), name: dns('a.bad.test') },
         { form: 'rfc822Name', subtree: subtree(email('bad.test')), name: email('a@bad.test') },
-        { form: 'uniformResourceIdentifier', subtree: subtree(uri('bad.test')), name: uri('https://a.bad.test/') },
+        { form: 'uniformResourceIdentifier', subtree: subtree(uri('.bad.test')), name: uri('https://a.bad.test/') },
         { form: 'iPAddress', subtree: subtree(ip([10, 0, 0, 0, 255, 0, 0, 0])), name: ip([10, 1, 2, 3]) },
         { form: 'directoryName', subtree: subtree(directory(name(['2.5.4.6', 'XX']))), name: directory(name(['2.5.4.6', 'XX'], ['2.5.4.3', 'h'])) },
     ])('$form', ({ subtree: s, name: n }) => {
         const state = initialNameConstraints();
         accumulateNameConstraints(state, undefined, [s]);
         expect(checkName(state, n)?.why).toBe('excluded');
+    });
+});
+
+describe('a malformed name is not inside any namespace', () => {
+    // §6.1.3 (b) requires every name to be LOCATED WITHIN the permitted
+    // subtrees. `.example.com` ends with `example.com`, so plain suffix
+    // matching calls it permitted — and a CA constrained to one domain has
+    // issued for a name no two parsers read the same way (CWE-436).
+    it.each([
+        { what: 'a DNS name with a leading period', subtree: subtree(dns('example.com')), name: dns('.example.com') },
+        { what: 'a DNS name with an empty inner label', subtree: subtree(dns('example.com')), name: dns('a..example.com') },
+        { what: 'a mailbox with two @', subtree: subtree(email('example.com')), name: email('invalid@address@example.com') },
+        { what: 'a mailbox with no local part', subtree: subtree(email('example.com')), name: email('@example.com') },
+        { what: 'a URI with no authority', subtree: subtree(uri('example.com')), name: uri('mailto:a@example.com') },
+        { what: 'an address of no known width', subtree: subtree(ip([192, 0, 2, 0, 255, 255, 255, 0])), name: ip([192, 0, 2]) },
+    ])('$what', ({ subtree: s, name: n }) => {
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, [s], undefined);
+        expect(checkName(state, n)?.why).toBe('not-permitted');
+    });
+
+    it('should not police a name of a form nobody constrained', () => {
+        // §6 judges relations. The syntax of a name no CA constrained is a
+        // profile concern, which the parser already diagnosed on the object.
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, [subtree(email('example.com'))], undefined);
+        expect(checkName(state, dns('.example.com'))).toBeNull();
+    });
+
+    it('should refuse a trailing dot rather than let it match nothing', () => {
+        // A trailing dot is a query-time spelling; §4.2.1.10's rules do not
+        // strip it, so `host.example.com.` matches the constraint
+        // `example.com` under no rule. Silently matching nothing reads as
+        // "unconstrained", so the name is refused where a constraint applies.
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, [subtree(dns('example.com'))], undefined);
+        expect(checkName(state, dns('host.example.com.'))?.why).toBe('not-permitted');
+    });
+});
+
+describe('a wildcard name denotes a set (CVE-2025-61727)', () => {
+    const constrained = (permitted: readonly GeneralName[] | undefined, excluded: readonly GeneralName[] | undefined): NameConstraintState => {
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, permitted?.map((b) => subtree(b)), excluded?.map((b) => subtree(b)));
+        return state;
+    };
+
+    it('should refuse a wildcard when one name it denotes is excluded', () => {
+        // `*.example.com` denotes `bar.example.com`, which the CA forbade. The
+        // two strings do not match; the sets intersect, and that is the
+        // question. This is the CVE.
+        expect(checkName(constrained(undefined, [dns('bar.example.com')]), dns('*.example.com'))?.why).toBe('excluded');
+    });
+
+    it('should refuse a wildcard whose whole parent domain is excluded', () => {
+        expect(checkName(constrained(undefined, [dns('example.com')]), dns('*.example.com'))?.why).toBe('excluded');
+        expect(checkName(constrained(undefined, [dns('.example.com')]), dns('*.example.com'))?.why).toBe('excluded');
+    });
+
+    it('should allow a wildcard whose set cannot reach the exclusion', () => {
+        // One label is consumed, so a base two labels deeper is unreachable…
+        expect(checkName(constrained(undefined, [dns('a.b.example.com')]), dns('*.example.com'))).toBeNull();
+        // …and `.bar.example.com` names only what is BELOW bar, never a
+        // single-label host under example.com.
+        expect(checkName(constrained(undefined, [dns('.bar.example.com')]), dns('*.example.com'))).toBeNull();
+        expect(checkName(constrained(undefined, [dns('other.test')]), dns('*.example.com'))).toBeNull();
+    });
+
+    it('should require a permission to cover the whole set, not one member', () => {
+        // Covering the parent covers every member.
+        expect(checkName(constrained([dns('example.com')], undefined), dns('*.example.com'))).toBeNull();
+        expect(checkName(constrained([dns('.example.com')], undefined), dns('*.example.com'))).toBeNull();
+        // Permitting one member permits one member: the wildcard denotes
+        // others, and accepting it would grant every one of them.
+        expect(checkName(constrained([dns('bar.example.com')], undefined), dns('*.example.com'))?.why).toBe('not-permitted');
+        expect(checkName(constrained([dns('other.test')], undefined), dns('*.example.com'))?.why).toBe('not-permitted');
+    });
+
+    it('should leave a wildcard alone when no CA constrained dNSName', () => {
+        expect(checkName(initialNameConstraints(), dns('*.example.com'))).toBeNull();
+    });
+
+    it('should treat a partial wildcard as a set too, not as a literal string', () => {
+        // No relying party should honour `w*.example.com`, but one lenient
+        // enough to would expand it onto `wbar.example.com`. Treating the whole
+        // starred label as unknown over-approximates the set, and an
+        // over-approximation can only refuse, never permit.
+        expect(checkName(constrained(undefined, [dns('wbar.example.com')]), dns('w*.example.com'))?.why).toBe('excluded');
+        expect(checkName(constrained([dns('example.com')], undefined), dns('w*.example.com'))).toBeNull();
+    });
+
+    it('should take the domain below the LAST starred label as the parent', () => {
+        // `a.*.example.com` stands in for two labels, so a base two labels
+        // below `example.com` is a member and one label below is not.
+        expect(checkName(constrained(undefined, [dns('a.b.example.com')]), dns('a.*.example.com'))?.why).toBe('excluded');
+        expect(checkName(constrained(undefined, [dns('b.example.com')]), dns('a.*.example.com'))).toBeNull();
+        expect(checkName(constrained([dns('example.com')], undefined), dns('a.*.example.com'))).toBeNull();
+    });
+
+    it('should refuse a starred name whose parent is not a domain', () => {
+        // `*.` and `*` leave nothing to compare, so there is no set and the
+        // name is judged literally — matching no constraint.
+        const state = constrained([dns('example.com')], undefined);
+        expect(checkName(state, dns('*.'))?.why).toBe('not-permitted');
+        expect(checkName(state, dns('*'))?.why).toBe('not-permitted');
+    });
+
+    it('should fold case on both sides of the set comparison', () => {
+        expect(checkName(constrained(undefined, [dns('BAR.Example.COM')]), dns('*.EXAMPLE.com'))?.why).toBe('excluded');
+    });
+
+    it('should ignore an exclusion carrying a minimum or a maximum', () => {
+        // §4.2.1.10 fixes minimum to 0 and forbids maximum, so a subtree
+        // asserting otherwise is not one this code can honour — and saying
+        // "excluded" on a constraint it cannot read would be guessing.
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, undefined, [{ base: dns('bar.example.com'), minimum: 1, maximum: undefined }]);
+        expect(checkName(state, dns('*.example.com'))).toBeNull();
+    });
+});
+
+describe('wildcardMeetsSubtree and subtreeCoversWildcard', () => {
+    it.each([
+        // Covers the whole set, so it also meets it.
+        { base: 'example.com', parent: 'example.com', meets: true, covers: true },
+        { base: '.example.com', parent: 'example.com', meets: true, covers: true },
+        { base: 'example.com', parent: 'sub.example.com', meets: true, covers: true },
+        { base: '', parent: 'example.com', meets: true, covers: true },
+        // Meets it without covering it: the base IS one member.
+        { base: 'bar.example.com', parent: 'example.com', meets: true, covers: false },
+        // Neither. A base two labels down is out of a one-label set's reach…
+        { base: 'a.b.example.com', parent: 'example.com', meets: false, covers: false },
+        // …and a leading period holds only what lies below it, so it holds no
+        // single-label member of its own.
+        { base: '.bar.example.com', parent: 'example.com', meets: false, covers: false },
+        { base: 'notexample.com', parent: 'example.com', meets: false, covers: false },
+    ])('$base vs *.$parent → meets $meets, covers $covers', ({ base, parent, meets, covers }) => {
+        expect(wildcardMeetsSubtree(base, parent)).toBe(meets);
+        expect(subtreeCoversWildcard(base, parent)).toBe(covers);
+    });
+
+    it('should count the labels the stars stand in for', () => {
+        expect(wildcardMeetsSubtree('a.b.example.com', 'example.com', 2)).toBe(true);
+        expect(wildcardMeetsSubtree('b.example.com', 'example.com', 2)).toBe(false);
+    });
+});
+
+describe('wellFormedName', () => {
+    it('should judge only what the matching rules rest on', () => {
+        expect(wellFormedName(dns('a.example.com'))).toBe(true);
+        expect(wellFormedName(dns(''))).toBe(false);
+        // A trailing dot matches no constraint under §4.2.1.10's rules, so
+        // calling it well formed would leave it silently unconstrained.
+        expect(wellFormedName(dns('a.example.com.'))).toBe(false);
+        expect(wellFormedName(email('a@b.test'))).toBe(true);
+        expect(wellFormedName(uri('https://a.test/x'))).toBe(true);
+        // A bracketed IPv6 authority is an address, not a host name, and the
+        // host-label rules do not apply to it.
+        expect(wellFormedName(uri('https://[2001:db8::1]:443/'))).toBe(true);
+        expect(wellFormedName(ip([1, 2, 3, 4]))).toBe(true);
+        expect(wellFormedName(ip(Array.from({ length: 16 }, () => 0)))).toBe(true);
+        // A directoryName has no malformed spelling: the decoder either
+        // produced a name or threw.
+        expect(wellFormedName(directory(name(['2.5.4.3', 'x'])))).toBe(true);
+        expect(wellFormedName({ kind: 'registeredID', oid: '1.2.3', der: new Uint8Array(0) })).toBe(true);
     });
 });
 

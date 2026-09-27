@@ -12,6 +12,7 @@ import {
 } from '../../src/path/path-validate.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
+import { encodeImplicit, encodeSequence, encodeString } from '../../src/asn1/asn1-encode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import type { SignatureResult, SignatureVerdict } from '../../src/types/path-types.js';
@@ -87,6 +88,66 @@ async function syntheticLeafWithDns(host: string): Promise<Certificate> {
 }
 
 const LEAF = await syntheticLeaf();
+
+/**
+ * `excludedSubtrees` holding one dNSName, built from the public encoders.
+ *
+ * NameConstraints ::= SEQUENCE { permittedSubtrees [0] OPTIONAL,
+ * excludedSubtrees [1] OPTIONAL }, each a SEQUENCE OF GeneralSubtree, itself a
+ * SEQUENCE whose first element is a GeneralName — `[2] IA5String` for a DNS
+ * name, and `minimum` left at its DEFAULT 0.
+ */
+function excludeDns(host: string): Uint8Array {
+    const base = encodeImplicit(2, encodeString('ia5', host), { tagClass: 'context' });
+    const subtrees = encodeSequence([encodeSequence([base])]);
+    return encodeSequence([encodeImplicit(1, subtrees, { tagClass: 'context' })]);
+}
+
+/** A self-signed CA with the given subject, window and extra extensions. */
+async function syntheticCa(options: {
+    subject: string;
+    notBefore?: number;
+    notAfter?: number;
+    extensions?: ReadonlyArray<{ oid: string; critical?: boolean; value: Uint8Array }>;
+}): Promise<Certificate> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+    const subject = [[{ type: '2.5.4.3', value: options.subject }]];
+    const der = await createCertificate({
+        serialNumber: 3n,
+        issuer: subject,
+        subject,
+        notBefore: options.notBefore ?? AT - 86_400_000,
+        notAfter: options.notAfter ?? AT + 86_400_000,
+        subjectPublicKey: spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
+            ...(options.extensions ?? []),
+        ],
+    }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
+    return parseCertificate(der, quiet);
+}
+
+/** A certificate naming `issuerDer` as its issuer, with one DNS name in its SAN. */
+async function syntheticUnder(issuerDer: Uint8Array, subject: string, host: string, ca = false): Promise<Certificate> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+    const der = await createCertificate({
+        serialNumber: 5n,
+        issuerDer,
+        subject: [[{ type: '2.5.4.3', value: subject }]],
+        notBefore: AT - 86_400_000,
+        notAfter: AT + 86_400_000,
+        subjectPublicKey: spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints(ca ? { cA: true } : { cA: false }) },
+            ...(ca ? [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) }] : []),
+            { oid: '2.5.29.17', value: encodeSubjectAltName([{ kind: 'dNSName', value: host }]) },
+        ],
+    }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
+    return parseCertificate(der, quiet);
+}
 
 const valid = (...certificates: readonly Certificate[]): SignatureResult[] =>
     certificates.map((certificate) => ({ certificate, verdict: 'valid' as SignatureVerdict }));
@@ -272,6 +333,66 @@ describe('validateCertificatePath', () => {
             signatures: valid(LEAF, R12),
         });
         expect(codes(report)).not.toContain('PKI_REASON_SIGNATURE_NOT_CHECKED');
+    });
+
+    it('should check the trust anchor’s validity window even when it arrives only as an anchor', async () => {
+        // Trusting a key is not the same as believing its owner still holds it.
+        // x509-limbo's rfc5280::validity::expired-root expects a refusal, every
+        // browser refuses, and this escaped until the anchor joined the path:
+        // the post-loop branch pushed it without judging it, so a certificate
+        // was judged differently depending on which input the caller put it in.
+        const root = await syntheticCa({ subject: 'Retired Root', notBefore: AT - 200_000_000, notAfter: AT - 100_000_000 });
+        const leaf = await syntheticUnder(root.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({ certificates: [leaf], trustAnchors: [root], at: AT, signatures: valid(leaf) });
+        expect(codes(report)).toEqual(['PKI_REASON_EXPIRED']);
+        expect(report.reasons[0]?.path).toBe('path[1].validity');
+        // …and the same anchor inside `certificates` gives the same answer.
+        const inChain = validateCertificatePath({ certificates: [leaf, root], trustAnchors: [root], at: AT, signatures: valid(leaf) });
+        expect(codes(inChain)).toEqual(['PKI_REASON_EXPIRED']);
+    });
+
+    it('should refuse an unprocessed critical extension on the anchor too', async () => {
+        const root = await syntheticCa({
+            subject: 'Odd Root',
+            // 2.5.29.35 authorityKeyIdentifier, which §6 does not process and
+            // RFC 5280 §4.2.1.1 requires to be non-critical.
+            extensions: [{ oid: '2.5.29.35', critical: true, value: encodeSequence([]) }],
+        });
+        const leaf = await syntheticUnder(root.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({ certificates: [leaf], trustAnchors: [root], at: AT, signatures: valid(leaf) });
+        expect(codes(report)).toEqual(['PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION']);
+    });
+
+    it('should not apply name constraints to a self-issued certificate that is not the final one', async () => {
+        // §6.1.3: "Name constraints are not applied to self-issued certificates
+        // (unless the certificate is the final certificate in the path)". A CA
+        // re-keying itself keeps its own name, which its own constraints need
+        // not permit — and refusing that refuses every key rollover.
+        const top = await syntheticCa({ subject: 'Rollover CA', extensions: [{ oid: '2.5.29.30', critical: true, value: excludeDns('old.example') }] });
+        // Self-issued: subject and issuer are the same name, a different key.
+        const rekeyed = await syntheticUnder(top.subject.der, 'Rollover CA', 'old.example', true);
+        const leaf = await syntheticUnder(rekeyed.subject.der, 'leaf.example', 'fine.example');
+        // Nothing is trusted, so the walk runs past the self-issued certificate
+        // rather than stopping at it — which is the only shape in which a
+        // self-issued certificate is not the final one.
+        const report = validateCertificatePath({ certificates: [leaf, rekeyed, top], trustAnchors: [], at: AT, signatures: valid(leaf, rekeyed, top) });
+        expect(codes(report)).toEqual(['PKI_REASON_NO_TRUST_ANCHOR']);
+
+        // The exemption stops at the leaf: the same excluded name on the final
+        // certificate is refused, because that one is the identity being judged.
+        const excludedLeaf = await syntheticUnder(rekeyed.subject.der, 'leaf.example', 'old.example');
+        const refused = validateCertificatePath({ certificates: [excludedLeaf, rekeyed, top], trustAnchors: [], at: AT, signatures: valid(excludedLeaf, rekeyed, top) });
+        expect(codes(refused)).toContain('PKI_REASON_NAME_EXCLUDED');
+    });
+
+    it('should apply name constraints to a self-issued certificate that IS the final one', async () => {
+        // A CA that issued a certificate with its OWN name to another key, and
+        // that certificate is what is being judged: the parenthetical in
+        // §6.1.3 puts it back under the constraints.
+        const top = await syntheticCa({ subject: 'Self CA', extensions: [{ oid: '2.5.29.30', critical: true, value: excludeDns('old.example') }] });
+        const selfNamed = await syntheticUnder(top.subject.der, 'Self CA', 'old.example');
+        const report = validateCertificatePath({ certificates: [selfNamed, top], trustAnchors: [], at: AT, signatures: valid(selfNamed, top) });
+        expect(codes(report)).toContain('PKI_REASON_NAME_EXCLUDED');
     });
 
     it('should report NO_TRUST_ANCHOR for a chain that ends nowhere', () => {
