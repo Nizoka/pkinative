@@ -2499,7 +2499,7 @@
       "name": "PkiCryptoErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiCryptoErrorCode = | 'PKI_CRYPTO_UNAVAILABLE' // the host exposes no crypto.subtle to verify with (CWE-693) | 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' // pkinative maps no Web Crypto algorithm to this signature OID (CWE-757) | 'PKI_CRYPTO_KEY_UNSUPPORTED'",
+      "signature": "export type PkiCryptoErrorCode = | 'PKI_CRYPTO_UNAVAILABLE' // the host exposes no crypto.subtle to verify with (CWE-693) | 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' // pkinative maps no Web Crypto algorithm to this signature OID (CWE-757) | 'PKI_CRYPTO_KEY_UNSUPPORTED' // the host refused to import the public key, or its kind has no Web Crypto form (CWE-757) | 'PKI_CRYPTO_ALGORITHM_REFUSED'",
       "summary": "Codes carried by PkiCryptoError: pkinative could not **decide**.",
       "throws": null,
       "params": null,
@@ -3437,6 +3437,12 @@
           "summary": "The certificate whose signature was checked."
         },
         {
+          "name": "issuer",
+          "type": "Certificate | undefined",
+          "optional": true,
+          "summary": "The issuer the verdict is about, when the caller knows it."
+        },
+        {
           "name": "verdict",
           "type": "SignatureVerdict",
           "optional": false,
@@ -3899,6 +3905,12 @@
           "type": "boolean | undefined",
           "optional": true,
           "summary": "Check that the outer `signatureAlgorithm` equals the inner `tbsCertificate.signature`, as RFC 5280 §4.1.1.2 requires."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat a SHA-1 signature as evidence."
         }
       ]
     },

@@ -121,7 +121,12 @@ export const PROBES: readonly Probe[] = [
     // extension as `unknown` — and it is written here so the next person to
     // look at this number knows it was a choice.
     { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 58 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
-    { exports: ['*'], maxBytes: 150 * 1024, mustNotContain: [] },
+    // 150 KB → 156 KB, measured at 150.9 KB. The whole surface grew by ~1 KB for
+    // the name-constraint corrections, the SHA-1 refusal and per-issuer signature
+    // verdicts. The roadmap's own projection for 1.0 is ~320 KB, so this figure
+    // is on track; it is raised in the commit that measures it, never ahead of
+    // one, which is what keeps it a budget rather than a ceiling nobody reads.
+    { exports: ['*'], maxBytes: 156 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

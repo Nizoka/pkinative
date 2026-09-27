@@ -202,7 +202,8 @@
         "wrongRoot=false",
         "x25519SelfSignature=false",
         "couldNotCheck=none",
-        "lenient=true"
+        "lenient=true",
+        "sha1IsOptIn=true"
       ]
     },
     {

@@ -6,6 +6,7 @@ import { PkiCryptoError, PkiError } from '../../src/types/pki-errors.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { verifyCertificateSignature, verifySelfSignature } from '../../src/crypto/x509-verify.js';
 import { canVerify } from '../../src/crypto/webcrypto.js';
+import { createCertificate } from '../../src/build/build-certificate.js';
 import { algorithm, bitString, certificate, ecKey, nullValue, tbsCertificate } from '../helpers/cert-builder.js';
 
 /**
@@ -124,6 +125,61 @@ describe('verifyCertificateSignature', () => {
         const cert = parseCertificate(der, { onDiagnostic: () => undefined });
         await expect(verifyCertificateSignature(cert, cert, { requireAlgorithmMatch: false }))
             .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED' }));
+    });
+});
+
+describe('SHA-1 signatures', () => {
+    /** A self-signed certificate over SHA-1, which Web Crypto signs quite happily. */
+    async function sha1SelfSigned(): Promise<Certificate> {
+        const pair = await crypto.subtle.generateKey(
+            { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: Uint8Array.of(1, 0, 1), hash: 'SHA-1' },
+            true, ['sign', 'verify'],
+        );
+        const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+        const der = await createCertificate({
+            serialNumber: 1n,
+            issuer: [[{ type: '2.5.4.3', value: 'Legacy CA' }]],
+            subject: [[{ type: '2.5.4.3', value: 'Legacy CA' }]],
+            notBefore: Date.UTC(2012, 0, 1),
+            notAfter: Date.UTC(2032, 0, 1),
+            subjectPublicKey: spki,
+        }, { key: pair.privateKey, algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-1' } });
+        return parseCertificate(der, { onDiagnostic: () => undefined });
+    }
+
+    it('should refuse to answer rather than return a boolean', async () => {
+        // Neither boolean is true: the arithmetic checks out, and a chosen-prefix
+        // collision has been practical since 2017, so the signature does not bind
+        // the bytes it covers. "This question cannot be put" is the third answer,
+        // and it is what the PkiCryptoError family means.
+        const cert = await sha1SelfSigned();
+        await expect(verifyCertificateSignature(cert, cert))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_REFUSED' }));
+        await expect(verifyCertificateSignature(cert, cert)).rejects.toBeInstanceOf(PkiCryptoError);
+    });
+
+    it('should name the algorithm OID, so a report can say which certificate', async () => {
+        const cert = await sha1SelfSigned();
+        await expect(verifyCertificateSignature(cert, cert))
+            .rejects.toThrow(expect.objectContaining({ algorithm: '1.2.840.113549.1.1.5' }));
+    });
+
+    it('should verify one when the caller asks explicitly, for an archival reading', async () => {
+        const cert = await sha1SelfSigned();
+        await expect(verifyCertificateSignature(cert, cert, { allowSha1: true })).resolves.toBe(true);
+    });
+
+    it('should still answer false for a bad SHA-1 signature under the opt-in', async () => {
+        // The opt-in relaxes the policy, never the arithmetic.
+        const cert = await sha1SelfSigned();
+        const other = await sha1SelfSigned();
+        await expect(verifyCertificateSignature(cert, other, { allowSha1: true })).resolves.toBe(false);
+    });
+
+    it('should refuse a SHA-1 self-signature through verifySelfSignature too', async () => {
+        const cert = await sha1SelfSigned();
+        await expect(verifySelfSignature(cert)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_REFUSED' }));
+        await expect(verifySelfSignature(cert, { allowSha1: true })).resolves.toBe(true);
     });
 });
 

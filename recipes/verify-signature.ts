@@ -73,7 +73,21 @@ export default async function run(): Promise<Record<string, string>> {
     const lenient: VerifyCertificateSignatureOptions = { requireAlgorithmMatch: false };
     const stillTrue = await verifyCertificateSignature(intermediateRsa, rootRsa, lenient);
 
+    // A SHA-1 signature is refused rather than answered, and `allowSha1` is the
+    // only way past it. Neither boolean would be true: the arithmetic may check
+    // out, and a chosen-prefix collision has been practical since 2017, so the
+    // signature does not bind the bytes it covers. `PkiCryptoError` is exactly
+    // the family for "this question cannot be put", and the path validator turns
+    // it into PKI_REASON_SIGNATURE_NOT_CHECKED rather than a silent pass.
+    //
+    // Turn it on to examine a historical artefact, never to authenticate with
+    // one. None of these six fixtures uses SHA-1, so the honest thing this
+    // recipe can show is the option's shape and its default.
+    const archival: VerifyCertificateSignatureOptions = { allowSha1: true };
+    const sha1IsOptIn = archival.allowSha1 === true && new Set<unknown>([undefined, false]).has(lenient.allowSha1);
+
     return {
+        sha1IsOptIn: String(sha1IsOptIn),
         available: 'yes',
         selfSigned: `${cn(rootRsa)}=${String(selfRsa)} ${cn(rootEc)}=${String(selfEc)}`,
         links: `${cn(intermediateRsa)}<-${cn(rootRsa)}=${String(rsaLink)} ${cn(intermediateEc)}<-${cn(rootEc)}=${String(ecLink)}`,

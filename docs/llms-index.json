@@ -24,20 +24,20 @@
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 61540,
-      "approxTokens": 15385
+      "bytes": 62479,
+      "approxTokens": 15620
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 188033,
-      "approxTokens": 47008
+      "bytes": 188542,
+      "approxTokens": 47136
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 18348,
-      "approxTokens": 4587
+      "bytes": 19237,
+      "approxTokens": 4809
     },
     {
       "url": "data/diagnostics.json",

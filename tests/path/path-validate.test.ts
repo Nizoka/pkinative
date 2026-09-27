@@ -308,6 +308,35 @@ describe('checkIssuingCapability — §6.1.4 (k), (l), (n)', () => {
         checkIssuingCapability(R12, s, 'path[1]');
         expect(s.maxPathLength).toBe(0);
     });
+
+    it('should spend no budget on a self-issued certificate', () => {
+        // §6.1.4 (l): "If the certificate was not self-issued, verify that
+        // max_path_length is greater than zero and decrement max_path_length by
+        // 1." A CA re-keying itself adds a certificate to the path without
+        // adding a link to the hierarchy, and charging it a step refuses a
+        // rollover that fits the constraint its issuer wrote. ISRG Root X1 is
+        // self-signed, so it is the fixture for this.
+        const s = state(1);
+        expect(checkIssuingCapability(ROOT_X1, s, 'path[2]')).toEqual([]);
+        expect(s.maxPathLength).toBe(1);
+        // …and a budget already exhausted is not reported against it either.
+        const empty = state(0);
+        expect(checkIssuingCapability(ROOT_X1, empty, 'path[2]')).toEqual([]);
+        expect(checkIssuingCapability(R12, empty, 'path[1]').map((r) => r.code)).toContain('PKI_REASON_PATH_TOO_LONG');
+    });
+
+    it('should still honour a pathLenConstraint on a self-issued certificate', () => {
+        // (m) applies either way: a constraint on a self-issued certificate
+        // still binds what is below it, and skipping it because the step was
+        // free would let a rollover certificate widen its own hierarchy.
+        const certificate = { ...ROOT_X1, extensions: [...ROOT_X1.extensions, { kind: 'basicConstraints', oid: '2.5.29.19', critical: true, valueDer: new Uint8Array(0), cA: true, pathLenConstraint: 1 }] } as unknown as Certificate;
+        const s = state(10);
+        // `getExtension` returns the first match, so the constraint has to
+        // replace ROOT_X1's own basicConstraints rather than follow it.
+        const replaced = { ...ROOT_X1, extensions: certificate.extensions.filter((e, i) => !(e.kind === 'basicConstraints' && i < certificate.extensions.length - 1)) } as unknown as Certificate;
+        checkIssuingCapability(replaced, s, 'path[2]');
+        expect(s.maxPathLength).toBe(1);
+    });
 });
 
 describe('validateCertificatePath', () => {
@@ -393,6 +422,93 @@ describe('validateCertificatePath', () => {
         const selfNamed = await syntheticUnder(top.subject.der, 'Self CA', 'old.example');
         const report = validateCertificatePath({ certificates: [selfNamed, top], trustAnchors: [], at: AT, signatures: valid(selfNamed, top) });
         expect(codes(report)).toContain('PKI_REASON_NAME_EXCLUDED');
+    });
+
+    it('should decide a cross-signed link from the verdict that names its issuer', async () => {
+        // Two CAs sharing one subject name is what cross-signing produces, and
+        // it is the case buildCertificatePath exists for. A verdict keyed by the
+        // subject alone says "this certificate's signature is good" without
+        // saying good under WHICH of them — so naming the issuer is the only way
+        // the caller can be precise, and the pair is looked up first.
+        const real = await syntheticCa({ subject: 'Shared Name' });
+        const decoy = await syntheticCa({ subject: 'Shared Name' });
+        const leaf = await syntheticUnder(real.subject.der, 'leaf.example', 'leaf.example');
+
+        const report = validateCertificatePath({
+            certificates: [leaf, real],
+            trustAnchors: [real, decoy],
+            at: AT,
+            signatures: [
+                { certificate: leaf, issuer: real, verdict: 'valid' },
+                { certificate: leaf, issuer: decoy, verdict: 'invalid' },
+            ],
+        });
+        expect(codes(report)).toEqual([]);
+
+        // …and through the decoy, the same two verdicts refuse it.
+        const throughDecoy = validateCertificatePath({
+            certificates: [leaf, decoy],
+            trustAnchors: [real, decoy],
+            at: AT,
+            signatures: [
+                { certificate: leaf, issuer: real, verdict: 'valid' },
+                { certificate: leaf, issuer: decoy, verdict: 'invalid' },
+            ],
+        });
+        // The link is refused on its signature; the name chain never matched
+        // either, because `decoy` is not the issuer the leaf named.
+        expect(codes(throughDecoy)).toContain('PKI_REASON_SIGNATURE_INVALID');
+    });
+
+    it('should report NOT_CHECKED, never guess, when two issuer-less verdicts disagree', async () => {
+        // Resolving this by insertion order is how a validator accepts the decoy
+        // half of a cross-signed pair: whichever verdict happened to be passed
+        // last would decide the chain. Ambiguity is an answer.
+        const real = await syntheticCa({ subject: 'Shared Name' });
+        const leaf = await syntheticUnder(real.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({
+            certificates: [leaf, real],
+            trustAnchors: [real],
+            at: AT,
+            signatures: [
+                { certificate: leaf, verdict: 'valid' },
+                { certificate: leaf, verdict: 'invalid' },
+            ],
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_SIGNATURE_NOT_CHECKED']);
+        expect(report.reasons[0]?.errorCode).toBe('PKI_API_MISUSE');
+        expect(report.reasons[0]?.message).toContain('pass `issuer`');
+    });
+
+    it('should stay ambiguous once a third verdict arrives, whatever it says', async () => {
+        const real = await syntheticCa({ subject: 'Shared Name' });
+        const leaf = await syntheticUnder(real.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({
+            certificates: [leaf, real],
+            trustAnchors: [real],
+            at: AT,
+            signatures: [
+                { certificate: leaf, verdict: 'valid' },
+                { certificate: leaf, verdict: 'invalid' },
+                { certificate: leaf, verdict: 'valid' },
+            ],
+        });
+        expect(report.reasons[0]?.errorCode).toBe('PKI_API_MISUSE');
+    });
+
+    it('should accept agreeing issuer-less duplicates, which say the same thing', async () => {
+        // Two 'valid' verdicts give the same answer whichever issuer was meant,
+        // so there is nothing to be ambiguous about — refusing them would make
+        // a caller who verified one pair twice look like a caller who guessed.
+        const real = await syntheticCa({ subject: 'Shared Name' });
+        const leaf = await syntheticUnder(real.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({
+            certificates: [leaf, real],
+            trustAnchors: [real],
+            at: AT,
+            signatures: [{ certificate: leaf, verdict: 'valid' }, { certificate: leaf, verdict: 'valid' }],
+        });
+        expect(codes(report)).toEqual([]);
     });
 
     it('should report NO_TRUST_ANCHOR for a chain that ends nowhere', () => {

@@ -114,10 +114,20 @@ export interface PathState {
     readonly reasons: PkiReason[];
 }
 
+/** One entry of the verdict map; `'ambiguous'` is the fail-closed marker. */
+export type SignatureEntry =
+    | { readonly verdict: SignatureVerdict; readonly errorCode?: string | undefined; readonly detail?: string | undefined }
+    | 'ambiguous';
+
 /** Everything the walk reads and never changes. */
 export interface PathContext {
     readonly at: number;
-    readonly signatures: ReadonlyMap<string, { readonly verdict: SignatureVerdict; readonly errorCode?: string | undefined; readonly detail?: string | undefined }>;
+    /**
+     * Verdicts by `hex(subject.der)`, and by `hex(subject.der)|hex(issuer.der)`
+     * when the caller named the issuer. The pair key is looked up first, which
+     * is what makes a cross-signed bag decidable.
+     */
+    readonly signatures: ReadonlyMap<string, SignatureEntry>;
     readonly trustAnchorSubjects: ReadonlySet<string>;
     readonly maxPathLength: number;
     readonly maxCertificates: number;
@@ -174,15 +184,30 @@ export function checkCriticalExtensions(certificate: Certificate, path: string):
  * treated silence as success would be a validator that passes when the
  * caller forgets to verify anything.
  *
+ * When two certificates in the bag share a subject name — cross-signing, and
+ * the case `buildCertificatePath` exists for — a verdict that does not name its
+ * issuer is not an answer about *this* link. So the pair is looked up first, and
+ * two issuer-less verdicts that disagree are `not-checked` rather than resolved
+ * by insertion order: taking the last one is how a validator accepts the decoy
+ * half of a cross-signed pair, which is what x509-limbo's bettertls path-building
+ * cases are built to catch.
+ *
  * @param certificate The certificate whose signature is at stake.
  * @param context     The walk's inputs.
  * @param path        The report path prefix.
+ * @param issuer      The certificate that issued it, when the walk knows it.
  * @returns The reason, or null when the signature is known good.
  */
-export function checkSignature(certificate: Certificate, context: PathContext, path: string): PkiReason | null {
-    const result = context.signatures.get(_hex(certificate.der));
+export function checkSignature(certificate: Certificate, context: PathContext, path: string, issuer?: Certificate | undefined): PkiReason | null {
+    const subject = _hex(certificate.der);
+    const result = (issuer === undefined ? undefined : context.signatures.get(`${subject}|${_hex(issuer.der)}`))
+        ?? context.signatures.get(subject);
     if (result === undefined) {
         return signatureNotCheckedReason(path, 'PKI_CRYPTO_UNAVAILABLE', 'no signature verdict was supplied for this certificate');
+    }
+    if (result === 'ambiguous') {
+        return signatureNotCheckedReason(path, 'PKI_API_MISUSE',
+            'two verdicts disagree about this certificate and neither names its issuer — pass `issuer` in each SignatureResult when several candidates share a subject name');
     }
     if (result.verdict === 'valid') return null;
     if (result.verdict === 'invalid') return signatureInvalidReason(path);
@@ -214,9 +239,21 @@ export function checkIssuingCapability(issuer: Certificate, state: PathState, pa
     // the extension is optional and its absence asserts nothing.
     if (keyUsage !== undefined && !keyUsage.usages.includes('keyCertSign')) out.push(notACaReason(path, 'keyUsage'));
 
-    // (l) the remaining budget, then this certificate's own constraint.
-    if (state.maxPathLength <= 0) out.push(pathTooLongReason(path, 0));
-    state.maxPathLength -= 1;
+    // (l) the remaining budget, then (m) this certificate's own constraint.
+    //
+    // §6.1.4 (l) spends budget only on a certificate that is **not**
+    // self-issued: *"If the certificate was not self-issued, verify that
+    // max_path_length is greater than zero and decrement max_path_length by
+    // 1."* A CA re-keying itself adds a certificate to the path without adding
+    // a link to the hierarchy, and charging it a step refuses a rollover that
+    // fits the constraint its issuer wrote. (m) applies either way: a
+    // `pathLenConstraint` on a self-issued certificate still binds what is
+    // below it.
+    const selfIssued = _hex(issuer.subject.der) === _hex(issuer.issuer.der);
+    if (!selfIssued) {
+        if (state.maxPathLength <= 0) out.push(pathTooLongReason(path, 0));
+        state.maxPathLength -= 1;
+    }
     const constraint = basicConstraints?.pathLenConstraint;
     if (constraint !== undefined && constraint < state.maxPathLength) state.maxPathLength = constraint;
     return out;
@@ -332,9 +369,24 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  */
 export function validateCertificatePath(input: PathValidationInput): PathValidationReport {
     const limits = resolveLimits(input.limits);
-    const signatures = new Map<string, { verdict: SignatureVerdict; errorCode?: string | undefined; detail?: string | undefined }>();
+    const signatures = new Map<string, SignatureEntry>();
     for (const result of input.signatures ?? []) {
-        signatures.set(_hex(result.certificate.der), { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail });
+        const subject = _hex(result.certificate.der);
+        const entry = { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail };
+        if (result.issuer !== undefined) {
+            signatures.set(`${subject}|${_hex(result.issuer.der)}`, entry);
+            continue;
+        }
+        // Two issuer-less verdicts for one certificate that disagree cannot both
+        // be about the link being walked, and choosing by order would decide a
+        // cross-signed path by accident. Agreeing duplicates are harmless: the
+        // answer is the same whichever issuer was meant.
+        const existing = signatures.get(subject);
+        if (existing !== undefined && (existing === 'ambiguous' || existing.verdict !== result.verdict)) {
+            signatures.set(subject, 'ambiguous');
+            continue;
+        }
+        signatures.set(subject, entry);
     }
     const context: PathContext = {
         at: input.at,
@@ -388,7 +440,13 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
             break;
         }
 
-        const signature = checkSignature(certificate, context, path);
+        // The issuer this link will actually be walked to: the next certificate
+        // in the chain, or, when the chain stops here, the anchor that names
+        // itself as its issuer. Naming it is what lets a caller distinguish two
+        // cross-signed issuers of the same name.
+        const wanted = _hex(certificate.issuer.der);
+        const issuer = input.certificates[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+        const signature = checkSignature(certificate, context, path, issuer);
         if (signature !== null) state.reasons.push(signature);
         state.expectedIssuer = certificate.issuer;
     }

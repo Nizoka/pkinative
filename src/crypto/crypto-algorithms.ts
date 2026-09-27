@@ -89,6 +89,17 @@ export interface ResolvedAlgorithm {
      * and cannot re-derive it wrong.
      */
     readonly curve: 'P-256' | 'P-384' | 'P-521' | undefined;
+    /**
+     * The digest this signature is over, as Web Crypto names it, or `undefined`
+     * for Ed25519 and Ed448, whose digest is not a parameter.
+     *
+     * Carried so a **policy** decision can be made on it without re-reading the
+     * OID or digging into `importParams`, where it lives in a different place
+     * for each family. The one policy that needs it is the SHA-1 refusal in
+     * `x509-verify.ts`: a caller deciding whether to believe a signature must be
+     * able to see what it was computed over.
+     */
+    readonly hash: string | undefined;
 }
 
 function unsupported(message: string, oid: string): PkiCryptoError {
@@ -203,13 +214,13 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
         if (!isRsaKey(key)) return null;
         const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
         const verifyParams: RsaPssVerifyParams = { name: 'RSA-PSS', saltLength };
-        return { family: shape.family, importParams: { name: 'RSA-PSS', hash: { name: hash } }, verifyParams, curve: undefined };
+        return { family: shape.family, importParams: { name: 'RSA-PSS', hash: { name: hash } }, verifyParams, curve: undefined, hash };
     }
 
     if (shape.family === 'rsa-pkcs1') {
         if (!isRsaKey(key)) return null;
         const verifyParams: NamedVerifyParams = { name: 'RSASSA-PKCS1-v1_5' };
-        return { family: shape.family, importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: shape.hash } }, verifyParams, curve: undefined };
+        return { family: shape.family, importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: shape.hash } }, verifyParams, curve: undefined, hash: shape.hash };
     }
 
     if (shape.family === 'ecdsa') {
@@ -220,12 +231,12 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
                 `pkinative: the issuer's EC key is on ${curve ?? 'a curve pkinative does not name'}, and Web Crypto verifies ECDSA only on P-256, P-384 and P-521`, algorithm.oid);
         }
         const verifyParams: EcdsaVerifyParams = { name: 'ECDSA', hash: { name: shape.hash } };
-        return { family: shape.family, importParams: { name: 'ECDSA', namedCurve: curve }, verifyParams, curve };
+        return { family: shape.family, importParams: { name: 'ECDSA', namedCurve: curve }, verifyParams, curve, hash: shape.hash };
     }
 
     if (key.kind !== shape.family) return null;
     const name = shape.family === 'ed25519' ? 'Ed25519' : 'Ed448';
-    return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined };
+    return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined };
 }
 
 /** The curve of an ECDSA signature's r and s, in bytes — P-521 is 66, not 65. */

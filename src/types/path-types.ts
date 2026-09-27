@@ -38,6 +38,22 @@ export type SignatureVerdict = 'valid' | 'invalid' | 'not-checked';
 export interface SignatureResult {
     /** The certificate whose signature was checked. Matched by `der` identity. */
     readonly certificate: Certificate;
+    /**
+     * The issuer the verdict is about, when the caller knows it.
+     *
+     * **Supply it whenever two certificates in the bag share a subject name**,
+     * which is exactly what cross-signing produces and what
+     * `buildCertificatePath` exists for. Without it a verdict says only
+     * *"this certificate's signature is good"*, and one certificate can have a
+     * good signature under one issuer and a forged one under another of the same
+     * name. Two issuer-less verdicts for one certificate that **disagree** are
+     * therefore treated as `PKI_REASON_SIGNATURE_NOT_CHECKED` rather than
+     * resolved by order: guessing which issuer the caller meant is how a
+     * validator accepts the decoy half of a cross-signed pair.
+     *
+     * Omit it for an ordinary chain, where each certificate has one issuer.
+     */
+    readonly issuer?: Certificate | undefined;
     /** What came of checking it. `not-checked` is not a synonym for `invalid`. */
     readonly verdict: SignatureVerdict;
     /** For `'not-checked'`: the `PkiCryptoError.code` that explains why. */

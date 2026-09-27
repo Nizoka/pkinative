@@ -84,7 +84,8 @@ export type PkiLimitErrorCode =
 export type PkiCryptoErrorCode =
     | 'PKI_CRYPTO_UNAVAILABLE'              // the host exposes no crypto.subtle to verify with (CWE-693)
     | 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED'    // pkinative maps no Web Crypto algorithm to this signature OID (CWE-757)
-    | 'PKI_CRYPTO_KEY_UNSUPPORTED';         // the host refused to import the public key, or its kind has no Web Crypto form (CWE-757)
+    | 'PKI_CRYPTO_KEY_UNSUPPORTED'          // the host refused to import the public key, or its kind has no Web Crypto form (CWE-757)
+    | 'PKI_CRYPTO_ALGORITHM_REFUSED';       // pkinative can compute this signature but will not treat it as evidence (CWE-327)
 
 /**
  * Every stable error code pkinative can throw. Frozen from 0.8.0:

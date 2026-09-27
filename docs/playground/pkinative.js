@@ -4155,10 +4155,18 @@ function checkCriticalExtensions(certificate, path) {
   }
   return out;
 }
-function checkSignature(certificate, context, path) {
-  const result = context.signatures.get(_hex(certificate.der));
+function checkSignature(certificate, context, path, issuer) {
+  const subject = _hex(certificate.der);
+  const result = (issuer === void 0 ? void 0 : context.signatures.get(`${subject}|${_hex(issuer.der)}`)) ?? context.signatures.get(subject);
   if (result === void 0) {
     return signatureNotCheckedReason(path, "PKI_CRYPTO_UNAVAILABLE", "no signature verdict was supplied for this certificate");
+  }
+  if (result === "ambiguous") {
+    return signatureNotCheckedReason(
+      path,
+      "PKI_API_MISUSE",
+      "two verdicts disagree about this certificate and neither names its issuer \u2014 pass `issuer` in each SignatureResult when several candidates share a subject name"
+    );
   }
   if (result.verdict === "valid") return null;
   if (result.verdict === "invalid") return signatureInvalidReason(path);
@@ -4170,8 +4178,11 @@ function checkIssuingCapability(issuer, state, path) {
   const keyUsage = getExtension(issuer, "keyUsage");
   if (basicConstraints?.cA !== true) out.push(notACaReason(path, "basicConstraints"));
   if (keyUsage !== void 0 && !keyUsage.usages.includes("keyCertSign")) out.push(notACaReason(path, "keyUsage"));
-  if (state.maxPathLength <= 0) out.push(pathTooLongReason(path, 0));
-  state.maxPathLength -= 1;
+  const selfIssued = _hex(issuer.subject.der) === _hex(issuer.issuer.der);
+  if (!selfIssued) {
+    if (state.maxPathLength <= 0) out.push(pathTooLongReason(path, 0));
+    state.maxPathLength -= 1;
+  }
   const constraint = basicConstraints?.pathLenConstraint;
   if (constraint !== void 0 && constraint < state.maxPathLength) state.maxPathLength = constraint;
   return out;
@@ -4219,7 +4230,18 @@ function validateCertificatePath(input) {
   const limits = resolveLimits(input.limits);
   const signatures = /* @__PURE__ */ new Map();
   for (const result of input.signatures ?? []) {
-    signatures.set(_hex(result.certificate.der), { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail });
+    const subject = _hex(result.certificate.der);
+    const entry = { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail };
+    if (result.issuer !== void 0) {
+      signatures.set(`${subject}|${_hex(result.issuer.der)}`, entry);
+      continue;
+    }
+    const existing = signatures.get(subject);
+    if (existing !== void 0 && (existing === "ambiguous" || existing.verdict !== result.verdict)) {
+      signatures.set(subject, "ambiguous");
+      continue;
+    }
+    signatures.set(subject, entry);
   }
   const context = {
     at: input.at,
@@ -4260,7 +4282,9 @@ function validateCertificatePath(input) {
       anchored = true;
       break;
     }
-    const signature = checkSignature(certificate, context, path);
+    const wanted = _hex(certificate.issuer.der);
+    const issuer = input.certificates[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+    const signature = checkSignature(certificate, context, path, issuer);
     if (signature !== null) state.reasons.push(signature);
     state.expectedIssuer = certificate.issuer;
   }
@@ -5911,12 +5935,12 @@ function resolveAlgorithm(algorithm, key) {
     if (!isRsaKey(key)) return null;
     const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
     const verifyParams = { name: "RSA-PSS", saltLength };
-    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0 };
+    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
   }
   if (shape.family === "rsa-pkcs1") {
     if (!isRsaKey(key)) return null;
     const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
-    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0 };
+    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
   }
   if (shape.family === "ecdsa") {
     if (key.kind !== "ec") return null;
@@ -5929,11 +5953,11 @@ function resolveAlgorithm(algorithm, key) {
       );
     }
     const verifyParams = { name: "ECDSA", hash: { name: shape.hash } };
-    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve };
+    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve, hash: shape.hash };
   }
   if (key.kind !== shape.family) return null;
   const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
-  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0 };
+  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
 }
 function coordinateBytes(curve) {
   return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
@@ -6139,16 +6163,26 @@ async function signData(key, params, data) {
 async function verifyCertificateSignature(certificate, issuer, options) {
   const subject = assertCertificate(certificate, "certificate");
   const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(subject, signer, options?.requireAlgorithmMatch !== false);
+  return verifySignedStructure(subject, signer, resolveOptions(options));
 }
-async function verifySignedStructure(signed, signer, requireAlgorithmMatch) {
+function resolveOptions(options) {
+  return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
+}
+async function verifySignedStructure(signed, signer, options) {
   const inner = signed.tbsSignatureAlgorithm;
-  if (requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
+  if (options.requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
     return false;
   }
   if (signed.signatureValue.unusedBits !== 0) return false;
   const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
   if (resolved === null) return false;
+  if (resolved.hash === "SHA-1" && !options.allowSha1) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_REFUSED",
+      "pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
+      signed.signatureAlgorithm.oid
+    );
+  }
   let signature = signed.signatureValue.bytes;
   if (resolved.curve !== void 0) {
     const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
@@ -6163,14 +6197,14 @@ async function verifyCrlSignature(crl, issuer, options) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
   }
   const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
+  return verifySignedStructure(crl, signer, resolveOptions(options));
 }
 async function verifyOcspSignature(basicResponse, responder) {
   if (typeof basicResponse !== "object" || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
   }
   const signer = assertCertificate(responder, "responder");
-  return verifySignedStructure(basicResponse, signer, false);
+  return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
 }
 async function verifySelfSignature(certificate, options) {
   const self = assertCertificate(certificate, "certificate");

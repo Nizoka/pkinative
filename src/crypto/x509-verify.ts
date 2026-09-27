@@ -27,7 +27,7 @@
  */
 
 import { bytesEqual } from '../core/bytes.js';
-import { PkiError } from '../types/pki-errors.js';
+import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { OcspBasicResponse } from '../types/ocsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
@@ -50,6 +50,25 @@ export interface VerifyCertificateSignatureOptions {
      * and report it, never for one that wants to accept it.
      */
     readonly requireAlgorithmMatch?: boolean | undefined;
+    /**
+     * Treat a SHA-1 signature as evidence. Default **`false`**, and it throws
+     * `PKI_CRYPTO_ALGORITHM_REFUSED` rather than returning a boolean.
+     *
+     * Web Crypto will compute SHA-1 quite happily, which is the problem: a
+     * chosen-prefix collision has been practical since 2017 (SHAttered), so a
+     * SHA-1 signature does not bind the bytes it covers, and a `true` here would
+     * be a false assurance rather than a verdict. `false` would be wrong too —
+     * the signature may well be arithmetically correct — so the honest answer is
+     * *"this question cannot be put"*, which is what the `PkiCryptoError` family
+     * means. The path validator turns it into
+     * `PKI_REASON_SIGNATURE_NOT_CHECKED`, so a chain signed over SHA-1 is
+     * refused with a reason a reader can act on.
+     *
+     * Turn it on to examine a historical artefact, never to authenticate with
+     * one. A certificate's SHA-1 **fingerprint** is a different thing and is
+     * unaffected: that is a digest of public data, not a signature.
+     */
+    readonly allowSha1?: boolean | undefined;
 }
 
 /**
@@ -93,7 +112,7 @@ export async function verifyCertificateSignature(
 ): Promise<boolean> {
     const subject = assertCertificate(certificate, 'certificate');
     const signer = assertCertificate(issuer, 'issuer');
-    return verifySignedStructure(subject, signer, options?.requireAlgorithmMatch !== false);
+    return verifySignedStructure(subject, signer, resolveOptions(options));
 }
 
 /**
@@ -120,17 +139,22 @@ interface SignedStructure {
     readonly signatureValue: { readonly bytes: Uint8Array; readonly unusedBits: number };
 }
 
+/** The options with their defaults applied, once, so every entry point agrees. */
+function resolveOptions(options: VerifyCertificateSignatureOptions | undefined): { requireAlgorithmMatch: boolean; allowSha1: boolean } {
+    return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
+}
+
 async function verifySignedStructure(
     signed: SignedStructure,
     signer: Certificate,
-    requireAlgorithmMatch: boolean,
+    options: { readonly requireAlgorithmMatch: boolean; readonly allowSha1: boolean },
 ): Promise<boolean> {
     // Only the inner `signature` field is covered by the signature; the outer
     // one is not. RFC 5280 §4.1.1.2 and §5.1.1.2 require them equal, and
     // comparing the encodings — not the OIDs — also catches parameters that
     // differ.
     const inner = signed.tbsSignatureAlgorithm;
-    if (requireAlgorithmMatch && inner !== undefined && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
+    if (options.requireAlgorithmMatch && inner !== undefined && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
         return false;
     }
 
@@ -144,6 +168,16 @@ async function verifySignedStructure(
     // be a value and not an exception.
     const resolved = resolveAlgorithm(signed.signatureAlgorithm as Parameters<typeof resolveAlgorithm>[0], signer.subjectPublicKeyInfo);
     if (resolved === null) return false;
+
+    // SHA-1 throws rather than returning either boolean, because neither is
+    // true: the arithmetic may well check out, and it still proves nothing about
+    // the bytes. "This question cannot be put" is what PkiCryptoError means, and
+    // it is the only honest third answer.
+    if (resolved.hash === 'SHA-1' && !options.allowSha1) {
+        throw new PkiCryptoError('PKI_CRYPTO_ALGORITHM_REFUSED',
+            'pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show — get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it',
+            signed.signatureAlgorithm.oid);
+    }
 
     let signature = signed.signatureValue.bytes;
     if (resolved.curve !== undefined) {
@@ -187,7 +221,7 @@ export async function verifyCrlSignature(
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes');
     }
     const signer = assertCertificate(issuer, 'issuer');
-    return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
+    return verifySignedStructure(crl, signer, resolveOptions(options));
 }
 
 /**
@@ -221,8 +255,10 @@ export async function verifyOcspSignature(basicResponse: OcspBasicResponse, resp
     }
     const signer = assertCertificate(responder, 'responder');
     // No algorithm-match check: RFC 6960 names the algorithm once, so there is
-    // no second field that could disagree with it.
-    return verifySignedStructure(basicResponse, signer, false);
+    // no second field that could disagree with it. SHA-1 is refused here with no
+    // opt-in at all: a revocation answer is a live authentication decision, and
+    // there is no archival reading of one to make room for.
+    return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
 }
 
 /**
