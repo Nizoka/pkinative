@@ -136,6 +136,23 @@ export function revocationUnknownReason(path: string, why: string): PkiReason {
 }
 
 /**
+ * The revocation answer is about a different certificate, or does not echo the
+ * nonce that was sent.
+ *
+ * Its own code rather than a flavour of `UNKNOWN`, because the two call for
+ * different actions. `UNKNOWN` means "ask again"; a mismatch means **this
+ * answer is not yours** — a responder that got confused, a cache serving
+ * somebody else's response, or an attacker substituting one. Retrying a
+ * mismatch against the same responder is the wrong move, and a caller that
+ * could not tell the two apart would do it.
+ */
+export function revocationMismatchReason(path: string, what: string): PkiReason {
+    return _reason('PKI_REASON_REVOCATION_MISMATCH', 'RFC 6960 §3.2',
+        `the revocation answer does not belong to this question: ${what}. Retrying will not help — this response was not produced for this certificate`,
+        path);
+}
+
+/**
  * No certificate policy survives the path, and an explicit policy was
  * required — the only condition under which policy processing rejects a path.
  *

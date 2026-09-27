@@ -70,6 +70,8 @@ export type PkiReasonCode =
     | 'PKI_REASON_REVOCATION_WRONG_ISSUER'
     /** Revocation could not be established at all — no list, or an unverified one. */
     | 'PKI_REASON_REVOCATION_UNKNOWN'
+    /** The revocation answer is about a different certificate, or does not echo the nonce that was sent. */
+    | 'PKI_REASON_REVOCATION_MISMATCH'
 
     /** No certificate policy survives the path, and an explicit policy was required. */
     | 'PKI_REASON_NO_VALID_POLICY'

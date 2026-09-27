@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 194,
+  "exportCount": 197,
   "exports": [
     {
       "name": "AccessDescription",
@@ -1714,6 +1714,17 @@
       ]
     },
     {
+      "name": "OCSP_NONCE_OID",
+      "kind": "constant",
+      "module": "src/revocation/ocsp-check.ts",
+      "signature": "export const OCSP_NONCE_OID = '1.3.6.1.5.5.7.48.1.2'",
+      "summary": "`id-pkix-ocsp-nonce`, RFC 6960 §4.4.1.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "OID_REGISTRY",
       "kind": "constant",
       "module": "src/oid/oid-registry.ts",
@@ -1830,6 +1841,72 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "OcspCheckInput",
+      "kind": "type",
+      "module": "src/revocation/ocsp-check.ts",
+      "signature": "export interface OcspCheckInput",
+      "summary": "What to check, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "response",
+          "type": "OcspResponse",
+          "optional": false,
+          "summary": "The parsed response."
+        },
+        {
+          "name": "expected",
+          "type": "{",
+          "optional": false,
+          "summary": "The `CertID` that was asked about, as `encodeCertId` produced it."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to judge at, in epoch milliseconds."
+        },
+        {
+          "name": "signatureVerified",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the responder's signature verified."
+        },
+        {
+          "name": "responderAuthorised",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the signer is authorised to answer for this CA (RFC 6960 §4.2.2.2)."
+        },
+        {
+          "name": "nonce",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The nonce that was sent, if any."
+        },
+        {
+          "name": "requireNonce",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Report a missing nonce echo as a mismatch."
+        },
+        {
+          "name": "staleTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Accept a response whose `nextUpdate` has passed, up to this many milliseconds."
+        },
+        {
+          "name": "futureTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Refuse a response whose `thisUpdate` is more than this far in the future."
+        }
+      ]
     },
     {
       "name": "OcspHashAlgorithm",
@@ -3744,6 +3821,22 @@
       "throws": [],
       "params": [],
       "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448 and Ed25519 are missing on several runtimes that answer `true`.",
+      "members": null
+    },
+    {
+      "name": "checkOcspStatus",
+      "kind": "function",
+      "module": "src/revocation/ocsp-check.ts",
+      "signature": "export function checkOcspStatus(input: OcspCheckInput): readonly PkiReason[]",
+      "summary": "Decide what an OCSP response establishes about one certificate.",
+      "throws": [],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link OcspCheckInput}."
+        }
+      ],
+      "returns": "Every reason the answer is not a clean `good`; empty when it is.",
       "members": null
     },
     {

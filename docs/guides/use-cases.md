@@ -349,6 +349,33 @@ for (const single of basic.responses) console.log(single.status.kind);   // 'goo
 
 `parseOcspResponse` returns an [`OcspResponse`](../assets/api.json) whose `basicResponse` is an [`OcspBasicResponse`](../assets/api.json). `CreateOcspRequestOptions` carries `hashAlgorithm` — an [`OcspHashAlgorithm`](../assets/api.json), SHA-1 by default, because RFC 6960 §4.3 makes it mandatory for responders and a SHA-256 `CertID` is answered `unknown` by many of them — and `nonce`, which binds the response to your request. **Supply your own random bytes**: pkinative generates none, and without a nonce a responder may serve a cached answer that an attacker can replay. `maxOcspResponses` bounds how many `SingleResponse` entries are read.
 
+### The decision, and the substitution it catches
+
+`parseOcspResponse` reads. `checkOcspStatus` decides, and reports RFC 6960 §3.2's four client responsibilities:
+
+```ts
+import { checkOcspStatus, computeFingerprint } from 'pkinative';
+
+const reasons = checkOcspStatus({
+    response,
+    expected: {
+        issuerNameHash: computeFingerprint(issuer.subject.der, 'SHA-1'),
+        issuerKeyHash: computeFingerprint(issuer.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1'),
+        serialNumber: certificate.serialNumber.bytes,
+    },
+    at: Date.now(),
+    signatureVerified,        // you computed it
+    responderAuthorised,      // your policy decided it
+    nonce,
+});
+```
+
+**`PKI_REASON_REVOCATION_MISMATCH` is its own code, not a flavour of `UNKNOWN`,** because the two call for different actions. `UNKNOWN` means ask again; a mismatch means *this answer is not yours* — a confused responder, a cache serving somebody else's response, or an attacker substituting one. Retrying a mismatch against the same responder is the wrong move, and a caller that could not tell them apart would do it. The answer is located by matching **all three** `CertID` fields, never by taking `responses[0]`: a response may carry several, and taking the first is how a client reads somebody else's status as its own.
+
+A nonce that comes back **different** is always a mismatch. One that does not come back **at all** is reported only when `requireNonce` asks — the CA/Browser Forum discourages nonces so responses stay cacheable, and most public responders omit the echo, so which matters more is your choice rather than a default. Note that the nonce sits inside **two** OCTET STRINGs; comparing at the wrong layer is a check that passes on everything, and `OCSP_NONCE_OID` is exported so you can find the echo yourself.
+
+**A missing `nextUpdate` is not stale here**, unlike a CRL. RFC 6960 §4.2.2.1 says its absence means newer information is always available — the opposite of the CRL case, where nothing promises a successor. `futureTolerance` (a minute by default) refuses a `thisUpdate` well ahead of now: clocks disagree by seconds, not hours.
+
 **Which certificate may answer for a CA is not a question this library answers.** `basicResponse.certificates` are certificates the responder *attached*; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.
 
 ## What none of these do yet

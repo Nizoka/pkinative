@@ -48,7 +48,7 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 - [x] CRL parsing — the revocation list is walked with a lazy TLV cursor rather than decoded into nodes, so a list of millions costs constant memory
 - [x] CRL signature verification and the revocation decision — synchronous, taking a precomputed signature verdict, and keeping "unknown" apart from "not revoked"
 - [x] OCSP request building, response parsing and signature verification (RFC 6960) — good, revoked and unknown stay three states
-- [ ] An OCSP status decision returning PkiReason, the counterpart of checkRevocation
+- [x] An OCSP status decision returning PkiReason, reporting all four of RFC 6960 section 3.2 client responsibilities and keeping a substituted answer apart from an unknown one
 - [ ] x509-limbo scored on SUCCESS / FAILURE, NIST PKITS
 
 ## 0.7.x — M4: CMS and timestamps

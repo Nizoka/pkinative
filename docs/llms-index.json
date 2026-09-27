@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 86030,
-      "approxTokens": 21508
+      "bytes": 88173,
+      "approxTokens": 22043
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 52416,
-      "approxTokens": 13104
+      "bytes": 54764,
+      "approxTokens": 13691
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 179210,
-      "approxTokens": 44803
+      "bytes": 182210,
+      "approxTokens": 45553
     },
     {
       "url": "data/errors.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 4505,
-      "approxTokens": 1126
+      "bytes": 4542,
+      "approxTokens": 1136
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 5094,
-      "approxTokens": 1274
+      "bytes": 5219,
+      "approxTokens": 1305
     }
   ],
   "guides": [
@@ -101,10 +101,11 @@
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
         "ask-a-responder-instead-of-downloading-a-list",
+        "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 29324,
-      "approxTokens": 7331
+      "bytes": 31467,
+      "approxTokens": 7867
     },
     {
       "title": "Security model",

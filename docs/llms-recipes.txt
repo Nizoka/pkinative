@@ -997,6 +997,8 @@ export default async function run(): Promise<Record<string, string>> {
  * on pkinative being able to write an OCSP response, which it cannot.
  */
 import {
+    checkOcspStatus,
+    OCSP_NONCE_OID,
     computeFingerprint,
     createCertificate,
     createOcspRequest,
@@ -1012,6 +1014,7 @@ import {
     verifyOcspSignature,
     type Certificate,
     type OcspBasicResponse,
+    type OcspCheckInput,
     type OcspHashAlgorithm,
     type OcspResponse,
     type OcspSingleResponse,
@@ -1053,8 +1056,8 @@ function concat(...parts: readonly Uint8Array[]): Uint8Array {
 }
 
 /** One `SingleResponse` about `R12` under `ROOT`. */
-const single = (status: Uint8Array): Uint8Array => encodeSequence([
-    encodeCertId(R12, ROOT),
+const single = (status: Uint8Array, id?: Uint8Array): Uint8Array => encodeSequence([
+    id ?? encodeCertId(R12, ROOT),
     status,
     encodeTime(PRODUCED_AT, 'GeneralizedTime'),
 ]);
@@ -1063,12 +1066,12 @@ const single = (status: Uint8Array): Uint8Array => encodeSequence([
 type Sign = (data: Uint8Array) => Promise<Uint8Array>;
 
 /** A signed `OCSPResponse` carrying the given answers. */
-async function respond(statuses: readonly Uint8Array[], sign: Sign, keyHash: Uint8Array): Promise<Uint8Array> {
+async function respond(statuses: readonly Uint8Array[], sign: Sign, keyHash: Uint8Array, id?: Uint8Array): Promise<Uint8Array> {
     const tbs = encodeSequence([
         // responderID byKey [2] EXPLICIT KeyHash, which is an OCTET STRING.
         encodeTlv('context', 2, true, encodeOctetString(keyHash)),
         encodeTime(PRODUCED_AT, 'GeneralizedTime'),
-        encodeSequence(statuses.map((status) => single(status))),
+        encodeSequence(statuses.map((status) => single(status, id))),
     ]);
     const signature = await sign(tbs);
     const basic = encodeSequence([tbs, ALG_ED25519, encodeTlv('universal', 3, false, concat(Uint8Array.of(0x00), signature))]);
@@ -1141,8 +1144,50 @@ export default async function run(): Promise<Record<string, string>> {
         ? 'no body'
         : `${String(await verifyOcspSignature(good.basicResponse, responder))} / wrongKey=${String(await verifyOcspSignature(good.basicResponse, ROOT))}`;
 
+    // `parseOcspResponse` reads. It does not decide. RFC 6960 §3.2 makes a
+    // client responsible for four things, and `checkOcspStatus` reports each:
+    // the answer is about the certificate asked about, the signature verified,
+    // the signer is authorised, and the answer is fresh. The middle two arrive
+    // as verdicts the caller computed — which is what keeps the decision
+    // synchronous and keeps policy out of this library.
+    const expected = {
+        issuerNameHash: computeFingerprint(ROOT.subject.der, 'SHA-1'),
+        issuerKeyHash: computeFingerprint(ROOT.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1'),
+        serialNumber: R12.serialNumber.bytes,
+    };
+    const decide = (der: Uint8Array, overrides: Partial<OcspCheckInput> = {}): string => {
+        const found = checkOcspStatus({
+            response: parseOcspResponse(der, QUIET),
+            expected, at: PRODUCED_AT + 3600_000,
+            signatureVerified: true, responderAuthorised: true,
+            ...overrides,
+        });
+        return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');
+    };
+
+    const goodDer = await respond([GOOD], sign, responderSpki.subarray(-32));
+    // An answer about another serial: a response a client trusting
+    // `responses[0]` would accept as its own.
+    const substituted = await respond([GOOD], sign, responderSpki.subarray(-32), encodeSequence([
+        encodeSequence([
+            encodeTlv('universal', 6, false, Uint8Array.of(0x2b, 0x0e, 0x03, 0x02, 0x1a)),
+            encodeTlv('universal', 5, false, new Uint8Array(0)),
+        ]),
+        encodeOctetString(expected.issuerNameHash),
+        encodeOctetString(expected.issuerKeyHash),
+        encodeTlv('universal', 2, false, Uint8Array.of(0x99)),
+    ]));
+
     return {
         requestFields: String(tbsRequest?.children.length),
+        // The nonce extension's OID, exported so a caller can find the echo
+        // themselves rather than hard-coding it.
+        nonceOid: OCSP_NONCE_OID,
+        decisionClean: decide(goodDer),
+        decisionUnsigned: decide(goodDer, { signatureVerified: undefined }),
+        decisionUnauthorised: decide(goodDer, { responderAuthorised: false }),
+        decisionSubstituted: decide(substituted),
+        decisionDeclined: decide(declines(3)),
         nonceEchoed: hex(nonce),
         nameHashBytes: String(nameHash.length),
         keyHashBytes: String(keyHash.length),

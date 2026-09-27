@@ -74,6 +74,13 @@
       "standard": "RFC 5280 §6.3"
     },
     {
+      "code": "PKI_REASON_REVOCATION_MISMATCH",
+      "since": "0.5.0",
+      "returnedWhen": "A revocation answer is about a different certificate, or does not echo the nonce that was sent.",
+      "remedy": "Retrying will not help: this response was not produced for this question. Suspect a confused responder, a cache serving another answer, or substitution.",
+      "standard": "RFC 6960 §3.2"
+    },
+    {
       "code": "PKI_REASON_NO_VALID_POLICY",
       "since": "0.5.0",
       "returnedWhen": "No certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller.",

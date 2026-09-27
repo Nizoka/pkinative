@@ -42,6 +42,8 @@ export { checkRevocation } from './revocation/crl-check.js';
 export { createOcspRequest, encodeCertId } from './revocation/ocsp-request.js';
 export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
 export { parseOcspResponse } from './revocation/ocsp-response.js';
+export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
+export type { OcspCheckInput } from './revocation/ocsp-check.js';
 export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
 export type { RevocationCheckInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';

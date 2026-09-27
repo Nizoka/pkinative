@@ -1162,9 +1162,9 @@ function _readInteger(node, ctx) {
       );
     }
   }
-  let hex = "";
-  for (const octet of content) hex += octet.toString(16).padStart(2, "0");
-  let value = BigInt(`0x${hex}`);
+  let hex3 = "";
+  for (const octet of content) hex3 += octet.toString(16).padStart(2, "0");
+  let value = BigInt(`0x${hex3}`);
   if ((first & 128) !== 0) value -= 1n << BigInt(content.length * 8);
   return value;
 }
@@ -1766,9 +1766,9 @@ function formatIpv6(bytes) {
     }
     i = j;
   }
-  const hex = groups.map((g) => g.toString(16));
-  if (bestLength < 2) return hex.join(":");
-  return `${hex.slice(0, bestStart).join(":")}::${hex.slice(bestStart + bestLength).join(":")}`;
+  const hex3 = groups.map((g) => g.toString(16));
+  if (bestLength < 2) return hex3.join(":");
+  return `${hex3.slice(0, bestStart).join(":")}::${hex3.slice(bestStart + bestLength).join(":")}`;
 }
 function readIpAddress(node, ctx, path, inNameConstraints) {
   const bytes = stringContent(node, ctx, TAG_OCTET_STRING, "OCTET STRING");
@@ -2578,6 +2578,14 @@ function revocationUnknownReason(path, why) {
     path
   );
 }
+function revocationMismatchReason(path, what) {
+  return _reason(
+    "PKI_REASON_REVOCATION_MISMATCH",
+    "RFC 6960 \xA73.2",
+    `the revocation answer does not belong to this question: ${what}. Retrying will not help \u2014 this response was not produced for this certificate`,
+    path
+  );
+}
 function noValidPolicyReason(path) {
   return _reason(
     "PKI_REASON_NO_VALID_POLICY",
@@ -2746,9 +2754,9 @@ function encodeSetOf(children) {
   childrenContent(children, "encodeSetOf");
   return encodeTlv("universal", TAG_SET, true, concatBytes([...children].sort(compareOctets)));
 }
-function hexToBytes(hex) {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+function hexToBytes(hex3) {
+  const out = new Uint8Array(hex3.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex3.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
 function encodeInteger(value) {
@@ -2760,17 +2768,17 @@ function encodeInteger(value) {
   } else {
     throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
   }
-  let hex;
+  let hex3;
   if (v >= 0n) {
-    hex = v.toString(16);
-    if (hex.length % 2 === 1) hex = `0${hex}`;
-    if (parseInt(hex.slice(0, 2), 16) >= 128) hex = `00${hex}`;
+    hex3 = v.toString(16);
+    if (hex3.length % 2 === 1) hex3 = `0${hex3}`;
+    if (parseInt(hex3.slice(0, 2), 16) >= 128) hex3 = `00${hex3}`;
   } else {
     let octets = 1;
     while (v < -(1n << BigInt(octets * 8 - 1))) octets++;
-    hex = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
+    hex3 = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
   }
-  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex));
+  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex3));
 }
 function encodeBoolean(value) {
   return encodeTlv("universal", TAG_BOOLEAN, false, Uint8Array.of(value ? 255 : 0));
@@ -3617,6 +3625,92 @@ function readExtensions2(der, field, ctx, path) {
     index += 1;
   }
   return Object.freeze(out);
+}
+
+// src/revocation/ocsp-check.ts
+var OCSP_NONCE_OID = "1.3.6.1.5.5.7.48.1.2";
+var MINUTE = 6e4;
+function checkOcspStatus(input) {
+  const out = [];
+  const path = "ocsp";
+  if (input.response.status !== "successful") {
+    out.push(revocationUnknownReason(path, `the responder declined with ${input.response.status}, which says nothing about this certificate`));
+    return out;
+  }
+  const basic = input.response.basicResponse;
+  if (basic === void 0) {
+    out.push(revocationUnknownReason(path, "the response carries no body"));
+    return out;
+  }
+  if (input.signatureVerified !== true) {
+    out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the responder's signature did not verify against the key it was checked with" : "the responder's signature was never checked, and an unsigned response is something anyone can produce"));
+  }
+  if (input.responderAuthorised !== true) {
+    out.push(revocationUnknownReason(path, input.responderAuthorised === false ? "the signer is not authorised to answer for this CA (RFC 6960 \xA74.2.2.2)" : "nothing says the signer is authorised to answer for this CA, and a responder nobody authorised is a responder anyone can be"));
+  }
+  out.push(...checkNonce(basic, input, path));
+  const answer = basic.responses.find((single) => matches(single, input.expected));
+  if (answer === void 0) {
+    out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
+    return out;
+  }
+  out.push(...checkFreshness(answer, input, path));
+  if (answer.status.kind === "revoked") {
+    out.push(revokedReason(path, answer.status.revocationTime.epochMilliseconds, answer.status.reason));
+  } else if (answer.status.kind === "unknown") {
+    out.push(revocationUnknownReason(path, "the responder answered unknown, meaning it has no record of this certificate \u2014 often a sign the serial does not belong to that CA"));
+  }
+  return out;
+}
+function matches(single, expected) {
+  return bytesEqual(single.certId.issuerNameHash, expected.issuerNameHash) && bytesEqual(single.certId.issuerKeyHash, expected.issuerKeyHash) && bytesEqual(single.certId.serialNumber.bytes, expected.serialNumber);
+}
+function describeMismatch(basic, input) {
+  if (basic.responses.length === 0) return "the response carries no answers at all";
+  const first = basic.responses[0];
+  if (!bytesEqual(first.certId.serialNumber.bytes, input.expected.serialNumber)) {
+    return `it answers about serial ${first.certId.serialNumber.hex}, and the question was about ${hex(input.expected.serialNumber)}`;
+  }
+  if (!bytesEqual(first.certId.issuerNameHash, input.expected.issuerNameHash)) {
+    return "the serial matches but the issuer name hash does not, so the answer is about a certificate from another CA";
+  }
+  return "the serial matches but the issuer key hash does not, so the answer is about a certificate under another key";
+}
+function hex(bytes) {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+}
+function checkNonce(basic, input, path) {
+  const sent = input.nonce;
+  if (sent === void 0) return [];
+  const echoed = basic.extensions.find((extension) => extension.oid === OCSP_NONCE_OID);
+  if (echoed === void 0) {
+    return input.requireNonce === true ? [revocationMismatchReason(path, "no nonce came back, and requireNonce was asked for \u2014 without an echo this response may be a replay")] : [];
+  }
+  const inner = unwrapOctetString(echoed.valueDer);
+  if (inner === null || !bytesEqual(inner, sent)) {
+    return [revocationMismatchReason(path, "the nonce that came back is not the one that was sent")];
+  }
+  return [];
+}
+function unwrapOctetString(bytes) {
+  if (bytes.length < 2 || bytes[0] !== 4) return null;
+  const length = bytes[1];
+  if (length > 127 || 2 + length > bytes.length) return null;
+  return bytes.subarray(2, 2 + length);
+}
+function checkFreshness(answer, input, path) {
+  const out = [];
+  const future = input.futureTolerance ?? MINUTE;
+  if (answer.thisUpdate.epochMilliseconds > input.at + future) {
+    out.push(revocationStaleReason(path, void 0, input.at));
+  }
+  const nextUpdate = answer.nextUpdate?.epochMilliseconds;
+  if (nextUpdate !== void 0 && input.at > nextUpdate + (input.staleTolerance ?? 0)) {
+    out.push(revocationStaleReason(path, nextUpdate, input.at));
+  }
+  return out;
 }
 
 // src/path/path-name-constraints.ts
@@ -5196,8 +5290,8 @@ function formatFingerprint(digest, options) {
   if (letterCase !== "upper" && letterCase !== "lower") {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: letterCase must be 'upper' or 'lower', got ${String(letterCase)}`);
   }
-  const hex = toHex(bytes, separator);
-  return letterCase === "upper" ? hex.toUpperCase() : hex;
+  const hex3 = toHex(bytes, separator);
+  return letterCase === "upper" ? hex3.toUpperCase() : hex3;
 }
 
 // src/x509/x509-spki.ts
@@ -5937,6 +6031,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkOcspStatus, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
