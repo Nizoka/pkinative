@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 200,
+  "exportCount": 204,
   "exports": [
     {
       "name": "AccessDescription",
@@ -708,6 +708,30 @@
           "type": "readonly ExtensionDescription[] | undefined",
           "optional": true,
           "summary": "Extensions to request, carried in the `extensionRequest` attribute (PKCS#9, OID 1.2.840.113549.1.9.14)."
+        }
+      ]
+    },
+    {
+      "name": "CheckServerNameOptions",
+      "kind": "type",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export interface CheckServerNameOptions",
+      "summary": "Options of checkServerName.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "allowCommonNameFallback",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Fall back to `commonName` when the certificate carries no `dNSName` and no `iPAddress`."
+        },
+        {
+          "name": "allowWildcards",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept a wildcard certificate at all."
         }
       ]
     },
@@ -2825,7 +2849,7 @@
       "name": "PkiReasonCode",
       "kind": "type",
       "module": "src/types/pki-reasons.ts",
-      "signature": "export type PkiReasonCode = // ── The input, wrapped rather than duplicated ── /** The bytes are not the structure they claim to be. `errorCode` carries the `PkiErrorCode` that would have been thrown. */ | 'PKI_REASON_INPUT_MALFORMED' // ── The certificate, on its own ── /** The validation instant is before `notBefore`. */ | 'PKI_REASON_NOT_YET_VALID' /** The validation instant is after `notAfter`. */ | 'PKI_REASON_EXPIRED' /** A critical extension no implementation here recognises",
+      "signature": "export type PkiReasonCode = // ── The input, wrapped rather than duplicated ── /** The bytes are not the structure they claim to be. `errorCode` carries the `PkiErrorCode` that would have been thrown. */ | 'PKI_REASON_INPUT_MALFORMED' // ── The certificate, on its own ── /** The validation instant is before `notBefore`. */ | 'PKI_REASON_NOT_YET_VALID' /** The validation instant is after `notAfter`. */ | 'PKI_REASON_EXPIRED' /** No name in the certificate matches the host or address the caller asked about. */ | 'PKI_REASON_NAME_MISMATCH' /** A critical extension no implementation here recognises",
       "summary": "Why a validation said no.",
       "throws": null,
       "params": null,
@@ -3362,6 +3386,17 @@
           "summary": "The signed value; negative for a serial whose first octet has the high bit set."
         }
       ]
+    },
+    {
+      "name": "ServerIdentity",
+      "kind": "type",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export type ServerIdentity = /** A DNS name, as it appeared in the URL. One trailing dot is ignored. */ | { readonly kind: 'dns'",
+      "summary": "The host or address a caller connected to.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "SignatureAlgorithm",
@@ -3943,6 +3978,30 @@
       "members": null
     },
     {
+      "name": "checkServerName",
+      "kind": "function",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export function checkServerName( certificate: Certificate, identity: ServerIdentity, options?: CheckServerNameOptions, ): readonly PkiReason[]",
+      "summary": "Check that a certificate names the host or address the caller asked about.",
+      "throws": [],
+      "params": [
+        {
+          "name": "certificate",
+          "description": "The end-entity certificate presented."
+        },
+        {
+          "name": "identity",
+          "description": "The host or address the caller connected to."
+        },
+        {
+          "name": "options",
+          "description": "See {@link CheckServerNameOptions}."
+        }
+      ],
+      "returns": "`PKI_REASON_NAME_MISMATCH` when nothing matches; empty when something does.",
+      "members": null
+    },
+    {
       "name": "computeFingerprint",
       "kind": "function",
       "module": "src/hash/fingerprint.ts",
@@ -4190,6 +4249,30 @@
         }
       ],
       "returns": "The blocks in text order, with their labels, payloads, headers and offsets.",
+      "members": null
+    },
+    {
+      "name": "dnsMatches",
+      "kind": "function",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export function dnsMatches(presented: string, reference: string, wildcards = true): boolean",
+      "summary": "RFC 6125 §6.4: a presented `dNSName` against a reference host name.",
+      "throws": [],
+      "params": [
+        {
+          "name": "presented",
+          "description": "The certificate's name, possibly a wildcard."
+        },
+        {
+          "name": "reference",
+          "description": "The host the caller asked about."
+        },
+        {
+          "name": "wildcards",
+          "description": "Whether a wildcard may match at all."
+        }
+      ],
+      "returns": "Whether they identify the same host.",
       "members": null
     },
     {

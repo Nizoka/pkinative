@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 89933,
-      "approxTokens": 22483
+      "bytes": 89955,
+      "approxTokens": 22489
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 56167,
-      "approxTokens": 14042
+      "bytes": 61540,
+      "approxTokens": 15385
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 185047,
-      "approxTokens": 46262
+      "bytes": 188033,
+      "approxTokens": 47008
     },
     {
       "url": "data/errors.json",
@@ -54,8 +54,8 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 4616,
-      "approxTokens": 1154
+      "bytes": 4994,
+      "approxTokens": 1249
     },
     {
       "url": "assets/ecosystem.json",
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12847,
-      "approxTokens": 3212
+      "bytes": 12869,
+      "approxTokens": 3217
     },
     {
       "title": "Use cases",

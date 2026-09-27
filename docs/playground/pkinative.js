@@ -2603,6 +2603,14 @@ function policyMappingInvalidReason(path, issuerDomainPolicy, subjectDomainPolic
     path
   );
 }
+function nameMismatchReason(path, wanted, found) {
+  return _reason(
+    "PKI_REASON_NAME_MISMATCH",
+    "RFC 6125 \xA76",
+    `the certificate does not name ${wanted}: ${found}. A chain that verifies still says nothing about which host the certificate is for`,
+    path
+  );
+}
 function issuerNotFoundReason(path, issuer) {
   return _reason(
     "PKI_REASON_ISSUER_NOT_FOUND",
@@ -4187,8 +4195,13 @@ function validateCertificatePath(input) {
     if (signature !== null) state.reasons.push(signature);
     state.expectedIssuer = certificate.issuer;
   }
-  if (!anchored && state.expectedIssuer !== null && context.trustAnchorSubjects.has(_hex(state.expectedIssuer.der))) {
-    anchored = true;
+  if (!anchored && state.expectedIssuer !== null) {
+    const wanted = _hex(state.expectedIssuer.der);
+    const anchor = input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+    if (anchor !== void 0) {
+      anchored = true;
+      walked.push(anchor);
+    }
   }
   if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
   const names = initialNameConstraints();
@@ -4275,6 +4288,91 @@ function hexOf(bytes) {
   let out = "";
   for (const b of bytes) out += b.toString(16).padStart(2, "0");
   return out;
+}
+
+// src/path/path-server-name.ts
+var OID_COMMON_NAME = "2.5.4.3";
+function checkServerName(certificate, identity, options) {
+  const san = getExtension(certificate, "subjectAltName");
+  const names = san?.names ?? [];
+  const sanIsAuthoritative = names.some((name) => name.kind === "dNSName" || name.kind === "iPAddress");
+  const wildcards = options?.allowWildcards !== false;
+  if (sanIsAuthoritative) {
+    for (const name of names) {
+      if (matches2(name, identity, wildcards)) return [];
+    }
+    return [nameMismatchReason("certificate.subjectAltName", identityText(identity), listed(names))];
+  }
+  if (options?.allowCommonNameFallback !== true) {
+    return [nameMismatchReason(
+      "certificate.subjectAltName",
+      identityText(identity),
+      names.length === 0 ? "the certificate carries no subjectAltName at all, and the deprecated commonName fallback was not asked for" : "the subjectAltName carries no dNSName and no iPAddress, and the deprecated commonName fallback was not asked for"
+    )];
+  }
+  for (const common of commonNames(certificate)) {
+    if (identity.kind === "dns" && dnsMatches2(common, identity.value, wildcards)) return [];
+  }
+  return [nameMismatchReason("certificate.subject", identityText(identity), `commonName ${commonNames(certificate).map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
+}
+function matches2(name, identity, wildcards) {
+  if (identity.kind === "dns") {
+    return name.kind === "dNSName" && dnsMatches2(name.value, identity.value, wildcards);
+  }
+  return name.kind === "iPAddress" && sameBytes2(name.bytes, identity.value);
+}
+function fold2(text) {
+  return text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+}
+function dnsMatches2(presented, reference, wildcards = true) {
+  if (presented === "" || presented.includes("\0") || reference === "" || reference.includes("\0")) return false;
+  const host = fold2(stripTrailingDot(reference));
+  const pattern = fold2(stripTrailingDot(presented));
+  if (!pattern.includes("*")) return pattern === host;
+  if (!wildcards) return false;
+  const labels = pattern.split(".");
+  const first = labels[0];
+  if (first !== "*") return false;
+  if (labels.slice(1).some((label) => label.includes("*"))) return false;
+  if (labels.length < 3) return false;
+  if (labels.slice(1).some((label) => label === "")) return false;
+  const suffix = labels.slice(1).join(".");
+  const hostLabels = host.split(".");
+  if (hostLabels.length !== labels.length) return false;
+  if (hostLabels[0] === "") return false;
+  return hostLabels.slice(1).join(".") === suffix;
+}
+function stripTrailingDot(name) {
+  return name.endsWith(".") ? name.slice(0, -1) : name;
+}
+function sameBytes2(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+function commonNames(certificate) {
+  const out = [];
+  for (const rdn of certificate.subject.rdns) {
+    for (const attribute of rdn) {
+      if (attribute.type === OID_COMMON_NAME && attribute.value !== void 0) out.push(attribute.value.value);
+    }
+  }
+  return out;
+}
+function identityText(identity) {
+  if (identity.kind === "dns") return `the DNS name "${identity.value}"`;
+  const bytes = identity.value;
+  const text = bytes.length === 4 ? Array.from(bytes, (b) => String(b)).join(".") : Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `the address ${text}`;
+}
+function listed(names) {
+  const hosts = [];
+  for (const name of names) {
+    if (name.kind === "dNSName") hosts.push(JSON.stringify(name.value));
+    else if (name.kind === "iPAddress") hosts.push(name.address);
+  }
+  const more = hosts.length > 8 ? `, and ${String(hosts.length - 8)} more` : "";
+  return `it names ${hosts.slice(0, 8).join(", ")}${more}`;
 }
 
 // src/oid/oid-registry.ts
@@ -5221,7 +5319,7 @@ function core(input, iv, outputLength) {
   const wh = new Uint32Array(80);
   const wl = new Uint32Array(80);
   const t = new Uint32Array(2);
-  const fold2 = (i, high, low) => {
+  const fold3 = (i, high, low) => {
     add(t, state[i], state[i + 1], high, low);
     state[i] = t[0];
     state[i + 1] = t[1];
@@ -5291,14 +5389,14 @@ function core(input, iv, outputLength) {
       aH = t[0];
       aL = t[1];
     }
-    fold2(0, aH, aL);
-    fold2(2, bH, bL);
-    fold2(4, cH, cL);
-    fold2(6, dH, dL);
-    fold2(8, eH, eL);
-    fold2(10, fH, fL);
-    fold2(12, gH, gL);
-    fold2(14, hH, hL);
+    fold3(0, aH, aL);
+    fold3(2, bH, bL);
+    fold3(4, cH, cL);
+    fold3(6, dH, dL);
+    fold3(8, eH, eL);
+    fold3(10, fH, fL);
+    fold3(12, gH, gL);
+    fold3(14, hH, hL);
   }
   const out = new Uint8Array(64);
   const outView = new DataView(out.buffer);
@@ -6095,6 +6193,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkOcspStatus, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -262,16 +262,44 @@
       ],
       "since": "0.5.0",
       "expects": [
-        "built=valid, 1 certificates explored=1",
+        "built=valid, 2 certificates explored=1",
         "unbuildable=PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_SIGNATURE_NOT_CHECKED",
         "unbuildableExplored=1",
         "chain=valid, 2 certificates",
-        "anchorOutsideChain=valid, 1 certificates",
+        "anchorOutsideChain=valid, 2 certificates",
         "noAnchor=PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
         "expired=PKI_REASON_EXPIRED,PKI_REASON_EXPIRED",
         "unverified=PKI_REASON_SIGNATURE_NOT_CHECKED",
         "leafCannotIssue=refused",
         "neverThrows=true"
+      ]
+    },
+    {
+      "file": "check-server-name.ts",
+      "task": "Check that a certificate names the host you connected to (RFC 6125), which path validation never does and without which a valid certificate for somebody else is accepted",
+      "surface": [
+        "checkServerName",
+        "CheckServerNameOptions",
+        "ServerIdentity",
+        "dnsMatches",
+        "parseCertificate"
+      ],
+      "since": "0.5.0",
+      "expects": [
+        "named=match",
+        "folded=match",
+        "suffix=PKI_REASON_NAME_MISMATCH",
+        "prefix=PKI_REASON_NAME_MISMATCH",
+        "nulByte=PKI_REASON_NAME_MISMATCH",
+        "addressIsNotAName=PKI_REASON_NAME_MISMATCH",
+        "wildcardOneLabel=true",
+        "wildcardNotTheParent=false",
+        "wildcardNotTwoLabels=false",
+        "wildcardNotPartial=false",
+        "wildcardNotRegistry=false",
+        "wildcardsOff=false",
+        "exactStillMatchesWithWildcardsOff=match",
+        "fallbackRescuesNothing=PKI_REASON_NAME_MISMATCH"
       ]
     },
     {

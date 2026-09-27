@@ -398,8 +398,24 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
     // is anchored when its last certificate names an anchor's subject — which
     // is how a server that sends only leaf and intermediate is meant to be
     // validated, and that is most of them.
-    if (!anchored && state.expectedIssuer !== null && context.trustAnchorSubjects.has(_hex(state.expectedIssuer.der))) {
-        anchored = true;
+    //
+    // **The anchor then joins the walked path**, and it must: §6.1.2
+    // initialises the state *from* the anchor, so its `nameConstraints`, its
+    // `basicConstraints` and its `keyUsage` all bind what it issued. Leaving it
+    // out — which this function did until x509-limbo scored it — means a
+    // certificate issued by a name-constrained root, presented on its own,
+    // validates with the constraint never applied. That is the shape of a real
+    // CVE, and the reason the corpus is scored at all.
+    if (!anchored && state.expectedIssuer !== null) {
+        const wanted = _hex(state.expectedIssuer.der);
+        const anchor = input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+        if (anchor !== undefined) {
+            anchored = true;
+            // Its signature is deliberately not checked: a trust anchor is
+            // trusted a priori, and a root's self-signature proves only that it
+            // is self-consistent.
+            walked.push(anchor);
+        }
     }
     if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
 

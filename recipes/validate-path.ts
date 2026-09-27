@@ -57,9 +57,13 @@ export default async function run(): Promise<Record<string, string>> {
 
     const good = validateCertificatePath({ certificates: chain, trustAnchors: [root], at, signatures: trusted });
 
-    // The anchor is an input to §6.1.1, not an element of the path: a chain
-    // that stops one short of its root is still anchored when its last
-    // certificate names a trusted subject. Most servers send it this way.
+    // A chain that stops one short of its root is still anchored when its last
+    // certificate names a trusted subject — most servers send it this way, and
+    // §6.1.1 (a) takes the anchor as a separate input for exactly that reason.
+    // The report's `path` nonetheless ends with the anchor: §6.1.2 initialises
+    // the state FROM it, so its name constraints, its basicConstraints and its
+    // keyUsage all bind what it issued, and a path that omitted it would be
+    // claiming those were never applied.
     const short = validateCertificatePath({ certificates: [intermediate], trustAnchors: [root], at, signatures: trusted });
 
     // No anchor at all is an answer, not an exception.

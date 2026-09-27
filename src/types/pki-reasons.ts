@@ -55,6 +55,8 @@ export type PkiReasonCode =
     | 'PKI_REASON_NOT_YET_VALID'
     /** The validation instant is after `notAfter`. */
     | 'PKI_REASON_EXPIRED'
+    /** No name in the certificate matches the host or address the caller asked about. */
+    | 'PKI_REASON_NAME_MISMATCH'
     /** A critical extension no implementation here recognises; RFC 5280 §6.1.3 requires refusal. */
     | 'PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION'
     /** A name in the certificate falls outside the name constraints a CA above it set. */

@@ -173,6 +173,21 @@ export function policyMappingInvalidReason(path: string, issuerDomainPolicy: str
         path);
 }
 
+/**
+ * No name in the certificate matches the host or address the caller asked
+ * about (RFC 6125).
+ *
+ * The message names **both** what was asked for and what the certificate
+ * actually names, because the two together are what tells a reader whether
+ * they have the wrong certificate, the wrong host, or a misissued SAN — and a
+ * bare "name mismatch" tells them none of it.
+ */
+export function nameMismatchReason(path: string, wanted: string, found: string): PkiReason {
+    return _reason('PKI_REASON_NAME_MISMATCH', 'RFC 6125 §6',
+        `the certificate does not name ${wanted}: ${found}. A chain that verifies still says nothing about which host the certificate is for`,
+        path);
+}
+
 /** No supplied candidate has a subject equal to this certificate's issuer. */
 export function issuerNotFoundReason(path: string, issuer: string): PkiReason {
     return _reason('PKI_REASON_ISSUER_NOT_FOUND', 'RFC 5280 §6.1',

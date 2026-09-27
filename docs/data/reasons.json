@@ -25,6 +25,13 @@
       "standard": "RFC 5280 §6.1.3 (a)(2)"
     },
     {
+      "code": "PKI_REASON_NAME_MISMATCH",
+      "since": "0.5.0",
+      "returnedWhen": "No name in the certificate matches the host or address the caller asked about (RFC 6125).",
+      "remedy": "A certificate that verifies is not a certificate for the host you connected to. Check the subjectAltName; a matching commonName does not count unless you opted into the deprecated fallback.",
+      "standard": "RFC 6125 §6"
+    },
+    {
       "code": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
       "since": "0.5.0",
       "returnedWhen": "A certificate carries a critical extension this implementation does not recognise.",

@@ -84,10 +84,10 @@ describe('buildCertificatePath', () => {
         });
         expect(report.reasons).toEqual([]);
         expect(report.valid).toBe(true);
-        // Two, not three: RFC 5280 6.1.1 (a) takes the anchor as a separate
-        // input, so [leaf, intermediate] is anchored by ROOT without ROOT being
-        // in the path — and it is the shorter answer, so the search stops there.
-        expect(report.path).toHaveLength(2);
+        // Three: the anchor joins the path even when it was supplied only in
+        // trustAnchors, because section 6.1.2 initialises the state FROM it —
+        // its name constraints and its basicConstraints bind what it issued.
+        expect(report.path).toHaveLength(3);
         expect(report.explored).toBeGreaterThan(0);
     });
 
@@ -129,7 +129,7 @@ describe('buildCertificatePath', () => {
             signatures: allValid(LEAF.certificate, INTERMEDIATE.certificate, decoy.certificate),
         });
         expect(report.valid).toBe(true);
-        expect(report.path).toHaveLength(2);
+        expect(report.path).toHaveLength(3);
         // It had to try the decoy before finding the real one.
         expect(report.explored).toBeGreaterThan(2);
     });
@@ -287,7 +287,7 @@ describe('buildCertificatePath', () => {
             signatures: allValid(deepLeaf.certificate, subCa.certificate, INTERMEDIATE.certificate),
         });
         expect(report.reasons).toEqual([]);
-        expect(report.path).toHaveLength(3);
+        expect(report.path).toHaveLength(4);
     });
 
     it('should refuse a budget of zero as API misuse, not as a policy', () => {
