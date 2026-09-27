@@ -720,10 +720,12 @@ export default async function run(): Promise<Record<string, string>> {
  * failed.
  */
 import {
+    buildCertificatePath,
     parseCertificate,
     validateCertificatePath,
     verifyCertificateSignature,
     type Certificate,
+    type PathBuildReport,
     type PathValidationReport,
     type SignatureResult,
 } from 'pkinative';
@@ -747,7 +749,7 @@ async function verdicts(chain: readonly Certificate[]): Promise<SignatureResult[
     }));
 }
 
-const summarise = (report: PathValidationReport): string =>
+const summarise = (report: PathValidationReport | PathBuildReport): string =>
     report.valid ? `valid, ${String(report.path.length)} certificates` : report.reasons.map((r) => r.code).join(',');
 
 export default async function run(): Promise<Record<string, string>> {
@@ -784,7 +786,25 @@ export default async function run(): Promise<Record<string, string>> {
     const leaf = load('letsencrypt-org-leaf');
     const forged = validateCertificatePath({ certificates: [root, leaf], trustAnchors: [leaf], at, signatures: [{ certificate: root, verdict: 'valid' }] });
 
+    // A caller with an unordered bag rather than a chain uses the builder,
+    // which searches with backtracking. Cross-signing means one subject name can
+    // have several plausible issuers, so taking the first match is not enough —
+    // and `maxPathsExplored` rather than `maxChainLength` is the bound, because
+    // the search is exponential in the candidate set.
+    const bag = [root, intermediate, leaf];
+    const built = buildCertificatePath({ leaf: intermediate, candidates: bag, trustAnchors: [root], at, signatures: trusted });
+    const unbuildable = buildCertificatePath({ leaf, candidates: bag, trustAnchors: [root], at, signatures: trusted });
+
     return {
+        built: `${summarise(built)} explored=${String(built.explored)}`,
+        // The committed leaf is issued by CN=YE2, which is not in the bag, so
+        // no path reaches an anchor — and the report says how far it got.
+        unbuildable: unbuildable.reasons.map((r) => r.code).sort().join(','),
+        // `explored` is worth logging: a number near `maxPathsExplored` is a bag
+        // of certificates designed to be expensive, not a hierarchy. Reaching
+        // that bound needs a deeper hierarchy than these three fixtures make,
+        // and tests/path/path-build.test.ts builds one.
+        unbuildableExplored: String(unbuildable.explored),
         chain: summarise(good),
         anchorOutsideChain: summarise(short),
         noAnchor: summarise(untrusted),

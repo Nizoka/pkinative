@@ -254,6 +254,25 @@ const report = validateCertificatePath({ certificates: chain, trustAnchors: root
 if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
 ```
 
+### When you have a bag rather than a chain
+
+A TLS handshake hands over an unordered `certificate_list`, and **cross-signing means one subject name can have several plausible issuers** — Let's Encrypt's own hierarchy is the everyday case. `buildCertificatePath` searches instead of walking:
+
+```ts
+import { buildCertificatePath } from 'pkinative';
+
+const report = buildCertificatePath({
+    leaf, candidates: whateverTheServerSent, trustAnchors: yourRoots, at: Date.now(), signatures,
+});
+console.log(report.valid, report.explored);
+```
+
+Its input is a [`PathBuildInput`](../assets/api.json) and its answer a [`PathBuildReport`](../assets/api.json) — §6's report plus `explored`, the number of candidates tried. **`maxPathsExplored` (default 1 000) is the bound that matters here, not `maxChainLength`**: path building is exponential in the candidate set and only linear in the chain length, so a bag of thirty certificates that all name each other as issuer is a few kilobytes of input and an unbounded amount of work. A number near the bound in `explored` is a bag designed to be expensive, not a hierarchy.
+
+Signature verdicts still arrive precomputed, which is the awkward part of building rather than validating: verify every plausible pair up front, in parallel, and pass them all. A pair with no verdict is `PKI_REASON_SIGNATURE_NOT_CHECKED` and the path is not taken — it fails closed. When no path is accepted you get the reasons from the attempt that got **furthest**, because "no path found" without saying why is a report nobody can act on.
+
+Choosing which anchors to trust is yours, and so is fetching anything not already in the bag: a path builder that reached the network would be one an attacker can point at a host of their choosing.
+
 **It takes signature verdicts, not keys**, and three things follow. `validateCertificatePath` is **synchronous** — putting `subtle.verify` inside would make the whole state machine asynchronous, unfuzzable without a host, and would mix an I/O-shaped failure with a logical one. It is **pure** — it reads data and returns a verdict, reaching nothing. And the signatures get checked in parallel, before the walk.
 
 **It never throws for a validation issue.** An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in `limits` — throws. That is the [third vocabulary](errors.md#three-vocabularies-three-questions) doing its job: primitives return and throw, compositions report.

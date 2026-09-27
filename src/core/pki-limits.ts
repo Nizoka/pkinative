@@ -25,6 +25,7 @@
  * | maxPolicyNodes    | 4 096   | CWE-770 |
  * | maxRevokedCertificates | 1 000 000 | CWE-400 |
  * | maxOcspResponses  | 256     | CWE-400 |
+ * | maxPathsExplored  | 1 000   | CWE-400 |
  *
  * @module core/pki-limits
  */
@@ -49,6 +50,7 @@ export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
     maxPolicyNodes: 4096,
     maxRevokedCertificates: 1_000_000,
     maxOcspResponses: 256,
+    maxPathsExplored: 1000,
 });
 
 /**

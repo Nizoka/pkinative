@@ -265,6 +265,18 @@
       const report = validateCertificatePath({ certificates: chain, trustAnchors: roots, at: Date.now(), signatures });
       if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
       </code></pre>
+      <h3 id="when-you-have-a-bag-rather-than-a-chain">When you have a bag rather than a chain <a class="heading-anchor" href="#when-you-have-a-bag-rather-than-a-chain" aria-label="Link to this section">#</a></h3>
+      <p>A TLS handshake hands over an unordered <code>certificate_list</code>, and <strong>cross-signing means one subject name can have several plausible issuers</strong> — Let&#39;s Encrypt&#39;s own hierarchy is the everyday case. <code>buildCertificatePath</code> searches instead of walking:</p>
+      <pre><code class="language-ts">import { buildCertificatePath } from &#39;pkinative&#39;;
+
+      const report = buildCertificatePath({
+          leaf, candidates: whateverTheServerSent, trustAnchors: yourRoots, at: Date.now(), signatures,
+      });
+      console.log(report.valid, report.explored);
+      </code></pre>
+      <p>Its input is a <a href="../assets/api.json"><code>PathBuildInput</code></a> and its answer a <a href="../assets/api.json"><code>PathBuildReport</code></a> — §6&#39;s report plus <code>explored</code>, the number of candidates tried. <strong><code>maxPathsExplored</code> (default 1 000) is the bound that matters here, not <code>maxChainLength</code></strong>: path building is exponential in the candidate set and only linear in the chain length, so a bag of thirty certificates that all name each other as issuer is a few kilobytes of input and an unbounded amount of work. A number near the bound in <code>explored</code> is a bag designed to be expensive, not a hierarchy.</p>
+      <p>Signature verdicts still arrive precomputed, which is the awkward part of building rather than validating: verify every plausible pair up front, in parallel, and pass them all. A pair with no verdict is <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> and the path is not taken — it fails closed. When no path is accepted you get the reasons from the attempt that got <strong>furthest</strong>, because &quot;no path found&quot; without saying why is a report nobody can act on.</p>
+      <p>Choosing which anchors to trust is yours, and so is fetching anything not already in the bag: a path builder that reached the network would be one an attacker can point at a host of their choosing.</p>
       <p><strong>It takes signature verdicts, not keys</strong>, and three things follow. <code>validateCertificatePath</code> is <strong>synchronous</strong> — putting <code>subtle.verify</code> inside would make the whole state machine asynchronous, unfuzzable without a host, and would mix an I/O-shaped failure with a logical one. It is <strong>pure</strong> — it reads data and returns a verdict, reaching nothing. And the signatures get checked in parallel, before the walk.</p>
       <p><strong>It never throws for a validation issue.</strong> An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in <code>limits</code> — throws. That is the <a href="errors.html#three-vocabularies-three-questions">third vocabulary</a> doing its job: primitives return and throw, compositions report.</p>
       <p><strong>It reports every reason, not the first.</strong> A certificate can be expired <em>and</em> issued by something that is not a CA, and a caller fixing one per round trip is a caller the report failed.</p>

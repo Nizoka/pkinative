@@ -246,7 +246,7 @@
     },
     {
       "file": "validate-path.ts",
-      "task": "Validate a certification path against a trust anchor, and read every reason a report gives instead of catching one exception",
+      "task": "Build and validate a certification path against a trust anchor, and read every reason a report gives instead of catching one exception",
       "surface": [
         "validateCertificatePath",
         "PathValidationInput",
@@ -256,10 +256,15 @@
         "PkiReason",
         "PkiReasonCode",
         "verifyCertificateSignature",
-        "parseCertificate"
+        "parseCertificate",
+        "buildCertificatePath",
+        "PathBuildReport"
       ],
       "since": "0.5.0",
       "expects": [
+        "built=valid, 1 certificates explored=1",
+        "unbuildable=PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_SIGNATURE_NOT_CHECKED",
+        "unbuildableExplored=1",
         "chain=valid, 2 certificates",
         "anchorOutsideChain=valid, 1 certificates",
         "noAnchor=PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",

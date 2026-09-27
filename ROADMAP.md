@@ -44,7 +44,7 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 - [x] RFC 5280 §6 validity window, issuer chaining, signature verdicts, `basicConstraints`, `keyUsage`, path length, loop detection and the trust anchor — synchronous, pure, never throwing for a validation issue
 - [x] RFC 5280 §6 name constraints — per-form permitted and excluded subtrees, intersecting down the path, over dNSName, rfc822Name, URI, iPAddress and directoryName, on both the subject and the SAN
 - [x] RFC 5280 §6 the policy tree — `valid_policy_tree` as flat levels with children by index and nothing ever removed, the three counters, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, and the §6.1.5 (g) success condition
-- [ ] Path *building*: choosing among candidate issuers, bounded by `maxPathsExplored`
+- [x] Path *building*: a depth-first search with backtracking over candidate issuers, bounded by `maxPathsExplored` — which is THE denial-of-service bound of section 6, because building is exponential in the candidate set and only linear in the chain length
 - [x] CRL parsing — the revocation list is walked with a lazy TLV cursor rather than decoded into nodes, so a list of millions costs constant memory
 - [x] CRL signature verification and the revocation decision — synchronous, taking a precomputed signature verdict, and keeping "unknown" apart from "not revoked"
 - [x] OCSP request building, response parsing and signature verification (RFC 6960) — good, revoked and unknown stay three states

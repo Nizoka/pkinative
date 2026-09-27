@@ -31,6 +31,7 @@ describe('DEFAULT_PKI_LIMITS', () => {
             maxPolicyNodes: 4096,
             maxRevokedCertificates: 1_000_000,
             maxOcspResponses: 256,
+            maxPathsExplored: 1000,
         });
     });
 });

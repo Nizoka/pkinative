@@ -54,7 +54,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxChainLength: 10,
   maxPolicyNodes: 4096,
   maxRevokedCertificates: 1e6,
-  maxOcspResponses: 256
+  maxOcspResponses: 256,
+  maxPathsExplored: 1e3
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -4164,12 +4165,12 @@ function validateCertificatePath(input) {
       state.reasons.push(limitExceededReason(path, "maxChainLength", context.maxCertificates));
       break;
     }
-    const fingerprint = _hex(certificate.der);
-    if (state.seen.has(fingerprint)) {
+    const fingerprint2 = _hex(certificate.der);
+    if (state.seen.has(fingerprint2)) {
       state.reasons.push(pathLoopsReason(path));
       break;
     }
-    state.seen.add(fingerprint);
+    state.seen.add(fingerprint2);
     walked.push(certificate);
     if (state.expectedIssuer !== null && _hex(certificate.subject.der) !== _hex(state.expectedIssuer.der)) {
       state.reasons.push(issuerNotFoundReason(path, formatDistinguishedName(state.expectedIssuer)));
@@ -4211,6 +4212,69 @@ function validateCertificatePath(input) {
     state.reasons.push(noValidPolicyReason("path"));
   }
   return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
+}
+
+// src/path/path-build.ts
+var fingerprint = (certificate) => {
+  let out = "";
+  for (const b of certificate.der) out += b.toString(16).padStart(2, "0");
+  return out;
+};
+function buildCertificatePath(input) {
+  const limits = resolveLimits(input.limits);
+  const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
+  const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
+  const bySubject = /* @__PURE__ */ new Map();
+  for (const candidate of input.candidates) {
+    const key = hexOf(candidate.subject.der);
+    bySubject.set(key, [...bySubject.get(key) ?? [], candidate]);
+  }
+  for (const anchor of input.trustAnchors) {
+    const key = hexOf(anchor.subject.der);
+    const existing = bySubject.get(key) ?? [];
+    if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
+  }
+  const first = validateCertificatePath({ ...input, certificates: [input.leaf] });
+  let explored = 1;
+  if (first.valid) return { ...first, explored };
+  let best = first;
+  let bestDepth = 0;
+  let limitHit = false;
+  const extend = (chain, seen) => {
+    if (chain.length >= limits.maxChainLength) return null;
+    const last = chain[chain.length - 1];
+    if (anchors.has(fingerprint(last)) || anchorSubjects.has(hexOf(last.subject.der))) return null;
+    for (const issuer of bySubject.get(hexOf(last.issuer.der)) ?? []) {
+      const key = fingerprint(issuer);
+      if (seen.has(key)) continue;
+      if (explored >= limits.maxPathsExplored) {
+        limitHit = true;
+        return null;
+      }
+      explored += 1;
+      const next = [...chain, issuer];
+      const report = validateCertificatePath({ ...input, certificates: next });
+      if (report.valid) return { ...report, explored };
+      if (next.length - 1 > bestDepth) {
+        best = report;
+        bestDepth = next.length - 1;
+      }
+      const found2 = extend(next, /* @__PURE__ */ new Set([...seen, key]));
+      if (found2 !== null) return found2;
+      if (limitHit) return null;
+    }
+    return null;
+  };
+  const found = extend([input.leaf], /* @__PURE__ */ new Set([fingerprint(input.leaf)]));
+  if (found !== null) return found;
+  const reasons = [...best.reasons];
+  if (limitHit) reasons.push(limitExceededReason("path", "maxPathsExplored", limits.maxPathsExplored));
+  return { valid: false, reasons, path: best.path, explored };
+}
+function hexOf(bytes) {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
 }
 
 // src/oid/oid-registry.ts
@@ -6031,6 +6095,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkOcspStatus, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkOcspStatus, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

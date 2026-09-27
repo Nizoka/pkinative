@@ -47,6 +47,8 @@ export type { OcspCheckInput } from './revocation/ocsp-check.js';
 export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
 export type { RevocationCheckInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';
+export { buildCertificatePath } from './path/path-build.js';
+export type { PathBuildInput, PathBuildReport } from './path/path-build.js';
 export { validateCertificatePath } from './path/path-validate.js';
 export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
 

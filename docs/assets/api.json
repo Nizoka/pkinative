@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 197,
+  "exportCount": 200,
   "exports": [
     {
       "name": "AccessDescription",
@@ -840,7 +840,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, maxPathsExplored: 1000, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -2236,6 +2236,66 @@
       ]
     },
     {
+      "name": "PathBuildInput",
+      "kind": "type",
+      "module": "src/path/path-build.ts",
+      "signature": "export interface PathBuildInput extends Omit<PathValidationInput, 'certificates'>",
+      "summary": "What to build from, and everything needed to judge each candidate.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "leaf",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate a path is wanted for."
+        },
+        {
+          "name": "candidates",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "Every certificate that may appear in the path, in any order, duplicates and irrelevant entries included."
+        }
+      ]
+    },
+    {
+      "name": "PathBuildReport",
+      "kind": "type",
+      "module": "src/path/path-build.ts",
+      "signature": "export interface PathBuildReport extends PathValidationReport",
+      "summary": "A path that was tried, and what §6 made of it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only when `reasons` is empty; the two are one answer, not two."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the answer is no, not just the first."
+        },
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
+        },
+        {
+          "name": "explored",
+          "type": "number",
+          "optional": false,
+          "summary": "How many candidate paths were explored before this answer."
+        }
+      ]
+    },
+    {
       "name": "PathValidationInput",
       "kind": "type",
       "module": "src/types/path-types.ts",
@@ -2668,6 +2728,12 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of SingleResponse entries in one OCSP response."
+        },
+        {
+          "name": "maxPathsExplored",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of candidate paths explored while building one."
         }
       ]
     },
@@ -3800,6 +3866,24 @@
           "summary": "Check that the outer `signatureAlgorithm` equals the inner `tbsCertificate.signature`, as RFC 5280 §4.1.1.2 requires."
         }
       ]
+    },
+    {
+      "name": "buildCertificatePath",
+      "kind": "function",
+      "module": "src/path/path-build.ts",
+      "signature": "export function buildCertificatePath(input: PathBuildInput): PathBuildReport",
+      "summary": "Build and validate a certification path.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link PathBuildInput}."
+        }
+      ],
+      "returns": "The first accepted path with §6's report, or the report of the attempt that got furthest; `explored` counts the candidates tried.",
+      "members": null
     },
     {
       "name": "canSign",

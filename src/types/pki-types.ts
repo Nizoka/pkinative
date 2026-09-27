@@ -47,6 +47,8 @@ export interface PkiLimits {
     readonly maxRevokedCertificates: number;
     /** Maximum number of SingleResponse entries in one OCSP response. CWE-400. */
     readonly maxOcspResponses: number;
+    /** Maximum number of candidate paths explored while building one. CWE-400. */
+    readonly maxPathsExplored: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────

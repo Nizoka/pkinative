@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 88173,
-      "approxTokens": 22043
+      "bytes": 89933,
+      "approxTokens": 22483
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 54764,
-      "approxTokens": 13691
+      "bytes": 56167,
+      "approxTokens": 14042
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 182210,
-      "approxTokens": 45553
+      "bytes": 185047,
+      "approxTokens": 46262
     },
     {
       "url": "data/errors.json",
@@ -48,14 +48,14 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 3153,
-      "approxTokens": 788
+      "bytes": 3470,
+      "approxTokens": 868
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 4542,
-      "approxTokens": 1136
+      "bytes": 4616,
+      "approxTokens": 1154
     },
     {
       "url": "assets/ecosystem.json",
@@ -98,14 +98,15 @@
         "check-one-link-of-a-chain",
         "issue-a-certificate-without-ever-holding-the-key",
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
+        "when-you-have-a-bag-rather-than-a-chain",
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
         "ask-a-responder-instead-of-downloading-a-list",
         "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 31467,
-      "approxTokens": 7867
+      "bytes": 33227,
+      "approxTokens": 8307
     },
     {
       "title": "Security model",
