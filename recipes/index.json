@@ -271,17 +271,24 @@
     },
     {
       "file": "check-revocation.ts",
-      "task": "Read an RFC 5280 CRL and ask it about one certificate, on a list that is walked rather than decoded",
+      "task": "Read an RFC 5280 CRL, decide a revocation status, and keep \"unknown\" apart from \"not revoked\"",
       "surface": [
         "parseCertificateList",
         "findRevocation",
+        "checkRevocation",
+        "verifyCrlSignature",
         "CertificateList",
         "RevokedCertificate",
         "CrlReason",
+        "RevocationCheckInput",
         "encodeEnumerated",
         "encodeExtension",
         "encodeExtensions",
-        "encodeTime"
+        "encodeTime",
+        "createCertificate",
+        "encodeBasicConstraints",
+        "parseCertificate",
+        "Certificate"
       ],
       "since": "0.5.0",
       "expects": [
@@ -293,6 +300,11 @@
         "notListed=not listed",
         "unassignedReason=1 entry, reason=undefined",
         "reasonsSeen=keyCompromise,cessationOfOperation",
+        "decisionClean=clean",
+        "decisionRevoked=PKI_REASON_REVOKED",
+        "decisionUnsigned=PKI_REASON_REVOCATION_UNKNOWN",
+        "decisionStale=PKI_REASON_REVOCATION_STALE",
+        "decisionStaleTolerated=clean",
         "oneExtension=300a0603551d1504030a0101"
       ]
     }

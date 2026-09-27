@@ -3,27 +3,145 @@
   "package": "pkinative",
   "verifiedOn": "2026-09-25",
   "reasons": [
-    { "code": "PKI_REASON_INPUT_MALFORMED", "since": "0.5.0", "returnedWhen": "The bytes are not the structure they claim to be.", "remedy": "Read the errorCode field: it carries the PkiErrorCode the parser would have thrown, so the reason registry wraps the error registry instead of duplicating it.", "standard": "ITU-T X.690" },
-
-    { "code": "PKI_REASON_NOT_YET_VALID", "since": "0.5.0", "returnedWhen": "The validation instant is before the certificate's notBefore.", "remedy": "Validate at an instant inside the window, or obtain a certificate that is already valid.", "standard": "RFC 5280 §6.1.3 (a)(2)" },
-    { "code": "PKI_REASON_EXPIRED", "since": "0.5.0", "returnedWhen": "The validation instant is after the certificate's notAfter.", "remedy": "Renew the certificate. Validating at an earlier instant is only correct when checking a signature made then.", "standard": "RFC 5280 §6.1.3 (a)(2)" },
-    { "code": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION", "since": "0.5.0", "returnedWhen": "A certificate carries a critical extension this implementation does not recognise.", "remedy": "RFC 5280 requires refusal, not tolerance: an extension marked critical is one the issuer says must be understood.", "standard": "RFC 5280 §6.1.3 (f)" },
-
-    { "code": "PKI_REASON_NAME_NOT_PERMITTED", "since": "0.5.0", "returnedWhen": "A name in the certificate falls outside the permitted subtrees a CA above it set.", "remedy": "A sub-CA cannot issue for names its issuer withheld. Either the certificate names the wrong host, or it was issued under the wrong CA.", "standard": "RFC 5280 §6.1.3 (b)" },
-    { "code": "PKI_REASON_NAME_EXCLUDED", "since": "0.5.0", "returnedWhen": "A name in the certificate falls inside a subtree a CA above it excluded.", "remedy": "An exclusion anywhere on the path wins over every permission; there is no CA below that can grant it back.", "standard": "RFC 5280 §6.1.3 (c)" },
-
-    { "code": "PKI_REASON_NO_VALID_POLICY", "since": "0.5.0", "returnedWhen": "No certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller.", "remedy": "This is the only condition under which policy processing rejects a path. An empty policy tree with nobody requiring an explicit policy is not a failure — the question was never asked.", "standard": "RFC 5280 §6.1.5 (g)" },
-    { "code": "PKI_REASON_POLICY_MAPPING_INVALID", "since": "0.5.0", "returnedWhen": "A policyMappings extension names anyPolicy as an issuerDomainPolicy or a subjectDomainPolicy.", "remedy": "RFC 5280 forbids it. The mapping is ignored rather than honoured, so the path may still fail for want of a policy.", "standard": "RFC 5280 §6.1.4 (a)" },
-
-    { "code": "PKI_REASON_ISSUER_NOT_FOUND", "since": "0.5.0", "returnedWhen": "No supplied certificate has a subject equal to this certificate's issuer.", "remedy": "Supply the intermediate certificates. A server that sends only its leaf is the usual cause.", "standard": "RFC 5280 §6.1" },
-    { "code": "PKI_REASON_SIGNATURE_INVALID", "since": "0.5.0", "returnedWhen": "The issuer's public key does not verify the certificate's signature.", "remedy": "A verdict, not an incident: these bytes were not signed by that key.", "standard": "RFC 5280 §6.1.3 (a)(1)" },
-    { "code": "PKI_REASON_SIGNATURE_NOT_CHECKED", "since": "0.5.0", "returnedWhen": "The signature could not be checked here — no Web Crypto, or an algorithm this runtime refuses.", "remedy": "This says nothing about whether the signature is valid. Ask again on a runtime that implements the algorithm; never treat it as a rejection.", "standard": "RFC 5280 §6.1.3 (a)(1)" },
-
-    { "code": "PKI_REASON_NO_TRUST_ANCHOR", "since": "0.5.0", "returnedWhen": "The chain does not end at any supplied trust anchor.", "remedy": "Supply the root. A signature that verifies is not a certificate that is trusted.", "standard": "RFC 5280 §6.1.1 (d)" },
-    { "code": "PKI_REASON_NOT_A_CA", "since": "0.5.0", "returnedWhen": "A certificate issued another without asserting cA in basicConstraints, or keyCertSign in keyUsage.", "remedy": "Only a CA certificate may issue. This is the check whose absence caused the 2008 Basic Constraints attacks.", "standard": "RFC 5280 §6.1.4 (k)" },
-    { "code": "PKI_REASON_PATH_TOO_LONG", "since": "0.5.0", "returnedWhen": "A pathLenConstraint in the chain, or the caller's own bound, is exceeded.", "remedy": "Shorten the chain, or use a CA whose constraint permits it.", "standard": "RFC 5280 §6.1.4 (l)" },
-    { "code": "PKI_REASON_PATH_LOOPS", "since": "0.5.0", "returnedWhen": "The same certificate appears twice in the chain.", "remedy": "Remove the duplicate. A path that revisits a certificate is not a path.", "standard": "RFC 5280 §6.1" },
-
-    { "code": "PKI_REASON_LIMIT_EXCEEDED", "since": "0.5.0", "returnedWhen": "A named PkiLimits bound stopped the search.", "remedy": "The limit field names it. Raise it only for input you trust; path building is exponential in the candidate set.", "standard": "CWE-400" }
+    {
+      "code": "PKI_REASON_INPUT_MALFORMED",
+      "since": "0.5.0",
+      "returnedWhen": "The bytes are not the structure they claim to be.",
+      "remedy": "Read the errorCode field: it carries the PkiErrorCode the parser would have thrown, so the reason registry wraps the error registry instead of duplicating it.",
+      "standard": "ITU-T X.690"
+    },
+    {
+      "code": "PKI_REASON_NOT_YET_VALID",
+      "since": "0.5.0",
+      "returnedWhen": "The validation instant is before the certificate's notBefore.",
+      "remedy": "Validate at an instant inside the window, or obtain a certificate that is already valid.",
+      "standard": "RFC 5280 §6.1.3 (a)(2)"
+    },
+    {
+      "code": "PKI_REASON_EXPIRED",
+      "since": "0.5.0",
+      "returnedWhen": "The validation instant is after the certificate's notAfter.",
+      "remedy": "Renew the certificate. Validating at an earlier instant is only correct when checking a signature made then.",
+      "standard": "RFC 5280 §6.1.3 (a)(2)"
+    },
+    {
+      "code": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+      "since": "0.5.0",
+      "returnedWhen": "A certificate carries a critical extension this implementation does not recognise.",
+      "remedy": "RFC 5280 requires refusal, not tolerance: an extension marked critical is one the issuer says must be understood.",
+      "standard": "RFC 5280 §6.1.3 (f)"
+    },
+    {
+      "code": "PKI_REASON_NAME_NOT_PERMITTED",
+      "since": "0.5.0",
+      "returnedWhen": "A name in the certificate falls outside the permitted subtrees a CA above it set.",
+      "remedy": "A sub-CA cannot issue for names its issuer withheld. Either the certificate names the wrong host, or it was issued under the wrong CA.",
+      "standard": "RFC 5280 §6.1.3 (b)"
+    },
+    {
+      "code": "PKI_REASON_NAME_EXCLUDED",
+      "since": "0.5.0",
+      "returnedWhen": "A name in the certificate falls inside a subtree a CA above it excluded.",
+      "remedy": "An exclusion anywhere on the path wins over every permission; there is no CA below that can grant it back.",
+      "standard": "RFC 5280 §6.1.3 (c)"
+    },
+    {
+      "code": "PKI_REASON_REVOKED",
+      "since": "0.5.0",
+      "returnedWhen": "The certificate is listed in a revocation list that covers it.",
+      "remedy": "The message carries the revocation date: a signature made before that instant may still be good, and a caller deciding that needs the date.",
+      "standard": "RFC 5280 §5.1"
+    },
+    {
+      "code": "PKI_REASON_REVOCATION_STALE",
+      "since": "0.5.0",
+      "returnedWhen": "The revocation list has no nextUpdate, or its nextUpdate has passed beyond the caller staleTolerance.",
+      "remedy": "Fetch a current list. An out-of-date list says what was revoked then, not now.",
+      "standard": "RFC 5280 §5.1.2.5"
+    },
+    {
+      "code": "PKI_REASON_REVOCATION_WRONG_ISSUER",
+      "since": "0.5.0",
+      "returnedWhen": "The revocation list names a different issuer from the certificate, compared by encoded name.",
+      "remedy": "Use the list published by the certificate issuer; a list from another CA says nothing about this certificate.",
+      "standard": "RFC 5280 §6.3.3"
+    },
+    {
+      "code": "PKI_REASON_REVOCATION_UNKNOWN",
+      "since": "0.5.0",
+      "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify.",
+      "remedy": "This is not \"not revoked\". Proceeding on it is a soft-fail decision to make deliberately, not one a validator should make for you.",
+      "standard": "RFC 5280 §6.3"
+    },
+    {
+      "code": "PKI_REASON_NO_VALID_POLICY",
+      "since": "0.5.0",
+      "returnedWhen": "No certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller.",
+      "remedy": "This is the only condition under which policy processing rejects a path. An empty policy tree with nobody requiring an explicit policy is not a failure — the question was never asked.",
+      "standard": "RFC 5280 §6.1.5 (g)"
+    },
+    {
+      "code": "PKI_REASON_POLICY_MAPPING_INVALID",
+      "since": "0.5.0",
+      "returnedWhen": "A policyMappings extension names anyPolicy as an issuerDomainPolicy or a subjectDomainPolicy.",
+      "remedy": "RFC 5280 forbids it. The mapping is ignored rather than honoured, so the path may still fail for want of a policy.",
+      "standard": "RFC 5280 §6.1.4 (a)"
+    },
+    {
+      "code": "PKI_REASON_ISSUER_NOT_FOUND",
+      "since": "0.5.0",
+      "returnedWhen": "No supplied certificate has a subject equal to this certificate's issuer.",
+      "remedy": "Supply the intermediate certificates. A server that sends only its leaf is the usual cause.",
+      "standard": "RFC 5280 §6.1"
+    },
+    {
+      "code": "PKI_REASON_SIGNATURE_INVALID",
+      "since": "0.5.0",
+      "returnedWhen": "The issuer's public key does not verify the certificate's signature.",
+      "remedy": "A verdict, not an incident: these bytes were not signed by that key.",
+      "standard": "RFC 5280 §6.1.3 (a)(1)"
+    },
+    {
+      "code": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+      "since": "0.5.0",
+      "returnedWhen": "The signature could not be checked here — no Web Crypto, or an algorithm this runtime refuses.",
+      "remedy": "This says nothing about whether the signature is valid. Ask again on a runtime that implements the algorithm; never treat it as a rejection.",
+      "standard": "RFC 5280 §6.1.3 (a)(1)"
+    },
+    {
+      "code": "PKI_REASON_NO_TRUST_ANCHOR",
+      "since": "0.5.0",
+      "returnedWhen": "The chain does not end at any supplied trust anchor.",
+      "remedy": "Supply the root. A signature that verifies is not a certificate that is trusted.",
+      "standard": "RFC 5280 §6.1.1 (d)"
+    },
+    {
+      "code": "PKI_REASON_NOT_A_CA",
+      "since": "0.5.0",
+      "returnedWhen": "A certificate issued another without asserting cA in basicConstraints, or keyCertSign in keyUsage.",
+      "remedy": "Only a CA certificate may issue. This is the check whose absence caused the 2008 Basic Constraints attacks.",
+      "standard": "RFC 5280 §6.1.4 (k)"
+    },
+    {
+      "code": "PKI_REASON_PATH_TOO_LONG",
+      "since": "0.5.0",
+      "returnedWhen": "A pathLenConstraint in the chain, or the caller's own bound, is exceeded.",
+      "remedy": "Shorten the chain, or use a CA whose constraint permits it.",
+      "standard": "RFC 5280 §6.1.4 (l)"
+    },
+    {
+      "code": "PKI_REASON_PATH_LOOPS",
+      "since": "0.5.0",
+      "returnedWhen": "The same certificate appears twice in the chain.",
+      "remedy": "Remove the duplicate. A path that revisits a certificate is not a path.",
+      "standard": "RFC 5280 §6.1"
+    },
+    {
+      "code": "PKI_REASON_LIMIT_EXCEEDED",
+      "since": "0.5.0",
+      "returnedWhen": "A named PkiLimits bound stopped the search.",
+      "remedy": "The limit field names it. Raise it only for input you trust; path building is exponential in the candidate set.",
+      "standard": "CWE-400"
+    }
   ]
 }

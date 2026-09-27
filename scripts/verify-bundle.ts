@@ -84,7 +84,22 @@ export const PROBES: readonly Probe[] = [
     // path validator that decodes anything is a layer upstream that failed to
     // expose it.
     { exports: ['validateCertificatePath'], maxBytes: 18 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
-    { exports: ['*'], maxBytes: 132 * 1024, mustNotContain: [] },
+    // "Revocation is synchronous and carries no crypto", weighed. The Web
+    // Crypto marker is the invariant: `checkRevocation` takes a signature
+    // verdict rather than a key, and a bundle retaining the bridge would mean
+    // that had quietly stopped being true.
+    //
+    // The 52 KB is a **known and reviewed cost**, not a small number: the CRL
+    // parser reaches the x509 extension reader, whose decoder map references
+    // all twenty certificate-extension decoders, so none of them can be
+    // tree-shaken. A caller who reads only CRLs therefore pays for decoders a
+    // CRL never uses. The trade was taken deliberately — an
+    // `authorityKeyIdentifier` on a CRL decoded properly is worth more to
+    // almost every caller than 35 KB they would save by reading every CRL
+    // extension as `unknown` — and it is written here so the next person to
+    // look at this number knows it was a choice.
+    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 58 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    { exports: ['*'], maxBytes: 150 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 178,
+  "exportCount": 181,
   "exports": [
     {
       "name": "AccessDescription",
@@ -2793,6 +2793,60 @@
       "members": null
     },
     {
+      "name": "RevocationCheckInput",
+      "kind": "type",
+      "module": "src/revocation/crl-check.ts",
+      "signature": "export interface RevocationCheckInput",
+      "summary": "What to check, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certificate",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate whose status is in question."
+        },
+        {
+          "name": "crl",
+          "type": "CertificateList",
+          "optional": false,
+          "summary": "The parsed list."
+        },
+        {
+          "name": "crlDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The same bytes `parseCertificateList` was given — the walk needs them."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to judge at, in epoch milliseconds."
+        },
+        {
+          "name": "signatureVerified",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the CRL's signature was verified against a key entitled to sign it."
+        },
+        {
+          "name": "staleTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Accept a list whose `nextUpdate` has passed, up to this many milliseconds."
+        },
+        {
+          "name": "options",
+          "type": "PkiParseOptions | undefined",
+          "optional": true,
+          "summary": "Options for the walk — the limits apply to it."
+        }
+      ]
+    },
+    {
       "name": "RevokedCertificate",
       "kind": "type",
       "module": "src/types/crl-types.ts",
@@ -3442,6 +3496,25 @@
       "throws": [],
       "params": [],
       "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448 and Ed25519 are missing on several runtimes that answer `true`.",
+      "members": null
+    },
+    {
+      "name": "checkRevocation",
+      "kind": "function",
+      "module": "src/revocation/crl-check.ts",
+      "signature": "export function checkRevocation(input: RevocationCheckInput): readonly PkiReason[]",
+      "summary": "Decide a certificate's revocation status against one CRL.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link RevocationCheckInput}."
+        }
+      ],
+      "returns": "Every reason the answer is not a clean \"not revoked\", in the order they were established; empty when the certificate is not revoked.",
       "members": null
     },
     {
@@ -4765,6 +4838,33 @@
         }
       ],
       "returns": "Whether the issuer's key signed this certificate's `tbsCertificate`.",
+      "members": null
+    },
+    {
+      "name": "verifyCrlSignature",
+      "kind": "function",
+      "module": "src/crypto/x509-verify.ts",
+      "signature": "export async function verifyCrlSignature( crl: CertificateList, issuer: Certificate, options?: VerifyCertificateSignatureOptions, ): Promise<boolean>",
+      "summary": "Verify that a CA's key signed this revocation list.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "crl",
+          "description": "A parsed `CertificateList`."
+        },
+        {
+          "name": "issuer",
+          "description": "The certificate whose key is alleged to have signed it."
+        },
+        {
+          "name": "options",
+          "description": "See {@link VerifyCertificateSignatureOptions}."
+        }
+      ],
+      "returns": "Whether the issuer's key signed `crl.tbsDer`.",
       "members": null
     },
     {

@@ -295,6 +295,34 @@ if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.rev
 
 The envelope is a [`CertificateList`](../assets/api.json), an entry is a [`RevokedCertificate`](../assets/api.json) carrying its `reason` as a [`CrlReason`](../assets/api.json) and its `invalidityDate`, and `maxRevokedCertificates` is the bound on the walk.
 
+### The decision, and the four answers it keeps apart
+
+`findRevocation` says whether a serial is on a list. It does not say whether that list was entitled to answer, or whether it is current. `checkRevocation` does:
+
+```ts
+import { checkRevocation, parseCertificateList, verifyCrlSignature } from 'pkinative';
+
+const crl = parseCertificateList(crlDer);
+const signatureVerified = await verifyCrlSignature(crl, caCertificate);
+const reasons = checkRevocation({ certificate, crl, crlDer, at: Date.now(), signatureVerified });
+```
+
+It takes a `signatureVerified` boolean rather than a key, which is what keeps it **synchronous and free of Web Crypto** — the same separation §6 makes. Its input is a [`RevocationCheckInput`](../assets/api.json), and it returns `PkiReason`s:
+
+| Answer | Meaning |
+|---|---|
+| `[]` | Not revoked, by a list entitled to say so and current enough to believe |
+| `PKI_REASON_REVOKED` | Listed — and the message carries the date, because a signature made before it may still be good |
+| `PKI_REASON_REVOCATION_STALE` | No `nextUpdate`, or it has passed beyond your `staleTolerance` |
+| `PKI_REASON_REVOCATION_WRONG_ISSUER` | The list names another CA, compared by encoded name |
+| `PKI_REASON_REVOCATION_UNKNOWN` | No evidence either way |
+
+**`UNKNOWN` is not `[]`, and that distinction is the point.** A missing or unsigned list is an absence of evidence. Reporting it as "not revoked" would make the soft-fail decision on your behalf, invisibly. If you want soft-fail, you write it — `staleTolerance` is the same idea for a lapsed list: a number you chose, not a default that chose for you.
+
+A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.
+
+And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
+
 ## What none of these do yet
 
 Each of the eight is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:

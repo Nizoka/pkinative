@@ -2543,6 +2543,40 @@ function nameExcludedReason(path, form, text) {
     path
   );
 }
+function revokedReason(path, at, reason) {
+  const why = reason === void 0 ? "no reason given" : `reason: ${reason}`;
+  return _reason(
+    "PKI_REASON_REVOKED",
+    "RFC 5280 \xA75.1",
+    `the certificate was revoked on ${new Date(at).toISOString()} (${why}); a signature made before that instant may still be good, which is why the date is here`,
+    path
+  );
+}
+function revocationStaleReason(path, nextUpdate, at) {
+  const when = nextUpdate === void 0 ? "the list declares no nextUpdate, so nothing says it is still current" : `the list expected a successor by ${new Date(nextUpdate).toISOString()}`;
+  return _reason(
+    "PKI_REASON_REVOCATION_STALE",
+    "RFC 5280 \xA75.1.2.5",
+    `${when}, and the question was asked for ${new Date(at).toISOString()}`,
+    path
+  );
+}
+function revocationWrongIssuerReason(path) {
+  return _reason(
+    "PKI_REASON_REVOCATION_WRONG_ISSUER",
+    "RFC 5280 \xA76.3.3",
+    "the revocation list names a different issuer from the certificate, compared by encoded name; a list from another CA says nothing about this certificate",
+    path
+  );
+}
+function revocationUnknownReason(path, why) {
+  return _reason(
+    "PKI_REASON_REVOCATION_UNKNOWN",
+    "RFC 5280 \xA76.3",
+    `revocation status could not be established: ${why}. This is not "not revoked" \u2014 it is an absence of evidence, and proceeding on it is a decision to make deliberately`,
+    path
+  );
+}
 function noValidPolicyReason(path) {
   return _reason(
     "PKI_REASON_NO_VALID_POLICY",
@@ -2624,6 +2658,28 @@ function limitExceededReason(path, limit, configured) {
     path,
     { limit }
   );
+}
+
+// src/revocation/crl-check.ts
+function checkRevocation(input) {
+  const out = [];
+  const path = "crl";
+  if (!bytesEqual(input.crl.issuer.der, input.certificate.issuer.der)) {
+    out.push(revocationWrongIssuerReason(path));
+  }
+  if (input.signatureVerified !== true) {
+    out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the list's signature did not verify against the key it was checked with" : "the list's signature was never checked, and an unsigned list is something anyone can publish"));
+  }
+  const tolerance = input.staleTolerance ?? 0;
+  const nextUpdate = input.crl.nextUpdate?.epochMilliseconds;
+  if (nextUpdate === void 0 || input.at > nextUpdate + tolerance) {
+    out.push(revocationStaleReason(path, nextUpdate, input.at));
+  }
+  const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, input.options);
+  if (entry !== void 0) {
+    out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
+  }
+  return out;
 }
 
 // src/path/path-name-constraints.ts
@@ -5314,20 +5370,30 @@ async function signData(key, params, data) {
 async function verifyCertificateSignature(certificate, issuer, options) {
   const subject = assertCertificate(certificate, "certificate");
   const signer = assertCertificate(issuer, "issuer");
-  if (options?.requireAlgorithmMatch !== false && !bytesEqual(subject.signatureAlgorithm.der, subject.tbsSignatureAlgorithm.der)) {
+  return verifySignedStructure(subject, signer, options?.requireAlgorithmMatch !== false);
+}
+async function verifySignedStructure(signed, signer, requireAlgorithmMatch) {
+  if (requireAlgorithmMatch && !bytesEqual(signed.signatureAlgorithm.der, signed.tbsSignatureAlgorithm.der)) {
     return false;
   }
-  if (subject.signatureValue.unusedBits !== 0) return false;
-  const resolved = resolveAlgorithm(subject.signatureAlgorithm, signer.subjectPublicKeyInfo);
+  if (signed.signatureValue.unusedBits !== 0) return false;
+  const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
   if (resolved === null) return false;
-  let signature = subject.signatureValue.bytes;
+  let signature = signed.signatureValue.bytes;
   if (resolved.curve !== void 0) {
     const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
     if (raw === null) return false;
     signature = raw;
   }
-  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, subject.signatureAlgorithm.oid);
-  return verifySignature(key, resolved.verifyParams, signature, subject.tbsDer);
+  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid);
+  return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
+}
+async function verifyCrlSignature(crl, issuer, options) {
+  if (typeof crl !== "object" || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
+  }
+  const signer = assertCertificate(issuer, "issuer");
+  return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
 }
 async function verifySelfSignature(certificate, options) {
   const self = assertCertificate(certificate, "certificate");
@@ -5574,6 +5640,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, checkRevocation, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

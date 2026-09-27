@@ -816,6 +816,9 @@ export default async function run(): Promise<Record<string, string>> {
  * able to write a CRL — which it cannot yet.
  */
 import {
+    checkRevocation,
+    createCertificate,
+    encodeBasicConstraints,
     encodeEnumerated,
     encodeExtension,
     encodeExtensions,
@@ -823,9 +826,12 @@ import {
     encodeTime,
     encodeTlv,
     findRevocation,
+    parseCertificate,
     parseCertificateList,
+    type Certificate,
     type CertificateList,
     type CrlReason,
+    type RevocationCheckInput,
     type RevokedCertificate,
 } from 'pkinative';
 
@@ -886,7 +892,23 @@ const describeEntry = (found: RevokedCertificate | undefined): string =>
         ? 'not listed'
         : `${found.serialNumber.hex} on ${new Date(found.revocationDate.epochMilliseconds).toISOString().slice(0, 10)} reason=${String(found.reason)}`;
 
-export default function run(): Record<string, string> {
+/** A certificate issued by the same CA name, so the list is entitled to answer. */
+async function certificate(serial: bigint): Promise<Certificate> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+    const der = await createCertificate({
+        serialNumber: serial,
+        issuerDer: issuerName,
+        subject: [[{ type: '2.5.4.3', value: 'host.example' }]],
+        notBefore: THIS_UPDATE,
+        notAfter: THIS_UPDATE + 90 * DAY,
+        subjectPublicKey: spki,
+        extensions: [{ oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) }],
+    }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
+    return parseCertificate(der, { onDiagnostic: () => undefined });
+}
+
+export default async function run(): Promise<Record<string, string>> {
     const der = buildCrl([
         entry([0x01], THIS_UPDATE - DAY),
         entry([0x02], THIS_UPDATE - 2 * DAY, 1),          // keyCompromise
@@ -909,6 +931,25 @@ export default function run(): Record<string, string> {
 
     const reasons: CrlReason[] = ['keyCompromise', 'cessationOfOperation'];
 
+    // `findRevocation` says whether a serial is listed. It does NOT say whether
+    // the list was entitled to answer, or whether it is current. That is
+    // `checkRevocation`, which takes a signature verdict rather than a key —
+    // which is what keeps it synchronous and free of Web Crypto.
+    const listed = await certificate(2n);
+    const absent = await certificate(0x42n);
+    const ask = (subject: Certificate, overrides: Partial<RevocationCheckInput> = {}): string => {
+        const found = checkRevocation({
+            certificate: subject, crl, crlDer: der, at: THIS_UPDATE + DAY,
+            signatureVerified: true, options: { onDiagnostic: () => undefined },
+            ...overrides,
+        });
+        return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');
+    };
+
+    // An expired list, judged a year later. Note that `staleTolerance` is a
+    // number the caller writes: soft-fail is a decision, not a default.
+    const late = THIS_UPDATE + 400 * DAY;
+
     return {
         envelope: describe(crl),
         issuer: crl.issuer.rdns.length === 1 ? 'one RDN' : 'unexpected',
@@ -918,6 +959,13 @@ export default function run(): Record<string, string> {
         notListed: describeEntry(findRevocation(der, Uint8Array.of(0x42))),
         unassignedReason: `${String(unassigned.entryCount)} entry, reason=${String(oddEntry?.reason)}`,
         reasonsSeen: reasons.join(','),
+        decisionClean: ask(absent),
+        decisionRevoked: ask(listed),
+        // Silence is not a clean bill of health: an unsigned list is something
+        // anyone can publish, so it is UNKNOWN rather than "not revoked".
+        decisionUnsigned: ask(absent, { signatureVerified: undefined }),
+        decisionStale: ask(absent, { at: late }),
+        decisionStaleTolerated: ask(absent, { at: late, staleTolerance: 500 * DAY }),
         // One extension is enough to show the shape a caller reaches for when
         // building a structure pkinative does not model.
         oneExtension: [...encodeExtension({ oid: '2.5.29.21', value: encodeEnumerated(1) })].map((b) => b.toString(16).padStart(2, '0')).join(''),

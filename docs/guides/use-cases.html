@@ -291,6 +291,46 @@
       <p><code>findRevocation</code> walks from the start each time, so checking many certificates against one CRL is O(n·m). The alternative is a map keyed by serial, and that is your decision: you know how many serials you have and how much memory you will spend on them. What this library must not do is build that map behind your back for a single lookup.</p>
       <p><code>crl.crlNumber</code> and <code>crl.isDelta</code> are read from <code>cRLNumber</code> and <code>deltaCRLIndicator</code>; a <strong>delta CRL is not a full one</strong>, and treating it as complete would report every certificate absent from it as unrevoked.</p>
       <p>The envelope is a <a href="../assets/api.json"><code>CertificateList</code></a>, an entry is a <a href="../assets/api.json"><code>RevokedCertificate</code></a> carrying its <code>reason</code> as a <a href="../assets/api.json"><code>CrlReason</code></a> and its <code>invalidityDate</code>, and <code>maxRevokedCertificates</code> is the bound on the walk.</p>
+      <h3 id="the-decision-and-the-four-answers-it-keeps-apart">The decision, and the four answers it keeps apart <a class="heading-anchor" href="#the-decision-and-the-four-answers-it-keeps-apart" aria-label="Link to this section">#</a></h3>
+      <p><code>findRevocation</code> says whether a serial is on a list. It does not say whether that list was entitled to answer, or whether it is current. <code>checkRevocation</code> does:</p>
+      <pre><code class="language-ts">import { checkRevocation, parseCertificateList, verifyCrlSignature } from &#39;pkinative&#39;;
+
+      const crl = parseCertificateList(crlDer);
+      const signatureVerified = await verifyCrlSignature(crl, caCertificate);
+      const reasons = checkRevocation({ certificate, crl, crlDer, at: Date.now(), signatureVerified });
+      </code></pre>
+      <p>It takes a <code>signatureVerified</code> boolean rather than a key, which is what keeps it <strong>synchronous and free of Web Crypto</strong> — the same separation §6 makes. Its input is a <a href="../assets/api.json"><code>RevocationCheckInput</code></a>, and it returns <code>PkiReason</code>s:</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Answer</th>
+      <th>Meaning</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>[]</code></td>
+      <td>Not revoked, by a list entitled to say so and current enough to believe</td>
+      </tr>
+      <tr>
+      <td><code>PKI_REASON_REVOKED</code></td>
+      <td>Listed — and the message carries the date, because a signature made before it may still be good</td>
+      </tr>
+      <tr>
+      <td><code>PKI_REASON_REVOCATION_STALE</code></td>
+      <td>No <code>nextUpdate</code>, or it has passed beyond your <code>staleTolerance</code></td>
+      </tr>
+      <tr>
+      <td><code>PKI_REASON_REVOCATION_WRONG_ISSUER</code></td>
+      <td>The list names another CA, compared by encoded name</td>
+      </tr>
+      <tr>
+      <td><code>PKI_REASON_REVOCATION_UNKNOWN</code></td>
+      <td>No evidence either way</td>
+      </tr>
+      </tbody></table>
+      <p><strong><code>UNKNOWN</code> is not <code>[]</code>, and that distinction is the point.</strong> A missing or unsigned list is an absence of evidence. Reporting it as &quot;not revoked&quot; would make the soft-fail decision on your behalf, invisibly. If you want soft-fail, you write it — <code>staleTolerance</code> is the same idea for a lapsed list: a number you chose, not a default that chose for you.</p>
+      <p>A list with <strong>no <code>nextUpdate</code> at all is stale</strong>, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.</p>
+      <p>And a revocation found on a stale list from the wrong CA is <strong>still reported</strong>. Hiding it behind an earlier failure would be the one direction of error that matters.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
       <p>Each of the eight is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>

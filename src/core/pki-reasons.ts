@@ -85,6 +85,57 @@ export function nameExcludedReason(path: string, form: string, text: string): Pk
 }
 
 /**
+ * The certificate is listed in a revocation list that covers it.
+ *
+ * The date is in the message because "revoked" without one is unanswerable: a
+ * signature made before the revocation instant may still be good, and a caller
+ * deciding that needs the date to decide it with.
+ */
+export function revokedReason(path: string, at: number, reason: string | undefined): PkiReason {
+    const why = reason === undefined ? 'no reason given' : `reason: ${reason}`;
+    return _reason('PKI_REASON_REVOKED', 'RFC 5280 §5.1',
+        `the certificate was revoked on ${new Date(at).toISOString()} (${why}); a signature made before that instant may still be good, which is why the date is here`,
+        path);
+}
+
+/**
+ * The revocation list is not current enough to answer with.
+ *
+ * Reported rather than ignored: an out-of-date list says what was revoked
+ * *then*, and treating it as current is how a certificate revoked yesterday is
+ * accepted today.
+ */
+export function revocationStaleReason(path: string, nextUpdate: number | undefined, at: number): PkiReason {
+    const when = nextUpdate === undefined
+        ? 'the list declares no nextUpdate, so nothing says it is still current'
+        : `the list expected a successor by ${new Date(nextUpdate).toISOString()}`;
+    return _reason('PKI_REASON_REVOCATION_STALE', 'RFC 5280 §5.1.2.5',
+        `${when}, and the question was asked for ${new Date(at).toISOString()}`,
+        path);
+}
+
+/** The revocation list was not issued by the certificate's issuer. */
+export function revocationWrongIssuerReason(path: string): PkiReason {
+    return _reason('PKI_REASON_REVOCATION_WRONG_ISSUER', 'RFC 5280 §6.3.3',
+        'the revocation list names a different issuer from the certificate, compared by encoded name; a list from another CA says nothing about this certificate',
+        path);
+}
+
+/**
+ * Revocation could not be established.
+ *
+ * Distinct from "not revoked" on purpose. A missing or unverified list is an
+ * absence of evidence, and a caller choosing to proceed anyway — soft-fail —
+ * should be choosing it, rather than having it chosen for them by a validator
+ * that reported silence as a clean bill of health.
+ */
+export function revocationUnknownReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_REVOCATION_UNKNOWN', 'RFC 5280 §6.3',
+        `revocation status could not be established: ${why}. This is not "not revoked" — it is an absence of evidence, and proceeding on it is a decision to make deliberately`,
+        path);
+}
+
+/**
  * No certificate policy survives the path, and an explicit policy was
  * required — the only condition under which policy processing rejects a path.
  *

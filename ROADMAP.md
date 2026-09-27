@@ -46,7 +46,8 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 - [x] RFC 5280 §6 the policy tree — `valid_policy_tree` as flat levels with children by index and nothing ever removed, the three counters, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, and the §6.1.5 (g) success condition
 - [ ] Path *building*: choosing among candidate issuers, bounded by `maxPathsExplored`
 - [x] CRL parsing — the revocation list is walked with a lazy TLV cursor rather than decoded into nodes, so a list of millions costs constant memory
-- [ ] CRL signature verification, and OCSP request building, response parsing and verification (RFC 6960)
+- [x] CRL signature verification and the revocation decision — synchronous, taking a precomputed signature verdict, and keeping "unknown" apart from "not revoked"
+- [ ] OCSP request building, response parsing and verification (RFC 6960)
 - [ ] x509-limbo scored on SUCCESS / FAILURE, NIST PKITS
 
 ## 0.7.x — M4: CMS and timestamps

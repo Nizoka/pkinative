@@ -28,6 +28,7 @@
 
 import { bytesEqual } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
+import type { CertificateList } from '../types/crl-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { coordinateBytes, resolveAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
@@ -91,35 +92,93 @@ export async function verifyCertificateSignature(
 ): Promise<boolean> {
     const subject = assertCertificate(certificate, 'certificate');
     const signer = assertCertificate(issuer, 'issuer');
+    return verifySignedStructure(subject, signer, options?.requireAlgorithmMatch !== false);
+}
 
-    // Only tbsCertificate.signature is covered by the signature; the outer
-    // field is not. RFC 5280 §4.1.1.2 requires them equal, and comparing
-    // the encodings — not the OIDs — also catches parameters that differ.
-    if (options?.requireAlgorithmMatch !== false
-        && !bytesEqual(subject.signatureAlgorithm.der, subject.tbsSignatureAlgorithm.der)) {
+/**
+ * Everything both a certificate and a CRL have in common, which is everything
+ * this module needs.
+ *
+ * A `Certificate` and a `CertificateList` are the same *signed structure*:
+ * covered bytes, the algorithm named inside them, the algorithm named outside
+ * them, and a signature. Writing that shape down once means a CRL cannot end
+ * up with a laxer signature check than a certificate — which is how a
+ * revocation list gets accepted from someone who did not issue it.
+ */
+interface SignedStructure {
+    readonly tbsDer: Uint8Array;
+    readonly signatureAlgorithm: { readonly der: Uint8Array; readonly oid: string; readonly parameters: unknown };
+    readonly tbsSignatureAlgorithm: { readonly der: Uint8Array };
+    readonly signatureValue: { readonly bytes: Uint8Array; readonly unusedBits: number };
+}
+
+async function verifySignedStructure(
+    signed: SignedStructure,
+    signer: Certificate,
+    requireAlgorithmMatch: boolean,
+): Promise<boolean> {
+    // Only the inner `signature` field is covered by the signature; the outer
+    // one is not. RFC 5280 §4.1.1.2 and §5.1.1.2 require them equal, and
+    // comparing the encodings — not the OIDs — also catches parameters that
+    // differ.
+    if (requireAlgorithmMatch && !bytesEqual(signed.signatureAlgorithm.der, signed.tbsSignatureAlgorithm.der)) {
         return false;
     }
 
     // The unused-bits count of a signature BIT STRING is always zero: a
     // signature is a whole number of octets. Anything else is a rewritten
-    // certificate, not a short signature.
-    if (subject.signatureValue.unusedBits !== 0) return false;
+    // structure, not a short signature.
+    if (signed.signatureValue.unusedBits !== 0) return false;
 
     // null is a decided "no": this key cannot have produced this kind of
-    // signature. Path building in 0.5 walks candidate issuers, so that
-    // answer must be a value and not an exception.
-    const resolved = resolveAlgorithm(subject.signatureAlgorithm, signer.subjectPublicKeyInfo);
+    // signature. Path building walks candidate issuers, so that answer must
+    // be a value and not an exception.
+    const resolved = resolveAlgorithm(signed.signatureAlgorithm as Parameters<typeof resolveAlgorithm>[0], signer.subjectPublicKeyInfo);
     if (resolved === null) return false;
 
-    let signature = subject.signatureValue.bytes;
+    let signature = signed.signatureValue.bytes;
     if (resolved.curve !== undefined) {
         const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
         if (raw === null) return false;
         signature = raw;
     }
 
-    const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, subject.signatureAlgorithm.oid);
-    return verifySignature(key, resolved.verifyParams, signature, subject.tbsDer);
+    const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid);
+    return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
+}
+
+/**
+ * Verify that a CA's key signed this revocation list.
+ *
+ * ```ts
+ * const crl = parseCertificateList(der);
+ * if (!await verifyCrlSignature(crl, caCertificate)) return 'this list is not from that CA';
+ * ```
+ *
+ * **A `true` here says only that the key signed the bytes.** It does not say
+ * the CA was entitled to publish this list, that the list is current, or that
+ * it covers the certificate you are asking about — nothing here reads
+ * `thisUpdate`, `nextUpdate`, the issuer name or `keyUsage`. `checkRevocation`
+ * makes those judgements and reports them; treating this boolean as a
+ * revocation answer is how an expired list from the wrong CA gets believed.
+ *
+ * @param crl    A parsed `CertificateList`.
+ * @param issuer The certificate whose key is alleged to have signed it.
+ * @param options See {@link VerifyCertificateSignatureOptions}.
+ * @returns Whether the issuer's key signed `crl.tbsDer`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
+ */
+export async function verifyCrlSignature(
+    crl: CertificateList,
+    issuer: Certificate,
+    options?: VerifyCertificateSignatureOptions,
+): Promise<boolean> {
+    if (typeof crl !== 'object' || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
+        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes');
+    }
+    const signer = assertCertificate(issuer, 'issuer');
+    return verifySignedStructure(crl, signer, options?.requireAlgorithmMatch !== false);
 }
 
 /**

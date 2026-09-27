@@ -38,6 +38,8 @@ export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 // ── 7. Certification path validation (RFC 5280 section 6) ────────────
 
 export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
+export { checkRevocation } from './revocation/crl-check.js';
+export type { RevocationCheckInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';
 export { validateCertificatePath } from './path/path-validate.js';
 export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
@@ -171,7 +173,7 @@ export type {
 
 // ── 7. Verification through Web Crypto ───────────────────────────────
 
-export { verifyCertificateSignature, verifySelfSignature } from './crypto/x509-verify.js';
+export { verifyCertificateSignature, verifyCrlSignature, verifySelfSignature } from './crypto/x509-verify.js';
 export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
 export { canVerify } from './crypto/webcrypto.js';
 

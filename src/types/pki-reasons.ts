@@ -61,6 +61,16 @@ export type PkiReasonCode =
     | 'PKI_REASON_NAME_NOT_PERMITTED'
     /** A name in the certificate falls inside a subtree a CA above it excluded. */
     | 'PKI_REASON_NAME_EXCLUDED'
+    // ── Revocation ──
+    /** The certificate is listed in a revocation list that covers it. */
+    | 'PKI_REASON_REVOKED'
+    /** The revocation list is older than the caller allows, or its nextUpdate has passed. */
+    | 'PKI_REASON_REVOCATION_STALE'
+    /** The revocation list was not issued by the certificate's issuer. */
+    | 'PKI_REASON_REVOCATION_WRONG_ISSUER'
+    /** Revocation could not be established at all — no list, or an unverified one. */
+    | 'PKI_REASON_REVOCATION_UNKNOWN'
+
     /** No certificate policy survives the path, and an explicit policy was required. */
     | 'PKI_REASON_NO_VALID_POLICY'
     /** A `policyMappings` extension maps to or from `anyPolicy`, which RFC 5280 forbids. */
