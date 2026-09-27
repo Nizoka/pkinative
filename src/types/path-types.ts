@@ -69,6 +69,25 @@ export interface PathValidationInput {
      * reported as `PKI_REASON_SIGNATURE_NOT_CHECKED`, never assumed valid.
      */
     readonly signatures?: readonly SignatureResult[] | undefined;
+    /**
+     * `user-initial-policy-set` (RFC 5280 §6.1.1 (c)): the policy OIDs the
+     * caller is willing to accept. Empty, or containing `anyPolicy`, means
+     * any — which is the default, because most callers do not have a policy
+     * requirement and one imposed by default would reject the whole web.
+     */
+    readonly initialPolicySet?: readonly string[] | undefined;
+    /**
+     * `initial-explicit-policy` (§6.1.1 (e)). With this on, a path that
+     * establishes no certificate policy is rejected with
+     * `PKI_REASON_NO_VALID_POLICY`. Off by default: without it, an empty
+     * policy tree means the question was never asked, not that the answer
+     * was no.
+     */
+    readonly requireExplicitPolicy?: boolean | undefined;
+    /** `initial-policy-mapping-inhibit` (§6.1.1 (f)). */
+    readonly inhibitPolicyMapping?: boolean | undefined;
+    /** `initial-any-policy-inhibit` (§6.1.1 (g)). */
+    readonly inhibitAnyPolicy?: boolean | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
 }

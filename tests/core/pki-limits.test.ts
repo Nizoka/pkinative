@@ -28,6 +28,7 @@ describe('DEFAULT_PKI_LIMITS', () => {
             maxNameAttributes: 1024,
             maxPolicies: 1024,
             maxChainLength: 10,
+            maxPolicyNodes: 4096,
         });
     });
 });

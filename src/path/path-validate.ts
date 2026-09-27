@@ -40,6 +40,8 @@ import {
     nameNotPermittedReason,
     noTrustAnchorReason,
     notACaReason,
+    noValidPolicyReason,
+    policyMappingInvalidReason,
     notYetValidReason,
     pathLoopsReason,
     pathTooLongReason,
@@ -53,6 +55,16 @@ import {
     initialNameConstraints,
     type NameConstraintState,
 } from './path-name-constraints.js';
+import {
+    advancePolicyCounters,
+    ANY_POLICY,
+    applyPolicyMappings,
+    growPolicyTree,
+    initialPolicyState,
+    killPolicyTree,
+    wrapUpPolicies,
+    type PolicyState,
+} from './path-policies.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { PathValidationInput, PathValidationReport, SignatureVerdict } from '../types/path-types.js';
@@ -74,6 +86,10 @@ export const PROCESSED_CRITICAL_EXTENSIONS: ReadonlySet<string> = new Set([
     '2.5.29.15', // keyUsage — §6.1.4 (n)
     '2.5.29.17', // subjectAltName — §6.1.3 (b), (c), against the name constraints
     '2.5.29.30', // nameConstraints — §6.1.4 (g)
+    '2.5.29.32', // certificatePolicies — §6.1.3 (d)
+    '2.5.29.33', // policyMappings — §6.1.4 (a), (b)
+    '2.5.29.36', // policyConstraints — §6.1.4 (i)
+    '2.5.29.54', // inhibitAnyPolicy — §6.1.4 (j)
     '2.5.29.37', // extKeyUsage: not a §6 input; carried so a leaf that marks it critical still validates
 ]);
 
@@ -245,6 +261,49 @@ export function checkNamesAgainstConstraints(certificate: Certificate, names: Na
 }
 
 /**
+ * §6.1.3 (d), (e) and §6.1.4 (a), (b), (h)–(j) for one certificate.
+ *
+ * The order inside is the rule, not a preference: the tree grows from this
+ * certificate's own policies **before** the counters advance, because
+ * `requireExplicitPolicy: 0` in a CA binds the certificate below it, and
+ * advancing first would let that CA exempt its own child.
+ *
+ * @param certificate The certificate being stepped onto.
+ * @param policies    The walk's policy state, updated in place.
+ * @param maxNodes    The `maxPolicyNodes` bound.
+ * @param path        The report path prefix.
+ * @returns Every reason policy processing produced for this step.
+ */
+export function advancePolicies(certificate: Certificate, policies: PolicyState, maxNodes: number, path: string): PkiReason[] {
+    const out: PkiReason[] = [];
+    const asserted = getExtension(certificate, 'certificatePolicies');
+    if (asserted === undefined) {
+        // §6.1.3 (e). A certificate that asserts no policy ends every branch.
+        killPolicyTree(policies);
+    } else if (growPolicyTree(policies, asserted.policies, maxNodes) === 'limit') {
+        out.push(limitExceededReason(`${path}.certificatePolicies`, 'maxPolicyNodes', maxNodes));
+    }
+
+    const mappings = getExtension(certificate, 'policyMappings');
+    if (mappings !== undefined) {
+        for (const mapping of mappings.mappings) {
+            if (mapping.issuerDomainPolicy === ANY_POLICY || mapping.subjectDomainPolicy === ANY_POLICY) {
+                out.push(policyMappingInvalidReason(`${path}.policyMappings`, mapping.issuerDomainPolicy, mapping.subjectDomainPolicy));
+            }
+        }
+        applyPolicyMappings(policies, mappings.mappings);
+    }
+
+    const constraints = getExtension(certificate, 'policyConstraints');
+    const inhibitAny = getExtension(certificate, 'inhibitAnyPolicy');
+    // A self-issued certificate does not advance the counters (§6.1.4 (h)):
+    // a CA re-keying itself must not spend a step of anyone's budget.
+    const selfIssued = _hex(certificate.subject.der) === _hex(certificate.issuer.der);
+    advancePolicyCounters(policies, selfIssued, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
+    return out;
+}
+
+/**
  * Validate a certification path (RFC 5280 §6).
  *
  * ```ts
@@ -355,12 +414,29 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
     // accumulated above it. Both happen in this one descending pass, in that
     // order: a CA's own constraints bind what it issues, never itself.
     const names = initialNameConstraints();
+    // §6.1.2: the policy tree starts at the anchor, one node deep, and the
+    // three counters start at n + 1 unless the caller asked otherwise.
+    const policies = initialPolicyState(
+        walked.length,
+        input.requireExplicitPolicy === true,
+        input.inhibitPolicyMapping === true,
+        input.inhibitAnyPolicy === true,
+    );
     for (let index = walked.length - 1; index >= 1; index -= 1) {
         const issuer = walked[index] as Certificate;
+        const below = walked[index - 1] as Certificate;
+        const belowPath = `path[${String(index - 1)}]`;
         state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
         const constraints = getExtension(issuer, 'nameConstraints');
         if (constraints !== undefined) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
-        state.reasons.push(...checkNamesAgainstConstraints(walked[index - 1] as Certificate, names, `path[${String(index - 1)}]`));
+        state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
+        state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
+    }
+
+    // §6.1.5 (g). Only a required explicit policy with nothing surviving
+    // rejects a path; an empty tree nobody asked about is not a failure.
+    if (wrapUpPolicies(policies, input.initialPolicySet ?? []) === null) {
+        state.reasons.push(noValidPolicyReason('path'));
     }
 
     return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };

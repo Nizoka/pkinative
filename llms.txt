@@ -12,7 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 ## Guides
 
-- [Security model](https://pkinative.dev/guides/security.md): strict DER, the twelve limits, typed failures, the cryptography boundary
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the thirteen limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when not yet

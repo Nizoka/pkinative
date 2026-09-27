@@ -41,6 +41,8 @@ export interface PkiLimits {
     readonly maxPolicies: number;
     /** Maximum number of certificates a certification path may hold. CWE-400. */
     readonly maxChainLength: number;
+    /** Maximum number of live nodes in the RFC 5280 valid_policy_tree. CWE-770. */
+    readonly maxPolicyNodes: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────

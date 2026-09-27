@@ -51,7 +51,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxGeneralNames: 1e4,
   maxNameAttributes: 1024,
   maxPolicies: 1024,
-  maxChainLength: 10
+  maxChainLength: 10,
+  maxPolicyNodes: 4096
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -145,6 +146,22 @@ function nameExcludedReason(path, form, text) {
     "PKI_REASON_NAME_EXCLUDED",
     "RFC 5280 \xA76.1.3 (c)",
     `the ${form} "${text}" falls inside an excluded subtree; an exclusion anywhere on the path wins over every permission`,
+    path
+  );
+}
+function noValidPolicyReason(path) {
+  return _reason(
+    "PKI_REASON_NO_VALID_POLICY",
+    "RFC 5280 \xA76.1.5 (g)",
+    "no certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller",
+    path
+  );
+}
+function policyMappingInvalidReason(path, issuerDomainPolicy, subjectDomainPolicy) {
+  return _reason(
+    "PKI_REASON_POLICY_MAPPING_INVALID",
+    "RFC 5280 \xA76.1.4 (a)",
+    `the policy mapping ${issuerDomainPolicy} \u2192 ${subjectDomainPolicy} names anyPolicy, which may be neither an issuerDomainPolicy nor a subjectDomainPolicy; the mapping was ignored rather than honoured`,
     path
   );
 }
@@ -359,6 +376,125 @@ function nameText(name) {
     default:
       return name.kind;
   }
+}
+
+// src/path/path-policies.ts
+var ANY_POLICY = "2.5.29.32.0";
+function initialPolicyState(n, requireExplicit, inhibitMapping, inhibitAny) {
+  const root = {
+    validPolicy: ANY_POLICY,
+    qualifiers: [],
+    expectedPolicySet: [ANY_POLICY],
+    children: [],
+    alive: true
+  };
+  return {
+    levels: [[root]],
+    explicitPolicy: requireExplicit ? 0 : n + 1,
+    policyMapping: inhibitMapping ? 0 : n + 1,
+    inhibitAnyPolicy: inhibitAny ? 0 : n + 1,
+    nodeCount: 1
+  };
+}
+var live = (level) => level.filter((node) => node.alive);
+function deepest(state) {
+  return state.levels === null ? null : state.levels[state.levels.length - 1];
+}
+function prunePolicyTree(state) {
+  const levels = state.levels;
+  if (levels === null) return;
+  for (let depth = levels.length - 2; depth >= 0; depth -= 1) {
+    const level = levels[depth];
+    const below = levels[depth + 1];
+    for (const node of level) {
+      if (!node.alive) continue;
+      node.children = node.children.filter((index) => below[index]?.alive === true);
+      if (node.children.length === 0) node.alive = false;
+    }
+  }
+  if (live(levels[0]).length === 0) state.levels = null;
+}
+function growPolicyTree(state, policies, maxNodes) {
+  const levels = state.levels;
+  const parents = deepest(state);
+  if (levels === null || parents === null) return "ok";
+  const next = [];
+  const push = (node, parentIndex) => {
+    if (state.nodeCount >= maxNodes) return false;
+    parents[parentIndex]?.children.push(next.length);
+    next.push(node);
+    state.nodeCount += 1;
+    return true;
+  };
+  const asserted = policies.filter((policy) => policy.policyIdentifier !== ANY_POLICY);
+  for (const policy of asserted) {
+    const id = policy.policyIdentifier;
+    let matched = false;
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive || !parent.expectedPolicySet.includes(id)) continue;
+      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
+      matched = true;
+    }
+    if (matched) continue;
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive || !parent.expectedPolicySet.includes(ANY_POLICY)) continue;
+      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
+    }
+  }
+  const any = policies.find((policy) => policy.policyIdentifier === ANY_POLICY);
+  if (any !== void 0 && state.inhibitAnyPolicy > 0) {
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive) continue;
+      for (const expected of parent.expectedPolicySet) {
+        if (next.some((node, i) => node.validPolicy === expected && parent.children.includes(i))) continue;
+        if (!push({ validPolicy: expected, qualifiers: any.qualifiers, expectedPolicySet: [expected], children: [], alive: true }, index)) return "limit";
+      }
+    }
+  }
+  levels.push(next);
+  prunePolicyTree(state);
+  return "ok";
+}
+function killPolicyTree(state) {
+  state.levels = null;
+}
+function applyPolicyMappings(state, mappings) {
+  const level = deepest(state);
+  if (level === null) return;
+  const usable = mappings.filter((m) => m.issuerDomainPolicy !== ANY_POLICY && m.subjectDomainPolicy !== ANY_POLICY);
+  const byIssuer = /* @__PURE__ */ new Map();
+  for (const mapping of usable) {
+    byIssuer.set(mapping.issuerDomainPolicy, [...byIssuer.get(mapping.issuerDomainPolicy) ?? [], mapping.subjectDomainPolicy]);
+  }
+  for (const node of level) {
+    if (!node.alive) continue;
+    const mapped = byIssuer.get(node.validPolicy);
+    if (mapped === void 0) continue;
+    if (state.policyMapping > 0) node.expectedPolicySet = mapped;
+    else node.alive = false;
+  }
+  if (state.policyMapping === 0) prunePolicyTree(state);
+}
+function advancePolicyCounters(state, selfIssued, requireExplicit, inhibitMapping, inhibitAny) {
+  if (!selfIssued) {
+    if (state.explicitPolicy > 0) state.explicitPolicy -= 1;
+    if (state.policyMapping > 0) state.policyMapping -= 1;
+    if (state.inhibitAnyPolicy > 0) state.inhibitAnyPolicy -= 1;
+  }
+  if (requireExplicit !== void 0 && requireExplicit < state.explicitPolicy) state.explicitPolicy = requireExplicit;
+  if (inhibitMapping !== void 0 && inhibitMapping < state.policyMapping) state.policyMapping = inhibitMapping;
+  if (inhibitAny !== void 0 && inhibitAny < state.inhibitAnyPolicy) state.inhibitAnyPolicy = inhibitAny;
+}
+function wrapUpPolicies(state, initialPolicySet) {
+  const anyRequested = initialPolicySet.length === 0 || initialPolicySet.includes(ANY_POLICY);
+  const surviving = /* @__PURE__ */ new Set();
+  const level = deepest(state);
+  for (const node of level ?? []) {
+    if (node.alive) surviving.add(node.validPolicy);
+  }
+  const intersected = anyRequested ? [...surviving] : [...surviving].filter((policy) => initialPolicySet.includes(policy));
+  const treeSurvives = state.levels !== null && intersected.length > 0;
+  return state.explicitPolicy > 0 || treeSurvives ? intersected : null;
 }
 
 // src/core/pki-diagnostics.ts
@@ -2362,6 +2498,14 @@ var PROCESSED_CRITICAL_EXTENSIONS = /* @__PURE__ */ new Set([
   // subjectAltName — §6.1.3 (b), (c), against the name constraints
   "2.5.29.30",
   // nameConstraints — §6.1.4 (g)
+  "2.5.29.32",
+  // certificatePolicies — §6.1.3 (d)
+  "2.5.29.33",
+  // policyMappings — §6.1.4 (a), (b)
+  "2.5.29.36",
+  // policyConstraints — §6.1.4 (i)
+  "2.5.29.54",
+  // inhibitAnyPolicy — §6.1.4 (j)
   "2.5.29.37"
   // extKeyUsage: not a §6 input; carried so a leaf that marks it critical still validates
 ]);
@@ -2422,6 +2566,29 @@ function checkNamesAgainstConstraints(certificate, names, path) {
   }
   return out;
 }
+function advancePolicies(certificate, policies, maxNodes, path) {
+  const out = [];
+  const asserted = getExtension(certificate, "certificatePolicies");
+  if (asserted === void 0) {
+    killPolicyTree(policies);
+  } else if (growPolicyTree(policies, asserted.policies, maxNodes) === "limit") {
+    out.push(limitExceededReason(`${path}.certificatePolicies`, "maxPolicyNodes", maxNodes));
+  }
+  const mappings = getExtension(certificate, "policyMappings");
+  if (mappings !== void 0) {
+    for (const mapping of mappings.mappings) {
+      if (mapping.issuerDomainPolicy === ANY_POLICY || mapping.subjectDomainPolicy === ANY_POLICY) {
+        out.push(policyMappingInvalidReason(`${path}.policyMappings`, mapping.issuerDomainPolicy, mapping.subjectDomainPolicy));
+      }
+    }
+    applyPolicyMappings(policies, mappings.mappings);
+  }
+  const constraints = getExtension(certificate, "policyConstraints");
+  const inhibitAny = getExtension(certificate, "inhibitAnyPolicy");
+  const selfIssued = _hex(certificate.subject.der) === _hex(certificate.issuer.der);
+  advancePolicyCounters(policies, selfIssued, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
+  return out;
+}
 function validateCertificatePath(input) {
   const limits = resolveLimits(input.limits);
   const signatures = /* @__PURE__ */ new Map();
@@ -2476,12 +2643,24 @@ function validateCertificatePath(input) {
   }
   if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
   const names = initialNameConstraints();
+  const policies = initialPolicyState(
+    walked.length,
+    input.requireExplicitPolicy === true,
+    input.inhibitPolicyMapping === true,
+    input.inhibitAnyPolicy === true
+  );
   for (let index = walked.length - 1; index >= 1; index -= 1) {
     const issuer = walked[index];
+    const below = walked[index - 1];
+    const belowPath = `path[${String(index - 1)}]`;
     state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
     const constraints = getExtension(issuer, "nameConstraints");
     if (constraints !== void 0) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
-    state.reasons.push(...checkNamesAgainstConstraints(walked[index - 1], names, `path[${String(index - 1)}]`));
+    state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
+    state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
+  }
+  if (wrapUpPolicies(policies, input.initialPolicySet ?? []) === null) {
+    state.reasons.push(noValidPolicyReason("path"));
   }
   return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
 }

@@ -73,6 +73,7 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name. |
 | `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension. |
 | `maxChainLength` | 10 | CWE-400 | The certificates one certification path may hold. Path building is exponential in the candidate set, so this is a bound on the walk and not a statement about real hierarchies. |
+| `maxPolicyNodes` | 4 096 | CWE-770 | The live nodes of the RFC 5280 valid_policy_tree. The tree grows multiplicatively with each certificate, and it is the part of section 6 that actually explodes — x509-limbo has cases written for it. |
 
 ### Verification of the Parser
 

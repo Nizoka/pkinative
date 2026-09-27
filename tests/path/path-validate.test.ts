@@ -148,14 +148,20 @@ describe('checkCriticalExtensions — §6.1.3 (f)', () => {
         expect(checkCriticalExtensions(certificate, 'path[0]')).toEqual([]);
     });
 
-    it('should process nameConstraints, and refuse the policy extensions until they are implemented', () => {
+    it('should process every §6 extension that can constrain a chain', () => {
         // The extensions whose silent omission would be a CVE: a chain the
-        // issuing CA constrained, answered "valid". nameConstraints is
-        // processed now; the three policy extensions are still refused.
-        expect(PROCESSED_CRITICAL_EXTENSIONS.has('2.5.29.30')).toBe(true);
-        for (const oid of ['2.5.29.36', '2.5.29.33', '2.5.29.54']) {
-            expect(PROCESSED_CRITICAL_EXTENSIONS.has(oid), oid).toBe(false);
+        // issuing CA constrained, answered "valid". All of §6's inputs are
+        // processed now, so nothing in this list may quietly leave it.
+        for (const oid of ['2.5.29.19', '2.5.29.15', '2.5.29.17', '2.5.29.30', '2.5.29.32', '2.5.29.33', '2.5.29.36', '2.5.29.54']) {
+            expect(PROCESSED_CRITICAL_EXTENSIONS.has(oid), oid).toBe(true);
         }
+    });
+
+    it('should still refuse a critical extension outside that set', () => {
+        // The fail-closed property itself, which is what makes the set above
+        // the exact boundary of what a chain may rely on.
+        expect(PROCESSED_CRITICAL_EXTENSIONS.has('2.5.29.31')).toBe(false); // cRLDistributionPoints
+        expect(PROCESSED_CRITICAL_EXTENSIONS.has('1.3.6.1.5.5.7.1.1')).toBe(false); // authorityInfoAccess
     });
 });
 
@@ -466,6 +472,58 @@ describe('validateCertificatePath', () => {
             signatures: valid(anonymous, constrained),
         });
         expect(report.reasons.filter((r) => r.path === 'path[0].subject')).toEqual([]);
+    });
+
+    it('should accept a chain with no certificate policies when nobody required one', () => {
+        // §6.1.5 (a). An empty policy tree means the question was never asked.
+        const report = validateCertificatePath({ certificates: [LEAF, R12, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, R12) });
+        expect(codes(report)).not.toContain('PKI_REASON_NO_VALID_POLICY');
+    });
+
+    it('should refuse a chain with no certificate policies when one was required', () => {
+        const report = validateCertificatePath({
+            certificates: [LEAF, R12, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(LEAF, R12),
+            requireExplicitPolicy: true,
+        });
+        expect(codes(report)).toContain('PKI_REASON_NO_VALID_POLICY');
+        expect(report.valid).toBe(false);
+    });
+
+    it('should report a policy mapping that names anyPolicy, and ignore it', () => {
+        const mapping = { oid: '2.5.29.33', critical: true, valueDer: new Uint8Array(0), kind: 'policyMappings',
+            mappings: [{ issuerDomainPolicy: '2.5.29.32.0', subjectDomainPolicy: '1.3.6.1.4.1.2' }] };
+        const mapper = { ...R12, extensions: [...R12.extensions, mapping] } as unknown as Certificate;
+        const report = validateCertificatePath({ certificates: [LEAF, mapper, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, mapper) });
+        expect(codes(report)).toContain('PKI_REASON_POLICY_MAPPING_INVALID');
+    });
+
+    it('should accept a legitimate policy mapping', () => {
+        const mapping = { oid: '2.5.29.33', critical: true, valueDer: new Uint8Array(0), kind: 'policyMappings',
+            mappings: [{ issuerDomainPolicy: '1.3.6.1.4.1.1', subjectDomainPolicy: '1.3.6.1.4.1.2' }] };
+        const mapper = { ...R12, extensions: [...R12.extensions, mapping] } as unknown as Certificate;
+        const report = validateCertificatePath({ certificates: [LEAF, mapper, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, mapper) });
+        expect(codes(report)).not.toContain('PKI_REASON_POLICY_MAPPING_INVALID');
+    });
+
+    it('should stop at maxPolicyNodes and name it', () => {
+        const policies = { oid: '2.5.29.32', critical: false, valueDer: new Uint8Array(0), kind: 'certificatePolicies',
+            policies: Array.from({ length: 40 }, (_, i) => ({ policyIdentifier: `1.3.6.1.4.1.${String(i)}`, qualifiers: [] })) };
+        // Replace rather than append: R12 already carries a certificatePolicies
+        // extension, and getExtension returns the FIRST match — an appended one
+        // would never be seen, and the test would pass for the wrong reason.
+        const wide = { ...R12, extensions: R12.extensions.map((e) => (e.kind === 'certificatePolicies' ? policies : e)) } as unknown as Certificate;
+        const report = validateCertificatePath({
+            certificates: [LEAF, wide, ROOT_X1],
+            trustAnchors: [ROOT_X1],
+            at: AT,
+            signatures: valid(LEAF, wide),
+            limits: { maxPolicyNodes: 3 },
+        });
+        const reason = report.reasons.find((r) => r.code === 'PKI_REASON_LIMIT_EXCEEDED' && r.limit === 'maxPolicyNodes');
+        expect(reason).toBeDefined();
     });
 
     it('should be true only when there is no reason at all', () => {

@@ -83,7 +83,7 @@ export const PROBES: readonly Probe[] = [
     // quietly stopped being true. The ASN.1 decoder must be absent too — a
     // path validator that decodes anything is a layer upstream that failed to
     // expose it.
-    { exports: ['validateCertificatePath'], maxBytes: 14 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    { exports: ['validateCertificatePath'], maxBytes: 18 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     { exports: ['*'], maxBytes: 132 * 1024, mustNotContain: [] },
 ];
 

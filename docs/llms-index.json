@@ -6,7 +6,7 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 2690,
+      "bytes": 2692,
       "approxTokens": 673
     },
     {
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 77947,
-      "approxTokens": 19487
+      "bytes": 78757,
+      "approxTokens": 19689
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 156422,
-      "approxTokens": 39106
+      "bytes": 157500,
+      "approxTokens": 39375
     },
     {
       "url": "data/errors.json",
@@ -48,8 +48,8 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 2391,
-      "approxTokens": 598
+      "bytes": 2596,
+      "approxTokens": 649
     },
     {
       "url": "data/surfaces.json",
@@ -82,7 +82,7 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12822,
+      "bytes": 12824,
       "approxTokens": 3206
     },
     {
@@ -100,8 +100,8 @@
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 21268,
-      "approxTokens": 5317
+      "bytes": 22072,
+      "approxTokens": 5518
     },
     {
       "title": "Security model",

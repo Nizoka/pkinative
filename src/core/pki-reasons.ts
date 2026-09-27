@@ -84,6 +84,27 @@ export function nameExcludedReason(path: string, form: string, text: string): Pk
         path);
 }
 
+/**
+ * No certificate policy survives the path, and an explicit policy was
+ * required — the only condition under which policy processing rejects a path.
+ *
+ * A tree that came out empty while nobody asked for an explicit policy is
+ * **not** a failure: it means the question was never asked, and §6.1.5 (a)
+ * leaves such a path valid.
+ */
+export function noValidPolicyReason(path: string): PkiReason {
+    return _reason('PKI_REASON_NO_VALID_POLICY', 'RFC 5280 §6.1.5 (g)',
+        'no certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller',
+        path);
+}
+
+/** A `policyMappings` extension maps to or from `anyPolicy`, which RFC 5280 forbids. */
+export function policyMappingInvalidReason(path: string, issuerDomainPolicy: string, subjectDomainPolicy: string): PkiReason {
+    return _reason('PKI_REASON_POLICY_MAPPING_INVALID', 'RFC 5280 §6.1.4 (a)',
+        `the policy mapping ${issuerDomainPolicy} → ${subjectDomainPolicy} names anyPolicy, which may be neither an issuerDomainPolicy nor a subjectDomainPolicy; the mapping was ignored rather than honoured`,
+        path);
+}
+
 /** No supplied candidate has a subject equal to this certificate's issuer. */
 export function issuerNotFoundReason(path: string, issuer: string): PkiReason {
     return _reason('PKI_REASON_ISSUER_NOT_FOUND', 'RFC 5280 §6.1',

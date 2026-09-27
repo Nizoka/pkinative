@@ -709,7 +709,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -1844,6 +1844,30 @@
           "summary": "Signature verdicts computed beforehand — by `verifyCertificateSignature`, or by whatever the caller trusts."
         },
         {
+          "name": "initialPolicySet",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "`user-initial-policy-set` (RFC 5280 §6.1.1 (c)): the policy OIDs the caller is willing to accept."
+        },
+        {
+          "name": "requireExplicitPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-explicit-policy` (§6.1.1 (e))."
+        },
+        {
+          "name": "inhibitPolicyMapping",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-policy-mapping-inhibit` (§6.1.1 (f))."
+        },
+        {
+          "name": "inhibitAnyPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-any-policy-inhibit` (§6.1.1 (g))."
+        },
+        {
           "name": "limits",
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
@@ -2200,6 +2224,12 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of certificates a certification path may hold."
+        },
+        {
+          "name": "maxPolicyNodes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of live nodes in the RFC 5280 valid_policy_tree."
         }
       ]
     },

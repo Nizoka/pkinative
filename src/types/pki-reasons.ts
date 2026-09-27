@@ -61,6 +61,10 @@ export type PkiReasonCode =
     | 'PKI_REASON_NAME_NOT_PERMITTED'
     /** A name in the certificate falls inside a subtree a CA above it excluded. */
     | 'PKI_REASON_NAME_EXCLUDED'
+    /** No certificate policy survives the path, and an explicit policy was required. */
+    | 'PKI_REASON_NO_VALID_POLICY'
+    /** A `policyMappings` extension maps to or from `anyPolicy`, which RFC 5280 forbids. */
+    | 'PKI_REASON_POLICY_MAPPING_INVALID'
 
     // ── The link to the issuer ──
     /** No candidate issuer was supplied whose subject matches this certificate's issuer. */
