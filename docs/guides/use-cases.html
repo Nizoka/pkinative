@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Use cases — pkinative</title>
-  <meta name="description" content="Seven jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.">
+  <meta name="description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/use-cases.html">
   <meta property="og:title" content="Use cases — pkinative">
-  <meta property="og:description" content="Seven jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.">
+  <meta property="og:description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Use cases — pkinative">
-  <meta name="twitter:description" content="Seven jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.">
+  <meta name="twitter:description" content="Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/use-cases.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases.html">
@@ -55,7 +55,7 @@
     <article id="guide-content" class="guide-content" data-md="use-cases.md" data-prerendered="true">
       <h1 id="use-cases">Use cases</h1>
       <blockquote>
-      <p><strong>Seven jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.</p>
+      <p><strong>Eight jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.</p>
       </blockquote>
       <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.</p>
       <svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
@@ -276,8 +276,23 @@
       <p>The input is a <a href="../assets/api.json"><code>PathValidationInput</code></a> and the answer a <a href="../assets/api.json"><code>PathValidationReport</code></a>; <code>maxChainLength</code> (default 10) bounds the walk and <code>maxPolicyNodes</code> (default 4 096) bounds the policy tree, which is the part of §6 that actually explodes combinatorially; <code>PKI_REASON_LIMIT_EXCEEDED</code> names whichever one stopped the search. <code>recipes/validate-path.ts</code> runs all of this on the real Let&#39;s Encrypt hierarchy.</p>
       <p><strong>Certificate policies are off by default, and that is the right default.</strong> <code>requireExplicitPolicy</code> is what turns policy processing into a verdict: without it, a path that establishes no policy is still valid, because §6.1.5 (a) says the question was never asked. Turning it on by default would reject most of the public web. When you do need it, <code>initialPolicySet</code> is your <code>user-initial-policy-set</code>, and <code>PKI_REASON_NO_VALID_POLICY</code> is the answer when nothing survives.</p>
       <p><strong>What it refuses rather than ignores.</strong> RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and <code>PROCESSED_CRITICAL_EXTENSIONS</code> is the exact boundary of what a chain may rely on: <code>basicConstraints</code>, <code>keyUsage</code>, <code>subjectAltName</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code> and <code>extKeyUsage</code>. Anything else marked critical comes back <code>PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION</code> — including <code>cRLDistributionPoints</code>, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer &quot;valid&quot; for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.</p>
+      <h2 id="ask-a-revocation-list-about-one-certificate">Ask a revocation list about one certificate <a class="heading-anchor" href="#ask-a-revocation-list-about-one-certificate" aria-label="Link to this section">#</a></h2>
+      <p>The job: a CA published a CRL, and you want to know whether this certificate is on it.</p>
+      <pre><code class="language-ts">import { findRevocation, parseCertificateList } from &#39;pkinative&#39;;
+
+      const crl = parseCertificateList(der);
+      console.log(crl.issuer, crl.thisUpdate, crl.nextUpdate, crl.entryCount);
+
+      const entry = findRevocation(der, certificate.serialNumber.bytes);
+      if (entry !== undefined) console.log(&#39;revoked&#39;, entry.reason, new Date(entry.revocationDate.epochMilliseconds));
+      </code></pre>
+      <p><strong>There is no array of entries, on purpose.</strong> A CRL entry costs three ASN.1 nodes, so decoding the list into a tree hits <code>maxNodes</code> (200 000) at roughly 65 000 entries — while <code>maxInputBytes</code> would allow millions, and real CRLs sit in between. So the envelope is decoded and the list is <strong>walked</strong>, one TLV header at a time, in constant memory, bounded by <code>maxRevokedCertificates</code> (default 1 000 000). Exposing an array would either cap the library below real-world sizes or allocate hundreds of megabytes to answer one yes-or-no. <code>entryCount</code> is there when you genuinely want the size, and it is counted by walking.</p>
+      <p><strong>Serials are compared by their content octets, never by <code>value</code>.</strong> Two serials that differ only in a leading zero octet are two different serials to a CA, and comparing the <code>bigint</code> would make them one — a revocation silently missed. Pass <code>certificate.serialNumber.bytes</code>.</p>
+      <p><code>findRevocation</code> walks from the start each time, so checking many certificates against one CRL is O(n·m). The alternative is a map keyed by serial, and that is your decision: you know how many serials you have and how much memory you will spend on them. What this library must not do is build that map behind your back for a single lookup.</p>
+      <p><code>crl.crlNumber</code> and <code>crl.isDelta</code> are read from <code>cRLNumber</code> and <code>deltaCRLIndicator</code>; a <strong>delta CRL is not a full one</strong>, and treating it as complete would report every certificate absent from it as unrevoked.</p>
+      <p>The envelope is a <a href="../assets/api.json"><code>CertificateList</code></a>, an entry is a <a href="../assets/api.json"><code>RevokedCertificate</code></a> carrying its <code>reason</code> as a <a href="../assets/api.json"><code>CrlReason</code></a> and its <code>invalidityDate</code>, and <code>maxRevokedCertificates</code> is the bound on the walk.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
-      <p>Each of the seven is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <p>Each of the eight is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>
       <thead>
       <tr>

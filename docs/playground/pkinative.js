@@ -52,7 +52,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxNameAttributes: 1024,
   maxPolicies: 1024,
   maxChainLength: 10,
-  maxPolicyNodes: 4096
+  maxPolicyNodes: 4096,
+  maxRevokedCertificates: 1e6
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -105,396 +106,134 @@ function enforceLimit(limits, limit, observed, context) {
   }
 }
 
-// src/core/pki-reasons.ts
-function _reason(code, standard, message, path, extra) {
-  return Object.freeze({ code, message, standard, path, errorCode: extra?.errorCode, limit: extra?.limit });
+// src/asn1/asn1-cursor.ts
+var CLASSES = ["universal", "application", "context", "private"];
+function readTlvHeader(data, offset, path) {
+  const first = data[offset];
+  if (first === void 0) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} expects a value at offset ${String(offset)} and the input ends there \u2014 the structure is truncated`, offset);
+  }
+  const tagClass = CLASSES[first >> 6 & 3];
+  const constructed = (first & 32) !== 0;
+  let tagNumber = first & 31;
+  let at = offset + 1;
+  if (tagNumber === 31) {
+    tagNumber = 0;
+    let octets = 0;
+    for (; ; ) {
+      const byte = data[at];
+      if (byte === void 0) {
+        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a high tag number that runs past the input`, offset);
+      }
+      if (octets === 0 && byte === 128) {
+        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a high tag number whose first octet is 0x80, which is not the shortest form (X.690 \xA78.1.2.4.2)`, offset);
+      }
+      octets += 1;
+      if (octets > 4) {
+        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a tag number wider than four octets \u2014 no PKI structure uses one, and accepting it invites an integer overflow`, offset);
+      }
+      tagNumber = tagNumber << 7 | byte & 127;
+      at += 1;
+      if ((byte & 128) === 0) break;
+    }
+  }
+  const lengthByte = data[at];
+  if (lengthByte === void 0) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has no length octet \u2014 the structure is truncated`, offset);
+  }
+  at += 1;
+  let length;
+  if (lengthByte < 128) {
+    length = lengthByte;
+  } else if (lengthByte === 128) {
+    throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} uses an indefinite length, which DER forbids (X.690 \xA710.1) and this cursor never accepts`, offset);
+  } else {
+    const octets = lengthByte & 127;
+    if (octets > 6) {
+      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} declares a length in ${String(octets)} octets; nothing this library reads is that large, and a wider length is an overflow waiting to happen`, offset);
+    }
+    length = 0;
+    for (let i = 0; i < octets; i += 1) {
+      const byte = data[at + i];
+      if (byte === void 0) {
+        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a length that runs past the input`, offset);
+      }
+      if (i === 0 && byte === 0) {
+        throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} has a long-form length with a leading zero octet, which is not the shortest form (X.690 \xA710.1)`, offset);
+      }
+      length = length * 256 + byte;
+    }
+    if (length < 128) {
+      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} encodes the length ${String(length)} in long form, and DER requires the short form below 128 (X.690 \xA710.1)`, offset);
+    }
+    at += octets;
+  }
+  const end = at + length;
+  if (end > data.length) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} declares ${String(length)} content octets and only ${String(data.length - at)} remain \u2014 the structure is truncated`, offset);
+  }
+  return { tagClass, tagNumber, constructed, offset, contentStart: at, length, end };
 }
-function notYetValidReason(path, notBefore, at) {
-  return _reason(
-    "PKI_REASON_NOT_YET_VALID",
-    "RFC 5280 \xA76.1.3 (a)(2)",
-    `the certificate is not valid until ${new Date(notBefore).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
-    path
-  );
-}
-function expiredReason(path, notAfter, at) {
-  return _reason(
-    "PKI_REASON_EXPIRED",
-    "RFC 5280 \xA76.1.3 (a)(2)",
-    `the certificate expired on ${new Date(notAfter).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
-    path
-  );
-}
-function unrecognisedCriticalExtensionReason(path, oid) {
-  return _reason(
-    "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
-    "RFC 5280 \xA76.1.3 (f)",
-    `the certificate carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
-    path
-  );
-}
-function nameNotPermittedReason(path, form, text) {
-  return _reason(
-    "PKI_REASON_NAME_NOT_PERMITTED",
-    "RFC 5280 \xA76.1.3 (b)",
-    `the ${form} "${text}" falls outside the permitted subtrees a CA above this certificate set; a sub-CA cannot issue for names its issuer withheld`,
-    path
-  );
-}
-function nameExcludedReason(path, form, text) {
-  return _reason(
-    "PKI_REASON_NAME_EXCLUDED",
-    "RFC 5280 \xA76.1.3 (c)",
-    `the ${form} "${text}" falls inside an excluded subtree; an exclusion anywhere on the path wins over every permission`,
-    path
-  );
-}
-function noValidPolicyReason(path) {
-  return _reason(
-    "PKI_REASON_NO_VALID_POLICY",
-    "RFC 5280 \xA76.1.5 (g)",
-    "no certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller",
-    path
-  );
-}
-function policyMappingInvalidReason(path, issuerDomainPolicy, subjectDomainPolicy) {
-  return _reason(
-    "PKI_REASON_POLICY_MAPPING_INVALID",
-    "RFC 5280 \xA76.1.4 (a)",
-    `the policy mapping ${issuerDomainPolicy} \u2192 ${subjectDomainPolicy} names anyPolicy, which may be neither an issuerDomainPolicy nor a subjectDomainPolicy; the mapping was ignored rather than honoured`,
-    path
-  );
-}
-function issuerNotFoundReason(path, issuer) {
-  return _reason(
-    "PKI_REASON_ISSUER_NOT_FOUND",
-    "RFC 5280 \xA76.1",
-    `no supplied certificate has the subject ${issuer}, so this certificate has no issuer to check it against`,
-    path
-  );
-}
-function signatureInvalidReason(path) {
-  return _reason(
-    "PKI_REASON_SIGNATURE_INVALID",
-    "RFC 5280 \xA76.1.3 (a)(1)",
-    "the issuer's public key does not verify this certificate's signature",
-    path
-  );
-}
-function signatureNotCheckedReason(path, errorCode, detail) {
-  return _reason(
-    "PKI_REASON_SIGNATURE_NOT_CHECKED",
-    "RFC 5280 \xA76.1.3 (a)(1)",
-    `the signature could not be checked here (${errorCode}): ${detail.replace(/^pkinative: /, "")} \u2014 this says nothing about whether the signature is valid`,
-    path,
-    { errorCode }
-  );
-}
-function noTrustAnchorReason(path) {
-  return _reason(
-    "PKI_REASON_NO_TRUST_ANCHOR",
-    "RFC 5280 \xA76.1.1 (d)",
-    "the chain does not end at any of the trust anchors supplied; a signature that verifies is not a certificate that is trusted",
-    path
-  );
-}
-function notACaReason(path, why) {
-  return _reason(
-    "PKI_REASON_NOT_A_CA",
-    "RFC 5280 \xA76.1.4 (k)",
-    why === "basicConstraints" ? "a certificate in the chain issued another without asserting cA in basicConstraints" : "a certificate in the chain issued another without asserting keyCertSign in keyUsage",
-    path
-  );
-}
-function pathTooLongReason(path, allowed) {
-  return _reason(
-    "PKI_REASON_PATH_TOO_LONG",
-    "RFC 5280 \xA76.1.4 (l)",
-    `the chain is longer than the ${String(allowed)} intermediate certificate(s) a pathLenConstraint in it allows`,
-    path
-  );
-}
-function pathLoopsReason(path) {
-  return _reason(
-    "PKI_REASON_PATH_LOOPS",
-    "RFC 5280 \xA76.1",
-    "the same certificate appears twice in the chain; a path that revisits a certificate is not a path",
-    path
-  );
-}
-function limitExceededReason(path, limit, configured) {
-  return _reason(
-    "PKI_REASON_LIMIT_EXCEEDED",
-    "CWE-400",
-    `validation stopped at the ${limit} limit of ${String(configured)}; raise it only for input you trust`,
-    path,
-    { limit }
-  );
+function* walkChildren(data, parent, path) {
+  let at = parent.contentStart;
+  let index = 0;
+  while (at < parent.end) {
+    const child = readTlvHeader(data, at, `${path}[${String(index)}]`);
+    if (child.end > parent.end) {
+      throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path}[${String(index)}] runs past the end of its parent \u2014 the two lengths disagree, and a value that overruns its container is how one parser reads what another does not`, child.offset);
+    }
+    yield child;
+    at = child.end;
+    index += 1;
+  }
 }
 
-// src/path/path-name-constraints.ts
-var FORMS = ["dNSName", "rfc822Name", "uniformResourceIdentifier", "iPAddress", "directoryName"];
-function initialNameConstraints() {
-  const permitted = {};
-  const excluded = {};
-  for (const form of FORMS) {
-    permitted[form] = null;
-    excluded[form] = [];
+// src/core/bytes.ts
+function assertBytes(input, what) {
+  if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === "[object Uint8Array]") {
+    return input;
   }
-  return { permitted, excluded };
+  throw new PkiError(
+    "PKI_INVALID_INPUT",
+    `pkinative: ${what} must be a Uint8Array, got ${input === null ? "null" : typeof input} \u2014 decode PEM text with decodePem() first`
+  );
 }
-function formOf(base) {
-  return FORMS.includes(base.kind) ? base.kind : null;
+function byteView(data) {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength);
 }
-var fold = (text) => text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
-function dnsMatches(constraint, name) {
-  const c = fold(constraint);
-  const n = fold(name);
-  if (c === "") return true;
-  if (c.startsWith(".")) return n.endsWith(c);
-  return n === c || n.endsWith(`.${c}`);
-}
-function emailMatches(constraint, name) {
-  const c = fold(constraint);
-  const n = fold(name);
-  if (c === "") return true;
-  const at = n.lastIndexOf("@");
-  if (c.includes("@")) return n === c;
-  const host = at >= 0 ? n.slice(at + 1) : n;
-  if (c.startsWith(".")) return host.endsWith(c);
-  return host === c;
-}
-function uriMatches(constraint, uri) {
-  const host = uriHost(uri);
-  if (host === null) return false;
-  return dnsMatches(constraint, host);
-}
-function uriHost(uri) {
-  const schemeEnd = uri.indexOf("://");
-  if (schemeEnd < 0) return null;
-  let authority = uri.slice(schemeEnd + 3);
-  for (const stop of ["/", "?", "#"]) {
-    const at2 = authority.indexOf(stop);
-    if (at2 >= 0) authority = authority.slice(0, at2);
+function compareOctets(a, b) {
+  const av = byteView(a);
+  const bv = byteView(b);
+  const min = Math.min(a.length, b.length);
+  for (let i = 0; i < min; i++) {
+    const diff = av.getUint8(i) - bv.getUint8(i);
+    if (diff !== 0) return diff;
   }
-  const at = authority.lastIndexOf("@");
-  if (at >= 0) authority = authority.slice(at + 1);
-  if (authority.startsWith("[")) {
-    const close = authority.indexOf("]");
-    if (close < 0) return null;
-    authority = authority.slice(0, close + 1);
-  } else {
-    const colon = authority.indexOf(":");
-    if (colon >= 0) authority = authority.slice(0, colon);
-  }
-  return authority === "" ? null : authority;
+  return a.length - b.length;
 }
-function ipMatches(constraintBytes, nameBytes) {
-  const width = nameBytes.length;
-  if (constraintBytes.length !== width * 2) return false;
-  for (let i = 0; i < width; i += 1) {
-    const mask = constraintBytes[width + i];
-    if ((nameBytes[i] & mask) !== (constraintBytes[i] & mask)) return false;
+var HEX_DIGITS = "0123456789abcdef";
+function toHex(bytes, separator = "") {
+  const parts = [];
+  for (const b of bytes) parts.push(HEX_DIGITS.charAt(b >> 4) + HEX_DIGITS.charAt(b & 15));
+  return parts.join(separator);
+}
+function bytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
   }
   return true;
 }
-function directoryMatches(constraint, name) {
-  if (constraint.rdns.length > name.rdns.length) return false;
-  return constraint.rdns.every((rdn, i) => _sameRdn(rdn, name.rdns[i]));
-}
-function _sameRdn(a, b) {
-  if (a.length !== b.length) return false;
-  return a.every((x, i) => {
-    const y = b[i];
-    return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
-  });
-}
-function subtreeCovers(subtree, name) {
-  const base = subtree.base;
-  if (base.kind !== name.kind) return false;
-  if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
-  switch (base.kind) {
-    case "dNSName":
-      return name.kind === "dNSName" && dnsMatches(base.value, name.value);
-    case "rfc822Name":
-      return name.kind === "rfc822Name" && emailMatches(base.value, name.value);
-    case "uniformResourceIdentifier":
-      return name.kind === "uniformResourceIdentifier" && uriMatches(base.value, name.value);
-    case "iPAddress":
-      return name.kind === "iPAddress" && ipMatches(base.bytes, name.bytes);
-    case "directoryName":
-      return name.kind === "directoryName" && directoryMatches(base.name, name.name);
-    default:
-      return false;
+function concatBytes(parts) {
+  let length = 0;
+  for (const part of parts) length += part.length;
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
   }
-}
-function accumulateNameConstraints(state, permitted, excluded) {
-  if (permitted !== void 0) {
-    const byForm = /* @__PURE__ */ new Map();
-    for (const subtree of permitted) {
-      const form = formOf(subtree.base);
-      if (form === null) continue;
-      byForm.set(form, [...byForm.get(form) ?? [], subtree]);
-    }
-    for (const [form, subtrees] of byForm) {
-      const existing = state.permitted[form];
-      if (existing === null) {
-        state.permitted[form] = subtrees;
-        continue;
-      }
-      state.permitted[form] = subtrees.filter((subtree) => existing.some((outer) => subtreeCovers(outer, subtree.base)));
-    }
-  }
-  for (const subtree of excluded ?? []) {
-    const form = formOf(subtree.base);
-    if (form === null) continue;
-    state.excluded[form] = [...state.excluded[form], subtree];
-  }
-}
-function checkName(state, name) {
-  const form = formOf(name);
-  if (form === null) return null;
-  const text = nameText(name);
-  for (const subtree of state.excluded[form]) {
-    if (subtreeCovers(subtree, name)) return { form, text, why: "excluded" };
-  }
-  const permitted = state.permitted[form];
-  if (permitted === null) return null;
-  if (permitted.some((subtree) => subtreeCovers(subtree, name))) return null;
-  return { form, text, why: "not-permitted" };
-}
-function nameText(name) {
-  switch (name.kind) {
-    case "dNSName":
-    case "rfc822Name":
-    case "uniformResourceIdentifier":
-      return name.value;
-    case "iPAddress":
-      return name.address;
-    case "directoryName":
-      return `directoryName with ${String(name.name.rdns.length)} RDN(s)`;
-    default:
-      return name.kind;
-  }
-}
-
-// src/path/path-policies.ts
-var ANY_POLICY = "2.5.29.32.0";
-function initialPolicyState(n, requireExplicit, inhibitMapping, inhibitAny) {
-  const root = {
-    validPolicy: ANY_POLICY,
-    qualifiers: [],
-    expectedPolicySet: [ANY_POLICY],
-    children: [],
-    alive: true
-  };
-  return {
-    levels: [[root]],
-    explicitPolicy: requireExplicit ? 0 : n + 1,
-    policyMapping: inhibitMapping ? 0 : n + 1,
-    inhibitAnyPolicy: inhibitAny ? 0 : n + 1,
-    nodeCount: 1
-  };
-}
-var live = (level) => level.filter((node) => node.alive);
-function deepest(state) {
-  return state.levels === null ? null : state.levels[state.levels.length - 1];
-}
-function prunePolicyTree(state) {
-  const levels = state.levels;
-  if (levels === null) return;
-  for (let depth = levels.length - 2; depth >= 0; depth -= 1) {
-    const level = levels[depth];
-    const below = levels[depth + 1];
-    for (const node of level) {
-      if (!node.alive) continue;
-      node.children = node.children.filter((index) => below[index]?.alive === true);
-      if (node.children.length === 0) node.alive = false;
-    }
-  }
-  if (live(levels[0]).length === 0) state.levels = null;
-}
-function growPolicyTree(state, policies, maxNodes) {
-  const levels = state.levels;
-  const parents = deepest(state);
-  if (levels === null || parents === null) return "ok";
-  const next = [];
-  const push = (node, parentIndex) => {
-    if (state.nodeCount >= maxNodes) return false;
-    parents[parentIndex]?.children.push(next.length);
-    next.push(node);
-    state.nodeCount += 1;
-    return true;
-  };
-  const asserted = policies.filter((policy) => policy.policyIdentifier !== ANY_POLICY);
-  for (const policy of asserted) {
-    const id = policy.policyIdentifier;
-    let matched = false;
-    for (const [index, parent] of parents.entries()) {
-      if (!parent.alive || !parent.expectedPolicySet.includes(id)) continue;
-      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
-      matched = true;
-    }
-    if (matched) continue;
-    for (const [index, parent] of parents.entries()) {
-      if (!parent.alive || !parent.expectedPolicySet.includes(ANY_POLICY)) continue;
-      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
-    }
-  }
-  const any = policies.find((policy) => policy.policyIdentifier === ANY_POLICY);
-  if (any !== void 0 && state.inhibitAnyPolicy > 0) {
-    for (const [index, parent] of parents.entries()) {
-      if (!parent.alive) continue;
-      for (const expected of parent.expectedPolicySet) {
-        if (next.some((node, i) => node.validPolicy === expected && parent.children.includes(i))) continue;
-        if (!push({ validPolicy: expected, qualifiers: any.qualifiers, expectedPolicySet: [expected], children: [], alive: true }, index)) return "limit";
-      }
-    }
-  }
-  levels.push(next);
-  prunePolicyTree(state);
-  return "ok";
-}
-function killPolicyTree(state) {
-  state.levels = null;
-}
-function applyPolicyMappings(state, mappings) {
-  const level = deepest(state);
-  if (level === null) return;
-  const usable = mappings.filter((m) => m.issuerDomainPolicy !== ANY_POLICY && m.subjectDomainPolicy !== ANY_POLICY);
-  const byIssuer = /* @__PURE__ */ new Map();
-  for (const mapping of usable) {
-    byIssuer.set(mapping.issuerDomainPolicy, [...byIssuer.get(mapping.issuerDomainPolicy) ?? [], mapping.subjectDomainPolicy]);
-  }
-  for (const node of level) {
-    if (!node.alive) continue;
-    const mapped = byIssuer.get(node.validPolicy);
-    if (mapped === void 0) continue;
-    if (state.policyMapping > 0) node.expectedPolicySet = mapped;
-    else node.alive = false;
-  }
-  if (state.policyMapping === 0) prunePolicyTree(state);
-}
-function advancePolicyCounters(state, selfIssued, requireExplicit, inhibitMapping, inhibitAny) {
-  if (!selfIssued) {
-    if (state.explicitPolicy > 0) state.explicitPolicy -= 1;
-    if (state.policyMapping > 0) state.policyMapping -= 1;
-    if (state.inhibitAnyPolicy > 0) state.inhibitAnyPolicy -= 1;
-  }
-  if (requireExplicit !== void 0 && requireExplicit < state.explicitPolicy) state.explicitPolicy = requireExplicit;
-  if (inhibitMapping !== void 0 && inhibitMapping < state.policyMapping) state.policyMapping = inhibitMapping;
-  if (inhibitAny !== void 0 && inhibitAny < state.inhibitAnyPolicy) state.inhibitAnyPolicy = inhibitAny;
-}
-function wrapUpPolicies(state, initialPolicySet) {
-  const anyRequested = initialPolicySet.length === 0 || initialPolicySet.includes(ANY_POLICY);
-  const surviving = /* @__PURE__ */ new Set();
-  const level = deepest(state);
-  for (const node of level ?? []) {
-    if (node.alive) surviving.add(node.validPolicy);
-  }
-  const intersected = anyRequested ? [...surviving] : [...surviving].filter((policy) => initialPolicySet.includes(policy));
-  const treeSurvives = state.levels !== null && intersected.length > 0;
-  return state.explicitPolicy > 0 || treeSurvives ? intersected : null;
+  return out;
 }
 
 // src/core/pki-diagnostics.ts
@@ -817,54 +556,6 @@ function noteBer(ctx, construct, offset) {
   if (ctx.berReported.has(construct)) return;
   ctx.berReported.add(construct);
   ctx.emitter.emit(berConstructAcceptedDiagnostic(construct, offset));
-}
-
-// src/core/bytes.ts
-function assertBytes(input, what) {
-  if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === "[object Uint8Array]") {
-    return input;
-  }
-  throw new PkiError(
-    "PKI_INVALID_INPUT",
-    `pkinative: ${what} must be a Uint8Array, got ${input === null ? "null" : typeof input} \u2014 decode PEM text with decodePem() first`
-  );
-}
-function byteView(data) {
-  return new DataView(data.buffer, data.byteOffset, data.byteLength);
-}
-function compareOctets(a, b) {
-  const av = byteView(a);
-  const bv = byteView(b);
-  const min = Math.min(a.length, b.length);
-  for (let i = 0; i < min; i++) {
-    const diff = av.getUint8(i) - bv.getUint8(i);
-    if (diff !== 0) return diff;
-  }
-  return a.length - b.length;
-}
-var HEX_DIGITS = "0123456789abcdef";
-function toHex(bytes, separator = "") {
-  const parts = [];
-  for (const b of bytes) parts.push(HEX_DIGITS.charAt(b >> 4) + HEX_DIGITS.charAt(b & 15));
-  return parts.join(separator);
-}
-function bytesEqual(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-function concatBytes(parts) {
-  let length = 0;
-  for (const part of parts) length += part.length;
-  const out = new Uint8Array(length);
-  let at = 0;
-  for (const part of parts) {
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
 }
 
 // src/asn1/asn1-tags.ts
@@ -1671,6 +1362,130 @@ function readString(node, options) {
   return _readString(checked, ctx, implicitType, "");
 }
 
+// src/asn1/asn1-time.ts
+var MAX_TIME_OCTETS = 64;
+var UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
+var GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(?:Z|[+-]\d{4})$/;
+function zoneOf(text) {
+  return text.endsWith("Z") ? "Z" : text.slice(-5);
+}
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+function daysInMonth(year, month) {
+  return month === 2 ? isLeapYear(year) ? 29 : 28 : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+}
+function invalidTime(node, type, text, why) {
+  return new PkiEncodingError(
+    "PKI_ASN1_TIME_INVALID",
+    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 RFC 5280 and X.690 leave no lenient interpretation`,
+    node.offset
+  );
+}
+function toEpoch(node, type, text, f) {
+  if (f.month < 1 || f.month > 12) throw invalidTime(node, type, text, `names month ${f.month}`);
+  if (f.day < 1 || f.day > daysInMonth(f.year, f.month)) throw invalidTime(node, type, text, `names day ${f.day} of a month that has ${daysInMonth(f.year, f.month)}`);
+  if (f.hour > 23) throw invalidTime(node, type, text, `names hour ${f.hour}`);
+  if (f.minute > 59) throw invalidTime(node, type, text, `names minute ${f.minute}`);
+  if (f.second > 59) throw invalidTime(node, type, text, `names second ${f.second}`);
+  let offsetMinutes = 0;
+  if (f.zone !== "Z") {
+    const hours = Number(f.zone.slice(1, 3));
+    const minutes = Number(f.zone.slice(3, 5));
+    if (hours > 23 || minutes > 59) throw invalidTime(node, type, text, `has the impossible offset ${f.zone}`);
+    offsetMinutes = (f.zone[0] === "-" ? -1 : 1) * (hours * 60 + minutes);
+  }
+  const date = /* @__PURE__ */ new Date(0);
+  date.setUTCFullYear(f.year, f.month - 1, f.day);
+  date.setUTCHours(f.hour, f.minute, f.second, f.millisecond);
+  return date.getTime() - offsetMinutes * 6e4;
+}
+function _readTime(node, ctx, implicitType) {
+  let type;
+  if (node.tagClass === "universal") {
+    if (node.tagNumber === TAG_UTC_TIME) type = "UTCTime";
+    else if (node.tagNumber === TAG_GENERALIZED_TIME) type = "GeneralizedTime";
+    else {
+      throw new PkiEncodingError(
+        "PKI_ASN1_UNEXPECTED_TAG",
+        `pkinative: expected UTCTime or GeneralizedTime at offset ${node.offset}, found ${tagLabel(node.tagClass, node.tagNumber)}`,
+        node.offset
+      );
+    }
+  } else if (implicitType === void 0) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: the value at offset ${node.offset} carries the implicit tag ${tagLabel(node.tagClass, node.tagNumber)}; pass timeType to say which time type it is`
+    );
+  } else {
+    type = implicitType;
+  }
+  const raw = stringContent(node, ctx, TAG_OCTET_STRING, type);
+  if (raw.length > MAX_TIME_OCTETS) {
+    throw invalidTime(
+      node,
+      type,
+      `${raw.length} octets`,
+      `is longer than the ${MAX_TIME_OCTETS} octets any well-formed ${type} needs`
+    );
+  }
+  const text = String.fromCharCode(...raw);
+  if (type === "UTCTime") {
+    const m2 = UTC_TIME.exec(text);
+    if (m2 === null) throw invalidTime(node, type, text, "is not YYMMDDHHMM[SS](Z|\xB1hhmm)");
+    const [, yy, mo2, dd2, hh2, mi2, ss2] = m2;
+    const zone2 = zoneOf(text);
+    if (ss2 === void 0 || zone2 !== "Z") {
+      if (ctx.rules === "der") throw invalidTime(node, type, text, "omits the seconds or the Z; DER requires YYMMDDHHMMSSZ (X.690 \xA711.8)");
+      noteBer(ctx, "UTCTime without seconds or with an offset", node.offset);
+    }
+    const twoDigit = Number(yy);
+    const epochMilliseconds2 = toEpoch(node, type, text, {
+      year: twoDigit >= 50 ? 1900 + twoDigit : 2e3 + twoDigit,
+      month: Number(mo2),
+      day: Number(dd2),
+      hour: Number(hh2),
+      minute: Number(mi2),
+      second: Number(ss2 ?? "0"),
+      millisecond: 0,
+      zone: zone2
+    });
+    return Object.freeze({ type, epochMilliseconds: epochMilliseconds2, text });
+  }
+  const m = GENERALIZED_TIME.exec(text);
+  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)");
+  const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
+  const zone = zoneOf(text);
+  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds");
+  const nonCanonical = ss === void 0 || zone !== "Z" || separator === "," || fraction !== void 0 && fraction.endsWith("0");
+  if (nonCanonical) {
+    if (ctx.rules === "der") {
+      throw invalidTime(node, type, text, "is not in the DER form YYYYMMDDHHMMSS[.f]Z with no trailing zero in the fraction (X.690 \xA711.7)");
+    }
+    noteBer(ctx, "non-canonical GeneralizedTime", node.offset);
+  }
+  const epochMilliseconds = toEpoch(node, type, text, {
+    year: Number(yyyy),
+    month: Number(mo),
+    day: Number(dd),
+    hour: Number(hh),
+    minute: Number(mi),
+    second: Number(ss ?? "0"),
+    millisecond: fraction === void 0 ? 0 : Number(`${fraction}000`.slice(0, 3)),
+    zone
+  });
+  return Object.freeze({ type, epochMilliseconds, text });
+}
+function readTime(node, options) {
+  const checked = assertNode(node, "readTime");
+  const ctx = createAsn1Context(options);
+  const implicitType = options?.timeType;
+  if (implicitType !== void 0 && implicitType !== "UTCTime" && implicitType !== "GeneralizedTime") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
+  }
+  return _readTime(checked, ctx, implicitType);
+}
+
 // src/asn1/asn1-oid.ts
 var EXACT_LIMIT = 70368744177663;
 function _decodeOid(content, offset, ctx) {
@@ -1802,6 +1617,33 @@ function expectUniversalField(node, tagNumber, path, code, parentOffset) {
     throw certificateError(code, path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; expected ${expected}`);
   }
   return node;
+}
+
+// src/x509/x509-algorithm.ts
+var PKCS1_V15 = /* @__PURE__ */ new Set([
+  "1.2.840.113549.1.1.1",
+  "1.2.840.113549.1.1.2",
+  "1.2.840.113549.1.1.3",
+  "1.2.840.113549.1.1.4",
+  "1.2.840.113549.1.1.5",
+  "1.2.840.113549.1.1.11",
+  "1.2.840.113549.1.1.12",
+  "1.2.840.113549.1.1.13",
+  "1.2.840.113549.1.1.14",
+  "1.2.840.113549.1.1.15",
+  "1.2.840.113549.1.1.16"
+]);
+function _readAlgorithmIdentifier(node, ctx, path, code, parentOffset) {
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, code, parentOffset);
+  if (seq.children.length > 2) {
+    throw certificateError(code, path, seq.offset, `holds ${seq.children.length} values; an AlgorithmIdentifier is an OID and optional parameters`);
+  }
+  const oid = _readObjectIdentifier(expectUniversalField(seq.children[0], TAG_OID, `${path}.algorithm`, code, seq.offset), ctx);
+  const parameters = seq.children[1];
+  const isNull = parameters !== void 0 && parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
+  if (PKCS1_V15.has(oid) && !isNull) ctx.emitter.emit(rsaParametersNotNullDiagnostic(`${path}.parameters`, seq.offset));
+  const algorithm = { oid, parameters, der: seq.bytes };
+  return Object.freeze(algorithm);
 }
 
 // src/x509/x509-ext-shared.ts
@@ -2430,6 +2272,625 @@ function getExtension(certificate, kind) {
   return void 0;
 }
 
+// src/revocation/crl-parse.ts
+var STRUCTURE = "PKI_X509_STRUCTURE_INVALID";
+var REASONS2 = Object.freeze({
+  0: "unspecified",
+  1: "keyCompromise",
+  2: "cACompromise",
+  3: "affiliationChanged",
+  4: "superseded",
+  5: "cessationOfOperation",
+  6: "certificateHold",
+  8: "removeFromCRL",
+  9: "privilegeWithdrawn",
+  10: "aACompromise"
+});
+var OID_CRL_NUMBER = "2.5.29.20";
+var OID_DELTA_CRL_INDICATOR = "2.5.29.27";
+var OID_CRL_REASON = "2.5.29.21";
+var OID_INVALIDITY_DATE = "2.5.29.24";
+function crlError(path, offset, why) {
+  return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} \u2014 the input is not an RFC 5280 CertificateList`, path, offset);
+}
+function decodeAt(der, header, ctx) {
+  return decodeValueAt(der, header.offset, ctx);
+}
+var isTime = (header) => header.tagClass === "universal" && (header.tagNumber === 23 || header.tagNumber === 24);
+function locate(der, outer) {
+  const parts = [...walkChildren(der, outer, "CertificateList")];
+  const tbs = parts[0];
+  if (parts.length !== 3 || tbs === void 0) {
+    throw crlError("CertificateList", outer.offset, `holds ${String(parts.length)} values where RFC 5280 \xA75.1 defines exactly three`);
+  }
+  const fields = [...walkChildren(der, tbs, "tbsCertList")];
+  let at = 0;
+  const take = (what) => {
+    const field = fields[at];
+    if (field === void 0) throw crlError(`tbsCertList.${what}`, tbs.offset, "is missing");
+    at += 1;
+    return field;
+  };
+  const first = fields[0];
+  let version = 1;
+  if (first !== void 0 && first.tagClass === "universal" && first.tagNumber === 2) {
+    const encoded = der[first.contentStart];
+    if (first.length !== 1 || encoded !== 0 && encoded !== 1) {
+      throw crlError("tbsCertList.version", first.offset, "is not v1 (0) or v2 (1)");
+    }
+    version = encoded === 1 ? 2 : 1;
+    at += 1;
+  }
+  const signatureIndex = at;
+  take("signature");
+  take("issuer");
+  const thisUpdateAt = take("thisUpdate");
+  if (!isTime(thisUpdateAt)) throw crlError("tbsCertList.thisUpdate", thisUpdateAt.offset, "is not a UTCTime or a GeneralizedTime");
+  let nextUpdateAt;
+  const maybeNext = fields[at];
+  if (maybeNext !== void 0 && isTime(maybeNext)) {
+    nextUpdateAt = maybeNext;
+    at += 1;
+  }
+  let revoked;
+  const maybeRevoked = fields[at];
+  if (maybeRevoked !== void 0 && maybeRevoked.tagClass === "universal" && maybeRevoked.tagNumber === 16) {
+    revoked = maybeRevoked;
+    at += 1;
+  }
+  let extensionsField;
+  const maybeExtensions = fields[at];
+  if (maybeExtensions !== void 0 && maybeExtensions.tagClass === "context" && maybeExtensions.tagNumber === 0) {
+    extensionsField = maybeExtensions;
+    at += 1;
+  }
+  if (at !== fields.length) {
+    throw crlError("tbsCertList", tbs.offset, `has ${String(fields.length - at)} field(s) after crlExtensions, where RFC 5280 \xA75.1 defines none`);
+  }
+  return { tbs, fields, revoked, extensionsField, version, signatureIndex, thisUpdateAt, nextUpdateAt };
+}
+function countEntries(der, revoked, ctx) {
+  if (revoked === void 0) return 0;
+  let count = 0;
+  for (const entry of walkChildren(der, revoked, "tbsCertList.revokedCertificates")) {
+    if (!entry.constructed || entry.tagClass !== "universal" || entry.tagNumber !== 16) {
+      throw crlError(`tbsCertList.revokedCertificates[${String(count)}]`, entry.offset, "is not a SEQUENCE");
+    }
+    count += 1;
+    enforceLimit(ctx.limits, "maxRevokedCertificates", count, `tbsCertList.revokedCertificates[${String(count)}]`);
+  }
+  return count;
+}
+function parseCertificateList(der, options) {
+  const ctx = createAsn1Context(options);
+  const outer = readTlvHeader(der, 0, "CertificateList");
+  if (!outer.constructed || outer.tagClass !== "universal" || outer.tagNumber !== 16) {
+    throw crlError("CertificateList", 0, "is not a SEQUENCE");
+  }
+  const env = locate(der, outer);
+  const fields = env.fields;
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, fields[env.signatureIndex], ctx), ctx, "tbsCertList.signature", STRUCTURE, env.tbs.offset);
+  const issuer = _readName(decodeAt(der, fields[env.signatureIndex + 1], ctx), ctx, "tbsCertList.issuer", env.tbs.offset);
+  const thisUpdate = _readTime(decodeAt(der, env.thisUpdateAt, ctx), ctx, void 0);
+  const nextUpdate = env.nextUpdateAt === void 0 ? void 0 : _readTime(decodeAt(der, env.nextUpdateAt, ctx), ctx, void 0);
+  const parts = [...walkChildren(der, outer, "CertificateList")];
+  const signatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, parts[1], ctx), ctx, "signatureAlgorithm", STRUCTURE, outer.offset);
+  const signatureNode = decodeAt(der, parts[2], ctx);
+  if (signatureNode.tagClass !== "universal" || signatureNode.tagNumber !== 3) {
+    throw crlError("signatureValue", parts[2].offset, "is not a BIT STRING");
+  }
+  const unusedBits = signatureNode.content[0] ?? 0;
+  const signatureValue = { bytes: signatureNode.content.subarray(1), unusedBits };
+  const extensions = readExtensions(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
+  let crlNumber;
+  let isDelta = false;
+  for (const extension of extensions) {
+    if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx);
+    if (extension.oid === OID_DELTA_CRL_INDICATOR) isDelta = true;
+  }
+  return Object.freeze({
+    der: der.subarray(outer.offset, outer.end),
+    tbsDer: der.subarray(env.tbs.offset, env.tbs.end),
+    version: env.version,
+    signatureAlgorithm,
+    tbsSignatureAlgorithm,
+    signatureValue: Object.freeze(signatureValue),
+    issuer,
+    thisUpdate,
+    nextUpdate,
+    extensions,
+    crlNumber,
+    isDelta,
+    entryCount: countEntries(der, env.revoked, ctx),
+    diagnostics: ctx.emitter.diagnostics
+  });
+}
+function readExtensions(der, field, ctx, path) {
+  if (field === void 0) return [];
+  const wrapper = field.tagClass === "context" ? [...walkChildren(der, field, path)][0] : field;
+  if (wrapper === void 0) return [];
+  const out = [];
+  let index = 0;
+  for (const entry of walkChildren(der, wrapper, path)) {
+    const where2 = `${path}[${String(index)}]`;
+    enforceLimit(ctx.limits, "maxExtensions", index + 1, where2);
+    const node = decodeAt(der, entry, ctx);
+    const oidNode = node.children[0];
+    const criticalNode = node.children.length === 3 ? node.children[1] : void 0;
+    const valueNode = node.children[node.children.length - 1];
+    if (oidNode === void 0 || valueNode === void 0 || node.children.length < 2) {
+      throw crlError(where2, entry.offset, "is not an Extension");
+    }
+    out.push(_decodeExtension(
+      der,
+      entry.offset,
+      readObjectIdentifier(oidNode),
+      criticalNode !== void 0 && criticalNode.content[0] !== 0,
+      valueNode.content,
+      ctx,
+      where2
+    ));
+    index += 1;
+  }
+  return Object.freeze(out);
+}
+function readIntegerValue(extension, ctx) {
+  try {
+    return readInteger(decodeValueAt(extension.valueDer, 0, ctx));
+  } catch {
+    return void 0;
+  }
+}
+function findRevocation(der, serial, options) {
+  const ctx = createAsn1Context(options);
+  const outer = readTlvHeader(der, 0, "CertificateList");
+  const env = locate(der, outer);
+  if (env.revoked === void 0) return void 0;
+  let index = 0;
+  for (const entry of walkChildren(der, env.revoked, "tbsCertList.revokedCertificates")) {
+    enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, `tbsCertList.revokedCertificates[${String(index)}]`);
+    const path = `tbsCertList.revokedCertificates[${String(index)}]`;
+    const parts = [...walkChildren(der, entry, path)];
+    const serialField = parts[0];
+    const dateField = parts[1];
+    if (serialField === void 0 || dateField === void 0) {
+      throw crlError(path, entry.offset, "holds fewer than the two fields RFC 5280 \xA75.1.2.6 requires");
+    }
+    index += 1;
+    const content = der.subarray(serialField.contentStart, serialField.end);
+    if (!sameBytes(content, serial)) continue;
+    const revocationDate = _readTime(decodeAt(der, dateField, ctx), ctx, void 0);
+    const extensions = readExtensions(der, parts[2], ctx, `${path}.crlEntryExtensions`);
+    return Object.freeze({
+      serialNumber: Object.freeze({ bytes: content, hex: toHex(content), value: readInteger(decodeAt(der, serialField, ctx)) }),
+      revocationDate,
+      extensions,
+      reason: readReason(extensions, ctx),
+      invalidityDate: readInvalidityDate(extensions, ctx)
+    });
+  }
+  return void 0;
+}
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+function readReason(extensions, ctx) {
+  const extension = extensions.find((e) => e.oid === OID_CRL_REASON);
+  if (extension === void 0) return void 0;
+  try {
+    const node = decodeValueAt(extension.valueDer, 0, ctx);
+    if (node.tagClass !== "universal" || node.tagNumber !== 10 && node.tagNumber !== 2) return void 0;
+    if (node.content.length !== 1) return void 0;
+    return REASONS2[node.content[0]];
+  } catch {
+    return void 0;
+  }
+}
+function readInvalidityDate(extensions, ctx) {
+  const extension = extensions.find((e) => e.oid === OID_INVALIDITY_DATE);
+  if (extension === void 0) return void 0;
+  try {
+    const time = _readTime(decodeValueAt(extension.valueDer, 0, ctx), ctx, void 0);
+    return time.epochMilliseconds;
+  } catch {
+    return void 0;
+  }
+}
+
+// src/core/pki-reasons.ts
+function _reason(code, standard, message, path, extra) {
+  return Object.freeze({ code, message, standard, path, errorCode: extra?.errorCode, limit: extra?.limit });
+}
+function notYetValidReason(path, notBefore, at) {
+  return _reason(
+    "PKI_REASON_NOT_YET_VALID",
+    "RFC 5280 \xA76.1.3 (a)(2)",
+    `the certificate is not valid until ${new Date(notBefore).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
+    path
+  );
+}
+function expiredReason(path, notAfter, at) {
+  return _reason(
+    "PKI_REASON_EXPIRED",
+    "RFC 5280 \xA76.1.3 (a)(2)",
+    `the certificate expired on ${new Date(notAfter).toISOString()}, and validation was asked for ${new Date(at).toISOString()}`,
+    path
+  );
+}
+function unrecognisedCriticalExtensionReason(path, oid) {
+  return _reason(
+    "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "RFC 5280 \xA76.1.3 (f)",
+    `the certificate carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
+    path
+  );
+}
+function nameNotPermittedReason(path, form, text) {
+  return _reason(
+    "PKI_REASON_NAME_NOT_PERMITTED",
+    "RFC 5280 \xA76.1.3 (b)",
+    `the ${form} "${text}" falls outside the permitted subtrees a CA above this certificate set; a sub-CA cannot issue for names its issuer withheld`,
+    path
+  );
+}
+function nameExcludedReason(path, form, text) {
+  return _reason(
+    "PKI_REASON_NAME_EXCLUDED",
+    "RFC 5280 \xA76.1.3 (c)",
+    `the ${form} "${text}" falls inside an excluded subtree; an exclusion anywhere on the path wins over every permission`,
+    path
+  );
+}
+function noValidPolicyReason(path) {
+  return _reason(
+    "PKI_REASON_NO_VALID_POLICY",
+    "RFC 5280 \xA76.1.5 (g)",
+    "no certificate policy survives the whole path, and an explicit policy was required by a CA in it or by the caller",
+    path
+  );
+}
+function policyMappingInvalidReason(path, issuerDomainPolicy, subjectDomainPolicy) {
+  return _reason(
+    "PKI_REASON_POLICY_MAPPING_INVALID",
+    "RFC 5280 \xA76.1.4 (a)",
+    `the policy mapping ${issuerDomainPolicy} \u2192 ${subjectDomainPolicy} names anyPolicy, which may be neither an issuerDomainPolicy nor a subjectDomainPolicy; the mapping was ignored rather than honoured`,
+    path
+  );
+}
+function issuerNotFoundReason(path, issuer) {
+  return _reason(
+    "PKI_REASON_ISSUER_NOT_FOUND",
+    "RFC 5280 \xA76.1",
+    `no supplied certificate has the subject ${issuer}, so this certificate has no issuer to check it against`,
+    path
+  );
+}
+function signatureInvalidReason(path) {
+  return _reason(
+    "PKI_REASON_SIGNATURE_INVALID",
+    "RFC 5280 \xA76.1.3 (a)(1)",
+    "the issuer's public key does not verify this certificate's signature",
+    path
+  );
+}
+function signatureNotCheckedReason(path, errorCode, detail) {
+  return _reason(
+    "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "RFC 5280 \xA76.1.3 (a)(1)",
+    `the signature could not be checked here (${errorCode}): ${detail.replace(/^pkinative: /, "")} \u2014 this says nothing about whether the signature is valid`,
+    path,
+    { errorCode }
+  );
+}
+function noTrustAnchorReason(path) {
+  return _reason(
+    "PKI_REASON_NO_TRUST_ANCHOR",
+    "RFC 5280 \xA76.1.1 (d)",
+    "the chain does not end at any of the trust anchors supplied; a signature that verifies is not a certificate that is trusted",
+    path
+  );
+}
+function notACaReason(path, why) {
+  return _reason(
+    "PKI_REASON_NOT_A_CA",
+    "RFC 5280 \xA76.1.4 (k)",
+    why === "basicConstraints" ? "a certificate in the chain issued another without asserting cA in basicConstraints" : "a certificate in the chain issued another without asserting keyCertSign in keyUsage",
+    path
+  );
+}
+function pathTooLongReason(path, allowed) {
+  return _reason(
+    "PKI_REASON_PATH_TOO_LONG",
+    "RFC 5280 \xA76.1.4 (l)",
+    `the chain is longer than the ${String(allowed)} intermediate certificate(s) a pathLenConstraint in it allows`,
+    path
+  );
+}
+function pathLoopsReason(path) {
+  return _reason(
+    "PKI_REASON_PATH_LOOPS",
+    "RFC 5280 \xA76.1",
+    "the same certificate appears twice in the chain; a path that revisits a certificate is not a path",
+    path
+  );
+}
+function limitExceededReason(path, limit, configured) {
+  return _reason(
+    "PKI_REASON_LIMIT_EXCEEDED",
+    "CWE-400",
+    `validation stopped at the ${limit} limit of ${String(configured)}; raise it only for input you trust`,
+    path,
+    { limit }
+  );
+}
+
+// src/path/path-name-constraints.ts
+var FORMS = ["dNSName", "rfc822Name", "uniformResourceIdentifier", "iPAddress", "directoryName"];
+function initialNameConstraints() {
+  const permitted = {};
+  const excluded = {};
+  for (const form of FORMS) {
+    permitted[form] = null;
+    excluded[form] = [];
+  }
+  return { permitted, excluded };
+}
+function formOf(base) {
+  return FORMS.includes(base.kind) ? base.kind : null;
+}
+var fold = (text) => text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+function dnsMatches(constraint, name) {
+  const c = fold(constraint);
+  const n = fold(name);
+  if (c === "") return true;
+  if (c.startsWith(".")) return n.endsWith(c);
+  return n === c || n.endsWith(`.${c}`);
+}
+function emailMatches(constraint, name) {
+  const c = fold(constraint);
+  const n = fold(name);
+  if (c === "") return true;
+  const at = n.lastIndexOf("@");
+  if (c.includes("@")) return n === c;
+  const host = at >= 0 ? n.slice(at + 1) : n;
+  if (c.startsWith(".")) return host.endsWith(c);
+  return host === c;
+}
+function uriMatches(constraint, uri) {
+  const host = uriHost(uri);
+  if (host === null) return false;
+  return dnsMatches(constraint, host);
+}
+function uriHost(uri) {
+  const schemeEnd = uri.indexOf("://");
+  if (schemeEnd < 0) return null;
+  let authority = uri.slice(schemeEnd + 3);
+  for (const stop of ["/", "?", "#"]) {
+    const at2 = authority.indexOf(stop);
+    if (at2 >= 0) authority = authority.slice(0, at2);
+  }
+  const at = authority.lastIndexOf("@");
+  if (at >= 0) authority = authority.slice(at + 1);
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]");
+    if (close < 0) return null;
+    authority = authority.slice(0, close + 1);
+  } else {
+    const colon = authority.indexOf(":");
+    if (colon >= 0) authority = authority.slice(0, colon);
+  }
+  return authority === "" ? null : authority;
+}
+function ipMatches(constraintBytes, nameBytes) {
+  const width = nameBytes.length;
+  if (constraintBytes.length !== width * 2) return false;
+  for (let i = 0; i < width; i += 1) {
+    const mask = constraintBytes[width + i];
+    if ((nameBytes[i] & mask) !== (constraintBytes[i] & mask)) return false;
+  }
+  return true;
+}
+function directoryMatches(constraint, name) {
+  if (constraint.rdns.length > name.rdns.length) return false;
+  return constraint.rdns.every((rdn, i) => _sameRdn(rdn, name.rdns[i]));
+}
+function _sameRdn(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i];
+    return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
+  });
+}
+function subtreeCovers(subtree, name) {
+  const base = subtree.base;
+  if (base.kind !== name.kind) return false;
+  if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
+  switch (base.kind) {
+    case "dNSName":
+      return name.kind === "dNSName" && dnsMatches(base.value, name.value);
+    case "rfc822Name":
+      return name.kind === "rfc822Name" && emailMatches(base.value, name.value);
+    case "uniformResourceIdentifier":
+      return name.kind === "uniformResourceIdentifier" && uriMatches(base.value, name.value);
+    case "iPAddress":
+      return name.kind === "iPAddress" && ipMatches(base.bytes, name.bytes);
+    case "directoryName":
+      return name.kind === "directoryName" && directoryMatches(base.name, name.name);
+    default:
+      return false;
+  }
+}
+function accumulateNameConstraints(state, permitted, excluded) {
+  if (permitted !== void 0) {
+    const byForm = /* @__PURE__ */ new Map();
+    for (const subtree of permitted) {
+      const form = formOf(subtree.base);
+      if (form === null) continue;
+      byForm.set(form, [...byForm.get(form) ?? [], subtree]);
+    }
+    for (const [form, subtrees] of byForm) {
+      const existing = state.permitted[form];
+      if (existing === null) {
+        state.permitted[form] = subtrees;
+        continue;
+      }
+      state.permitted[form] = subtrees.filter((subtree) => existing.some((outer) => subtreeCovers(outer, subtree.base)));
+    }
+  }
+  for (const subtree of excluded ?? []) {
+    const form = formOf(subtree.base);
+    if (form === null) continue;
+    state.excluded[form] = [...state.excluded[form], subtree];
+  }
+}
+function checkName(state, name) {
+  const form = formOf(name);
+  if (form === null) return null;
+  const text = nameText(name);
+  for (const subtree of state.excluded[form]) {
+    if (subtreeCovers(subtree, name)) return { form, text, why: "excluded" };
+  }
+  const permitted = state.permitted[form];
+  if (permitted === null) return null;
+  if (permitted.some((subtree) => subtreeCovers(subtree, name))) return null;
+  return { form, text, why: "not-permitted" };
+}
+function nameText(name) {
+  switch (name.kind) {
+    case "dNSName":
+    case "rfc822Name":
+    case "uniformResourceIdentifier":
+      return name.value;
+    case "iPAddress":
+      return name.address;
+    case "directoryName":
+      return `directoryName with ${String(name.name.rdns.length)} RDN(s)`;
+    default:
+      return name.kind;
+  }
+}
+
+// src/path/path-policies.ts
+var ANY_POLICY = "2.5.29.32.0";
+function initialPolicyState(n, requireExplicit, inhibitMapping, inhibitAny) {
+  const root = {
+    validPolicy: ANY_POLICY,
+    qualifiers: [],
+    expectedPolicySet: [ANY_POLICY],
+    children: [],
+    alive: true
+  };
+  return {
+    levels: [[root]],
+    explicitPolicy: requireExplicit ? 0 : n + 1,
+    policyMapping: inhibitMapping ? 0 : n + 1,
+    inhibitAnyPolicy: inhibitAny ? 0 : n + 1,
+    nodeCount: 1
+  };
+}
+var live = (level) => level.filter((node) => node.alive);
+function deepest(state) {
+  return state.levels === null ? null : state.levels[state.levels.length - 1];
+}
+function prunePolicyTree(state) {
+  const levels = state.levels;
+  if (levels === null) return;
+  for (let depth = levels.length - 2; depth >= 0; depth -= 1) {
+    const level = levels[depth];
+    const below = levels[depth + 1];
+    for (const node of level) {
+      if (!node.alive) continue;
+      node.children = node.children.filter((index) => below[index]?.alive === true);
+      if (node.children.length === 0) node.alive = false;
+    }
+  }
+  if (live(levels[0]).length === 0) state.levels = null;
+}
+function growPolicyTree(state, policies, maxNodes) {
+  const levels = state.levels;
+  const parents = deepest(state);
+  if (levels === null || parents === null) return "ok";
+  const next = [];
+  const push = (node, parentIndex) => {
+    if (state.nodeCount >= maxNodes) return false;
+    parents[parentIndex]?.children.push(next.length);
+    next.push(node);
+    state.nodeCount += 1;
+    return true;
+  };
+  const asserted = policies.filter((policy) => policy.policyIdentifier !== ANY_POLICY);
+  for (const policy of asserted) {
+    const id = policy.policyIdentifier;
+    let matched = false;
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive || !parent.expectedPolicySet.includes(id)) continue;
+      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
+      matched = true;
+    }
+    if (matched) continue;
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive || !parent.expectedPolicySet.includes(ANY_POLICY)) continue;
+      if (!push({ validPolicy: id, qualifiers: policy.qualifiers, expectedPolicySet: [id], children: [], alive: true }, index)) return "limit";
+    }
+  }
+  const any = policies.find((policy) => policy.policyIdentifier === ANY_POLICY);
+  if (any !== void 0 && state.inhibitAnyPolicy > 0) {
+    for (const [index, parent] of parents.entries()) {
+      if (!parent.alive) continue;
+      for (const expected of parent.expectedPolicySet) {
+        if (next.some((node, i) => node.validPolicy === expected && parent.children.includes(i))) continue;
+        if (!push({ validPolicy: expected, qualifiers: any.qualifiers, expectedPolicySet: [expected], children: [], alive: true }, index)) return "limit";
+      }
+    }
+  }
+  levels.push(next);
+  prunePolicyTree(state);
+  return "ok";
+}
+function killPolicyTree(state) {
+  state.levels = null;
+}
+function applyPolicyMappings(state, mappings) {
+  const level = deepest(state);
+  if (level === null) return;
+  const usable = mappings.filter((m) => m.issuerDomainPolicy !== ANY_POLICY && m.subjectDomainPolicy !== ANY_POLICY);
+  const byIssuer = /* @__PURE__ */ new Map();
+  for (const mapping of usable) {
+    byIssuer.set(mapping.issuerDomainPolicy, [...byIssuer.get(mapping.issuerDomainPolicy) ?? [], mapping.subjectDomainPolicy]);
+  }
+  for (const node of level) {
+    if (!node.alive) continue;
+    const mapped = byIssuer.get(node.validPolicy);
+    if (mapped === void 0) continue;
+    if (state.policyMapping > 0) node.expectedPolicySet = mapped;
+    else node.alive = false;
+  }
+  if (state.policyMapping === 0) prunePolicyTree(state);
+}
+function advancePolicyCounters(state, selfIssued, requireExplicit, inhibitMapping, inhibitAny) {
+  if (!selfIssued) {
+    if (state.explicitPolicy > 0) state.explicitPolicy -= 1;
+    if (state.policyMapping > 0) state.policyMapping -= 1;
+    if (state.inhibitAnyPolicy > 0) state.inhibitAnyPolicy -= 1;
+  }
+  if (requireExplicit !== void 0 && requireExplicit < state.explicitPolicy) state.explicitPolicy = requireExplicit;
+  if (inhibitMapping !== void 0 && inhibitMapping < state.policyMapping) state.policyMapping = inhibitMapping;
+  if (inhibitAny !== void 0 && inhibitAny < state.inhibitAnyPolicy) state.inhibitAnyPolicy = inhibitAny;
+}
+function wrapUpPolicies(state, initialPolicySet) {
+  const anyRequested = initialPolicySet.length === 0 || initialPolicySet.includes(ANY_POLICY);
+  const surviving = /* @__PURE__ */ new Set();
+  const level = deepest(state);
+  for (const node of level ?? []) {
+    if (node.alive) surviving.add(node.validPolicy);
+  }
+  const intersected = anyRequested ? [...surviving] : [...surviving].filter((policy) => initialPolicySet.includes(policy));
+  const treeSurvives = state.levels !== null && intersected.length > 0;
+  return state.explicitPolicy > 0 || treeSurvives ? intersected : null;
+}
+
 // src/x509/x509-name-format.ts
 var SHORT_NAMES = /* @__PURE__ */ new Map([
   ["2.5.4.3", "CN"],
@@ -2663,130 +3124,6 @@ function validateCertificatePath(input) {
     state.reasons.push(noValidPolicyReason("path"));
   }
   return { valid: state.reasons.length === 0, reasons: state.reasons, path: walked };
-}
-
-// src/asn1/asn1-time.ts
-var MAX_TIME_OCTETS = 64;
-var UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
-var GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(?:Z|[+-]\d{4})$/;
-function zoneOf(text) {
-  return text.endsWith("Z") ? "Z" : text.slice(-5);
-}
-function isLeapYear(year) {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-function daysInMonth(year, month) {
-  return month === 2 ? isLeapYear(year) ? 29 : 28 : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
-}
-function invalidTime(node, type, text, why) {
-  return new PkiEncodingError(
-    "PKI_ASN1_TIME_INVALID",
-    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 RFC 5280 and X.690 leave no lenient interpretation`,
-    node.offset
-  );
-}
-function toEpoch(node, type, text, f) {
-  if (f.month < 1 || f.month > 12) throw invalidTime(node, type, text, `names month ${f.month}`);
-  if (f.day < 1 || f.day > daysInMonth(f.year, f.month)) throw invalidTime(node, type, text, `names day ${f.day} of a month that has ${daysInMonth(f.year, f.month)}`);
-  if (f.hour > 23) throw invalidTime(node, type, text, `names hour ${f.hour}`);
-  if (f.minute > 59) throw invalidTime(node, type, text, `names minute ${f.minute}`);
-  if (f.second > 59) throw invalidTime(node, type, text, `names second ${f.second}`);
-  let offsetMinutes = 0;
-  if (f.zone !== "Z") {
-    const hours = Number(f.zone.slice(1, 3));
-    const minutes = Number(f.zone.slice(3, 5));
-    if (hours > 23 || minutes > 59) throw invalidTime(node, type, text, `has the impossible offset ${f.zone}`);
-    offsetMinutes = (f.zone[0] === "-" ? -1 : 1) * (hours * 60 + minutes);
-  }
-  const date = /* @__PURE__ */ new Date(0);
-  date.setUTCFullYear(f.year, f.month - 1, f.day);
-  date.setUTCHours(f.hour, f.minute, f.second, f.millisecond);
-  return date.getTime() - offsetMinutes * 6e4;
-}
-function _readTime(node, ctx, implicitType) {
-  let type;
-  if (node.tagClass === "universal") {
-    if (node.tagNumber === TAG_UTC_TIME) type = "UTCTime";
-    else if (node.tagNumber === TAG_GENERALIZED_TIME) type = "GeneralizedTime";
-    else {
-      throw new PkiEncodingError(
-        "PKI_ASN1_UNEXPECTED_TAG",
-        `pkinative: expected UTCTime or GeneralizedTime at offset ${node.offset}, found ${tagLabel(node.tagClass, node.tagNumber)}`,
-        node.offset
-      );
-    }
-  } else if (implicitType === void 0) {
-    throw new PkiError(
-      "PKI_API_MISUSE",
-      `pkinative: the value at offset ${node.offset} carries the implicit tag ${tagLabel(node.tagClass, node.tagNumber)}; pass timeType to say which time type it is`
-    );
-  } else {
-    type = implicitType;
-  }
-  const raw = stringContent(node, ctx, TAG_OCTET_STRING, type);
-  if (raw.length > MAX_TIME_OCTETS) {
-    throw invalidTime(
-      node,
-      type,
-      `${raw.length} octets`,
-      `is longer than the ${MAX_TIME_OCTETS} octets any well-formed ${type} needs`
-    );
-  }
-  const text = String.fromCharCode(...raw);
-  if (type === "UTCTime") {
-    const m2 = UTC_TIME.exec(text);
-    if (m2 === null) throw invalidTime(node, type, text, "is not YYMMDDHHMM[SS](Z|\xB1hhmm)");
-    const [, yy, mo2, dd2, hh2, mi2, ss2] = m2;
-    const zone2 = zoneOf(text);
-    if (ss2 === void 0 || zone2 !== "Z") {
-      if (ctx.rules === "der") throw invalidTime(node, type, text, "omits the seconds or the Z; DER requires YYMMDDHHMMSSZ (X.690 \xA711.8)");
-      noteBer(ctx, "UTCTime without seconds or with an offset", node.offset);
-    }
-    const twoDigit = Number(yy);
-    const epochMilliseconds2 = toEpoch(node, type, text, {
-      year: twoDigit >= 50 ? 1900 + twoDigit : 2e3 + twoDigit,
-      month: Number(mo2),
-      day: Number(dd2),
-      hour: Number(hh2),
-      minute: Number(mi2),
-      second: Number(ss2 ?? "0"),
-      millisecond: 0,
-      zone: zone2
-    });
-    return Object.freeze({ type, epochMilliseconds: epochMilliseconds2, text });
-  }
-  const m = GENERALIZED_TIME.exec(text);
-  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)");
-  const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
-  const zone = zoneOf(text);
-  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds");
-  const nonCanonical = ss === void 0 || zone !== "Z" || separator === "," || fraction !== void 0 && fraction.endsWith("0");
-  if (nonCanonical) {
-    if (ctx.rules === "der") {
-      throw invalidTime(node, type, text, "is not in the DER form YYYYMMDDHHMMSS[.f]Z with no trailing zero in the fraction (X.690 \xA711.7)");
-    }
-    noteBer(ctx, "non-canonical GeneralizedTime", node.offset);
-  }
-  const epochMilliseconds = toEpoch(node, type, text, {
-    year: Number(yyyy),
-    month: Number(mo),
-    day: Number(dd),
-    hour: Number(hh),
-    minute: Number(mi),
-    second: Number(ss ?? "0"),
-    millisecond: fraction === void 0 ? 0 : Number(`${fraction}000`.slice(0, 3)),
-    zone
-  });
-  return Object.freeze({ type, epochMilliseconds, text });
-}
-function readTime(node, options) {
-  const checked = assertNode(node, "readTime");
-  const ctx = createAsn1Context(options);
-  const implicitType = options?.timeType;
-  if (implicitType !== void 0 && implicitType !== "UTCTime" && implicitType !== "GeneralizedTime") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
-  }
-  return _readTime(checked, ctx, implicitType);
 }
 
 // src/asn1/asn1-encode.ts
@@ -4368,33 +4705,6 @@ function formatFingerprint(digest, options) {
   return letterCase === "upper" ? hex.toUpperCase() : hex;
 }
 
-// src/x509/x509-algorithm.ts
-var PKCS1_V15 = /* @__PURE__ */ new Set([
-  "1.2.840.113549.1.1.1",
-  "1.2.840.113549.1.1.2",
-  "1.2.840.113549.1.1.3",
-  "1.2.840.113549.1.1.4",
-  "1.2.840.113549.1.1.5",
-  "1.2.840.113549.1.1.11",
-  "1.2.840.113549.1.1.12",
-  "1.2.840.113549.1.1.13",
-  "1.2.840.113549.1.1.14",
-  "1.2.840.113549.1.1.15",
-  "1.2.840.113549.1.1.16"
-]);
-function _readAlgorithmIdentifier(node, ctx, path, code, parentOffset) {
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, code, parentOffset);
-  if (seq.children.length > 2) {
-    throw certificateError(code, path, seq.offset, `holds ${seq.children.length} values; an AlgorithmIdentifier is an OID and optional parameters`);
-  }
-  const oid = _readObjectIdentifier(expectUniversalField(seq.children[0], TAG_OID, `${path}.algorithm`, code, seq.offset), ctx);
-  const parameters = seq.children[1];
-  const isNull = parameters !== void 0 && parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
-  if (PKCS1_V15.has(oid) && !isNull) ctx.emitter.emit(rsaParametersNotNullDiagnostic(`${path}.parameters`, seq.offset));
-  const algorithm = { oid, parameters, der: seq.bytes };
-  return Object.freeze(algorithm);
-}
-
 // src/x509/x509-spki.ts
 var CODE3 = "PKI_X509_SPKI_INVALID";
 var OID_RSA = "1.2.840.113549.1.1.1";
@@ -4515,15 +4825,15 @@ function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
 }
 
 // src/x509/x509-certificate.ts
-var STRUCTURE = "PKI_X509_STRUCTURE_INVALID";
+var STRUCTURE2 = "PKI_X509_STRUCTURE_INVALID";
 var OID_SUBJECT_ALT_NAME = "2.5.29.17";
 var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
 function readVersion(field, ctx) {
   const path = "tbsCertificate.version";
   if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE, path, field.offset, "is not one INTEGER under the explicit [0] tag");
+    throw certificateError(STRUCTURE2, path, field.offset, "is not one INTEGER under the explicit [0] tag");
   }
-  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE, field.offset);
+  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE2, field.offset);
   const value = _readInteger(node, ctx);
   if (value !== 0n && value !== 1n && value !== 2n) {
     throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
@@ -4554,12 +4864,12 @@ function readValidity(node, ctx, parentOffset) {
   const validity = { notBefore, notAfter };
   return Object.freeze(validity);
 }
-function readExtensions(field, ctx, input, decode) {
+function readExtensions2(field, ctx, input, decode) {
   const path = "tbsCertificate.extensions";
   if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
+    throw certificateError(STRUCTURE2, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
   }
-  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE, field.offset);
+  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE2, field.offset);
   if (seq.children.length === 0) {
     throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
   }
@@ -4568,18 +4878,18 @@ function readExtensions(field, ctx, input, decode) {
   const extensions = [];
   for (let i = 0; i < seq.children.length; i++) {
     const extPath = `${path}[${i}]`;
-    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE, seq.offset);
+    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE2, seq.offset);
     if (ext.children.length < 2 || ext.children.length > 3) {
-      throw certificateError(STRUCTURE, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
+      throw certificateError(STRUCTURE2, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
     }
-    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE, ext.offset), ctx);
+    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE2, ext.offset), ctx);
     let critical = false;
     if (ext.children.length === 3) {
-      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE, ext.offset);
+      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE2, ext.offset);
       critical = _readBoolean(flag, ctx);
       if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
     }
-    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE, ext.offset);
+    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE2, ext.offset);
     const valueDer = _readOctetString(valueNode, ctx);
     if (seen.has(oid)) {
       throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
@@ -4604,11 +4914,11 @@ function parseCertificate(der, options) {
   if (typeof decode !== "boolean") {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
   }
-  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE, 0);
+  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE2, 0);
   if (cert.children.length !== 3) {
-    throw certificateError(STRUCTURE, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
+    throw certificateError(STRUCTURE2, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
   }
-  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE, cert.offset);
+  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE2, cert.offset);
   const fields = tbs.children;
   let index = 0;
   let version = 1;
@@ -4617,11 +4927,11 @@ function parseCertificate(der, options) {
     version = readVersion(first, ctx);
     index = 1;
   }
-  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE, tbs.offset);
+  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE2, tbs.offset);
   const serialValue = _readInteger(serialNode, ctx);
   if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
   if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
-  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE, tbs.offset);
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE2, tbs.offset);
   const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
   if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
   const validity = readValidity(fields[index++], ctx, tbs.offset);
@@ -4637,7 +4947,7 @@ function parseCertificate(der, options) {
     const tag = field.tagClass === "context" ? field.tagNumber : -1;
     if (tag !== 1 && tag !== 2 && tag !== 3) {
       throw certificateError(
-        STRUCTURE,
+        STRUCTURE2,
         `tbsCertificate[${index}]`,
         field.offset,
         `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
@@ -4646,7 +4956,7 @@ function parseCertificate(der, options) {
     const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
     if (tag <= rank) {
       throw certificateError(
-        tag === 3 ? STRUCTURE : "PKI_X509_UNIQUE_ID_INVALID",
+        tag === 3 ? STRUCTURE2 : "PKI_X509_UNIQUE_ID_INVALID",
         path,
         field.offset,
         "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
@@ -4654,7 +4964,7 @@ function parseCertificate(der, options) {
     }
     rank = tag;
     if (tag === 3) {
-      extensions = readExtensions(field, ctx, bytes, decode);
+      extensions = readExtensions2(field, ctx, bytes, decode);
       extensionsPresent = true;
       continue;
     }
@@ -4670,11 +4980,11 @@ function parseCertificate(der, options) {
   if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
     ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
   }
-  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE, cert.offset);
+  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE2, cert.offset);
   if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
     ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
   }
-  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE, cert.offset), ctx);
+  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE2, cert.offset), ctx);
   const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
   const certificate = {
     der: cert.bytes,
@@ -5264,6 +5574,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifySelfSignature };
+export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, canSign, canVerify, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

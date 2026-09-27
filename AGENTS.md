@@ -44,7 +44,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
 | `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
-| `src/path/` | RFC 5280 §6 path validation — synchronous, never throwing, reporting `PkiReason` | `.github/instructions/pki-core.instructions.md` |
+| `src/path/`, `src/revocation/` | RFC 5280 §6 path validation and §5 revocation lists — synchronous, never throwing, reporting `PkiReason` | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
@@ -64,6 +64,7 @@ x509   → types, core, asn1
 crypto → types, core, asn1
 build  → types, core, asn1, crypto
 path   → types, core, x509
+revocation → types, core, asn1, x509
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
@@ -78,9 +79,7 @@ path   → types, core, x509
 - Every public export has TSDoc with `@param`, `@returns` and `@throws`; `docs/assets/api.json` is generated from it.
 - Module header `/** pkinative — Title\n ===\n … */`, section dividers `// ── Name ──`, `/*#__PURE__*/` on module-level constant construction.
 
-## Finding a symbol
-
-- Public export → grep `docs/assets/api.json` for `"name":"<Export>"` (each lists its `module`); internal → grep `^export function <name>` in `src/`. README.md and ROADMAP.md are long: `grep -n "^## "` first, then a range.
+**Finding a symbol:** public export → grep `docs/assets/api.json` for `"name":"<Export>"` (each lists its `module`); internal → grep `^export function <name>` in `src/`. README.md and ROADMAP.md: `grep -n "^## "` first.
 
 ## Never touch
 

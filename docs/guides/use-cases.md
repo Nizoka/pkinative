@@ -1,6 +1,6 @@
 # Use cases
 
-> **Seven jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.
+> **Eight jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -271,9 +271,33 @@ The input is a [`PathValidationInput`](../assets/api.json) and the answer a [`Pa
 
 **What it refuses rather than ignores.** RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and `PROCESSED_CRITICAL_EXTENSIONS` is the exact boundary of what a chain may rely on: `basicConstraints`, `keyUsage`, `subjectAltName`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy` and `extKeyUsage`. Anything else marked critical comes back `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` — including `cRLDistributionPoints`, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer "valid" for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.
 
+## Ask a revocation list about one certificate
+
+The job: a CA published a CRL, and you want to know whether this certificate is on it.
+
+```ts
+import { findRevocation, parseCertificateList } from 'pkinative';
+
+const crl = parseCertificateList(der);
+console.log(crl.issuer, crl.thisUpdate, crl.nextUpdate, crl.entryCount);
+
+const entry = findRevocation(der, certificate.serialNumber.bytes);
+if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.revocationDate.epochMilliseconds));
+```
+
+**There is no array of entries, on purpose.** A CRL entry costs three ASN.1 nodes, so decoding the list into a tree hits `maxNodes` (200 000) at roughly 65 000 entries — while `maxInputBytes` would allow millions, and real CRLs sit in between. So the envelope is decoded and the list is **walked**, one TLV header at a time, in constant memory, bounded by `maxRevokedCertificates` (default 1 000 000). Exposing an array would either cap the library below real-world sizes or allocate hundreds of megabytes to answer one yes-or-no. `entryCount` is there when you genuinely want the size, and it is counted by walking.
+
+**Serials are compared by their content octets, never by `value`.** Two serials that differ only in a leading zero octet are two different serials to a CA, and comparing the `bigint` would make them one — a revocation silently missed. Pass `certificate.serialNumber.bytes`.
+
+`findRevocation` walks from the start each time, so checking many certificates against one CRL is O(n·m). The alternative is a map keyed by serial, and that is your decision: you know how many serials you have and how much memory you will spend on them. What this library must not do is build that map behind your back for a single lookup.
+
+`crl.crlNumber` and `crl.isDelta` are read from `cRLNumber` and `deltaCRLIndicator`; a **delta CRL is not a full one**, and treating it as complete would report every certificate absent from it as unrevoked.
+
+The envelope is a [`CertificateList`](../assets/api.json), an entry is a [`RevokedCertificate`](../assets/api.json) carrying its `reason` as a [`CrlReason`](../assets/api.json) and its `invalidityDate`, and `maxRevokedCertificates` is the bound on the walk.
+
 ## What none of these do yet
 
-Each of the seven is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the eight is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|

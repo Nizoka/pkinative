@@ -37,6 +37,8 @@ export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 
 // ── 7. Certification path validation (RFC 5280 section 6) ────────────
 
+export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
+export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';
 export { validateCertificatePath } from './path/path-validate.js';
 export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
 

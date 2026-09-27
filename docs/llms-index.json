@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 78757,
-      "approxTokens": 19689
+      "bytes": 81046,
+      "approxTokens": 20262
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 34466,
-      "approxTokens": 8617
+      "bytes": 40507,
+      "approxTokens": 10127
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 157500,
-      "approxTokens": 39375
+      "bytes": 164404,
+      "approxTokens": 41101
     },
     {
       "url": "data/errors.json",
@@ -48,14 +48,14 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 2596,
-      "approxTokens": 649
+      "bytes": 2900,
+      "approxTokens": 725
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 3959,
-      "approxTokens": 990
+      "bytes": 4248,
+      "approxTokens": 1062
     },
     {
       "url": "assets/ecosystem.json",
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12824,
-      "approxTokens": 3206
+      "bytes": 12842,
+      "approxTokens": 3211
     },
     {
       "title": "Use cases",
-      "summary": "Seven jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.",
+      "summary": "Eight jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -98,10 +98,11 @@
         "check-one-link-of-a-chain",
         "issue-a-certificate-without-ever-holding-the-key",
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
+        "ask-a-revocation-list-about-one-certificate",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 22072,
-      "approxTokens": 5518
+      "bytes": 24343,
+      "approxTokens": 6086
     },
     {
       "title": "Security model",

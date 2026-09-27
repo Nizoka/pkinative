@@ -57,6 +57,10 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // the data. No crypto: signature verdicts arrive precomputed, which keeps
     // the state machine synchronous, pure, and fuzzable without a host.
     path: ['types', 'core', 'x509'],
+    // CRL and OCSP parsing: structures x509 does not model, read with the same
+    // readers. No crypto: a revocation verdict takes a precomputed signature
+    // verdict, exactly as section 6 does, so revocation stays synchronous too.
+    revocation: ['types', 'core', 'asn1', 'x509'],
 });
 
 export const ENTRY = 'src/index.ts';

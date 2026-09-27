@@ -12,7 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 ## Guides
 
-- [Security model](https://pkinative.dev/guides/security.md): strict DER, the thirteen limits, typed failures, the cryptography boundary
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the fourteen limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when not yet
@@ -125,11 +125,11 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 
-pkinative has 173 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 178 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
-Every certificate, PEM text and DER blob is attacker-controlled. Thirteen named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
+Every certificate, PEM text and DER blob is attacker-controlled. Fourteen named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
 
 ## Conformance
 
@@ -286,7 +286,7 @@ Never branch on the message. The [error guide](errors.md) lists every code with 
 
 ## Limits
 
-Thirteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
+Fourteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
 
 ```ts
 parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
@@ -326,7 +326,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 11 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation.
+- [recipes/](../../recipes/) — 12 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, revocation lists.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -335,7 +335,7 @@ Error code unions are in the [errors guide](errors.md).
 
 # Use cases
 
-> **Seven jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, and the seventh validates a whole chain.
+> **Eight jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, and the eighth asks a revocation list about one certificate.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -606,9 +606,33 @@ The input is a [`PathValidationInput`](../assets/api.json) and the answer a [`Pa
 
 **What it refuses rather than ignores.** RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and `PROCESSED_CRITICAL_EXTENSIONS` is the exact boundary of what a chain may rely on: `basicConstraints`, `keyUsage`, `subjectAltName`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy` and `extKeyUsage`. Anything else marked critical comes back `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` — including `cRLDistributionPoints`, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer "valid" for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.
 
+## Ask a revocation list about one certificate
+
+The job: a CA published a CRL, and you want to know whether this certificate is on it.
+
+```ts
+import { findRevocation, parseCertificateList } from 'pkinative';
+
+const crl = parseCertificateList(der);
+console.log(crl.issuer, crl.thisUpdate, crl.nextUpdate, crl.entryCount);
+
+const entry = findRevocation(der, certificate.serialNumber.bytes);
+if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.revocationDate.epochMilliseconds));
+```
+
+**There is no array of entries, on purpose.** A CRL entry costs three ASN.1 nodes, so decoding the list into a tree hits `maxNodes` (200 000) at roughly 65 000 entries — while `maxInputBytes` would allow millions, and real CRLs sit in between. So the envelope is decoded and the list is **walked**, one TLV header at a time, in constant memory, bounded by `maxRevokedCertificates` (default 1 000 000). Exposing an array would either cap the library below real-world sizes or allocate hundreds of megabytes to answer one yes-or-no. `entryCount` is there when you genuinely want the size, and it is counted by walking.
+
+**Serials are compared by their content octets, never by `value`.** Two serials that differ only in a leading zero octet are two different serials to a CA, and comparing the `bigint` would make them one — a revocation silently missed. Pass `certificate.serialNumber.bytes`.
+
+`findRevocation` walks from the start each time, so checking many certificates against one CRL is O(n·m). The alternative is a map keyed by serial, and that is your decision: you know how many serials you have and how much memory you will spend on them. What this library must not do is build that map behind your back for a single lookup.
+
+`crl.crlNumber` and `crl.isDelta` are read from `cRLNumber` and `deltaCRLIndicator`; a **delta CRL is not a full one**, and treating it as complete would report every certificate absent from it as unrevoked.
+
+The envelope is a [`CertificateList`](../assets/api.json), an entry is a [`RevokedCertificate`](../assets/api.json) carrying its `reason` as a [`CrlReason`](../assets/api.json) and its `invalidityDate`, and `maxRevokedCertificates` is the bound on the walk.
+
 ## What none of these do yet
 
-Each of the seven is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the eight is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|

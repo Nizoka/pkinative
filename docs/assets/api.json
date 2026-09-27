@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 173,
+  "exportCount": 178,
   "exports": [
     {
       "name": "AccessDescription",
@@ -538,6 +538,102 @@
       ]
     },
     {
+      "name": "CertificateList",
+      "kind": "type",
+      "module": "src/types/crl-types.ts",
+      "signature": "export interface CertificateList",
+      "summary": "A parsed `CertificateList` (RFC 5280 §5.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole CRL, as a zero-copy view of the input."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `tbsCertList` bytes the signature covers."
+        },
+        {
+          "name": "version",
+          "type": "1 | 2",
+          "optional": false,
+          "summary": "`1` for v1, `2` for v2 (the encoded INTEGER is 0 or 1)."
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the outer signature was made with."
+        },
+        {
+          "name": "tbsSignatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "`tbsCertList.signature`; RFC 5280 §5.1.1.2 requires it to equal the outer one."
+        },
+        {
+          "name": "signatureValue",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The signature over `tbsDer`, as a BIT STRING of whole octets."
+        },
+        {
+          "name": "issuer",
+          "type": "DistinguishedName",
+          "optional": false,
+          "summary": "The CA that issued this list."
+        },
+        {
+          "name": "thisUpdate",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": "When this list was produced."
+        },
+        {
+          "name": "nextUpdate",
+          "type": "PkiTime | undefined",
+          "optional": false,
+          "summary": "Absent in a CRL that promises no successor, which RFC 5280 discourages."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`crlExtensions`, decoded; empty when there are none."
+        },
+        {
+          "name": "crlNumber",
+          "type": "bigint | undefined",
+          "optional": false,
+          "summary": "`cRLNumber` (RFC 5280 §5.2.3), or undefined when absent."
+        },
+        {
+          "name": "isDelta",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether `deltaCRLIndicator` (§5.2.4) is present — a delta CRL is not a full one."
+        },
+        {
+          "name": "entryCount",
+          "type": "number",
+          "optional": false,
+          "summary": "Entries in `revokedCertificates`, counted by walking rather than decoding."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading the envelope, in encoded order."
+        }
+      ]
+    },
+    {
       "name": "CertificatePoliciesExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -706,10 +802,21 @@
       ]
     },
     {
+      "name": "CrlReason",
+      "kind": "type",
+      "module": "src/types/crl-types.ts",
+      "signature": "export type CrlReason = | 'unspecified' | 'keyCompromise' | 'cACompromise' | 'affiliationChanged' | 'superseded' | 'cessationOfOperation' | 'certificateHold' | 'removeFromCRL' | 'privilegeWithdrawn' | 'aACompromise'",
+      "summary": "The `CRLReason` values of RFC 5280 §5.3.1.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -2230,6 +2337,12 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of live nodes in the RFC 5280 valid_policy_tree."
+        },
+        {
+          "name": "maxRevokedCertificates",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of entries walked in one CRL revokedCertificates list."
         }
       ]
     },
@@ -2678,6 +2791,48 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "RevokedCertificate",
+      "kind": "type",
+      "module": "src/types/crl-types.ts",
+      "signature": "export interface RevokedCertificate",
+      "summary": "One entry of `revokedCertificates` (RFC 5280 §5.1.2.6).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "serialNumber",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": "The revoked certificate's serial."
+        },
+        {
+          "name": "revocationDate",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": "When the CA says the certificate stopped being trustworthy."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`crlEntryExtensions`, decoded; empty when the entry has none."
+        },
+        {
+          "name": "reason",
+          "type": "CrlReason | undefined",
+          "optional": false,
+          "summary": "Reason code from `cRLReason` (RFC 5280 §5.3.1), or undefined when absent."
+        },
+        {
+          "name": "invalidityDate",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": "`invalidityDate` (RFC 5280 §5.3.2) in epoch milliseconds, or undefined."
+        }
+      ]
     },
     {
       "name": "RsaPublicKeyInfo",
@@ -4186,6 +4341,33 @@
       "members": null
     },
     {
+      "name": "findRevocation",
+      "kind": "function",
+      "module": "src/revocation/crl-parse.ts",
+      "signature": "export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: PkiParseOptions): RevokedCertificate | undefined",
+      "summary": "Look one serial number up in the revocation list.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The same bytes `parseCertificateList` was given."
+        },
+        {
+          "name": "serial",
+          "description": "The certificate's serial number."
+        },
+        {
+          "name": "options",
+          "description": "The same options; the limits apply to the walk."
+        }
+      ],
+      "returns": "The entry, or undefined when the serial is not listed.",
+      "members": null
+    },
+    {
       "name": "formatDistinguishedName",
       "kind": "function",
       "module": "src/x509/x509-name-format.ts",
@@ -4302,6 +4484,30 @@
         }
       ],
       "returns": "The frozen certificate, with every diagnostic of the parse on `diagnostics`.",
+      "members": null
+    },
+    {
+      "name": "parseCertificateList",
+      "kind": "function",
+      "module": "src/revocation/crl-parse.ts",
+      "signature": "export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions): CertificateList",
+      "summary": "Parse an RFC 5280 CertificateList.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The complete CertificateList."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics — the same options every other entry point takes."
+        }
+      ],
+      "returns": "The parsed CRL, with zero-copy views of `der`.",
       "members": null
     },
     {

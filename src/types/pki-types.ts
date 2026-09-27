@@ -43,6 +43,8 @@ export interface PkiLimits {
     readonly maxChainLength: number;
     /** Maximum number of live nodes in the RFC 5280 valid_policy_tree. CWE-770. */
     readonly maxPolicyNodes: number;
+    /** Maximum number of entries walked in one CRL revokedCertificates list. CWE-400. */
+    readonly maxRevokedCertificates: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────
