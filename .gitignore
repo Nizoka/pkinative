@@ -31,3 +31,5 @@ test-output/
 
 # Claude Code per-machine settings (the shared ones are .claude/settings.json)
 .claude/settings.local.json
+# Isolated git worktrees Claude Code creates for parallel agents
+.claude/worktrees/
