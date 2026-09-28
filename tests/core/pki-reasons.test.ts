@@ -1,6 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+    cmsAlgorithmMismatchReason,
+    cmsAttributeInvalidReason,
+    cmsContentMissingReason,
+    cmsDigestMismatchReason,
+    cmsNoSignersReason,
+    cmsSignerNotFoundReason,
+    cmsSigningCertificateMismatchReason,
+    tspImprintMismatchReason,
+    tspNotGrantedReason,
+    tspRequestMismatchReason,
+    tspTokenInvalidReason,
     expiredReason,
     inputMalformedReason,
     issuerNotFoundReason,
@@ -58,6 +69,17 @@ const ALL: ReadonlyArray<{ readonly code: PkiReasonCode; readonly reason: PkiRea
     { code: 'PKI_REASON_REVOCATION_PARTIAL', reason: revocationPartialReason('crl', ['keyCompromise']) },
     { code: 'PKI_REASON_REVOCATION_UNKNOWN', reason: revocationUnknownReason('crl', 'no list was supplied at all') },
     { code: 'PKI_REASON_REVOCATION_MISMATCH', reason: revocationMismatchReason('ocsp', 'it answers about serial 2b') },
+    { code: 'PKI_REASON_CMS_NO_SIGNERS', reason: cmsNoSignersReason('signerInfos') },
+    { code: 'PKI_REASON_CMS_SIGNER_NOT_FOUND', reason: cmsSignerNotFoundReason('signerInfos[0].sid', 'issuer CN=Example CA, serial 2b') },
+    { code: 'PKI_REASON_CMS_CONTENT_MISSING', reason: cmsContentMissingReason('encapContentInfo') },
+    { code: 'PKI_REASON_CMS_DIGEST_MISMATCH', reason: cmsDigestMismatchReason('signerInfos[0].messageDigest') },
+    { code: 'PKI_REASON_CMS_ATTRIBUTE_INVALID', reason: cmsAttributeInvalidReason('signerInfos[0].signedAttrs', 'the contentType attribute is missing') },
+    { code: 'PKI_REASON_CMS_ALGORITHM_MISMATCH', reason: cmsAlgorithmMismatchReason('signerInfos[0].signatureAlgorithm', 'ecdsa-with-SHA384 over a SHA-256 digestAlgorithm') },
+    { code: 'PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH', reason: cmsSigningCertificateMismatchReason('signerInfos[0].signingCertificate', 'the certHash names another certificate') },
+    { code: 'PKI_REASON_TSP_NOT_GRANTED', reason: tspNotGrantedReason('status', 'rejection', ['unsupported algorithm'], ['badAlg']) },
+    { code: 'PKI_REASON_TSP_TOKEN_INVALID', reason: tspTokenInvalidReason('token', 'the token carries two signers') },
+    { code: 'PKI_REASON_TSP_IMPRINT_MISMATCH', reason: tspImprintMismatchReason('tstInfo.messageImprint') },
+    { code: 'PKI_REASON_TSP_REQUEST_MISMATCH', reason: tspRequestMismatchReason('tstInfo.nonce', 'the nonce 17 was sent and 18 came back') },
     { code: 'PKI_REASON_NO_VALID_POLICY', reason: noValidPolicyReason('path') },
     { code: 'PKI_REASON_POLICY_MAPPING_INVALID', reason: policyMappingInvalidReason('path[1].policyMappings', '2.5.29.32.0', '1.3.6.1.4.1.1') },
     { code: 'PKI_REASON_ISSUER_NOT_FOUND', reason: issuerNotFoundReason('path[0]', 'CN=Example Root') },
@@ -131,6 +153,26 @@ describe('validation reasons', () => {
     it('should distinguish the two ways a certificate may not issue', () => {
         expect(notACaReason('path[1]', 'basicConstraints').message).toContain('cA in basicConstraints');
         expect(notACaReason('path[1]', 'keyUsage').message).toContain('keyCertSign in keyUsage');
+    });
+
+    it('should say which RFC 3161 rule a TSA certificate broke, under the same code', () => {
+        // A TSA's extKeyUsage must be critical and must name timestamping
+        // alone. It is the same fact as any other purpose refusal — this
+        // certificate may not be used for this — so it is the same code, with
+        // the sentence and the clause that say which rule it broke.
+        const TSA = '1.3.6.1.5.5.7.3.8';
+        const critical = purposeNotPermittedReason('tsa.extKeyUsage', TSA, [TSA], 'critical');
+        const exclusive = purposeNotPermittedReason('tsa.extKeyUsage', TSA, [TSA, '1.3.6.1.5.5.7.3.4'], 'exclusive');
+        const ordinary = purposeNotPermittedReason('tsa.extKeyUsage', TSA, ['1.3.6.1.5.5.7.3.4']);
+        expect([critical.code, exclusive.code, ordinary.code]).toEqual(Array(3).fill('PKI_REASON_PURPOSE_NOT_PERMITTED'));
+        expect([critical.standard, exclusive.standard, ordinary.standard]).toEqual(['RFC 3161 §2.3', 'RFC 3161 §2.3', 'RFC 5280 §4.2.1.12']);
+        expect(critical.message).toContain('not critical');
+        expect(exclusive.message).toContain('1.3.6.1.5.5.7.3.4');
+    });
+
+    it('should say what a TSA declined with, and stay quiet about what it did not say', () => {
+        expect(tspNotGrantedReason('status', 'waiting', [], []).message).not.toContain('It said');
+        expect(tspNotGrantedReason('status', 'rejection', ['no'], ['badAlg']).message).toContain('badAlg');
     });
 
     it('should be frozen, so a report cannot be edited after it is returned', () => {

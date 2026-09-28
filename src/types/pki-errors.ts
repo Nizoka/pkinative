@@ -88,6 +88,21 @@ export type PkiCryptoErrorCode =
     | 'PKI_CRYPTO_ALGORITHM_REFUSED';       // pkinative can compute this signature but will not treat it as evidence (CWE-327)
 
 /**
+ * Codes carried by {@link PkiCmsError}: the DER is well formed but is not the
+ * RFC 5652 or RFC 3161 structure it was read as.
+ *
+ * Four, and each is a different remedy. Every way a value can fail to match
+ * the ASN.1 module is one code, as it is for certificates; the other three
+ * are the cases a caller acts on differently — the wrong kind of CMS content,
+ * a syntax version from the future, and PKCS #7 content that is not octets.
+ */
+export type PkiCmsErrorCode =
+    | 'PKI_CMS_STRUCTURE_INVALID'           // the value does not match the RFC 5652 or RFC 3161 ASN.1 module (CWE-1286)
+    | 'PKI_CMS_CONTENT_TYPE_UNEXPECTED'     // a ContentInfo of another type than the one asked for, e.g. enveloped-data (CWE-843)
+    | 'PKI_CMS_VERSION_UNSUPPORTED'         // a SignedData or TSTInfo version the syntax does not define (CWE-1286)
+    | 'PKI_CMS_CONTENT_NOT_OCTET_STRING';   // PKCS #7 content that is not an OCTET STRING, e.g. Authenticode (CWE-843)
+
+/**
  * Every stable error code pkinative can throw. Frozen from 0.8.0:
  * removal or renaming is semver-major; additions are semver-minor.
  */
@@ -96,7 +111,8 @@ export type PkiErrorCode =
     | PkiEncodingErrorCode
     | PkiCertificateErrorCode
     | PkiLimitErrorCode
-    | PkiCryptoErrorCode;
+    | PkiCryptoErrorCode
+    | PkiCmsErrorCode;
 
 // ── Classes ──────────────────────────────────────────────────────────
 
@@ -189,5 +205,33 @@ export class PkiCryptoError extends PkiError<PkiCryptoErrorCode> {
         super(code, message);
         this.name = 'PkiCryptoError';
         this.algorithm = algorithm;
+    }
+}
+
+/**
+ * The DER is well formed but does not match the RFC 5652 CMS or RFC 3161
+ * timestamp structure it was read as.
+ *
+ * Its own class rather than a {@link PkiCertificateError}, which revocation
+ * lists and OCSP responses share with certificates: those three are RFC 5280
+ * and RFC 6960 structures read with the certificate readers, and a caller
+ * catching certificate errors expects to be told about one of them. A signed
+ * message is a different object, and `instanceof` should say so.
+ *
+ * It says nothing about whether any signature is good. A SignedData whose
+ * signature does not verify parses without complaint; that verdict belongs to
+ * `verifySignedData`, which reports it rather than throwing.
+ */
+export class PkiCmsError extends PkiError<PkiCmsErrorCode> {
+    /** Where in the structure, e.g. `signerInfos[0].signedAttrs`, when known. */
+    readonly path: string | undefined;
+    /** Absolute byte offset of the offending value, when known. */
+    readonly offset: number | undefined;
+
+    constructor(code: PkiCmsErrorCode, message: string, path?: string, offset?: number) {
+        super(code, message);
+        this.name = 'PkiCmsError';
+        this.path = path;
+        this.offset = offset;
     }
 }

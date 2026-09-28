@@ -252,11 +252,163 @@ export function nameMismatchReason(path: string, wanted: string, found: string):
  * and naming something else"* are different facts about a certificate, and a
  * reader deciding whether to ask the CA for a reissue needs to know which.
  */
-export function purposeNotPermittedReason(path: string, purpose: string, permitted: readonly string[] | null): PkiReason {
+export function purposeNotPermittedReason(
+    path: string,
+    purpose: string,
+    permitted: readonly string[] | null,
+    rule?: 'critical' | 'exclusive',
+): PkiReason {
+    const listed = (permitted ?? []).join(', ') || 'none';
+    // RFC 3161 §2.3 is the one profile that asks more of extKeyUsage than that
+    // it name the purpose: a TSA's must be critical and name timestamping
+    // alone. It is the same fact — this certificate may not be used for this —
+    // so it is the same code, with the sentence that says which rule it broke.
+    if (rule === 'critical') {
+        return _reason('PKI_REASON_PURPOSE_NOT_PERMITTED', 'RFC 3161 §2.3',
+            `the certificate names ${purpose}, but its extKeyUsage is not critical, and a timestamp authority's must be — a non-critical purpose is one any relying party may ignore`,
+            path);
+    }
+    if (rule === 'exclusive') {
+        return _reason('PKI_REASON_PURPOSE_NOT_PERMITTED', 'RFC 3161 §2.3',
+            `the certificate names ${purpose} among other purposes (${listed}), and a timestamp authority's certificate must name it alone`,
+            path);
+    }
     return _reason('PKI_REASON_PURPOSE_NOT_PERMITTED', 'RFC 5280 §4.2.1.12',
         permitted === null
             ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly`
-            : `the purpose ${purpose} is not among the ones this certificate permits (${permitted.join(', ') || 'none'}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
+            : `the purpose ${purpose} is not among the ones this certificate permits (${listed}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
+        path);
+}
+
+// ── Signed messages (RFC 5652) ────────────────────────────────────────
+
+/**
+ * The SignedData has no signer.
+ *
+ * RFC 5652 §5.1 allows it — it is how `.p7b` certificate bundles are shipped —
+ * and parsing one is ordinary. Verifying one proves nothing, and it has its
+ * own code because the failure it guards against is silent: `[].every(valid)`
+ * is `true`, so a verifier that looped over the signers would call a bundle of
+ * certificates a valid signature.
+ */
+export function cmsNoSignersReason(path: string): PkiReason {
+    return _reason('PKI_REASON_CMS_NO_SIGNERS', 'RFC 5652 §5.1',
+        'the SignedData has no signer, so it signs nothing; a certificate bundle is read this way, and verifying one proves nothing about any content',
+        path);
+}
+
+/** No available certificate matches the signer's identifier. */
+export function cmsSignerNotFoundReason(path: string, identifier: string): PkiReason {
+    return _reason('PKI_REASON_CMS_SIGNER_NOT_FOUND', 'RFC 5652 §5.3',
+        `no certificate in the message or among those supplied matches the signer identifier (${identifier}); supply the signer's certificate, since without it there is no key to check the signature with`,
+        path);
+}
+
+/**
+ * The content is detached and was not supplied.
+ *
+ * Absent content is never empty content. A verifier that hashed zero bytes in
+ * its place would check the signature against something the signer never
+ * signed — and, worse, would pass a signature made over the empty string.
+ */
+export function cmsContentMissingReason(path: string): PkiReason {
+    return _reason('PKI_REASON_CMS_CONTENT_MISSING', 'RFC 5652 §5.2',
+        'the content is detached and was not supplied; pass the signed content, or its digest when the signer used signed attributes — absent content is not empty content',
+        path);
+}
+
+/**
+ * The content does not hash to what the signer committed to.
+ *
+ * This is the integrity failure itself: the signature may well verify, over
+ * signed attributes that faithfully record the digest of **some other**
+ * content. RFC 5652 §5.6 forbids trusting the signer's digest for that reason
+ * — the recipient computes its own and compares.
+ */
+export function cmsDigestMismatchReason(path: string): PkiReason {
+    return _reason('PKI_REASON_CMS_DIGEST_MISMATCH', 'RFC 5652 §11.2',
+        'the content does not hash to the digest the signer committed to in its messageDigest attribute; the content was altered, or this is not the content that was signed',
+        path);
+}
+
+/** A signed attribute the syntax requires is missing, repeated, multi-valued, misplaced or wrong. */
+export function cmsAttributeInvalidReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_CMS_ATTRIBUTE_INVALID', 'RFC 5652 §11',
+        `${why}; the signed attributes are what bind a signature to a content and a content type, and one that breaks these rules binds nothing reliably`,
+        path);
+}
+
+/**
+ * The signer's algorithms disagree, or one is refused.
+ *
+ * A SignerInfo names its digest up to three times — `digestAlgorithm`, the
+ * digest built into `signatureAlgorithm`, and the `CMSAlgorithmProtection`
+ * attribute — and only the last is signed. Letting them disagree is how an
+ * algorithm-substitution attack works (RFC 6211 §1): the verifier is steered
+ * into checking the signature under a weaker algorithm than the signer chose.
+ */
+export function cmsAlgorithmMismatchReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_CMS_ALGORITHM_MISMATCH', 'RFC 6211 §3',
+        `${why}; a signer's algorithms must name one digest and one signature scheme, and disagreement between them is how an algorithm-substitution attack steers a verifier`,
+        path);
+}
+
+/**
+ * The signing-certificate attribute names another certificate.
+ *
+ * `ESSCertID` and `ESSCertIDv2` exist because a key can have more than one
+ * certificate: a rollover, a cross-signature, a misissued second one. Without
+ * the binding, a signature can be presented under whichever of them suits the
+ * presenter; with it, only the one the signer committed to counts.
+ */
+export function cmsSigningCertificateMismatchReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH', 'RFC 5035 §3',
+        `${why}; the signer committed to one specific certificate, and a signature presented under any other certificate for the same key is being re-attributed`,
+        path);
+}
+
+// ── Timestamps (RFC 3161) ─────────────────────────────────────────────
+
+/** The TSA declined; the response carries no token. */
+export function tspNotGrantedReason(path: string, status: string, statusStrings: readonly string[], failInfo: readonly string[]): PkiReason {
+    const said = statusStrings.length === 0 ? '' : ` It said: "${statusStrings.join(' / ')}".`;
+    const why = failInfo.length === 0 ? '' : ` Failure: ${failInfo.join(', ')}.`;
+    return _reason('PKI_REASON_TSP_NOT_GRANTED', 'RFC 3161 §2.4.2',
+        `the timestamp authority answered ${status} and issued no token.${said}${why}`,
+        path);
+}
+
+/** The token breaks a rule RFC 3161 sets for tokens. */
+export function tspTokenInvalidReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_TSP_TOKEN_INVALID', 'RFC 3161 §2.4.2',
+        `${why}; a timestamp token is a narrower thing than a SignedData, and one that breaks its rules is not evidence of a time`,
+        path);
+}
+
+/**
+ * The token stamps another hash.
+ *
+ * A token proves that **a hash** existed at a time. Whether it is the hash of
+ * your data is the one thing it cannot tell you on its own, which is why every
+ * timestamp check starts from the caller's imprint and never from the token's.
+ */
+export function tspImprintMismatchReason(path: string): PkiReason {
+    return _reason('PKI_REASON_TSP_IMPRINT_MISMATCH', 'RFC 3161 §2.4.2',
+        'the token stamps a different hash from the one expected; it may be a perfectly good timestamp, of something else',
+        path);
+}
+
+/**
+ * The token does not answer the request that was sent.
+ *
+ * Its own code rather than a flavour of `IMPRINT_MISMATCH`, for the reason
+ * `REVOCATION_MISMATCH` is its own: a nonce that does not come back is a
+ * replayed or substituted response, and retrying the same TSA is the wrong
+ * reaction to that.
+ */
+export function tspRequestMismatchReason(path: string, what: string): PkiReason {
+    return _reason('PKI_REASON_TSP_REQUEST_MISMATCH', 'RFC 3161 §2.4.2',
+        `the token does not answer the request that was sent: ${what}. A response that fails to echo its request may be replayed or substituted`,
         path);
 }
 

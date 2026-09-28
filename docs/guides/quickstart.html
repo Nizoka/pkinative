@@ -220,7 +220,7 @@
       </code></pre>
       <p>Never branch on the message. The <a href="errors.html">error guide</a> lists every code with its cause and remedy.</p>
       <h2 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h2>
-      <p>Sixteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
+      <p>Nineteen named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
       <pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
       </code></pre>
       <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>

@@ -911,7 +911,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, maxPathsExplored: 1000, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, maxPathsExplored: 1000, maxSignerInfos: 64, maxCmsAttributes: 256, maxCmsBagEntries: 1024, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -2814,7 +2814,7 @@
       "name": "PkiErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiErrorCode = | PkiBaseErrorCode | PkiEncodingErrorCode | PkiCertificateErrorCode | PkiLimitErrorCode | PkiCryptoErrorCode",
+      "signature": "export type PkiErrorCode = | PkiBaseErrorCode | PkiEncodingErrorCode | PkiCertificateErrorCode | PkiLimitErrorCode | PkiCryptoErrorCode | PkiCmsErrorCode",
       "summary": "Every stable error code pkinative can throw.",
       "throws": null,
       "params": null,
@@ -2948,6 +2948,24 @@
           "type": "number",
           "optional": false,
           "summary": "Maximum number of candidate paths explored while building one."
+        },
+        {
+          "name": "maxSignerInfos",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of SignerInfo entries in one SignedData — each costs a signature verification."
+        },
+        {
+          "name": "maxCmsAttributes",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of attributes in one signed or unsigned attribute set."
+        },
+        {
+          "name": "maxCmsBagEntries",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them."
         }
       ]
     },

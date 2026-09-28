@@ -164,6 +164,56 @@ export function rdnSetNotSortedDiagnostic(path: string, offset?: number): PkiDia
         path, offset);
 }
 
+/**
+ * A SignedData or SignerInfo declares a version RFC 5652 knows, but not the
+ * one §5.1 or §5.3 derives from what the structure carries.
+ *
+ * A diagnostic, not a refusal: RFC 5652 §1.3 asks readers to be forgiving of
+ * a wrong version, and the version is not covered by any signature — so it
+ * decides nothing. The tag of `sid`, not the version, says which alternative
+ * a signer uses.
+ */
+export function cmsVersionMismatchDiagnostic(path: string, declared: number, derived: number, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_VERSION_MISMATCH', 'warning', 'RFC 5652 §5.1',
+        `declares version ${String(declared)} where the structure it carries calls for version ${String(derived)}; the version is not signed and decides nothing here, but a strict reader may refuse it`,
+        path, offset);
+}
+
+/**
+ * A SET OF outside every signature is not in DER order.
+ *
+ * `digestAlgorithms`, `certificates`, `crls` and `signerInfos` are all SET OF
+ * and none is signed, so the order changes nothing a verifier decides. It is
+ * still a DER violation, and the one real signers commit most: 91 of the 224
+ * signed messages NIST ships with PKITS carry an unsorted certificate set.
+ */
+export function cmsSetNotSortedDiagnostic(path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_SET_NOT_SORTED', 'warning', 'ITU-T X.690 §11.6',
+        'this SET OF is not in DER order; nothing signed depends on it, but a strict DER reader will refuse the message',
+        path, offset);
+}
+
+/**
+ * The signed attributes are not in DER SET OF order.
+ *
+ * RFC 5652 §5.3 requires DER, and many signers do not sort. The signature is
+ * over the bytes **as they were signed**, so pkinative verifies those bytes
+ * and says so here. The concern is interoperability: a verifier that
+ * re-encodes the set before checking the signature will reject this message.
+ */
+export function cmsSignedAttributesNotDerDiagnostic(path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER', 'warning', 'RFC 5652 §5.3',
+        'the signed attributes are not in DER SET OF order; the signature is checked over the bytes as signed, but a verifier that re-encodes them before checking will reject it',
+        path, offset);
+}
+
+/** A signer's digest algorithm is missing from `SignedData.digestAlgorithms`. */
+export function cmsDigestAlgorithmNotListedDiagnostic(path: string, oid: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED', 'warning', 'RFC 5652 §5.1',
+        `the signer's digest algorithm ${oid} is not listed in digestAlgorithms, which exists so that a one-pass verifier can start hashing before it reaches the signers; RFC 5652 lets such a verifier fail`,
+        path, offset);
+}
+
 export function printableStringCharsetDiagnostic(path: string, character: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_PRINTABLE_STRING_CHARSET', 'warning', 'ITU-T X.680 §41.4',
         `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,

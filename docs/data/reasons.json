@@ -172,6 +172,83 @@
       "standard": "RFC 5280 §6.1"
     },
     {
+      "code": "PKI_REASON_CMS_NO_SIGNERS",
+      "since": "0.7.0",
+      "returnedWhen": "The SignedData has no SignerInfo. RFC 5652 allows it — it is how .p7b certificate bundles ship a chain — but it signs nothing.",
+      "remedy": "This is a certificate bundle, not a signature. Read its certificates with parseSignedData; there is nothing to verify.",
+      "standard": "RFC 5652 §5.1"
+    },
+    {
+      "code": "PKI_REASON_CMS_SIGNER_NOT_FOUND",
+      "since": "0.7.0",
+      "returnedWhen": "No certificate carried in the message or supplied by the caller matches the signer's identifier — by issuer DER and serial, or by subjectKeyIdentifier extension.",
+      "remedy": "Supply the signer's certificate through the certificates option. The identifier is not signed, so it only selects candidates; the signature decides between them.",
+      "standard": "RFC 5652 §5.3"
+    },
+    {
+      "code": "PKI_REASON_CMS_CONTENT_MISSING",
+      "since": "0.7.0",
+      "returnedWhen": "The content is detached (eContent absent) and neither the content nor its digest was supplied.",
+      "remedy": "Pass content, or contentDigest when the signer used signed attributes. Absent content is never treated as empty content.",
+      "standard": "RFC 5652 §5.2"
+    },
+    {
+      "code": "PKI_REASON_CMS_DIGEST_MISMATCH",
+      "since": "0.7.0",
+      "returnedWhen": "The content does not hash, under the signer's digestAlgorithm, to the value of its messageDigest attribute.",
+      "remedy": "The content was altered, or it is not the content that was signed. For a PDF, check that the digest covers exactly the /ByteRange; for S/MIME, that the MIME entity was canonicalised to CRLF.",
+      "standard": "RFC 5652 §11.2"
+    },
+    {
+      "code": "PKI_REASON_CMS_ATTRIBUTE_INVALID",
+      "since": "0.7.0",
+      "returnedWhen": "A signed attribute breaks the rules of RFC 5652 §11 or RFC 5035: contentType or messageDigest missing, repeated or multi-valued; contentType different from eContentType; an attribute that may only be signed found among the unsigned ones; or signed attributes absent where the content type requires them.",
+      "remedy": "The signer's software is non-conforming, or the attributes were tampered with. The message names the rule broken.",
+      "standard": "RFC 5652 §11"
+    },
+    {
+      "code": "PKI_REASON_CMS_ALGORITHM_MISMATCH",
+      "since": "0.7.0",
+      "returnedWhen": "The digest named by digestAlgorithm, the one built into signatureAlgorithm and the one in a CMSAlgorithmProtection attribute disagree; or the signer used an algorithm refused outright, such as MD5 or id-ecPublicKey in place of an ECDSA signature algorithm.",
+      "remedy": "Treat the signature as unverifiable. Disagreement between these fields is the shape of an algorithm-substitution attack (RFC 6211), and no conforming signer produces it.",
+      "standard": "RFC 6211 §3"
+    },
+    {
+      "code": "PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH",
+      "since": "0.7.0",
+      "returnedWhen": "The signer's signingCertificate or signingCertificateV2 attribute commits to a certificate other than the one whose key verified the signature — its hash, or its issuer and serial, differ.",
+      "remedy": "The signature is being presented under a different certificate for the same key. Supply the certificate the signer committed to; the attribute's hash identifies it.",
+      "standard": "RFC 5035 §3"
+    },
+    {
+      "code": "PKI_REASON_TSP_NOT_GRANTED",
+      "since": "0.7.0",
+      "returnedWhen": "The timestamp response's status is neither granted nor grantedWithMods, so it carries no token. The message carries the status, the TSA's text and its failure codes.",
+      "remedy": "Act on the failure codes: badAlg means the TSA does not accept that digest, unacceptedPolicy that it does not issue under the policy requested, and so on. Ask again, or ask another TSA.",
+      "standard": "RFC 3161 §2.4.2"
+    },
+    {
+      "code": "PKI_REASON_TSP_TOKEN_INVALID",
+      "since": "0.7.0",
+      "returnedWhen": "The token breaks a rule RFC 3161 sets for tokens specifically: more than one signer, content that is not a TSTInfo, no signing-certificate attribute, or a tsa name its signing certificate does not hold.",
+      "remedy": "The TSA is non-conforming or the token was altered. A token that breaks these rules is not evidence of a time, whatever its signature says.",
+      "standard": "RFC 3161 §2.4.2"
+    },
+    {
+      "code": "PKI_REASON_TSP_IMPRINT_MISMATCH",
+      "since": "0.7.0",
+      "returnedWhen": "The token's messageImprint differs from the hash the caller expected — of the request, of the data, or of the signature value it is meant to timestamp.",
+      "remedy": "The token stamps something else. For a signature timestamp, the imprint is the hash of the SignerInfo's signature value octets, without tag or length.",
+      "standard": "RFC 3161 §2.4.2"
+    },
+    {
+      "code": "PKI_REASON_TSP_REQUEST_MISMATCH",
+      "since": "0.7.0",
+      "returnedWhen": "The token does not answer the request that was sent: the request carried a nonce the token does not echo as the same integer, or asked for a policy the token was not issued under.",
+      "remedy": "Do not retry the same response. A missing or different nonce is what a replayed or substituted response looks like; send a new request with a new nonce.",
+      "standard": "RFC 3161 §2.4.2"
+    },
+    {
       "code": "PKI_REASON_LIMIT_EXCEEDED",
       "since": "0.5.0",
       "returnedWhen": "A named PkiLimits bound stopped the search.",

@@ -55,7 +55,10 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxPolicyNodes: 4096,
   maxRevokedCertificates: 1e6,
   maxOcspResponses: 256,
-  maxPathsExplored: 1e3
+  maxPathsExplored: 1e3,
+  maxSignerInfos: 64,
+  maxCmsAttributes: 256,
+  maxCmsBagEntries: 1024
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -2934,11 +2937,12 @@ function nameMismatchReason(path, wanted, found) {
     path
   );
 }
-function purposeNotPermittedReason(path, purpose, permitted) {
+function purposeNotPermittedReason(path, purpose, permitted, rule) {
+  const listed2 = (permitted ?? []).join(", ") || "none";
   return _reason(
     "PKI_REASON_PURPOSE_NOT_PERMITTED",
     "RFC 5280 \xA74.2.1.12",
-    permitted === null ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly` : `the purpose ${purpose} is not among the ones this certificate permits (${permitted.join(", ") || "none"}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
+    permitted === null ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly` : `the purpose ${purpose} is not among the ones this certificate permits (${listed2}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
     path
   );
 }

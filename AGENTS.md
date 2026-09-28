@@ -44,7 +44,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
 | `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
-| `src/path/`, `src/revocation/` | RFC 5280 §6 path validation and §5 revocation lists — synchronous, never throwing, reporting `PkiReason` | `.github/instructions/pki-core.instructions.md` |
+| `src/path/`, `src/revocation/`, `src/cms/`, `src/verify/` | §6 paths, §5 revocation, CMS and timestamps; `verify/` composes them and alone catches a `PkiError` | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
@@ -62,14 +62,15 @@ pem    → types, core
 oid    → (nothing)
 x509   → types, core, asn1
 crypto → types, core, asn1
-build  → types, core, asn1, crypto
+build  → types, core, asn1, hash, crypto
 path   → types, core, x509
 revocation → types, core, asn1, hash, x509, build
-verify → types, core, asn1, hash, x509, crypto, path, revocation
+cms    → types, core, asn1, hash, x509, build
+verify → types, core, asn1, hash, x509, crypto, path, revocation, cms
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**, and `path` imports neither `asn1` (it decodes nothing) nor `crypto` (verdicts arrive precomputed, so §6 stays synchronous and pure).
+`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**; `path` and `cms` never import `crypto` (verdicts arrive precomputed).
 **Web Crypto has one door.** Only `src/crypto/webcrypto.ts` may name `importKey`, `verify` or `sign`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` in every version.
 
 ## Conventions
@@ -103,7 +104,7 @@ Coverage thresholds live once, in `vitest.config.ts`: 100 % on all four axes, no
 
 ## Releasing
 
-Follow CONTRIBUTING.md §Release; Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `chore:`); every runtime change gets a ROADMAP.md entry and a line in the next `release-notes/vX.Y.Z.md`.
+Follow CONTRIBUTING.md §Release; Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `chore:`); every runtime change gets a [ROADMAP.md](ROADMAP.md) entry and a line in the next `release-notes/vX.Y.Z.md`.
 Downstream-impacting changes (new public APIs, removed APIs, behaviour shifts, new error codes) must be documented in the **Downstream integration notes** section of the relevant release note.
 Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.
 
@@ -115,6 +116,5 @@ Issue drafts go to `.github/drafts/` and are validated with `npm run verify:issu
 
 ## Ecosystem
 
-- [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project, whose PAdES/LTV stack is pkinative's origin and will consume it from 0.7.
+- [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project, whose PAdES/LTV stack is pkinative's origin; adopting pkinative is pdfnative's own milestone.
 - [zipnative](https://github.com/Nizoka/zipnative) — the sibling whose error vocabulary, limits and conformance-gate patterns pkinative inherits.
-- See also: [ROADMAP.md](ROADMAP.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).

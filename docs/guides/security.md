@@ -27,6 +27,14 @@ Every loop over input consults a named limit. The decoder is iterative, so nesti
 | `maxGeneralNames` | 10 000 | CWE-400 | The GeneralName entries of one field |
 | `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name |
 | `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension |
+| `maxChainLength` | 10 | CWE-400 | The certificates in one path, the leaf and the anchor included |
+| `maxPolicyNodes` | 4 096 | CWE-770 | The live nodes of the RFC 5280 `valid_policy_tree` |
+| `maxRevokedCertificates` | 1 000 000 | CWE-400 | The entries walked in one CRL — walked lazily, never decoded into nodes |
+| `maxOcspResponses` | 256 | CWE-400 | The `SingleResponse` entries of one OCSP response |
+| `maxPathsExplored` | 1 000 | CWE-400 | The candidate paths explored while building one — the denial-of-service bound of §6 |
+| `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData, each costing a signature verification |
+| `maxCmsAttributes` | 256 | CWE-400 | The attributes in one signed or unsigned attribute set |
+| `maxCmsBagEntries` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries |
 
 Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` values. Override per call with `options.limits`; `DEFAULT_PKI_LIMITS` holds the defaults.
 

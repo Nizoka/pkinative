@@ -50,8 +50,11 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // not parse. It is why verification never ships the certificate parser.
     crypto: ['types', 'core', 'asn1'],
     // build signs what it encodes, so it reaches crypto; it never reaches
-    // x509, because nothing here reads a certificate.
-    build: ['types', 'core', 'asn1', 'crypto'],
+    // x509, because nothing here reads a certificate. It reaches hash since
+    // 0.7: a CMS signer commits to a digest of the content in its
+    // `messageDigest` attribute and to one of its certificate in
+    // `signingCertificateV2`, and both are hashes of public bytes.
+    build: ['types', 'core', 'asn1', 'hash', 'crypto'],
     // RFC 5280 section 6 reads already-parsed data and returns a verdict. No
     // asn1: if it needed to decode anything, a layer upstream failed to expose
     // the data. No crypto: signature verdicts arrive precomputed, which keeps
@@ -61,6 +64,14 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // readers. No crypto: a revocation verdict takes a precomputed signature
     // verdict, exactly as section 6 does, so revocation stays synchronous too.
     revocation: ['types', 'core', 'asn1', 'hash', 'x509', 'build'],
+    // RFC 5652 CMS and RFC 3161 timestamps: parsing, and the structural
+    // decisions a signer's attributes call for. The same shape revocation has
+    // and for the same reason — no crypto, because a signature verdict arrives
+    // precomputed, so everything here stays synchronous and fuzzable without a
+    // host. x509 for the Name, AlgorithmIdentifier and GeneralName readers the
+    // two syntaxes share; build and hash for the one thing that writes, a
+    // timestamp request, which carries a digest of what is to be stamped.
+    cms: ['types', 'core', 'asn1', 'hash', 'x509', 'build'],
     // The composition layer, and the only one that reaches both a key and a
     // verdict. Everything below it answers one question and answers it the
     // narrow way: primitives return and throw, and each of section 6, name
@@ -70,7 +81,7 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // reasons — and if that someone is every caller, every caller gets it
     // slightly wrong. So it is here, once, and `verify` is the ONLY module of
     // src/ allowed to catch a PkiError.
-    verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation'],
+    verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation', 'cms'],
 });
 
 export const ENTRY = 'src/index.ts';

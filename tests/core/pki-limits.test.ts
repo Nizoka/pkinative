@@ -32,6 +32,9 @@ describe('DEFAULT_PKI_LIMITS', () => {
             maxRevokedCertificates: 1_000_000,
             maxOcspResponses: 256,
             maxPathsExplored: 1000,
+            maxSignerInfos: 64,
+            maxCmsAttributes: 256,
+            maxCmsBagEntries: 1024,
         });
     });
 });

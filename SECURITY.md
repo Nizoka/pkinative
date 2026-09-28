@@ -77,6 +77,9 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxRevokedCertificates` | 1 000 000 | CWE-400 | The entries walked in one CRL `revokedCertificates` list. The list is walked with a lazy TLV cursor rather than decoded into nodes: at three nodes per entry, `maxNodes` would refuse any CRL past roughly 65 000 entries, and real CRLs are larger than that. |
 | `maxOcspResponses` | 256 | CWE-400 | The `SingleResponse` entries of one OCSP response. A client asks about one certificate, so a responder returning hundreds is not answering the question. |
 | `maxPathsExplored` | 1 000 | CWE-400 | The candidate paths explored while building one. Path building is exponential in the candidate set, not linear in the chain length: cross-signed hierarchies give a verifier several plausible issuers at each step, and this is THE denial-of-service bound of RFC 5280 section 6 rather than `maxChainLength`. |
+| `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData. Each costs a signature verification and, when a trust store is supplied, a path search — so a message carrying thousands of signers is a way to make a verifier do thousands of both. A PDF signature has one; a detached S/MIME message rarely more than two. |
+| `maxCmsAttributes` | 256 | CWE-400 | The attributes in one signed or unsigned attribute set. Real signers use fewer than ten; the bound stops a signer from making the per-attribute rules of RFC 5652 §11 walk an arbitrarily long list. |
+| `maxCmsBagEntries` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries. The bag is a claim by whoever assembled the message, and the signer search walks it; 1 024 leaves room for a `.p7b` bundle of a whole trust store. |
 
 ### Verification of the Parser
 

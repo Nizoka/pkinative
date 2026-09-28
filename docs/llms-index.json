@@ -6,7 +6,7 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 2691,
+      "bytes": 2692,
       "approxTokens": 673
     },
     {
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 112738,
-      "approxTokens": 28185
+      "bytes": 113591,
+      "approxTokens": 28398
     },
     {
       "url": "llms-recipes.txt",
@@ -30,26 +30,26 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 203752,
-      "approxTokens": 50938
+      "bytes": 204528,
+      "approxTokens": 51132
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 19237,
-      "approxTokens": 4809
+      "bytes": 22244,
+      "approxTokens": 5561
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 12279,
-      "approxTokens": 3070
+      "bytes": 14366,
+      "approxTokens": 3592
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 3470,
-      "approxTokens": 868
+      "bytes": 4094,
+      "approxTokens": 1024
     },
     {
       "url": "data/surfaces.json",
@@ -82,7 +82,7 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12916,
+      "bytes": 12917,
       "approxTokens": 3229
     },
     {
@@ -126,8 +126,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 4854,
-      "approxTokens": 1214
+      "bytes": 5704,
+      "approxTokens": 1426
     },
     {
       "title": "Conformance",

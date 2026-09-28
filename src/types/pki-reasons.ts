@@ -104,6 +104,32 @@ export type PkiReasonCode =
     /** The same certificate appears twice in the path. */
     | 'PKI_REASON_PATH_LOOPS'
 
+    // ── Signed messages (RFC 5652) ──
+    /** The SignedData has no signer, so it signs nothing — a certificate bundle, not a signature. */
+    | 'PKI_REASON_CMS_NO_SIGNERS'
+    /** No available certificate matches the signer's identifier. */
+    | 'PKI_REASON_CMS_SIGNER_NOT_FOUND'
+    /** The content is detached and was not supplied, so there is nothing to check the signature against. */
+    | 'PKI_REASON_CMS_CONTENT_MISSING'
+    /** The content does not hash to the digest the signer committed to in `messageDigest`. */
+    | 'PKI_REASON_CMS_DIGEST_MISMATCH'
+    /** A signed attribute the syntax requires is missing, repeated, multi-valued, wrongly unsigned, or has the wrong value. */
+    | 'PKI_REASON_CMS_ATTRIBUTE_INVALID'
+    /** The algorithms the signer names disagree with each other, or one is refused outright. */
+    | 'PKI_REASON_CMS_ALGORITHM_MISMATCH'
+    /** The signing-certificate attribute commits to a different certificate from the one that verifies. */
+    | 'PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH'
+
+    // ── Timestamps (RFC 3161) ──
+    /** The timestamp authority declined the request; the response carries no token. */
+    | 'PKI_REASON_TSP_NOT_GRANTED'
+    /** The token breaks a rule RFC 3161 sets for tokens: more than one signer, the wrong content, a `tsa` name its signer does not hold. */
+    | 'PKI_REASON_TSP_TOKEN_INVALID'
+    /** The token stamps a different hash from the one the caller holds. */
+    | 'PKI_REASON_TSP_IMPRINT_MISMATCH'
+    /** The token does not answer the request that was sent: its nonce or its policy differ. */
+    | 'PKI_REASON_TSP_REQUEST_MISMATCH'
+
     // ── The caller's limits, reached while judging ──
     /** A named `PkiLimits` bound stopped the search. `limit` names it. */
     | 'PKI_REASON_LIMIT_EXCEEDED';

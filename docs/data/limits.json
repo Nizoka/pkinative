@@ -18,6 +18,9 @@
     { "limit": "maxPolicyNodes", "default": 4096, "display": "4 096", "cwe": "CWE-770", "guards": "The live nodes of the RFC 5280 valid_policy_tree, which grows multiplicatively with each certificate." },
     { "limit": "maxRevokedCertificates", "default": 1000000, "display": "1 000 000", "cwe": "CWE-400", "guards": "The entries walked in one CRL revokedCertificates list. The list is walked with a lazy TLV cursor rather than decoded into nodes, so this is the bound that applies rather than maxNodes." },
     { "limit": "maxOcspResponses", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The SingleResponse entries of one OCSP response. A client asks about one certificate, so a responder returning hundreds is not answering the question." },
-    { "limit": "maxPathsExplored", "default": 1000, "display": "1 000", "cwe": "CWE-400", "guards": "The candidate paths explored while building one. Path building is exponential in the candidate set, not linear in the chain length, so this is THE denial-of-service bound of section 6 rather than maxChainLength." }
+    { "limit": "maxPathsExplored", "default": 1000, "display": "1 000", "cwe": "CWE-400", "guards": "The candidate paths explored while building one. Path building is exponential in the candidate set, not linear in the chain length, so this is THE denial-of-service bound of section 6 rather than maxChainLength." },
+    { "limit": "maxSignerInfos", "default": 64, "display": "64", "cwe": "CWE-400", "guards": "The signers of one SignedData. Each costs a signature verification and, with a trust store, a path search." },
+    { "limit": "maxCmsAttributes", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The attributes in one signed or unsigned attribute set. Real signers use fewer than ten." },
+    { "limit": "maxCmsBagEntries", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The certificates and revocation entries one SignedData carries. The bag is unauthenticated and the signer search walks it." }
   ]
 }

@@ -62,3 +62,37 @@ export interface SigningKey {
     /** The algorithm, which decides both the OID written into the structure and the Web Crypto call. */
     readonly algorithm: SignatureAlgorithm;
 }
+
+/**
+ * A signer whose key pkinative never sees at all — a hardware security module,
+ * a smart card, a cloud KMS, a remote signing service.
+ *
+ * This is the stronger form of the promise `SigningKey` makes, not a weaker
+ * one. A `SigningKey` hands pkinative an opaque handle it passes straight to
+ * `crypto.subtle.sign`; an `ExternalSigner` hands it a function, so the key
+ * does not even have to live in the same process. Document signing keys
+ * usually live exactly there, and a library that could only sign with a
+ * `CryptoKey` would be one those callers route around.
+ *
+ * The property is not called `sign`, and that is not an accident: the
+ * `KEY_OPERATION_POLICY` of `scripts/lib/architecture.ts` reserves that name
+ * to the Web Crypto boundary, so that every place a key operation happens can
+ * be found by name. This is not a key operation pkinative performs; it is one
+ * the caller performs and hands back.
+ */
+export interface ExternalSigner {
+    /** The algorithm the signer uses, which decides the OID written into the structure. */
+    readonly algorithm: SignatureAlgorithm;
+    /**
+     * Sign `data` — the exact bytes the signature covers, not a digest of them —
+     * and return the signature **as `crypto.subtle.sign` would**: raw `r ‖ s`
+     * for ECDSA, which pkinative converts to DER, and the plain octets for
+     * every other family. A signer whose API returns DER for ECDSA must convert
+     * it back; guessing which form arrived is how a signature gets encoded
+     * twice.
+     */
+    readonly produceSignature: (data: Uint8Array) => Promise<Uint8Array> | Uint8Array;
+}
+
+/** Anything pkinative can sign with. */
+export type Signer = SigningKey | ExternalSigner;

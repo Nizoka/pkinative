@@ -26,6 +26,9 @@
  * | maxRevokedCertificates | 1 000 000 | CWE-400 |
  * | maxOcspResponses  | 256     | CWE-400 |
  * | maxPathsExplored  | 1 000   | CWE-400 |
+ * | maxSignerInfos    | 64      | CWE-400 |
+ * | maxCmsAttributes  | 256     | CWE-400 |
+ * | maxCmsBagEntries  | 1 024   | CWE-400 |
  *
  * @module core/pki-limits
  */
@@ -51,6 +54,9 @@ export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
     maxRevokedCertificates: 1_000_000,
     maxOcspResponses: 256,
     maxPathsExplored: 1000,
+    maxSignerInfos: 64,
+    maxCmsAttributes: 256,
+    maxCmsBagEntries: 1024,
 });
 
 /**

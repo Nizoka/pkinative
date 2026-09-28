@@ -49,6 +49,12 @@ export interface PkiLimits {
     readonly maxOcspResponses: number;
     /** Maximum number of candidate paths explored while building one. CWE-400. */
     readonly maxPathsExplored: number;
+    /** Maximum number of SignerInfo entries in one SignedData — each costs a signature verification. CWE-400. */
+    readonly maxSignerInfos: number;
+    /** Maximum number of attributes in one signed or unsigned attribute set. CWE-400. */
+    readonly maxCmsAttributes: number;
+    /** Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them. CWE-400. */
+    readonly maxCmsBagEntries: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────
@@ -91,7 +97,11 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_POLICY_CONSTRAINTS_EMPTY'
     | 'PKI_DIAG_DEFAULT_ENCODED'
     | 'PKI_DIAG_BER_CONSTRUCT_ACCEPTED'
-    | 'PKI_DIAG_PEM_LAX_ACCEPTED';
+    | 'PKI_DIAG_PEM_LAX_ACCEPTED'
+    | 'PKI_DIAG_CMS_VERSION_MISMATCH'
+    | 'PKI_DIAG_CMS_SET_NOT_SORTED'
+    | 'PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER'
+    | 'PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';
