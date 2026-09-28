@@ -154,9 +154,30 @@ export const PROBES: readonly Probe[] = [
     // whether a delegated signer's own certificate is still good, which is a
     // second revocation question asked inside the first one.
     { exports: ['verifyCertificateChain'], maxBytes: 124 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // The 0.7 band, weighed from four sides — measured 2026-09-29 at 70.5,
+    // 35.2, 17.2 and 167.2 KB.
+    //
+    // "cms never imports crypto": reading a signed message or a timestamp
+    // ships no Web Crypto bridge. It does ship the X.509 parser — a
+    // SignedData carries certificates, and an ESS binding is checked against
+    // one — which is most of the 70 KB.
+    { exports: ['parseSignedData', 'parseTimeStampToken', 'parseTimeStampResponse', 'parseTstInfo'], maxBytes: 76 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.pem] },
+    // "build never imports x509": the signer's certificate enters as DER and
+    // its issuer and serial are lifted from the encoding, never re-rendered.
+    // The hashes are here by necessity — `messageDigest` is one.
+    { exports: ['createSignedData', 'addTimeStampToken', 'createTimeStampRequest'], maxBytes: 40 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem] },
+    // The CMS signature on its own consumes a parsed SignerInfo and hashes
+    // through Web Crypto, so it carries neither the parser nor the SHA code.
+    { exports: ['verifySignerInfoSignature'], maxBytes: 19 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
+    // The two CMS verdicts are `verifyCertificateChain` plus the CMS layer,
+    // which is exactly what they are: 121.7 + ~45 KB.
+    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 176 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
-    // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules.
-    { exports: ['*'], maxBytes: 172 * 1024, mustNotContain: [] },
+    // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules;
+    // 172 KB → 236 KB, measured at 225.3 KB with CMS and RFC 3161 — the largest
+    // single rise so far, and the roadmap's ~320 KB projection for 1.0 still
+    // holds with PKCS#8/#12 to come.
+    { exports: ['*'], maxBytes: 236 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {
