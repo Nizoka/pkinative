@@ -71,7 +71,22 @@ preparation described in CONTRIBUTING.md §Release.
 
 ## 0.7.x — M4: CMS and timestamps
 
-- [ ] CMS SignedData (RFC 5652) parsing, building and verification; RFC 3161 timestamp tokens
+<!-- Landed so far in this band: the cms layer (SignedData and TSTInfo parsing,
+     the attribute checks), the CMS signature at the Web Crypto boundary, the
+     SignedData builder with external signers and the unsigned-attribute
+     splice, and the two one-call verdicts in verify/. Open: the NIST PKITS
+     S/MIME messages as L8, then the release. -->
+
+- [x] CMS SignedData parsing (RFC 5652 §5) — every signer, the certificate and revocation bags including RFC 5940 OCSP responses, and the signed attributes exposed as the SET they were signed under (`0x31`), not the `[0]` they were transmitted under; a degenerate SignedData with no signers parses, because a `.p7b` certificate bag is one
+- [x] The attributes a signature commits to, decoded where they are recognised — `contentType`, `messageDigest`, `signingTime`, ESS `signingCertificate` and `signingCertificateV2` (RFC 2634, RFC 5035), `CMSAlgorithmProtection` (RFC 6211) — and exposed only when the attribute appears exactly once with one value, so an ambiguous message is never read as the first of its two answers
+- [x] The CMS signature through Web Crypto, with the digest and signature algorithms held consistent (RFC 8933, RFC 4056, RFC 5753, RFC 8419): MD5 refused, `rsaEncryption` read as PKCS#1 v1.5 over the digest the signer declared, Ed25519 only over SHA-512
+- [x] SignedData creation — attached or detached, the signed attributes a verifier checks written by default (including `CMSAlgorithmProtection` and ESS `signingCertificateV2`), a `Signer` that is either a Web Crypto key or an `ExternalSigner` for an HSM or a remote service, and `addUnsignedAttribute` / `addTimeStampToken` that splice into a signer without disturbing a single signed byte
+- [x] RFC 3161 — `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`; a TSTInfo is DER always, whatever the enclosing message was
+- [x] `verifySignedData` — every signer checked, `intact` kept apart from `valid` (what needs no trust store against what does), the chain judged at the signing instant or, with `atTimeStamp`, at the earliest instant a verified timestamp proves
+- [x] `verifyTimeStampToken` — against the request, the data or the imprint; the TSA must hold a critical extKeyUsage of `timeStamping` alone (RFC 3161 §2.3), and its chain is judged at `at` and never at `genTime`, because a TSA whose key leaked can write any `genTime` it likes
+- [ ] NIST PKITS S/MIME messages as conformance level L8 — the CMS layer and the end-to-end verdict, each held to the L7 verdict of the same test
+
+**Known limitations, stated rather than discovered.** `parseSignedData` decodes the whole tree, so a very large `.p7b` meets `maxNodes` before `maxCmsBagEntries`. The RFC 4056 §3 check that RSASSA-PSS parameters in a certificate's SubjectPublicKeyInfo agree with the signer's is not made. When both ESS attributes are present, only `signingCertificateV2` is checked. ETSI long-term formats (B-LTA archive timestamps, proof of existence chained over several timestamps) are not implemented: `atTimeStamp` takes one level of evidence. And a chain that reaches no trust anchor also reports the top certificate's signature as `PKI_REASON_SIGNATURE_NOT_CHECKED` — deliberately, since without the issuer there is no key to check it with.
 
 Consuming pkinative from pdfnative's PAdES and LTV stack is pdfnative's milestone, not this one. A cross-repository commitment must never gate a release here.
 

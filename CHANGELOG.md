@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **feat(cms): CMS SignedData and RFC 3161 timestamps, parsed, built and verified** — the 0.7 band's subject, in the same split every other subsystem keeps: parsing in `cms/`, the signature at the Web Crypto door in `crypto/`, writing in `build/`, and the verdicts in `verify/`.
+
+  **Reading.** `parseSignedData` reads RFC 5652 SignedData — signers, certificate and revocation bags (RFC 5940 OCSP responses included), and the signed attributes both decoded and exposed as `signedAttributesDer`, **re-tagged as the SET they were signed under** rather than the `[0]` they travel under, because that is the byte string a signature covers and the one a verifier most often gets wrong. A recognised attribute is decoded only when it appears exactly once with one value. `parseTimeStampResponse`, `parseTimeStampToken` and `parseTstInfo` read RFC 3161; a structural failure throws `PkiCmsError` with one of four new `PKI_CMS_*` codes, and four `PKI_DIAG_CMS_*` diagnostics report what is merely non-canonical.
+
+  **Writing.** `createSignedData` signs attached or detached content and writes the attributes a verifier checks — `contentType`, `messageDigest`, `signingTime`, ESS `signingCertificateV2` and RFC 6211 `CMSAlgorithmProtection` — with a `Signer` that is either a Web Crypto key or an **`ExternalSigner`**, for a key that lives in an HSM or behind a remote service and never enters the process. `createTimeStampRequest` builds the request, and `addUnsignedAttribute` / `addTimeStampToken` splice into a signer without disturbing one signed byte.
+
+  **Judging.** `verifySignedData` checks every signer — attributes, algorithm agreement (RFC 8933, 4056, 5753, 8419), digest, signature, ESS binding — then its chain, and reports `intact` apart from `valid`: *the message is what its signer signed* against *and somebody you trust signed it*. `verifyTimeStampToken` checks a token against the request, the data or the imprint, and holds the TSA to RFC 3161 §2.3's critical, exclusive `timeStamping` purpose. With `atTimeStamp`, a signer is judged at the earliest instant a verified timestamp proves — which is how a signature outlives its certificate — while the TSA's own chain is always judged at `at`, **never at the `genTime` it wrote itself**. Eleven `PKI_REASON_CMS_*` / `PKI_REASON_TSP_*` reasons say why a verdict is no.
+
+  **Architecture.** Two layer edges change in their own reviewed commit: `cms → types, core, asn1, hash, x509, build`, and `verify` gains `cms`. `cms` never imports `crypto`, for the reason `path` does not: verdicts arrive precomputed, so parsing and judging stay synchronous.
+
 ## [0.5.0] – 2026-09-28
 
 ### Added
