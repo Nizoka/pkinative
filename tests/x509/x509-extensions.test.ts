@@ -236,12 +236,18 @@ describe('decodeExtensionValue', () => {
                 .toMatchObject({ permittedSubtrees: [{ minimum: 1, maximum: 3 }] });
         });
 
-        it('should read an empty sequence', () => {
-            expect(decode(OID.nameConstraints, sequence(), { critical: true })).toMatchObject({ permittedSubtrees: undefined, excludedSubtrees: undefined });
+        it('should refuse an extension that constrains nothing', () => {
+            // RFC 5280 4.2.1.10: 'Conforming CAs MUST NOT issue certificates
+            // where name constraints is an empty sequence.' One that constrains
+            // nothing while appearing to constrain everything is read as 'no
+            // opinion' by one verifier and 'nothing permitted' by another, and
+            // two readings of one encoding is what DER exists to remove.
+            expect(malformedCode(OID.nameConstraints, sequence())).toBe('PKI_X509_EXTENSION_MALFORMED');
         });
 
         it('should report name constraints that are not critical', () => {
-            expect(diagnosticsOf(OID.nameConstraints, sequence())).toEqual(['PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL']);
+            expect(diagnosticsOf(OID.nameConstraints, sequence(context(0, true, sequence(context(2, false, ascii('a')))))))
+                .toEqual(['PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL']);
         });
 
         it('should read an explicit minimum of 0 with a diagnostic', () => {
@@ -346,8 +352,16 @@ describe('decodeExtensionValue', () => {
                 .toMatchObject({ kind: 'policyConstraints', requireExplicitPolicy: 0, inhibitPolicyMapping: 2 });
         });
 
+        it('should say nothing about criticality when the CA marked it critical, as §4.2.1.11 asks', () => {
+            expect(diagnosticsOf(OID.policyConstraints, sequence(context(0, false, [0])), true)).toEqual([]);
+        });
+
         it('should report empty policy constraints', () => {
-            expect(diagnosticsOf(OID.policyConstraints, sequence())).toEqual(['PKI_DIAG_POLICY_CONSTRAINTS_EMPTY']);
+            // …and that the extension is not critical, which §4.2.1.11 also
+            // requires of a conforming CA. `diagnosticsOf` builds a
+            // non-critical extension, so both concerns apply to this one.
+            expect(diagnosticsOf(OID.policyConstraints, sequence()))
+                .toEqual(['PKI_DIAG_POLICY_CONSTRAINTS_EMPTY', 'PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL']);
         });
 
         it('should refuse a negative SkipCerts', () => {

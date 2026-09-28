@@ -148,6 +148,6 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 14 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, server-name matching, revocation lists, OCSP.
+- [recipes/](../../recipes/) — 15 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, server-name matching, extended key usage, revocation lists, OCSP.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.

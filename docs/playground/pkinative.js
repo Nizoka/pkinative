@@ -470,6 +470,66 @@ function nameConstraintsNotCriticalDiagnostic() {
     void 0
   );
 }
+function nameConstraintsInEndEntityDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY",
+    "warning",
+    "RFC 5280 \xA74.2.1.10",
+    'nameConstraints appears in a certificate that is not a CA; the extension "MUST be used only in a CA certificate", and an end-entity certificate issues nothing for it to constrain',
+    "tbsCertificate.extensions.nameConstraints",
+    void 0
+  );
+}
+function basicConstraintsNotCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.9",
+    "basicConstraints asserts cA without being marked critical; RFC 5280 requires conforming CAs to mark it critical, so a verifier that skipped non-critical extensions would not see that this is a CA",
+    "tbsCertificate.extensions.basicConstraints",
+    void 0
+  );
+}
+function policyConstraintsNotCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.11",
+    "policyConstraints is not marked critical; RFC 5280 requires conforming CAs to mark it critical, and a verifier that ignored it would grant a path the policy the CA withheld",
+    "tbsCertificate.extensions.policyConstraints",
+    void 0
+  );
+}
+function keyCertSignWithoutCaDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA",
+    "warning",
+    "RFC 5280 \xA74.2.1.3",
+    'keyUsage asserts keyCertSign while basicConstraints does not assert cA; that bit "is for use in CA certificates only", and \xA76.1.4 (k) refuses to let this key issue anything regardless',
+    "tbsCertificate.extensions.keyUsage",
+    void 0
+  );
+}
+function commonNameNotInSanDiagnostic(commonName) {
+  return _diagnostic(
+    "PKI_DIAG_COMMON_NAME_NOT_IN_SAN",
+    "warning",
+    "CA/Browser Forum BR 7.1.4.3",
+    `the commonName ${JSON.stringify(commonName)} is not one of the subjectAltName entries; CA/Browser Forum BR 7.1.4.3 requires it to repeat a SAN value, and a name that appears only in the commonName is one no modern relying party will match`,
+    "tbsCertificate.subject",
+    void 0
+  );
+}
+function dnsNameNotPreferredSyntaxDiagnostic(name, path) {
+  return _diagnostic(
+    "PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `the dNSName ${JSON.stringify(name)} is outside RFC 1034's preferred name syntax; it is compared literally, so it can only ever match a host asked for with the same spelling`,
+    path,
+    void 0
+  );
+}
 function akiIssuerSerialUnpairedDiagnostic() {
   return _diagnostic(
     "PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED",
@@ -1745,6 +1805,14 @@ function _readRelativeDistinguishedName(node, ctx, path) {
 
 // src/x509/x509-general-name.ts
 var CODE2 = "PKI_X509_GENERAL_NAME_INVALID";
+function isPreferredName(value) {
+  const labels = value.split(".");
+  return labels.every((label, index) => {
+    if (label === "*" && index === 0) return true;
+    if (label === "" || label.startsWith("-") || label.endsWith("-")) return false;
+    return /^[A-Za-z0-9-]+$/.test(label);
+  });
+}
 function formatIpv4(bytes) {
   return bytes.join(".");
 }
@@ -1817,6 +1885,7 @@ function _readGeneralName(node, ctx, path, inNameConstraints) {
         throw certificateError(CODE2, path, node.offset, "contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5");
       }
       const kind = node.tagNumber === 1 ? "rfc822Name" : node.tagNumber === 2 ? "dNSName" : "uniformResourceIdentifier";
+      if (kind === "dNSName" && !isPreferredName(value)) ctx.emitter.emit(dnsNameNotPreferredSyntaxDiagnostic(value, path));
       const name = { kind, value, der };
       return Object.freeze(name);
     }
@@ -1897,6 +1966,7 @@ function decodeBasicConstraints(input) {
     throw malformed(path, seq.offset, `holds ${seq.children.length} values; BasicConstraints is an optional cA flag and an optional pathLenConstraint`);
   }
   if (pathLenConstraint !== void 0 && !cA) ctx.emitter.emit(pathLenWithoutCaDiagnostic());
+  if (cA && !input.critical) ctx.emitter.emit(basicConstraintsNotCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "basicConstraints", cA, pathLenConstraint };
   return Object.freeze(extension);
 }
@@ -1944,11 +2014,16 @@ function decodeNameConstraints(input) {
   const { node, ctx, path } = input;
   const seq = expectSequence(node, path, node.offset);
   const [permitted, excluded] = contextFields(seq.children, 1, path);
+  const permittedSubtrees = readSubtrees(permitted, ctx, `${path}.permittedSubtrees`);
+  const excludedSubtrees = readSubtrees(excluded, ctx, `${path}.excludedSubtrees`);
+  if (permittedSubtrees === void 0 && excludedSubtrees === void 0) {
+    throw malformed(path, node.offset, "holds neither permittedSubtrees nor excludedSubtrees; RFC 5280 \xA74.2.1.10 forbids an empty name-constraints extension, and one that constrains nothing while appearing to constrain everything is read two ways by two verifiers");
+  }
   const extension = {
     ...baseOf(input),
     kind: "nameConstraints",
-    permittedSubtrees: readSubtrees(permitted, ctx, `${path}.permittedSubtrees`),
-    excludedSubtrees: readSubtrees(excluded, ctx, `${path}.excludedSubtrees`)
+    permittedSubtrees,
+    excludedSubtrees
   };
   if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
   return Object.freeze(extension);
@@ -1964,6 +2039,7 @@ function decodePolicyConstraints(input) {
     inhibitPolicyMapping: inhibitNode === void 0 ? void 0 : readCount(inhibitNode, ctx, `${path}.inhibitPolicyMapping`)
   };
   if (requireNode === void 0 && inhibitNode === void 0) ctx.emitter.emit(policyConstraintsEmptyDiagnostic());
+  if (!input.critical) ctx.emitter.emit(policyConstraintsNotCriticalDiagnostic());
   return Object.freeze(extension);
 }
 function decodeInhibitAnyPolicy(input) {
@@ -2608,6 +2684,14 @@ function nameMismatchReason(path, wanted, found) {
     "PKI_REASON_NAME_MISMATCH",
     "RFC 6125 \xA76",
     `the certificate does not name ${wanted}: ${found}. A chain that verifies still says nothing about which host the certificate is for`,
+    path
+  );
+}
+function purposeNotPermittedReason(path, purpose, permitted) {
+  return _reason(
+    "PKI_REASON_PURPOSE_NOT_PERMITTED",
+    "RFC 5280 \xA74.2.1.12",
+    permitted === null ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly` : `the purpose ${purpose} is not among the ones this certificate permits (${permitted.join(", ") || "none"}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
     path
   );
 }
@@ -3722,6 +3806,34 @@ function checkFreshness(answer, input, path) {
   return out;
 }
 
+// src/path/path-purpose.ts
+var ANY_EXTENDED_KEY_USAGE = "2.5.29.37.0";
+var KEY_PURPOSES = /* @__PURE__ */ Object.freeze({
+  serverAuth: "1.3.6.1.5.5.7.3.1",
+  clientAuth: "1.3.6.1.5.5.7.3.2",
+  codeSigning: "1.3.6.1.5.5.7.3.3",
+  emailProtection: "1.3.6.1.5.5.7.3.4",
+  timeStamping: "1.3.6.1.5.5.7.3.8",
+  ocspSigning: "1.3.6.1.5.5.7.3.9"
+});
+function checkExtendedKeyUsage(path, purpose, options) {
+  const out = [];
+  const restrictIssuers = options?.restrictIssuers !== false;
+  for (const [index, certificate] of path.entries()) {
+    if (index > 0 && !restrictIssuers) break;
+    const extension = getExtension(certificate, "extendedKeyUsage");
+    if (extension === void 0) {
+      if (index === 0 && options?.requireExplicit === true) {
+        out.push(purposeNotPermittedReason(`path[${String(index)}]`, purpose, null));
+      }
+      continue;
+    }
+    if (extension.purposes.includes(purpose) || extension.purposes.includes(ANY_EXTENDED_KEY_USAGE)) continue;
+    out.push(purposeNotPermittedReason(`path[${String(index)}].extKeyUsage`, purpose, extension.purposes));
+  }
+  return out;
+}
+
 // src/path/path-name-constraints.ts
 var FORMS = ["dNSName", "rfc822Name", "uniformResourceIdentifier", "iPAddress", "directoryName"];
 function initialNameConstraints() {
@@ -4345,7 +4457,13 @@ function buildCertificatePath(input) {
     const existing = bySubject.get(key) ?? [];
     if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
   }
-  const first = validateCertificatePath({ ...input, certificates: [input.leaf] });
+  const judge = (certificates) => {
+    const report = validateCertificatePath({ ...input, certificates });
+    if (!report.valid || input.requiredPurposes === void 0) return report;
+    const refused = input.requiredPurposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
+    return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
+  };
+  const first = judge([input.leaf]);
   let explored = 1;
   if (first.valid) return { ...first, explored };
   let best = first;
@@ -4364,7 +4482,7 @@ function buildCertificatePath(input) {
       }
       explored += 1;
       const next = [...chain, issuer];
-      const report = validateCertificatePath({ ...input, certificates: next });
+      const report = judge(next);
       if (report.valid) return { ...report, explored };
       if (next.length - 1 > bestDepth) {
         best = report;
@@ -5676,6 +5794,40 @@ function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
 // src/x509/x509-certificate.ts
 var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
 var OID_SUBJECT_ALT_NAME = "2.5.29.17";
+var OID_BASIC_CONSTRAINTS = "2.5.29.19";
+var OID_KEY_USAGE = "2.5.29.15";
+var OID_NAME_CONSTRAINTS = "2.5.29.30";
+var OID_COMMON_NAME2 = "2.5.4.3";
+function looksLikeHost(value) {
+  if (value === "" || /[\s/=,]/.test(value)) return false;
+  return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
+}
+function emitProfileDiagnostics(ctx, subject, extensions) {
+  const find = (oid) => extensions.find((e) => e.oid === oid);
+  const basicConstraints = find(OID_BASIC_CONSTRAINTS);
+  const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
+  if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
+  const keyUsage = find(OID_KEY_USAGE);
+  if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
+    ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
+  }
+  const san = find(OID_SUBJECT_ALT_NAME);
+  if (san?.kind !== "subjectAltName") return;
+  const named = /* @__PURE__ */ new Set();
+  for (const name of san.names) {
+    if (name.kind === "dNSName") named.add(name.value.toLowerCase());
+    else if (name.kind === "iPAddress") named.add(name.address.toLowerCase());
+  }
+  if (named.size === 0) return;
+  for (const rdn of subject.rdns) {
+    for (const attribute of rdn) {
+      if (attribute.type !== OID_COMMON_NAME2 || attribute.value === void 0) continue;
+      const common = attribute.value.value;
+      if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
+      ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
+    }
+  }
+}
 var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
 function readVersion(field, ctx) {
   const path = "tbsCertificate.version";
@@ -5829,6 +5981,7 @@ function parseCertificate(der, options) {
   if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
     ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
   }
+  emitProfileDiagnostics(ctx, subject, extensions);
   const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
   if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
     ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
@@ -6301,6 +6454,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { DEFAULT_PKI_LIMITS, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

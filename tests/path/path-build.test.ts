@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createCertificate } from '../../src/build/build-certificate.js';
-import { encodeBasicConstraints, encodeKeyUsage } from '../../src/build/build-structures.js';
+import { encodeBasicConstraints, encodeExtendedKeyUsage, encodeKeyUsage } from '../../src/build/build-structures.js';
 import { buildCertificatePath } from '../../src/path/path-build.js';
 import type { SignatureResult } from '../../src/types/path-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
@@ -37,6 +37,8 @@ async function issue(options: {
     readonly ca: boolean;
     readonly serial: bigint;
     readonly notAfter?: number;
+    /** KeyPurposeId OIDs for an extKeyUsage extension; omitted means the extension is absent. */
+    readonly purposes?: readonly string[];
 }): Promise<Material> {
     const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
     const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
@@ -47,12 +49,15 @@ async function issue(options: {
         notBefore: AT - DAY,
         notAfter: options.notAfter ?? AT + DAY,
         subjectPublicKey: spki,
-        extensions: options.ca
-            ? [
-                { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
-                { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
-            ]
-            : [{ oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) }],
+        extensions: [
+            ...(options.ca
+                ? [
+                    { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+                    { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
+                ]
+                : [{ oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) }]),
+            ...(options.purposes === undefined ? [] : [{ oid: '2.5.29.37', value: encodeExtendedKeyUsage([...options.purposes]) }]),
+        ],
     }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
     return {
         certificate: parseCertificate(der, quiet),
@@ -309,5 +314,80 @@ describe('buildCertificatePath', () => {
 
     it('should never throw for a path-building issue', () => {
         expect(() => buildCertificatePath({ leaf: LEAF.certificate, candidates: [], trustAnchors: [], at: 0 })).not.toThrow();
+    });
+});
+
+describe('buildCertificatePath — the purpose is part of the search', () => {
+    const SERVER_AUTH = '1.3.6.1.5.5.7.3.1';
+    const EMAIL = '1.3.6.1.5.5.7.3.4';
+
+    /**
+     * A bag holding two intermediates of the same name: one restricted to
+     * signing e-mail, one unrestricted. Only the second can carry a serverAuth
+     * leaf, and the restricted one comes **first** so that a builder unaware of
+     * the purpose picks it.
+     *
+     * This is x509-limbo's `bettertls::pathbuilding` shape, and it is what
+     * proves the purposes have to go *into* the search: checking them after a
+     * path is chosen answers "no acceptable path" while one existed.
+     */
+    async function bag(): Promise<{ leaf: Certificate; candidates: Certificate[]; signatures: SignatureResult[] }> {
+        const restricted = await issue({ subject: 'Shared ICA', issuerDer: ROOT.subject.der, ca: true, serial: 91n, purposes: [EMAIL] });
+        const open = await issue({ subject: 'Shared ICA', issuerDer: ROOT.subject.der, ca: true, serial: 92n });
+        const leaf = await issue({ subject: 'leaf.example', issuerDer: restricted.certificate.subject.der, ca: false, serial: 93n, purposes: [SERVER_AUTH] });
+        const candidates = [restricted.certificate, open.certificate];
+        return {
+            leaf: leaf.certificate,
+            candidates,
+            // Both intermediates are asserted to have signed the leaf, which is
+            // what a cross-signed pair looks like to a builder.
+            signatures: [
+                { certificate: leaf.certificate, issuer: restricted.certificate, verdict: 'valid' },
+                { certificate: leaf.certificate, issuer: open.certificate, verdict: 'valid' },
+                ...allValid(restricted.certificate, open.certificate),
+            ],
+        };
+    }
+
+    it('should backtrack past an issuer that forbids the purpose, and find the one that does not', async () => {
+        const { leaf, candidates, signatures } = await bag();
+        const report = buildCertificatePath({ leaf, candidates, trustAnchors: [ROOT], at: AT, signatures, requiredPurposes: [SERVER_AUTH] });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        // The path it settled on is the unrestricted one, which is the whole
+        // point: the restricted intermediate is still in the bag.
+        expect(report.path).toHaveLength(3);
+        expect(report.path[1]?.der).not.toEqual(candidates[0]?.der);
+    });
+
+    it('should report the purpose, not "no path", when every path forbids it', async () => {
+        const { leaf, candidates, signatures } = await bag();
+        const report = buildCertificatePath({
+            leaf, candidates: [candidates[0] as Certificate], trustAnchors: [ROOT], at: AT, signatures,
+            requiredPurposes: [SERVER_AUTH],
+        });
+        expect(codes(report)).toContain('PKI_REASON_PURPOSE_NOT_PERMITTED');
+        // A caller told only "no path found" cannot see that the one path there
+        // was is restricted to signing e-mail.
+        expect(report.reasons.some((r) => r.message.includes(EMAIL))).toBe(true);
+    });
+
+    it('should take the first path when no purpose is required, as before', async () => {
+        // The option is opt-in: omitting it leaves the search exactly as it was,
+        // which is what keeps this a fix rather than a behaviour change for
+        // callers who never asked the purpose question.
+        const { leaf, candidates, signatures } = await bag();
+        const report = buildCertificatePath({ leaf, candidates, trustAnchors: [ROOT], at: AT, signatures });
+        expect(report.valid).toBe(true);
+        expect(report.path[1]?.der).toEqual(candidates[0]?.der);
+    });
+
+    it('should judge the leaf alone against the purpose too', async () => {
+        const solo = await issue({ subject: 'Self', issuerDer: ROOT.subject.der, ca: false, serial: 94n, purposes: [EMAIL] });
+        const report = buildCertificatePath({
+            leaf: solo.certificate, candidates: [], trustAnchors: [ROOT], at: AT,
+            signatures: allValid(solo.certificate), requiredPurposes: [SERVER_AUTH],
+        });
+        expect(codes(report)).toContain('PKI_REASON_PURPOSE_NOT_PERMITTED');
     });
 });

@@ -288,6 +288,27 @@
       <p>The input is a <a href="../assets/api.json"><code>PathValidationInput</code></a> and the answer a <a href="../assets/api.json"><code>PathValidationReport</code></a>; <code>maxChainLength</code> (default 10) bounds the walk and <code>maxPolicyNodes</code> (default 4 096) bounds the policy tree, which is the part of §6 that actually explodes combinatorially; <code>PKI_REASON_LIMIT_EXCEEDED</code> names whichever one stopped the search. <code>recipes/validate-path.ts</code> runs all of this on the real Let&#39;s Encrypt hierarchy.</p>
       <p><strong>Certificate policies are off by default, and that is the right default.</strong> <code>requireExplicitPolicy</code> is what turns policy processing into a verdict: without it, a path that establishes no policy is still valid, because §6.1.5 (a) says the question was never asked. Turning it on by default would reject most of the public web. When you do need it, <code>initialPolicySet</code> is your <code>user-initial-policy-set</code>, and <code>PKI_REASON_NO_VALID_POLICY</code> is the answer when nothing survives.</p>
       <p><strong>What it refuses rather than ignores.</strong> RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and <code>PROCESSED_CRITICAL_EXTENSIONS</code> is the exact boundary of what a chain may rely on: <code>basicConstraints</code>, <code>keyUsage</code>, <code>subjectAltName</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code> and <code>extKeyUsage</code>. Anything else marked critical comes back <code>PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION</code> — including <code>cRLDistributionPoints</code>, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer &quot;valid&quot; for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.</p>
+      <h2 id="two-questions-a-validated-chain-does-not-answer">Two questions a validated chain does not answer <a class="heading-anchor" href="#two-questions-a-validated-chain-does-not-answer" aria-label="Link to this section">#</a></h2>
+      <p>The job: you validated the path and it came back clean. You are not done.</p>
+      <p>RFC 5280 §6 asks whether a chain of certificates is internally sound and reaches something you trust. It has <strong>no notion of the host you connected to</strong> and it <strong>never reads <code>extKeyUsage</code></strong>. So a chain can be perfectly valid and still be a certificate for somebody else, or a certificate for something else — and both of those are how a valid certificate gets accepted where it should not be.</p>
+      <pre><code class="language-ts">import { buildCertificatePath, checkServerName, checkExtendedKeyUsage, KEY_PURPOSES } from &#39;pkinative&#39;;
+
+      const report = buildCertificatePath({ leaf, candidates, trustAnchors, at: Date.now(), signatures });
+      const problems = [
+          ...report.reasons,
+          ...checkServerName(leaf, { kind: &#39;dns&#39;, value: &#39;bank.example&#39; }),
+          ...checkExtendedKeyUsage(report.path, KEY_PURPOSES.serverAuth),
+      ];
+      if (problems.length &gt; 0) for (const reason of problems) console.log(reason.code, reason.path, reason.message);
+      </code></pre>
+      <p><strong><code>checkServerName</code> is RFC 6125, written the strict way</strong>, because every relaxation has been somebody&#39;s bypass. <code>subjectAltName</code> wins absolutely: if the certificate carries any <code>dNSName</code> or <code>iPAddress</code>, the <code>commonName</code> is never consulted, and <code>allowCommonNameFallback</code> is <strong>off by default</strong> — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and <code>*.example.com</code> does not match <code>example.com</code>. An address is compared <strong>as octets, never as text</strong> (<code>ServerIdentity</code> takes <code>Uint8Array</code> for that reason), and the two forms never cross: <code>1.2.3.4</code> written as a <code>dNSName</code> is a whole class of bypass. <code>allowWildcards: false</code> is the right setting for an internal PKI that issues none. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.</p>
+      <p><strong>When you build rather than validate, put the purpose <em>into</em> the search.</strong> <code>buildCertificatePath</code> takes <code>requiredPurposes</code>, and passing it is not an optimisation — a builder that picks a path without knowing what the path is for will confidently return one that <code>checkExtendedKeyUsage</code> then condemns <strong>while an acceptable path existed</strong>. A real bag of cross-signed intermediates, some restricted to <code>emailProtection</code> and some not, is exactly that shape. Whatever can make a path unacceptable belongs inside the search, for the same reason name constraints are inside §6 rather than after it — and <code>validateCertificatePath</code> is untouched by this, because §6 has no notion of purpose and searching is not §6.</p>
+      <pre><code class="language-ts">const report = buildCertificatePath({
+          leaf, candidates, trustAnchors, at: Date.now(), signatures,
+          requiredPurposes: [KEY_PURPOSES.serverAuth],
+      });
+      </code></pre>
+      <p><strong><code>checkExtendedKeyUsage</code> is RFC 5280 §4.2.1.12</strong>, and it takes the purpose as an argument because which purpose you need is a fact about your protocol, not about the chain. One rule in it is <strong>not</strong> in the RFC: a CA&#39;s own <code>extKeyUsage</code> restricts what it may issue for. Every Web PKI validator enforces it and the CA/Browser Forum relies on it to constrain sub-CAs — without it, a sub-CA restricted to <code>emailProtection</code> issues a <code>serverAuth</code> certificate and the chain validates, which is the whole point of restricting it. So <code>restrictIssuers</code> is <strong>on</strong> by default, and <code>restrictIssuers: false</code> is the literal-RFC reading for an internal PKI that puts a purpose on a CA as documentation. An <strong>absent</strong> extension means unrestricted, which is why almost no public root ever appears in a refusal; <code>requireExplicit: true</code> is the stricter reading and applies to the end entity alone. <code>recipes/check-server-name.ts</code> and <code>recipes/check-purpose.ts</code> run both on real certificates.</p>
       <h2 id="ask-a-revocation-list-about-one-certificate">Ask a revocation list about one certificate <a class="heading-anchor" href="#ask-a-revocation-list-about-one-certificate" aria-label="Link to this section">#</a></h2>
       <p>The job: a CA published a CRL, and you want to know whether this certificate is on it.</p>
       <pre><code class="language-ts">import { findRevocation, parseCertificateList } from &#39;pkinative&#39;;
@@ -384,7 +405,7 @@
       <p><strong>A missing <code>nextUpdate</code> is not stale here</strong>, unlike a CRL. RFC 6960 §4.2.2.1 says its absence means newer information is always available — the opposite of the CRL case, where nothing promises a successor. <code>futureTolerance</code> (a minute by default) refuses a <code>thisUpdate</code> well ahead of now: clocks disagree by seconds, not hours.</p>
       <p><strong>Which certificate may answer for a CA is not a question this library answers.</strong> <code>basicResponse.certificates</code> are certificates the responder <em>attached</em>; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.</p>
       <h2 id="what-none-of-these-do-yet">What none of these do yet <a class="heading-anchor" href="#what-none-of-these-do-yet" aria-label="Link to this section">#</a></h2>
-      <p>Each of the nine is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
+      <p>Each of the ten is complete. What is <strong>not</strong> here is deliberate, and the <a href="choose.html">comparison guide</a> says what to use meanwhile:</p>
       <table>
       <thead>
       <tr>
@@ -394,17 +415,28 @@
       </tr>
       </thead>
       <tbody><tr>
-      <td>Name constraints and certificate policies in a chain</td>
-      <td>0.5, and refused rather than ignored until then</td>
-      <td>pkijs; on Node.js, your TLS stack</td>
-      </tr>
-      <tr>
-      <td>Know whether a certificate is revoked</td>
-      <td>0.5, CRL and OCSP</td>
+      <td>Read a CMS SignedData or an RFC 3161 timestamp</td>
+      <td>0.7</td>
       <td>pkijs</td>
       </tr>
+      <tr>
+      <td>Read a PKCS#8 or PKCS#12 container</td>
+      <td>0.8, and <strong>PBES2 only</strong> — the RFC 7292 appendix B KDF is SHA-1 iterated over a password and will never be implemented here</td>
+      <td><code>openssl pkcs12</code> to convert, then pkinative</td>
+      </tr>
+      <tr>
+      <td>Decide that a key is too small or a curve unacceptable</td>
+      <td>never, by design</td>
+      <td>one comparison on the parsed <code>subjectPublicKeyInfo</code>; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library</td>
+      </tr>
+      <tr>
+      <td>A public suffix list, so that <code>*.co.uk</code> is refused</td>
+      <td>never, by design</td>
+      <td>a maintained PSL package; a parsing library carrying a stale copy is worse than one that says it does not know</td>
+      </tr>
       </tbody></table>
-      <p>A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. <strong>Neither proves a certificate should be trusted</strong> — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the <a href="security.html">security model</a>.</p>
+      <p><strong>Three separate questions, and you need all three.</strong> A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. A validated path proves a chain reaches something you trust — and still says nothing about <em>which host</em> the certificate is for or <em>what</em> it may be used for, which is why <code>checkServerName</code> and <code>checkExtendedKeyUsage</code> are separate calls rather than options. pkinative does not collapse them, and that distinction is the whole of the <a href="security.html">security model</a>.</p>
+      <p>How well the path validator actually agrees with the world is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, every disagreement carries a written reason in <code>scripts/data/limbo-score.json</code>, and a reviewed subset is pinned on its <code>PkiReasonCode</code> — because <em>rejected for the wrong reason</em> is a defect no pass/fail count can see.</p>
     </article>
   </main>
   <footer class="footer">

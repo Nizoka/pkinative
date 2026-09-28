@@ -125,7 +125,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 
-pkinative has 204 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 208 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -135,7 +135,7 @@ Every certificate, PEM text and DER blob is attacker-controlled. Sixteen named l
 
 A blocking gate ([conformance guide](docs/guides/conformance.md)) runs the built package over corpora pinned by commit and SHA-256:
 
-- **x509-limbo** — all 30 361 unique x509-limbo certificates parse, or are refused only where every limbo case using them expects failure; 564 certificates refused, each held to a reviewed baseline. Every certificate re-encodes byte for byte, and every parsed one agrees with OpenSSL on serial, validity, CA flag and fingerprint.
+- **x509-limbo** — all 30 361 unique x509-limbo certificates parse, or are refused only where every limbo case using them expects failure; 565 certificates refused, each held to a reviewed baseline. Every certificate re-encodes byte for byte, and every parsed one agrees with OpenSSL on serial, validity, CA flag and fingerprint.
 - **Wycheproof** — all 1 530 Wycheproof ECDSA vectors on P-256, P-384 and P-521: every valid signature decodes, every encoding defect is refused.
 
 ## Known limitations
@@ -326,7 +326,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 14 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, server-name matching, revocation lists, OCSP.
+- [recipes/](../../recipes/) — 15 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, server-name matching, extended key usage, revocation lists, OCSP.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -625,6 +625,37 @@ The input is a [`PathValidationInput`](../assets/api.json) and the answer a [`Pa
 
 **What it refuses rather than ignores.** RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and `PROCESSED_CRITICAL_EXTENSIONS` is the exact boundary of what a chain may rely on: `basicConstraints`, `keyUsage`, `subjectAltName`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy` and `extKeyUsage`. Anything else marked critical comes back `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` — including `cRLDistributionPoints`, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer "valid" for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.
 
+## Two questions a validated chain does not answer
+
+The job: you validated the path and it came back clean. You are not done.
+
+RFC 5280 §6 asks whether a chain of certificates is internally sound and reaches something you trust. It has **no notion of the host you connected to** and it **never reads `extKeyUsage`**. So a chain can be perfectly valid and still be a certificate for somebody else, or a certificate for something else — and both of those are how a valid certificate gets accepted where it should not be.
+
+```ts
+import { buildCertificatePath, checkServerName, checkExtendedKeyUsage, KEY_PURPOSES } from 'pkinative';
+
+const report = buildCertificatePath({ leaf, candidates, trustAnchors, at: Date.now(), signatures });
+const problems = [
+    ...report.reasons,
+    ...checkServerName(leaf, { kind: 'dns', value: 'bank.example' }),
+    ...checkExtendedKeyUsage(report.path, KEY_PURPOSES.serverAuth),
+];
+if (problems.length > 0) for (const reason of problems) console.log(reason.code, reason.path, reason.message);
+```
+
+**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
+
+**When you build rather than validate, put the purpose *into* the search.** `buildCertificatePath` takes `requiredPurposes`, and passing it is not an optimisation — a builder that picks a path without knowing what the path is for will confidently return one that `checkExtendedKeyUsage` then condemns **while an acceptable path existed**. A real bag of cross-signed intermediates, some restricted to `emailProtection` and some not, is exactly that shape. Whatever can make a path unacceptable belongs inside the search, for the same reason name constraints are inside §6 rather than after it — and `validateCertificatePath` is untouched by this, because §6 has no notion of purpose and searching is not §6.
+
+```ts
+const report = buildCertificatePath({
+    leaf, candidates, trustAnchors, at: Date.now(), signatures,
+    requiredPurposes: [KEY_PURPOSES.serverAuth],
+});
+```
+
+**`checkExtendedKeyUsage` is RFC 5280 §4.2.1.12**, and it takes the purpose as an argument because which purpose you need is a fact about your protocol, not about the chain. One rule in it is **not** in the RFC: a CA's own `extKeyUsage` restricts what it may issue for. Every Web PKI validator enforces it and the CA/Browser Forum relies on it to constrain sub-CAs — without it, a sub-CA restricted to `emailProtection` issues a `serverAuth` certificate and the chain validates, which is the whole point of restricting it. So `restrictIssuers` is **on** by default, and `restrictIssuers: false` is the literal-RFC reading for an internal PKI that puts a purpose on a CA as documentation. An **absent** extension means unrestricted, which is why almost no public root ever appears in a refusal; `requireExplicit: true` is the stricter reading and applies to the end entity alone. `recipes/check-server-name.ts` and `recipes/check-purpose.ts` run both on real certificates.
+
 ## Ask a revocation list about one certificate
 
 The job: a CA published a CRL, and you want to know whether this certificate is on it.
@@ -734,14 +765,18 @@ A nonce that comes back **different** is always a mismatch. One that does not co
 
 ## What none of these do yet
 
-Each of the nine is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the ten is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Name constraints and certificate policies in a chain | 0.5, and refused rather than ignored until then | pkijs; on Node.js, your TLS stack |
-| Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
+| Read a CMS SignedData or an RFC 3161 timestamp | 0.7 | pkijs |
+| Read a PKCS#8 or PKCS#12 container | 0.8, and **PBES2 only** — the RFC 7292 appendix B KDF is SHA-1 iterated over a password and will never be implemented here | `openssl pkcs12` to convert, then pkinative |
+| Decide that a key is too small or a curve unacceptable | never, by design | one comparison on the parsed `subjectPublicKeyInfo`; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library |
+| A public suffix list, so that `*.co.uk` is refused | never, by design | a maintained PSL package; a parsing library carrying a stale copy is worse than one that says it does not know |
 
-A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. **Neither proves a certificate should be trusted** — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the [security model](security.md).
+**Three separate questions, and you need all three.** A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. A validated path proves a chain reaches something you trust — and still says nothing about *which host* the certificate is for or *what* it may be used for, which is why `checkServerName` and `checkExtendedKeyUsage` are separate calls rather than options. pkinative does not collapse them, and that distinction is the whole of the [security model](security.md).
+
+How well the path validator actually agrees with the world is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, every disagreement carries a written reason in `scripts/data/limbo-score.json`, and a reviewed subset is pinned on its `PkiReasonCode` — because *rejected for the wrong reason* is a defect no pass/fail count can see.
 
 ---
 <!-- source: docs/guides/security.md -->
@@ -819,7 +854,7 @@ Report privately through GitHub's private vulnerability reporting, never in an i
 `scripts/validate-certs.ts` runs the package from `dist/` — what users get, not the sources:
 
 - **L0 — pins and canaries.** The files match their SHA-256, and the case counts match the values declared in `ecosystem.json`, so a silently changed corpus fails loudly.
-- **L1 — parse or refuse by the rules.** Every one of the 30 361 unique x509-limbo certificates parses, or throws a `PkiError`. A refusal is allowed only when every limbo case using that certificate expects failure, and only as recorded in the reviewed baseline `scripts/data/limbo-refusals.json`: 564 certificates refused — unknown GeneralName tags, malformed name forms, iPAddress lengths, empty subtree lists, an empty extended key usage, two truncated extension values (subjectAltName, authorityInfoAccess), an issuer RSA key that is not an RSAPublicKey, a duplicated extension, an emoji in a DNS name, and two denial-of-service certificates stopped by `maxNameAttributes`. A baseline entry that starts to parse is an `UNEXPECTED-PASS`; any other exception fails the gate.
+- **L1 — parse or refuse by the rules.** Every one of the 30 361 unique x509-limbo certificates parses, or throws a `PkiError`. A refusal is allowed only when every limbo case using that certificate expects failure, and only as recorded in the reviewed baseline `scripts/data/limbo-refusals.json`: 565 certificates refused — unknown GeneralName tags, malformed name forms, iPAddress lengths, empty subtree lists, a name-constraints extension that constrains nothing, an empty extended key usage, two truncated extension values (subjectAltName, authorityInfoAccess), an issuer RSA key that is not an RSAPublicKey, a duplicated extension, an emoji in a DNS name, and two denial-of-service certificates stopped by `maxNameAttributes`. A baseline entry that starts to parse is an `UNEXPECTED-PASS`; any other exception fails the gate.
 - **L2 — byte identity.** Every certificate re-encodes byte for byte from its decoded tree, and the boundaries of `tbsCertificate` and `signatureValue` agree with `scripts/lib/raw-der.ts`, a walker written separately that never imports `src/`.
 - **L3 — OpenSSL.** Every parsed certificate agrees with `node:crypto.X509Certificate` on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 200 agrees with the `openssl` command-line tool — two builds, the one inside Node and the system one. What is cross-checked is the values the tool reads, never its acceptance policy: a disagreement on a serial or a fingerprint always fails, while a non-reference implementation refusing a certificate (LibreSSL on macOS) is reported as not applicable, and fails only if it reads too few to be a cross-check at all.
 - **L4 — other implementations.** There is no veraPDF for the PKI: no single reference a parser can be held to. The honest equivalent is confrontation, so a sample of the corpus is read again by implementations written by other people, in other languages, and the readings must agree. What is compared is never rendered text — every implementation prints a distinguished name its own way — but SHA-256 of exact DER slices: `subjectFp256` and `issuerFp256` over the encoded subject and issuer, `spkiKeyFp256` over the public key octets, `tbsFp256` over the signed bytes, plus the exact identifiers `keyAlgOid` and `version`. Each validator declares in its output which of those it can supply, so a tool that cannot reach a field says so instead of being special-cased.
@@ -834,6 +869,15 @@ Report privately through GitHub's private vulnerability reporting, never in an i
   Today a red run says a certificate changed behaviour. L5 says: *"RFC 5280 §4.2.1.9 is violated by 14 certificates of the corpus; pkinative diagnoses 13 and is silent on one."*
 
   A clause nothing triggers proves nothing, so every clause must be exercised by at least one corpus certificate — or carry a reviewed waiver saying why the corpus cannot reach it and naming the suite that does. Two do: x509-limbo holds no certificate with a unique identifier, and none with a multi-valued relative distinguished name, because neither bears on path validation. `tests/conformance/clauses.test.ts` builds a violating and a conforming certificate for **every** clause, which is also the only thing that could catch an evaluator that always answers "pass". §6 doubles this table and arrives with 0.5; the completeness assertion becomes blocking at 0.9.
+- **L6 — path validation, scored.** L1 to L5 judge certificates. L6 judges **chains**, which is the other half of what this library is for and the only half a boolean can be wrong about silently. Every x509-limbo case is built, name-matched and revocation-checked the way a caller would, and pkinative's verdict must match the one the corpus writes down: **9 150 of 9 200 agree, 99.46 %**, with 20 skipped and the rest refused at L1.
+
+  Three things make that a claim rather than a statistic.
+
+  **Reason codes, not the boolean.** A validator that rejects every chain scores well against a corpus that is mostly FAILURE, so 28 cases are pinned on their `PkiReasonCode` — *rejected for the wrong reason* is a defect no pass/fail count can see. CVE-2025-61727 is pinned on `PKI_REASON_NAME_EXCLUDED`, not merely on "refused".
+
+  **Canaries.** One case that must succeed and one that must fail. A harness whose trust store silently stopped being passed through would still score in the high nineties; the positive canary is the only thing that notices.
+
+  **Every deviation carries a sentence someone wrote.** The 50 disagreements are each either a defect or a decision, and only prose tells them apart — so `--update-baseline` records the id it measured and **never** fills in the reason, and an empty one fails the gate. `tests/conformance/limbo-score.test.ts` holds that discipline in the fast gate, where the corpus is not needed: the one thing a reviewer cannot catch by reading a diff is an empty string. What the deviations are, in short: CA/Browser Forum policy the RFC does not state (key sizes, a `commonName` that no `subjectAltName` repeats, webpki's extended-key-usage pedantry), profile sentences addressed to the issuing CA that pkinative reports as diagnostics instead of refusing, two readings x509-limbo itself calls ambiguous, and two gaps where this runner translates the corpus's vocabulary into pkinative's and the translation is what falls short.
 - **Wycheproof.** Every ECDSA signature is decoded as a strict `Ecdsa-Sig-Value`: every valid vector must decode, and every vector flagged `BerEncodedSignature`, `InvalidEncoding` or `InvalidTypesInSignature` must be refused.
 
 ## The write direction
@@ -852,7 +896,9 @@ Today `openssl` and Windows CryptoAPI run, on all three platforms, blocking: the
 
 ## What is not claimed yet
 
-x509-limbo also scores path validation — whether a chain should be accepted. pkinative 0.1 does not validate paths, so no SUCCESS/FAILURE score is claimed before 0.5; the gate checks only what 0.1 does: parsing, refusing and re-encoding.
+NIST PKITS is not run. It is the other standard corpus for path validation, its expectations live in a PDF rather than in machine-readable form, and transcribing ~200 of them by hand is work that has not been done — so nothing here rests on it.
+
+**And the score is a measurement, not a promise.** It moves when the corpus is re-pinned, which is why the 1.0 freeze will not name it: what gets frozen is the *decision surface* — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else's test suite. The deviations file is where the two meet, and it is meant to shrink: the five key-identifier entries in it today say, in so many words, that `createCertificate` has to be able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier` before their absence can be diagnosed — or everything this library builds would trip its own reader.
 
 ## Where it runs
 
@@ -971,8 +1017,10 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 - **Serial number and algorithms** — `PKI_DIAG_SERIAL_TOO_LONG`, `PKI_DIAG_SERIAL_NOT_POSITIVE`, `PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH`, `PKI_DIAG_RSA_PARAMETERS_NOT_NULL`.
 - **Version and encoding** — `PKI_DIAG_EXTENSIONS_REQUIRE_V3`, `PKI_DIAG_UNIQUE_ID_REQUIRES_V2`, `PKI_DIAG_DEFAULT_ENCODED`.
 - **Time** — `PKI_DIAG_GENERALIZED_TIME_BEFORE_2050`, `PKI_DIAG_GENERALIZED_TIME_FRACTION`, `PKI_DIAG_VALIDITY_INVERTED`.
-- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`.
-- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
+- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`, `PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX`, `PKI_DIAG_COMMON_NAME_NOT_IN_SAN`.
+- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY`, `PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
+
+  The six added in 0.5.0 share one shape: each is a sentence RFC 5280 or the CA/Browser Forum addresses to the **issuing CA**, and none of them refuses a chain. pkinative reads and enforces the extension whatever the profile says about its criticality, so refusing would make it stricter than the standards ask of a verifier while accepting exactly the same set of chains; `strict: true` is where that choice belongs. Each answers a case of the x509-limbo corpus that expects a refusal, and the reason it stays a diagnostic is written beside that case in `scripts/data/limbo-score.json`. `PKI_DIAG_COMMON_NAME_NOT_IN_SAN` is the first to cite CA/Browser Forum Baseline Requirements rather than an RFC, because no RFC says it — and it fires only for a `commonName` that could be matched **as a host**, since reporting `CN=Example Issuing CA` would be reporting the ordinary shape of every organisational subject.
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
@@ -985,11 +1033,16 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 - **The certificate alone** — `PKI_REASON_NOT_YET_VALID`, `PKI_REASON_EXPIRED`, `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
 - **The link to the issuer** — `PKI_REASON_ISSUER_NOT_FOUND`, `PKI_REASON_SIGNATURE_INVALID`, `PKI_REASON_SIGNATURE_NOT_CHECKED`.
 - **The chain** — `PKI_REASON_NO_TRUST_ANCHOR`, `PKI_REASON_NOT_A_CA`, `PKI_REASON_PATH_TOO_LONG`, `PKI_REASON_PATH_LOOPS`.
+- **What a CA above it forbade** — `PKI_REASON_NAME_NOT_PERMITTED`, `PKI_REASON_NAME_EXCLUDED`, `PKI_REASON_NO_VALID_POLICY`, `PKI_REASON_POLICY_MAPPING_INVALID`.
+- **Revocation** — `PKI_REASON_REVOKED` (carrying the date, because a signature made before it may still be good), `PKI_REASON_REVOCATION_STALE`, `PKI_REASON_REVOCATION_WRONG_ISSUER`, `PKI_REASON_REVOCATION_UNKNOWN`, `PKI_REASON_REVOCATION_MISMATCH`.
+- **The questions §6 does not ask** — `PKI_REASON_NAME_MISMATCH` (from `checkServerName`: the chain is sound and the certificate is for somebody else) and `PKI_REASON_PURPOSE_NOT_PERMITTED` (from `checkExtendedKeyUsage`: the chain is sound and the certificate is for something else).
 - **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
 
 **`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
 
-`docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. The reports that return them arrive with path validation in 0.5; the vocabulary lands first, deliberately, so that no verdict is ever expressed as an exception code and then has to be migrated.
+**`PKI_REASON_REVOCATION_UNKNOWN` is not "not revoked" either**, for the same reason: a missing or unsigned list is an absence of evidence, and reporting it as a clean answer would make the soft-fail decision on your behalf, invisibly.
+
+`docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. Which of them a real chain actually earns is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, and a reviewed subset is pinned on its reason code rather than on the pass/fail boolean — because *rejected for the wrong reason* is a defect no count can see.
 
 ---
 <!-- source: docs/guides/choose.md -->

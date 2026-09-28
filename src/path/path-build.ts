@@ -42,6 +42,7 @@ import { resolveLimits } from '../core/pki-limits.js';
 import type { PathValidationInput, PathValidationReport } from '../types/path-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
+import { checkExtendedKeyUsage } from './path-purpose.js';
 import { validateCertificatePath } from './path-validate.js';
 
 /** What to build from, and everything needed to judge each candidate. */
@@ -54,6 +55,23 @@ export interface PathBuildInput extends Omit<PathValidationInput, 'certificates'
      * be handed over whole.
      */
     readonly candidates: readonly Certificate[];
+    /**
+     * KeyPurposeId OIDs every certificate on the path must permit, checked
+     * **during** the search rather than after it.
+     *
+     * Pass them whenever you know what the chain is for. A builder that picks a
+     * path without knowing its purpose will confidently return one that
+     * `checkExtendedKeyUsage` then condemns **while an acceptable path existed**
+     * — a real bag of cross-signed intermediates, some restricted to
+     * `emailProtection` and some not, is exactly that shape, and x509-limbo has
+     * the cases. Whatever can make a path unacceptable has to be inside the
+     * search, for the same reason name constraints are inside §6 rather than
+     * after it.
+     *
+     * `validateCertificatePath` is untouched by this: §6 has no notion of
+     * purpose, and searching is not §6.
+     */
+    readonly requiredPurposes?: readonly string[] | undefined;
 }
 
 /** A path that was tried, and what §6 made of it. */
@@ -128,7 +146,23 @@ export function buildCertificatePath(input: PathBuildInput): PathBuildReport {
     // 1, so there is always at least this one exploration, and an "if no
     // attempt was made" branch would be unreachable code carrying a `null`
     // nobody can produce.
-    const first = validateCertificatePath({ ...input, certificates: [input.leaf] });
+    /**
+     * §6's verdict, plus the purposes the caller needs, as one answer.
+     *
+     * The purposes are folded in here rather than checked by the caller
+     * afterwards so that a path they forbid is **backtracked out of** instead of
+     * returned. The reasons join the report, because a caller told only "no path
+     * found" cannot see that the one path there was is restricted to signing
+     * e-mail.
+     */
+    const judge = (certificates: readonly Certificate[]): PathValidationReport => {
+        const report = validateCertificatePath({ ...input, certificates });
+        if (!report.valid || input.requiredPurposes === undefined) return report;
+        const refused = input.requiredPurposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
+        return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
+    };
+
+    const first = judge([input.leaf]);
     let explored = 1;
     if (first.valid) return { ...first, explored };
 
@@ -155,7 +189,7 @@ export function buildCertificatePath(input: PathBuildInput): PathBuildReport {
             explored += 1;
 
             const next = [...chain, issuer];
-            const report = validateCertificatePath({ ...input, certificates: next });
+            const report = judge(next);
             if (report.valid) return { ...report, explored };
             if (next.length - 1 > bestDepth) { best = report; bestDepth = next.length - 1; }
 

@@ -40,7 +40,8 @@
       "commit": "118721335e675edde10015df89b138cf292d7554",
       "testcases": 9793,
       "certificates": 30361,
-      "refused": 564
+      "refused": 565,
+      "agree": 9150
     },
     "wycheproof": {
       "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230",
@@ -74,16 +75,16 @@
     },
     "typeSurface": {
       "$comment": "The declaration file's real driver. Bytes drift with TSDoc wording, so a byte budget alone can be raised without anyone noticing that the surface doubled; these two counts cannot change by accident. Derived from docs/assets/api.json and held to it by type-surface-parity. Revisit subpath exports at 1.0 if dist/index.d.ts passes 200000 bytes.",
-      "exportedTypes": 120,
-      "exportedValues": 84
+      "exportedTypes": 121,
+      "exportedValues": 87
     },
     "playgroundBundle": {
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "28b1f898a59e51deef632332b60387acedac16bfb4cac497e717ea1893339564",
-      "bundleSha256": "5f402f88663cfa1d241fe2802728ef34271e7da35f8f4cef2b23330afb55660d",
-      "bytes": 259063,
+      "sourceSha256": "706e8e928b7a2e9919d7d09a57513e6d137b49a189a2e65b03f5532814973318",
+      "bundleSha256": "1f69ae5d288f984abdefd35ca61f7bcff24af2e24177ae057a4cad68a4d3955e",
+      "bytes": 266179,
       "maxBytes": 280000
     },
     "socialImages": [

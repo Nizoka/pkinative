@@ -20,6 +20,7 @@ import {
     oid,
     tbsCertificate,
     utcTime,
+    utf8,
 } from '../helpers/cert-builder.js';
 import { ascii, concat, sequence } from '../helpers/raw-der-builder.js';
 
@@ -104,6 +105,99 @@ describe('parseCertificate', () => {
             for (const part of [cert, cert.serialNumber, cert.extensions, cert.diagnostics, cert.issuer, cert.validity, cert.subjectPublicKeyInfo]) {
                 expect(Object.isFrozen(part)).toBe(true);
             }
+        });
+    });
+
+    describe('profile diagnostics that need the whole certificate', () => {
+        /**
+         * Each of these is a sentence RFC 5280 or the CA/Browser Forum addresses
+         * to the issuing CA, so each is a diagnostic and none refuses the
+         * certificate: pkinative reads and enforces the extension whatever the
+         * profile says about it, `strict` escalates for a caller who wants the
+         * stricter reading, and the reason each one stays a diagnostic is
+         * written beside its x509-limbo case in scripts/data/limbo-score.json.
+         */
+        const leaf = (...extensions: readonly Uint8Array[]): Uint8Array =>
+            certificate({ trailing: [explicit(3, sequence(...extensions))] });
+        const BC_LEAF = extension('2.5.29.19', sequence(boolean(false)), true);
+        const dnsSan = (host: string): Uint8Array => extension('2.5.29.17', sequence(context(2, false, [...ascii(host)])));
+
+        it('should report nameConstraints in a certificate that is not a CA', () => {
+            // §4.2.1.10's "MUST be used only in a CA certificate" addresses the
+            // CA. An end-entity certificate issues nothing, so its constraints
+            // bind nothing — §6.1.4 (g) only accumulates the constraints of a
+            // certificate that issued the next one.
+            // Non-empty: an extension that constrains nothing is refused
+            // outright, so the fixture has to constrain something.
+            const nc = extension('2.5.29.30', sequence(context(0, true, sequence(context(2, false, [...ascii('example.com')])))), true);
+            expect(diagnosticsOf(leaf(BC_LEAF, nc))).toContain('PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY');
+            // …and not on a CA, where they are exactly where they belong.
+            expect(diagnosticsOf(leaf(BASIC_CONSTRAINTS_CA, nc))).not.toContain('PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY');
+        });
+
+        it('should report basicConstraints asserting cA without being critical', () => {
+            const nonCritical = extension('2.5.29.19', sequence(boolean(true)), false);
+            expect(diagnosticsOf(leaf(nonCritical))).toContain('PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL');
+            expect(diagnosticsOf(leaf(BASIC_CONSTRAINTS_CA))).not.toContain('PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL');
+            // A leaf's basicConstraints need not be critical: the sentence is
+            // about CA certificates.
+            expect(diagnosticsOf(leaf(extension('2.5.29.19', sequence(boolean(false)), false))))
+                .not.toContain('PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL');
+        });
+
+        it('should report keyCertSign on a certificate that is not a CA', () => {
+            // §4.2.1.3: the bit "is for use in CA certificates only". It grants
+            // nothing either way — §6.1.4 (k) refuses to let a certificate
+            // without cA issue another, whatever its keyUsage claims.
+            const keyCertSign = extension('2.5.29.15', bitString([0x05]), true);
+            expect(diagnosticsOf(leaf(BC_LEAF, keyCertSign))).toContain('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA');
+            expect(diagnosticsOf(leaf(BASIC_CONSTRAINTS_CA, keyCertSign))).not.toContain('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA');
+        });
+
+        it('should report a commonName that names a host the subjectAltName does not', () => {
+            // CA/Browser Forum BR 7.1.4.3. The default subject is
+            // `CN=leaf.example`, which looks like a host and is not in this SAN.
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('other.example')))).toContain('PKI_DIAG_COMMON_NAME_NOT_IN_SAN');
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('leaf.example')))).not.toContain('PKI_DIAG_COMMON_NAME_NOT_IN_SAN');
+        });
+
+        it('should say nothing about a commonName no relying party could match as a host', () => {
+            // The security question is whether a name a lenient relying party
+            // might accept is here without the issuer having put it in the SAN.
+            // `CN=Example Issuing CA` is not such a name, and reporting it would
+            // be reporting the ordinary shape of every organisational subject.
+            const organisational = certificate({
+                subject: name([['2.5.4.3', utf8('Example Issuing CA')]]),
+                trailing: [explicit(3, sequence(BC_LEAF, dnsSan('other.example')))],
+            });
+            expect(diagnosticsOf(organisational)).not.toContain('PKI_DIAG_COMMON_NAME_NOT_IN_SAN');
+        });
+
+        it('should say nothing about a commonName when the subjectAltName names no host', () => {
+            const emailOnly = extension('2.5.29.17', sequence(context(1, false, [...ascii('a@other.example')])));
+            expect(diagnosticsOf(leaf(BC_LEAF, emailOnly))).not.toContain('PKI_DIAG_COMMON_NAME_NOT_IN_SAN');
+        });
+
+        it('should report a dNSName outside RFC 1034 preferred name syntax', () => {
+            // Underscores are everywhere in real certificates and resolve in
+            // DNS, which is why this reports rather than refuses. Nothing
+            // normalises the name, so it can only match the same spelling.
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('under_score.example')))).toContain('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX');
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('-leading.example')))).toContain('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX');
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('a..example')))).toContain('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX');
+            // A wildcard is the everyday case and RFC 9525 gives it its own
+            // grammar, so a leading `*` label is not reported.
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('*.leaf.example')))).not.toContain('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX');
+            expect(diagnosticsOf(leaf(BC_LEAF, dnsSan('leaf.example')))).not.toContain('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX');
+        });
+
+        it('should escalate every one of them under strict, and none of them by itself', () => {
+            // The whole point of the channel: the same certificate parses for a
+            // caller who wants to read it and is refused for one who wants to
+            // conform. A refusal here would take that choice away.
+            const der = leaf(BC_LEAF, extension('2.5.29.15', bitString([0x05]), true));
+            expect(parseCertificate(der, QUIET).diagnostics.map((d) => d.code)).toContain('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA');
+            expect(codeOf(() => parseCertificate(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
         });
     });
 

@@ -15,6 +15,7 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { stringContent } from '../asn1/asn1-read.js';
 import { TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, tagLabel } from '../asn1/asn1-tags.js';
 import { byteView } from '../core/bytes.js';
+import { dnsNameNotPreferredSyntaxDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import { decodeAsciiSubset, isIa5Octet } from '../core/text.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -31,6 +32,27 @@ import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readName } from './x509-name.js';
 
 const CODE = 'PKI_X509_GENERAL_NAME_INVALID';
+
+/**
+ * RFC 1034 §3.5 preferred name syntax: labels of letters, digits and hyphens,
+ * none empty, none beginning or ending with a hyphen.
+ *
+ * A leading `*` label is accepted here, because a wildcard certificate is the
+ * everyday case and RFC 9525 gives it its own grammar. Judged only to *report*:
+ * nothing downstream normalises a name, and the matching rules compare it
+ * literally, so a name outside the syntax simply matches fewer hosts.
+ */
+function isPreferredName(value: string): boolean {
+    // No guard for the empty string: `''.split('.')` is `['']`, whose single
+    // empty label the rule below already refuses. A separate check would be a
+    // branch no certificate can reach.
+    const labels = value.split('.');
+    return labels.every((label, index) => {
+        if (label === '*' && index === 0) return true;
+        if (label === '' || label.startsWith('-') || label.endsWith('-')) return false;
+        return /^[A-Za-z0-9-]+$/.test(label);
+    });
+}
 
 function formatIpv4(bytes: Uint8Array): string {
     // readIpAddress has already refused anything but exactly four octets here.
@@ -117,6 +139,11 @@ export function _readGeneralName(node: Asn1Node, ctx: Asn1Context, path: string,
                 throw certificateError(CODE, path, node.offset, 'contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5');
             }
             const kind: TextGeneralName['kind'] = node.tagNumber === 1 ? 'rfc822Name' : node.tagNumber === 2 ? 'dNSName' : 'uniformResourceIdentifier';
+            // §4.2.1.6 asks a dNSName to use RFC 1034's preferred name syntax.
+            // Real certificates carry underscores, which DNS resolves, so this is
+            // a diagnostic and not a refusal — and nothing normalises the name, so
+            // it can only ever match a host asked for with the same spelling.
+            if (kind === 'dNSName' && !isPreferredName(value)) ctx.emitter.emit(dnsNameNotPreferredSyntaxDiagnostic(value, path));
             const name: TextGeneralName = { kind, value, der };
             return Object.freeze(name);
         }

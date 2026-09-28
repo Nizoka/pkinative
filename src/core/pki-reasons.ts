@@ -188,6 +188,23 @@ export function nameMismatchReason(path: string, wanted: string, found: string):
         path);
 }
 
+/**
+ * A certificate on the path does not permit the purpose the caller needs
+ * (RFC 5280 §4.2.1.12).
+ *
+ * `permitted` is `null` when the certificate carries no `extKeyUsage` at all
+ * and the caller asked for the purpose to be explicit: *"absent"* and *"present
+ * and naming something else"* are different facts about a certificate, and a
+ * reader deciding whether to ask the CA for a reissue needs to know which.
+ */
+export function purposeNotPermittedReason(path: string, purpose: string, permitted: readonly string[] | null): PkiReason {
+    return _reason('PKI_REASON_PURPOSE_NOT_PERMITTED', 'RFC 5280 §4.2.1.12',
+        permitted === null
+            ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly`
+            : `the purpose ${purpose} is not among the ones this certificate permits (${permitted.join(', ') || 'none'}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
+        path);
+}
+
 /** No supplied candidate has a subject equal to this certificate's issuer. */
 export function issuerNotFoundReason(path: string, issuer: string): PkiReason {
     return _reason('PKI_REASON_ISSUER_NOT_FOUND', 'RFC 5280 §6.1',

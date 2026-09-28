@@ -50,6 +50,8 @@ export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl
 export { buildCertificatePath } from './path/path-build.js';
 export { checkServerName, dnsMatches } from './path/path-server-name.js';
 export type { CheckServerNameOptions, ServerIdentity } from './path/path-server-name.js';
+export { ANY_EXTENDED_KEY_USAGE, checkExtendedKeyUsage, KEY_PURPOSES } from './path/path-purpose.js';
+export type { CheckPurposeOptions } from './path/path-purpose.js';
 export type { PathBuildInput, PathBuildReport } from './path/path-build.js';
 export { validateCertificatePath } from './path/path-validate.js';
 export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';

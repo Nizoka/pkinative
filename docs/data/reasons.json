@@ -32,6 +32,13 @@
       "standard": "RFC 6125 §6"
     },
     {
+      "code": "PKI_REASON_PURPOSE_NOT_PERMITTED",
+      "since": "0.5.0",
+      "returnedWhen": "A certificate on the path carries extKeyUsage and does not name the purpose the caller asked checkExtendedKeyUsage for — or, with requireExplicit, carries no extKeyUsage at all. By default a CA's own extKeyUsage restricts what it may issue for, which no sentence of RFC 5280 requires and every Web PKI validator does.",
+      "remedy": "A chain that validates is sound for what its CAs granted, which may not be what you are doing with it. Ask the issuer for a certificate naming the purpose you need; if the restriction comes from a CA above the leaf, that CA was deliberately constrained and the leaf should not have been issued. restrictIssuers: false is the literal-RFC reading, for an internal PKI that puts a purpose on a CA as documentation.",
+      "standard": "RFC 5280 §4.2.1.12"
+    },
+    {
       "code": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
       "since": "0.5.0",
       "returnedWhen": "A certificate carries a critical extension this implementation does not recognise.",

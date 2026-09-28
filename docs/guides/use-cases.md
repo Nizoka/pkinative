@@ -290,6 +290,37 @@ The input is a [`PathValidationInput`](../assets/api.json) and the answer a [`Pa
 
 **What it refuses rather than ignores.** RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and `PROCESSED_CRITICAL_EXTENSIONS` is the exact boundary of what a chain may rely on: `basicConstraints`, `keyUsage`, `subjectAltName`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy` and `extKeyUsage`. Anything else marked critical comes back `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` — including `cRLDistributionPoints`, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer "valid" for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.
 
+## Two questions a validated chain does not answer
+
+The job: you validated the path and it came back clean. You are not done.
+
+RFC 5280 §6 asks whether a chain of certificates is internally sound and reaches something you trust. It has **no notion of the host you connected to** and it **never reads `extKeyUsage`**. So a chain can be perfectly valid and still be a certificate for somebody else, or a certificate for something else — and both of those are how a valid certificate gets accepted where it should not be.
+
+```ts
+import { buildCertificatePath, checkServerName, checkExtendedKeyUsage, KEY_PURPOSES } from 'pkinative';
+
+const report = buildCertificatePath({ leaf, candidates, trustAnchors, at: Date.now(), signatures });
+const problems = [
+    ...report.reasons,
+    ...checkServerName(leaf, { kind: 'dns', value: 'bank.example' }),
+    ...checkExtendedKeyUsage(report.path, KEY_PURPOSES.serverAuth),
+];
+if (problems.length > 0) for (const reason of problems) console.log(reason.code, reason.path, reason.message);
+```
+
+**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
+
+**When you build rather than validate, put the purpose *into* the search.** `buildCertificatePath` takes `requiredPurposes`, and passing it is not an optimisation — a builder that picks a path without knowing what the path is for will confidently return one that `checkExtendedKeyUsage` then condemns **while an acceptable path existed**. A real bag of cross-signed intermediates, some restricted to `emailProtection` and some not, is exactly that shape. Whatever can make a path unacceptable belongs inside the search, for the same reason name constraints are inside §6 rather than after it — and `validateCertificatePath` is untouched by this, because §6 has no notion of purpose and searching is not §6.
+
+```ts
+const report = buildCertificatePath({
+    leaf, candidates, trustAnchors, at: Date.now(), signatures,
+    requiredPurposes: [KEY_PURPOSES.serverAuth],
+});
+```
+
+**`checkExtendedKeyUsage` is RFC 5280 §4.2.1.12**, and it takes the purpose as an argument because which purpose you need is a fact about your protocol, not about the chain. One rule in it is **not** in the RFC: a CA's own `extKeyUsage` restricts what it may issue for. Every Web PKI validator enforces it and the CA/Browser Forum relies on it to constrain sub-CAs — without it, a sub-CA restricted to `emailProtection` issues a `serverAuth` certificate and the chain validates, which is the whole point of restricting it. So `restrictIssuers` is **on** by default, and `restrictIssuers: false` is the literal-RFC reading for an internal PKI that puts a purpose on a CA as documentation. An **absent** extension means unrestricted, which is why almost no public root ever appears in a refusal; `requireExplicit: true` is the stricter reading and applies to the end entity alone. `recipes/check-server-name.ts` and `recipes/check-purpose.ts` run both on real certificates.
+
 ## Ask a revocation list about one certificate
 
 The job: a CA published a CRL, and you want to know whether this certificate is on it.
@@ -399,11 +430,15 @@ A nonce that comes back **different** is always a mismatch. One that does not co
 
 ## What none of these do yet
 
-Each of the nine is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the ten is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Name constraints and certificate policies in a chain | 0.5, and refused rather than ignored until then | pkijs; on Node.js, your TLS stack |
-| Know whether a certificate is revoked | 0.5, CRL and OCSP | pkijs |
+| Read a CMS SignedData or an RFC 3161 timestamp | 0.7 | pkijs |
+| Read a PKCS#8 or PKCS#12 container | 0.8, and **PBES2 only** — the RFC 7292 appendix B KDF is SHA-1 iterated over a password and will never be implemented here | `openssl pkcs12` to convert, then pkinative |
+| Decide that a key is too small or a curve unacceptable | never, by design | one comparison on the parsed `subjectPublicKeyInfo`; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library |
+| A public suffix list, so that `*.co.uk` is refused | never, by design | a maintained PSL package; a parsing library carrying a stale copy is worse than one that says it does not know |
 
-A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. **Neither proves a certificate should be trusted** — that needs a trust anchor, a validity window, name constraints, policies and revocation, which is RFC 5280 §6 and arrives in 0.5. pkinative does not pretend otherwise, and that distinction is the whole of the [security model](security.md).
+**Three separate questions, and you need all three.** A fingerprint proves two byte strings are the same certificate. A verified signature proves one key signed one set of bytes. A validated path proves a chain reaches something you trust — and still says nothing about *which host* the certificate is for or *what* it may be used for, which is why `checkServerName` and `checkExtendedKeyUsage` are separate calls rather than options. pkinative does not collapse them, and that distinction is the whole of the [security model](security.md).
+
+How well the path validator actually agrees with the world is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, every disagreement carries a written reason in `scripts/data/limbo-score.json`, and a reviewed subset is pinned on its `PkiReasonCode` — because *rejected for the wrong reason* is a defect no pass/fail count can see.

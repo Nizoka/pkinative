@@ -13,8 +13,10 @@ import { TAG_BIT_STRING, TAG_BOOLEAN, TAG_INTEGER, TAG_OID } from '../asn1/asn1-
 import type { Asn1Context } from '../asn1/asn1-context.js';
 import {
     defaultEncodedDiagnostic,
+    basicConstraintsNotCriticalDiagnostic,
     keyUsageEmptyDiagnostic,
     nameConstraintsNotCriticalDiagnostic,
+    policyConstraintsNotCriticalDiagnostic,
     pathLenWithoutCaDiagnostic,
     policyConstraintsEmptyDiagnostic,
 } from '../core/pki-diagnostics.js';
@@ -84,6 +86,10 @@ export function decodeBasicConstraints(input: ExtensionInput): BasicConstraintsE
         throw malformed(path, seq.offset, `holds ${seq.children.length} values; BasicConstraints is an optional cA flag and an optional pathLenConstraint`);
     }
     if (pathLenConstraint !== undefined && !cA) ctx.emitter.emit(pathLenWithoutCaDiagnostic());
+    // `MUST mark the extension as critical` addresses the issuing CA, not the
+    // verifier: pkinative reads it either way, which is the safe direction, and
+    // says so rather than deciding for the caller.
+    if (cA && !input.critical) ctx.emitter.emit(basicConstraintsNotCriticalDiagnostic());
     const extension: BasicConstraintsExtension = { ...baseOf(input), kind: 'basicConstraints', cA, pathLenConstraint };
     return Object.freeze(extension);
 }
@@ -139,11 +145,23 @@ export function decodeNameConstraints(input: ExtensionInput): NameConstraintsExt
     const { node, ctx, path } = input;
     const seq = expectSequence(node, path, node.offset);
     const [permitted, excluded] = contextFields(seq.children, 1, path);
+    const permittedSubtrees = readSubtrees(permitted, ctx, `${path}.permittedSubtrees`);
+    const excludedSubtrees = readSubtrees(excluded, ctx, `${path}.excludedSubtrees`);
+    // RFC 5280 §4.2.1.10: *"Conforming CAs MUST NOT issue certificates where
+    // name constraints is an empty sequence."* An extension that constrains
+    // nothing while looking as though it constrains everything is the worst
+    // shape available here — a verifier reading it as "no opinion" accepts what
+    // the CA meant to forbid, and one reading it as "nothing permitted" refuses
+    // what it meant to allow. Two readings of one encoding is what DER exists to
+    // remove, so this is a structural refusal rather than a diagnostic.
+    if (permittedSubtrees === undefined && excludedSubtrees === undefined) {
+        throw malformed(path, node.offset, 'holds neither permittedSubtrees nor excludedSubtrees; RFC 5280 §4.2.1.10 forbids an empty name-constraints extension, and one that constrains nothing while appearing to constrain everything is read two ways by two verifiers');
+    }
     const extension: NameConstraintsExtension = {
         ...baseOf(input),
         kind: 'nameConstraints',
-        permittedSubtrees: readSubtrees(permitted, ctx, `${path}.permittedSubtrees`),
-        excludedSubtrees: readSubtrees(excluded, ctx, `${path}.excludedSubtrees`),
+        permittedSubtrees,
+        excludedSubtrees,
     };
     if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
     return Object.freeze(extension);
@@ -161,6 +179,10 @@ export function decodePolicyConstraints(input: ExtensionInput): PolicyConstraint
         inhibitPolicyMapping: inhibitNode === undefined ? undefined : readCount(inhibitNode, ctx, `${path}.inhibitPolicyMapping`),
     };
     if (requireNode === undefined && inhibitNode === undefined) ctx.emitter.emit(policyConstraintsEmptyDiagnostic());
+    // §4.2.1.11 requires conforming CAs to mark it critical. pkinative enforces
+    // it either way — ignoring it would grant a path the policy the CA withheld
+    // — and reports the profile violation rather than refusing the certificate.
+    if (!input.critical) ctx.emitter.emit(policyConstraintsNotCriticalDiagnostic());
     return Object.freeze(extension);
 }
 

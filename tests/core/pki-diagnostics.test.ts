@@ -82,6 +82,12 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_KEY_USAGE_EMPTY', diagnostics.keyUsageEmptyDiagnostic()],
         ['PKI_DIAG_NAMED_BITS_TRAILING_ZERO', diagnostics.namedBitsTrailingZeroDiagnostic('tbsCertificate.extensions.keyUsage')],
         ['PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL', diagnostics.nameConstraintsNotCriticalDiagnostic()],
+        ['PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY', diagnostics.nameConstraintsInEndEntityDiagnostic()],
+        ['PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL', diagnostics.basicConstraintsNotCriticalDiagnostic()],
+        ['PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL', diagnostics.policyConstraintsNotCriticalDiagnostic()],
+        ['PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA', diagnostics.keyCertSignWithoutCaDiagnostic()],
+        ['PKI_DIAG_COMMON_NAME_NOT_IN_SAN', diagnostics.commonNameNotInSanDiagnostic('notinsan.example.com')],
+        ['PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX', diagnostics.dnsNameNotPreferredSyntaxDiagnostic('under_score.example.com', 'tbsCertificate.extensions.subjectAltName[0]')],
         ['PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', diagnostics.akiIssuerSerialUnpairedDiagnostic()],
         ['PKI_DIAG_POLICY_DUPLICATE', diagnostics.policyDuplicateDiagnostic('2.23.140.1.2.1')],
         ['PKI_DIAG_POLICY_CONSTRAINTS_EMPTY', diagnostics.policyConstraintsEmptyDiagnostic()],
@@ -96,7 +102,10 @@ describe('diagnostic payload factories', () => {
         expect(['warning', 'info']).toContain(payload.severity);
         expect(payload.message.length).toBeGreaterThan(20);
         expect(payload.message.startsWith('pkinative')).toBe(false);
-        expect(payload.standard).toMatch(/^(RFC|ITU-T) /);
+        // A diagnostic names the document it comes from, and the Web PKI's own
+        // profile is one of them: CA/Browser Forum BR 7.1.4.3 is what forbids a
+        // commonName that no subjectAltName repeats, and no RFC says it.
+        expect(payload.standard).toMatch(/^(RFC|ITU-T|CA\/Browser Forum) /);
         expect(typeof payload.path).toBe('string');
     });
 

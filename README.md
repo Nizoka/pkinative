@@ -88,7 +88,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 
-pkinative has 204 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 208 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -98,7 +98,7 @@ Every certificate, PEM text and DER blob is attacker-controlled. Sixteen named l
 
 A blocking gate ([conformance guide](docs/guides/conformance.md)) runs the built package over corpora pinned by commit and SHA-256:
 
-- **x509-limbo** — all 30 361 unique x509-limbo certificates parse, or are refused only where every limbo case using them expects failure; 564 certificates refused, each held to a reviewed baseline. Every certificate re-encodes byte for byte, and every parsed one agrees with OpenSSL on serial, validity, CA flag and fingerprint.
+- **x509-limbo** — all 30 361 unique x509-limbo certificates parse, or are refused only where every limbo case using them expects failure; 565 certificates refused, each held to a reviewed baseline. Every certificate re-encodes byte for byte, and every parsed one agrees with OpenSSL on serial, validity, CA flag and fingerprint.
 - **Wycheproof** — all 1 530 Wycheproof ECDSA vectors on P-256, P-384 and P-521: every valid signature decodes, every encoding defect is refused.
 
 ## Known limitations

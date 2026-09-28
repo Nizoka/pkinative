@@ -27,15 +27,23 @@
  *       that accepts anything, and a footer one that stopped halfway. A real
  *       difference is recorded in scripts/data/validator-disagreements.json
  *       with its reason. See scripts/lib/validators.ts;
+ *   L6  every x509-limbo case is **scored**: pkinative builds a path, matches
+ *       the host name and consults the CRL the way a caller would, and its
+ *       verdict must match the one the corpus writes down. A disagreement is
+ *       either a defect or a decision, and only a sentence in
+ *       scripts/data/limbo-score.json tells them apart — so the tool records
+ *       the id and a human records the reason, and an empty reason fails. A
+ *       reviewed subset is pinned on its PkiReasonCode rather than on the
+ *       boolean, because *rejected for the wrong reason* is a defect no
+ *       pass/fail count can see, and two canaries — one case that must succeed,
+ *       one that must fail — catch a harness that stopped deciding anything.
+ *       See scripts/lib/limbo-score.ts;
  *   Wycheproof  ECDSA signatures decode as a strict Ecdsa-Sig-Value
  *       (SEQUENCE of two INTEGERs): every valid vector parses, every vector
  *       flagged as an encoding defect is refused.
  *
- * x509-limbo also scores path validation; pkinative 0.1 validates no path,
- * so no SUCCESS/FAILURE score is claimed before 0.5.
- *
  * Usage:
- *   npx tsx scripts/validate-certs.ts [--level 0-4] [--require-all] [--update-baseline]
+ *   npx tsx scripts/validate-certs.ts [--level 0-6] [--require-all] [--update-baseline]
  *
  * Exit: 0 pass, 1 failure, 2 corpora or build missing.
  *
@@ -49,6 +57,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
 import { CLAUSES } from './lib/clauses.js';
+import { newScoreCache, scoreCase, type LimboScoreCase } from './lib/limbo-score.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
 import { evaluateClauses } from './validators/rfc5280-clauses.js';
@@ -64,6 +73,7 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
+const SCORE_BASELINE = join(ROOT, 'scripts', 'data', 'limbo-score.json');
 const REPORT_DIR = join(ROOT, 'test-output', 'conformance');
 const OPENSSL_SAMPLE = 200;
 /** How many certificates each cross-implementation validator is given (L4). */
@@ -73,7 +83,7 @@ const ENCODING_FLAGS: ReadonlySet<string> = new Set(['BerEncodedSignature', 'Inv
 
 const args = process.argv.slice(2);
 const levelAt = args.indexOf('--level');
-const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 5;
+const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 6;
 const requireAll = args.includes('--require-all');
 const updateBaseline = args.includes('--update-baseline');
 
@@ -100,7 +110,7 @@ interface WycheproofFile {
 }
 
 interface Declared {
-    readonly 'x509-limbo'?: { readonly commit?: string; readonly testcases?: number; readonly certificates?: number; readonly refused?: number };
+    readonly 'x509-limbo'?: { readonly commit?: string; readonly testcases?: number; readonly certificates?: number; readonly refused?: number; readonly agree?: number };
     readonly wycheproof?: { readonly commit?: string; readonly tests?: number };
 }
 
@@ -328,6 +338,8 @@ async function main(): Promise<number> {
 
     if (level >= 5) runClauseChecker(certificates, parsed);
 
+    if (level >= 6) await runPathScorer(pki, limbo.testcases as unknown as readonly LimboScoreCase[], declared);
+
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
     let vectors = 0;
     for (const file of corpus('wycheproof').files) {
@@ -436,6 +448,160 @@ function runClauseChecker(certificates: ReadonlyMap<string, Uint8Array>, parsed:
     const waived = CLAUSES.filter((c) => c.unexercisedBy !== undefined).length;
     const corpusExercised = CLAUSES.length - waived;
     record('L5', `${CLAUSES.length} RFC 5280 clauses: ${corpusExercised} exercised by the corpus (${waived} waived to tests/conformance/clauses.test.ts), ${violated} violated by ${total} certificate readings, every violation attributed to its diagnostic`);
+}
+
+// ── L6 — path validation, scored against the corpus ─────────────────
+
+/** The reviewed score baseline, `scripts/data/limbo-score.json`. */
+interface ScoreBaseline {
+    readonly $comment: string;
+    readonly corpus: string;
+    readonly commit: string;
+    /** One case that must succeed and one that must fail — the anti-vacuity pair. */
+    readonly canaries: { readonly mustSucceed: string; readonly mustFail: string };
+    readonly totals: { readonly scored: number; readonly agree: number; readonly deviations: number; readonly unparsed: number; readonly skipped: number };
+    /** Every accepted disagreement, each with the sentence that makes it one. */
+    readonly deviations: Readonly<Record<string, { readonly expected: string; readonly why: string }>>;
+    /** Cases pinned on their reason codes, not only on the boolean. */
+    readonly reasons: Readonly<Record<string, string>>;
+}
+
+/**
+ * L1–L5 judge certificates. **L6 judges chains**, which is the other half of
+ * what this library is for and the only half a boolean can be wrong about
+ * silently.
+ *
+ * It fails on five things, and the last two are the ones that make the number
+ * evidence rather than a statistic:
+ *
+ *   - a **new disagreement** — a case whose verdict differs and which no
+ *     reviewed deviation covers;
+ *   - an **unexpected agreement** — a deviation that now agrees, so the reason
+ *     written beside it has stopped being true and must be deleted;
+ *   - a **changed reason code** on a pinned case: rejected for the wrong reason
+ *     is a defect a pass/fail count cannot see;
+ *   - a **canary** that stops behaving: a harness whose trust store silently
+ *     stopped being passed through scores 99 % on a FAILURE-heavy corpus, and
+ *     the positive canary is the only thing that notices;
+ *   - a **deviation with no `why`**: a disagreement is either a defect or a
+ *     decision, and the difference is a sentence someone wrote.
+ */
+async function runPathScorer(pki: typeof Pki, cases: readonly LimboScoreCase[], declared: Declared): Promise<void> {
+    const baseline = existsSync(SCORE_BASELINE) ? JSON.parse(readFileSync(SCORE_BASELINE, 'utf8')) as ScoreBaseline : null;
+    if (baseline !== null && baseline.commit !== corpus('x509-limbo').commit) {
+        fail(`L6 the score baseline was made at x509-limbo ${baseline.commit}, the pin is ${corpus('x509-limbo').commit} — rescore and review it`);
+    }
+
+    const cache = newScoreCache();
+    const started = Date.now();
+    const disagreed = new Map<string, { expected: string; reasons: readonly string[] }>();
+    const measured = new Map<string, string>();
+    const skipped = new Map<string, string>();
+    let agree = 0;
+    let unparsed = 0;
+    let scored = 0;
+    for (const test of cases) {
+        // `online::` cases fetch from the network, which this gate never does.
+        if (test.id.startsWith('online::')) { skipped.set(test.id, 'the case requires network access'); continue; }
+        const verdict = await scoreCase(pki, test, cache);
+        if (verdict.kind === 'skipped') { skipped.set(test.id, verdict.why); continue; }
+        if (verdict.kind === 'unparsed') { unparsed += 1; continue; }
+        scored += 1;
+        measured.set(test.id, verdict.reasons.join(','));
+        if (verdict.valid === (test.expected_result === 'SUCCESS')) agree += 1;
+        else disagreed.set(test.id, { expected: test.expected_result, reasons: verdict.reasons });
+    }
+    const seconds = Math.round((Date.now() - started) / 1000);
+
+    if (updateBaseline) {
+        // The ids and the measured reason codes are written; the `why` of each
+        // deviation is carried over from the existing baseline and left EMPTY for
+        // a new one, so a human has to fill it in and the gate stays red until
+        // they do. A baseline a tool can complete unattended absorbs regressions.
+        const deviations: Record<string, { expected: string; why: string }> = {};
+        for (const [id, { expected }] of [...disagreed].sort(([a], [b]) => (a < b ? -1 : 1))) {
+            deviations[id] = { expected, why: baseline?.deviations[id]?.why ?? '' };
+        }
+        // Which cases are pinned on their reason codes is a sampling decision the
+        // tool may take; what the codes ARE is a measurement it must never
+        // invent. So the first run seeds a deterministic spread — up to six
+        // rejected cases per namespace, by id — and every later run only
+        // re-measures the ids already pinned, so a reviewed pin never moves
+        // because the sampler's idea of "representative" changed.
+        const reasons: Record<string, string> = {};
+        const pinned = Object.keys(baseline?.reasons ?? {});
+        if (pinned.length === 0) {
+            const perNamespace = new Map<string, number>();
+            for (const [id, codes] of [...measured].sort(([a], [b]) => (a < b ? -1 : 1))) {
+                if (codes === '' || disagreed.has(id)) continue;
+                const namespace = id.slice(0, id.indexOf('::'));
+                const taken = perNamespace.get(namespace) ?? 0;
+                if (taken >= 6) continue;
+                perNamespace.set(namespace, taken + 1);
+                reasons[id] = codes;
+            }
+        } else {
+            for (const id of pinned.sort()) reasons[id] = measured.get(id) ?? '(not scored)';
+        }
+        const next: ScoreBaseline = {
+            $comment: 'Reviewed path-validation score of x509-limbo: every accepted disagreement with the sentence that makes it acceptable, and the cases pinned on their PkiReasonCode rather than on the boolean. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE the `why` of every new deviation by hand — the tool never fills one in, and an empty one fails the gate. Never hand-edit the ids.',
+            corpus: 'x509-limbo',
+            commit: corpus('x509-limbo').commit,
+            canaries: baseline?.canaries ?? { mustSucceed: '', mustFail: '' },
+            totals: { scored, agree, deviations: disagreed.size, unparsed, skipped: skipped.size },
+            deviations,
+            reasons,
+        };
+        mkdirSync(dirname(SCORE_BASELINE), { recursive: true });
+        writeFileSync(SCORE_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+        record('L6', `score baseline rewritten: ${agree} agree, ${String(disagreed.size)} deviations`);
+        return;
+    }
+
+    if (baseline === null) {
+        fail(`L6 ${SCORE_BASELINE} is missing — run with --update-baseline once, then write the reason for each deviation`);
+        return;
+    }
+
+    // Anti-vacuity. A scorer that rejects everything is worthless against a
+    // corpus that is mostly FAILURE, and this pair is what says so out loud.
+    for (const [which, id] of [['mustSucceed', baseline.canaries.mustSucceed], ['mustFail', baseline.canaries.mustFail]] as const) {
+        const reasons = measured.get(id);
+        if (reasons === undefined) { fail(`L6 canary ${which} ${id} was not scored — the harness is not exercising the corpus`); continue; }
+        const wants = which === 'mustSucceed';
+        if ((reasons === '') !== wants) {
+            fail(`L6 canary ${which} ${id} ${wants ? `must validate cleanly and reported ${reasons}` : 'must be refused and validated cleanly'} — the scorer is not deciding anything`);
+        }
+    }
+
+    for (const [id, { expected, reasons }] of disagreed) {
+        const reviewed = baseline.deviations[id];
+        if (reviewed === undefined) {
+            fail(`L6 NEW-DISAGREEMENT ${id}: the corpus expects ${expected} and pkinative says otherwise [${reasons.join(',') || 'accepted'}] — fix it, or add it to the baseline with the sentence that makes it acceptable`);
+        } else if (reviewed.why.trim() === '') {
+            fail(`L6 ${id}: the deviation has no reason written — a disagreement is either a defect or a decision, and only a sentence tells them apart`);
+        }
+    }
+    for (const id of Object.keys(baseline.deviations)) {
+        if (disagreed.has(id)) continue;
+        if (!measured.has(id)) fail(`L6 stale deviation ${id}: no such case is scored in the corpus`);
+        else fail(`L6 UNEXPECTED-AGREEMENT ${id}: the baseline expects a deviation and pkinative now agrees with the corpus — delete the entry, its reason has stopped being true`);
+    }
+    for (const [id, expected] of Object.entries(baseline.reasons)) {
+        const actual = measured.get(id);
+        if (actual === undefined) fail(`L6 pinned case ${id} was not scored — the pin is stale`);
+        else if (actual !== expected) fail(`L6 ${id}: reasons are [${actual || 'none'}], the baseline pins [${expected || 'none'}] — rejected for a different reason is a change in behaviour, whatever the boolean says`);
+    }
+
+    if (scored !== baseline.totals.scored || unparsed !== baseline.totals.unparsed) {
+        fail(`L6 ${String(scored)} cases scored and ${String(unparsed)} unparsed; the baseline says ${String(baseline.totals.scored)} and ${String(baseline.totals.unparsed)} (canary)`);
+    }
+    if (agree !== declared['x509-limbo']?.agree) {
+        fail(`L6 ${String(agree)} cases agree; ecosystem.json declares ${String(declared['x509-limbo']?.agree)} (canary)`);
+    }
+
+    const rate = scored === 0 ? 0 : (agree / scored) * 100;
+    record('L6', `${String(agree)}/${String(scored)} chains agree (${rate.toFixed(2)} %), ${String(disagreed.size)} reviewed deviations, ${String(Object.keys(baseline.reasons).length)} pinned on their reason codes, ${String(skipped.size)} skipped, ${String(unparsed)} refused at L1 — ${String(cache.verifications)} signature verifications in ${String(seconds)} s`);
 }
 
 // ── L4 — confrontation with other implementations ───────────────────

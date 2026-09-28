@@ -57,6 +57,8 @@ export type PkiReasonCode =
     | 'PKI_REASON_EXPIRED'
     /** No name in the certificate matches the host or address the caller asked about. */
     | 'PKI_REASON_NAME_MISMATCH'
+    /** A certificate on the path does not permit the purpose the caller needs (RFC 5280 §4.2.1.12). */
+    | 'PKI_REASON_PURPOSE_NOT_PERMITTED'
     /** A critical extension no implementation here recognises; RFC 5280 §6.1.3 requires refusal. */
     | 'PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION'
     /** A name in the certificate falls outside the name constraints a CA above it set. */

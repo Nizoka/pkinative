@@ -208,6 +208,42 @@ export function nameConstraintsNotCriticalDiagnostic(): PkiDiagnostic {
         'tbsCertificate.extensions.nameConstraints', undefined);
 }
 
+export function nameConstraintsInEndEntityDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY', 'warning', 'RFC 5280 §4.2.1.10',
+        'nameConstraints appears in a certificate that is not a CA; the extension "MUST be used only in a CA certificate", and an end-entity certificate issues nothing for it to constrain',
+        'tbsCertificate.extensions.nameConstraints', undefined);
+}
+
+export function basicConstraintsNotCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL', 'warning', 'RFC 5280 §4.2.1.9',
+        'basicConstraints asserts cA without being marked critical; RFC 5280 requires conforming CAs to mark it critical, so a verifier that skipped non-critical extensions would not see that this is a CA',
+        'tbsCertificate.extensions.basicConstraints', undefined);
+}
+
+export function policyConstraintsNotCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL', 'warning', 'RFC 5280 §4.2.1.11',
+        'policyConstraints is not marked critical; RFC 5280 requires conforming CAs to mark it critical, and a verifier that ignored it would grant a path the policy the CA withheld',
+        'tbsCertificate.extensions.policyConstraints', undefined);
+}
+
+export function keyCertSignWithoutCaDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA', 'warning', 'RFC 5280 §4.2.1.3',
+        'keyUsage asserts keyCertSign while basicConstraints does not assert cA; that bit "is for use in CA certificates only", and §6.1.4 (k) refuses to let this key issue anything regardless',
+        'tbsCertificate.extensions.keyUsage', undefined);
+}
+
+export function commonNameNotInSanDiagnostic(commonName: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_COMMON_NAME_NOT_IN_SAN', 'warning', 'CA/Browser Forum BR 7.1.4.3',
+        `the commonName ${JSON.stringify(commonName)} is not one of the subjectAltName entries; CA/Browser Forum BR 7.1.4.3 requires it to repeat a SAN value, and a name that appears only in the commonName is one no modern relying party will match`,
+        'tbsCertificate.subject', undefined);
+}
+
+export function dnsNameNotPreferredSyntaxDiagnostic(name: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX', 'warning', 'RFC 5280 §4.2.1.6',
+        `the dNSName ${JSON.stringify(name)} is outside RFC 1034's preferred name syntax; it is compared literally, so it can only ever match a host asked for with the same spelling`,
+        path, undefined);
+}
+
 export function akiIssuerSerialUnpairedDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', 'warning', 'RFC 5280 §4.2.1.1',
         'authorityKeyIdentifier carries only one of authorityCertIssuer and authorityCertSerialNumber; they must appear together',

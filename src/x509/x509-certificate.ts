@@ -31,10 +31,13 @@ import {
 import { _readTime } from '../asn1/asn1-time.js';
 import { assertBytes, bytesEqual, toHex } from '../core/bytes.js';
 import {
+    commonNameNotInSanDiagnostic,
     defaultEncodedDiagnostic,
     emptyIssuerDiagnostic,
     emptySubjectSanNotCriticalDiagnostic,
     extensionsRequireV3Diagnostic,
+    keyCertSignWithoutCaDiagnostic,
+    nameConstraintsInEndEntityDiagnostic,
     generalizedTimeBefore2050Diagnostic,
     generalizedTimeFractionDiagnostic,
     serialNotPositiveDiagnostic,
@@ -46,7 +49,7 @@ import {
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, BitString, PkiTime } from '../types/asn1-types.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { Certificate, Extension, ParseCertificateOptions, RawExtension, SerialNumber, Validity } from '../types/x509-types.js';
+import type { Certificate, DistinguishedName, Extension, ParseCertificateOptions, RawExtension, SerialNumber, Validity } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
 import { _decodeExtension } from './x509-extensions.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
@@ -55,6 +58,88 @@ import { _readSubjectPublicKeyInfo } from './x509-spki.js';
 
 const STRUCTURE = 'PKI_X509_STRUCTURE_INVALID';
 const OID_SUBJECT_ALT_NAME = '2.5.29.17';
+const OID_BASIC_CONSTRAINTS = '2.5.29.19';
+const OID_KEY_USAGE = '2.5.29.15';
+const OID_NAME_CONSTRAINTS = '2.5.29.30';
+const OID_COMMON_NAME = '2.5.4.3';
+
+/**
+ * Whether a `commonName` is the kind of string a relying party could try to
+ * match against a host or an address.
+ *
+ * Deliberately generous on the left and strict on the right: a dotted label
+ * sequence or a bracketed or colon-bearing address qualifies, and anything with
+ * a space, a slash or an equals sign — the shape of an organisational name —
+ * does not. Being generous is the safe direction here, because the diagnostic
+ * only ever reports.
+ */
+function looksLikeHost(value: string): boolean {
+    if (value === '' || /[\s/=,]/.test(value)) return false;
+    return value.includes(':') || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
+}
+/**
+ * Profile checks that need the **whole certificate**, not one extension.
+ *
+ * Each of these is a sentence RFC 5280 or the CA/Browser Forum addresses to the
+ * issuing CA, so each is a diagnostic and none refuses the certificate: a
+ * verifier that rejected them would be stricter than the standards ask of a
+ * verifier while changing no decision it takes. `strict: true` escalates them
+ * for a caller who wants the stricter reading, which is where that choice
+ * belongs. Every one of them is a case x509-limbo scores, and the reason each
+ * stays a diagnostic is written beside it in `scripts/data/limbo-score.json`.
+ */
+
+function emitProfileDiagnostics(
+    ctx: Asn1Context,
+    subject: DistinguishedName,
+    extensions: readonly Extension[],
+): void {
+    const find = (oid: string): Extension | undefined => extensions.find((e) => e.oid === oid);
+    const basicConstraints = find(OID_BASIC_CONSTRAINTS);
+    const isCa = basicConstraints?.kind === 'basicConstraints' && basicConstraints.cA;
+
+    // A MISSING authorityKeyIdentifier or subjectKeyIdentifier is deliberately
+    // not diagnosed here, and the reason is measured rather than assumed: they
+    // are absent from 0.7 % and 1.3 % of x509-limbo's certificates, so they
+    // would be a real signal — but flagging them means `createCertificate` has
+    // to be able to emit both, or everything this library builds trips its own
+    // reader, which the pki-core rule forbids. That is its own change, and the
+    // reason lives beside the x509-limbo cases in scripts/data/limbo-score.json.
+    if (!isCa && find(OID_NAME_CONSTRAINTS) !== undefined) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
+
+    const keyUsage = find(OID_KEY_USAGE);
+    if (!isCa && keyUsage?.kind === 'keyUsage' && keyUsage.usages.includes('keyCertSign')) {
+        ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
+    }
+
+    // CA/Browser Forum BR 7.1.4.3: a commonName, when present, repeats a SAN
+    // value. Only checked when the certificate has a SAN at all — a certificate
+    // with none is the older shape the fallback in `checkServerName` is for, and
+    // its own diagnostic already covers the empty-subject case.
+    //
+    // And only for a commonName that **could be matched as a host**: the
+    // security question is whether a name a lenient relying party might accept
+    // is sitting here without the issuer having put it in the SAN, and
+    // `CN=Example CA` is not such a name. Reporting it would be reporting the
+    // ordinary shape of every organisational subject, which is how a diagnostic
+    // channel gets ignored.
+    const san = find(OID_SUBJECT_ALT_NAME);
+    if (san?.kind !== 'subjectAltName') return;
+    const named = new Set<string>();
+    for (const name of san.names) {
+        if (name.kind === 'dNSName') named.add(name.value.toLowerCase());
+        else if (name.kind === 'iPAddress') named.add(name.address.toLowerCase());
+    }
+    if (named.size === 0) return;
+    for (const rdn of subject.rdns) {
+        for (const attribute of rdn) {
+            if (attribute.type !== OID_COMMON_NAME || attribute.value === undefined) continue;
+            const common = attribute.value.value;
+            if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
+            ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
+        }
+    }
+}
 const NO_EXTENSIONS: readonly Extension[] = /*#__PURE__*/ Object.freeze([]);
 
 // ── TBSCertificate fields ────────────────────────────────────────────
@@ -230,6 +315,7 @@ export function parseCertificate(der: Uint8Array, options?: ParseCertificateOpti
     if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
         ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
     }
+    emitProfileDiagnostics(ctx, subject, extensions);
 
     const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, 'signatureAlgorithm', STRUCTURE, cert.offset);
     if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {

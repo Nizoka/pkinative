@@ -1,0 +1,248 @@
+{
+  "$comment": "Reviewed path-validation score of x509-limbo: every accepted disagreement with the sentence that makes it acceptable, and the cases pinned on their PkiReasonCode rather than on the boolean. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE the `why` of every new deviation by hand — the tool never fills one in, and an empty one fails the gate. Never hand-edit the ids.",
+  "corpus": "x509-limbo",
+  "commit": "118721335e675edde10015df89b138cf292d7554",
+  "canaries": {
+    "mustSucceed": "rfc5280::nc::permitted-dns-match",
+    "mustFail": "rfc5280::validity::expired-leaf"
+  },
+  "totals": {
+    "scored": 9200,
+    "agree": 9150,
+    "deviations": 50,
+    "unparsed": 573,
+    "skipped": 20
+  },
+  "deviations": {
+    "pathlen::max-chain-depth-0-exhausted": {
+      "expected": "FAILURE",
+      "why": "x509-limbo's max_chain_depth counts LOGICAL intermediates and excludes self-issued certificates; pkinative's maxChainLength is a resource bound on the certificates actually walked, counting every one. This runner maps one onto the other as max_chain_depth + 2, which is right for an ordinary hierarchy and off by one wherever the chain carries a self-issued certificate. The deviation is in the translation, not in the validator: a caller who wants x509-limbo's notion states it as a pathLenConstraint, which §6.1.4 (l) and (m) already implement exactly."
+    },
+    "pathlen::max-chain-depth-1-exhausted": {
+      "expected": "FAILURE",
+      "why": "x509-limbo's max_chain_depth counts LOGICAL intermediates and excludes self-issued certificates; pkinative's maxChainLength is a resource bound on the certificates actually walked, counting every one. This runner maps one onto the other as max_chain_depth + 2, which is right for an ordinary hierarchy and off by one wherever the chain carries a self-issued certificate. The deviation is in the translation, not in the validator: a caller who wants x509-limbo's notion states it as a pathLenConstraint, which §6.1.4 (l) and (m) already implement exactly."
+    },
+    "pathological::nc-dos-2": {
+      "expected": "FAILURE",
+      "why": "The case expects a validator to give up. pkinative finishes it inside maxPathsExplored and maxPolicyNodes, so there is nothing to refuse: those bounds exist to stop unbounded work, not to fail work that completes, and lowering them until this chain failed would refuse legitimate chains of the same size. What the case does prove is that the bounds hold, which is the property the limits are for."
+    },
+    "rfc5280::aki::cross-signed-root-missing-aki": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.1 and §4.2.1.2 address conforming CAs, not verifiers: §6 never consults either key identifier, and a chain whose names chain and whose signatures verify is not made unsafe by a missing hint about which key to try. buildCertificatePath works by issuer name, trying every candidate whose subject matches, so a missing identifier costs exploration rather than correctness. pkinative does not currently diagnose the absence either: measured on this corpus it would fire on 0.7 % and 1.3 % of certificates, which is a real signal, but reporting it means createCertificate has to be able to emit both extensions or everything this library builds trips its own reader. That is its own change, and this entry is where it will be measured. x509-limbo marks this case pedantic-rfc5280 for the same reason."
+    },
+    "rfc5280::aki::intermediate-missing-aki": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.1 and §4.2.1.2 address conforming CAs, not verifiers: §6 never consults either key identifier, and a chain whose names chain and whose signatures verify is not made unsafe by a missing hint about which key to try. buildCertificatePath works by issuer name, trying every candidate whose subject matches, so a missing identifier costs exploration rather than correctness. pkinative does not currently diagnose the absence either: measured on this corpus it would fire on 0.7 % and 1.3 % of certificates, which is a real signal, but reporting it means createCertificate has to be able to emit both extensions or everything this library builds trips its own reader. That is its own change, and this entry is where it will be measured."
+    },
+    "rfc5280::aki::leaf-missing-aki": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.1 and §4.2.1.2 address conforming CAs, not verifiers: §6 never consults either key identifier, and a chain whose names chain and whose signatures verify is not made unsafe by a missing hint about which key to try. buildCertificatePath works by issuer name, trying every candidate whose subject matches, so a missing identifier costs exploration rather than correctness. pkinative does not currently diagnose the absence either: measured on this corpus it would fire on 0.7 % and 1.3 % of certificates, which is a real signal, but reporting it means createCertificate has to be able to emit both extensions or everything this library builds trips its own reader. That is its own change, and this entry is where it will be measured."
+    },
+    "rfc5280::ca-empty-subject": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.1.2.6 requires a CA's subject to be a non-empty distinguished name, and pkinative diagnoses the empty name (PKI_DIAG_EMPTY_ISSUER on the certificate below it) rather than refusing the chain. Names are chained on encoded bytes here, so nothing matches by accident and an empty name matches only another empty name; exploiting this needs a CA the caller already trusts, whose subject is empty, and a second certificate naming an empty issuer — at which point the trust decision, not the name comparison, is what failed. It stays a diagnostic under the same rule as the other §4 profile sentences: they address the issuing CA, and escalating them is what `strict: true` is for."
+    },
+    "rfc5280::leaf-ku-keycertsign": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.3 says keyCertSign \"is for use in CA certificates only\". Asserting it on a leaf is a profile violation of that certificate, reported as PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA — and it grants nothing: §6.1.4 (k) refuses to let any certificate without cA issue another, so this leaf cannot sign a certificate whatever its keyUsage claims."
+    },
+    "rfc5280::nc::invalid-dnsname-leading-period": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.10 defines the leading-period form for `uniformResourceIdentifier` and `rfc822Name` constraints and not for `dNSName`, so `.example.com` as a dNSName base is outside the profile — x509-limbo is right that accepting it is non-conforming, and right that OpenSSL is why everyone does. pkinative accepts it, reading it as OpenSSL does (names strictly below the domain), and the reason is that **the three readings order, and this one is the safe end of the range**: literal ⊂ OpenSSL ⊂ \"the domain and everything below it\". On the permitted side OpenSSL's reading grants strictly fewer names than the widest reading; on the excluded side it forbids strictly more. There is no reading of this base under which a name pkinative accepts would be one a stricter verifier rejects, so it is a conformance deviation and not an ambiguity an attacker can stand in — which is the test the \"refuse ambiguity\" rule is actually for. Refusing outright would reject the technically-constrained sub-CAs the Web PKI issues with exactly this syntax."
+    },
+    "rfc5280::nc::not-allowed-in-ee-critical": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.10's \"MUST be used only in a CA certificate\" addresses the issuing CA. An end-entity certificate issues nothing, so its own constraints bind nothing and ignoring them changes no decision — §6.1.4 (g) only ever accumulates the constraints of a certificate that issued the next one. Reported as PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY, which strict escalates."
+    },
+    "rfc5280::nc::not-allowed-in-ee-noncritical": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.10's \"MUST be used only in a CA certificate\" addresses the issuing CA. An end-entity certificate issues nothing, so its own constraints bind nothing and ignoring them changes no decision — §6.1.4 (g) only ever accumulates the constraints of a certificate that issued the next one. Reported as PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY, which strict escalates."
+    },
+    "rfc5280::nc::permitted-dns-match-noncritical": {
+      "expected": "FAILURE",
+      "why": "The \"MUST mark the extension as critical\" sentences address the issuing CA. pkinative reads and enforces the extension whatever its criticality, which is the safe direction and changes no decision it takes, and reports the profile violation as a diagnostic. Refusing the chain would make pkinative stricter than RFC 5280 asks of a verifier while accepting exactly the same set of chains. Reported as PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL, and the constraints are applied, so the chain is judged against them either way. x509-limbo marks this case rfc5280-incompatible-with-webpki, which is the same disagreement seen from the other side."
+    },
+    "rfc5280::pc::ica-noncritical-pc": {
+      "expected": "FAILURE",
+      "why": "The \"MUST mark the extension as critical\" sentences address the issuing CA. pkinative reads and enforces the extension whatever its criticality, which is the safe direction and changes no decision it takes, and reports the profile violation as a diagnostic. Refusing the chain would make pkinative stricter than RFC 5280 asks of a verifier while accepting exactly the same set of chains. Reported as PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL."
+    },
+    "rfc5280::root-non-critical-basic-constraints": {
+      "expected": "FAILURE",
+      "why": "The \"MUST mark the extension as critical\" sentences address the issuing CA. pkinative reads and enforces the extension whatever its criticality, which is the safe direction and changes no decision it takes, and reports the profile violation as a diagnostic. Refusing the chain would make pkinative stricter than RFC 5280 asks of a verifier while accepting exactly the same set of chains. Reported as PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL."
+    },
+    "rfc5280::san::noncritical-with-empty-subject": {
+      "expected": "FAILURE",
+      "why": "The \"MUST mark the extension as critical\" sentences address the issuing CA. pkinative reads and enforces the extension whatever its criticality, which is the safe direction and changes no decision it takes, and reports the profile violation as a diagnostic. Refusing the chain would make pkinative stricter than RFC 5280 asks of a verifier while accepting exactly the same set of chains. Reported as PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL. pkinative reads the identity from subjectAltName whatever its criticality, so the name is never lost; a verifier that skipped non-critical extensions would see a certificate with no name at all, which is what the sentence protects against."
+    },
+    "rfc5280::san::underscore-dns": {
+      "expected": "FAILURE",
+      "why": "An underscore is outside RFC 1034's preferred name syntax and inside what DNS actually resolves, which is why it is everywhere in real certificates. §6 never parses a dNSName's syntax, and checkServerName compares it literally, so an underscored name can only ever match a host asked for with the same underscore. Reported as PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX."
+    },
+    "rfc5280::serial::too-long": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.1.2.2 requires a positive integer of at most 20 octets, of the CA. pkinative diagnoses both shapes (PKI_DIAG_SERIAL_TOO_LONG, PKI_DIAG_SERIAL_NOT_POSITIVE) and validates the chain: a serial outside the profile makes a certificate non-conforming, not unbound — the signature still covers exactly these bytes, and the serial is still what a CRL or an OCSP request names. x509-limbo marks both cases pedantic-serial-number."
+    },
+    "rfc5280::serial::zero": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.1.2.2 requires a positive integer of at most 20 octets, of the CA. pkinative diagnoses both shapes (PKI_DIAG_SERIAL_TOO_LONG, PKI_DIAG_SERIAL_NOT_POSITIVE) and validates the chain: a serial outside the profile makes a certificate non-conforming, not unbound — the signature still covers exactly these bytes, and the serial is still what a CRL or an OCSP request names. x509-limbo marks both cases pedantic-serial-number."
+    },
+    "rfc5280::ski::intermediate-missing-ski": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.1 and §4.2.1.2 address conforming CAs, not verifiers: §6 never consults either key identifier, and a chain whose names chain and whose signatures verify is not made unsafe by a missing hint about which key to try. buildCertificatePath works by issuer name, trying every candidate whose subject matches, so a missing identifier costs exploration rather than correctness. pkinative does not currently diagnose the absence either: measured on this corpus it would fire on 0.7 % and 1.3 % of certificates, which is a real signal, but reporting it means createCertificate has to be able to emit both extensions or everything this library builds trips its own reader. That is its own change, and this entry is where it will be measured."
+    },
+    "rfc5280::ski::root-missing-ski": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §4.2.1.1 and §4.2.1.2 address conforming CAs, not verifiers: §6 never consults either key identifier, and a chain whose names chain and whose signatures verify is not made unsafe by a missing hint about which key to try. buildCertificatePath works by issuer name, trying every candidate whose subject matches, so a missing identifier costs exploration rather than correctness. pkinative does not currently diagnose the absence either: measured on this corpus it would fire on 0.7 % and 1.3 % of certificates, which is a real signal, but reporting it means createCertificate has to be able to emit both extensions or everything this library builds trips its own reader. That is its own change, and this entry is where it will be measured."
+    },
+    "rfc5280::validity::notafter-fractional": {
+      "expected": "SUCCESS",
+      "why": "x509-limbo calls this case ambiguous itself and names both readings: comparison at the encoded second granularity, or comparison of instants. pkinative compares instants, which is what its epochMilliseconds contract says and what a reader of the API would predict — truncating the caller's instant would accept a certificate for the 999 ms after its notAfter. The Web PKI has mostly taken the other reading; neither is wrong, and this one is the one the API documents."
+    },
+    "webpki::aki::root-with-aki-all-fields": {
+      "expected": "FAILURE",
+      "why": "Same reading as the other key-identifier cases, on a root: the extension is a path-building hint, pkinative builds by issuer name, and an authorityKeyIdentifier that is partial, all-fields or contradicts the certificate's own subjectKeyIdentifier changes which candidates are tried first and never which chain is sound. RFC 5280 §4.2.1.1 also exempts a self-signed certificate from carrying a keyIdentifier at all, so several of these shapes are conforming."
+    },
+    "webpki::aki::root-with-aki-authoritycertissuer": {
+      "expected": "FAILURE",
+      "why": "Same reading as the other key-identifier cases, on a root: the extension is a path-building hint, pkinative builds by issuer name, and an authorityKeyIdentifier that is partial, all-fields or contradicts the certificate's own subjectKeyIdentifier changes which candidates are tried first and never which chain is sound. RFC 5280 §4.2.1.1 also exempts a self-signed certificate from carrying a keyIdentifier at all, so several of these shapes are conforming."
+    },
+    "webpki::aki::root-with-aki-authoritycertserialnumber": {
+      "expected": "FAILURE",
+      "why": "Same reading as the other key-identifier cases, on a root: the extension is a path-building hint, pkinative builds by issuer name, and an authorityKeyIdentifier that is partial, all-fields or contradicts the certificate's own subjectKeyIdentifier changes which candidates are tried first and never which chain is sound. RFC 5280 §4.2.1.1 also exempts a self-signed certificate from carrying a keyIdentifier at all, so several of these shapes are conforming."
+    },
+    "webpki::aki::root-with-aki-missing-keyidentifier": {
+      "expected": "FAILURE",
+      "why": "Same reading as the other key-identifier cases, on a root: the extension is a path-building hint, pkinative builds by issuer name, and an authorityKeyIdentifier that is partial, all-fields or contradicts the certificate's own subjectKeyIdentifier changes which candidates are tried first and never which chain is sound. RFC 5280 §4.2.1.1 also exempts a self-signed certificate from carrying a keyIdentifier at all, so several of these shapes are conforming."
+    },
+    "webpki::aki::root-with-aki-ski-mismatch": {
+      "expected": "FAILURE",
+      "why": "Same reading as the other key-identifier cases, on a root: the extension is a path-building hint, pkinative builds by issuer name, and an authorityKeyIdentifier that is partial, all-fields or contradicts the certificate's own subjectKeyIdentifier changes which candidates are tried first and never which chain is sound. RFC 5280 §4.2.1.1 also exempts a self-signed certificate from carrying a keyIdentifier at all, so several of these shapes are conforming."
+    },
+    "webpki::ca-as-leaf": {
+      "expected": "FAILURE",
+      "why": "Presenting a CA certificate as the end entity is the same question from the other side, and the same answer: §6 validates the chain above it, which is sound, and whether a CA certificate may terminate a TLS handshake is a relying-party policy the caller states. It is not a §6 failure and pkinative does not invent one."
+    },
+    "webpki::cn::case-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. The commonName here differs from the SAN only in case, which BR 7.1.4.3 still forbids."
+    },
+    "webpki::cn::ipv4-hex-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. An address in a commonName is text, and checkServerName refuses to compare an address to text at all — which is why the alternative spellings in these cases can never match."
+    },
+    "webpki::cn::ipv4-leading-zeros-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. An address in a commonName is text, and checkServerName refuses to compare an address to text at all — which is why the alternative spellings in these cases can never match."
+    },
+    "webpki::cn::ipv6-non-rfc5952-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. An address in a commonName is text, and checkServerName refuses to compare an address to text at all — which is why the alternative spellings in these cases can never match."
+    },
+    "webpki::cn::ipv6-uncompressed-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. An address in a commonName is text, and checkServerName refuses to compare an address to text at all — which is why the alternative spellings in these cases can never match."
+    },
+    "webpki::cn::ipv6-uppercase-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. An address in a commonName is text, and checkServerName refuses to compare an address to text at all — which is why the alternative spellings in these cases can never match."
+    },
+    "webpki::cn::not-in-san": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way."
+    },
+    "webpki::cn::punycode-not-in-san": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. pkinative never converts between A-label and U-label spellings: IDNA is a moving target and a library that guessed would match a host the issuer did not name."
+    },
+    "webpki::cn::utf8-vs-punycode-mismatch": {
+      "expected": "FAILURE",
+      "why": "CA/Browser Forum BR 7.1.4.3, not RFC 5280: a commonName, when present, must repeat a subjectAltName value. It is a misissuance signal about one certificate rather than a property of the relation, so it is PKI_DIAG_COMMON_NAME_NOT_IN_SAN and escalated by strict. Nothing is matched on the strength of it: checkServerName ignores the commonName entirely whenever the SAN names any host, so the name in this certificate is unusable either way. pkinative never converts between A-label and U-label spellings: IDNA is a moving target and a library that guessed would match a host the issuer did not name."
+    },
+    "webpki::ee-basicconstraints-ca": {
+      "expected": "FAILURE",
+      "why": "A leaf asserting cA is a profile violation of that certificate, not of the path: §6 asks whether each issuer is a CA, never whether the final certificate is not one, and nothing in this chain is issued by the leaf. Restricting what a caller may do with such a certificate is the purpose question — extended key usage and the caller's own policy — and it is the same gap the EKU deviations record."
+    },
+    "webpki::eku::ee-anyeku": {
+      "expected": "FAILURE",
+      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here the end entity asserts anyExtendedKeyUsage, which §4.2.1.12 defines as every purpose and which pkinative therefore honours. Refusing it on an end-entity certificate is a relying-party policy, and a caller who wants it writes one comparison on `purposes`; pkinative will not read an OID as though it meant nothing."
+    },
+    "webpki::eku::ee-critical-eku": {
+      "expected": "FAILURE",
+      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here the extension is marked critical. §4.2.1.12 says conforming CAs SHOULD mark it non-critical and explicitly permits the other choice, so a critical extKeyUsage is conforming — and pkinative processes the extension, which is what §6.1.3 (f) requires of any critical extension a verifier does handle."
+    },
+    "webpki::eku::ee-without-eku": {
+      "expected": "FAILURE",
+      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here the end entity carries no extKeyUsage at all, which §4.2.1.12 makes optional and whose absence restricts nothing. Requiring it is the stricter Web PKI reading and is available as `requireExplicit: true`; it is off by default because turning it on refuses a large part of every internal PKI ever issued — and rfc5280::eku::ee-without-eku, the same shape scored against RFC 5280 rather than webpki, expects exactly the opposite answer."
+    },
+    "webpki::eku::root-has-eku": {
+      "expected": "FAILURE",
+      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here a trust anchor carries an extKeyUsage. webpki refuses a root that carries the extension at all; RFC 5280 neither requires nor forbids one, and a root whose stated purpose covers the one in use is not a chain pkinative can call unsound."
+    },
+    "webpki::forbidden-dsa-leaf": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs. DSA in particular: pkinative maps no DSA signature algorithm at all, because Web Crypto implements none, so verification of such a chain is a PkiCryptoError rather than a silent pass."
+    },
+    "webpki::forbidden-p192-leaf": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs."
+    },
+    "webpki::forbidden-rsa-key-not-divisible-by-8-in-leaf": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs."
+    },
+    "webpki::forbidden-rsa-not-divisible-by-8-in-root": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs."
+    },
+    "webpki::forbidden-weak-rsa-in-leaf": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs."
+    },
+    "webpki::forbidden-weak-rsa-key-in-root": {
+      "expected": "FAILURE",
+      "why": "Minimum key sizes and permitted curves are CA/Browser Forum policy rather than RFC 5280 §6, and they move by ballot: a library that baked the 2026 floor in would be wrong by 2029 and would refuse a chain its caller had decided to accept. pkinative reports the key kind, curve and modulus size on the parsed certificate, and a caller who wants the Web PKI floor writes one comparison. Refusing here would also mean pkinative could never read an internal PKI the caller knowingly runs."
+    },
+    "webpki::san::public-suffix-multi-label-wildcard-san": {
+      "expected": "FAILURE",
+      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. dnsMatches requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
+    },
+    "webpki::san::public-suffix-private-namespace-wildcard-san": {
+      "expected": "FAILURE",
+      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. dnsMatches requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
+    },
+    "webpki::san::san-critical-with-nonempty-subject": {
+      "expected": "FAILURE",
+      "why": "The \"MUST mark the extension as critical\" sentences address the issuing CA. pkinative reads and enforces the extension whatever its criticality, which is the safe direction and changes no decision it takes, and reports the profile violation as a diagnostic. Refusing the chain would make pkinative stricter than RFC 5280 asks of a verifier while accepting exactly the same set of chains. Here the extension is critical when §4.2.1.6 says it SHOULD be non-critical, which is the mirror image: pkinative processes subjectAltName and so may accept it critical, as §6.1.3 (f) requires of any extension the verifier does process."
+    }
+  },
+  "reasons": {
+    "bettertls::nameconstraints::tc10": "PKI_REASON_NAME_MISMATCH",
+    "bettertls::nameconstraints::tc100": "PKI_REASON_NAME_MISMATCH",
+    "bettertls::nameconstraints::tc1000": "PKI_REASON_NAME_EXCLUDED",
+    "bettertls::nameconstraints::tc1001": "PKI_REASON_NAME_EXCLUDED",
+    "bettertls::nameconstraints::tc1002": "PKI_REASON_NAME_EXCLUDED",
+    "bettertls::nameconstraints::tc1009": "PKI_REASON_NAME_EXCLUDED",
+    "cve::cve-2025-61727": "PKI_REASON_NAME_EXCLUDED",
+    "cve::cve-2025-61727-nc-permits-variant": "PKI_REASON_NAME_NOT_PERMITTED",
+    "pathlen::intermediate-pathlen-too-long": "PKI_REASON_PATH_TOO_LONG",
+    "pathlen::intermediate-violates-pathlen-0": "PKI_REASON_PATH_TOO_LONG",
+    "pathological::intermediate-cycle-distinct-cas": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "pathological::intermediate-cycle-distinct-cas-max-depth": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "pathological::intermediate-cycle-same-logical-ca": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "pathological::pathological-chain-distinct-subject-distinct-key": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "pathological::pathological-chain-distinct-subject-same-key": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "pathological::pathological-chain-same-subject-distinct-key": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_LIMIT_EXCEEDED",
+    "rfc5280::aki::critical-aki": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "rfc5280::ca-as-leaf-wrong-san": "PKI_REASON_NAME_MISMATCH",
+    "rfc5280::chain-untrusted-root": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "rfc5280::ee-critical-aia-invalid": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "rfc5280::ee-empty-issuer": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "rfc5280::eku::ee-wrong-eku": "PKI_REASON_PURPOSE_NOT_PERMITTED",
+    "webpki::cryptographydotio-chain-missing-intermediate": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+    "webpki::explicit-curve": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "webpki::forbidden-dsa-root": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "webpki::forbidden-p192-root": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "webpki::san::mismatch-apex-subdomain-san": "PKI_REASON_NAME_MISMATCH",
+    "webpki::san::mismatch-domain-san": "PKI_REASON_NAME_MISMATCH"
+  }
+}

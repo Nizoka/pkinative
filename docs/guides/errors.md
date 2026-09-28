@@ -98,8 +98,10 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 - **Serial number and algorithms** — `PKI_DIAG_SERIAL_TOO_LONG`, `PKI_DIAG_SERIAL_NOT_POSITIVE`, `PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH`, `PKI_DIAG_RSA_PARAMETERS_NOT_NULL`.
 - **Version and encoding** — `PKI_DIAG_EXTENSIONS_REQUIRE_V3`, `PKI_DIAG_UNIQUE_ID_REQUIRES_V2`, `PKI_DIAG_DEFAULT_ENCODED`.
 - **Time** — `PKI_DIAG_GENERALIZED_TIME_BEFORE_2050`, `PKI_DIAG_GENERALIZED_TIME_FRACTION`, `PKI_DIAG_VALIDITY_INVERTED`.
-- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`.
-- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
+- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`, `PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX`, `PKI_DIAG_COMMON_NAME_NOT_IN_SAN`.
+- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY`, `PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
+
+  The six added in 0.5.0 share one shape: each is a sentence RFC 5280 or the CA/Browser Forum addresses to the **issuing CA**, and none of them refuses a chain. pkinative reads and enforces the extension whatever the profile says about its criticality, so refusing would make it stricter than the standards ask of a verifier while accepting exactly the same set of chains; `strict: true` is where that choice belongs. Each answers a case of the x509-limbo corpus that expects a refusal, and the reason it stays a diagnostic is written beside that case in `scripts/data/limbo-score.json`. `PKI_DIAG_COMMON_NAME_NOT_IN_SAN` is the first to cite CA/Browser Forum Baseline Requirements rather than an RFC, because no RFC says it — and it fires only for a `commonName` that could be matched **as a host**, since reporting `CN=Example Issuing CA` would be reporting the ordinary shape of every organisational subject.
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
@@ -112,8 +114,13 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 - **The certificate alone** — `PKI_REASON_NOT_YET_VALID`, `PKI_REASON_EXPIRED`, `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
 - **The link to the issuer** — `PKI_REASON_ISSUER_NOT_FOUND`, `PKI_REASON_SIGNATURE_INVALID`, `PKI_REASON_SIGNATURE_NOT_CHECKED`.
 - **The chain** — `PKI_REASON_NO_TRUST_ANCHOR`, `PKI_REASON_NOT_A_CA`, `PKI_REASON_PATH_TOO_LONG`, `PKI_REASON_PATH_LOOPS`.
+- **What a CA above it forbade** — `PKI_REASON_NAME_NOT_PERMITTED`, `PKI_REASON_NAME_EXCLUDED`, `PKI_REASON_NO_VALID_POLICY`, `PKI_REASON_POLICY_MAPPING_INVALID`.
+- **Revocation** — `PKI_REASON_REVOKED` (carrying the date, because a signature made before it may still be good), `PKI_REASON_REVOCATION_STALE`, `PKI_REASON_REVOCATION_WRONG_ISSUER`, `PKI_REASON_REVOCATION_UNKNOWN`, `PKI_REASON_REVOCATION_MISMATCH`.
+- **The questions §6 does not ask** — `PKI_REASON_NAME_MISMATCH` (from `checkServerName`: the chain is sound and the certificate is for somebody else) and `PKI_REASON_PURPOSE_NOT_PERMITTED` (from `checkExtendedKeyUsage`: the chain is sound and the certificate is for something else).
 - **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
 
 **`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
 
-`docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. The reports that return them arrive with path validation in 0.5; the vocabulary lands first, deliberately, so that no verdict is ever expressed as an exception code and then has to be migrated.
+**`PKI_REASON_REVOCATION_UNKNOWN` is not "not revoked" either**, for the same reason: a missing or unsigned list is an absence of evidence, and reporting it as a clean answer would make the soft-fail decision on your behalf, invisibly.
+
+`docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. Which of them a real chain actually earns is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, and a reviewed subset is pinned on its reason code rather than on the pass/fail boolean — because *rejected for the wrong reason* is a defect no count can see.

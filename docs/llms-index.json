@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 89955,
-      "approxTokens": 22489
+      "bytes": 99692,
+      "approxTokens": 24923
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 62479,
-      "approxTokens": 15620
+      "bytes": 67316,
+      "approxTokens": 16829
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 188542,
-      "approxTokens": 47136
+      "bytes": 191771,
+      "approxTokens": 47943
     },
     {
       "url": "data/errors.json",
@@ -42,8 +42,8 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 8584,
-      "approxTokens": 2146
+      "bytes": 11321,
+      "approxTokens": 2830
     },
     {
       "url": "data/limits.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 4994,
-      "approxTokens": 1249
+      "bytes": 5329,
+      "approxTokens": 1332
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 5219,
-      "approxTokens": 1305
+      "bytes": 5240,
+      "approxTokens": 1310
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12869,
-      "approxTokens": 3217
+      "bytes": 12889,
+      "approxTokens": 3222
     },
     {
       "title": "Use cases",
@@ -99,14 +99,15 @@
         "issue-a-certificate-without-ever-holding-the-key",
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "when-you-have-a-bag-rather-than-a-chain",
+        "two-questions-a-validated-chain-does-not-answer",
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
         "ask-a-responder-instead-of-downloading-a-list",
         "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 33227,
-      "approxTokens": 8307
+      "bytes": 38032,
+      "approxTokens": 9508
     },
     {
       "title": "Security model",
@@ -137,8 +138,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 10759,
-      "approxTokens": 2690
+      "bytes": 13463,
+      "approxTokens": 3366
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -159,8 +160,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 11612,
-      "approxTokens": 2903
+      "bytes": 13820,
+      "approxTokens": 3455
     },
     {
       "title": "Choosing a PKI library",
