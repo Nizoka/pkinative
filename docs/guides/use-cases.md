@@ -290,6 +290,31 @@ The input is a [`PathValidationInput`](../assets/api.json) and the answer a [`Pa
 
 **What it refuses rather than ignores.** RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and `PROCESSED_CRITICAL_EXTENSIONS` is the exact boundary of what a chain may rely on: `basicConstraints`, `keyUsage`, `subjectAltName`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy` and `extKeyUsage`. Anything else marked critical comes back `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` — including `cRLDistributionPoints`, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer "valid" for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.
 
+## Just tell me whether to accept this certificate
+
+The job: you have a certificate a server presented, a trust store, and a host name. You want one answer.
+
+```ts
+import { verifyCertificateChain, KEY_PURPOSES } from 'pkinative';
+
+const report = await verifyCertificateChain({
+    leaf,
+    candidates: whateverTheServerSent,
+    trustAnchors: yourRoots,
+    serverName: { kind: 'dns', value: 'bank.example' },
+    purposes: [KEY_PURPOSES.serverAuth],
+});
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+```
+
+Every layer below this one answers exactly one question and is deliberately blind to the others — §6 has no notion of the host you connected to, `checkServerName` knows nothing about trust, revocation takes a signature verdict it did not compute. That separation is what keeps each of them synchronous, pure, fuzzable and small, and it leaves somebody with the job of putting them in the right order. **If that somebody is every caller, every caller gets it slightly wrong.** So it is here, once: the signatures verified in parallel *before* anything is decided, the path built with the purpose already in hand, then the host name, then revocation. `VerifyChainInput` is the whole surface and `VerifyChainReport` adds `verified` — the number of signatures computed, worth logging, because a number far above the path length is what a bag full of plausible issuers looks like.
+
+Three defaults worth knowing. **`at` is now**, so omitting it asks about today. **Revocation is soft-fail**: with no list supplied nothing is claimed, and `requireRevocation: true` turns silence into `PKI_REASON_REVOCATION_UNKNOWN` — the right setting wherever you can actually obtain the lists, and off by default because a library that refuses every chain for which the caller happened not to download one is a library callers route around. **SHA-1 signatures are not evidence** and come back `PKI_REASON_SIGNATURE_NOT_CHECKED` unless `allowSha1` says otherwise.
+
+And this is the **one place in `src/` that catches a `PkiError`**. The rule the library runs on is *primitives return and throw, compositions report, exactly one layer converts* — so a malformed CRL is `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the code that would have been thrown. That is how a report promises never to throw for bad input without copying the encoding vocabulary into a second registry that would then have to be frozen too. What it does **not** do is fetch: not a CRL, not an OCSP response, not a missing intermediate. A verifier that reached the network would be one an attacker can point at a host of their choosing.
+
+The sections below are the same questions asked one at a time, for callers who need only one of them — or who want to know what this call is doing on their behalf.
+
 ## Two questions a validated chain does not answer
 
 The job: you validated the path and it came back clean. You are not done.
@@ -430,7 +455,7 @@ A nonce that comes back **different** is always a mismatch. One that does not co
 
 ## What none of these do yet
 
-Each of the ten is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the eleven is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|

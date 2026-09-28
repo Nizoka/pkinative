@@ -246,6 +246,31 @@
       ]
     },
     {
+      "file": "verify-chain.ts",
+      "task": "Verify a certificate the whole way in one call — chain, host name, purpose and revocation — because composing those four correctly is not obvious",
+      "surface": [
+        "verifyCertificateChain",
+        "VerifyChainInput",
+        "VerifyChainReport",
+        "KEY_PURPOSES",
+        "parseCertificate"
+      ],
+      "since": "0.5.0",
+      "expects": [
+        "real=ok, 2 certificates",
+        "verified=1",
+        "untrusted=PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
+        "expired=PKI_REASON_EXPIRED,PKI_REASON_EXPIRED",
+        "wrongHost=PKI_REASON_NAME_MISMATCH",
+        "forServers=ok, 2 certificates",
+        "forCode=PKI_REASON_PURPOSE_NOT_PERMITTED",
+        "noList=ok, 2 certificates",
+        "listRequired=PKI_REASON_REVOCATION_UNKNOWN",
+        "badCrlReported=PKI_REASON_INPUT_MALFORMED errorCode=PKI_ASN1_LENGTH_INVALID",
+        "neverThrows=true"
+      ]
+    },
+    {
       "file": "validate-path.ts",
       "task": "Build and validate a certification path against a trust anchor, and read every reason a report gives instead of catching one exception",
       "surface": [

@@ -121,12 +121,18 @@ export const PROBES: readonly Probe[] = [
     // extension as `unknown` — and it is written here so the next person to
     // look at this number knows it was a choice.
     { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 58 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
-    // 150 KB → 156 KB, measured at 150.9 KB. The whole surface grew by ~1 KB for
-    // the name-constraint corrections, the SHA-1 refusal and per-issuer signature
-    // verdicts. The roadmap's own projection for 1.0 is ~320 KB, so this figure
-    // is on track; it is raised in the commit that measures it, never ahead of
-    // one, which is what keeps it a budget rather than a ceiling nobody reads.
-    { exports: ['*'], maxBytes: 156 * 1024, mustNotContain: [] },
+    // 156 KB → 164 KB, measured at 157.9 KB: the purpose check and the
+    // composition layer. The roadmap's own projection for 1.0 is ~320 KB, so
+    // this figure is on track; it is raised in the commit that measures it,
+    // never ahead of one, which is what keeps it a budget rather than a ceiling
+    // nobody reads.
+    // The composition layer weighed, and the one probe here with **no**
+    // `mustNotContain` by design: `verifyCertificateChain` reaches a key, a
+    // parser and a verdict, which is precisely why it exists. What it is worth
+    // measuring is that composing everything costs barely more than the parts —
+    // a caller who wants the whole answer pays for the whole answer once.
+    { exports: ['verifyCertificateChain'], maxBytes: 90 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    { exports: ['*'], maxBytes: 164 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

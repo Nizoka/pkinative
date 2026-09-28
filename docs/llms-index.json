@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 99692,
-      "approxTokens": 24923
+      "bytes": 102564,
+      "approxTokens": 25641
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 67316,
-      "approxTokens": 16829
+      "bytes": 72305,
+      "approxTokens": 18076
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 191771,
-      "approxTokens": 47943
+      "bytes": 197003,
+      "approxTokens": 49251
     },
     {
       "url": "data/errors.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 5329,
-      "approxTokens": 1332
+      "bytes": 5669,
+      "approxTokens": 1417
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 5240,
-      "approxTokens": 1310
+      "bytes": 5542,
+      "approxTokens": 1386
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12889,
-      "approxTokens": 3222
+      "bytes": 12916,
+      "approxTokens": 3229
     },
     {
       "title": "Use cases",
@@ -99,6 +99,7 @@
         "issue-a-certificate-without-ever-holding-the-key",
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "when-you-have-a-bag-rather-than-a-chain",
+        "just-tell-me-whether-to-accept-this-certificate",
         "two-questions-a-validated-chain-does-not-answer",
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
@@ -106,8 +107,8 @@
         "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 38032,
-      "approxTokens": 9508
+      "bytes": 40877,
+      "approxTokens": 10219
     },
     {
       "title": "Security model",

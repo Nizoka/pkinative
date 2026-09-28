@@ -65,6 +65,7 @@ crypto → types, core, asn1
 build  → types, core, asn1, crypto
 path   → types, core, x509
 revocation → types, core, asn1, hash, x509, build
+verify → types, core, asn1, hash, x509, crypto, path, revocation
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.

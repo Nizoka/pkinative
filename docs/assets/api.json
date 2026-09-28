@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 208,
+  "exportCount": 211,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -3967,6 +3967,144 @@
       ]
     },
     {
+      "name": "VerifyChainInput",
+      "kind": "type",
+      "module": "src/verify/verify-chain.ts",
+      "signature": "export interface VerifyChainInput",
+      "summary": "What to accept, and everything needed to decide it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "leaf",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate presented — the end entity."
+        },
+        {
+          "name": "candidates",
+          "type": "readonly Certificate[] | undefined",
+          "optional": true,
+          "summary": "Every other certificate that may appear in the path, in any order."
+        },
+        {
+          "name": "trustAnchors",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The certificates you trust a priori."
+        },
+        {
+          "name": "at",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "The instant to decide at, epoch milliseconds."
+        },
+        {
+          "name": "serverName",
+          "type": "ServerIdentity | undefined",
+          "optional": true,
+          "summary": "The host or address you connected to (RFC 6125)."
+        },
+        {
+          "name": "purposes",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "KeyPurposeId OIDs the chain must permit — `KEY_PURPOSES.serverAuth` for a TLS server."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "CRLs, as the DER you downloaded."
+        },
+        {
+          "name": "requireRevocation",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Report `PKI_REASON_REVOCATION_UNKNOWN` when no usable list covered the end-entity certificate."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat SHA-1 signatures as evidence."
+        },
+        {
+          "name": "initialPolicySet",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "`user-initial-policy-set` (RFC 5280 §6.1.1 (c))."
+        },
+        {
+          "name": "requireExplicitPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-explicit-policy` (§6.1.1 (e))."
+        },
+        {
+          "name": "inhibitPolicyMapping",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-policy-mapping-inhibit` (§6.1.1 (f))."
+        },
+        {
+          "name": "inhibitAnyPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-any-policy-inhibit` (§6.1.1 (g))."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        }
+      ]
+    },
+    {
+      "name": "VerifyChainReport",
+      "kind": "type",
+      "module": "src/verify/verify-chain.ts",
+      "signature": "export interface VerifyChainReport extends PathBuildReport",
+      "summary": "The verdict, every reason behind it, and the path that was judged.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only when `reasons` is empty; the two are one answer, not two."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the answer is no, not just the first."
+        },
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
+        },
+        {
+          "name": "explored",
+          "type": "number",
+          "optional": false,
+          "summary": "How many candidate paths were explored before this answer."
+        },
+        {
+          "name": "verified",
+          "type": "number",
+          "optional": false,
+          "summary": "How many signature verifications were performed."
+        }
+      ]
+    },
+    {
       "name": "buildCertificatePath",
       "kind": "function",
       "module": "src/path/path-build.ts",
@@ -5482,6 +5620,24 @@
         }
       ],
       "returns": "The verdict and every reason behind it.",
+      "members": null
+    },
+    {
+      "name": "verifyCertificateChain",
+      "kind": "function",
+      "module": "src/verify/verify-chain.ts",
+      "signature": "export async function verifyCertificateChain(input: VerifyChainInput): Promise<VerifyChainReport>",
+      "summary": "Verify a certificate the whole way: chain, name, purpose and revocation.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link VerifyChainInput}."
+        }
+      ],
+      "returns": "The verdict, every reason behind it, the path judged, how many candidate paths were explored and how many signatures were verified.",
       "members": null
     },
     {

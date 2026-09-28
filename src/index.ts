@@ -54,6 +54,8 @@ export { ANY_EXTENDED_KEY_USAGE, checkExtendedKeyUsage, KEY_PURPOSES } from './p
 export type { CheckPurposeOptions } from './path/path-purpose.js';
 export type { PathBuildInput, PathBuildReport } from './path/path-build.js';
 export { validateCertificatePath } from './path/path-validate.js';
+export { verifyCertificateChain } from './verify/verify-chain.js';
+export type { VerifyChainInput, VerifyChainReport } from './verify/verify-chain.js';
 export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
 
 // ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────

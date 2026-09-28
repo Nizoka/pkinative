@@ -2581,6 +2581,15 @@ function readInvalidityDate(extensions, ctx) {
 function _reason(code, standard, message, path, extra) {
   return Object.freeze({ code, message, standard, path, errorCode: extra?.errorCode, limit: extra?.limit });
 }
+function inputMalformedReason(errorCode, detail, path) {
+  return _reason(
+    "PKI_REASON_INPUT_MALFORMED",
+    "ITU-T X.690",
+    `the input could not be read as the structure it claims to be (${errorCode}): ${detail.replace(/^pkinative: /, "")}`,
+    path,
+    { errorCode }
+  );
+}
 function notYetValidReason(path, notBefore, at) {
   return _reason(
     "PKI_REASON_NOT_YET_VALID",
@@ -4591,6 +4600,481 @@ function listed(names) {
   return `it names ${hosts.slice(0, 8).join(", ")}${more}`;
 }
 
+// src/crypto/crypto-algorithms.ts
+var HASH_BY_OID = /* @__PURE__ */ new Map([
+  ["1.3.14.3.2.26", "SHA-1"],
+  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
+  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
+  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
+]);
+var DEFAULT_PSS_SALT_LENGTH = 20;
+var SIGNATURE_BY_OID = /* @__PURE__ */ new Map([
+  ["1.2.840.113549.1.1.5", { family: "rsa-pkcs1", hash: "SHA-1" }],
+  ["1.2.840.113549.1.1.11", { family: "rsa-pkcs1", hash: "SHA-256" }],
+  ["1.2.840.113549.1.1.12", { family: "rsa-pkcs1", hash: "SHA-384" }],
+  ["1.2.840.113549.1.1.13", { family: "rsa-pkcs1", hash: "SHA-512" }],
+  ["1.2.840.113549.1.1.10", { family: "rsa-pss" }],
+  ["1.2.840.10045.4.1", { family: "ecdsa", hash: "SHA-1" }],
+  ["1.2.840.10045.4.3.2", { family: "ecdsa", hash: "SHA-256" }],
+  ["1.2.840.10045.4.3.3", { family: "ecdsa", hash: "SHA-384" }],
+  ["1.2.840.10045.4.3.4", { family: "ecdsa", hash: "SHA-512" }],
+  ["1.3.101.112", { family: "ed25519" }],
+  ["1.3.101.113", { family: "ed448" }]
+]);
+function unsupported(message, oid) {
+  return new PkiCryptoError("PKI_CRYPTO_ALGORITHM_UNSUPPORTED", `pkinative: ${message} \u2014 verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
+}
+function readPssParams(parameters, oid) {
+  let hash = "SHA-1";
+  let saltLength;
+  let mgfHash = "SHA-1";
+  if (parameters !== void 0) {
+    if (parameters.tagClass !== "universal" || parameters.tagNumber !== TAG_SEQUENCE) {
+      throw unsupported("the RSASSA-PSS parameters are not a SEQUENCE", oid);
+    }
+    for (const field of parameters.children) {
+      if (field.tagClass !== "context") continue;
+      const inner = field.children[0];
+      if (inner === void 0) continue;
+      if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
+      else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
+      else if (field.tagNumber === 2) saltLength = readSmallInteger(inner);
+      else if (field.tagNumber === 3 && readSmallInteger(inner) !== 1) {
+        throw unsupported("the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines", oid);
+      }
+    }
+  }
+  if (mgfHash !== hash) {
+    throw unsupported(`the RSASSA-PSS mask generation uses ${mgfHash} while the signature uses ${hash}, and Web Crypto only offers MGF1 over the signature hash`, oid);
+  }
+  if (saltLength === void 0) saltLength = DEFAULT_PSS_SALT_LENGTH;
+  if (saltLength < 0) throw unsupported("the RSASSA-PSS salt length is negative", oid);
+  return { hash, saltLength };
+}
+function hashNameOf(algorithm, oid) {
+  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
+  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
+    throw unsupported("an RSASSA-PSS hash parameter is not an AlgorithmIdentifier", oid);
+  }
+  const hashOid = readObjectIdentifier(first);
+  const name = HASH_BY_OID.get(hashOid);
+  if (name === void 0) throw unsupported(`the RSASSA-PSS digest ${hashOid} is not one Web Crypto implements`, oid);
+  return name;
+}
+function mgf1HashOf(algorithm, oid) {
+  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
+  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
+    throw unsupported("the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier", oid);
+  }
+  if (readObjectIdentifier(first) !== "1.2.840.113549.1.1.8") {
+    throw unsupported("the RSASSA-PSS mask generation function is not MGF1, the only one Web Crypto implements", oid);
+  }
+  const inner = algorithm.children[1];
+  return inner === void 0 ? "SHA-1" : hashNameOf(inner, oid);
+}
+var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
+function resolveAlgorithm(algorithm, key) {
+  const shape = SIGNATURE_BY_OID.get(algorithm.oid);
+  if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
+  if (shape.family === "rsa-pss") {
+    if (!isRsaKey(key)) return null;
+    const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
+    const verifyParams = { name: "RSA-PSS", saltLength };
+    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
+  }
+  if (shape.family === "rsa-pkcs1") {
+    if (!isRsaKey(key)) return null;
+    const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
+    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
+  }
+  if (shape.family === "ecdsa") {
+    if (key.kind !== "ec") return null;
+    const curve = key.curve;
+    if (curve !== "P-256" && curve !== "P-384" && curve !== "P-521") {
+      throw new PkiCryptoError(
+        "PKI_CRYPTO_KEY_UNSUPPORTED",
+        `pkinative: the issuer's EC key is on ${curve ?? "a curve pkinative does not name"}, and Web Crypto verifies ECDSA only on P-256, P-384 and P-521`,
+        algorithm.oid
+      );
+    }
+    const verifyParams = { name: "ECDSA", hash: { name: shape.hash } };
+    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve, hash: shape.hash };
+  }
+  if (key.kind !== shape.family) return null;
+  const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
+  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
+}
+function coordinateBytes(curve) {
+  return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
+}
+var OID_BY_SIGNATURE = /* @__PURE__ */ new Map([
+  ["RSASSA-PKCS1-v1_5/SHA-1", "1.2.840.113549.1.1.5"],
+  ["RSASSA-PKCS1-v1_5/SHA-256", "1.2.840.113549.1.1.11"],
+  ["RSASSA-PKCS1-v1_5/SHA-384", "1.2.840.113549.1.1.12"],
+  ["RSASSA-PKCS1-v1_5/SHA-512", "1.2.840.113549.1.1.13"],
+  ["ECDSA/SHA-1", "1.2.840.10045.4.1"],
+  ["ECDSA/SHA-256", "1.2.840.10045.4.3.2"],
+  ["ECDSA/SHA-384", "1.2.840.10045.4.3.3"],
+  ["ECDSA/SHA-512", "1.2.840.10045.4.3.4"]
+]);
+var EDWARDS_OID = /* @__PURE__ */ Object.freeze({
+  Ed25519: "1.3.101.112",
+  Ed448: "1.3.101.113"
+});
+var OID_BY_HASH = /* @__PURE__ */ new Map([
+  ["SHA-1", "1.3.14.3.2.26"],
+  ["SHA-256", "2.16.840.1.101.3.4.2.1"],
+  ["SHA-384", "2.16.840.1.101.3.4.2.2"],
+  ["SHA-512", "2.16.840.1.101.3.4.2.3"]
+]);
+var HASH_BYTES = /* @__PURE__ */ new Map([
+  ["SHA-1", 20],
+  ["SHA-256", 32],
+  ["SHA-384", 48],
+  ["SHA-512", 64]
+]);
+function resolveSigner(algorithm) {
+  if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
+    return { oid: EDWARDS_OID[algorithm.name], signParams: { name: algorithm.name }, curve: void 0, pss: void 0 };
+  }
+  if (algorithm.name === "RSA-PSS") {
+    const hashOid = OID_BY_HASH.get(algorithm.hash);
+    const size = HASH_BYTES.get(algorithm.hash);
+    if (hashOid === void 0 || size === void 0) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, "1.2.840.113549.1.1.10");
+    const saltLength = algorithm.saltLength ?? size;
+    if (!Number.isInteger(saltLength) || saltLength < 0) {
+      throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, "1.2.840.113549.1.1.10");
+    }
+    return {
+      oid: "1.2.840.113549.1.1.10",
+      signParams: { name: "RSA-PSS", saltLength },
+      curve: void 0,
+      pss: { hashOid, saltLength }
+    };
+  }
+  const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
+  if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
+  if (algorithm.name === "ECDSA") {
+    return { oid, signParams: { name: "ECDSA", hash: { name: algorithm.hash } }, curve: algorithm.namedCurve, pss: void 0 };
+  }
+  return { oid, signParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, pss: void 0 };
+}
+
+// src/crypto/crypto-signature.ts
+var SEQUENCE_OCTET = 48;
+var INTEGER_OCTET = 2;
+function ecdsaDerToRaw(der, size) {
+  if (der.length < 8) return null;
+  const view = new DataView(der.buffer, der.byteOffset, der.byteLength);
+  if (view.getUint8(0) !== SEQUENCE_OCTET) return null;
+  let at = 2;
+  let content = view.getUint8(1);
+  if (content === 129) {
+    content = view.getUint8(2);
+    at = 3;
+    if (content < 128) return null;
+  } else if (content > 127) {
+    return null;
+  }
+  if (at + content !== der.length) return null;
+  const r = readInteger2(der, view, at, size);
+  if (r === null) return null;
+  const s = readInteger2(der, view, r.next, size);
+  if (s === null || s.next !== der.length) return null;
+  const raw = new Uint8Array(size * 2);
+  raw.set(r.value, size - r.value.length);
+  raw.set(s.value, size * 2 - s.value.length);
+  return raw;
+}
+function ecdsaRawToDer(raw, size) {
+  if (raw.length !== size * 2) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} \u2014 the curve and the signing key disagree`
+    );
+  }
+  const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
+  const header = body.length < 128 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 129, body.length];
+  return concat(Uint8Array.from(header), body);
+}
+function derInteger(value) {
+  const view = byteView(value);
+  let at = 0;
+  while (at < value.length - 1 && view.getUint8(at) === 0) at++;
+  const trimmed = value.subarray(at);
+  const pad2 = (view.getUint8(at) & 128) !== 0 ? 1 : 0;
+  const out = new Uint8Array(2 + pad2 + trimmed.length);
+  out[0] = INTEGER_OCTET;
+  out[1] = pad2 + trimmed.length;
+  out.set(trimmed, 2 + pad2);
+  return out;
+}
+function concat(...parts) {
+  let length = 0;
+  for (const part of parts) length += part.length;
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+function readInteger2(der, view, at, size) {
+  if (at + 2 > der.length || view.getUint8(at) !== INTEGER_OCTET) return null;
+  const length = view.getUint8(at + 1);
+  if (length === 0 || length > 127) return null;
+  const start = at + 2;
+  const end = start + length;
+  if (end > der.length) return null;
+  const first = view.getUint8(start);
+  if ((first & 128) !== 0) return null;
+  const padded = first === 0 && length > 1;
+  if (padded && (view.getUint8(start + 1) & 128) === 0) return null;
+  const value = der.subarray(padded ? start + 1 : start, end);
+  if (value.length > size) return null;
+  return { value, next: end };
+}
+
+// src/crypto/webcrypto.ts
+function publicKeySubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.verify !== "function") return null;
+  return subtle;
+}
+function signingSubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.sign !== "function") return null;
+  return subtle;
+}
+function canVerify() {
+  return publicKeySubtle() !== null;
+}
+function requireSubtle(oid) {
+  const subtle = publicKeySubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle with importKey and verify, so no signature can be checked \u2014 call canVerify() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      oid
+    );
+  }
+  return subtle;
+}
+async function importPublicKey(spkiDer, params, oid) {
+  const subtle = requireSubtle(oid);
+  try {
+    return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
+      oid
+    );
+  }
+}
+async function verifySignature(key, params, signature, data) {
+  const subtle = requireSubtle(params.name);
+  try {
+    return await subtle.verify(params, key, signature, data);
+  } catch {
+    return false;
+  }
+}
+function canSign() {
+  return signingSubtle() !== null;
+}
+async function signData(key, params, data) {
+  const subtle = signingSubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed \u2014 call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      params.name
+    );
+  }
+  try {
+    return new Uint8Array(await subtle.sign(params, key, data));
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) \u2014 check that the key is private, carries the "sign" usage, and matches the algorithm named`,
+      params.name
+    );
+  }
+}
+
+// src/crypto/x509-verify.ts
+async function verifyCertificateSignature(certificate, issuer, options) {
+  const subject = assertCertificate(certificate, "certificate");
+  const signer = assertCertificate(issuer, "issuer");
+  return verifySignedStructure(subject, signer, resolveOptions(options));
+}
+function resolveOptions(options) {
+  return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
+}
+async function verifySignedStructure(signed, signer, options) {
+  const inner = signed.tbsSignatureAlgorithm;
+  if (options.requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
+    return false;
+  }
+  if (signed.signatureValue.unusedBits !== 0) return false;
+  const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
+  if (resolved === null) return false;
+  if (resolved.hash === "SHA-1" && !options.allowSha1) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_REFUSED",
+      "pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
+      signed.signatureAlgorithm.oid
+    );
+  }
+  let signature = signed.signatureValue.bytes;
+  if (resolved.curve !== void 0) {
+    const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
+    if (raw === null) return false;
+    signature = raw;
+  }
+  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid);
+  return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
+}
+async function verifyCrlSignature(crl, issuer, options) {
+  if (typeof crl !== "object" || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
+  }
+  const signer = assertCertificate(issuer, "issuer");
+  return verifySignedStructure(crl, signer, resolveOptions(options));
+}
+async function verifyOcspSignature(basicResponse, responder) {
+  if (typeof basicResponse !== "object" || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
+  }
+  const signer = assertCertificate(responder, "responder");
+  return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
+}
+async function verifySelfSignature(certificate, options) {
+  const self = assertCertificate(certificate, "certificate");
+  if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
+  return verifyCertificateSignature(self, self, options);
+}
+function assertCertificate(value, what) {
+  const candidate = value;
+  if (typeof value !== "object" || candidate === null || !(candidate.tbsDer instanceof Uint8Array) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
+  }
+  return value;
+}
+
+// src/verify/verify-chain.ts
+function _pkiError(error) {
+  if (!(error instanceof PkiError)) throw error;
+  return error;
+}
+var _hex2 = (bytes) => {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+};
+async function verifyCertificateChain(input) {
+  const at = input.at ?? Date.now();
+  const candidates = input.candidates ?? [];
+  const all = [input.leaf, ...candidates, ...input.trustAnchors];
+  const bySubject = /* @__PURE__ */ new Map();
+  for (const certificate of all) {
+    const key = _hex2(certificate.subject.der);
+    bySubject.set(key, [...bySubject.get(key) ?? [], certificate]);
+  }
+  const pairs = [];
+  const walked = /* @__PURE__ */ new Set();
+  const queue = [input.leaf];
+  while (queue.length > 0) {
+    const subject = queue.pop();
+    if (walked.has(subject)) continue;
+    walked.add(subject);
+    for (const issuer of bySubject.get(_hex2(subject.issuer.der)) ?? []) {
+      if (issuer === subject) continue;
+      pairs.push([subject, issuer]);
+      queue.push(issuer);
+    }
+  }
+  const signatures = await Promise.all(pairs.map(async ([subject, issuer]) => {
+    const options = { allowSha1: input.allowSha1 === true };
+    try {
+      const valid = await verifyCertificateSignature(subject, issuer, options);
+      return { certificate: subject, issuer, verdict: valid ? "valid" : "invalid" };
+    } catch (error) {
+      const refused = _pkiError(error);
+      return { certificate: subject, issuer, verdict: "not-checked", errorCode: refused.code, detail: refused.message };
+    }
+  }));
+  const report = buildCertificatePath({
+    leaf: input.leaf,
+    candidates,
+    trustAnchors: input.trustAnchors,
+    at,
+    signatures,
+    ...input.purposes === void 0 ? {} : { requiredPurposes: input.purposes },
+    ...input.initialPolicySet === void 0 ? {} : { initialPolicySet: input.initialPolicySet },
+    ...input.requireExplicitPolicy === void 0 ? {} : { requireExplicitPolicy: input.requireExplicitPolicy },
+    ...input.inhibitPolicyMapping === void 0 ? {} : { inhibitPolicyMapping: input.inhibitPolicyMapping },
+    ...input.inhibitAnyPolicy === void 0 ? {} : { inhibitAnyPolicy: input.inhibitAnyPolicy },
+    ...input.limits === void 0 ? {} : { limits: input.limits }
+  });
+  const reasons = [...report.reasons];
+  if (input.serverName !== void 0) reasons.push(...checkServerName(input.leaf, input.serverName));
+  const anchored = !report.reasons.some((reason) => reason.code === "PKI_REASON_NO_TRUST_ANCHOR");
+  const alreadySaid = report.reasons.some((reason) => reason.code === "PKI_REASON_PURPOSE_NOT_PERMITTED");
+  if (input.purposes !== void 0 && anchored && !alreadySaid && report.path.length > 0) {
+    for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
+  }
+  reasons.push(...await _checkRevocation(input, report.path, at));
+  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, verified: pairs.length };
+}
+async function _checkRevocation(input, path, at) {
+  const out = [];
+  const lists = input.crls ?? [];
+  if (lists.length === 0) {
+    if (input.requireRevocation === true) {
+      out.push(revocationUnknownReason("path[0]", "no revocation list was supplied for this certificate"));
+    }
+    return out;
+  }
+  const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
+  const issuer = path[1];
+  let covered = false;
+  for (const [index, der] of lists.entries()) {
+    const where2 = `crl[${String(index)}]`;
+    try {
+      const crl = parseCertificateList(der, reading);
+      if (_hex2(crl.issuer.der) !== _hex2(input.leaf.issuer.der)) continue;
+      covered = true;
+      let signatureVerified;
+      if (issuer !== void 0) {
+        try {
+          signatureVerified = await verifyCrlSignature(crl, issuer, { allowSha1: input.allowSha1 === true });
+        } catch (error) {
+          _pkiError(error);
+          signatureVerified = void 0;
+        }
+      }
+      out.push(...checkRevocation({
+        certificate: input.leaf,
+        crl,
+        crlDer: der,
+        at,
+        ...signatureVerified === void 0 ? {} : { signatureVerified },
+        options: reading
+      }));
+    } catch (error) {
+      const refused = _pkiError(error);
+      out.push(inputMalformedReason(refused.code, refused.message, where2));
+    }
+  }
+  if (!covered && input.requireRevocation === true) {
+    out.push(revocationUnknownReason("path[0]", "no supplied list is issued by this certificate's CA"));
+  }
+  return out;
+}
+
 // src/oid/oid-registry.ts
 var GROUPS = [
   // ── Name attributes ──
@@ -6008,370 +6492,6 @@ function parseCertificate(der, options) {
   return Object.freeze(certificate);
 }
 
-// src/crypto/crypto-algorithms.ts
-var HASH_BY_OID = /* @__PURE__ */ new Map([
-  ["1.3.14.3.2.26", "SHA-1"],
-  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
-  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
-  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
-]);
-var DEFAULT_PSS_SALT_LENGTH = 20;
-var SIGNATURE_BY_OID = /* @__PURE__ */ new Map([
-  ["1.2.840.113549.1.1.5", { family: "rsa-pkcs1", hash: "SHA-1" }],
-  ["1.2.840.113549.1.1.11", { family: "rsa-pkcs1", hash: "SHA-256" }],
-  ["1.2.840.113549.1.1.12", { family: "rsa-pkcs1", hash: "SHA-384" }],
-  ["1.2.840.113549.1.1.13", { family: "rsa-pkcs1", hash: "SHA-512" }],
-  ["1.2.840.113549.1.1.10", { family: "rsa-pss" }],
-  ["1.2.840.10045.4.1", { family: "ecdsa", hash: "SHA-1" }],
-  ["1.2.840.10045.4.3.2", { family: "ecdsa", hash: "SHA-256" }],
-  ["1.2.840.10045.4.3.3", { family: "ecdsa", hash: "SHA-384" }],
-  ["1.2.840.10045.4.3.4", { family: "ecdsa", hash: "SHA-512" }],
-  ["1.3.101.112", { family: "ed25519" }],
-  ["1.3.101.113", { family: "ed448" }]
-]);
-function unsupported(message, oid) {
-  return new PkiCryptoError("PKI_CRYPTO_ALGORITHM_UNSUPPORTED", `pkinative: ${message} \u2014 verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
-}
-function readPssParams(parameters, oid) {
-  let hash = "SHA-1";
-  let saltLength;
-  let mgfHash = "SHA-1";
-  if (parameters !== void 0) {
-    if (parameters.tagClass !== "universal" || parameters.tagNumber !== TAG_SEQUENCE) {
-      throw unsupported("the RSASSA-PSS parameters are not a SEQUENCE", oid);
-    }
-    for (const field of parameters.children) {
-      if (field.tagClass !== "context") continue;
-      const inner = field.children[0];
-      if (inner === void 0) continue;
-      if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
-      else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
-      else if (field.tagNumber === 2) saltLength = readSmallInteger(inner);
-      else if (field.tagNumber === 3 && readSmallInteger(inner) !== 1) {
-        throw unsupported("the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines", oid);
-      }
-    }
-  }
-  if (mgfHash !== hash) {
-    throw unsupported(`the RSASSA-PSS mask generation uses ${mgfHash} while the signature uses ${hash}, and Web Crypto only offers MGF1 over the signature hash`, oid);
-  }
-  if (saltLength === void 0) saltLength = DEFAULT_PSS_SALT_LENGTH;
-  if (saltLength < 0) throw unsupported("the RSASSA-PSS salt length is negative", oid);
-  return { hash, saltLength };
-}
-function hashNameOf(algorithm, oid) {
-  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
-  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
-    throw unsupported("an RSASSA-PSS hash parameter is not an AlgorithmIdentifier", oid);
-  }
-  const hashOid = readObjectIdentifier(first);
-  const name = HASH_BY_OID.get(hashOid);
-  if (name === void 0) throw unsupported(`the RSASSA-PSS digest ${hashOid} is not one Web Crypto implements`, oid);
-  return name;
-}
-function mgf1HashOf(algorithm, oid) {
-  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
-  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
-    throw unsupported("the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier", oid);
-  }
-  if (readObjectIdentifier(first) !== "1.2.840.113549.1.1.8") {
-    throw unsupported("the RSASSA-PSS mask generation function is not MGF1, the only one Web Crypto implements", oid);
-  }
-  const inner = algorithm.children[1];
-  return inner === void 0 ? "SHA-1" : hashNameOf(inner, oid);
-}
-var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
-function resolveAlgorithm(algorithm, key) {
-  const shape = SIGNATURE_BY_OID.get(algorithm.oid);
-  if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
-  if (shape.family === "rsa-pss") {
-    if (!isRsaKey(key)) return null;
-    const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
-    const verifyParams = { name: "RSA-PSS", saltLength };
-    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
-  }
-  if (shape.family === "rsa-pkcs1") {
-    if (!isRsaKey(key)) return null;
-    const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
-    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
-  }
-  if (shape.family === "ecdsa") {
-    if (key.kind !== "ec") return null;
-    const curve = key.curve;
-    if (curve !== "P-256" && curve !== "P-384" && curve !== "P-521") {
-      throw new PkiCryptoError(
-        "PKI_CRYPTO_KEY_UNSUPPORTED",
-        `pkinative: the issuer's EC key is on ${curve ?? "a curve pkinative does not name"}, and Web Crypto verifies ECDSA only on P-256, P-384 and P-521`,
-        algorithm.oid
-      );
-    }
-    const verifyParams = { name: "ECDSA", hash: { name: shape.hash } };
-    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve, hash: shape.hash };
-  }
-  if (key.kind !== shape.family) return null;
-  const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
-  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
-}
-function coordinateBytes(curve) {
-  return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
-}
-var OID_BY_SIGNATURE = /* @__PURE__ */ new Map([
-  ["RSASSA-PKCS1-v1_5/SHA-1", "1.2.840.113549.1.1.5"],
-  ["RSASSA-PKCS1-v1_5/SHA-256", "1.2.840.113549.1.1.11"],
-  ["RSASSA-PKCS1-v1_5/SHA-384", "1.2.840.113549.1.1.12"],
-  ["RSASSA-PKCS1-v1_5/SHA-512", "1.2.840.113549.1.1.13"],
-  ["ECDSA/SHA-1", "1.2.840.10045.4.1"],
-  ["ECDSA/SHA-256", "1.2.840.10045.4.3.2"],
-  ["ECDSA/SHA-384", "1.2.840.10045.4.3.3"],
-  ["ECDSA/SHA-512", "1.2.840.10045.4.3.4"]
-]);
-var EDWARDS_OID = /* @__PURE__ */ Object.freeze({
-  Ed25519: "1.3.101.112",
-  Ed448: "1.3.101.113"
-});
-var OID_BY_HASH = /* @__PURE__ */ new Map([
-  ["SHA-1", "1.3.14.3.2.26"],
-  ["SHA-256", "2.16.840.1.101.3.4.2.1"],
-  ["SHA-384", "2.16.840.1.101.3.4.2.2"],
-  ["SHA-512", "2.16.840.1.101.3.4.2.3"]
-]);
-var HASH_BYTES = /* @__PURE__ */ new Map([
-  ["SHA-1", 20],
-  ["SHA-256", 32],
-  ["SHA-384", 48],
-  ["SHA-512", 64]
-]);
-function resolveSigner(algorithm) {
-  if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
-    return { oid: EDWARDS_OID[algorithm.name], signParams: { name: algorithm.name }, curve: void 0, pss: void 0 };
-  }
-  if (algorithm.name === "RSA-PSS") {
-    const hashOid = OID_BY_HASH.get(algorithm.hash);
-    const size = HASH_BYTES.get(algorithm.hash);
-    if (hashOid === void 0 || size === void 0) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, "1.2.840.113549.1.1.10");
-    const saltLength = algorithm.saltLength ?? size;
-    if (!Number.isInteger(saltLength) || saltLength < 0) {
-      throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, "1.2.840.113549.1.1.10");
-    }
-    return {
-      oid: "1.2.840.113549.1.1.10",
-      signParams: { name: "RSA-PSS", saltLength },
-      curve: void 0,
-      pss: { hashOid, saltLength }
-    };
-  }
-  const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
-  if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
-  if (algorithm.name === "ECDSA") {
-    return { oid, signParams: { name: "ECDSA", hash: { name: algorithm.hash } }, curve: algorithm.namedCurve, pss: void 0 };
-  }
-  return { oid, signParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, pss: void 0 };
-}
-
-// src/crypto/crypto-signature.ts
-var SEQUENCE_OCTET = 48;
-var INTEGER_OCTET = 2;
-function ecdsaDerToRaw(der, size) {
-  if (der.length < 8) return null;
-  const view = new DataView(der.buffer, der.byteOffset, der.byteLength);
-  if (view.getUint8(0) !== SEQUENCE_OCTET) return null;
-  let at = 2;
-  let content = view.getUint8(1);
-  if (content === 129) {
-    content = view.getUint8(2);
-    at = 3;
-    if (content < 128) return null;
-  } else if (content > 127) {
-    return null;
-  }
-  if (at + content !== der.length) return null;
-  const r = readInteger2(der, view, at, size);
-  if (r === null) return null;
-  const s = readInteger2(der, view, r.next, size);
-  if (s === null || s.next !== der.length) return null;
-  const raw = new Uint8Array(size * 2);
-  raw.set(r.value, size - r.value.length);
-  raw.set(s.value, size * 2 - s.value.length);
-  return raw;
-}
-function ecdsaRawToDer(raw, size) {
-  if (raw.length !== size * 2) {
-    throw new PkiError(
-      "PKI_API_MISUSE",
-      `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} \u2014 the curve and the signing key disagree`
-    );
-  }
-  const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
-  const header = body.length < 128 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 129, body.length];
-  return concat(Uint8Array.from(header), body);
-}
-function derInteger(value) {
-  const view = byteView(value);
-  let at = 0;
-  while (at < value.length - 1 && view.getUint8(at) === 0) at++;
-  const trimmed = value.subarray(at);
-  const pad2 = (view.getUint8(at) & 128) !== 0 ? 1 : 0;
-  const out = new Uint8Array(2 + pad2 + trimmed.length);
-  out[0] = INTEGER_OCTET;
-  out[1] = pad2 + trimmed.length;
-  out.set(trimmed, 2 + pad2);
-  return out;
-}
-function concat(...parts) {
-  let length = 0;
-  for (const part of parts) length += part.length;
-  const out = new Uint8Array(length);
-  let at = 0;
-  for (const part of parts) {
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
-}
-function readInteger2(der, view, at, size) {
-  if (at + 2 > der.length || view.getUint8(at) !== INTEGER_OCTET) return null;
-  const length = view.getUint8(at + 1);
-  if (length === 0 || length > 127) return null;
-  const start = at + 2;
-  const end = start + length;
-  if (end > der.length) return null;
-  const first = view.getUint8(start);
-  if ((first & 128) !== 0) return null;
-  const padded = first === 0 && length > 1;
-  if (padded && (view.getUint8(start + 1) & 128) === 0) return null;
-  const value = der.subarray(padded ? start + 1 : start, end);
-  if (value.length > size) return null;
-  return { value, next: end };
-}
-
-// src/crypto/webcrypto.ts
-function publicKeySubtle() {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.verify !== "function") return null;
-  return subtle;
-}
-function signingSubtle() {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle === void 0 || typeof subtle.sign !== "function") return null;
-  return subtle;
-}
-function canVerify() {
-  return publicKeySubtle() !== null;
-}
-function requireSubtle(oid) {
-  const subtle = publicKeySubtle();
-  if (subtle === null) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_UNAVAILABLE",
-      "pkinative: this runtime exposes no crypto.subtle with importKey and verify, so no signature can be checked \u2014 call canVerify() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
-      oid
-    );
-  }
-  return subtle;
-}
-async function importPublicKey(spkiDer, params, oid) {
-  const subtle = requireSubtle(oid);
-  try {
-    return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
-      oid
-    );
-  }
-}
-async function verifySignature(key, params, signature, data) {
-  const subtle = requireSubtle(params.name);
-  try {
-    return await subtle.verify(params, key, signature, data);
-  } catch {
-    return false;
-  }
-}
-function canSign() {
-  return signingSubtle() !== null;
-}
-async function signData(key, params, data) {
-  const subtle = signingSubtle();
-  if (subtle === null) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_UNAVAILABLE",
-      "pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed \u2014 call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
-      params.name
-    );
-  }
-  try {
-    return new Uint8Array(await subtle.sign(params, key, data));
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) \u2014 check that the key is private, carries the "sign" usage, and matches the algorithm named`,
-      params.name
-    );
-  }
-}
-
-// src/crypto/x509-verify.ts
-async function verifyCertificateSignature(certificate, issuer, options) {
-  const subject = assertCertificate(certificate, "certificate");
-  const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(subject, signer, resolveOptions(options));
-}
-function resolveOptions(options) {
-  return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
-}
-async function verifySignedStructure(signed, signer, options) {
-  const inner = signed.tbsSignatureAlgorithm;
-  if (options.requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
-    return false;
-  }
-  if (signed.signatureValue.unusedBits !== 0) return false;
-  const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
-  if (resolved === null) return false;
-  if (resolved.hash === "SHA-1" && !options.allowSha1) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_ALGORITHM_REFUSED",
-      "pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
-      signed.signatureAlgorithm.oid
-    );
-  }
-  let signature = signed.signatureValue.bytes;
-  if (resolved.curve !== void 0) {
-    const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
-    if (raw === null) return false;
-    signature = raw;
-  }
-  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid);
-  return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
-}
-async function verifyCrlSignature(crl, issuer, options) {
-  if (typeof crl !== "object" || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
-    throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
-  }
-  const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(crl, signer, resolveOptions(options));
-}
-async function verifyOcspSignature(basicResponse, responder) {
-  if (typeof basicResponse !== "object" || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
-    throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
-  }
-  const signer = assertCertificate(responder, "responder");
-  return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
-}
-async function verifySelfSignature(certificate, options) {
-  const self = assertCertificate(certificate, "certificate");
-  if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
-  return verifyCertificateSignature(self, self, options);
-}
-function assertCertificate(value, what) {
-  const candidate = value;
-  if (typeof value !== "object" || candidate === null || !(candidate.tbsDer instanceof Uint8Array) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
-  }
-  return value;
-}
-
 // src/build/build-certificate.ts
 function signatureAlgorithmDer(signer) {
   const resolved = resolveSigner(signer.algorithm);
@@ -6454,6 +6574,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

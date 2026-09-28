@@ -61,6 +61,16 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // readers. No crypto: a revocation verdict takes a precomputed signature
     // verdict, exactly as section 6 does, so revocation stays synchronous too.
     revocation: ['types', 'core', 'asn1', 'hash', 'x509', 'build'],
+    // The composition layer, and the only one that reaches both a key and a
+    // verdict. Everything below it answers one question and answers it the
+    // narrow way: primitives return and throw, and each of section 6, name
+    // matching, purpose and revocation is deliberately blind to the others.
+    // Someone still has to put them in the right order, verify the signatures
+    // in parallel first, and turn the exceptions the primitives throw into
+    // reasons — and if that someone is every caller, every caller gets it
+    // slightly wrong. So it is here, once, and `verify` is the ONLY module of
+    // src/ allowed to catch a PkiError.
+    verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation'],
 });
 
 export const ENTRY = 'src/index.ts';
