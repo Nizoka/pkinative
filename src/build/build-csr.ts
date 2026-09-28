@@ -17,7 +17,7 @@
 import { encodeImplicit, encodeInteger, encodeSequence, encodeSetOf } from '../asn1/asn1-encode.js';
 import { assertBytes } from '../core/bytes.js';
 import type { CertificationRequestDescription } from '../types/build-types.js';
-import type { SigningKey } from '../types/crypto-types.js';
+import type { Signer } from '../types/crypto-types.js';
 import type { CreateOptions } from './build-certificate.js';
 import { signAndWrap } from './build-certificate.js';
 import { encodeAttribute, encodeDistinguishedName, encodeExtensions } from './build-structures.js';
@@ -46,16 +46,17 @@ const EXTENSION_REQUEST = '1.2.840.113549.1.9.14';
  * `createCertificate` when the certificate is issued.
  *
  * @param description What the request asks for.
- * @param signer      The key that signs it — the private half of `subjectPublicKey`.
+ * @param signer      The key that signs it — the private half of `subjectPublicKey` — as a
+ *   `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
  * @param options     See {@link CreateOptions}.
  * @returns The complete `CertificationRequest`, in DER.
- * @throws {PkiError} `PKI_API_MISUSE` for a duplicated extension; `PKI_INVALID_INPUT` for a malformed name or a non-`Uint8Array` where DER is expected.
+ * @throws {PkiError} `PKI_API_MISUSE` for a duplicated extension, or an `ExternalSigner` that returns other than what `crypto.subtle.sign` would;`PKI_INVALID_INPUT` for a malformed name or a non-`Uint8Array` where DER is expected.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot sign; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm with no RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxNameAttributes` or `maxExtensions`.
  */
 export async function createCertificationRequest(
     description: CertificationRequestDescription,
-    signer: SigningKey,
+    signer: Signer,
     options?: CreateOptions,
 ): Promise<Uint8Array> {
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };

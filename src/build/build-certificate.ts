@@ -9,7 +9,9 @@
  * `crypto.subtle.sign` through the one boundary module, and never sees a
  * key bit. That is why `generateKey` and `exportKey` stay refused in `src/`
  * in every version, and why `subjectPublicKey` is a SubjectPublicKeyInfo in
- * DER rather than a `CryptoKey` this library would have to export.
+ * DER rather than a `CryptoKey` this library would have to export. An
+ * `ExternalSigner` goes one step further: the key lives in an HSM, a card or
+ * a KMS, and pkinative sees only the signature it hands back.
  *
  * @module build/build-certificate
  */
@@ -20,7 +22,7 @@ import { coordinateBytes, resolveSigner } from '../crypto/crypto-algorithms.js';
 import { ecdsaRawToDer } from '../crypto/crypto-signature.js';
 import { signData } from '../crypto/webcrypto.js';
 import type { CertificateDescription } from '../types/build-types.js';
-import type { SigningKey } from '../types/crypto-types.js';
+import type { Signer } from '../types/crypto-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PkiLimits } from '../types/pki-types.js';
 import {
@@ -45,12 +47,12 @@ export interface CreateOptions {
  * needs the same bytes, and because a test can compare them to what a
  * certificate carries.
  *
- * @param signer The key and the algorithm; only the algorithm is read.
+ * @param signer A `SigningKey` or an `ExternalSigner`; only its algorithm is read.
  * @returns The `AlgorithmIdentifier` encoding.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
  *   algorithm has no RFC 5280 OID, or its salt length is negative.
  */
-export function signatureAlgorithmDer(signer: SigningKey): Uint8Array {
+export function signatureAlgorithmDer(signer: Signer): Uint8Array {
     const resolved = resolveSigner(signer.algorithm);
     if (resolved.pss === undefined) return encodeAlgorithmIdentifier(resolved.oid);
     // RFC 4055 §3.1. hashAlgorithm [0], maskGenAlgorithm [1] as MGF1 over
@@ -93,6 +95,51 @@ function encodeSerial(serial: bigint | Uint8Array): Uint8Array {
     return encodeTlv('universal', 2, false, bytes);
 }
 
+/** Whether `value` is a `Uint8Array`, from this realm or another — the test `assertBytes` makes. */
+function isByteArray(value: unknown): value is Uint8Array {
+    return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === '[object Uint8Array]';
+}
+
+/** What an `ExternalSigner` returned, refused unless it has the shape `crypto.subtle.sign` produces. */
+function checkExternalSignature(produced: unknown, curve: 'P-256' | 'P-384' | 'P-521' | undefined): Uint8Array {
+    if (!isByteArray(produced) || produced.length === 0) {
+        throw new PkiError('PKI_API_MISUSE', 'pkinative: an ExternalSigner\'s produceSignature must return a non-empty Uint8Array — the signature as crypto.subtle.sign would produce it; wrap an ArrayBuffer in new Uint8Array(…)');
+    }
+    if (curve !== undefined) {
+        const expected = 2 * coordinateBytes(curve);
+        if (produced.length !== expected) {
+            // The usual cause is an HSM or KMS API that returns the DER
+            // Ecdsa-Sig-Value. Guessing which form arrived is how a signature
+            // gets encoded twice, so the form is fixed and a mismatch refused.
+            throw new PkiError('PKI_API_MISUSE', `pkinative: an ExternalSigner for ECDSA on ${curve} must return the raw r ‖ s of exactly ${String(expected)} octets, as crypto.subtle.sign would, and returned ${String(produced.length)} — a DER Ecdsa-Sig-Value is the usual mistake; convert it to r ‖ s before returning it`);
+        }
+    }
+    return produced;
+}
+
+/**
+ * The signature over `data`, in the form a structure carries it — DER for
+ * ECDSA, the plain octets for every other family.
+ *
+ * The one signing path of `build`, for both kinds of `Signer`. A
+ * `SigningKey` goes through the Web Crypto boundary; an `ExternalSigner` is
+ * handed the exact bytes and hands back what `crypto.subtle.sign` would
+ * have, which is checked before it is trusted: a signature of the wrong
+ * shape makes a structure that verifies nowhere, and the moment to say so
+ * is now, not when a relying party refuses it.
+ */
+export async function computeSignatureValue(data: Uint8Array, signer: Signer): Promise<Uint8Array> {
+    const resolved = resolveSigner(signer.algorithm);
+    // A copy for the external signer, so that one which scribbles on its
+    // argument cannot change the bytes embedded next to its signature.
+    const raw = 'produceSignature' in signer
+        ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve)
+        : await signData(signer.key, resolved.signParams, data);
+    // Web Crypto returns ECDSA as raw r‖s; X.509 and CMS carry DER. Every
+    // other family is already in the form the structure wants.
+    return resolved.curve === undefined ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
+}
+
 /**
  * Sign `tbs` and wrap it into the outer SEQUENCE the structure expects.
  *
@@ -100,12 +147,8 @@ function encodeSerial(serial: bigint | Uint8Array): Uint8Array {
  * the signed bytes, the algorithm that signed them, and the signature as a
  * BIT STRING of whole octets.
  */
-export async function signAndWrap(tbs: Uint8Array, signer: SigningKey): Promise<Uint8Array> {
-    const resolved = resolveSigner(signer.algorithm);
-    const raw = await signData(signer.key, resolved.signParams, tbs);
-    // Web Crypto returns ECDSA as raw r‖s; X.509 carries DER. Every other
-    // family is already in the form the structure wants.
-    const signature = resolved.curve === undefined ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
+export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint8Array> {
+    const signature = await computeSignatureValue(tbs, signer);
     return encodeSequence([tbs, signatureAlgorithmDer(signer), encodeBitString(signature, 0)]);
 }
 
@@ -137,18 +180,20 @@ export async function signAndWrap(tbs: Uint8Array, signer: SigningKey): Promise<
  * the answer is not already known.
  *
  * @param description What the certificate says.
- * @param signer      The key that signs it, and the algorithm it signs with.
+ * @param signer      The key that signs it, and the algorithm it signs with: a
+ *   `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
  * @param options     See {@link CreateOptions}.
  * @returns The complete certificate, in DER.
  * @throws {PkiError} `PKI_API_MISUSE` for a negative or malformed serial, an
- *   inverted validity window, or a duplicated extension; `PKI_INVALID_INPUT` for a
+ *   inverted validity window, a duplicated extension, or an `ExternalSigner`
+ *   that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a
  *   malformed name or a non-`Uint8Array` where DER is expected.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot
  *   sign; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the algorithm has no
  *   RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxNameAttributes` or `maxExtensions`.
  */
-export async function createCertificate(description: CertificateDescription, signer: SigningKey, options?: CreateOptions): Promise<Uint8Array> {
+export async function createCertificate(description: CertificateDescription, signer: Signer, options?: CreateOptions): Promise<Uint8Array> {
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };
     const subject = description.subjectDer !== undefined
         ? assertBytes(description.subjectDer, 'subjectDer')

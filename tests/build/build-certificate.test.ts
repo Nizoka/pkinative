@@ -1,4 +1,4 @@
-import { webcrypto } from 'node:crypto';
+import { KeyObject, sign as nodeSign, webcrypto } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
     canSign,
@@ -17,6 +17,7 @@ import {
     type SignatureAlgorithm,
     type SigningKey,
 } from '../../src/index.js';
+import type { ExternalSigner } from '../../src/types/crypto-types.js';
 
 /**
  * Creation, proved the only way that means anything: what pkinative writes
@@ -307,6 +308,74 @@ describe('createCertificationRequest', () => {
             subjectPublicKey: m.spki,
         }, m.signer, { limits: { maxNameAttributes: 1 } }))
             .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED' }));
+    });
+});
+
+describe('an ExternalSigner', () => {
+    /** A key pkinative never sees, signing through node:crypto as an HSM binding would. */
+    async function held(keyParams: object, algorithm: SignatureAlgorithm, digest: string | null): Promise<{ readonly signer: ExternalSigner; readonly spki: Uint8Array; readonly calls: Uint8Array[] }> {
+        const pair = await webcrypto.subtle.generateKey(keyParams as never, true, ['sign', 'verify']) as GeneratedPair;
+        const key = KeyObject.from(pair.privateKey);
+        const calls: Uint8Array[] = [];
+        return {
+            signer: {
+                algorithm,
+                produceSignature: (data) => {
+                    calls.push(data);
+                    return new Uint8Array(nodeSign(digest, data, { key, dsaEncoding: 'ieee-p1363' }));
+                },
+            },
+            spki: new Uint8Array(await webcrypto.subtle.exportKey('spki', pair.publicKey)),
+            calls,
+        };
+    }
+
+    it.each([
+        ['ECDSA P-384', { name: 'ECDSA', namedCurve: 'P-384' }, { name: 'ECDSA', hash: 'SHA-384', namedCurve: 'P-384' }, 'sha384'],
+        ['RSA PKCS#1 v1.5', { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, 'sha256'],
+        ['Ed25519', { name: 'Ed25519' }, { name: 'Ed25519' }, null],
+    ] as const)('should sign a %s certificate with a key held elsewhere, over exactly tbsCertificate', async (_label, keyParams, algorithm, digest) => {
+        const h = await held(keyParams, algorithm as SignatureAlgorithm, digest);
+        const cert = parseCertificate(await createCertificate({
+            serialNumber: 1n,
+            subject: [[{ type: CN, value: 'held elsewhere' }]],
+            notBefore: NOW,
+            notAfter: NOW + DAY,
+            subjectPublicKey: h.spki,
+        }, h.signer), { onDiagnostic: () => undefined });
+        expect(cert.diagnostics).toEqual([]);
+        expect(await verifySelfSignature(cert)).toBe(true);
+        expect(h.calls).toHaveLength(1);
+        expect(Array.from(h.calls[0] ?? [])).toEqual(Array.from(cert.tbsDer));
+    }, 30_000);
+
+    it('should sign a request with an asynchronous signer', async () => {
+        const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as GeneratedPair;
+        const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', pair.publicKey));
+        const csr = await createCertificationRequest({ subject: [[{ type: CN, value: 'host.example' }]], subjectPublicKey: spki }, {
+            algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
+            produceSignature: async (data) => new Uint8Array(await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, data)),
+        });
+        const node = decodeAsn1(csr);
+        const raw = rawFromDer(node.children[2]?.content.subarray(1) ?? new Uint8Array(0));
+        expect(await webcrypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pair.publicKey, raw, node.children[0]?.bytes ?? new Uint8Array(0))).toBe(true);
+    });
+
+    it('should refuse an ECDSA signature returned as DER, naming the length it expected', async () => {
+        const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as GeneratedPair;
+        const key = KeyObject.from(pair.privateKey);
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+            algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
+            produceSignature: (data) => new Uint8Array(nodeSign('sha256', data, key)),
+        })).rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('exactly 64 octets') }));
+    });
+
+    it('should let an error the signer throws reach the caller unchanged', async () => {
+        const failure = new Error('HSM offline');
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+            algorithm: { name: 'Ed25519' },
+            produceSignature: () => Promise.reject(failure),
+        })).rejects.toBe(failure);
     });
 });
 
