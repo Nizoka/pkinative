@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 133615,
-      "approxTokens": 33404
+      "bytes": 133919,
+      "approxTokens": 33480
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 254904,
-      "approxTokens": 63726
+      "bytes": 255158,
+      "approxTokens": 63790
     },
     {
       "url": "data/errors.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 5955,
-      "approxTokens": 1489
+      "bytes": 6355,
+      "approxTokens": 1589
     }
   ],
   "guides": [
@@ -112,8 +112,8 @@
         "prove-when-it-was-signed",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 63209,
-      "approxTokens": 15802
+      "bytes": 63513,
+      "approxTokens": 15878
     },
     {
       "title": "Security model",

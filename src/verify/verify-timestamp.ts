@@ -31,11 +31,12 @@ import {
     notYetValidReason,
     purposeNotPermittedReason,
     tspImprintMismatchReason,
+    tspNotGrantedReason,
     tspRequestMismatchReason,
     tspTokenInvalidReason,
 } from '../core/pki-reasons.js';
 import { _parseTimeStampRequest } from '../cms/tsp-request.js';
-import { parseTimeStampToken } from '../cms/tsp-response.js';
+import { parseTimeStampResponse, parseTimeStampToken } from '../cms/tsp-response.js';
 import { computeFingerprintAsync } from '../hash/fingerprint.js';
 import type { PkiTime } from '../types/asn1-types.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -50,8 +51,18 @@ import { _digestName, _under, _verifySigner } from './verify-signer.js';
 
 /** What to verify a timestamp token against. */
 export interface VerifyTimeStampInput {
-    /** The token: a ContentInfo whose content is a SignedData over a TSTInfo. */
-    readonly token: Uint8Array;
+    /**
+     * The token: a ContentInfo whose content is a SignedData over a TSTInfo.
+     * Give this or `response`, not both.
+     */
+    readonly token?: Uint8Array | undefined;
+    /**
+     * The whole `TimeStampResp` the TSA sent back, when you hold that rather
+     * than the token inside it. A response that granted nothing is reported
+     * as `PKI_REASON_TSP_NOT_GRANTED`, carrying the TSA's status, text and
+     * failure codes. Give this or `token`, not both.
+     */
+    readonly response?: Uint8Array | undefined;
     /**
      * The `TimeStampReq` you sent. The token must stamp the same imprint, echo
      * the same nonce as the same integer, and carry the policy you asked for.
@@ -141,7 +152,7 @@ interface _Expectation {
  * @param input See {@link VerifyTimeStampInput}.
  * @returns The verdict and what it established.
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
- *   `imprint` is given; `PKI_INVALID_OPTION` for an unknown key in `limits`;
+ *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_INVALID_OPTION` for an unknown key in `limits`;
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
@@ -152,10 +163,22 @@ export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise
 
     let token: TimeStampToken;
     try {
-        token = parseTimeStampToken(input.token, reading);
+        if (input.response === undefined) {
+            // _expectation has refused a call carrying neither.
+            token = parseTimeStampToken(input.token as Uint8Array, reading);
+        } else {
+            const response = parseTimeStampResponse(input.response, reading);
+            // RFC 3161 §2.4.2: only granted and grantedWithMods carry a token,
+            // and the parser has already refused one that claims to without.
+            if (response.token === undefined) {
+                reasons.push(tspNotGrantedReason('response.status', response.status, response.statusStrings, response.failInfo));
+                return _report(reasons, undefined, undefined, undefined, 0);
+            }
+            token = response.token;
+        }
     } catch (error) {
         const refused = _pkiError(error);
-        reasons.push(inputMalformedReason(refused.code, refused.message, 'token'));
+        reasons.push(inputMalformedReason(refused.code, refused.message, input.response === undefined ? 'token' : 'response'));
         return _report(reasons, undefined, undefined, undefined, 0);
     }
     const { signedData, tstInfo } = token;
@@ -255,6 +278,10 @@ function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefine
 
 /** What the caller said was stamped, resolved once and refused if they said nothing. */
 function _expectation(input: VerifyTimeStampInput): _Expectation {
+    if ((input.token === undefined) === (input.response === undefined)) {
+        throw new PkiError('PKI_API_MISUSE',
+            'pkinative: pass the timestamp as exactly one of token (the token alone) or response (the whole TimeStampResp the TSA sent)');
+    }
     if (input.request === undefined && input.data === undefined && input.imprint === undefined) {
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: say what was stamped — pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued');

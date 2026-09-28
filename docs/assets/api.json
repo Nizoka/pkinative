@@ -5273,9 +5273,15 @@
       "members": [
         {
           "name": "token",
-          "type": "Uint8Array",
-          "optional": false,
+          "type": "Uint8Array | undefined",
+          "optional": true,
           "summary": "The token: a ContentInfo whose content is a SignedData over a TSTInfo."
+        },
+        {
+          "name": "response",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The whole `TimeStampResp` the TSA sent back, when you hold that rather than the token inside it."
         },
         {
           "name": "request",

@@ -230,7 +230,7 @@
     {
       "code": "PKI_REASON_TSP_TOKEN_INVALID",
       "since": "0.7.0",
-      "returnedWhen": "The token breaks a rule RFC 3161 sets for tokens specifically: more than one signer, content that is not a TSTInfo, no signing-certificate attribute, or a tsa name its signing certificate does not hold.",
+      "returnedWhen": "The token breaks a rule RFC 3161 sets for tokens specifically: more than one signer, a tsa name its signing certificate does not hold, or a message imprint whose digest algorithm pkinative does not compute. A token with no signing-certificate attribute is PKI_REASON_CMS_ATTRIBUTE_INVALID, the rule every signer is held to; content that is not a TSTInfo cannot be read as a token at all and is PKI_REASON_INPUT_MALFORMED.",
       "remedy": "The TSA is non-conforming or the token was altered. A token that breaks these rules is not evidence of a time, whatever its signature says.",
       "standard": "RFC 3161 §2.4.2"
     },

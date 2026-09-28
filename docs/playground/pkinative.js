@@ -3066,6 +3066,16 @@ function cmsSigningCertificateMismatchReason(path, why) {
     path
   );
 }
+function tspNotGrantedReason(path, status, statusStrings, failInfo) {
+  const said = statusStrings.length === 0 ? "" : ` It said: "${statusStrings.join(" / ")}".`;
+  const why = failInfo.length === 0 ? "" : ` Failure: ${failInfo.join(", ")}.`;
+  return _reason(
+    "PKI_REASON_TSP_NOT_GRANTED",
+    "RFC 3161 \xA72.4.2",
+    `the timestamp authority answered ${status} and issued no token.${said}${why}`,
+    path
+  );
+}
 function tspTokenInvalidReason(path, why) {
   return _reason(
     "PKI_REASON_TSP_TOKEN_INVALID",
@@ -8654,10 +8664,19 @@ async function verifyTimeStampToken(input) {
   const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
   let token;
   try {
-    token = parseTimeStampToken(input.token, reading);
+    if (input.response === void 0) {
+      token = parseTimeStampToken(input.token, reading);
+    } else {
+      const response = parseTimeStampResponse(input.response, reading);
+      if (response.token === void 0) {
+        reasons.push(tspNotGrantedReason("response.status", response.status, response.statusStrings, response.failInfo));
+        return _report(reasons, void 0, void 0, void 0, 0);
+      }
+      token = response.token;
+    }
   } catch (error) {
     const refused = _pkiError(error);
-    reasons.push(inputMalformedReason(refused.code, refused.message, "token"));
+    reasons.push(inputMalformedReason(refused.code, refused.message, input.response === void 0 ? "token" : "response"));
     return _report(reasons, void 0, void 0, void 0, 0);
   }
   const { signedData, tstInfo } = token;
@@ -8743,13 +8762,19 @@ function _report(reasons, token, tsa, chain, verified) {
   });
 }
 function _expectation(input) {
+  if (input.token === void 0 === (input.response === void 0)) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      "pkinative: pass the timestamp as exactly one of token (the token alone) or response (the whole TimeStampResp the TSA sent)"
+    );
+  }
   if (input.request === void 0 && input.data === void 0 && input.imprint === void 0) {
     throw new PkiError(
       "PKI_API_MISUSE",
       "pkinative: say what was stamped \u2014 pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued"
     );
   }
-  const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, { limits: input.limits ?? {} });
+  const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, { limits: input.limits ?? {}, onDiagnostic: () => void 0 });
   return {
     imprint: input.imprint,
     data: input.data,
@@ -8856,6 +8881,7 @@ async function verifySignedData(input) {
         trustAnchors: input.trustAnchors,
         ...input.crls === void 0 ? {} : { crls: input.crls },
         ...input.ocsp === void 0 ? {} : { ocsp: input.ocsp },
+        ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
         ...input.at === void 0 ? {} : { at: input.at },
         ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
         ...input.limits === void 0 ? {} : { limits: input.limits }

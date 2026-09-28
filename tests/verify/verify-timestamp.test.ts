@@ -35,6 +35,16 @@ import {
 
 const DATA = new TextEncoder().encode('the document that was stamped');
 
+/** A TimeStampResp (RFC 3161 §2.4.2): PKIStatusInfo, then the token when there is one. */
+const timeStampResp = (status: number, token?: Uint8Array, text?: string, failBit0 = false): Uint8Array => encodeSequence([
+    encodeSequence([
+        encodeInteger(status),
+        ...(text === undefined ? [] : [encodeSequence([encodeTlv('universal', 12, false, new TextEncoder().encode(text))])]),
+        ...(failBit0 ? [encodeTlv('universal', 3, false, Uint8Array.of(7, 0x80))] : []),
+    ]),
+    ...(token === undefined ? [] : [token]),
+]);
+
 interface World {
     readonly root: Authority;
     readonly tsa: Holder;
@@ -57,6 +67,17 @@ describe('verifyTimeStampToken', () => {
             const call = verifyTimeStampToken({ token, trustAnchors: [w.root.certificate] });
             await expect(call).rejects.toBeInstanceOf(PkiError);
             await expect(call).rejects.toMatchObject({ code: 'PKI_API_MISUSE' });
+        });
+
+        it('should refuse a call that passes both a token and a response, or neither', async () => {
+            const w = await world();
+            const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+            for (const call of [
+                verifyTimeStampToken({ token, response: timeStampResp(0, token), data: DATA, trustAnchors: [w.root.certificate] }),
+                verifyTimeStampToken({ data: DATA, trustAnchors: [w.root.certificate] }),
+            ]) {
+                await expect(call).rejects.toMatchObject({ code: 'PKI_API_MISUSE' });
+            }
         });
 
         it('should refuse a request that is not a TimeStampReq with the CMS error', async () => {
@@ -384,6 +405,33 @@ describe('verifyTimeStampToken', () => {
             expect(codes(report)).toEqual([]);
             expect(report.earliest).toBeCloseTo(AT - 1500.1, 6);
             expect(report.latest).toBeCloseTo(AT + 1500.1, 6);
+        });
+    });
+
+    describe('a whole TimeStampResp', () => {
+        it('should verify the token inside a granted response as it verifies the token alone', async () => {
+            const w = await world();
+            const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+            const report = await verifyTimeStampToken({ response: timeStampResp(0, token), data: DATA, trustAnchors: [w.root.certificate], at: AT });
+            expect(codes(report)).toEqual([]);
+            expect(report.valid).toBe(true);
+            expect(report.token?.tstInfo.messageImprint.hashedMessage).toEqual(w.imprint);
+        });
+
+        it('should report a response that granted nothing as TSP_NOT_GRANTED, not as a malformed input', async () => {
+            const w = await world();
+            const report = await verifyTimeStampToken({ response: timeStampResp(2, undefined, 'unsupported digest', true), data: DATA, trustAnchors: [w.root.certificate], at: AT });
+            expect(codes(report)).toEqual(['PKI_REASON_TSP_NOT_GRANTED']);
+            expect(report.reasons[0]?.path).toBe('response.status');
+            expect(report.valid).toBe(false);
+            expect(report.token).toBeUndefined();
+        });
+
+        it('should report a response that is not a TimeStampResp as malformed input, at the response', async () => {
+            const w = await world();
+            const report = await verifyTimeStampToken({ response: encodeSequence([encodeInteger(1)]), data: DATA, trustAnchors: [w.root.certificate], at: AT });
+            expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+            expect(report.reasons[0]?.path).toBe('response');
         });
     });
 });
