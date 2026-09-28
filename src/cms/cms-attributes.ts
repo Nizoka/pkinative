@@ -43,7 +43,7 @@ import {
     OID_ATTR_SIGNING_CERTIFICATE_V2,
     OID_ATTR_SIGNING_TIME,
     OID_ATTR_TIMESTAMP_TOKEN,
-} from './cms-oids.js';
+} from '../core/cms-oids.js';
 
 // ── Errors ──
 

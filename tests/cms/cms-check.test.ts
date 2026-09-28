@@ -9,7 +9,7 @@ import {
     _signerCandidates,
     _signingCertificateReason,
 } from '../../src/cms/cms-check.js';
-import * as oids from '../../src/cms/cms-oids.js';
+import * as oids from '../../src/core/cms-oids.js';
 import type { CmsAttribute, SignedData, SignerInfo, SigningCertificateAttribute } from '../../src/types/cms-types.js';
 import type { AlgorithmIdentifier, Certificate, GeneralName } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';

@@ -5,11 +5,15 @@
  * table, so that a parser, a builder and a verifier compare against the same
  * strings and a typo in one of them cannot make it disagree with the others.
  *
- * `cms/` keeps its own constants rather than importing `oid/`, for the reason
- * `x509/` does: the name registry is data that only `getOidName` should pull
- * into a bundle.
+ * It lives in `core` because three layers read it — `build` writes these
+ * OIDs, `cms` parses them and `verify` decides with them — and `core` is the one
+ * layer all three already import. In `cms` it would be out of reach of `build`,
+ * which `cms` itself imports, and the builder would have to keep a second copy:
+ * exactly the drift the table exists to prevent. It is not the `oid/` name
+ * registry either, which is data that only `getOidName` should pull into a
+ * bundle.
  *
- * @module cms/cms-oids
+ * @module core/cms-oids
  */
 
 // ── Content types (RFC 5652 §4–§9, RFC 3161 §2.4.2) ──

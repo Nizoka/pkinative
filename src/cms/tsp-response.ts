@@ -25,7 +25,7 @@ import { PkiCmsError } from '../types/pki-errors.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
 import type { TimeStampFailure, TimeStampResponse, TimeStampStatus, TimeStampToken } from '../types/tsp-types.js';
 import { parseSignedData } from './cms-signed-data.js';
-import { OID_TST_INFO } from './cms-oids.js';
+import { OID_TST_INFO } from '../core/cms-oids.js';
 import { _tspError, parseTstInfo } from './tsp-tst-info.js';
 
 /** RFC 3161 §2.4.2 `PKIStatus`, by value. */

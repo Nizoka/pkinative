@@ -44,33 +44,22 @@ import type { SignatureHash, Signer } from '../types/crypto-types.js';
 import { PkiCmsError, PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { PkiLimits } from '../types/pki-types.js';
 import type { Certificate, Extension, SubjectKeyIdentifierExtension } from '../types/x509-types.js';
+import {
+    OID_ATTR_ALGORITHM_PROTECTION,
+    OID_ATTR_CONTENT_TYPE,
+    OID_ATTR_COUNTERSIGNATURE,
+    OID_ATTR_MESSAGE_DIGEST,
+    OID_ATTR_SIGNING_CERTIFICATE_V2,
+    OID_ATTR_SIGNING_TIME,
+    OID_DATA,
+    OID_SIGNED_DATA,
+    SIGNED_ONLY_ATTRIBUTES,
+} from '../core/cms-oids.js';
 import { computeSignatureValue, signatureAlgorithmDer, type CreateOptions } from './build-certificate.js';
 import { encodeAlgorithmIdentifier, encodeAttribute } from './build-structures.js';
 
-// ── Object identifiers ───────────────────────────────────────────────
-// The strings of src/cms/cms-oids.ts. `cms` imports `build`, so `build`
-// cannot import them back; they are repeated rather than moved, because a
-// constant table is not worth a new layer edge.
-
-const OID_DATA = '1.2.840.113549.1.7.1';
-const OID_SIGNED_DATA = '1.2.840.113549.1.7.2';
-const OID_ATTR_CONTENT_TYPE = '1.2.840.113549.1.9.3';
-const OID_ATTR_MESSAGE_DIGEST = '1.2.840.113549.1.9.4';
-const OID_ATTR_SIGNING_TIME = '1.2.840.113549.1.9.5';
-const OID_ATTR_COUNTERSIGNATURE = '1.2.840.113549.1.9.6';
-const OID_ATTR_SIGNING_CERTIFICATE = '1.2.840.113549.1.9.16.2.12';
-const OID_ATTR_SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
-const OID_ATTR_ALGORITHM_PROTECTION = '1.2.840.113549.1.9.52';
-
 /** Attributes RFC 5652 §11, RFC 2634, RFC 5035 and RFC 6211 allow only among the signed attributes. */
-const SIGNED_ONLY: ReadonlySet<string> = /*#__PURE__*/ new Set([
-    OID_ATTR_CONTENT_TYPE,
-    OID_ATTR_MESSAGE_DIGEST,
-    OID_ATTR_SIGNING_TIME,
-    OID_ATTR_SIGNING_CERTIFICATE,
-    OID_ATTR_SIGNING_CERTIFICATE_V2,
-    OID_ATTR_ALGORITHM_PROTECTION,
-]);
+const SIGNED_ONLY = SIGNED_ONLY_ATTRIBUTES;
 
 /**
  * The digests a signer can name, keyed by the literal union so the lookup is

@@ -46,7 +46,7 @@ import {
     OID_ATTR_SIGNING_TIME,
     OID_DATA,
     SIGNED_ONLY_ATTRIBUTES,
-} from './cms-oids.js';
+} from '../core/cms-oids.js';
 
 /** The digests a signing-certificate hash may use, by the name the parser gives them. */
 const DIGESTS: ReadonlyMap<string, (input: Uint8Array) => Uint8Array> = /*#__PURE__*/ new Map([

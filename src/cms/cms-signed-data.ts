@@ -61,7 +61,7 @@ import {
     OID_RI_OCSP_RESPONSE,
     OID_SIGNED_DATA,
     OID_TST_INFO,
-} from './cms-oids.js';
+} from '../core/cms-oids.js';
 
 /** The content types a caller may plausibly hand over by mistake, named so the refusal can say which one it was. */
 const CONTENT_TYPE_NAMES: ReadonlyMap<string, string> = /*#__PURE__*/ new Map([

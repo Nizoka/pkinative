@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import * as oids from '../../src/cms/cms-oids.js';
+import * as oids from '../../src/core/cms-oids.js';
 
 /**
  * The CMS and TSP object identifiers.
