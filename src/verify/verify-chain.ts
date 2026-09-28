@@ -52,14 +52,15 @@ import { computeKeyIdentifier } from '../hash/key-identifier.js';
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { checkRevocation } from '../revocation/crl-check.js';
+import type { DeltaCrlInput } from '../revocation/crl-check.js';
 import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
-import { _crlScopeProblem } from '../revocation/crl-scope.js';
+import { _crlScopeProblem, _deltaApplies } from '../revocation/crl-scope.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PathBuildReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
-import type { PkiLimits } from '../types/pki-types.js';
+import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate, ReasonFlag } from '../types/x509-types.js';
 import type { CertificateList } from '../types/crl-types.js';
@@ -337,24 +338,36 @@ async function _crlSignature(crl: CertificateList, issuer: Certificate, allowSha
  * certificate that happens to sit above the leaf in the path asks about one of
  * the CA's keys and calls a `false` an answer about the CA.
  *
- * "Entitled" is two questions, not one. RFC 5280 §4.2.1.3 requires a CA that
+ * "Entitled" is three questions, not one. RFC 5280 §4.2.1.3 requires a CA that
  * issues CRLs to assert `cRLSign`, so a certificate whose keyUsage omits it is
  * refused before its key is asked — accepting its list would let a CA
  * constrained to signing certificates revoke them instead. Absent keyUsage
  * asserts nothing and constrains nothing, which is the reading §6.1.4 (n) takes
- * of `keyCertSign`.
+ * of `keyCertSign`. When the list names a key in its own
+ * `authorityKeyIdentifier`, that is the CA saying **which** of its keys revokes
+ * (`_designated`). And a key delegated the job must still hold a good
+ * certificate itself (`_signerStillGood`), or withdrawing a compromised
+ * CRL-signing key would mean nothing.
  */
-async function _crlSigner(
-    input: VerifyChainInput,
-    path: readonly Certificate[],
-    crl: CertificateList,
-    about: string,
-): Promise<boolean | undefined> {
+async function _crlSigner(ctx: CrlSignerContext, crl: CertificateList, about: string, pathOnly = false): Promise<boolean | undefined> {
+    const { input, path } = ctx;
     let answer: boolean | undefined;
-    for (const candidate of [...path, ...(input.candidates ?? []), ...input.trustAnchors]) {
+    const named = _namedKeyIdentifier(crl);
+    // `pathOnly` is the rank cut, asked from `_signerStillGood`: judging a
+    // delegated signer needs a list, and the only lists that may judge one are
+    // those the path itself vouches for. Every candidate in that pool is a path
+    // certificate, for which `_signerStillGood` answers immediately — so there
+    // is no second level and nothing to terminate.
+    const pool = pathOnly
+        ? [...path, ...input.trustAnchors]
+        : [...path, ...(input.candidates ?? []), ...input.trustAnchors];
+    for (const candidate of pool) {
         if (_hex(candidate.subject.der) !== about) continue;
+        if (!_designated(named, candidate)) continue;
         const usage = getExtension(candidate, 'keyUsage');
         if (usage !== undefined && !usage.usages.includes('cRLSign')) { answer ??= false; continue; }
+        // A key that may revoke is a key whose own certificate is still good.
+        if (!await _signerStillGood(ctx, candidate)) { answer ??= false; continue; }
         const verified = await _crlSignature(crl, candidate, input.allowSha1 === true);
         if (verified === true) return true;
         // "Checked and wrong" outranks "never checked": a caller reading the
@@ -362,6 +375,79 @@ async function _crlSigner(
         if (verified === false) answer = false;
     }
     return answer;
+}
+
+/**
+ * Whether a **delegated** CRL signer's own certificate is still good — in date,
+ * and not revoked.
+ *
+ * This is what makes revoking a compromised CRL-signing key mean anything. A CA
+ * that hands the job to a separate certificate and then withdraws it has said
+ * that key may no longer speak; a verifier that kept believing its lists would
+ * let whoever holds that key publish "nothing is revoked" for as long as the
+ * certificate's validity period runs. NIST PKITS builds
+ * `InvalidSeparateCertificateandCRLKeysTest21` on exactly that.
+ *
+ * **Delegated only, and that is the same rank argument twice.** A certificate
+ * on the path is not asked about here at all: §6 already judged its validity
+ * and the main loop already checks its revocation, so repeating either would
+ * report one fact as two findings. It is also what cuts the recursion — the
+ * list that may disqualify a delegate is asked for with `pathOnly`, whose
+ * candidates are all path certificates, and every one of those returns from the
+ * line below without asking anything further.
+ */
+async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): Promise<boolean> {
+    const mine = _hex(candidate.der);
+    if (ctx.path.some((c) => _hex(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex(c.der) === mine)) return true;
+    if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
+    for (const { der, crl } of ctx.lists) {
+        if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
+        if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
+        const reasons = checkRevocation({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading });
+        if (reasons.some((reason) => reason.code === 'PKI_REASON_REVOKED')) return false;
+    }
+    return true;
+}
+
+/** Everything `_crlSigner` needs to decide who was entitled to sign a list. */
+interface CrlSignerContext {
+    readonly input: VerifyChainInput;
+    readonly path: readonly Certificate[];
+    readonly at: number;
+    /** Every list the caller supplied, parsed — a delegated signer may be revoked on one of them. */
+    readonly lists: readonly ParsedCrl[];
+    readonly reading: PkiParseOptions;
+}
+
+/** The `keyIdentifier` a list names in its own `authorityKeyIdentifier`, if any. */
+function _namedKeyIdentifier(crl: CertificateList): Uint8Array | undefined {
+    for (const extension of crl.extensions) {
+        if (extension.kind === 'authorityKeyIdentifier') return extension.keyIdentifier;
+    }
+    return undefined;
+}
+
+/**
+ * Whether this certificate is the key the list says signed it.
+ *
+ * A CA holding several keys under one name can say which of them revokes, and
+ * `authorityKeyIdentifier` on the list is where it says so (RFC 5280 §5.2.1).
+ * Without this, *any* certificate carrying the CA's name and `cRLSign` will do
+ * — which is exactly what makes a key rollover work, and exactly what cannot
+ * tell a designated CRL signer from an undesignated sibling. NIST PKITS builds
+ * `InvalidSeparateCertificateandCRLKeysTest21` on that difference.
+ *
+ * **Only a candidate that states its own identifier is ever refused.** The
+ * comparison is against `subjectKeyIdentifier`, which is the CA's own assertion
+ * of what its key is called; computing one instead would pick RFC 5280 §4.2.1.2
+ * method 1 and refuse every CA that used method 2 or anything else. A candidate
+ * that names no identifier is left to the signature to settle — the rule is
+ * here to break a tie between siblings, not to add a second way to fail.
+ */
+function _designated(named: Uint8Array | undefined, candidate: Certificate): boolean {
+    if (named === undefined) return true;
+    const mine = getExtension(candidate, 'subjectKeyIdentifier')?.keyIdentifier;
+    return mine === undefined || _hex(mine) === _hex(named);
 }
 
 /**
@@ -379,6 +465,39 @@ const EVERY_REASON: readonly ReasonFlag[] = [
 
 function _coversEveryReason(reasons: ReadonlySet<ReasonFlag>): boolean {
     return EVERY_REASON.every((reason) => reasons.has(reason));
+}
+
+/** One parsed list, with the bytes `findRevocation` still needs to walk it. */
+interface ParsedCrl {
+    readonly der: Uint8Array;
+    readonly crl: CertificateList;
+}
+
+/**
+ * The delta CRL that applies to this base for this certificate, if the caller
+ * supplied one (RFC 5280 §5.2.4).
+ *
+ * The **first** applicable delta wins rather than the newest. `_deltaApplies`
+ * already bounds the pair on both sides — the base's `cRLNumber` is at least
+ * the delta's `BaseCRLNumber` and below the delta's own — so two deltas that
+ * both apply to one base describe overlapping windows of the same changes, and
+ * a CA that publishes such a pair has published the same withdrawal twice.
+ * Ordering them would spend a sort on a distinction that does not exist.
+ */
+async function _deltaFor(
+    ctx: CrlSignerContext,
+    subject: Certificate,
+    base: CertificateList,
+    signed: Map<number, boolean | undefined>,
+): Promise<DeltaCrlInput | undefined> {
+    for (const [index, { der, crl }] of ctx.lists.entries()) {
+        if (!_deltaApplies(base, crl)) continue;
+        if (_crlScopeProblem({ certificate: subject, crl, asDelta: true }) !== null) continue;
+        if (!signed.has(index)) signed.set(index, await _crlSigner(ctx, crl, _hex(crl.issuer.der)));
+        const signatureVerified = signed.get(index);
+        return { crl, crlDer: der, ...(signatureVerified === undefined ? {} : { signatureVerified }) };
+    }
+    return undefined;
 }
 
 /**
@@ -430,7 +549,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // Parsed first, then applied — because the loop below runs **per
     // certificate**, and the reason mask of §6.3.3 is a fact about one
     // certificate and every list that covers it.
-    const parsed: Array<{ readonly der: Uint8Array; readonly crl: CertificateList }> = [];
+    const parsed: ParsedCrl[] = [];
     for (const [index, der] of lists.entries()) {
         try {
             parsed.push({ der, crl: parseCertificateList(der, reading) });
@@ -444,6 +563,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
         }
     }
+    const signing: CrlSignerContext = { input, path, at, lists: parsed, reading };
     // Whether a key entitled to sign a list did. Asked once per list rather than
     // once per certificate, because the answer is a property of the list.
     // `undefined` and `false` are different answers and `checkRevocation` words
@@ -482,17 +602,24 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
                 continue;
             }
             covered.add(position);
-            if (!signed.has(index)) signed.set(index, await _crlSigner(input, path, crl, _hex(crl.issuer.der)));
+            if (!signed.has(index)) signed.set(index, await _crlSigner(signing, crl, _hex(crl.issuer.der)));
             const signatureVerified = signed.get(index);
             const only = crl.issuingDistributionPoint?.onlySomeReasons;
             if (only === undefined) complete = true;
             else for (const reason of only) reasons.add(reason);
+            // The delta that belongs to **this** base, for **this** certificate
+            // (RFC 5280 §5.2.4). Pairing is the composition's job because only
+            // it holds both lists, and `checkRevocation` owns what the pair
+            // means — the caller never merges two answers, because there is
+            // only ever one.
+            const delta = await _deltaFor(signing, subject, crl, signed);
             mine.push(...checkRevocation({
                 certificate: subject,
                 crl,
                 crlDer: der,
                 at,
                 ...(signatureVerified === undefined ? {} : { signatureVerified }),
+                ...(delta === undefined ? {} : { delta }),
                 options: reading,
             }));
         }

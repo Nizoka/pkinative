@@ -8,22 +8,14 @@
   },
   "totals": {
     "scored": 203,
-    "agree": 191,
-    "deviations": 12,
+    "agree": 194,
+    "deviations": 9,
     "skipped": 20
   },
   "deviations": {
     "InvalidDNandRFC822nameConstraintsTest29": {
       "expected": "FAILURE",
       "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code. Here the same rule reaches a name constraint rather than the chain: §7.1 preparation is what would make the constrained directoryName match the subject, and byte comparison does not. The direction is inverted for a constraint — a name that does not match is a name not excluded — so this one is an acceptance rather than a refusal, and it is the same missing comparison."
-    },
-    "InvalidSeparateCertificateandCRLKeysTest21": {
-      "expected": "FAILURE",
-      "why": "Who may **sign** a CRL, which is a different question from which certificates a list covers. The CA here issues a dedicated CRL-signing certificate and the list under test is signed by one of its other keys; the designation lives in the CRL's own `authorityKeyIdentifier`, and the certificate names no `cRLDistributionPoints` and no `cRLIssuer`, so nothing in the certificate points at a signer either. `verifyCertificateChain` accepts a signature from any certificate carrying the CA's encoded name and asserting `cRLSign` (RFC 5280 §4.2.1.3), which is exactly what makes a key rollover work and what, without matching the list's `authorityKeyIdentifier` against a candidate's key identifier, cannot tell a designated signer from an undesignated sibling. Matching it is a small and well-defined change — `computeKeyIdentifier` already exists — and it belongs to its own measurement rather than to the scoping work these tests were grouped under."
-    },
-    "InvaliddeltaCRLTest4": {
-      "expected": "FAILURE",
-      "why": "RFC 5280 §5.2.4 **delta CRLs** are not applied. A delta lists what changed since a base list identified by its `BaseCRLNumber`, and it is only meaningful together with that base: read on its own it reports every certificate absent from it — which is nearly all of them — as unrevoked. So `crl-scope.ts` refuses to answer from a delta at all, which is the honest description of a feature that is not there rather than a reading anybody defends. Refusing errs in **both** directions, and PKITS has one test for each: a revocation recorded only on a delta is missed, and a revocation a delta lifted is still reported. Only applying the base and the delta together fixes either, and that is the next revocation piece. Here the certificate is revoked **on the delta only**, the base list is clean, and pkinative answers from the base — so it accepts a certificate PKITS says to refuse. This is the permissive direction of the gap and the reason the piece is scheduled rather than left: a CA that publishes revocations on deltas between base issuances has a window in which this library will not see them. It is recorded alone, and it is the one deviation in this baseline that accepts something a standards body says to reject."
     },
     "ValidDSAParameterInheritanceTest5": {
       "expected": "SUCCESS",
@@ -56,10 +48,6 @@
     "ValidUTF8StringCaseInsensitiveMatchTest11": {
       "expected": "SUCCESS",
       "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
-    },
-    "ValiddeltaCRLTest5": {
-      "expected": "SUCCESS",
-      "why": "RFC 5280 §5.2.4 **delta CRLs** are not applied. A delta lists what changed since a base list identified by its `BaseCRLNumber`, and it is only meaningful together with that base: read on its own it reports every certificate absent from it — which is nearly all of them — as unrevoked. So `crl-scope.ts` refuses to answer from a delta at all, which is the honest description of a feature that is not there rather than a reading anybody defends. Refusing errs in **both** directions, and PKITS has one test for each: a revocation recorded only on a delta is missed, and a revocation a delta lifted is still reported. Only applying the base and the delta together fixes either, and that is the next revocation piece. Here the deltas lift a certificate from `certificateHold` with the `removeFromCRL` reason that only a delta may carry, and pkinative answers from the base list alone — so it reports a revocation that was withdrawn. This is the same gap inverted: a certificate refused that PKITS says is good, which is the safe direction and still the wrong answer."
     }
   },
   "reasons": {

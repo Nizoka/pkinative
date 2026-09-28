@@ -152,6 +152,7 @@ function codesFor(cert: Certificate, crlDer: Uint8Array): readonly string[] {
 
 const EE = await certificate({ serial: 9n });
 const CA = await certificate({ serial: 9n, cA: true });
+const LISTED = await certificate({ serial: 7n });
 
 describe('issuingDistributionPoint, decoded', () => {
     it('should read every field of a fully populated IssuingDistributionPoint', () => {
@@ -559,6 +560,114 @@ describe('a list this implementation only half understands (RFC 5280 §6.3.3)', 
         // raises no question about this certificate.
         const crl = buildCrl({ issuer: 'Somebody Else', extensions: [extension([0x2b, 0x06, 0x01, 0x04, 0x01, 0x8d, 0x8d, 0x1f, 0x01], universal(5, []))] });
         expect(codesFor(EE, crl)).toEqual(['PKI_REASON_REVOCATION_WRONG_ISSUER']);
+    });
+});
+
+describe('delta CRLs (RFC 5280 §5.2.4)', () => {
+    const OID_CRL_NUMBER = [0x55, 0x1d, 0x14];
+    const OID_DELTA = [0x55, 0x1d, 0x1b];
+    const OID_REASON = [0x55, 0x1d, 0x15];
+
+    /** A complete list numbered `number`, revoking `revoked`. */
+    const base = (number: number, ...revoked: readonly number[]): Uint8Array => buildCrl({
+        extensions: [extension(OID_CRL_NUMBER, int(number), false)],
+        entries: revoked.map((serial) => entry([serial])),
+    });
+
+    /** A delta numbered `number` over base `over`, with one entry per (serial, reason). */
+    const delta = (number: number, over: number, ...entries: ReadonlyArray<readonly [number, number]>): Uint8Array => buildCrl({
+        extensions: [extension(OID_CRL_NUMBER, int(number), false), extension(OID_DELTA, int(over))],
+        entries: entries.map(([serial, reason]) => entry([serial], extension(OID_REASON, universal(10, [reason])))),
+    });
+
+    /** The pair, read as one answer. */
+    function pair(cert: Certificate, baseDer: Uint8Array, deltaDer: Uint8Array, signed = true): readonly string[] {
+        const crl = parseCertificateList(baseDer, quiet);
+        return checkRevocation({
+            certificate: cert,
+            crl,
+            crlDer: baseDer,
+            at: AT,
+            signatureVerified: true,
+            delta: { crl: parseCertificateList(deltaDer, quiet), crlDer: deltaDer, signatureVerified: signed },
+            options: quiet,
+        }).map((reason) => reason.code);
+    }
+
+    it('should read BaseCRLNumber off the deltaCRLIndicator', () => {
+        const parsed = parseCertificateList(delta(6, 4), quiet);
+        expect(parsed.isDelta).toBe(true);
+        expect(parsed.baseCrlNumber).toBe(4n);
+        expect(parsed.crlNumber).toBe(6n);
+        expect(parseCertificateList(base(4), quiet).baseCrlNumber).toBeUndefined();
+    });
+
+    it('should report a revocation the delta adds and the base has not caught up with', async () => {
+        // The whole reason deltas exist: the CA can publish this in minutes
+        // where reissuing the complete list takes hours.
+        const cert = await certificate({ serial: 7n });
+        expect(pair(cert, base(4), delta(6, 4, [0x07, 0x01]))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should withdraw a base revocation the delta removes', () => {
+        // `removeFromCRL` is the one entry reason only a delta may carry, and
+        // the one that means the opposite of the list it sits on.
+        expect(pair(LISTED, base(4, 0x07), delta(6, 4, [0x07, 0x08]))).toEqual([]);
+    });
+
+    it('should keep a base revocation the delta says nothing about', () => {
+        // Where the delta is silent the base still holds. A delta read as
+        // complete would have reported this certificate unrevoked.
+        expect(pair(LISTED, base(4, 0x07), delta(6, 4, [0x09, 0x01]))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta whose base is older than its BaseCRLNumber', () => {
+        // The two do not meet: everything revoked between CRL 4 and CRL 5 is
+        // invisible to both, so the pair cannot answer completely.
+        expect(pair(LISTED, base(4, 0x07), delta(6, 5, [0x07, 0x08]))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta that is not newer than its base', () => {
+        // An older document applied over a newer one would undo revocations the
+        // base already records — which is exactly what this case would do.
+        expect(pair(LISTED, base(6, 0x07), delta(6, 4, [0x07, 0x08]))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta from another issuer', () => {
+        const foreign = buildCrl({
+            issuer: 'Somebody Else',
+            extensions: [extension(OID_CRL_NUMBER, int(6), false), extension(OID_DELTA, int(4))],
+            entries: [entry([0x07], extension(OID_REASON, universal(10, [0x08])))],
+        });
+        expect(pair(LISTED, base(4, 0x07), foreign)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta whose signature nobody vouched for', () => {
+        // A delta anyone can publish could withdraw any revocation on the base
+        // with one entry — strictly easier than forging the base itself.
+        expect(pair(LISTED, base(4, 0x07), delta(6, 4, [0x07, 0x08]), false)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta when the base states no cRLNumber to compare', () => {
+        // §5.2.3 requires one on any list a delta could apply to. Without it the
+        // pairing is undecidable, and a guess here loses a revocation at worst
+        // or invents one at best — so the pair is simply not made.
+        const numberless = buildCrl({ entries: [entry([0x07])] });
+        expect(pair(LISTED, numberless, delta(6, 4, [0x07, 0x08]))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta that does not cover the certificate', async () => {
+        // Same CA, same numbers, different scope: the delta is about CA
+        // certificates and the question is about an end-entity one.
+        const scoped = buildCrl({
+            extensions: [
+                extension(OID_CRL_NUMBER, int(6), false),
+                extension(OID_DELTA, int(4)),
+                extension(OID_IDP, idp({ onlyCACerts: true })),
+            ],
+            entries: [entry([0x07], extension(OID_REASON, universal(10, [0x08])))],
+        });
+        expect(pair(LISTED, base(4, 0x07), scoped)).toEqual(['PKI_REASON_REVOKED']);
     });
 });
 

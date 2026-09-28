@@ -126,7 +126,11 @@ export const PROBES: readonly Probe[] = [
     // and compares GeneralNames, so the general-name reader is now reachable
     // from the CRL entry points. That is the cost of the answer being about
     // *this* certificate rather than about the CA, and it is not optional.
-    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 62 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    //
+    // 62 KB → 64 KB, measured at 62.1 KB when §5.2.4 landed: pairing a delta
+    // with its base is a rule about two lists, and it lives beside the scope
+    // decision rather than in the caller's head.
+    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 64 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // 156 KB → 164 KB, measured at 157.9 KB: the purpose check and the
     // composition layer. The roadmap's own projection for 1.0 is ~320 KB, so
     // this figure is on track; it is raised in the commit that measures it,
@@ -144,9 +148,15 @@ export const PROBES: readonly Probe[] = [
     // only the parser still pays 61 KB, which is what the leaf probes above are
     // for. Recorded rather than hidden, and raised in the commit that measures
     // it.
-    { exports: ['verifyCertificateChain'], maxBytes: 120 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
-    // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision.
-    { exports: ['*'], maxBytes: 168 * 1024, mustNotContain: [] },
+    //
+    // 120 KB → 124 KB, measured at 121.1 KB when delta CRLs and the CRL-signer
+    // rules landed: the composition now pairs a delta with its base and judges
+    // whether a delegated signer's own certificate is still good, which is a
+    // second revocation question asked inside the first one.
+    { exports: ['verifyCertificateChain'], maxBytes: 124 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
+    // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules.
+    { exports: ['*'], maxBytes: 172 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

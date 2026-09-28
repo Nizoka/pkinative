@@ -408,7 +408,28 @@ A CRL is evidence of **absence**: your serial is not on it. That is worth exactl
 
 `checkRevocation` therefore decides, before anything else, whether the list may answer at all: the kind of certificate it covers, the distribution point it was published at against the one your certificate names in `cRLDistributionPoints` — **including a point named relative to the CRL issuer**, composed rather than refused — and, when the certificate delegates to a `cRLIssuer`, whether the list itself asserts `indirectCRL`. Without that last agreement any CA named in any `cRLIssuer` field could answer for certificates it never issued.
 
-Two more lists get refused outright, and for the same kind of reason. A **delta CRL** lists what changed since a base list, so reading it as complete reports nearly everything as unrevoked; §5.2.4 is not implemented, and until it is a delta answers nothing. A list carrying a **critical extension pkinative cannot process** is refused by §6.3.3, in the same words §6.1.3 (f) uses for a certificate — you get `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
+A list carrying a **critical extension pkinative cannot process** is refused by §6.3.3, in the same words §6.1.3 (f) uses for a certificate — you get `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
+
+### Delta CRLs (RFC 5280 §5.2.4)
+
+A delta lists what *changed* since a complete list. Read alone it reports every certificate absent from it — nearly all of them — as unrevoked, so passing one as `crl` is refused. Pass it as `delta` instead, beside the base it applies over:
+
+```ts
+const reasons = checkRevocation({
+    certificate, crl: base, crlDer: baseDer, at: Date.now(), signatureVerified,
+    delta: { crl: newer, crlDer: newerDer, signatureVerified: deltaVerified },
+});
+```
+
+**The delta answers first, and the base only where the delta is silent.** That order is the rule, which is why the pair goes into one call rather than being merged afterwards — and it is the only place the `removeFromCRL` entry reason can mean what it means, since it appears on a delta to withdraw a revocation the base still records.
+
+The two are paired only when the base's `cRLNumber` is **at least** the delta's `baseCrlNumber` — otherwise everything revoked in between is invisible to both — and **below** the delta's own, otherwise the "delta" is the older document. Both must state a `cRLNumber`, both must name the same issuer, and both must cover the certificate. A delta whose signature nobody vouched for is not applied at all: one `removeFromCRL` entry on a forged delta would withdraw any revocation on the base, which is strictly easier than forging the base itself.
+
+`verifyCertificateChain` does the pairing for you — hand it every list you hold, in any order.
+
+### Who may sign a list
+
+`signatureVerified` asks whether **a key entitled to sign it** did, and entitlement is more than a name. `verifyCertificateChain` requires `cRLSign` in the signer's `keyUsage` (§4.2.1.3); it honours the `authorityKeyIdentifier` a list names, which is how a CA holding several keys under one name says which of them revokes; and for a key the CA *delegated* the job to, it requires that certificate to be in date and **not itself revoked**. That last rule is what makes withdrawing a compromised CRL-signing key mean anything — without it, whoever holds that key goes on publishing "nothing is revoked" until the certificate expires.
 
 `PKI_REASON_PARTIAL` is the one answer that **adds up**. A CA may publish a keyCompromise list it can reissue in minutes and a second list for everything else; between them they have answered completely. No single list can see that, so `checkRevocation` reports what each one ruled out and `verifyCertificateChain` — which holds them all — does the addition (§6.3.3's `reasons_mask`) and drops the reason once the union is complete.
 

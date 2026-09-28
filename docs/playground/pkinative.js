@@ -2396,6 +2396,8 @@ var PROCESSED_CRL_EXTENSIONS = /* @__PURE__ */ new Set([
   // issuerAltName
   "2.5.29.20",
   // cRLNumber
+  "2.5.29.27",
+  // deltaCRLIndicator
   "2.5.29.28",
   // issuingDistributionPoint
   "2.5.29.35",
@@ -2425,14 +2427,14 @@ function _crlScopeProblem(input) {
     if (idp !== void 0 && (idp.fullName !== void 0 || idp.nameRelativeToCRLIssuer !== void 0)) {
       return _outOfScope("it is scoped to a distribution point, and the certificate carries no cRLDistributionPoints naming it; nothing establishes that this point covers this certificate");
     }
-    return _usability(crl);
+    return _usability(input);
   }
   const problems = [];
   let delegated = false;
   for (const point of points) {
     if (point.cRLIssuer !== void 0 && _namesInclude(point.cRLIssuer, crl.issuer.der)) delegated = true;
     const problem = _pointProblem(point, input, idp);
-    if (problem === null) return _usability(crl);
+    if (problem === null) return _usability(input);
     problems.push(problem);
   }
   if (!fromIssuer && !delegated) return { kind: "wrong-issuer" };
@@ -2441,14 +2443,22 @@ function _crlScopeProblem(input) {
 function _outOfScope(why) {
   return { kind: "out-of-scope", why };
 }
-function _usability(crl) {
-  if (crl.isDelta) {
-    return _outOfScope("it is a delta CRL: it lists what changed since a base list, so a certificate absent from it is not a certificate that is unrevoked");
+function _usability(input) {
+  const { crl } = input;
+  if (crl.isDelta && input.asDelta !== true) {
+    return _outOfScope("it is a delta CRL: it lists what changed since a base list, so a certificate absent from it is not a certificate that is unrevoked \u2014 supply the complete list it applies over");
   }
   for (const extension of crl.extensions) {
     if (extension.critical && !PROCESSED_CRL_EXTENSIONS.has(extension.oid)) return { kind: "unusable", oid: extension.oid };
   }
   return null;
+}
+function _deltaApplies(base, delta) {
+  if (!delta.isDelta || base.isDelta) return false;
+  if (!bytesEqual(base.issuer.der, delta.issuer.der)) return false;
+  const { baseCrlNumber } = delta;
+  if (baseCrlNumber === void 0 || base.crlNumber === void 0 || delta.crlNumber === void 0) return false;
+  return base.crlNumber >= baseCrlNumber && base.crlNumber < delta.crlNumber;
 }
 function _pointProblem(point, input, idp) {
   const { certificate, crl } = input;
@@ -2649,9 +2659,13 @@ function parseCertificateList(der, options) {
   const extensions = readExtensions(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
   let crlNumber;
   let isDelta = false;
+  let baseCrlNumber;
   for (const extension of extensions) {
     if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx);
-    if (extension.oid === OID_DELTA_CRL_INDICATOR) isDelta = true;
+    if (extension.oid === OID_DELTA_CRL_INDICATOR) {
+      isDelta = true;
+      baseCrlNumber = readIntegerValue(extension, ctx);
+    }
   }
   return Object.freeze({
     der: der.subarray(outer.offset, outer.end),
@@ -2666,6 +2680,7 @@ function parseCertificateList(der, options) {
     extensions,
     crlNumber,
     isDelta,
+    baseCrlNumber,
     issuingDistributionPoint: _findIssuingDistributionPoint(extensions, ctx),
     entryCount: countEntries(der, env.revoked, ctx),
     diagnostics: ctx.emitter.diagnostics
@@ -2995,6 +3010,13 @@ function limitExceededReason(path, limit, configured) {
 }
 
 // src/revocation/crl-check.ts
+function _applicableDelta(input) {
+  const delta = input.delta;
+  if (delta === void 0 || delta.signatureVerified !== true) return void 0;
+  if (!_deltaApplies(input.crl, delta.crl)) return void 0;
+  if (_crlScopeProblem({ certificate: input.certificate, crl: delta.crl, asDelta: true }) !== null) return void 0;
+  return delta;
+}
 function checkRevocation(input) {
   const out = [];
   const path = "crl";
@@ -3010,10 +3032,11 @@ function checkRevocation(input) {
   if (nextUpdate === void 0 || input.at > nextUpdate + tolerance) {
     out.push(revocationStaleReason(path, nextUpdate, input.at));
   }
-  const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, {
-    ...input.options,
-    issuerDer: input.certificate.issuer.der
-  });
+  const serial = input.certificate.serialNumber.bytes;
+  const lookup = { ...input.options, issuerDer: input.certificate.issuer.der };
+  const delta = _applicableDelta(input);
+  const changed = delta === void 0 ? void 0 : findRevocation(delta.crlDer, serial, lookup);
+  const entry = changed ?? findRevocation(input.crlDer, serial, lookup);
   if (entry !== void 0 && entry.reason !== "removeFromCRL") {
     out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
     return out;
@@ -5618,12 +5641,20 @@ async function _crlSignature(crl, issuer, allowSha1) {
     return void 0;
   }
 }
-async function _crlSigner(input, path, crl, about) {
+async function _crlSigner(ctx, crl, about, pathOnly = false) {
+  const { input, path } = ctx;
   let answer;
-  for (const candidate of [...path, ...input.candidates ?? [], ...input.trustAnchors]) {
+  const named = _namedKeyIdentifier(crl);
+  const pool = pathOnly ? [...path, ...input.trustAnchors] : [...path, ...input.candidates ?? [], ...input.trustAnchors];
+  for (const candidate of pool) {
     if (_hex2(candidate.subject.der) !== about) continue;
+    if (!_designated(named, candidate)) continue;
     const usage = getExtension(candidate, "keyUsage");
     if (usage !== void 0 && !usage.usages.includes("cRLSign")) {
+      answer ?? (answer = false);
+      continue;
+    }
+    if (!await _signerStillGood(ctx, candidate)) {
       answer ?? (answer = false);
       continue;
     }
@@ -5632,6 +5663,29 @@ async function _crlSigner(input, path, crl, about) {
     if (verified === false) answer = false;
   }
   return answer;
+}
+async function _signerStillGood(ctx, candidate) {
+  const mine = _hex2(candidate.der);
+  if (ctx.path.some((c) => _hex2(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex2(c.der) === mine)) return true;
+  if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
+  for (const { der, crl } of ctx.lists) {
+    if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
+    if (await _crlSigner(ctx, crl, _hex2(crl.issuer.der), true) !== true) continue;
+    const reasons = checkRevocation({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading });
+    if (reasons.some((reason) => reason.code === "PKI_REASON_REVOKED")) return false;
+  }
+  return true;
+}
+function _namedKeyIdentifier(crl) {
+  for (const extension of crl.extensions) {
+    if (extension.kind === "authorityKeyIdentifier") return extension.keyIdentifier;
+  }
+  return void 0;
+}
+function _designated(named, candidate) {
+  if (named === void 0) return true;
+  const mine = getExtension(candidate, "subjectKeyIdentifier")?.keyIdentifier;
+  return mine === void 0 || _hex2(mine) === _hex2(named);
 }
 var EVERY_REASON = [
   "keyCompromise",
@@ -5645,6 +5699,16 @@ var EVERY_REASON = [
 ];
 function _coversEveryReason(reasons) {
   return EVERY_REASON.every((reason) => reasons.has(reason));
+}
+async function _deltaFor(ctx, subject, base, signed) {
+  for (const [index, { der, crl }] of ctx.lists.entries()) {
+    if (!_deltaApplies(base, crl)) continue;
+    if (_crlScopeProblem({ certificate: subject, crl, asDelta: true }) !== null) continue;
+    if (!signed.has(index)) signed.set(index, await _crlSigner(ctx, crl, _hex2(crl.issuer.der)));
+    const signatureVerified = signed.get(index);
+    return { crl, crlDer: der, ...signatureVerified === void 0 ? {} : { signatureVerified } };
+  }
+  return void 0;
 }
 async function _checkRevocation(input, path, at) {
   const out = [];
@@ -5668,6 +5732,7 @@ async function _checkRevocation(input, path, at) {
       out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
     }
   }
+  const signing = { input, path, at, lists: parsed, reading };
   const signed = /* @__PURE__ */ new Map();
   for (const [position, subject] of path.entries()) {
     if (anchors.has(_hex2(subject.der))) continue;
@@ -5682,17 +5747,19 @@ async function _checkRevocation(input, path, at) {
         continue;
       }
       covered.add(position);
-      if (!signed.has(index)) signed.set(index, await _crlSigner(input, path, crl, _hex2(crl.issuer.der)));
+      if (!signed.has(index)) signed.set(index, await _crlSigner(signing, crl, _hex2(crl.issuer.der)));
       const signatureVerified = signed.get(index);
       const only = crl.issuingDistributionPoint?.onlySomeReasons;
       if (only === void 0) complete = true;
       else for (const reason of only) reasons.add(reason);
+      const delta = await _deltaFor(signing, subject, crl, signed);
       mine.push(...checkRevocation({
         certificate: subject,
         crl,
         crlDer: der,
         at,
         ...signatureVerified === void 0 ? {} : { signatureVerified },
+        ...delta === void 0 ? {} : { delta },
         options: reading
       }));
     }

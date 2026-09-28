@@ -117,6 +117,16 @@ export interface CertificateList {
     readonly crlNumber: bigint | undefined;
     /** Whether `deltaCRLIndicator` (§5.2.4) is present — a delta CRL is not a full one. */
     readonly isDelta: boolean;
+    /**
+     * `BaseCRLNumber` (§5.2.4), the `cRLNumber` of the complete list this delta
+     * describes the changes since; `undefined` on a list that is not a delta.
+     *
+     * It is what makes a delta applicable, and to exactly one range of bases: a
+     * complete list answers together with this delta when its own `crlNumber` is
+     * **at least** this number — so no change is missed — and **below** the
+     * delta's `crlNumber`, so the delta is the newer of the two.
+     */
+    readonly baseCrlNumber: bigint | undefined;
     /** `issuingDistributionPoint` (§5.2.5), or `undefined` when absent — in which case the list covers everything its CA issued. */
     readonly issuingDistributionPoint: IssuingDistributionPoint | undefined;
     /** Entries in `revokedCertificates`, counted by walking rather than decoding. */

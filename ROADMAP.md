@@ -36,11 +36,18 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 
 <!-- Landed so far in this band: PkiReasonCode (the third vocabulary), RFC 5280
      §6 in full including name constraints and the policy tree, path building,
-     CRLs, OCSP, RFC 6125 server-name matching, extended key usage, the one-call
-     verify layer, and the x509-limbo score as
-     conformance level L6 — which is what found the last ten name-constraint
+     CRLs with their §5.2.4 and §5.2.5 scoping, OCSP, RFC 6125 server-name
+     matching, extended key usage, the one-call verify layer, and the two scored
+     corpora — x509-limbo as L6, which found the last ten name-constraint
      defects, the unjudged trust anchor and the SHA-1 signatures that were being
-     verified as evidence. -->
+     verified as evidence; NIST PKITS as L7, which found the whole of CRL
+     scoping and the revoked CRL signer this library used to believe.
+
+     Nothing open. What follows is the release itself: release-notes/v0.5.0.md,
+     the version bump, and the publish profile. -->
+
+**The band is complete.** All 18 items are landed; what remains is the release
+preparation described in CONTRIBUTING.md §Release.
 
 
 - [x] `PkiReasonCode` — the third vocabulary, landed **before** the code that needs it: primitives return and throw, compositions report, and exactly one layer converts
@@ -59,8 +66,8 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 - [x] `computeKeyIdentifier` (RFC 5280 §4.2.1.2 method 1, the same value as an OCSP `issuerKeyHash`), so the builder can write both key identifiers — and their absence is diagnosed without everything this library builds tripping its own reader
 - [x] NIST PKITS as conformance level L7 — a second corpus written by different people from a different reading, pinned twice (the archive digest and a per-file list of the extraction), with expectations taken from NIST own file-name convention rather than from its PDF, and the 20 policy tests skipped because the archive states no user-initial-policy-set
 - [x] RFC 5280 §5.2.5 `issuingDistributionPoint`, §6.3.3 (b) distribution-point matching and indirect CRLs reached through `cRLDistributionPoints` — what a list declares itself to be about, so that a serial's absence from it means what the CA said it means and not more; with the §5.3.3 `certificateIssuer` running state, without which a serial on an indirect list is not an identity
-- [ ] RFC 5280 §5.2.4 delta CRLs — a delta applied over a base whose `cRLNumber` reaches its `BaseCRLNumber`, including the `removeFromCRL` reason that only a delta may carry. A delta is refused outright until then, which errs both ways and is measured doing so: PKITS has one test for a revocation missed and one for a revocation wrongly kept
-- [ ] Match a CRL's `authorityKeyIdentifier` against a candidate signer's key identifier — the CA that designates a dedicated CRL-signing certificate is telling you which of its keys may revoke, and accepting any same-named certificate asserting `cRLSign` cannot tell a designated signer from an undesignated sibling (`InvalidSeparateCertificateandCRLKeysTest21`)
+- [x] RFC 5280 §5.2.4 delta CRLs — a delta read together with the base whose `cRLNumber` reaches its `BaseCRLNumber` and stops short of its own, the delta answering first and the base only where it is silent, including the `removeFromCRL` reason that only a delta may carry and that withdraws what the base still records. A delta handed over alone still answers nothing: on its own it reports every certificate absent from it as unrevoked
+- [x] Who may sign a CRL, in three parts — the `authorityKeyIdentifier` the list names, so a CA holding several keys can say which one revokes; and, for a key the CA delegated the job to, that its own certificate is still in date and not itself revoked. Without the last one, withdrawing a compromised CRL-signing key means nothing: whoever holds it keeps publishing *"nothing is revoked"*. Bounded by rank rather than by a depth counter — a delegated signer is judged only by a list the path itself vouches for, and a path certificate is judged by §6
 
 ## 0.7.x — M4: CMS and timestamps
 

@@ -46,7 +46,7 @@ export { parseOcspResponse } from './revocation/ocsp-response.js';
 export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
 export type { OcspCheckInput } from './revocation/ocsp-check.js';
 export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
-export type { RevocationCheckInput } from './revocation/crl-check.js';
+export type { DeltaCrlInput, RevocationCheckInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, IssuingDistributionPoint, RevokedCertificate } from './types/crl-types.js';
 export { buildCertificatePath } from './path/path-build.js';
 export { checkServerName, dnsMatches } from './path/path-server-name.js';

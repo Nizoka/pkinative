@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 214,
+  "exportCount": 215,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -631,6 +631,12 @@
           "summary": "Whether `deltaCRLIndicator` (§5.2.4) is present — a delta CRL is not a full one."
         },
         {
+          "name": "baseCrlNumber",
+          "type": "bigint | undefined",
+          "optional": false,
+          "summary": "`BaseCRLNumber` (§5.2.4), the `cRLNumber` of the complete list this delta describes the changes since; `undefined` on a list that is not a delta."
+        },
+        {
           "name": "issuingDistributionPoint",
           "type": "IssuingDistributionPoint | undefined",
           "optional": false,
@@ -1048,6 +1054,36 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "DeltaCrlInput",
+      "kind": "type",
+      "module": "src/revocation/crl-check.ts",
+      "signature": "export interface DeltaCrlInput",
+      "summary": "One delta CRL, and what is known about it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "crl",
+          "type": "CertificateList",
+          "optional": false,
+          "summary": "The parsed delta."
+        },
+        {
+          "name": "crlDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The same bytes `parseCertificateList` was given."
+        },
+        {
+          "name": "signatureVerified",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether a key entitled to sign it did."
+        }
+      ]
     },
     {
       "name": "DirectoryGeneralName",
@@ -3406,6 +3442,12 @@
           "type": "number | undefined",
           "optional": true,
           "summary": "Accept a list whose `nextUpdate` has passed, up to this many milliseconds."
+        },
+        {
+          "name": "delta",
+          "type": "DeltaCrlInput | undefined",
+          "optional": true,
+          "summary": "A delta CRL (RFC 5280 §5.2.4) describing the changes since `crl`."
         },
         {
           "name": "options",

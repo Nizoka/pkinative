@@ -47,7 +47,7 @@ import type { PkiReason } from '../types/pki-reasons.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { findRevocation } from './crl-parse.js';
-import { _crlScopeProblem } from './crl-scope.js';
+import { _crlScopeProblem, _deltaApplies } from './crl-scope.js';
 
 /** What to check, and everything needed to judge it. */
 export interface RevocationCheckInput {
@@ -75,8 +75,59 @@ export interface RevocationCheckInput {
      * milliseconds. Zero by default: an expired list is refused.
      */
     readonly staleTolerance?: number | undefined;
+    /**
+     * A delta CRL (RFC 5280 §5.2.4) describing the changes since `crl`.
+     *
+     * Supplied here rather than checked separately because **the order of
+     * consultation is the rule**: the delta is asked first and the base only
+     * for a serial the delta says nothing about. A caller who asked the two
+     * lists independently and merged the answers themselves would have to
+     * rediscover that, and would have no way at all to act on the one entry
+     * reason that exists only here — `removeFromCRL`, which withdraws a
+     * revocation the base still records.
+     *
+     * A delta that does not apply to this base is ignored, not reported: the
+     * pairing rule is `_deltaApplies`, and mismatched lists are the ordinary
+     * result of handing over everything you hold.
+     */
+    readonly delta?: DeltaCrlInput | undefined;
     /** Options for the walk — the limits apply to it. */
     readonly options?: PkiParseOptions | undefined;
+}
+
+/** One delta CRL, and what is known about it. */
+export interface DeltaCrlInput {
+    /** The parsed delta. */
+    readonly crl: CertificateList;
+    /** The same bytes `parseCertificateList` was given. */
+    readonly crlDer: Uint8Array;
+    /**
+     * Whether a key entitled to sign it did. An unverified delta is not applied
+     * at all: a delta that anyone can publish could withdraw any revocation on
+     * the base with one `removeFromCRL` entry, which is a strictly easier
+     * attack than forging the base.
+     */
+    readonly signatureVerified?: boolean | undefined;
+}
+
+/**
+ * The supplied delta, when it is one this base may be read with.
+ *
+ * Every condition is a way of being handed the wrong delta, and each is fatal
+ * to the pairing rather than reported: a caller passing everything they hold is
+ * the ordinary case. The signature is the one worth naming — an unverified
+ * delta could withdraw any revocation on the base with a single
+ * `removeFromCRL` entry, which is a strictly easier attack than forging the
+ * base, so a delta nobody vouched for is not applied at all.
+ */
+function _applicableDelta(input: RevocationCheckInput): DeltaCrlInput | undefined {
+    const delta = input.delta;
+    if (delta === undefined || delta.signatureVerified !== true) return undefined;
+    if (!_deltaApplies(input.crl, delta.crl)) return undefined;
+    // Same scope, in the only sense that changes this answer: both lists have
+    // to be entitled to speak about *this* certificate.
+    if (_crlScopeProblem({ certificate: input.certificate, crl: delta.crl, asDelta: true }) !== null) return undefined;
+    return delta;
 }
 
 /**
@@ -98,10 +149,13 @@ export interface RevocationCheckInput {
  * §6.3.3 (b) for the agreement between the certificate's `cRLDistributionPoints`
  * and the list's own `issuingDistributionPoint`, including the indirect case.
  *
- * Fetching the lists and combining a delta with its base remain the caller's
- * job, and `crl.isDelta` is there so a caller does not mistake a delta for a
- * full list: a delta answers only about what changed, and reading it as
- * complete reports every certificate absent from it as unrevoked.
+ * A **delta CRL** (§5.2.4) goes in `delta`, beside the complete list it
+ * describes the changes since, and the two are read as one answer: the delta
+ * first, the base only where the delta is silent. Passing a delta as `crl` is
+ * refused instead — on its own it reports every certificate absent from it as
+ * unrevoked, which is nearly all of them.
+ *
+ * Fetching the lists is still the caller's job. This library performs no I/O.
  *
  * @param input See {@link RevocationCheckInput}.
  * @returns Every reason the answer is not a clean "not revoked", in the order
@@ -146,15 +200,23 @@ export function checkRevocation(input: RevocationCheckInput): readonly PkiReason
     // or from the wrong CA still tells you something worth reporting when the
     // serial is on it, and hiding that behind an earlier failure would be the
     // one direction of error that matters.
-    const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, {
-        ...input.options,
-        issuerDer: input.certificate.issuer.der,
-    });
+    const serial = input.certificate.serialNumber.bytes;
+    const lookup = { ...input.options, issuerDer: input.certificate.issuer.der };
+    const delta = _applicableDelta(input);
+    const changed = delta === undefined ? undefined : findRevocation(delta.crlDer, serial, lookup);
+
+    // **The order is §5.2.4.** Where the delta speaks it is the newer truth;
+    // where it is silent the base still holds. Nothing merges the two answers,
+    // because there is only ever one.
+    const entry = changed ?? findRevocation(input.crlDer, serial, lookup);
+
     // `removeFromCRL` (§5.3.1) is the one entry reason that means the opposite
     // of the list it sits on: only a delta may carry it, and it says the base
-    // list's revocation has been lifted. Reporting it as a revocation would
-    // take an un-revocation and answer "revoked (reason: removeFromCRL)" — a
-    // sentence that is wrong in both halves.
+    // list's revocation has been withdrawn. So it does two things here, and
+    // they are the same thing — it is not reported as a revocation, and because
+    // it is the delta's answer the base is never asked. Reporting it would take
+    // an un-revocation and answer "revoked (reason: removeFromCRL)", a sentence
+    // that is wrong in both halves.
     if (entry !== undefined && entry.reason !== 'removeFromCRL') {
         out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
         return out;

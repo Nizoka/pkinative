@@ -121,6 +121,17 @@ export interface CrlScopeInput {
     readonly certificate: Certificate;
     /** The parsed list. */
     readonly crl: CertificateList;
+    /**
+     * Ask whether the list covers the certificate **as a delta**, alongside a
+     * complete list that covers it too.
+     *
+     * Without it a delta is refused whatever it covers, because on its own it
+     * answers nothing: it lists what changed since a base, so a certificate
+     * absent from it is not a certificate that is unrevoked. With it the same
+     * question is asked about scope alone, which is what `_deltaApplies` needs
+     * before it will pair the two.
+     */
+    readonly asDelta?: boolean | undefined;
 }
 
 /**
@@ -146,14 +157,15 @@ export type CrlScopeProblem =
  * not understand what this list means"*. Ignoring one is how a list scoped by
  * an extension nobody here has heard of gets read as covering everything.
  *
- * `deltaCRLIndicator` is deliberately absent: it is recognised, and it is not
- * *processed*, so a delta is refused as a whole list below rather than admitted
- * here. Recording the difference is the point — a list this library half
- * understands is one it must not answer from.
+ * `deltaCRLIndicator` is here because its `BaseCRLNumber` is read and acted on
+ * (§5.2.4). That is not the same as a delta being *usable*: one handed over on
+ * its own still answers nothing, and `_usability` says so in its own words
+ * rather than through the generic rule.
  */
 const PROCESSED_CRL_EXTENSIONS: ReadonlySet<string> = new Set([
     '2.5.29.18', // issuerAltName
     '2.5.29.20', // cRLNumber
+    '2.5.29.27', // deltaCRLIndicator
     '2.5.29.28', // issuingDistributionPoint
     '2.5.29.35', // authorityKeyIdentifier
     '2.5.29.46', // freshestCRL
@@ -200,7 +212,7 @@ export function _crlScopeProblem(input: CrlScopeInput): CrlScopeProblem | null {
         if (idp !== undefined && (idp.fullName !== undefined || idp.nameRelativeToCRLIssuer !== undefined)) {
             return _outOfScope('it is scoped to a distribution point, and the certificate carries no cRLDistributionPoints naming it; nothing establishes that this point covers this certificate');
         }
-        return _usability(crl);
+        return _usability(input);
     }
 
     const problems: string[] = [];
@@ -208,7 +220,7 @@ export function _crlScopeProblem(input: CrlScopeInput): CrlScopeProblem | null {
     for (const point of points) {
         if (point.cRLIssuer !== undefined && _namesInclude(point.cRLIssuer, crl.issuer.der)) delegated = true;
         const problem = _pointProblem(point, input, idp);
-        if (problem === null) return _usability(crl);
+        if (problem === null) return _usability(input);
         problems.push(problem);
     }
     // Nothing in the certificate connects this CA to it — neither as its own
@@ -233,25 +245,58 @@ function _outOfScope(why: string): CrlScopeProblem {
  * be holding, about any CA, against every certificate on the path. A list that
  * is not about this certificate raises no question about this certificate.
  */
-function _usability(crl: CertificateList): CrlScopeProblem | null {
+function _usability(input: CrlScopeInput): CrlScopeProblem | null {
+    const { crl } = input;
     // A delta answers *what changed since a base list*, and nothing else. Read
     // as a complete list it reports every certificate absent from it — which is
     // almost all of them — as unrevoked, so it is the one misreading that turns
-    // a revocation list into a blanket clearance. §5.2.4 applies one properly;
-    // until then a delta is a list this library will not answer from.
-    //
-    // **Decided before the sweep below**, and that order is the whole point:
-    // `deltaCRLIndicator` is critical and absent from the processed set, so the
-    // generic rule would catch every delta first and report a list nobody
-    // understands. This library understands it exactly well enough to know it
-    // must not answer from it, and saying so is a different sentence.
-    if (crl.isDelta) {
-        return _outOfScope('it is a delta CRL: it lists what changed since a base list, so a certificate absent from it is not a certificate that is unrevoked');
+    // a revocation list into a blanket clearance. `asDelta` is the caller
+    // saying they hold the base too, which is the only way the question becomes
+    // answerable; `_deltaApplies` then decides whether that base is the right
+    // one.
+    if (crl.isDelta && input.asDelta !== true) {
+        return _outOfScope('it is a delta CRL: it lists what changed since a base list, so a certificate absent from it is not a certificate that is unrevoked — supply the complete list it applies over');
     }
     for (const extension of crl.extensions) {
         if (extension.critical && !PROCESSED_CRL_EXTENSIONS.has(extension.oid)) return { kind: 'unusable', oid: extension.oid };
     }
     return null;
+}
+
+/**
+ * Whether a delta CRL describes the changes since **this** complete list
+ * (RFC 5280 §5.2.4, §6.3.3).
+ *
+ * Three conditions, and each one is a way of pairing the wrong two lists:
+ *
+ * - the base's `cRLNumber` is **at least** the delta's `BaseCRLNumber`, or the
+ *   two do not meet and everything revoked in between is invisible to both;
+ * - the base's `cRLNumber` is **below** the delta's, or the "delta" is the
+ *   older document and applying it would undo revocations the base already
+ *   records;
+ * - both name the same issuer, because a delta is a diff against one CA's
+ *   list and nothing else.
+ *
+ * Both numbers must be present. RFC 5280 §5.2.3 requires `cRLNumber` on every
+ * list a delta could apply to, and a base without one leaves the first two
+ * conditions undecidable — so the pair is refused rather than guessed, which
+ * loses a revocation at worst and never invents one.
+ *
+ * Scope equality is not compared field by field. The caller has already
+ * established that both lists cover the certificate in question, which is the
+ * only sense in which "the same scope" changes this answer.
+ *
+ * @param base  A complete list that covers the certificate.
+ * @param delta A delta list that covers it too.
+ * @returns Whether the two may be read together.
+ * @internal
+ */
+export function _deltaApplies(base: CertificateList, delta: CertificateList): boolean {
+    if (!delta.isDelta || base.isDelta) return false;
+    if (!bytesEqual(base.issuer.der, delta.issuer.der)) return false;
+    const { baseCrlNumber } = delta;
+    if (baseCrlNumber === undefined || base.crlNumber === undefined || delta.crlNumber === undefined) return false;
+    return base.crlNumber >= baseCrlNumber && base.crlNumber < delta.crlNumber;
 }
 
 /** Whether one of the certificate's distribution points is served by this list. */

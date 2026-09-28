@@ -245,9 +245,13 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
     const extensions = readExtensions(der, env.extensionsField, ctx, 'tbsCertList.crlExtensions');
     let crlNumber: bigint | undefined;
     let isDelta = false;
+    let baseCrlNumber: bigint | undefined;
     for (const extension of extensions) {
         if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx);
-        if (extension.oid === OID_DELTA_CRL_INDICATOR) isDelta = true;
+        if (extension.oid === OID_DELTA_CRL_INDICATOR) {
+            isDelta = true;
+            baseCrlNumber = readIntegerValue(extension, ctx);
+        }
     }
 
     return Object.freeze({
@@ -263,6 +267,7 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
         extensions,
         crlNumber,
         isDelta,
+        baseCrlNumber,
         issuingDistributionPoint: _findIssuingDistributionPoint(extensions, ctx),
         entryCount: countEntries(der, env.revoked, ctx),
         diagnostics: ctx.emitter.diagnostics,
