@@ -53,24 +53,24 @@
       "src/types/**"
     ],
     "bundle": {
-      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for revocation and OCSP, measured 247184/249342/157003/157003/736695/736698 at +12 %. The declaration files are the fastest-growing artefact and declared.typeSurface is what makes that visible: 197 exports now, 115 of them types. Raised once more at 0.5.0 for the purpose check and the verify layer, measured 270984/273327/182552/182552/841166/841169 at +10 %. dist/index.d.ts is now 182552 bytes: the 1.0 trigger written down in the plan is 200000, past which subpath exports get reconsidered as a whole rather than one at a time.",
+      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for revocation and OCSP, measured 247184/249342/157003/157003/736695/736698 at +12 %. The declaration files are the fastest-growing artefact and declared.typeSurface is what makes that visible: 197 exports now, 115 of them types. Raised once more at 0.5.0 for the purpose check and the verify layer, measured 270984/273327/182552/182552/841166/841169 at +10 %. dist/index.d.ts is now 182552 bytes: the 1.0 trigger written down in the plan is 200000, past which subpath exports get reconsidered as a whole rather than one at a time. Raised at 0.7.0 for CMS and RFC 3161, measured 389073/391794/258879/258879/1241462/1241465 at +43 %: the largest rise so far, for a whole subsystem with its parser, builder and two verdicts. dist/index.d.ts has now passed that 200000 trigger. The decision stays where the plan put it, at 1.0 and for the whole partition at once: a subpath added now would freeze a module split before keys/ exists.",
       "dist/index.js": {
-        "maxBytes": 292000
+        "maxBytes": 420000
       },
       "dist/index.cjs": {
-        "maxBytes": 295000
+        "maxBytes": 423000
       },
       "dist/index.d.ts": {
-        "maxBytes": 197000
+        "maxBytes": 280000
       },
       "dist/index.d.cts": {
-        "maxBytes": 197000
+        "maxBytes": 280000
       },
       "dist/index.js.map": {
-        "maxBytes": 960000
+        "maxBytes": 1340000
       },
       "dist/index.cjs.map": {
-        "maxBytes": 960000
+        "maxBytes": 1340000
       }
     },
     "typeSurface": {
