@@ -1554,3 +1554,569 @@ export default async function run(): Promise<Record<string, string>> {
     };
 }
 ```
+
+---
+<!-- source: recipes/sign-message.ts -->
+
+```ts
+/**
+ * Recipe: sign a message as an RFC 5652 CMS SignedData, verify it the whole
+ * way, and read the verdict apart.
+ *
+ * `createSignedData` writes the `.p7s`; `verifySignedData` answers the one
+ * question a PDF validator, an S/MIME client and a code-signing check all
+ * ask — *is this what its signer signed, and do I trust the signer?* — and
+ * answers it as a report, never as an exception. Two booleans in that report
+ * are worth keeping apart: `intact` needs no trust store (the content hashes
+ * to what was committed, the signature verifies, the certificate is the one
+ * the signer named), and `valid` adds the chain. `intact` without `valid`
+ * means *unaltered, but not by anybody you trust*.
+ *
+ * The keys are the caller's, generated here with Web Crypto; pkinative
+ * generates none.
+ */
+import {
+    addUnsignedAttribute,
+    canSign,
+    createCertificate,
+    createSignedData,
+    encodeAttribute,
+    encodeBasicConstraints,
+    encodeKeyUsage,
+    encodeString,
+    getOidName,
+    parseCertificate,
+    parseSignedData,
+    PkiCmsError,
+    PkiError,
+    verifySignedData,
+    verifySignerInfoSignature,
+    type Certificate,
+    type CreateSignedDataInput,
+    type ParseSignedDataOptions,
+    type SignedData,
+    type SignerInfo,
+    type SigningKey,
+    type VerifySignedDataInput,
+    type VerifySignedDataReport,
+} from 'pkinative';
+
+const NOW = Date.UTC(2026, 0, 15);
+const DAY = 86_400_000;
+const CN = '2.5.4.3';
+const quiet = { onDiagnostic: () => undefined };
+const codes = (report: VerifySignedDataReport): string => report.reasons.map((reason) => reason.code).join(' ') || 'none';
+
+/** A key pair the caller holds, and the SPKI pkinative is given instead of the public key. */
+async function keyPair(): Promise<{ signer: SigningKey; spki: Uint8Array }> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    return {
+        signer: { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } },
+        spki: new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)),
+    };
+}
+
+/** A root, and a signer certificate it issued — the smallest hierarchy a verdict can trust. */
+async function hierarchy(): Promise<{ root: Certificate; signer: Certificate; signerKey: SigningKey }> {
+    const ca = await keyPair();
+    const leaf = await keyPair();
+    const root = parseCertificate(await createCertificate({
+        serialNumber: 1n,
+        subject: [[{ type: CN, value: 'Example Root' }]],
+        notBefore: NOW - 30 * DAY,
+        notAfter: NOW + 3650 * DAY,
+        subjectPublicKey: ca.spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+        ],
+    }, ca.signer), quiet);
+    const signer = parseCertificate(await createCertificate({
+        serialNumber: 2n,
+        issuerDer: root.subject.der,
+        subject: [[{ type: CN, value: 'Example Signer' }]],
+        notBefore: NOW - DAY,
+        notAfter: NOW + 365 * DAY,
+        subjectPublicKey: leaf.spki,
+        extensions: [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature', 'nonRepudiation']) }],
+    }, ca.signer), quiet);
+    return { root, signer, signerKey: leaf.signer };
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    if (!canSign()) return { available: 'no' };
+    const { root, signer, signerKey } = await hierarchy();
+    const message = new TextEncoder().encode('Pay 100 EUR to account 42.');
+
+    // ── Sign ──
+    // Detached, as a PDF signature and most S/MIME are: the .p7s carries the
+    // signature, not what it signs. Signed attributes are always written —
+    // contentType, messageDigest, SigningCertificateV2 and
+    // CMSAlgorithmProtection by default, signingTime when you give one.
+    const input: CreateSignedDataInput = { content: message, detached: true, certificate: signer, signingTime: NOW };
+    const p7s = await createSignedData(input, signerKey);
+    // Attached: the content travels inside, and the verifier needs nothing else.
+    const p7m = await createSignedData({ content: message, certificate: signer }, signerKey);
+
+    // ── Verify ──
+    // `trustAnchors` is required, as for a chain. `at` is the instant the
+    // chain is judged at — now by default.
+    const ask: VerifySignedDataInput = { signedData: p7s, content: message, trustAnchors: [root], at: NOW };
+    const good = await verifySignedData(ask);
+    const attached = await verifySignedData({ signedData: p7m, trustAnchors: [root], at: NOW });
+
+    // Absent content is never read as empty content: a detached signature
+    // verified without its content is a reason, not a pass.
+    const missing = await verifySignedData({ ...ask, content: undefined });
+    // One changed byte: the signature still verifies over the attributes, and
+    // the content no longer hashes to the messageDigest they commit to.
+    const tampered = await verifySignedData({ ...ask, content: new TextEncoder().encode('Pay 900 EUR to account 42.') });
+    // Nobody to trust: unaltered, but not by anybody you know.
+    const untrusted = await verifySignedData({ ...ask, trustAnchors: [] });
+    // The signer's certificate judged a year and a day later, when it has expired.
+    const late = await verifySignedData({ ...ask, at: NOW + 366 * DAY });
+
+    // ── Inspect ──
+    // parseSignedData reads without judging. `content` is undefined for a
+    // detached message; the certificates stay DER, because the bag is a claim
+    // by whoever assembled it and parsing it all up front would spend work on
+    // certificates nobody asks about.
+    const parsed: SignedData = parseSignedData(p7s);
+    const signerInfo: SignerInfo | undefined = parsed.signerInfos[0];
+    if (signerInfo === undefined) throw new Error('a message createSignedData wrote has one signer');
+    const attributes = (signerInfo.signedAttributes ?? []).map((attribute) => getOidName(attribute.oid) ?? attribute.oid).sort().join(',');
+
+    // ── One signature, at the low level ──
+    // verifySignerInfoSignature answers only "did this key sign these
+    // attributes?". It reads no messageDigest, no sid and no chain — so it is
+    // `true` for the tampered message above too. Use it to build a verifier,
+    // never as the verdict on a message.
+    const byKey = `${String(await verifySignerInfoSignature(signerInfo, signer))},${String(await verifySignerInfoSignature(signerInfo, root))}`;
+
+    // ── Profiles that demand more ──
+    // A signer that omitted SigningCertificateV2 and CMSAlgorithmProtection is
+    // valid by default — RFC 5652 requires neither — and invalid for a caller
+    // enforcing CAdES/PAdES (requireSigningCertificate) or RFC 6211
+    // (requireAlgorithmProtection).
+    const bare = await createSignedData({ ...input, signingCertificateV2: false, algorithmProtection: false }, signerKey);
+    const lenient = await verifySignedData({ ...ask, signedData: bare });
+    const strict = await verifySignedData({ ...ask, signedData: bare, requireSigningCertificate: true, requireAlgorithmProtection: true });
+
+    // ── An unsigned attribute, added after signing ──
+    // Nothing covers the unsigned attributes, so adding one leaves every
+    // signed octet — and the verdict — unchanged. addTimeStampToken is this
+    // call with the RFC 3161 attribute written for you (see timestamp.ts).
+    const annotated = addUnsignedAttribute(p7s, 0, encodeAttribute('1.3.6.1.4.1.99999.1', [encodeString('utf8', 'archived by the example')]));
+    const stillGood = await verifySignedData({ ...ask, signedData: annotated });
+
+    // ── The three vocabularies ──
+    // A PDF /Contents is a zero-padded placeholder: the padding is trailing
+    // data, refused unless you say it is expected.
+    const padded = new Uint8Array(p7s.length + 64);
+    padded.set(p7s);
+    const pdfContents: ParseSignedDataOptions = { allowTrailingData: true };
+    const fromPdf = parseSignedData(padded, pdfContents).signerInfos.length;
+
+    // Thrown: parseSignedData is a primitive, so bytes that are not a
+    // SignedData are a PkiCmsError with a stable code and a path — here, a
+    // certificate handed over where a .p7s was expected.
+    let thrown = 'none';
+    try {
+        parseSignedData(root.der);
+    } catch (error) {
+        if (!(error instanceof PkiCmsError)) throw error;
+        thrown = `${error.code}@${error.path ?? ''}`;
+    }
+    // Returned: verifySignedData is a composition, so the same bytes are a
+    // reason that carries the code that would have been thrown.
+    const malformed = await verifySignedData({ signedData: root.der, trustAnchors: [root] });
+    const wrapped = malformed.reasons.map((reason) => `${reason.code}(${reason.errorCode ?? ''})`).join(' ');
+    // Thrown, still: the call itself is wrong — content given for a message
+    // that carries its own is two answers to which bytes were signed.
+    let misuse = 'none';
+    try {
+        await verifySignedData({ signedData: p7m, content: message, trustAnchors: [root] });
+    } catch (error) {
+        if (!(error instanceof PkiError)) throw error;
+        misuse = error.code;
+    }
+
+    return {
+        available: 'yes',
+        detached: `valid=${String(good.valid)} intact=${String(good.signers[0]?.intact)} verified=${String(good.verified)}`,
+        attached: `valid=${String(attached.valid)} content=${new TextDecoder().decode(attached.signedData?.content)}`,
+        missing: codes(missing),
+        tampered: `intact=${String(tampered.signers[0]?.intact)} ${codes(tampered)}`,
+        untrusted: `intact=${String(untrusted.signers[0]?.intact)} valid=${String(untrusted.valid)}`,
+        untrustedWhy: untrusted.reasons.some((reason) => reason.code === 'PKI_REASON_NO_TRUST_ANCHOR') ? 'PKI_REASON_NO_TRUST_ANCHOR' : codes(untrusted),
+        late: `intact=${String(late.signers[0]?.intact)} ${codes(late)}`,
+        claimedTime: good.signers[0]?.signingTime?.text ?? '',
+        parsed: `v${String(parsed.version)} ${getOidName(parsed.contentType) ?? parsed.contentType} detached=${String(parsed.content === undefined)} certificates=${String(parsed.certificates.length)} sid=${signerInfo.sid.kind}`,
+        attributes,
+        byKey,
+        lenient: `valid=${String(lenient.valid)}`,
+        strict: strict.reasons.map((reason) => `${reason.code}@${reason.path.slice(reason.path.lastIndexOf('.') + 1)}`).sort().join(' '),
+        annotated: `valid=${String(stillGood.valid)} unsigned=${(parseSignedData(annotated).signerInfos[0]?.unsignedAttributes ?? []).map((a) => a.oid).join(',')}`,
+        fromPdf: String(fromPdf),
+        thrown,
+        wrapped,
+        misuse,
+    };
+}
+```
+
+---
+<!-- source: recipes/external-signer.ts -->
+
+```ts
+/**
+ * Recipe: sign with a key pkinative never sees — an HSM, a smart card, a
+ * cloud KMS, a remote signing service — through an `ExternalSigner`.
+ *
+ * A `SigningKey` hands pkinative an opaque `CryptoKey` it passes straight to
+ * `crypto.subtle.sign`. An `ExternalSigner` hands it a function instead, so
+ * the key does not even have to live in this process. pkinative computes the
+ * exact bytes to sign, calls `produceSignature(bytes)`, and expects back what
+ * `crypto.subtle.sign` would return: **raw `r ‖ s` for ECDSA**, the plain
+ * octets for RSA and EdDSA. Many remote APIs return an ECDSA signature as DER
+ * instead; converting it is the caller's job, because guessing which form
+ * arrived is how a signature gets encoded twice — and pkinative refuses the
+ * DER form outright rather than guess.
+ *
+ * The second half is the PDF case: the signer hashes the document's
+ * `/ByteRange` itself and hands over `contentDigest`, never the document.
+ */
+import {
+    canSign,
+    createCertificate,
+    createSignedData,
+    decodeAsn1,
+    encodeBasicConstraints,
+    encodeKeyUsage,
+    encodeSubjectKeyIdentifier,
+    parseCertificate,
+    parseSignedData,
+    PkiError,
+    verifySignedData,
+    type ExternalSigner,
+    type Signer,
+} from 'pkinative';
+
+const NOW = Date.UTC(2026, 0, 15);
+const DAY = 86_400_000;
+const CN = '2.5.4.3';
+const ALGORITHM = { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } as const;
+const quiet = { onDiagnostic: () => undefined };
+
+/**
+ * A stand-in for a remote signing service. The private key is captured in
+ * this closure and never leaves it; the only thing the rest of the program
+ * holds is `signDer`, which — like AWS KMS or a PKCS #11 wrapper configured
+ * for it — answers ECDSA in DER.
+ */
+async function remoteSigningService(): Promise<{ spki: Uint8Array; signDer: (bytes: Uint8Array) => Promise<Uint8Array> }> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const signDer = async (bytes: Uint8Array): Promise<Uint8Array> => {
+        const raw = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, bytes));
+        const integer = (half: Uint8Array): number[] => {
+            let start = 0;
+            while (start < half.length - 1 && half[start] === 0) start++;
+            const body = Array.from(half.subarray(start));
+            return [0x02, ...((body[0] ?? 0) & 0x80 ? [body.length + 1, 0] : [body.length]), ...body];
+        };
+        const body = [...integer(raw.subarray(0, 32)), ...integer(raw.subarray(32))];
+        return Uint8Array.of(0x30, body.length, ...body);
+    };
+    return { spki: new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)), signDer };
+}
+
+/** DER `Ecdsa-Sig-Value` → the fixed-width `r ‖ s` Web Crypto speaks, for a curve of `size`-octet coordinates. */
+function derToRaw(der: Uint8Array, size: number): Uint8Array {
+    const raw = new Uint8Array(2 * size);
+    for (const [i, integer] of decodeAsn1(der).children.entries()) {
+        const bytes = integer.content.subarray(Math.max(0, integer.content.length - size));
+        raw.set(bytes, (i + 1) * size - bytes.length);
+    }
+    return raw;
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    if (!canSign()) return { available: 'no' };
+
+    // The CA is ordinary; only the document signer's key is remote.
+    const caPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const caKey: Signer = { key: caPair.privateKey, algorithm: ALGORITHM };
+    const root = parseCertificate(await createCertificate({
+        serialNumber: 1n,
+        subject: [[{ type: CN, value: 'Example Root' }]],
+        notBefore: NOW - 30 * DAY,
+        notAfter: NOW + 3650 * DAY,
+        subjectPublicKey: new Uint8Array(await crypto.subtle.exportKey('spki', caPair.publicKey)),
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+        ],
+    }, caKey), quiet);
+
+    const service = await remoteSigningService();
+    const signer = parseCertificate(await createCertificate({
+        serialNumber: 2n,
+        issuerDer: root.subject.der,
+        subject: [[{ type: CN, value: 'Example Document Signer' }]],
+        notBefore: NOW - DAY,
+        notAfter: NOW + 365 * DAY,
+        subjectPublicKey: service.spki,
+        extensions: [
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature', 'nonRepudiation']) },
+            { oid: '2.5.29.14', value: encodeSubjectKeyIdentifier(Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8)) },
+        ],
+    }, caKey), quiet);
+
+    // The adapter: exactly the bytes pkinative gives, and r ‖ s back.
+    const external: ExternalSigner = {
+        algorithm: ALGORITHM,
+        produceSignature: async (bytes) => derToRaw(await service.signDer(bytes), 32),
+    };
+
+    // The PDF case. The /ByteRange is everything but the /Contents hole; the
+    // signer hashes it and never holds the document whole.
+    const pdf = new TextEncoder().encode(`%PDF-1.7 ... /Contents <${'0'.repeat(64)}> ... %%EOF`);
+    const hole = { start: pdf.indexOf(0x3c), end: pdf.indexOf(0x3e) + 1 };   // '<' … '>'
+    const byteRange = new Uint8Array(pdf.length - (hole.end - hole.start));
+    byteRange.set(pdf.subarray(0, hole.start));
+    byteRange.set(pdf.subarray(hole.end), hole.start);
+    const contentDigest = new Uint8Array(await crypto.subtle.digest('SHA-256', byteRange));
+
+    // contentDigest implies detached. sid 'subjectKeyIdentifier' names the key
+    // rather than the certificate (a version 3 SignerInfo); the signer is then
+    // bound to its certificate by SigningCertificateV2, written by default.
+    const signature = await createSignedData({ contentDigest, certificate: signer, sid: 'subjectKeyIdentifier' }, external);
+    const signerInfo = parseSignedData(signature).signerInfos[0];
+
+    // Verify the way a PDF validator does: with the digest of the /ByteRange.
+    const report = await verifySignedData({ signedData: signature, contentDigest, trustAnchors: [root], at: NOW });
+
+    // What the adapter is for. Hand pkinative the DER directly and it refuses
+    // to guess: a PkiError naming the fix, not a signature encoded twice.
+    const careless: ExternalSigner = { algorithm: ALGORITHM, produceSignature: service.signDer };
+    let refused = 'none';
+    try {
+        await createSignedData({ contentDigest, certificate: signer }, careless);
+    } catch (error) {
+        if (!(error instanceof PkiError)) throw error;
+        refused = error.code;
+    }
+
+    return {
+        available: 'yes',
+        sid: `${signerInfo?.sid.kind ?? ''} v${String(signerInfo?.version)}`,
+        detached: String(parseSignedData(signature).content === undefined),
+        valid: `valid=${String(report.valid)} intact=${String(report.signers[0]?.intact)}`,
+        signedBy: String(report.signers[0]?.certificate?.serialNumber.value),
+        refused,
+    };
+}
+```
+
+---
+<!-- source: recipes/timestamp.ts -->
+
+```ts
+/**
+ * Recipe: prove when a signature existed — ask a timestamp authority
+ * (RFC 3161), check its answer, attach it to the signature, and judge the
+ * signer at the time the token proves instead of today.
+ *
+ * A token says that **a hash existed at a time**, and only once three things
+ * are established: the hash is the one you care about, a TSA signed it, and
+ * that TSA was entitled to. `verifyTimeStampToken` makes every check of
+ * RFC 3161 §2.4.2 in one call and never throws for a verdict.
+ *
+ * There is no network here, so the recipe plays the TSA itself: a TSTInfo
+ * built with the public encoders and signed with `createSignedData`, which is
+ * all a timestamp token is — a SignedData over a TSTInfo. In production the
+ * request is POSTed to the TSA and its answer read with
+ * `parseTimeStampResponse`, exactly as below.
+ */
+import {
+    addTimeStampToken,
+    canSign,
+    createCertificate,
+    createSignedData,
+    createTimeStampRequest,
+    encodeAlgorithmIdentifier,
+    encodeBasicConstraints,
+    encodeExtendedKeyUsage,
+    encodeInteger,
+    encodeKeyUsage,
+    encodeObjectIdentifier,
+    encodeOctetString,
+    encodeSequence,
+    encodeTime,
+    KEY_PURPOSES,
+    parseCertificate,
+    parseSignedData,
+    parseTimeStampResponse,
+    parseTimeStampToken,
+    parseTstInfo,
+    PkiCmsError,
+    verifySignedData,
+    verifyTimeStampToken,
+    type Certificate,
+    type CreateTimeStampRequestOptions,
+    type SigningKey,
+    type TimeStampResponse,
+    type TimeStampToken,
+    type TstInfo,
+    type VerifyTimeStampInput,
+    type VerifyTimeStampReport,
+} from 'pkinative';
+
+const NOW = Date.UTC(2026, 0, 15);
+const DAY = 86_400_000;
+const CN = '2.5.4.3';
+const SHA256 = '2.16.840.1.101.3.4.2.1';
+const ID_CT_TSTINFO = '1.2.840.113549.1.9.16.1.4';
+const quiet = { onDiagnostic: () => undefined };
+const codes = (report: { reasons: readonly { code: string; path: string }[] }): string =>
+    report.reasons.map((reason) => `${reason.code}@${reason.path}`).join(' ') || 'none';
+
+async function keyPair(): Promise<{ signer: SigningKey; spki: Uint8Array }> {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    return {
+        signer: { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } },
+        spki: new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)),
+    };
+}
+
+/**
+ * The TSA's side, played locally: RFC 3161 §2.4.2's TSTInfo — version,
+ * policy, the imprint it was asked to stamp, a serial, genTime, an accuracy
+ * of one second, and the request's nonce echoed — signed as a SignedData
+ * whose content type is id-ct-TSTInfo, wrapped in a granted TimeStampResp.
+ */
+async function answer(imprint: Uint8Array, nonce: bigint, genTime: number, tsa: Certificate, key: SigningKey): Promise<Uint8Array> {
+    const tstInfo = encodeSequence([
+        encodeInteger(1n),
+        encodeObjectIdentifier('1.3.6.1.4.1.99999.2'),
+        encodeSequence([encodeAlgorithmIdentifier(SHA256), encodeOctetString(imprint)]),
+        encodeInteger(20260115n),
+        encodeTime(genTime, 'GeneralizedTime'),
+        encodeSequence([encodeInteger(1n)]),
+        encodeInteger(nonce),
+    ]);
+    // A token must carry SigningCertificateV2 (RFC 5816), which createSignedData writes by default.
+    const token = await createSignedData({ content: tstInfo, contentType: ID_CT_TSTINFO, certificate: tsa }, key);
+    return encodeSequence([encodeSequence([encodeInteger(0n)]), token]);   // PKIStatusInfo { granted }, token
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    if (!canSign()) return { available: 'no' };
+
+    // ── A root, a document signer whose certificate lives one day, and a TSA ──
+    const ca = await keyPair();
+    const root = parseCertificate(await createCertificate({
+        serialNumber: 1n,
+        subject: [[{ type: CN, value: 'Example Root' }]],
+        notBefore: NOW - 30 * DAY,
+        notAfter: NOW + 3650 * DAY,
+        subjectPublicKey: ca.spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+        ],
+    }, ca.signer), quiet);
+    const issue = async (serial: bigint, name: string, spki: Uint8Array, lifetime: number, extension: { oid: string; critical: boolean; value: Uint8Array }): Promise<Certificate> =>
+        parseCertificate(await createCertificate({
+            serialNumber: serial, issuerDer: root.subject.der, subject: [[{ type: CN, value: name }]],
+            notBefore: NOW - DAY, notAfter: NOW + lifetime, subjectPublicKey: spki, extensions: [extension],
+        }, ca.signer), quiet);
+    const signerKey = await keyPair();
+    const signer = await issue(2n, 'Example Signer', signerKey.spki, DAY,
+        { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) });
+    // RFC 3161 §2.3: the TSA's extKeyUsage is present, critical, and names timeStamping alone.
+    const tsaKey = await keyPair();
+    const tsa = await issue(3n, 'Example TSA', tsaKey.spki, 30 * DAY,
+        { oid: '2.5.29.37', critical: true, value: encodeExtendedKeyUsage([KEY_PURPOSES.timeStamping]) });
+
+    // ── Sign, then ask for a signature timestamp ──
+    const document = new TextEncoder().encode('Contract, version 3.');
+    const p7s = await createSignedData({ content: document, detached: true, certificate: signer }, signerKey.signer);
+
+    // What is stamped is the hash of the signature VALUE (RFC 3161 Appendix A)
+    // — not the document, not the signed attributes.
+    const signature = parseSignedData(p7s).signerInfos[0]?.signature ?? new Uint8Array(0);
+    const imprint = new Uint8Array(await crypto.subtle.digest('SHA-256', signature));
+    // The nonce is what makes a replayed answer detectable; pkinative
+    // generates none. certReq (true by default) asks the TSA to embed its
+    // certificate, so the verifier does not have to find it.
+    const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);
+    const options: CreateTimeStampRequestOptions = { hashAlgorithm: 'SHA-256', nonce, certReq: true };
+    const request = createTimeStampRequest(imprint, options);
+    // In production: POST `request` as application/timestamp-query and read the body.
+    const responseDer = await answer(imprint, nonce, NOW, tsa, tsaKey.signer);
+
+    // ── Read the answer ──
+    const response: TimeStampResponse = parseTimeStampResponse(responseDer);
+    if (response.status !== 'granted' && response.status !== 'grantedWithMods') {
+        return { available: 'yes', declined: `${response.status} ${response.failInfo.join(',')}` };
+    }
+    const tokenDer = response.tokenDer ?? new Uint8Array(0);
+    const token: TimeStampToken = parseTimeStampToken(tokenDer);
+    const info: TstInfo = parseTstInfo(token.tstInfo.der);
+
+    // ── Judge the token ──
+    // `request` is the strongest way to say what was stamped — the only one
+    // that catches a replayed response. `data` and `imprint` are the others.
+    const ask: VerifyTimeStampInput = { token: tokenDer, request, trustAnchors: [root], at: NOW };
+    const stamp: VerifyTimeStampReport = await verifyTimeStampToken(ask);
+    // Yesterday's answer, replayed against a new request with a new nonce.
+    const replayed = await verifyTimeStampToken({ ...ask, request: createTimeStampRequest(imprint, { nonce: nonce ^ 1n }) });
+    // A token over something else: the document instead of the signature value.
+    const wrongThing = await verifyTimeStampToken({ token: tokenDer, data: document, trustAnchors: [root], at: NOW });
+
+    // ── Attach it: CAdES-T, PAdES B-T ──
+    // Surgery on the encoding: every signed octet is copied unchanged.
+    const stamped = addTimeStampToken(p7s, 0, tokenDer);
+    const later = NOW + 10 * DAY;   // the signer's certificate expired nine days ago
+    const base = { signedData: stamped, content: document, trustAnchors: [root] };
+    // Judged today, the signer's certificate has expired.
+    const today = await verifySignedData({ ...base, at: later });
+    // atTimeStamp judges the signer's chain at the time its verified token
+    // proves — genTime plus the declared accuracy — which is the long-term
+    // question: was the certificate good when this was signed?
+    const whenSigned = await verifySignedData({ ...base, at: later, atTimeStamp: true });
+    // The TSA's own chain is still judged at `at`, never at the genTime its
+    // token asserts: otherwise a TSA key compromised after its certificate
+    // expired could backdate tokens that would then be believed. Once the TSA
+    // certificate has expired too, only an archive timestamp (PAdES B-LTA)
+    // can carry the proof further.
+    const afterTsa = await verifySignedData({ ...base, at: NOW + 40 * DAY, atTimeStamp: true });
+
+    // ── A PkiCmsError: the wrong kind of SignedData ──
+    // The signature itself is a SignedData over id-data, not over a TSTInfo.
+    let notAToken = 'none';
+    try {
+        parseTimeStampToken(p7s);
+    } catch (error) {
+        if (!(error instanceof PkiCmsError)) throw error;
+        notAToken = error.code;
+    }
+
+    return {
+        available: 'yes',
+        status: response.status,
+        tstInfo: `policy=${info.policy} serial=${String(info.serialNumber.value)} genTime=${info.genTime.text} accuracy=${String(info.accuracy?.seconds)}s nonceEchoed=${String(info.nonce === nonce)}`,
+        tokenSignedBy: token.signedData.contentType === ID_CT_TSTINFO ? 'id-ct-TSTInfo' : token.signedData.contentType,
+        valid: `valid=${String(stamp.valid)} window=${String((stamp.earliest ?? 0) - NOW)}..${String((stamp.latest ?? 0) - NOW)}ms tsa=${String(stamp.tsaCertificate?.serialNumber.value)}`,
+        replayed: codes(replayed),
+        wrongThing: codes(wrongThing),
+        timeStamps: String(parseSignedData(stamped).signerInfos[0]?.timeStampTokens.length),
+        today: codes(today),
+        whenSigned: `valid=${String(whenSigned.valid)} stampValid=${String(whenSigned.signers[0]?.timeStamps[0]?.valid)}`,
+        afterTsa: codes(afterTsa),
+        afterTsaIntact: String(afterTsa.signers[0]?.intact),
+        notAToken,
+    };
+}
+```

@@ -6,32 +6,32 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 2692,
-      "approxTokens": 673
+      "bytes": 2931,
+      "approxTokens": 733
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 3862,
-      "approxTokens": 966
+      "bytes": 5487,
+      "approxTokens": 1372
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 113591,
-      "approxTokens": 28398
+      "bytes": 133615,
+      "approxTokens": 33404
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 73567,
-      "approxTokens": 18392
+      "bytes": 102137,
+      "approxTokens": 25534
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 204528,
-      "approxTokens": 51132
+      "bytes": 254904,
+      "approxTokens": 63726
     },
     {
       "url": "data/errors.json",
@@ -54,14 +54,14 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 5776,
-      "approxTokens": 1444
+      "bytes": 6687,
+      "approxTokens": 1672
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 5714,
-      "approxTokens": 1429
+      "bytes": 5955,
+      "approxTokens": 1489
     }
   ],
   "guides": [
@@ -82,12 +82,12 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 12917,
-      "approxTokens": 3229
+      "bytes": 13098,
+      "approxTokens": 3275
     },
     {
       "title": "Use cases",
-      "summary": "Nine jobs pkinative does today, with the code that does them and the guarantee behind each. Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.",
+      "summary": "The jobs pkinative does today, with the code that does them and the guarantee behind each. Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, and sign, verify and timestamp CMS messages.",
       "html": "guides/use-cases.html",
       "markdown": "guides/use-cases.md",
       "anchors": [
@@ -108,10 +108,12 @@
         "who-may-sign-a-list",
         "ask-a-responder-instead-of-downloading-a-list",
         "the-decision-and-the-substitution-it-catches",
+        "sign-a-message-and-verify-one-the-whole-way",
+        "prove-when-it-was-signed",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 46731,
-      "approxTokens": 11683
+      "bytes": 63209,
+      "approxTokens": 15802
     },
     {
       "title": "Security model",
@@ -161,11 +163,12 @@
         "certificates",
         "limits",
         "verification-that-could-not-run",
+        "cms-and-timestamps",
         "diagnostics",
         "reasons"
       ],
-      "bytes": 13820,
-      "approxTokens": 3455
+      "bytes": 16503,
+      "approxTokens": 4126
     },
     {
       "title": "Choosing a PKI library",

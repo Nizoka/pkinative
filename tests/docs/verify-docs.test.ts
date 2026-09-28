@@ -72,7 +72,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'member-tsdoc': (f) => edit(f, 'docs/assets/api.json', /"summary": "The algorithm OID[^"]*"/, '"summary": null'),
     // encodeSetOf is named in exactly one hand-written file, the primitives recipe.
     'export-named': (f) => edit(f, 'recipes/asn1-primitives.ts', /encodeSetOf/g, 'encodeSetOfXX'),
-    'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'allowTrailingData', 'allowTrailingDataXX'),
+    // A field the quick start alone names: `allowTrailingData` is also the PDF /Contents option of the CMS docs now.
+    'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'timeType', 'timeTypeXX'),
     'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
     'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
     'install-url-version': (f) => edit(f, 'docs/agent-brief.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),

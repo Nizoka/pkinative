@@ -39,9 +39,18 @@ Every failure is a `PkiError` subclass (`PkiEncodingError`, `PkiCertificateError
 
 Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has one. By default each code is logged with `console.warn`, once per code in each call; pass `onDiagnostic` to silence or redirect that.
 
+## Signed messages and timestamps (0.7)
+
+- Verify a CMS `SignedData` (a `.p7s`, S/MIME, a PDF `/Contents`) with `verifySignedData({ signedData, content, trustAnchors })`; pass `contentDigest` instead of `content` for a PDF `/ByteRange` digest, and neither for attached content. It returns a report and never throws for bad input. `report.valid` means unaltered **and** trusted; `report.signers[i].intact` means unaltered only.
+- Sign with `createSignedData(input, signer)`. The signer is a `SigningKey` (`{ key: CryptoKey, algorithm }`) or an `ExternalSigner`, whose `produceSignature` is given the exact bytes to sign and returns what `crypto.subtle.sign` would — raw `r ‖ s` for ECDSA, never DER.
+- Timestamp a signature: hash the `SignerInfo`'s `signature` value (not the document), `createTimeStampRequest(hash, { nonce })` with a random nonce you generate, `parseTimeStampResponse`, then `addTimeStampToken(p7s, 0, response.tokenDer)`. Check a token alone with `verifyTimeStampToken({ token, request, trustAnchors })`.
+- `atTimeStamp: true` judges each signer's chain at the time its verified timestamp proves; the TSA's own chain is still judged at `at`. Never use `signingTime` as proof of time: only the signer vouches for it.
+- `parseSignedData` throws `PkiCmsError` (codes `PKI_CMS_*`, with `path`); the verifiers return `PKI_REASON_CMS_*` and `PKI_REASON_TSP_*` reasons instead.
+
 ## Do not
 
 - Do not claim pkinative validates a chain. 0.3 verifies **one signature against one issuer** (`verifyCertificateSignature`); a trust anchor, a validity window, name constraints, policies and revocation are RFC 5280 §6 and arrive in 0.5. A verified signature is not a trusted certificate, and saying otherwise is the most expensive mistake on this page.
 - Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto. pkinative generates and exports no key: `createCertificate` takes a SubjectPublicKeyInfo in DER and a private `CryptoKey` it only hands to `subtle.sign`, so the one `crypto.subtle.exportKey('spki', …)` call is yours to write.
 - Do not raise a limit (`options.limits`) for untrusted input.
+- Do not report `verifySignerInfoSignature`'s `true` as the verdict on a message: it checks one key against the signed attributes, and reads no content digest, no signer identifier and no chain. `verifySignedData` is the verdict.
 - Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.5 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.5.0/pkinative-0.5.0.tgz`.

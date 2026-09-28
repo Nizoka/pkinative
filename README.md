@@ -87,8 +87,9 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | OIDs | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName` over a registry of 300+ names |
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
+| CMS and timestamps (0.7) | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
 
-pkinative has 215 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 253 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 

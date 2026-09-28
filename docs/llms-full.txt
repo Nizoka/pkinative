@@ -12,6 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; verifica
 
 ## Guides
 
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) and RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the nineteen limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
@@ -124,8 +125,9 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | OIDs | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName` over a registry of 300+ names |
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
+| CMS and timestamps (0.7) | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
 
-pkinative has 215 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 253 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -326,7 +328,8 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 16 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP.
+- [recipes/](../../recipes/) — 19 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps.
+- [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -335,7 +338,7 @@ Error code unions are in the [errors guide](errors.md).
 
 # Use cases
 
-> **Nine jobs pkinative does today, with the code that does them and the guarantee behind each.** Four of them need no signature at all; the fifth checks one, the sixth writes one, the seventh validates a whole chain, the eighth asks a revocation list about one certificate, and the ninth asks a responder.
+> **The jobs pkinative does today, with the code that does them and the guarantee behind each.** Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, and sign, verify and timestamp CMS messages.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -644,7 +647,7 @@ if (!report.valid) for (const reason of report.reasons) console.log(reason.code,
 
 Every layer below this one answers exactly one question and is deliberately blind to the others — §6 has no notion of the host you connected to, `checkServerName` knows nothing about trust, revocation takes a signature verdict it did not compute. That separation is what keeps each of them synchronous, pure, fuzzable and small, and it leaves somebody with the job of putting them in the right order. **If that somebody is every caller, every caller gets it slightly wrong.** So it is here, once: the signatures verified in parallel *before* anything is decided, the path built with the purpose already in hand, then the host name, then revocation. `VerifyChainInput` is the whole surface and `VerifyChainReport` adds `verified` — the number of signatures computed, worth logging, because a number far above the path length is what a bag full of plausible issuers looks like.
 
-Three defaults worth knowing. **`at` is now**, so omitting it asks about today. **Revocation is soft-fail**: with no list or response supplied nothing is claimed, and `requireRevocation: true` turns silence into `PKI_REASON_REVOCATION_UNKNOWN` — the right setting wherever you can actually obtain them, and off by default because a library that refuses every chain for which the caller happened not to download one is a library callers route around. **SHA-1 signatures are not evidence** and come back `PKI_REASON_SIGNATURE_NOT_CHECKED` unless `allowSha1` says otherwise.
+Three defaults worth knowing. **`at` is now**, so omitting it asks about today. **Revocation is soft-fail**: with no list or response supplied nothing is claimed, and `requireRevocation: true` turns silence into `PKI_REASON_REVOCATION_UNKNOWN` — the right setting wherever you can actually obtain them, and off by default because a library that refuses every chain for which the caller happened not to download one is a library callers route around. **SHA-1 signatures are not evidence** and come back `PKI_REASON_SIGNATURE_NOT_CHECKED` unless `allowSha1` says otherwise. When the question is whether a certificate was good at some **past** instant — when a document was signed — do not move `at` to a time somebody merely claims: [a verified timestamp is what proves that instant](#prove-when-it-was-signed).
 
 **Revocation takes `crls`, `ocsp`, or both** — DER as you downloaded it or as a TLS server stapled it, and pkinative fetches neither. A CRL is used when it names the CA that issued the certificate, **and** when that CA asserts `cRLSign`: a CA constrained to signing certificates may not revoke them (RFC 5280 §4.2.1.3). An OCSP response is matched on **all three** `CertID` fields — an answer about somebody else's serial is `PKI_REASON_REVOCATION_MISMATCH`, not a status — and its signer is authorised the way RFC 6960 §4.2.2.2 sets out: either the issuing CA signed it, or the CA issued a certificate carrying `id-kp-OCSPSigning` and *that* certificate signed it. The certificates a response **attaches** are a convenience for reaching that delegate, never a claim of authority; each is checked to have been issued by this CA, to carry the purpose and to be in date before its signature counts for anything. `ocspNonce` and `requireOcspNonce` are there for replay protection, off by default because most public responders omit the echo so answers stay cacheable.
 
@@ -825,13 +828,91 @@ A nonce that comes back **different** is always a mismatch. One that does not co
 
 **Which certificate may answer for a CA is not a question this library answers.** `basicResponse.certificates` are certificates the responder *attached*; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.
 
+## Sign a message, and verify one the whole way
+
+The job: a PDF signature, an S/MIME message, a `.p7s` beside a release artefact. All three are an RFC 5652 CMS `SignedData`, and all three ask the same question — *is this what its signer signed, and do I trust the signer?*
+
+```ts
+import { createSignedData, verifySignedData } from 'pkinative';
+
+const p7s = await createSignedData({ content: message, detached: true, certificate: signerCertificate }, signingKey);
+
+const report = await verifySignedData({ signedData: p7s, content: message, trustAnchors: roots });
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+```
+
+**Writing.** `createSignedData` takes a [`CreateSignedDataInput`](../assets/api.json) and a `Signer`, and returns the DER `ContentInfo`. It writes one `SignerInfo`, **always with signed attributes** — every modern profile requires them, and they are what makes a signature over a digest possible at all: `contentType` and `messageDigest`, then `signingCertificateV2` (RFC 5035) and `CMSAlgorithmProtection` (RFC 6211) unless you turn them off, and `signingTime` only when you pass one, because the PAdES baseline forbids it and S/MIME expects it. The attribute set is built in DER order before it is signed and never re-sorted afterwards. `sid: 'subjectKeyIdentifier'` names the key instead of the certificate, `certificates` and `crls` embed the chain and its revocation evidence verbatim, and `signedAttributes`/`unsignedAttributes` take further `Attribute` encodings from `encodeAttribute`.
+
+**Detached or attached.** With `content` alone the content travels inside the message; `detached: true` leaves it out, which is how a PDF signature and most S/MIME are made. `contentDigest` is the PDF case proper: you hash the `/ByteRange` with the signer's digest yourself and never hand over the document; it implies `detached`. The verifier mirrors this — pass `content` or `contentDigest` for a detached message, and nothing for an attached one. **Absent content is never treated as empty content**: a detached message verified without it is `PKI_REASON_CMS_CONTENT_MISSING`, and passing content for a message that carries its own throws `PKI_API_MISUSE`, because there would be two answers to which bytes were signed. A PDF `/Contents` is a zero-padded placeholder; `allowTrailingData: true` accepts that padding and nowhere else should it be on.
+
+**`intact` is not `valid`.** Each signer's [`SignerVerification`](../assets/api.json) carries both. `intact` is everything that needs no trust store: the attributes say what they must, the digest, signature and CMSAlgorithmProtection algorithms agree, the content hashes to the committed `messageDigest` — computed by pkinative, never taken from the signer — the signature verifies, and the key's certificate is the one the signer committed to. `valid` adds any timestamp and the signer's chain, judged by `verifyCertificateChain`. **`intact: true` with `valid: false` means *unaltered, but not by anybody you trust*.** That is why `trustAnchors` is required: an empty list is accepted and always yields `PKI_REASON_NO_TRUST_ANCHOR`, because a verifier that called a message valid without knowing whom its signer answers to would make "anyone with a key" the default signer.
+
+The rest of [`VerifySignedDataInput`](../assets/api.json) is the chain's vocabulary: `at` (now by default), `purposes` (`KEY_PURPOSES.emailProtection` for S/MIME), `certificates` beyond those the message carries, `crls` and `ocsp` added to the evidence the message embeds, `requireRevocation`, `allowSha1`, `encodingRules: 'ber'` for a PKCS #7 producer that streams with indefinite lengths. A message is valid when it has at least one signer **and every signer is valid**; a `SignedData` with no signer — a `.p7b` certificate bundle — parses fine and verifies as `PKI_REASON_CMS_NO_SIGNERS`, because `[].every(valid)` is true and a bundle is not a signature. The [`VerifySignedDataReport`](../assets/api.json) also counts `verified`, the signature verifications spent, chains and timestamps included.
+
+**Two requirements RFC 5652 does not make, and profiles do.** `requireSigningCertificate` refuses a signer that does not name its certificate in a signing-certificate attribute, as CAdES and PAdES require: without it, anyone holding a second certificate for the same key — a rollover, a cross-signature — can present the signature under that one. `requireAlgorithmProtection` refuses a signer without `CMSAlgorithmProtection`, whose absence leaves `digestAlgorithm` and `signatureAlgorithm` outside the signature. Both are off by default, both come back as `PKI_REASON_CMS_ATTRIBUTE_INVALID` naming the attribute, and when the attributes *are* present they are always checked: a committed certificate that is not the one whose key verified is `PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH`, disagreeing algorithms are `PKI_REASON_CMS_ALGORITHM_MISMATCH`.
+
+**Keys held elsewhere.** A `Signer` is a `SigningKey` — a `CryptoKey` pkinative hands to `crypto.subtle.sign` and nothing else — or an `ExternalSigner`, a function for a key in an HSM, a smart card, a cloud KMS or a remote service. `produceSignature` receives the exact bytes to sign, not a digest, and must return what `crypto.subtle.sign` would: **raw `r ‖ s` for ECDSA**, the plain octets otherwise. A DER ECDSA signature is refused with `PKI_API_MISUSE` rather than guessed at — guessing which form arrived is how a signature gets encoded twice.
+
+**Reading without judging.** `parseSignedData` returns a [`SignedData`](../assets/api.json): `content` (`undefined` when detached), the `certificates`, `crls` and `ocspResponses` bags **as DER** — a bag is a claim by whoever assembled the message, and parsing all of it up front would refuse a whole message over one unrelated certificate — and each [`SignerInfo`](../assets/api.json). `signedAttributesDer` is **the exact bytes the signature covers**: the transmitted `[0]` with its tag replaced by the `SET OF` tag RFC 5652 §5.4 signs under; nothing downstream re-derives them. The conveniences — `contentType`, `messageDigest`, `signingTime`, `signingCertificate`, `algorithmProtection` — are set only when their attribute appears exactly once with one value, because "the first one" would hide a second `messageDigest`, which is the shape of an attack. `timeStampTokens` lists every RFC 3161 token among the unsigned attributes. [`ParseSignedDataOptions`](../assets/api.json) adds `allowTrailingData` to the ordinary parse options.
+
+`verifySignerInfoSignature` is the primitive underneath, as `verifyOcspSignature` is under revocation: **did this certificate's key sign what this `SignerInfo` covers?** It returns a boolean and reads nothing else — no `messageDigest`, no `sid`, no chain — so it is `true` for a signer whose content has been swapped. Build a verifier with it; never report its `true` as the verdict on a message. [`VerifySignerInfoOptions`](../assets/api.json) carries `content`, needed only for a signer without signed attributes, and `allowSha1`.
+
+`addUnsignedAttribute` adds one unsigned attribute to one signer **by surgery on the encoding**: every octet of the `SignerInfo` but its `unsignedAttrs` is copied as it is, so every signed octet — and every signature — survives. A parse-and-rebuild would re-sort a set some other signer never sorted.
+
+**The three vocabularies, applied to CMS.** They answer different questions here as everywhere else:
+
+| Vocabulary | Codes | Raised by | Means |
+|---|---|---|---|
+| Thrown `PkiCmsError` | `PKI_CMS_STRUCTURE_INVALID`, `PKI_CMS_CONTENT_TYPE_UNEXPECTED`, `PKI_CMS_VERSION_UNSUPPORTED`, `PKI_CMS_CONTENT_NOT_OCTET_STRING` | `parseSignedData`, the TSP readers, `addUnsignedAttribute` | The DER is well formed but is not the RFC 5652 or RFC 3161 structure it was read as; `path` and `offset` say where |
+| Emitted diagnostics | `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED` | `parseSignedData`, through `onDiagnostic` and `SignedData.diagnostics` | The structure deviates from the profile in a way no signature depends on |
+| Returned reasons | `PKI_REASON_CMS_*`, `PKI_REASON_TSP_*`, plus every chain reason under `signerInfos[i].chain` | `verifySignedData`, `verifyTimeStampToken` | The message is readable, and the judgement is *no* |
+
+`PkiCmsErrorCode` is the union a `PkiCmsError` narrows `code` to. `verifySignedData` **never throws for bad input** — bytes that are not a `SignedData` are `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the code that would have been thrown — and reads quietly, so the diagnostics are `parseSignedData`'s to show. It throws only for a call that is wrong: content given twice, an unknown `limits` key, a certificate `parseCertificate` did not make. `maxSignerInfos` and `maxCmsBagEntries` bound what one message may cost, and `maxCmsAttributes` each attribute list.
+
+`recipes/sign-message.ts` runs all of this, from the detached signature to the three vocabularies; `recipes/external-signer.ts` signs a pre-computed PDF digest through an `ExternalSigner`.
+
+## Prove when it was signed
+
+The job: a signature has to outlive its certificate. A signing certificate lives a year or two; a contract, an invoice or a PDF must still verify after that. An RFC 3161 timestamp over the signature proves it existed **before** the certificate expired — CAdES-T, PAdES B-T.
+
+```ts
+import { addTimeStampToken, createTimeStampRequest, parseSignedData, parseTimeStampResponse, verifySignedData } from 'pkinative';
+
+const signature = parseSignedData(p7s).signerInfos[0]!.signature;
+const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signature));
+const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);
+const body = createTimeStampRequest(hash, { nonce });
+const response = parseTimeStampResponse(new Uint8Array(await (await fetch(tsaUrl, {
+    method: 'POST', headers: { 'content-type': 'application/timestamp-query' }, body,
+})).arrayBuffer()));
+if (response.tokenDer === undefined) return `the TSA declined: ${response.status} ${response.failInfo.join(',')}`;
+
+const stamped = addTimeStampToken(p7s, 0, response.tokenDer);
+const report = await verifySignedData({ signedData: stamped, content: document, trustAnchors: roots, atTimeStamp: true });
+```
+
+**What is stamped is the hash of the signature value** (RFC 3161 Appendix A) — the `signature` octets of the `SignerInfo`, not the document and not the signed attributes. `createTimeStampRequest` takes that hash, never the data, and a [`CreateTimeStampRequestOptions`](../assets/api.json): `hashAlgorithm` (SHA-256 by default; SHA-384 and SHA-512 offered, SHA-1 not, because a collision would let one token cover two documents), `nonce`, `policy`, and `certReq` — **`true` by default**, which is not the grammar's default: with `certReq` false the TSA must leave its certificate out, and the verifier must then be given it through `certificates`. **Supply a nonce of at least 64 random bits**: without one, nothing says a response answers *this* request, and a replayed answer is indistinguishable from a fresh one. pkinative generates none.
+
+**Reading the answer.** `parseTimeStampResponse` returns a [`TimeStampResponse`](../assets/api.json): `status`, the TSA's `statusStrings` and `failInfo` (`badAlg`, `unacceptedPolicy`, …), and — only when granted — `tokenDer`, the bytes to attach, and `token`, a [`TimeStampToken`](../assets/api.json). A token is a `SignedData` whose content is a [`TstInfo`](../assets/api.json), and the type keeps them apart on purpose: *who* signed is `token.signedData`, *what* was stamped and *when* is `token.tstInfo` — `messageImprint`, `genTime`, `accuracy`, the echoed `nonce`, `policy`, `serialNumber`, and `tsa`, a name that is a hint, never an identity. `parseTimeStampToken` reads a token already attached to a signature, and `parseTstInfo` reads the `TSTInfo` DER alone. Hand either reader a `SignedData` over anything but a `TSTInfo` and it throws `PKI_CMS_CONTENT_TYPE_UNEXPECTED`.
+
+**Judging the token.** `verifyTimeStampToken` makes every check RFC 3161 §2.4.2 lists, in one call, and returns a [`VerifyTimeStampReport`](../assets/api.json). Its [`VerifyTimeStampInput`](../assets/api.json) **must say what was stamped** — `request`, `data` or `imprint` — or it throws `PKI_API_MISUSE`, because a check that never asked *of what* would confirm that some hash existed at some time, which is true of every token ever issued. **`request` is the strongest of the three**: the token must stamp the same imprint, echo the same nonce as the same integer and carry the policy asked for, and it is the only one that catches a replay (`PKI_REASON_TSP_REQUEST_MISMATCH`). A token over anything else is `PKI_REASON_TSP_IMPRINT_MISMATCH`; one with a second signer, or a `tsa` name its certificate does not hold, is `PKI_REASON_TSP_TOKEN_INVALID`. The signing-certificate attribute RFC 5816 makes mandatory is always required of a token, as `requireSigningCertificate` would require it of a message, and its absence is `PKI_REASON_CMS_ATTRIBUTE_INVALID`. The TSA's certificate must carry an `extKeyUsage` that is present, **critical**, and names `timeStamping` alone (§2.3); `allowNonCriticalTimestampingEku` is the documented escape for deployed TSAs that did not mark it critical, off by default. `genTime` must fall inside that certificate's validity, and the certificate must chain to your `trustAnchors`. The report's `genTime`, `earliest` and `latest` — `genTime` minus and plus the declared accuracy — are filled in **only when the token is valid**.
+
+A response that was not granted carries no token, so there is nothing to verify: branch on `status` before you reach for `tokenDer`.
+
+**`at` or `atTimeStamp` — when is the signer judged?** Without a timestamp, `verifySignedData` judges each signer's chain at `at`, which is now by default: a signer whose certificate expired yesterday is `PKI_REASON_EXPIRED` today, however long ago it signed. `atTimeStamp: true` judges each signer's chain **at the time its own verified timestamp proves** — the earliest `latest` among its valid tokens, because the true time may be as late as `genTime` plus the accuracy, and a certificate that expired inside that window is not proved to have been valid. That is the long-term validation question: *was the certificate good when this was signed?* A signer with no valid timestamp is still judged at `at`, and the signer's own `signingTime` is **never** used: nothing vouches for it but the signer, which is why `SignerVerification.signingTime` is reported as a claim.
+
+**The timestamp authority is always judged at `at`, never at the `genTime` its token asserts.** A timestamp is proof of time only while its TSA is trusted. Judging the TSA's chain at the time its own token claims would let a TSA key compromised after its certificate expired **backdate** tokens that would then be believed — the attacker picks the `genTime`. So once the TSA's certificate has expired too, the stamped signature is `PKI_REASON_EXPIRED` under `signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain`, and it is also expired under `signerInfos[0].chain`, because the only proof of time no longer counts. TSA certificates are long-lived for this reason; carrying the proof beyond one needs an archive timestamp (PAdES B-LTA), which pkinative does not implement yet. Calling `verifyTimeStampToken` directly with `at` set to the token's `genTime` is possible, and is a deliberate decision to trust the time the token itself asserts.
+
+A timestamp present on a signer **and invalid** makes the signer invalid, not merely unstamped: the message is claiming a time it cannot prove. `addTimeStampToken` attaches a token as `id-aa-signatureTimeStampToken` through `addUnsignedAttribute`, so every signed octet is unchanged; a `SignerInfo`'s `timeStampTokens` lists what is already there.
+
+`recipes/timestamp.ts` runs the whole loop without a network — it plays the TSA with `createSignedData` over a `TSTInfo` built from the public encoders — including the replayed answer, the signer judged at the proved time, and the TSA judged after its own expiry.
+
 ## What none of these do yet
 
-Each of the eleven is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Read a CMS SignedData or an RFC 3161 timestamp | 0.7 | pkijs |
 | Read a PKCS#8 or PKCS#12 container | 0.8, and **PBES2 only** — the RFC 7292 appendix B KDF is SHA-1 iterated over a password and will never be implemented here | `openssl pkcs12` to convert, then pkinative |
 | Decide that a key is too small or a curve unacceptable | never, by design | one comparison on the parsed `subjectPublicKeyInfo`; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library |
 | A public suffix list, so that `*.co.uk` is refused | never, by design | a maintained PSL package; a parsing library carrying a stale copy is worse than one that says it does not know |
@@ -1033,10 +1114,11 @@ Unlike `PkiErrorCode`, which freezes at 0.8, the reason vocabulary is **not froz
 | `PkiCertificateError` | The RFC 5280 certificate structure | `code`, `path`, `offset` |
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 | `PkiCryptoError` | A verification **could not be performed** — never one that failed | `code`, `algorithm` |
+| `PkiCmsError` | Well-formed DER that is not the RFC 5652 CMS or RFC 3161 timestamp structure it was read as | `code`, `path`, `offset` |
 
 Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.8 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.8 the vocabulary is frozen under semantic versioning. PKCS#12 is the last subsystem that introduces codes, so 0.8 is the first version at which the vocabulary is complete — and 0.9 exists to prove that nothing needed renaming after all. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
-Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, and `PkiEncodingErrorCode`, `PkiCertificateErrorCode`, `PkiLimitErrorCode` and `PkiCryptoErrorCode` on the four subclasses. `PkiErrorCode` is the union of all five — the type to write when you store or pass a code without caring which class raised it.
+Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, and `PkiEncodingErrorCode`, `PkiCertificateErrorCode`, `PkiLimitErrorCode`, `PkiCryptoErrorCode` and `PkiCmsErrorCode` on the five subclasses. `PkiErrorCode` is the union of all six — the type to write when you store or pass a code without caring which class raised it.
 
 ### The line `PkiCryptoError` draws
 
@@ -1092,6 +1174,15 @@ A `PkiCryptoError` means something else, and it is worth reacting to differently
 - `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` — the signature algorithm is outside the set pkinative verifies, or its RSASSA-PSS parameters name something Web Crypto cannot express. MD2 and MD5 are here on purpose: Web Crypto implements neither, so the honest answer names the algorithm instead of a verification that did not happen (CWE-757).
 - `PKI_CRYPTO_KEY_UNSUPPORTED` — the issuer's key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent (CWE-757).
 
+### CMS and timestamps
+
+- `PKI_CMS_STRUCTURE_INVALID` — the value does not match the RFC 5652 or RFC 3161 module; `path` names the field. The usual cause is a `SignedData` passed without its `ContentInfo` wrapper, or a PDF `/Contents` passed with its zero padding and without `allowTrailingData` (CWE-1286).
+- `PKI_CMS_CONTENT_TYPE_UNEXPECTED` — the wrong kind of CMS content: enveloped or encrypted data handed to `parseSignedData`, which pkinative never decrypts, or a `SignedData` over anything but a `TSTInfo` handed to `parseTimeStampToken` (CWE-843).
+- `PKI_CMS_VERSION_UNSUPPORTED` — a `SignedData`, `TSTInfo` or `TimeStampReq` version the syntax does not define. A defined version that disagrees with the content is only `PKI_DIAG_CMS_VERSION_MISMATCH` (CWE-1286).
+- `PKI_CMS_CONTENT_NOT_OCTET_STRING` — PKCS #7 content that is not an OCTET STRING, such as Authenticode, whose digest rule differs from RFC 5652's (CWE-843).
+
+`verifySignedData` and `verifyTimeStampToken` throw none of these for the message or token they judge: there, they are `PKI_REASON_INPUT_MALFORMED` with the code in `errorCode`. The one exception is `verifyTimeStampToken`'s `request`, which is your own bytes, so a malformed one is thrown.
+
 ## Diagnostics
 
 A diagnostic is a non-fatal conformance concern: `{ code, severity, message, standard, path, offset }`. Receive them with `onDiagnostic`, read them on `certificate.diagnostics`, or refuse them all with `strict: true`.
@@ -1103,6 +1194,7 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 - **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY`, `PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
 
   The six added in 0.5.0 share one shape: each is a sentence RFC 5280 or the CA/Browser Forum addresses to the **issuing CA**, and none of them refuses a chain. pkinative reads and enforces the extension whatever the profile says about its criticality, so refusing would make it stricter than the standards ask of a verifier while accepting exactly the same set of chains; `strict: true` is where that choice belongs. Each answers a case of the x509-limbo corpus that expects a refusal, and the reason it stays a diagnostic is written beside that case in `scripts/data/limbo-score.json`. `PKI_DIAG_COMMON_NAME_NOT_IN_SAN` is the first to cite CA/Browser Forum Baseline Requirements rather than an RFC, because no RFC says it — and it fires only for a `commonName` that could be matched **as a host**, since reporting `CN=Example Issuing CA` would be reporting the ordinary shape of every organisational subject.
+- **CMS** — `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED`, on `SignedData.diagnostics`. None of them touches a signed octet — the signed attributes are verified over the bytes as they were signed, never over a re-sorted set — so none changes a verdict; they tell you which other verifiers may refuse the message.
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
@@ -1118,6 +1210,8 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 - **What a CA above it forbade** — `PKI_REASON_NAME_NOT_PERMITTED`, `PKI_REASON_NAME_EXCLUDED`, `PKI_REASON_NO_VALID_POLICY`, `PKI_REASON_POLICY_MAPPING_INVALID`.
 - **Revocation** — `PKI_REASON_REVOKED` (carrying the date, because a signature made before it may still be good), `PKI_REASON_REVOCATION_STALE`, `PKI_REASON_REVOCATION_WRONG_ISSUER`, `PKI_REASON_REVOCATION_UNKNOWN`, `PKI_REASON_REVOCATION_MISMATCH`.
 - **The questions §6 does not ask** — `PKI_REASON_NAME_MISMATCH` (from `checkServerName`: the chain is sound and the certificate is for somebody else) and `PKI_REASON_PURPOSE_NOT_PERMITTED` (from `checkExtendedKeyUsage`: the chain is sound and the certificate is for something else).
+- **A signed message** (from `verifySignedData`) — `PKI_REASON_CMS_NO_SIGNERS` (a certificate bundle is not a signature), `PKI_REASON_CMS_SIGNER_NOT_FOUND`, `PKI_REASON_CMS_CONTENT_MISSING` (absent content is never empty content), `PKI_REASON_CMS_DIGEST_MISMATCH`, `PKI_REASON_CMS_ATTRIBUTE_INVALID`, `PKI_REASON_CMS_ALGORITHM_MISMATCH` (the shape of an algorithm substitution), `PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH` (the signature presented under another certificate for the same key).
+- **A timestamp** (from `verifyTimeStampToken`, and under `unsignedAttrs.timeStampToken[i]` from `verifySignedData`) — `PKI_REASON_TSP_IMPRINT_MISMATCH` (the token stamps something else), `PKI_REASON_TSP_REQUEST_MISMATCH` (a nonce or policy the request did not ask for — what a replay looks like; send a new request rather than retrying), `PKI_REASON_TSP_TOKEN_INVALID`.
 - **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
 
 **`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
