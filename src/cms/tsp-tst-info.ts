@@ -13,8 +13,9 @@
  * a tree the ordinary way rather than walked with the cursor the revocation
  * lists need. The sub-structures RFC 3161 borrows from RFC 5280 — the
  * `AlgorithmIdentifier`, the `GeneralName`, the `Extensions` — are read by the
- * certificate readers and keep their certificate errors, as they do inside a
- * CRL: a malformed `GeneralName` is the same defect wherever it appears.
+ * certificate readers, and a failure inside one is reported as a `PkiCmsError`
+ * naming the TSTInfo field, as the SignedData parser reports it: a caller of
+ * `parseTimeStampToken` catches one class, not two.
  *
  * @module cms/tsp-tst-info
  */
@@ -34,6 +35,7 @@ import type { MessageImprint, TimeStampAccuracy, TstInfo } from '../types/tsp-ty
 import type { Extension, SerialNumber } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from '../x509/x509-algorithm.js';
 import { _decodeExtension } from '../x509/x509-extensions.js';
+import { _viaX509 } from './cms-attributes.js';
 import { _readGeneralName } from '../x509/x509-general-name.js';
 
 /** The digest lengths a `messageImprint` is checked against; any other digest is accepted unmeasured. */
@@ -63,7 +65,8 @@ export function _readMessageImprint(node: Asn1Node | undefined, ctx: Asn1Context
     if (node === undefined || node.tagClass !== 'universal' || node.tagNumber !== 16 || node.children.length !== 2) {
         throw _tspError(path, node?.offset ?? parentOffset, 'is not a MessageImprint: a SEQUENCE of a hash algorithm and a hash');
     }
-    const hashAlgorithm = _readAlgorithmIdentifier(node.children[0], ctx, `${path}.hashAlgorithm`, 'PKI_X509_STRUCTURE_INVALID', node.offset);
+    const hashAlgorithm = _viaX509(`${path}.hashAlgorithm`, node.offset, () =>
+        _readAlgorithmIdentifier(node.children[0], ctx, `${path}.hashAlgorithm`, 'PKI_X509_STRUCTURE_INVALID', node.offset));
     const hashedMessage = _readOctetString(node.children[1] as Asn1Node, ctx);
     const expected = DIGEST_BYTES.get(hashAlgorithm.oid);
     if (expected !== undefined && hashedMessage.length !== expected) {
@@ -101,9 +104,9 @@ export function _serialOf(node: Asn1Node, ctx: Asn1Context): SerialNumber {
  *   is always DER.
  * @returns The parsed TSTInfo, with zero-copy views of `der`.
  * @throws {PkiCmsError} `PKI_CMS_STRUCTURE_INVALID` when the value is not a
- *   TSTInfo, or `PKI_CMS_VERSION_UNSUPPORTED` for a version other than 1.
- * @throws {PkiCertificateError} For a malformed `AlgorithmIdentifier`,
- *   `GeneralName` or recognised extension inside it.
+ *   TSTInfo — including a malformed `AlgorithmIdentifier`, `GeneralName` or
+ *   recognised extension inside it — or `PKI_CMS_VERSION_UNSUPPORTED` for a
+ *   version other than 1.
  * @throws {PkiEncodingError} For any DER violation.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions` or the decoder's limits.
  */
@@ -177,7 +180,7 @@ export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInf
         // as implicit would take the [0] for the GeneralName's own otherName tag.
         const inner = field.constructed && field.children.length === 1 ? field.children[0] as Asn1Node : undefined;
         if (inner === undefined) throw _tspError(`${path}.tsa`, field.offset, 'is not one GeneralName under an explicit [0] tag');
-        tsa = _readGeneralName(inner, ctx, `${path}.tsa`, false);
+        tsa = _viaX509(`${path}.tsa`, field.offset, () => _readGeneralName(inner, ctx, `${path}.tsa`, false));
         at += 1;
         field = next();
     }
@@ -271,7 +274,7 @@ function readExtensions(der: Uint8Array, field: Asn1Node, ctx: Asn1Context, path
         }
         const criticalNode = entry.children.length === 3 ? entry.children[1] as Asn1Node : undefined;
         const start = valueNode.offset + valueNode.headerLength;
-        out.push(_decodeExtension(
+        out.push(_viaX509(where, entry.offset, () => _decodeExtension(
             der.subarray(0, start + valueNode.contentLength),
             start,
             readObjectIdentifier(oidNode),
@@ -279,7 +282,7 @@ function readExtensions(der: Uint8Array, field: Asn1Node, ctx: Asn1Context, path
             valueNode.content,
             ctx,
             where,
-        ));
+        )));
     }
     return Object.freeze(out);
 }

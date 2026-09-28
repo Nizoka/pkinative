@@ -193,6 +193,18 @@ describe('parseTstInfo', () => {
         });
     });
 
+    it.each([
+        ['an imprint algorithm that is not an AlgorithmIdentifier', tstInfo({ imprint: sequence(universal(4, [1]), universal(4, new Array<number>(32).fill(0))) })],
+        ['a tsa whose GeneralName is malformed', tstInfo({ tail: [tlv(2, true, 0, tlv(2, true, 4, universal(4, [1])))] })],
+        ['a recognised extension whose value is malformed', tstInfo({ tail: [tlv(2, true, 1, sequence(oid([0x55, 0x1d, 0x13]), universal(4, [0x04, 0x00])))] })],
+    ])('should report %s as a CMS error, so a caller catches one class', (_, der) => {
+        // The x509 readers throw certificate errors. Inside a TSTInfo they are
+        // re-thrown as PkiCmsError naming the TSTInfo field, with the reader's
+        // own code kept in the message.
+        expect(() => parseTstInfo(der, quiet)).toThrow(PkiCmsError);
+        expect(code(() => parseTstInfo(der, quiet))).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
+
     it('should read DER even when the caller asked for BER', () => {
         // RFC 3161 §2.4.2: the eContent SHALL be DER. The TSA signed those exact
         // bytes, so a BER variant is not the TSTInfo that was signed.
