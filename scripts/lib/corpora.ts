@@ -24,14 +24,39 @@ export interface CorpusFile {
     readonly path: string;
 }
 
+/**
+ * Where an archive corpus comes from, and which of its files are kept.
+ *
+ * An archive is pinned by its own SHA-256 — which is `commit`, because that is
+ * the immutable identity of the upstream state whatever form it takes. That one
+ * digest pins every byte, so the set of files inside it is pinned too; the
+ * per-file checksum list is the **second** pin, and it defends against a bug in
+ * this project's own ZIP reader rather than against a changed archive.
+ */
+export interface CorpusArchive {
+    readonly url: string;
+    /** Prefixes inside the archive whose files are extracted; everything else is left. */
+    readonly include: readonly string[];
+}
+
 export interface Corpus {
-    readonly id: 'x509-limbo' | 'wycheproof';
+    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits';
     readonly title: string;
     readonly repository: string;
-    /** The upstream commit every file is read at. */
+    /**
+     * The immutable identity of the upstream state: a git commit for a
+     * repository, the archive's own SHA-256 for an archive.
+     */
     readonly commit: string;
     readonly licence: string;
+    /**
+     * The files read at that identity. **Empty for an archive**, whose file set
+     * is a property of the archive rather than a choice made here — the
+     * checksum file is authoritative for which files were extracted, and the
+     * archive's digest is authoritative for what was in it.
+     */
     readonly files: readonly CorpusFile[];
+    readonly archive?: CorpusArchive | undefined;
 }
 
 export const CORPORA: readonly Corpus[] = [
@@ -51,6 +76,26 @@ export const CORPORA: readonly Corpus[] = [
         licence: 'Apache-2.0',
         files: ['ecdsa_secp256r1_sha256_test.json', 'ecdsa_secp384r1_sha384_test.json', 'ecdsa_secp521r1_sha512_test.json']
             .map((name) => ({ name, path: `testvectors_v1/${name}` })),
+    },
+    {
+        id: 'pkits',
+        title: 'NIST Public Key Interoperability Test Suite (PKITS)',
+        repository: 'https://csrc.nist.gov/projects/pki-testing',
+        // The archive's own SHA-256. NIST publishes no version and no commit;
+        // the digest is the only immutable identity the artefact has, and
+        // pinning it is what makes "the same corpus" mean something.
+        commit: '592f66030d2eff80fced7ad022e197d96b7ee4ccce7da9df9c9b2007b1665665',
+        licence: 'US Government Work (17 U.S.C. §105), public domain',
+        files: [],
+        archive: {
+            url: 'https://csrc.nist.gov/CSRC/media/Projects/PKI-Testing/documents/PKITS_data.zip',
+            // The certificates and the revocation lists. The archive also holds
+            // PKCS#12 bundles, S/MIME messages, cross-certificate pairs and an
+            // LDIF export of all of it — none of which a path validator needs,
+            // and PKCS#12 in particular is a container pkinative will not read
+            // under the legacy KDF before 0.8.
+            include: ['certs/', 'crls/'],
+        },
     },
 ];
 

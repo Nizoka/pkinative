@@ -12,8 +12,11 @@ This file lists third-party material the repository uses for testing and conform
 |---|---|---|---|---|
 | x509-limbo | https://github.com/C2SP/x509-limbo | `118721335e675edde10015df89b138cf292d7554` | `limbo.json` (schema version 1) | Apache-2.0 |
 | Project Wycheproof | https://github.com/C2SP/wycheproof | `3fa63dd0344abb611f1fb1d77e119938603ea230` | `testvectors_v1/ecdsa_secp256r1_sha256_test.json`, `ecdsa_secp384r1_sha384_test.json`, `ecdsa_secp521r1_sha512_test.json` | Apache-2.0 |
+| NIST Public Key Interoperability Test Suite (PKITS) | https://csrc.nist.gov/projects/pki-testing | `592f66030d2eff80fced7ad022e197d96b7ee4ccce7da9df9c9b2007b1665665` (SHA-256 of `PKITS_data.zip`; NIST publishes no version) | `certs/` and `crls/`, 578 files extracted from the archive | US Government Work (17 U.S.C. §105), public domain |
 
-x509-limbo is a project of the C2SP (Community Cryptography Specification Project), originally by Trail of Bits; Project Wycheproof was started by Google and is maintained under C2SP. Both are used unmodified, as test inputs only.
+x509-limbo is a project of the C2SP (Community Cryptography Specification Project), originally by Trail of Bits; Project Wycheproof was started by Google and is maintained under C2SP. PKITS is published by the US National Institute of Standards and Technology and is a work of the United States Government, which 17 U.S.C. §105 places in the public domain. All three are used unmodified, as test inputs only.
+
+PKITS is distributed as a ZIP archive and nothing else, so it is pinned twice: by the SHA-256 of the archive, which fixes every byte in it, and by a per-file list in `.github/checksums/` that holds this project's own ZIP reader to the bytes reviewed. The archive also carries PKCS#12 bundles, S/MIME messages, cross-certificate pairs and an LDIF export; none is extracted.
 
 ## Committed test fixtures
 

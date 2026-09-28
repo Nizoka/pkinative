@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { SKIP_FEATURES } from '../../scripts/lib/limbo-score.js';
 import { CORPORA } from '../../scripts/lib/corpora.js';
+import { expectationOfName } from '../../scripts/lib/pkits.js';
 
 /**
  * The shape of the x509-limbo score baseline, checked without the corpus.
@@ -29,6 +30,14 @@ interface ScoreBaseline {
 
 const baseline = JSON.parse(readFileSync('scripts/data/limbo-score.json', 'utf8')) as ScoreBaseline;
 const ids = Object.keys(baseline.deviations);
+
+/**
+ * The PKITS baseline has the same shape and the same discipline, so it is held
+ * to the same rules here. Two corpora, one contract: a disagreement is either a
+ * defect or a decision, and the difference is a sentence someone wrote.
+ */
+const pkits = JSON.parse(readFileSync('scripts/data/pkits-score.json', 'utf8')) as ScoreBaseline;
+const pkitsIds = Object.keys(pkits.deviations);
 
 describe('the x509-limbo score baseline', () => {
     it('should be pinned to the corpus commit the gate fetches', () => {
@@ -100,6 +109,65 @@ describe('the x509-limbo score baseline', () => {
         for (const [feature, why] of Object.entries(SKIP_FEATURES)) {
             expect(feature, feature).toMatch(/^[a-z0-9-]+$/);
             expect(why.length, feature).toBeGreaterThan(40);
+        }
+    });
+});
+
+describe('the NIST PKITS score baseline', () => {
+    it('should be pinned to the archive the gate fetches', () => {
+        const corpus = CORPORA.find((c) => c.id === 'pkits');
+        expect(pkits.corpus).toBe('pkits');
+        expect(pkits.commit).toBe(corpus?.commit);
+        // An archive corpus is pinned by its own digest, so the pin IS a
+        // SHA-256 — 64 hex characters, not a git commit's 40.
+        expect(pkits.commit).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should carry a written reason for every single deviation', () => {
+        expect(pkitsIds.filter((id) => pkits.deviations[id]?.why.trim() === '')).toEqual([]);
+    });
+
+    it('should not let a reason be a placeholder', () => {
+        expect(pkitsIds.filter((id) => (pkits.deviations[id]?.why ?? '').length < 120)).toEqual([]);
+    });
+
+    it('should name two canaries, and neither of them a deviation', () => {
+        const { mustSucceed, mustFail } = pkits.canaries;
+        expect(mustSucceed).not.toBe('');
+        expect(mustFail).not.toBe('');
+        // NIST's own convention, which is also the only machine-readable
+        // statement of intent the archive carries: the canaries have to be
+        // tests whose names say what they expect.
+        expect(mustSucceed.startsWith('Valid')).toBe(true);
+        expect(mustFail.startsWith('Invalid')).toBe(true);
+        expect(pkitsIds).not.toContain(mustSucceed);
+        expect(pkitsIds).not.toContain(mustFail);
+    });
+
+    it('should pin tests on their reason codes without pinning a deviation', () => {
+        const pins = Object.keys(pkits.reasons);
+        expect(pins.length).toBeGreaterThan(20);
+        expect(pins.filter((id) => pkitsIds.includes(id))).toEqual([]);
+        for (const [id, codes] of Object.entries(pkits.reasons)) {
+            expect(codes, id).not.toBe('');
+            for (const code of codes.split(',')) expect(code, id).toMatch(/^PKI_REASON_[A-Z_]+$/);
+        }
+    });
+
+    it('should keep the totals self-consistent', () => {
+        expect(pkits.totals.agree + pkits.totals.deviations).toBe(pkits.totals.scored);
+        expect(pkits.totals.deviations).toBe(pkitsIds.length);
+        // The 20 skipped are the §4.8 policy tests, whose expected result
+        // depends on a `user-initial-policy-set` the archive does not state.
+        expect(pkits.totals.skipped).toBeGreaterThan(0);
+    });
+
+    it('should judge a test only where its own name says what it expects', () => {
+        // The one rule the whole PKITS score rests on. A baseline entry for a
+        // test whose name says nothing would be a guess wearing a reviewed
+        // reason.
+        for (const id of [...pkitsIds, ...Object.keys(pkits.reasons)]) {
+            expect(expectationOfName(id), id).not.toBeNull();
         }
     });
 });

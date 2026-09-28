@@ -1,0 +1,191 @@
+{
+  "$comment": "Reviewed score of NIST PKITS: every accepted disagreement with the sentence that makes it acceptable, and the tests pinned on their PkiReasonCode rather than on the boolean. Expectations come from the file names, which is the only machine-readable statement of intent the archive carries — the PDF is transcribed, never parsed. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE the `why` of every new deviation by hand; the tool never fills one in, and an empty one fails the gate.",
+  "corpus": "pkits",
+  "commit": "592f66030d2eff80fced7ad022e197d96b7ee4ccce7da9df9c9b2007b1665665",
+  "canaries": {
+    "mustSucceed": "ValidCertificatePathTest1",
+    "mustFail": "InvalidCASignatureTest2"
+  },
+  "totals": {
+    "scored": 203,
+    "agree": 177,
+    "deviations": 26,
+    "skipped": 20
+  },
+  "deviations": {
+    "InvalidDNandRFC822nameConstraintsTest29": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code. Here the same rule reaches a name constraint rather than the chain: §7.1 preparation is what would make the constrained directoryName match the subject, and byte comparison does not. The direction is inverted for a constraint — a name that does not match is a name not excluded — so this one is an acceptance rather than a refusal, and it is the same missing comparison."
+    },
+    "InvalidSeparateCertificateandCRLKeysTest21": {
+      "expected": "FAILURE",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed. Here the CA designates a separate CRL-signing certificate and the list is signed by a key that is not the designated one. pkinative accepts a signature from any certificate carrying the CA's name and `cRLSign` — which is what makes a key rollover work, and which without `cRLDistributionPoints` cannot tell a designated signer from an undesignated one."
+    },
+    "InvalidUnknownCRLExtensionTest10": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured. Here the list carries a critical extension nobody recognises, which §5.2 says makes the list unusable. pkinative diagnoses it — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, escalated by `strict` — and does not yet refuse the list on the caller's behalf."
+    },
+    "InvalidcRLIssuerTest35": {
+      "expected": "FAILURE",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed."
+    },
+    "InvaliddeltaCRLIndicatorNoBaseTest1": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured. Here the list is a delta with no base, which §5.2.4 says must not be used on its own; pkinative exposes `crl.isDelta` precisely so a caller does not mistake one for a full list, and does not yet refuse it for them."
+    },
+    "InvaliddistributionPointTest3": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvaliddistributionPointTest8": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvaliddistributionPointTest9": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvalidonlyContainsAttributeCertsTest14": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvalidonlyContainsCACertsTest12": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvalidonlyContainsUserCertsTest11": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "InvalidonlySomeReasonsTest17": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured."
+    },
+    "ValidDSAParameterInheritanceTest5": {
+      "expected": "SUCCESS",
+      "why": "DSA. Web Crypto implements no DSA at all, so `resolveAlgorithm` maps the signature to nothing and `verifyCertificateSignature` reports that the question could not be put — `PKI_REASON_SIGNATURE_NOT_CHECKED`, never `INVALID`. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript, ever), so this is not a gap that closes; it closes only if a runtime grows DSA, which none is going to. NIST's suite predates that consensus. This one also needs parameter inheritance, where a certificate omits its DSA parameters and takes the issuer's — a shape that exists only for DSA."
+    },
+    "ValidDSASignaturesTest4": {
+      "expected": "SUCCESS",
+      "why": "DSA. Web Crypto implements no DSA at all, so `resolveAlgorithm` maps the signature to nothing and `verifyCertificateSignature` reports that the question could not be put — `PKI_REASON_SIGNATURE_NOT_CHECKED`, never `INVALID`. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript, ever), so this is not a gap that closes; it closes only if a runtime grows DSA, which none is going to. NIST's suite predates that consensus."
+    },
+    "ValidIDPwithindirectCRLTest24": {
+      "expected": "SUCCESS",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed."
+    },
+    "ValidIDPwithindirectCRLTest25": {
+      "expected": "SUCCESS",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed."
+    },
+    "ValidNameChainingCapitalizationTest5": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
+    },
+    "ValidNameChainingWhitespaceTest3": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
+    },
+    "ValidNameChainingWhitespaceTest4": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
+    },
+    "ValidRolloverfromPrintableStringtoUTF8StringTest10": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
+    },
+    "ValidSelfIssuedinhibitAnyPolicyTest9": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §6.1.4 (h) exempts a **self-issued** certificate from spending the three policy counters, and §6.1.4 (j) decrements `inhibit_anyPolicy` for every certificate that is not self-issued. pkinative implements the exemption for the counters and still refuses this path with `PKI_REASON_NO_VALID_POLICY`, so one step of §6.1.5's wrap-up is reading the tree differently from NIST here. It is the only policy deviation of the 26, and the only one of them that is a suspected defect rather than a feature that is absent — which is why it is recorded alone rather than folded into a group."
+    },
+    "ValidUTF8StringCaseInsensitiveMatchTest11": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code."
+    },
+    "ValidcRLIssuerTest30": {
+      "expected": "SUCCESS",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed."
+    },
+    "ValidcRLIssuerTest33": {
+      "expected": "SUCCESS",
+      "why": "An **indirect CRL**: the list is published by an entity other than the CA whose certificates it covers, named through `cRLIssuer` in the certificate's `cRLDistributionPoints` (RFC 5280 §5.2.5, §5.3.3). pkinative matches a list to a certificate by the encoded name of the CA that issued that certificate, and nothing else — so a list issued by somebody else is not seen as covering it. Reading `cRLDistributionPoints` to find out who may answer for whom is the same missing piece as the scoping above, and the direction of the miss is a list ignored rather than a list wrongly believed."
+    },
+    "ValiddeltaCRLTest5": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured. Here the deltas remove a certificate from hold, and pkinative reads the base list alone — so it reports the revocation the delta lifted. That is the permissive direction inverted: a certificate refused that PKITS says is good."
+    },
+    "ValiddeltaCRLTest7": {
+      "expected": "SUCCESS",
+      "why": "RFC 5280 §5.2.5 `issuingDistributionPoint` and §5.2.4 delta CRLs are **CRL scoping**, and pkinative does not implement them: `checkRevocation` reads one list and answers about one certificate, and `verifyCertificateChain` matches a list to a certificate by the CA that issued it. A list scoped to a subset — only user certificates, only CA certificates, only some revocation reasons, or a distribution point the certificate does not name — is therefore read as covering everything its issuer covers. That is **wider than the list claims**, which is the permissive direction, and it is the honest description of a feature that is not there rather than a reading anybody defends. The Web PKI does not use partitioned CRLs; the US Federal PKI PKITS was written for does, and these tests are that difference. Implementing §5.2.4 and §5.2.5 is the next revocation piece and these entries are where it will be measured. Here the deltas remove a certificate from hold, and pkinative reads the base list alone — so it reports the revocation the delta lifted. That is the permissive direction inverted: a certificate refused that PKITS says is good."
+    }
+  },
+  "reasons": {
+    "InvalidBadCRLIssuerNameTest5": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidBadCRLSignatureTest4": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidBasicSelfIssuedCRLSigningKeyTest7": "PKI_REASON_REVOKED",
+    "InvalidBasicSelfIssuedCRLSigningKeyTest8": "PKI_REASON_NOT_A_CA,PKI_REASON_NOT_A_CA",
+    "InvalidCASignatureTest2": "PKI_REASON_SIGNATURE_INVALID",
+    "InvalidCAnotAfterDateTest5": "PKI_REASON_EXPIRED",
+    "InvalidCAnotBeforeDateTest1": "PKI_REASON_NOT_YET_VALID",
+    "InvalidDNSnameConstraintsTest31": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDNSnameConstraintsTest33": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidDNandRFC822nameConstraintsTest28": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDNnameConstraintsTest10": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidDNnameConstraintsTest12": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDSASignatureTest6": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidEESignatureTest3": "PKI_REASON_SIGNATURE_INVALID",
+    "InvalidEEnotAfterDateTest6": "PKI_REASON_EXPIRED",
+    "InvalidEEnotBeforeDateTest2": "PKI_REASON_NOT_YET_VALID",
+    "InvalidIDPwithindirectCRLTest23": "PKI_REASON_REVOKED",
+    "InvalidIDPwithindirectCRLTest26": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidLongSerialNumberTest18": "PKI_REASON_REVOKED",
+    "InvalidMappingFromanyPolicyTest7": "PKI_REASON_POLICY_MAPPING_INVALID",
+    "InvalidMappingToanyPolicyTest8": "PKI_REASON_POLICY_MAPPING_INVALID",
+    "InvalidMissingCRLTest1": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidMissingbasicConstraintsTest1": "PKI_REASON_NOT_A_CA",
+    "InvalidNameChainingOrderTest2": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidNameChainingTest1": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidNegativeSerialNumberTest15": "PKI_REASON_REVOKED",
+    "InvalidOldCRLnextUpdateTest11": "PKI_REASON_REVOCATION_STALE",
+    "InvalidPolicyMappingTest10": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidPolicyMappingTest2": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidRFC822nameConstraintsTest22": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidRFC822nameConstraintsTest24": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidRevokedEETest3": "PKI_REASON_REVOKED",
+    "InvalidSelfIssuedinhibitAnyPolicyTest10": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedinhibitAnyPolicyTest8": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedpathLenConstraintTest16": "PKI_REASON_PATH_TOO_LONG",
+    "InvalidSelfIssuedrequireExplicitPolicyTest7": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedrequireExplicitPolicyTest8": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidSeparateCertificateandCRLKeysTest20": "PKI_REASON_REVOKED",
+    "InvalidURInameConstraintsTest35": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidURInameConstraintsTest37": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidUnknownCRLEntryExtensionTest8": "PKI_REASON_REVOKED",
+    "InvalidUnknownCRLExtensionTest9": "PKI_REASON_REVOKED",
+    "InvalidUnknownCriticalCertificateExtensionTest2": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "InvalidWrongCRLTest6": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidcAFalseTest2": "PKI_REASON_NOT_A_CA",
+    "InvalidcAFalseTest3": "PKI_REASON_NOT_A_CA",
+    "InvalidcRLIssuerTest27": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidcRLIssuerTest31": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvaliddeltaCRLTest10": "PKI_REASON_REVOCATION_STALE",
+    "InvaliddeltaCRLTest3": "PKI_REASON_REVOKED",
+    "InvaliddistributionPointTest2": "PKI_REASON_REVOKED",
+    "InvaliddistributionPointTest6": "PKI_REASON_REVOKED",
+    "InvalidinhibitAnyPolicyTest1": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitAnyPolicyTest4": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitPolicyMappingTest1": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitPolicyMappingTest3": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidkeyUsageCriticalcRLSignFalseTest4": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidkeyUsageCriticalkeyCertSignFalseTest1": "PKI_REASON_NOT_A_CA",
+    "InvalidkeyUsageNotCriticalcRLSignFalseTest5": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidkeyUsageNotCriticalkeyCertSignFalseTest2": "PKI_REASON_NOT_A_CA",
+    "InvalidonlySomeReasonsTest15": "PKI_REASON_REVOKED",
+    "InvalidonlySomeReasonsTest16": "PKI_REASON_REVOKED",
+    "InvalidpathLenConstraintTest10": "PKI_REASON_PATH_TOO_LONG",
+    "InvalidpathLenConstraintTest11": "PKI_REASON_PATH_TOO_LONG",
+    "Invalidpre2000CRLnextUpdateTest12": "PKI_REASON_REVOCATION_STALE",
+    "Invalidpre2000UTCEEnotAfterDateTest7": "PKI_REASON_EXPIRED",
+    "InvalidrequireExplicitPolicyTest3": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidrequireExplicitPolicyTest5": "PKI_REASON_NO_VALID_POLICY"
+  }
+}

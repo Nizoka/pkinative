@@ -325,6 +325,45 @@ async function _crlSignature(crl: CertificateList, issuer: Certificate, allowSha
 }
 
 /**
+ * Whether a key **entitled** to sign this list did, trying every certificate
+ * that could hold one.
+ *
+ * A CA is a name, not a key. It may hold several — a rollover leaves two live
+ * at once, and NIST PKITS has a test where the CA signs certificates with one
+ * key and its lists with another. So the signer is looked for among every
+ * certificate in the path and in the candidate bag whose **subject** is the
+ * list's issuer, and the first one that verifies settles it. Trying only the
+ * certificate that happens to sit above the leaf in the path asks about one of
+ * the CA's keys and calls a `false` an answer about the CA.
+ *
+ * "Entitled" is two questions, not one. RFC 5280 §4.2.1.3 requires a CA that
+ * issues CRLs to assert `cRLSign`, so a certificate whose keyUsage omits it is
+ * refused before its key is asked — accepting its list would let a CA
+ * constrained to signing certificates revoke them instead. Absent keyUsage
+ * asserts nothing and constrains nothing, which is the reading §6.1.4 (n) takes
+ * of `keyCertSign`.
+ */
+async function _crlSigner(
+    input: VerifyChainInput,
+    path: readonly Certificate[],
+    crl: CertificateList,
+    about: string,
+): Promise<boolean | undefined> {
+    let answer: boolean | undefined;
+    for (const candidate of [...path, ...(input.candidates ?? []), ...input.trustAnchors]) {
+        if (_hex(candidate.subject.der) !== about) continue;
+        const usage = getExtension(candidate, 'keyUsage');
+        if (usage !== undefined && !usage.usages.includes('cRLSign')) { answer ??= false; continue; }
+        const verified = await _crlSignature(crl, candidate, input.allowSha1 === true);
+        if (verified === true) return true;
+        // "Checked and wrong" outranks "never checked": a caller reading the
+        // report should hear the strongest thing that was actually established.
+        if (verified === false) answer = false;
+    }
+    return answer;
+}
+
+/**
  * The end-entity certificate against the lists the caller supplied.
  *
  * Only the leaf is checked. Revoking an intermediate is real and matters, and
@@ -347,47 +386,61 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // One options object for both readers: the limits are the caller's, and a
     // CRL's profile concerns are not this report's business — a caller who
     // wants them calls parseCertificateList themselves.
+    // One options object for both readers: the limits are the caller's, and a
+    // CRL's profile concerns are not this report's business — a caller who
+    // wants them calls parseCertificateList themselves.
     const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
-    const issuer = path[1];
-    let covered = false;
+
+    // **Every certificate on the path, not only the leaf.** A revoked
+    // intermediate is a revoked chain: the CA whose key signed the leaf has had
+    // that key withdrawn, and a verifier that asked only about the leaf would
+    // accept everything below a CA its own issuer had disowned. NIST PKITS has
+    // that test — `InvalidRevokedCATest2` — and it is the shape a compromised
+    // sub-CA takes in the real world.
+    //
+    // The anchor is not checked: it is trusted a priori, and a list it issued
+    // about itself revokes nothing. Everything else is, whether or not its own
+    // issuer ended up in the path — a list covers a certificate because it names
+    // that certificate's CA, which is a fact about the certificate.
+    const anchors = new Set(input.trustAnchors.map((c) => _hex(c.der)));
+    const covered = new Set<number>();
     for (const [index, der] of lists.entries()) {
         const where = `crl[${String(index)}]`;
         try {
             const crl = parseCertificateList(der, reading);
-            // A list is about one CA, and it covers this certificate when it
-            // names the CA that issued it — encoded names, as everywhere else,
-            // because two names that print the same and encode differently are
-            // two names. A list about somebody else is skipped in silence: a
-            // caller handing over every list they hold is the ordinary case,
-            // and `PKI_REASON_REVOCATION_WRONG_ISSUER` is for a list they
-            // *meant* to apply, which is what checkRevocation answers.
-            if (_hex(crl.issuer.der) !== _hex(input.leaf.issuer.der)) continue;
-            covered = true;
-            // Whether the CA that issued the certificate also signed the list.
-            // `undefined` and `false` are different answers and checkRevocation
-            // words them differently: never checked, versus checked and wrong.
+            const about = _hex(crl.issuer.der);
+            // Whether a key entitled to sign this list did. Asked once per list
+            // rather than once per certificate, because the answer is a property
+            // of the list. `undefined` and `false` are different answers and
+            // `checkRevocation` words them differently: never checked, versus
+            // checked and wrong.
             let signatureVerified: boolean | undefined;
-            if (issuer !== undefined) {
-                // "Entitled" is the operative word, and it is two questions.
-                // RFC 5280 §4.2.1.3: a CA that issues CRLs MUST assert
-                // `cRLSign`, so a CA whose keyUsage omits it is not entitled
-                // whatever its key computes — accepting its list would let a CA
-                // constrained to signing certificates revoke them instead.
-                // Absent keyUsage asserts nothing and constrains nothing, which
-                // is the same reading §6.1.4 (n) takes of `keyCertSign`.
-                const usage = getExtension(issuer, 'keyUsage');
-                signatureVerified = usage !== undefined && !usage.usages.includes('cRLSign')
-                    ? false
-                    : await _crlSignature(crl, issuer, input.allowSha1 === true);
+            let asked = false;
+
+            for (const [position, subject] of path.entries()) {
+                if (anchors.has(_hex(subject.der))) continue;
+                // A list is about one CA, and it covers this certificate when it
+                // names the CA that issued it — encoded names, as everywhere
+                // else, because two names that print the same and encode
+                // differently are two names. A list about somebody else is
+                // skipped in silence: a caller handing over every list they hold
+                // is the ordinary case, and `PKI_REASON_REVOCATION_WRONG_ISSUER`
+                // is for a list they *meant* to apply.
+                if (_hex(subject.issuer.der) !== about) continue;
+                covered.add(position);
+                if (!asked) {
+                    asked = true;
+                    signatureVerified = await _crlSigner(input, path, crl, about);
+                }
+                out.push(...checkRevocation({
+                    certificate: subject,
+                    crl,
+                    crlDer: der,
+                    at,
+                    ...(signatureVerified === undefined ? {} : { signatureVerified }),
+                    options: reading,
+                }));
             }
-            out.push(...checkRevocation({
-                certificate: input.leaf,
-                crl,
-                crlDer: der,
-                at,
-                ...(signatureVerified === undefined ? {} : { signatureVerified }),
-                options: reading,
-            }));
         } catch (error) {
             // **The one catch this library allows**, and the reason the reason
             // registry wraps the error registry instead of copying it: the code
@@ -398,6 +451,11 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             out.push(inputMalformedReason(refused.code, refused.message, where));
         }
     }
+
+    // OCSP answers about the end-entity certificate only: that is what a
+    // stapled response is for, and RFC 6960 has no notion of asking about a
+    // chain. The issuer is path[1], the CA whose CertID the answer binds to.
+    const issuer = path[1];
     for (const [index, der] of stapled.entries()) {
         const where = `ocsp[${String(index)}]`;
         try {
@@ -420,7 +478,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             const authorised = issuer === undefined
                 ? undefined
                 : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
-            covered = true;
+            covered.add(0);
             out.push(...checkOcspStatus({
                 response,
                 expected: _certId(input.leaf, issuer, algorithm),
@@ -435,8 +493,19 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
         }
     }
 
-    if (!covered && input.requireRevocation === true) {
-        out.push(revocationUnknownReason('path[0]', 'nothing supplied answers for this certificate\'s CA'));
+    // **Checked everywhere, required at the leaf.** Those are two questions and
+    // collapsing them gets one of them wrong.
+    //
+    // Checking every certificate costs nothing and catches a revoked CA, which
+    // is a chain nobody should accept. *Requiring* an answer about every
+    // certificate would be a different rule and an unusable one: a stapled OCSP
+    // response answers about the end entity and nothing else, nobody fetches a
+    // CRL for an intermediate on the connection path, and the Web PKI handles
+    // intermediates out of band — CRLSets, OneCRL — which is not a decision a
+    // verifier can make per connection. So the demand stops at the certificate
+    // the caller can actually obtain an answer about.
+    if (input.requireRevocation === true && !covered.has(0)) {
+        out.push(revocationUnknownReason('path[0]', 'nothing supplied answers about this certificate'));
     }
     return out;
 }

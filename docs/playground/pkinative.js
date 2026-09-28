@@ -5409,6 +5409,21 @@ async function _crlSignature(crl, issuer, allowSha1) {
     return void 0;
   }
 }
+async function _crlSigner(input, path, crl, about) {
+  let answer;
+  for (const candidate of [...path, ...input.candidates ?? [], ...input.trustAnchors]) {
+    if (_hex2(candidate.subject.der) !== about) continue;
+    const usage = getExtension(candidate, "keyUsage");
+    if (usage !== void 0 && !usage.usages.includes("cRLSign")) {
+      answer ?? (answer = false);
+      continue;
+    }
+    const verified = await _crlSignature(crl, candidate, input.allowSha1 === true);
+    if (verified === true) return true;
+    if (verified === false) answer = false;
+  }
+  return answer;
+}
 async function _checkRevocation(input, path, at) {
   const out = [];
   const lists = input.crls ?? [];
@@ -5420,32 +5435,38 @@ async function _checkRevocation(input, path, at) {
     return out;
   }
   const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
-  const issuer = path[1];
-  let covered = false;
+  const anchors = new Set(input.trustAnchors.map((c) => _hex2(c.der)));
+  const covered = /* @__PURE__ */ new Set();
   for (const [index, der] of lists.entries()) {
     const where2 = `crl[${String(index)}]`;
     try {
       const crl = parseCertificateList(der, reading);
-      if (_hex2(crl.issuer.der) !== _hex2(input.leaf.issuer.der)) continue;
-      covered = true;
+      const about = _hex2(crl.issuer.der);
       let signatureVerified;
-      if (issuer !== void 0) {
-        const usage = getExtension(issuer, "keyUsage");
-        signatureVerified = usage !== void 0 && !usage.usages.includes("cRLSign") ? false : await _crlSignature(crl, issuer, input.allowSha1 === true);
+      let asked = false;
+      for (const [position, subject] of path.entries()) {
+        if (anchors.has(_hex2(subject.der))) continue;
+        if (_hex2(subject.issuer.der) !== about) continue;
+        covered.add(position);
+        if (!asked) {
+          asked = true;
+          signatureVerified = await _crlSigner(input, path, crl, about);
+        }
+        out.push(...checkRevocation({
+          certificate: subject,
+          crl,
+          crlDer: der,
+          at,
+          ...signatureVerified === void 0 ? {} : { signatureVerified },
+          options: reading
+        }));
       }
-      out.push(...checkRevocation({
-        certificate: input.leaf,
-        crl,
-        crlDer: der,
-        at,
-        ...signatureVerified === void 0 ? {} : { signatureVerified },
-        options: reading
-      }));
     } catch (error) {
       const refused = _pkiError(error);
       out.push(inputMalformedReason(refused.code, refused.message, where2));
     }
   }
+  const issuer = path[1];
   for (const [index, der] of stapled.entries()) {
     const where2 = `ocsp[${String(index)}]`;
     try {
@@ -5458,7 +5479,7 @@ async function _checkRevocation(input, path, at) {
       const mine = basic.responses.find((one) => _hex2(one.certId.serialNumber.bytes) === _hex2(input.leaf.serialNumber.bytes));
       const algorithm = _digestOf(mine?.certId.hashAlgorithm.oid ?? basic.responses[0]?.certId.hashAlgorithm.oid);
       const authorised = issuer === void 0 ? void 0 : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
-      covered = true;
+      covered.add(0);
       out.push(...checkOcspStatus({
         response,
         expected: _certId(input.leaf, issuer, algorithm),
@@ -5472,8 +5493,8 @@ async function _checkRevocation(input, path, at) {
       out.push(inputMalformedReason(refused.code, refused.message, where2));
     }
   }
-  if (!covered && input.requireRevocation === true) {
-    out.push(revocationUnknownReason("path[0]", "nothing supplied answers for this certificate's CA"));
+  if (input.requireRevocation === true && !covered.has(0)) {
+    out.push(revocationUnknownReason("path[0]", "nothing supplied answers about this certificate"));
   }
   return out;
 }

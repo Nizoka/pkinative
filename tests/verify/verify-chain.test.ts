@@ -285,7 +285,12 @@ describe('verifyCertificateChain — the one place that catches', () => {
             serverName: { kind: 'dns', value: 'leaf.example' },
             crls: [emptyCrl(root)], requireRevocation: true,
         });
-        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        // Two answers, and both are right. The list names the root, so it covers
+        // the INTERMEDIATE — which is now checked, because a revoked CA is a
+        // revoked chain — and its signature is nonsense, so that is unknown. The
+        // leaf is covered by nothing at all, which is the second. What is
+        // required is an answer about the leaf; what is checked is everything.
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
     });
 
     it('should consult a list that does cover the certificate', async () => {
@@ -714,6 +719,70 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.reasons.find((r) => r.code === 'PKI_REASON_INPUT_MALFORMED')?.path).toBe('ocsp[0]');
     });
 
+    it('should check the certificate above the leaf, because a revoked CA is a revoked chain', async () => {
+        // The CA whose key signed this leaf has had that key withdrawn. A
+        // verifier that asked only about the leaf would accept everything below
+        // a CA its own issuer had disowned — NIST PKITS has the test, and it is
+        // the shape a compromised sub-CA takes in the real world.
+        const { root, ica, leaf } = await hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [revokingCrl(root, ica)],
+        });
+        expect(codes(report)).toContain('PKI_REASON_REVOKED');
+        expect(report.reasons.find((r) => r.code === 'PKI_REASON_REVOKED')?.path).toContain('crl');
+    });
+
+    it('should try every certificate of that name for the list signature', async () => {
+        // A CA is a name, not a key: a rollover leaves two live at once, and
+        // PKITS has a CA that signs certificates with one key and its lists with
+        // another. Trying only the certificate that sits above the leaf asks
+        // about one of the CA's keys and calls the `false` an answer about the
+        // CA.
+        const { root, ica, leaf } = await hierarchy({ crlSign: true });
+        // A second certificate for the same CA name, holding a different key,
+        // and the list is signed by neither — so the answer is "checked and
+        // wrong" rather than "never checked", whichever one was tried.
+        const sibling = await issue({ subject: 'Verify ICA', issuerDer: root.subject.der, ca: true, serial: 99n, crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, sibling.certificate], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+    });
+
+    it('should believe a list the CA really signed', async () => {
+        // Every other list here is nonsense on purpose, because what those tests
+        // are about is which certificate is consulted. This one is signed, so
+        // the answer is a clean "not revoked" — and a revocation check that
+        // never once verified a signature would be checking nothing.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [await signedCrl(ica, icaKey)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual([]);
+    });
+
+    it('should apply one list to every certificate on the path that it covers', async () => {
+        // A CA rolling its key over leaves two certificates with the same
+        // subject: the one its own issuer signed, and one it signed itself. The
+        // leaf and that self-issued certificate then have the **same** issuer
+        // name, so a single list speaks about both — and it is asked once and
+        // applied twice, because whether a key entitled to sign it did is a
+        // property of the list rather than of each certificate.
+        const { root, ica, leaf, icaKey, rollover } = await ed25519Hierarchy({ crlSign: true, rollover: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, rollover as Certificate], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [await signedCrl(ica, icaKey, leaf)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
     it('should consult a covering list even when the path stopped at the leaf', async () => {
         // No candidates and no anchor, so `path[1]` does not exist and there is
         // no issuer to check the list's signature against. The list still
@@ -773,7 +842,7 @@ async function issueEd25519(options: {
 }
 
 /** root → ica → leaf, all Ed25519, with the ICA's key kept so it can answer. */
-async function ed25519Hierarchy(options: { ecdsaIca?: boolean } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate; icaKey: CryptoKeyHandle }> {
+async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean; rollover?: boolean } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate; icaKey: CryptoKeyHandle; rollover?: Certificate }> {
     const rootPair = await ed25519Key();
     const rootSpki = new Uint8Array(await crypto.subtle.exportKey('spki', rootPair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
     const rootSubject = [[{ type: '2.5.4.3', value: 'OCSP Root' }]];
@@ -802,10 +871,31 @@ async function ed25519Hierarchy(options: { ecdsaIca?: boolean } = {}): Promise<{
         notBefore: AT - DAY, notAfter: AT + DAY, subjectPublicKey: icaSpki,
         extensions: [
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
-            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(options.crlSign === true ? ['keyCertSign', 'cRLSign'] : ['keyCertSign']) },
         ],
     }, { key: rootPair.privateKey, algorithm: { name: 'Ed25519' } });
     const ica = parseCertificate(icaDer, quiet);
+
+    // A key rollover: the SAME subject name, signed by the CA's own key, which
+    // is what makes the leaf and this certificate share an issuer name.
+    let rollover: Certificate | undefined;
+    let signsLeaf = icaPair;
+    if (options.rollover === true) {
+        const rollPair = await ed25519Key();
+        // The leaf is signed by the NEW key, so the only chain that verifies
+        // goes through the rollover certificate and both it and the leaf end up
+        // on the path with the same issuer name.
+        signsLeaf = rollPair;
+        const rollSpki = new Uint8Array(await crypto.subtle.exportKey('spki', rollPair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
+        rollover = parseCertificate(await createCertificate({
+            serialNumber: 9n, issuerDer: ica.subject.der, subject: [[{ type: '2.5.4.3', value: 'OCSP ICA' }]],
+            notBefore: AT - DAY, notAfter: AT + DAY, subjectPublicKey: rollSpki,
+            extensions: [
+                { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+                { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+            ],
+        }, { key: icaPair.privateKey, algorithm: { name: 'Ed25519' } }), quiet);
+    }
 
     const leafPair = await ed25519Key();
     const leafSpki = new Uint8Array(await crypto.subtle.exportKey('spki', leafPair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
@@ -816,8 +906,8 @@ async function ed25519Hierarchy(options: { ecdsaIca?: boolean } = {}): Promise<{
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             { oid: '2.5.29.17', value: encodeSubjectAltName([{ kind: 'dNSName', value: 'leaf.example' }]) },
         ],
-    }, { key: icaPair.privateKey, algorithm: icaAlgorithm });
-    return { root, ica, leaf: parseCertificate(leafDer, quiet), icaKey: icaPair.privateKey };
+    }, { key: signsLeaf.privateKey, algorithm: options.rollover === true ? { name: 'Ed25519' } as SignatureAlgorithm : icaAlgorithm });
+    return { root, ica, leaf: parseCertificate(leafDer, quiet), icaKey: icaPair.privateKey, ...(rollover === undefined ? {} : { rollover }) };
 }
 
 /** `1.3.101.112`, Ed25519: a raw 64-byte signature, so no DER conversion. */
@@ -888,6 +978,53 @@ async function ocspResponse(options: {
         encodeEnumerated(0),
         encodeExplicit(0, encodeSequence([encodeObjectIdentifier(OID_BASIC_RESPONSE), encodeOctetString(basic)]), { tagClass: 'context' }),
     ]);
+}
+
+/**
+ * A CRL naming `issuer` and **really signed** by `key`, Ed25519 so the
+ * signature is 64 raw bytes and needs no DER conversion.
+ */
+async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, revoked?: Certificate): Promise<Uint8Array> {
+    const entries = revoked === undefined ? [] : [encodeSequence([
+        encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
+        encodeTime(AT - 30 * DAY, 'UTCTime'),
+    ])];
+    const tbs = encodeSequence([
+        encodeInteger(1n),
+        ED25519,
+        issuer.subject.der,
+        encodeTime(AT - DAY, 'UTCTime'),
+        encodeTime(AT + DAY, 'UTCTime'),
+        ...(entries.length === 0 ? [] : [encodeSequence(entries)]),
+    ]);
+    const signature = new Uint8Array(await crypto.subtle.sign(
+        { name: 'Ed25519' },
+        key as unknown as Parameters<typeof crypto.subtle.sign>[1],
+        tbs,
+    ));
+    return encodeSequence([tbs, ED25519, encodeBitString(signature)]);
+}
+
+/**
+ * A CRL naming `issuer` that revokes `revoked` — unsigned, like the empty one,
+ * because what is under test is that the entry is *found* on a certificate
+ * above the leaf, not that the list is believed.
+ */
+function revokingCrl(issuer: Certificate, revoked: Certificate): Uint8Array {
+    const algorithm = encodeAlgorithmIdentifier('1.2.840.10045.4.3.2');
+    const entry = encodeSequence([
+        encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
+        encodeTime(AT - 30 * DAY, 'UTCTime'),
+    ]);
+    const tbs = encodeSequence([
+        encodeInteger(1n),
+        algorithm,
+        issuer.subject.der,
+        encodeTime(AT - DAY, 'UTCTime'),
+        encodeTime(AT + DAY, 'UTCTime'),
+        encodeSequence([entry]),
+    ]);
+    return encodeSequence([tbs, algorithm, encodeBitString(Uint8Array.of(0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01))]);
 }
 
 /** An empty CRL naming `issuer`, whose signature is nonsense on purpose. */

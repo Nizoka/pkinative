@@ -40,8 +40,27 @@ const corpusPinParity: Rule = {
                 out.push(error(path, `missing — ${corpus.id} is pinned at ${corpus.commit} in scripts/lib/corpora.ts`));
             } else {
                 const listed = [...parseChecksums(text).keys()].sort();
-                const wanted = corpus.files.map((f) => f.name).sort();
-                if (listed.join('\n') !== wanted.join('\n')) out.push(error(path, `lists ${listed.join(', ') || 'nothing'}; scripts/lib/corpora.ts pins ${wanted.join(', ')}`));
+                if (corpus.archive !== undefined) {
+                    // An archive is pinned **twice**, and the two pins answer
+                    // different questions. `commit` is the archive's own SHA-256
+                    // and already fixes every byte inside it, so which files it
+                    // holds is not a choice made in the pin table — listing them
+                    // there would be transcribing the archive. What this list
+                    // defends against is the other thing: a bug in
+                    // scripts/lib/zip.ts that extracted the wrong bytes from the
+                    // right archive. So the demand here is only that the second
+                    // pin exists and names files the archive could hold.
+                    if (listed.length === 0) {
+                        out.push(error(path, `lists nothing — ${corpus.id} is an archive corpus, and this file is the pin that holds its extraction to the bytes reviewed`));
+                    }
+                    const stray = listed.filter((name) => !corpus.archive?.include.some((prefix) => name.startsWith(prefix)));
+                    if (stray.length > 0) {
+                        out.push(error(path, `lists ${stray.slice(0, 3).join(', ')} and ${String(stray.length)} file(s) outside ${corpus.archive.include.join(', ')} — the extraction kept more than the pin table asks for`));
+                    }
+                } else {
+                    const wanted = corpus.files.map((f) => f.name).sort();
+                    if (listed.join('\n') !== wanted.join('\n')) out.push(error(path, `lists ${listed.join(', ') || 'nothing'}; scripts/lib/corpora.ts pins ${wanted.join(', ')}`));
+                }
             }
             if (!notices.includes(corpus.repository) || !notices.includes(corpus.commit) || !notices.includes(corpus.licence)) {
                 out.push(error(NOTICES, `does not credit ${corpus.title} (${corpus.repository}) at commit ${corpus.commit} under ${corpus.licence}`));

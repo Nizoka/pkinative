@@ -58,6 +58,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
 import { CLAUSES } from './lib/clauses.js';
 import { newScoreCache, scoreCase, type LimboScoreCase } from './lib/limbo-score.js';
+import { corpusWindowProblem, expectationOfName, PKITS_AT, readPkits } from './lib/pkits.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
 import { evaluateClauses } from './validators/rfc5280-clauses.js';
@@ -74,6 +75,7 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
 const SCORE_BASELINE = join(ROOT, 'scripts', 'data', 'limbo-score.json');
+const PKITS_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-score.json');
 const REPORT_DIR = join(ROOT, 'test-output', 'conformance');
 const OPENSSL_SAMPLE = 200;
 /** How many certificates each cross-implementation validator is given (L4). */
@@ -83,7 +85,7 @@ const ENCODING_FLAGS: ReadonlySet<string> = new Set(['BerEncodedSignature', 'Inv
 
 const args = process.argv.slice(2);
 const levelAt = args.indexOf('--level');
-const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 6;
+const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 7;
 const requireAll = args.includes('--require-all');
 const updateBaseline = args.includes('--update-baseline');
 
@@ -112,6 +114,7 @@ interface WycheproofFile {
 interface Declared {
     readonly 'x509-limbo'?: { readonly commit?: string; readonly testcases?: number; readonly certificates?: number; readonly refused?: number; readonly agree?: number };
     readonly wycheproof?: { readonly commit?: string; readonly tests?: number };
+    readonly pkits?: { readonly commit?: string; readonly certificates?: number; readonly tests?: number; readonly agree?: number };
 }
 
 interface Baseline {
@@ -339,6 +342,8 @@ async function main(): Promise<number> {
     if (level >= 5) runClauseChecker(certificates, parsed);
 
     if (level >= 6) await runPathScorer(pki, limbo.testcases as unknown as readonly LimboScoreCase[], declared);
+
+    if (level >= 7) await runPkitsScorer(pki, declared);
 
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
     let vectors = 0;
@@ -602,6 +607,163 @@ async function runPathScorer(pki: typeof Pki, cases: readonly LimboScoreCase[], 
 
     const rate = scored === 0 ? 0 : (agree / scored) * 100;
     record('L6', `${String(agree)}/${String(scored)} chains agree (${rate.toFixed(2)} %), ${String(disagreed.size)} reviewed deviations, ${String(Object.keys(baseline.reasons).length)} pinned on their reason codes, ${String(skipped.size)} skipped, ${String(unparsed)} refused at L1 — ${String(cache.verifications)} signature verifications in ${String(seconds)} s`);
+}
+
+// ── L7 — NIST PKITS, the second corpus ──────────────────────────────
+
+/** The reviewed PKITS baseline, `scripts/data/pkits-score.json`. */
+interface PkitsBaseline {
+    readonly $comment: string;
+    readonly corpus: string;
+    readonly commit: string;
+    readonly canaries: { readonly mustSucceed: string; readonly mustFail: string };
+    readonly totals: { readonly scored: number; readonly agree: number; readonly deviations: number; readonly skipped: number };
+    readonly deviations: Readonly<Record<string, { readonly expected: string; readonly why: string }>>;
+    readonly reasons: Readonly<Record<string, string>>;
+}
+
+/**
+ * L6 proves agreement with **one** corpus. L7 proves agreement with a second,
+ * written by different people from a different reading — NIST's federal PKI
+ * against the Python cryptography project's Web PKI — which is the only thing
+ * that catches a misreading the first corpus shares.
+ *
+ * It fails on the same five things L6 does, for the same reasons, and the
+ * baselines are separate because their canaries and their deviations are about
+ * different standards. What it adds is one assertion the other cannot make:
+ * every PKITS certificate and every PKITS list must **parse**, with no reviewed
+ * refusal list at all. x509-limbo is adversarial and its 565 refusals are the
+ * point; PKITS is a conformance suite issued by a standards body, and a
+ * certificate in it that pkinative cannot read is a defect here.
+ */
+async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void> {
+    const dir = corpusDir(ROOT, corpus('pkits'));
+    const baseline = existsSync(PKITS_BASELINE) ? JSON.parse(readFileSync(PKITS_BASELINE, 'utf8')) as PkitsBaseline : null;
+    if (baseline !== null && baseline.commit !== corpus('pkits').commit) {
+        fail(`L7 the score baseline was made at pkits ${baseline.commit}, the pin is ${corpus('pkits').commit} — rescore and review it`);
+    }
+
+    const pkits = readPkits(pki, dir);
+    for (const [name, code] of pkits.refused) {
+        fail(`L7 ${name}: refused with ${code} — PKITS is a conformance suite, and a certificate in it this library cannot read is a defect here, not a reviewed refusal`);
+    }
+    const aged = corpusWindowProblem(pkits.anchor);
+    if (aged !== null) { fail(`L7 ${aged}`); return; }
+
+    const total = pkits.candidates.length + pkits.tests.size + 1;
+    if (total !== declared.pkits?.certificates) {
+        fail(`L7 pkits holds ${String(total)} certificates; ecosystem.json declares ${String(declared.pkits?.certificates)} (canary)`);
+    }
+    if (pkits.tests.size !== declared.pkits?.tests) {
+        fail(`L7 pkits holds ${String(pkits.tests.size)} end-entity certificates; ecosystem.json declares ${String(declared.pkits?.tests)} (canary)`);
+    }
+
+    const started = Date.now();
+    const measured = new Map<string, string>();
+    const disagreed = new Map<string, { expected: string; reasons: readonly string[] }>();
+    const skipped: string[] = [];
+    let agree = 0;
+    let verified = 0;
+    for (const [name, leaf] of [...pkits.tests].sort(([a], [b]) => (a < b ? -1 : 1))) {
+        const expected = expectationOfName(name);
+        if (expected === null) { skipped.push(name); continue; }
+        // Revocation is required, because PKITS is a suite for a validator that
+        // checks it: `InvalidMissingCRLTest1` expects a refusal precisely when
+        // no list covers the CA, and a runner that soft-failed would score that
+        // test by not asking the question it is about.
+        const report = await pki.verifyCertificateChain({
+            leaf,
+            candidates: pkits.candidates,
+            trustAnchors: [pkits.anchor],
+            at: PKITS_AT,
+            crls: pkits.crls,
+            requireRevocation: true,
+            limits: { maxPathsExplored: 200 },
+        });
+        verified += report.verified;
+        measured.set(name, report.reasons.map((reason) => reason.code).join(','));
+        if (report.valid === expected) agree += 1;
+        else disagreed.set(name, { expected: expected ? 'SUCCESS' : 'FAILURE', reasons: report.reasons.map((r) => r.code) });
+    }
+    const seconds = Math.round((Date.now() - started) / 1000);
+
+    if (updateBaseline) {
+        const deviations: Record<string, { expected: string; why: string }> = {};
+        for (const [name, { expected }] of [...disagreed].sort(([a], [b]) => (a < b ? -1 : 1))) {
+            deviations[name] = { expected, why: baseline?.deviations[name]?.why ?? '' };
+        }
+        const reasons: Record<string, string> = {};
+        const pinned = Object.keys(baseline?.reasons ?? {});
+        if (pinned.length === 0) {
+            // The same sampling discipline as L6: which cases are pinned is a
+            // decision the tool may take, what their codes ARE is a measurement
+            // it must never invent. Six per PKITS section, by name.
+            const perSection = new Map<string, number>();
+            for (const [name, codes] of [...measured].sort(([a], [b]) => (a < b ? -1 : 1))) {
+                if (codes === '' || disagreed.has(name)) continue;
+                const section = /^Invalid([A-Za-z]{1,12})/.exec(name)?.[1] ?? 'other';
+                const taken = perSection.get(section) ?? 0;
+                if (taken >= 2) continue;
+                perSection.set(section, taken + 1);
+                reasons[name] = codes;
+            }
+        } else {
+            for (const name of pinned.sort()) reasons[name] = measured.get(name) ?? '(not scored)';
+        }
+        const next: PkitsBaseline = {
+            $comment: 'Reviewed score of NIST PKITS: every accepted disagreement with the sentence that makes it acceptable, and the tests pinned on their PkiReasonCode rather than on the boolean. Expectations come from the file names, which is the only machine-readable statement of intent the archive carries — the PDF is transcribed, never parsed. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE the `why` of every new deviation by hand; the tool never fills one in, and an empty one fails the gate.',
+            corpus: 'pkits',
+            commit: corpus('pkits').commit,
+            canaries: baseline?.canaries ?? { mustSucceed: '', mustFail: '' },
+            totals: { scored: measured.size, agree, deviations: disagreed.size, skipped: skipped.length },
+            deviations,
+            reasons,
+        };
+        mkdirSync(dirname(PKITS_BASELINE), { recursive: true });
+        writeFileSync(PKITS_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+        record('L7', `pkits baseline rewritten: ${String(agree)} agree, ${String(disagreed.size)} deviations`);
+        return;
+    }
+
+    if (baseline === null) {
+        fail(`L7 ${PKITS_BASELINE} is missing — run with --update-baseline once, then write the reason for each deviation`);
+        return;
+    }
+    for (const [which, name] of [['mustSucceed', baseline.canaries.mustSucceed], ['mustFail', baseline.canaries.mustFail]] as const) {
+        const reasons = measured.get(name);
+        if (reasons === undefined) { fail(`L7 canary ${which} ${name} was not scored — the harness is not exercising the corpus`); continue; }
+        const wants = which === 'mustSucceed';
+        if ((reasons === '') !== wants) {
+            fail(`L7 canary ${which} ${name} ${wants ? `must validate cleanly and reported ${reasons}` : 'must be refused and validated cleanly'} — the scorer is not deciding anything`);
+        }
+    }
+    for (const [name, { expected, reasons }] of disagreed) {
+        const reviewed = baseline.deviations[name];
+        if (reviewed === undefined) {
+            fail(`L7 NEW-DISAGREEMENT ${name}: PKITS expects ${expected} and pkinative says otherwise [${reasons.join(',') || 'accepted'}] — fix it, or add it to the baseline with the sentence that makes it acceptable`);
+        } else if (reviewed.why.trim() === '') {
+            fail(`L7 ${name}: the deviation has no reason written — a disagreement is either a defect or a decision, and only a sentence tells them apart`);
+        }
+    }
+    for (const name of Object.keys(baseline.deviations)) {
+        if (disagreed.has(name)) continue;
+        if (!measured.has(name)) fail(`L7 stale deviation ${name}: no such test is scored in the corpus`);
+        else fail(`L7 UNEXPECTED-AGREEMENT ${name}: the baseline expects a deviation and pkinative now agrees with PKITS — delete the entry, its reason has stopped being true`);
+    }
+    for (const [name, expected] of Object.entries(baseline.reasons)) {
+        const actual = measured.get(name);
+        if (actual === undefined) fail(`L7 pinned test ${name} was not scored — the pin is stale`);
+        else if (actual !== expected) fail(`L7 ${name}: reasons are [${actual || 'none'}], the baseline pins [${expected || 'none'}] — refused for a different reason is a change in behaviour, whatever the boolean says`);
+    }
+    if (measured.size !== baseline.totals.scored || skipped.length !== baseline.totals.skipped) {
+        fail(`L7 ${String(measured.size)} tests scored and ${String(skipped.length)} skipped; the baseline says ${String(baseline.totals.scored)} and ${String(baseline.totals.skipped)} (canary)`);
+    }
+    if (agree !== declared.pkits?.agree) {
+        fail(`L7 ${String(agree)} tests agree; ecosystem.json declares ${String(declared.pkits?.agree)} (canary)`);
+    }
+
+    const rate = measured.size === 0 ? 0 : (agree / measured.size) * 100;
+    record('L7', `pkits@${corpus('pkits').commit.slice(0, 12)}: ${String(agree)}/${String(measured.size)} NIST paths agree (${rate.toFixed(2)} %), ${String(disagreed.size)} reviewed deviations, ${String(Object.keys(baseline.reasons).length)} pinned on their reason codes, ${String(skipped.length)} skipped, every one of ${String(total)} certificates and ${String(pkits.crls.length)} lists parsed — ${String(verified)} signature verifications in ${String(seconds)} s`);
 }
 
 // ── L4 — confrontation with other implementations ───────────────────
