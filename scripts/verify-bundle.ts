@@ -126,12 +126,19 @@ export const PROBES: readonly Probe[] = [
     // this figure is on track; it is raised in the commit that measures it,
     // never ahead of one, which is what keeps it a budget rather than a ceiling
     // nobody reads.
-    // The composition layer weighed, and the one probe here with **no**
-    // `mustNotContain` by design: `verifyCertificateChain` reaches a key, a
-    // parser and a verdict, which is precisely why it exists. What it is worth
-    // measuring is that composing everything costs barely more than the parts —
-    // a caller who wants the whole answer pays for the whole answer once.
-    { exports: ['verifyCertificateChain'], maxBytes: 90 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // The composition layer weighed. It reaches a key, a parser and a verdict,
+    // which is precisely why it exists — so the markers it must NOT retain are
+    // only the two nothing here reads: the OID name registry and the PEM
+    // envelope. Callers hand over DER.
+    //
+    // 90 KB → 120 KB, measured at 112.7 KB when OCSP joined: the response
+    // decoder, and `parseCertificate` with both digests for the delegated
+    // responder check. That is **70 % of the whole package**, and it is the
+    // honest price of one call that asks every question — a caller who wants
+    // only the parser still pays 61 KB, which is what the leaf probes above are
+    // for. Recorded rather than hidden, and raised in the commit that measures
+    // it.
+    { exports: ['verifyCertificateChain'], maxBytes: 120 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     { exports: ['*'], maxBytes: 164 * 1024, mustNotContain: [] },
 ];
 

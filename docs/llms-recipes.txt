@@ -807,6 +807,18 @@ export default async function run(): Promise<Record<string, string>> {
     });
     const malformed = badCrl.reasons.find((reason) => reason.code === 'PKI_REASON_INPUT_MALFORMED');
 
+    // An OCSP response is matched on ALL THREE CertID fields and its signer is
+    // authorised the RFC 6960 §4.2.2.2 way: the issuing CA signed it, or the CA
+    // issued a certificate carrying id-kp-OCSPSigning and that certificate did.
+    // The certificates a response ATTACHES are a convenience for reaching that
+    // delegate, never a claim of authority — a client that trusted the attached
+    // bag would let the responder nominate itself. These bytes are not a
+    // response at all, which is reported rather than thrown.
+    const badOcsp = await verifyCertificateChain({
+        leaf: intermediate, trustAnchors: [root], at,
+        ocsp: [Uint8Array.of(0x30, 0x80, 0x00)],
+    });
+
     return {
         real: summarise(real),
         // How many signatures the call had to compute. A number far above the
@@ -821,6 +833,7 @@ export default async function run(): Promise<Record<string, string>> {
         noList: summarise(noList),
         listRequired: summarise(listRequired),
         badCrlReported: `${malformed?.code ?? 'none'} errorCode=${malformed?.errorCode ?? 'none'}`,
+        badOcspReported: badOcsp.reasons.map((reason) => reason.code).join(','),
         neverThrows: 'true',
     };
 }

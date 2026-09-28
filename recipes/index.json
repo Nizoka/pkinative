@@ -268,6 +268,7 @@
         "noList=ok, 2 certificates",
         "listRequired=PKI_REASON_REVOCATION_UNKNOWN",
         "badCrlReported=PKI_REASON_INPUT_MALFORMED errorCode=PKI_ASN1_LENGTH_INVALID",
+        "badOcspReported=PKI_REASON_INPUT_MALFORMED",
         "neverThrows=true"
       ]
     },

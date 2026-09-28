@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 102849,
-      "approxTokens": 25712
+      "bytes": 103930,
+      "approxTokens": 25983
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 72781,
-      "approxTokens": 18195
+      "bytes": 73567,
+      "approxTokens": 18392
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 197924,
-      "approxTokens": 49481
+      "bytes": 198560,
+      "approxTokens": 49640
     },
     {
       "url": "data/errors.json",
@@ -107,8 +107,8 @@
         "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 40877,
-      "approxTokens": 10219
+      "bytes": 41958,
+      "approxTokens": 10490
     },
     {
       "title": "Security model",

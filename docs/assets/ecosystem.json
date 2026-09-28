@@ -82,9 +82,9 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "9b59f6cc2f9fe5dfbb255038500bfca4d0917e9324e94ed09480af081a8f297f",
-      "bundleSha256": "cf35ac1e97819ba51a96c27ce1f55435805fdf3c131bf821779eb43496ea4710",
-      "bytes": 272706,
+      "sourceSha256": "537c758c867aa3d0289a5c3ed8fa1a33b3a16c660c0a54ace366c250dd8f7367",
+      "bundleSha256": "7a5833cf97bafec996713b809441fb1c8467dcb10afff96cc34fbffd36f4312b",
+      "bytes": 275920,
       "maxBytes": 280000
     },
     "socialImages": [

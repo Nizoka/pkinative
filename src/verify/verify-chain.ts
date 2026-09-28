@@ -44,11 +44,16 @@
  */
 
 import { inputMalformedReason, revocationUnknownReason } from '../core/pki-reasons.js';
-import { verifyCertificateSignature, verifyCrlSignature } from '../crypto/x509-verify.js';
+import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature } from '../crypto/x509-verify.js';
 import { buildCertificatePath } from '../path/path-build.js';
 import { checkExtendedKeyUsage } from '../path/path-purpose.js';
 import { checkServerName, type ServerIdentity } from '../path/path-server-name.js';
+import { computeKeyIdentifier } from '../hash/key-identifier.js';
+import { sha1 } from '../hash/sha1.js';
+import { sha256 } from '../hash/sha256.js';
 import { checkRevocation } from '../revocation/crl-check.js';
+import { checkOcspStatus } from '../revocation/ocsp-check.js';
+import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PathBuildReport } from '../path/path-build.js';
@@ -57,6 +62,8 @@ import type { PkiLimits } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
 import type { CertificateList } from '../types/crl-types.js';
+import type { OcspBasicResponse } from '../types/ocsp-types.js';
+import { parseCertificate } from '../x509/x509-certificate.js';
 import { getExtension } from '../x509/x509-extensions.js';
 
 /** What to accept, and everything needed to decide it. */
@@ -99,6 +106,30 @@ export interface VerifyChainInput {
      * them, are yours.
      */
     readonly crls?: readonly Uint8Array[] | undefined;
+    /**
+     * OCSP responses, as the DER a responder returned or a TLS server stapled.
+     *
+     * Each is matched to the end-entity certificate by **all three** `CertID`
+     * fields — an answer about somebody else's serial is a mismatch, not a
+     * status — and the responder is authorised the way RFC 6960 §4.2.2.2 sets
+     * out: either the CA that issued the certificate signed the response
+     * itself, or it signed a certificate that carries `id-kp-OCSPSigning` and
+     * that certificate signed the response. A responder nobody authorised is a
+     * responder anyone can be, so nothing else counts — the certificates a
+     * response *attaches* are a convenience for path building, never a claim of
+     * authority.
+     */
+    readonly ocsp?: readonly Uint8Array[] | undefined;
+    /**
+     * The nonce you put in the request, so a replayed answer can be caught. A
+     * different one coming back is always a mismatch; a **missing** echo is
+     * reported only when `requireOcspNonce` asks, because the CA/Browser Forum
+     * discourages nonces so responses stay cacheable and most public responders
+     * omit it.
+     */
+    readonly ocspNonce?: Uint8Array | undefined;
+    /** Treat a missing nonce echo as a mismatch. Off by default; see `ocspNonce`. */
+    readonly requireOcspNonce?: boolean | undefined;
     /**
      * Report `PKI_REASON_REVOCATION_UNKNOWN` when no usable list covered the
      * end-entity certificate. **Off by default**, which is soft-fail — and the
@@ -151,6 +182,9 @@ function _pkiError(error: unknown): PkiError {
     if (!(error instanceof PkiError)) throw error;
     return error;
 }
+
+/** `id-kp-OCSPSigning`, the only purpose that makes a delegate a responder. */
+const OCSP_SIGNING = '1.3.6.1.5.5.7.3.9';
 
 const _hex = (bytes: Uint8Array): string => {
     let out = '';
@@ -302,9 +336,10 @@ async function _crlSignature(crl: CertificateList, issuer: Certificate, allowSha
 async function _checkRevocation(input: VerifyChainInput, path: readonly Certificate[], at: number): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const lists = input.crls ?? [];
-    if (lists.length === 0) {
+    const stapled = input.ocsp ?? [];
+    if (lists.length === 0 && stapled.length === 0) {
         if (input.requireRevocation === true) {
-            out.push(revocationUnknownReason('path[0]', 'no revocation list was supplied for this certificate'));
+            out.push(revocationUnknownReason('path[0]', 'no revocation list and no OCSP response were supplied for this certificate'));
         }
         return out;
     }
@@ -363,8 +398,141 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             out.push(inputMalformedReason(refused.code, refused.message, where));
         }
     }
+    for (const [index, der] of stapled.entries()) {
+        const where = `ocsp[${String(index)}]`;
+        try {
+            const response = parseOcspResponse(der, reading);
+            const basic = response.basicResponse;
+            // A response that is not `successful` carries no body — the protocol
+            // has nowhere to put one — so there is nothing to match against and
+            // `checkOcspStatus` reports the status the responder gave.
+            if (basic === undefined) {
+                out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, 'SHA-1'), at }));
+                continue;
+            }
+            // The digest the responder used, taken from its answer about **our**
+            // serial: a response may carry several, and computing the expected
+            // CertID under the wrong algorithm turns every answer into a
+            // mismatch. When no answer names our serial, any algorithm gives the
+            // same verdict, so the first one keeps the comparison well formed.
+            const mine = basic.responses.find((one) => _hex(one.certId.serialNumber.bytes) === _hex(input.leaf.serialNumber.bytes));
+            const algorithm = _digestOf(mine?.certId.hashAlgorithm.oid ?? basic.responses[0]?.certId.hashAlgorithm.oid);
+            const authorised = issuer === undefined
+                ? undefined
+                : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
+            covered = true;
+            out.push(...checkOcspStatus({
+                response,
+                expected: _certId(input.leaf, issuer, algorithm),
+                at,
+                ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorised: authorised.authorised }),
+                ...(input.ocspNonce === undefined ? {} : { nonce: input.ocspNonce }),
+                ...(input.requireOcspNonce === undefined ? {} : { requireNonce: input.requireOcspNonce }),
+            }));
+        } catch (error) {
+            const refused = _pkiError(error);
+            out.push(inputMalformedReason(refused.code, refused.message, where));
+        }
+    }
+
     if (!covered && input.requireRevocation === true) {
-        out.push(revocationUnknownReason('path[0]', 'no supplied list is issued by this certificate\'s CA'));
+        out.push(revocationUnknownReason('path[0]', 'nothing supplied answers for this certificate\'s CA'));
     }
     return out;
+}
+
+/** The three values RFC 6960 §4.1.1 binds an answer to, under one digest. */
+function _certId(certificate: Certificate, issuer: Certificate | undefined, algorithm: 'SHA-1' | 'SHA-256'): {
+    issuerNameHash: Uint8Array;
+    issuerKeyHash: Uint8Array;
+    serialNumber: Uint8Array;
+} {
+    const digest = algorithm === 'SHA-256' ? sha256 : sha1;
+    // With no issuer in the path there is nothing to hash, and empty expected
+    // values make every answer a mismatch — which is the right verdict: an OCSP
+    // answer about a certificate whose CA we never established is not evidence.
+    return {
+        issuerNameHash: issuer === undefined ? new Uint8Array(0) : digest(issuer.subject.der),
+        issuerKeyHash: issuer === undefined ? new Uint8Array(0) : computeKeyIdentifier(issuer.subjectPublicKeyInfo.publicKey.bytes, algorithm),
+        serialNumber: certificate.serialNumber.bytes,
+    };
+}
+
+/** `SHA-256` when the responder said so, `SHA-1` otherwise — RFC 6960 §4.3's default. */
+function _digestOf(oid: string | undefined): 'SHA-1' | 'SHA-256' {
+    return oid === '2.16.840.1.101.3.4.2.1' ? 'SHA-256' : 'SHA-1';
+}
+
+/**
+ * Who signed this response, and whether they were allowed to (RFC 6960
+ * §4.2.2.2).
+ *
+ * Exactly two things count. **The CA signed it itself** — the simple case, and
+ * the only one needing no extra certificate. Or **the CA delegated**: it issued
+ * a certificate carrying `id-kp-OCSPSigning`, and that certificate signed this
+ * response. The third route the RFC allows, a responder the client trusts out
+ * of band, is a decision no library can take for a caller, so it is not taken
+ * here.
+ *
+ * The certificates a response **attaches** are a convenience for reaching the
+ * delegate, never a claim of authority: each is checked to have been issued by
+ * this CA, to carry the purpose, and to be valid now, before its signature
+ * counts for anything. A client that skipped those would let the responder
+ * nominate itself, which is what §4.2.2.2 exists to prevent.
+ */
+async function _ocspSigner(
+    basic: OcspBasicResponse,
+    issuer: Certificate,
+    at: number,
+    allowSha1: boolean,
+    reading: { limits: Partial<PkiLimits>; onDiagnostic: () => undefined },
+): Promise<{ signed: boolean | undefined; authorised: boolean }> {
+    const direct = await _ocspSignature(basic, issuer);
+    if (direct === true) return { signed: true, authorised: true };
+
+    for (const der of basic.certificates) {
+        let delegate: Certificate;
+        try {
+            delegate = parseCertificate(der, reading);
+        } catch (error) {
+            // An attached certificate nobody can read is not a reason to refuse
+            // the response: it was a hint, and the hint was unusable.
+            _pkiError(error);
+            continue;
+        }
+        if (_hex(delegate.issuer.der) !== _hex(issuer.subject.der)) continue;
+        const purposes = getExtension(delegate, 'extendedKeyUsage')?.purposes ?? [];
+        if (!purposes.includes(OCSP_SIGNING)) continue;
+        if (at < delegate.validity.notBefore.epochMilliseconds || at > delegate.validity.notAfter.epochMilliseconds) continue;
+        // The CA must actually have issued it, not merely be named by it.
+        let issued: boolean;
+        try {
+            issued = await verifyCertificateSignature(delegate, issuer, { allowSha1 });
+        } catch (error) {
+            _pkiError(error);
+            continue;
+        }
+        if (!issued) continue;
+        const signed = await _ocspSignature(basic, delegate);
+        if (signed === true) return { signed: true, authorised: true };
+    }
+    // Nobody authorised signed it. `signed` carries the direct attempt's answer
+    // so that "checked and wrong" stays apart from "never checked".
+    return { signed: direct, authorised: false };
+}
+
+/**
+ * One signature attempt, with a refusal reported as "could not be put".
+ *
+ * No `allowSha1` here, and that is deliberate rather than an omission:
+ * `verifyOcspSignature` refuses SHA-1 outright because a revocation answer is a
+ * live authentication decision and has no archival reading to make room for.
+ */
+async function _ocspSignature(basic: OcspBasicResponse, signer: Certificate): Promise<boolean | undefined> {
+    try {
+        return await verifyOcspSignature(basic, signer);
+    } catch (error) {
+        _pkiError(error);
+        return undefined;
+    }
 }

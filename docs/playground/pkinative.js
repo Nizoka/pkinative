@@ -4991,11 +4991,356 @@ function assertCertificate(value, what) {
   return value;
 }
 
+// src/x509/x509-spki.ts
+var CODE3 = "PKI_X509_SPKI_INVALID";
+var OID_RSA = "1.2.840.113549.1.1.1";
+var OID_RSA_PSS = "1.2.840.113549.1.1.10";
+var OID_EC = "1.2.840.10045.2.1";
+var CURVES = /* @__PURE__ */ new Map([
+  ["1.2.840.10045.3.1.7", { curve: "P-256", size: 32 }],
+  ["1.3.132.0.34", { curve: "P-384", size: 48 }],
+  ["1.3.132.0.35", { curve: "P-521", size: 66 }]
+]);
+var OCTET_KEYS = /* @__PURE__ */ new Map([
+  ["1.3.101.110", { kind: "x25519", length: 32 }],
+  ["1.3.101.111", { kind: "x448", length: 56 }],
+  ["1.3.101.112", { kind: "ed25519", length: 32 }],
+  ["1.3.101.113", { kind: "ed448", length: 57 }],
+  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312 }],
+  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952 }],
+  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592 }]
+]);
+function requireWholeOctets(parts, what) {
+  if (parts.publicKey.unusedBits !== 0) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `has ${parts.publicKey.unusedBits} unused bits; ${what} key is a whole number of octets`);
+  }
+}
+function readRsa(parts, kind, ctx) {
+  requireWholeOctets(parts, "an RSA");
+  try {
+    const key = decodeWithContext(parts.publicKey.bytes, ctx, false);
+    const modulusNode = key.children[0];
+    const exponentNode = key.children[1];
+    if (key.tagClass !== "universal" || key.tagNumber !== TAG_SEQUENCE || key.children.length !== 2 || modulusNode?.tagClass !== "universal" || modulusNode.tagNumber !== TAG_INTEGER || exponentNode?.tagClass !== "universal" || exponentNode.tagNumber !== TAG_INTEGER) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "is not an RSAPublicKey: a SEQUENCE of the modulus and the public exponent, two INTEGERs");
+    }
+    const modulus = _readInteger(modulusNode, ctx);
+    const publicExponent = _readInteger(exponentNode, ctx);
+    if (modulus <= 0n || publicExponent <= 0n) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "has a modulus or public exponent that is not positive");
+    }
+    const content = modulusNode.content;
+    const info = {
+      kind,
+      algorithm: parts.algorithm,
+      publicKey: parts.publicKey,
+      der: parts.der,
+      modulus: content[0] === 0 ? content.subarray(1) : content,
+      modulusBits: modulus.toString(2).length,
+      publicExponent
+    };
+    return Object.freeze(info);
+  } catch (error) {
+    if (error instanceof PkiEncodingError) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is not a DER RSAPublicKey (${error.code})`);
+    }
+    throw error;
+  }
+}
+function readEc(parts, ctx) {
+  const parameters = parts.algorithm.parameters;
+  if (parameters === void 0) {
+    throw certificateError(CODE3, `${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, parts.keyOffset, "are absent; an EC key names its curve (RFC 5480 \xA72.1.1)");
+  }
+  const namedCurve = parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? _readObjectIdentifier(parameters, ctx) : void 0;
+  const spec = namedCurve === void 0 ? void 0 : CURVES.get(namedCurve);
+  requireWholeOctets(parts, "an EC");
+  const point = parts.publicKey.bytes;
+  const first = point[0];
+  let pointFormat;
+  if (first === 4) {
+    pointFormat = "uncompressed";
+    const valid = spec === void 0 ? point.length >= 3 && point.length % 2 === 1 : point.length === 1 + 2 * spec.size;
+    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is an uncompressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
+  } else if (first === 2 || first === 3) {
+    pointFormat = "compressed";
+    const valid = spec === void 0 ? point.length >= 2 : point.length === 1 + spec.size;
+    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
+  } else {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 \xA72.2 allows no other point form");
+  }
+  const info = {
+    kind: "ec",
+    algorithm: parts.algorithm,
+    publicKey: parts.publicKey,
+    der: parts.der,
+    namedCurve,
+    curve: spec?.curve,
+    pointFormat,
+    point
+  };
+  return Object.freeze(info);
+}
+function readOctetKey(parts, spec) {
+  if (parts.algorithm.parameters !== void 0) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (RFC 8410 \xA73)`);
+  }
+  requireWholeOctets(parts, `an ${spec.kind}`);
+  if (parts.publicKey.bytes.length !== spec.length) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is ${parts.publicKey.bytes.length} octets; an ${spec.kind} key is ${spec.length}`);
+  }
+  const info = { kind: spec.kind, algorithm: parts.algorithm, publicKey: parts.publicKey, der: parts.der, key: parts.publicKey.bytes };
+  return Object.freeze(info);
+}
+function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE3, parentOffset);
+  if (seq.children.length > 2) {
+    throw certificateError(CODE3, path, seq.offset, `holds ${seq.children.length} values; SubjectPublicKeyInfo is an AlgorithmIdentifier and a BIT STRING`);
+  }
+  const algorithm = _readAlgorithmIdentifier(seq.children[0], ctx, `${path}.algorithm`, CODE3, seq.offset);
+  const keyPath = `${path}.subjectPublicKey`;
+  const keyNode = expectUniversalField(seq.children[1], TAG_BIT_STRING, keyPath, CODE3, seq.offset);
+  const parts = { algorithm, publicKey: _readBitString(keyNode, ctx), der: seq.bytes, keyPath, keyOffset: keyNode.offset };
+  if (algorithm.oid === OID_RSA) return readRsa(parts, "rsa", ctx);
+  if (algorithm.oid === OID_RSA_PSS) return readRsa(parts, "rsa-pss", ctx);
+  if (algorithm.oid === OID_EC) return readEc(parts, ctx);
+  const octetKey = OCTET_KEYS.get(algorithm.oid);
+  if (octetKey !== void 0) return readOctetKey(parts, octetKey);
+  const info = { kind: "unknown", algorithm, publicKey: parts.publicKey, der: seq.bytes };
+  return Object.freeze(info);
+}
+
+// src/x509/x509-certificate.ts
+var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
+var OID_SUBJECT_ALT_NAME = "2.5.29.17";
+var OID_BASIC_CONSTRAINTS = "2.5.29.19";
+var OID_KEY_USAGE = "2.5.29.15";
+var OID_NAME_CONSTRAINTS = "2.5.29.30";
+var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
+var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
+var OID_COMMON_NAME2 = "2.5.4.3";
+function looksLikeHost(value) {
+  if (value === "" || /[\s/=,]/.test(value)) return false;
+  return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
+}
+function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
+  const find = (oid) => extensions.find((e) => e.oid === oid);
+  const basicConstraints = find(OID_BASIC_CONSTRAINTS);
+  const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
+  if (version === 3) {
+    if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
+      ctx.emitter.emit(akiMissingDiagnostic());
+    }
+    if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === void 0) ctx.emitter.emit(skiMissingDiagnostic());
+  }
+  if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
+  const keyUsage = find(OID_KEY_USAGE);
+  if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
+    ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
+  }
+  const san = find(OID_SUBJECT_ALT_NAME);
+  if (san?.kind !== "subjectAltName") return;
+  const named = /* @__PURE__ */ new Set();
+  for (const name of san.names) {
+    if (name.kind === "dNSName") named.add(name.value.toLowerCase());
+    else if (name.kind === "iPAddress") named.add(name.address.toLowerCase());
+  }
+  if (named.size === 0) return;
+  for (const rdn of subject.rdns) {
+    for (const attribute of rdn) {
+      if (attribute.type !== OID_COMMON_NAME2 || attribute.value === void 0) continue;
+      const common = attribute.value.value;
+      if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
+      ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
+    }
+  }
+}
+var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
+function readVersion(field, ctx) {
+  const path = "tbsCertificate.version";
+  if (!field.constructed || field.children.length !== 1) {
+    throw certificateError(STRUCTURE3, path, field.offset, "is not one INTEGER under the explicit [0] tag");
+  }
+  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE3, field.offset);
+  const value = _readInteger(node, ctx);
+  if (value !== 0n && value !== 1n && value !== 2n) {
+    throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
+  }
+  if (value === 0n) ctx.emitter.emit(defaultEncodedDiagnostic(path, "v1", field.offset));
+  return Number(value) + 1;
+}
+function readValidityTime(node, ctx, path) {
+  if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
+    throw certificateError("PKI_X509_VALIDITY_INVALID", path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a certificate time is a UTCTime or a GeneralizedTime`);
+  }
+  const time = _readTime(node, ctx, void 0);
+  if (time.type === "GeneralizedTime") {
+    if (Number(time.text.slice(0, 4)) < 2050) ctx.emitter.emit(generalizedTimeBefore2050Diagnostic(path, time.text, node.offset));
+    if (/[.,]/.test(time.text)) ctx.emitter.emit(generalizedTimeFractionDiagnostic(path, time.text, node.offset));
+  }
+  return time;
+}
+function readValidity(node, ctx, parentOffset) {
+  const path = "tbsCertificate.validity";
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, "PKI_X509_VALIDITY_INVALID", parentOffset);
+  if (seq.children.length !== 2) {
+    throw certificateError("PKI_X509_VALIDITY_INVALID", path, seq.offset, `holds ${seq.children.length} values; Validity is notBefore and notAfter`);
+  }
+  const notBefore = readValidityTime(seq.children[0], ctx, `${path}.notBefore`);
+  const notAfter = readValidityTime(seq.children[1], ctx, `${path}.notAfter`);
+  if (notBefore.epochMilliseconds > notAfter.epochMilliseconds) ctx.emitter.emit(validityInvertedDiagnostic(notBefore.text, notAfter.text));
+  const validity = { notBefore, notAfter };
+  return Object.freeze(validity);
+}
+function readExtensions3(field, ctx, input, decode) {
+  const path = "tbsCertificate.extensions";
+  if (!field.constructed || field.children.length !== 1) {
+    throw certificateError(STRUCTURE3, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
+  }
+  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE3, field.offset);
+  if (seq.children.length === 0) {
+    throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
+  }
+  enforceLimit(ctx.limits, "maxExtensions", seq.children.length, "the extensions of the certificate");
+  const seen = /* @__PURE__ */ new Set();
+  const extensions = [];
+  for (let i = 0; i < seq.children.length; i++) {
+    const extPath = `${path}[${i}]`;
+    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE3, seq.offset);
+    if (ext.children.length < 2 || ext.children.length > 3) {
+      throw certificateError(STRUCTURE3, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
+    }
+    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE3, ext.offset), ctx);
+    let critical = false;
+    if (ext.children.length === 3) {
+      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE3, ext.offset);
+      critical = _readBoolean(flag, ctx);
+      if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
+    }
+    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE3, ext.offset);
+    const valueDer = _readOctetString(valueNode, ctx);
+    if (seen.has(oid)) {
+      throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
+    }
+    seen.add(oid);
+    if (!decode) {
+      const extension = { kind: "raw", oid, critical, valueDer };
+      extensions.push(Object.freeze(extension));
+    } else if (valueNode.constructed) {
+      extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
+    } else {
+      const start = valueNode.offset + valueNode.headerLength;
+      extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
+    }
+  }
+  return Object.freeze(extensions);
+}
+function parseCertificate(der, options) {
+  const bytes = assertBytes(der, "parseCertificate input");
+  const ctx = createAsn1Context(options);
+  const decode = options?.decodeExtensions ?? true;
+  if (typeof decode !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
+  }
+  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE3, 0);
+  if (cert.children.length !== 3) {
+    throw certificateError(STRUCTURE3, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
+  }
+  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE3, cert.offset);
+  const fields = tbs.children;
+  let index = 0;
+  let version = 1;
+  const first = fields[0];
+  if (first !== void 0 && first.tagClass === "context" && first.tagNumber === 0) {
+    version = readVersion(first, ctx);
+    index = 1;
+  }
+  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE3, tbs.offset);
+  const serialValue = _readInteger(serialNode, ctx);
+  if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
+  if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE3, tbs.offset);
+  const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
+  if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
+  const validity = readValidity(fields[index++], ctx, tbs.offset);
+  const subject = _readName(fields[index++], ctx, "tbsCertificate.subject", tbs.offset);
+  const subjectPublicKeyInfo = _readSubjectPublicKeyInfo(fields[index++], ctx, "tbsCertificate.subjectPublicKeyInfo", tbs.offset);
+  let issuerUniqueId;
+  let subjectUniqueId;
+  let extensions = NO_EXTENSIONS;
+  let extensionsPresent = false;
+  let rank = 0;
+  for (; index < fields.length; index++) {
+    const field = fields[index];
+    const tag = field.tagClass === "context" ? field.tagNumber : -1;
+    if (tag !== 1 && tag !== 2 && tag !== 3) {
+      throw certificateError(
+        STRUCTURE3,
+        `tbsCertificate[${index}]`,
+        field.offset,
+        `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
+      );
+    }
+    const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
+    if (tag <= rank) {
+      throw certificateError(
+        tag === 3 ? STRUCTURE3 : "PKI_X509_UNIQUE_ID_INVALID",
+        path,
+        field.offset,
+        "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
+      );
+    }
+    rank = tag;
+    if (tag === 3) {
+      extensions = readExtensions3(field, ctx, bytes, decode);
+      extensionsPresent = true;
+      continue;
+    }
+    if (field.constructed && ctx.rules === "der") {
+      throw certificateError("PKI_X509_UNIQUE_ID_INVALID", path, field.offset, "is constructed; a unique identifier is a primitive BIT STRING under its implicit tag");
+    }
+    const id = _readBitString(field, ctx);
+    if (tag === 1) issuerUniqueId = id;
+    else subjectUniqueId = id;
+  }
+  if ((issuerUniqueId !== void 0 || subjectUniqueId !== void 0) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
+  if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
+  if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
+    ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
+  }
+  emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
+  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
+  if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
+    ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
+  }
+  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE3, cert.offset), ctx);
+  const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
+  const certificate = {
+    der: cert.bytes,
+    tbsDer: tbs.bytes,
+    version,
+    serialNumber: Object.freeze(serialNumber),
+    signatureAlgorithm,
+    tbsSignatureAlgorithm,
+    signatureValue,
+    issuer,
+    validity,
+    subject,
+    subjectPublicKeyInfo,
+    issuerUniqueId,
+    subjectUniqueId,
+    extensions,
+    diagnostics: Object.freeze([...ctx.emitter.diagnostics])
+  };
+  return Object.freeze(certificate);
+}
+
 // src/verify/verify-chain.ts
 function _pkiError(error) {
   if (!(error instanceof PkiError)) throw error;
   return error;
 }
+var OCSP_SIGNING = "1.3.6.1.5.5.7.3.9";
 var _hex2 = (bytes) => {
   let out = "";
   for (const b of bytes) out += b.toString(16).padStart(2, "0");
@@ -5067,9 +5412,10 @@ async function _crlSignature(crl, issuer, allowSha1) {
 async function _checkRevocation(input, path, at) {
   const out = [];
   const lists = input.crls ?? [];
-  if (lists.length === 0) {
+  const stapled = input.ocsp ?? [];
+  if (lists.length === 0 && stapled.length === 0) {
     if (input.requireRevocation === true) {
-      out.push(revocationUnknownReason("path[0]", "no revocation list was supplied for this certificate"));
+      out.push(revocationUnknownReason("path[0]", "no revocation list and no OCSP response were supplied for this certificate"));
     }
     return out;
   }
@@ -5100,10 +5446,83 @@ async function _checkRevocation(input, path, at) {
       out.push(inputMalformedReason(refused.code, refused.message, where2));
     }
   }
+  for (const [index, der] of stapled.entries()) {
+    const where2 = `ocsp[${String(index)}]`;
+    try {
+      const response = parseOcspResponse(der, reading);
+      const basic = response.basicResponse;
+      if (basic === void 0) {
+        out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, "SHA-1"), at }));
+        continue;
+      }
+      const mine = basic.responses.find((one) => _hex2(one.certId.serialNumber.bytes) === _hex2(input.leaf.serialNumber.bytes));
+      const algorithm = _digestOf(mine?.certId.hashAlgorithm.oid ?? basic.responses[0]?.certId.hashAlgorithm.oid);
+      const authorised = issuer === void 0 ? void 0 : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
+      covered = true;
+      out.push(...checkOcspStatus({
+        response,
+        expected: _certId(input.leaf, issuer, algorithm),
+        at,
+        ...authorised === void 0 ? {} : { signatureVerified: authorised.signed, responderAuthorised: authorised.authorised },
+        ...input.ocspNonce === void 0 ? {} : { nonce: input.ocspNonce },
+        ...input.requireOcspNonce === void 0 ? {} : { requireNonce: input.requireOcspNonce }
+      }));
+    } catch (error) {
+      const refused = _pkiError(error);
+      out.push(inputMalformedReason(refused.code, refused.message, where2));
+    }
+  }
   if (!covered && input.requireRevocation === true) {
-    out.push(revocationUnknownReason("path[0]", "no supplied list is issued by this certificate's CA"));
+    out.push(revocationUnknownReason("path[0]", "nothing supplied answers for this certificate's CA"));
   }
   return out;
+}
+function _certId(certificate, issuer, algorithm) {
+  const digest = algorithm === "SHA-256" ? sha256 : sha1;
+  return {
+    issuerNameHash: issuer === void 0 ? new Uint8Array(0) : digest(issuer.subject.der),
+    issuerKeyHash: issuer === void 0 ? new Uint8Array(0) : computeKeyIdentifier(issuer.subjectPublicKeyInfo.publicKey.bytes, algorithm),
+    serialNumber: certificate.serialNumber.bytes
+  };
+}
+function _digestOf(oid) {
+  return oid === "2.16.840.1.101.3.4.2.1" ? "SHA-256" : "SHA-1";
+}
+async function _ocspSigner(basic, issuer, at, allowSha1, reading) {
+  const direct = await _ocspSignature(basic, issuer);
+  if (direct === true) return { signed: true, authorised: true };
+  for (const der of basic.certificates) {
+    let delegate;
+    try {
+      delegate = parseCertificate(der, reading);
+    } catch (error) {
+      _pkiError(error);
+      continue;
+    }
+    if (_hex2(delegate.issuer.der) !== _hex2(issuer.subject.der)) continue;
+    const purposes = getExtension(delegate, "extendedKeyUsage")?.purposes ?? [];
+    if (!purposes.includes(OCSP_SIGNING)) continue;
+    if (at < delegate.validity.notBefore.epochMilliseconds || at > delegate.validity.notAfter.epochMilliseconds) continue;
+    let issued;
+    try {
+      issued = await verifyCertificateSignature(delegate, issuer, { allowSha1 });
+    } catch (error) {
+      _pkiError(error);
+      continue;
+    }
+    if (!issued) continue;
+    const signed = await _ocspSignature(basic, delegate);
+    if (signed === true) return { signed: true, authorised: true };
+  }
+  return { signed: direct, authorised: false };
+}
+async function _ocspSignature(basic, signer) {
+  try {
+    return await verifyOcspSignature(basic, signer);
+  } catch (error) {
+    _pkiError(error);
+    return void 0;
+  }
 }
 
 // src/oid/oid-registry.ts
@@ -6185,350 +6604,6 @@ function formatFingerprint(digest, options) {
   }
   const hex3 = toHex(bytes, separator);
   return letterCase === "upper" ? hex3.toUpperCase() : hex3;
-}
-
-// src/x509/x509-spki.ts
-var CODE3 = "PKI_X509_SPKI_INVALID";
-var OID_RSA = "1.2.840.113549.1.1.1";
-var OID_RSA_PSS = "1.2.840.113549.1.1.10";
-var OID_EC = "1.2.840.10045.2.1";
-var CURVES = /* @__PURE__ */ new Map([
-  ["1.2.840.10045.3.1.7", { curve: "P-256", size: 32 }],
-  ["1.3.132.0.34", { curve: "P-384", size: 48 }],
-  ["1.3.132.0.35", { curve: "P-521", size: 66 }]
-]);
-var OCTET_KEYS = /* @__PURE__ */ new Map([
-  ["1.3.101.110", { kind: "x25519", length: 32 }],
-  ["1.3.101.111", { kind: "x448", length: 56 }],
-  ["1.3.101.112", { kind: "ed25519", length: 32 }],
-  ["1.3.101.113", { kind: "ed448", length: 57 }],
-  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312 }],
-  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952 }],
-  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592 }]
-]);
-function requireWholeOctets(parts, what) {
-  if (parts.publicKey.unusedBits !== 0) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `has ${parts.publicKey.unusedBits} unused bits; ${what} key is a whole number of octets`);
-  }
-}
-function readRsa(parts, kind, ctx) {
-  requireWholeOctets(parts, "an RSA");
-  try {
-    const key = decodeWithContext(parts.publicKey.bytes, ctx, false);
-    const modulusNode = key.children[0];
-    const exponentNode = key.children[1];
-    if (key.tagClass !== "universal" || key.tagNumber !== TAG_SEQUENCE || key.children.length !== 2 || modulusNode?.tagClass !== "universal" || modulusNode.tagNumber !== TAG_INTEGER || exponentNode?.tagClass !== "universal" || exponentNode.tagNumber !== TAG_INTEGER) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "is not an RSAPublicKey: a SEQUENCE of the modulus and the public exponent, two INTEGERs");
-    }
-    const modulus = _readInteger(modulusNode, ctx);
-    const publicExponent = _readInteger(exponentNode, ctx);
-    if (modulus <= 0n || publicExponent <= 0n) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "has a modulus or public exponent that is not positive");
-    }
-    const content = modulusNode.content;
-    const info = {
-      kind,
-      algorithm: parts.algorithm,
-      publicKey: parts.publicKey,
-      der: parts.der,
-      modulus: content[0] === 0 ? content.subarray(1) : content,
-      modulusBits: modulus.toString(2).length,
-      publicExponent
-    };
-    return Object.freeze(info);
-  } catch (error) {
-    if (error instanceof PkiEncodingError) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is not a DER RSAPublicKey (${error.code})`);
-    }
-    throw error;
-  }
-}
-function readEc(parts, ctx) {
-  const parameters = parts.algorithm.parameters;
-  if (parameters === void 0) {
-    throw certificateError(CODE3, `${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, parts.keyOffset, "are absent; an EC key names its curve (RFC 5480 \xA72.1.1)");
-  }
-  const namedCurve = parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? _readObjectIdentifier(parameters, ctx) : void 0;
-  const spec = namedCurve === void 0 ? void 0 : CURVES.get(namedCurve);
-  requireWholeOctets(parts, "an EC");
-  const point = parts.publicKey.bytes;
-  const first = point[0];
-  let pointFormat;
-  if (first === 4) {
-    pointFormat = "uncompressed";
-    const valid = spec === void 0 ? point.length >= 3 && point.length % 2 === 1 : point.length === 1 + 2 * spec.size;
-    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is an uncompressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
-  } else if (first === 2 || first === 3) {
-    pointFormat = "compressed";
-    const valid = spec === void 0 ? point.length >= 2 : point.length === 1 + spec.size;
-    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
-  } else {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 \xA72.2 allows no other point form");
-  }
-  const info = {
-    kind: "ec",
-    algorithm: parts.algorithm,
-    publicKey: parts.publicKey,
-    der: parts.der,
-    namedCurve,
-    curve: spec?.curve,
-    pointFormat,
-    point
-  };
-  return Object.freeze(info);
-}
-function readOctetKey(parts, spec) {
-  if (parts.algorithm.parameters !== void 0) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (RFC 8410 \xA73)`);
-  }
-  requireWholeOctets(parts, `an ${spec.kind}`);
-  if (parts.publicKey.bytes.length !== spec.length) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is ${parts.publicKey.bytes.length} octets; an ${spec.kind} key is ${spec.length}`);
-  }
-  const info = { kind: spec.kind, algorithm: parts.algorithm, publicKey: parts.publicKey, der: parts.der, key: parts.publicKey.bytes };
-  return Object.freeze(info);
-}
-function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE3, parentOffset);
-  if (seq.children.length > 2) {
-    throw certificateError(CODE3, path, seq.offset, `holds ${seq.children.length} values; SubjectPublicKeyInfo is an AlgorithmIdentifier and a BIT STRING`);
-  }
-  const algorithm = _readAlgorithmIdentifier(seq.children[0], ctx, `${path}.algorithm`, CODE3, seq.offset);
-  const keyPath = `${path}.subjectPublicKey`;
-  const keyNode = expectUniversalField(seq.children[1], TAG_BIT_STRING, keyPath, CODE3, seq.offset);
-  const parts = { algorithm, publicKey: _readBitString(keyNode, ctx), der: seq.bytes, keyPath, keyOffset: keyNode.offset };
-  if (algorithm.oid === OID_RSA) return readRsa(parts, "rsa", ctx);
-  if (algorithm.oid === OID_RSA_PSS) return readRsa(parts, "rsa-pss", ctx);
-  if (algorithm.oid === OID_EC) return readEc(parts, ctx);
-  const octetKey = OCTET_KEYS.get(algorithm.oid);
-  if (octetKey !== void 0) return readOctetKey(parts, octetKey);
-  const info = { kind: "unknown", algorithm, publicKey: parts.publicKey, der: seq.bytes };
-  return Object.freeze(info);
-}
-
-// src/x509/x509-certificate.ts
-var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
-var OID_SUBJECT_ALT_NAME = "2.5.29.17";
-var OID_BASIC_CONSTRAINTS = "2.5.29.19";
-var OID_KEY_USAGE = "2.5.29.15";
-var OID_NAME_CONSTRAINTS = "2.5.29.30";
-var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
-var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
-var OID_COMMON_NAME2 = "2.5.4.3";
-function looksLikeHost(value) {
-  if (value === "" || /[\s/=,]/.test(value)) return false;
-  return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
-}
-function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
-  const find = (oid) => extensions.find((e) => e.oid === oid);
-  const basicConstraints = find(OID_BASIC_CONSTRAINTS);
-  const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
-  if (version === 3) {
-    if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
-      ctx.emitter.emit(akiMissingDiagnostic());
-    }
-    if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === void 0) ctx.emitter.emit(skiMissingDiagnostic());
-  }
-  if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
-  const keyUsage = find(OID_KEY_USAGE);
-  if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
-    ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
-  }
-  const san = find(OID_SUBJECT_ALT_NAME);
-  if (san?.kind !== "subjectAltName") return;
-  const named = /* @__PURE__ */ new Set();
-  for (const name of san.names) {
-    if (name.kind === "dNSName") named.add(name.value.toLowerCase());
-    else if (name.kind === "iPAddress") named.add(name.address.toLowerCase());
-  }
-  if (named.size === 0) return;
-  for (const rdn of subject.rdns) {
-    for (const attribute of rdn) {
-      if (attribute.type !== OID_COMMON_NAME2 || attribute.value === void 0) continue;
-      const common = attribute.value.value;
-      if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
-      ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
-    }
-  }
-}
-var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
-function readVersion(field, ctx) {
-  const path = "tbsCertificate.version";
-  if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE3, path, field.offset, "is not one INTEGER under the explicit [0] tag");
-  }
-  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE3, field.offset);
-  const value = _readInteger(node, ctx);
-  if (value !== 0n && value !== 1n && value !== 2n) {
-    throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
-  }
-  if (value === 0n) ctx.emitter.emit(defaultEncodedDiagnostic(path, "v1", field.offset));
-  return Number(value) + 1;
-}
-function readValidityTime(node, ctx, path) {
-  if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
-    throw certificateError("PKI_X509_VALIDITY_INVALID", path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a certificate time is a UTCTime or a GeneralizedTime`);
-  }
-  const time = _readTime(node, ctx, void 0);
-  if (time.type === "GeneralizedTime") {
-    if (Number(time.text.slice(0, 4)) < 2050) ctx.emitter.emit(generalizedTimeBefore2050Diagnostic(path, time.text, node.offset));
-    if (/[.,]/.test(time.text)) ctx.emitter.emit(generalizedTimeFractionDiagnostic(path, time.text, node.offset));
-  }
-  return time;
-}
-function readValidity(node, ctx, parentOffset) {
-  const path = "tbsCertificate.validity";
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, "PKI_X509_VALIDITY_INVALID", parentOffset);
-  if (seq.children.length !== 2) {
-    throw certificateError("PKI_X509_VALIDITY_INVALID", path, seq.offset, `holds ${seq.children.length} values; Validity is notBefore and notAfter`);
-  }
-  const notBefore = readValidityTime(seq.children[0], ctx, `${path}.notBefore`);
-  const notAfter = readValidityTime(seq.children[1], ctx, `${path}.notAfter`);
-  if (notBefore.epochMilliseconds > notAfter.epochMilliseconds) ctx.emitter.emit(validityInvertedDiagnostic(notBefore.text, notAfter.text));
-  const validity = { notBefore, notAfter };
-  return Object.freeze(validity);
-}
-function readExtensions3(field, ctx, input, decode) {
-  const path = "tbsCertificate.extensions";
-  if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE3, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
-  }
-  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE3, field.offset);
-  if (seq.children.length === 0) {
-    throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
-  }
-  enforceLimit(ctx.limits, "maxExtensions", seq.children.length, "the extensions of the certificate");
-  const seen = /* @__PURE__ */ new Set();
-  const extensions = [];
-  for (let i = 0; i < seq.children.length; i++) {
-    const extPath = `${path}[${i}]`;
-    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE3, seq.offset);
-    if (ext.children.length < 2 || ext.children.length > 3) {
-      throw certificateError(STRUCTURE3, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
-    }
-    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE3, ext.offset), ctx);
-    let critical = false;
-    if (ext.children.length === 3) {
-      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE3, ext.offset);
-      critical = _readBoolean(flag, ctx);
-      if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
-    }
-    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE3, ext.offset);
-    const valueDer = _readOctetString(valueNode, ctx);
-    if (seen.has(oid)) {
-      throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
-    }
-    seen.add(oid);
-    if (!decode) {
-      const extension = { kind: "raw", oid, critical, valueDer };
-      extensions.push(Object.freeze(extension));
-    } else if (valueNode.constructed) {
-      extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
-    } else {
-      const start = valueNode.offset + valueNode.headerLength;
-      extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
-    }
-  }
-  return Object.freeze(extensions);
-}
-function parseCertificate(der, options) {
-  const bytes = assertBytes(der, "parseCertificate input");
-  const ctx = createAsn1Context(options);
-  const decode = options?.decodeExtensions ?? true;
-  if (typeof decode !== "boolean") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
-  }
-  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE3, 0);
-  if (cert.children.length !== 3) {
-    throw certificateError(STRUCTURE3, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
-  }
-  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE3, cert.offset);
-  const fields = tbs.children;
-  let index = 0;
-  let version = 1;
-  const first = fields[0];
-  if (first !== void 0 && first.tagClass === "context" && first.tagNumber === 0) {
-    version = readVersion(first, ctx);
-    index = 1;
-  }
-  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE3, tbs.offset);
-  const serialValue = _readInteger(serialNode, ctx);
-  if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
-  if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
-  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE3, tbs.offset);
-  const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
-  if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
-  const validity = readValidity(fields[index++], ctx, tbs.offset);
-  const subject = _readName(fields[index++], ctx, "tbsCertificate.subject", tbs.offset);
-  const subjectPublicKeyInfo = _readSubjectPublicKeyInfo(fields[index++], ctx, "tbsCertificate.subjectPublicKeyInfo", tbs.offset);
-  let issuerUniqueId;
-  let subjectUniqueId;
-  let extensions = NO_EXTENSIONS;
-  let extensionsPresent = false;
-  let rank = 0;
-  for (; index < fields.length; index++) {
-    const field = fields[index];
-    const tag = field.tagClass === "context" ? field.tagNumber : -1;
-    if (tag !== 1 && tag !== 2 && tag !== 3) {
-      throw certificateError(
-        STRUCTURE3,
-        `tbsCertificate[${index}]`,
-        field.offset,
-        `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
-      );
-    }
-    const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
-    if (tag <= rank) {
-      throw certificateError(
-        tag === 3 ? STRUCTURE3 : "PKI_X509_UNIQUE_ID_INVALID",
-        path,
-        field.offset,
-        "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
-      );
-    }
-    rank = tag;
-    if (tag === 3) {
-      extensions = readExtensions3(field, ctx, bytes, decode);
-      extensionsPresent = true;
-      continue;
-    }
-    if (field.constructed && ctx.rules === "der") {
-      throw certificateError("PKI_X509_UNIQUE_ID_INVALID", path, field.offset, "is constructed; a unique identifier is a primitive BIT STRING under its implicit tag");
-    }
-    const id = _readBitString(field, ctx);
-    if (tag === 1) issuerUniqueId = id;
-    else subjectUniqueId = id;
-  }
-  if ((issuerUniqueId !== void 0 || subjectUniqueId !== void 0) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
-  if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
-  if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
-    ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
-  }
-  emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
-  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
-  if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
-    ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
-  }
-  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE3, cert.offset), ctx);
-  const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
-  const certificate = {
-    der: cert.bytes,
-    tbsDer: tbs.bytes,
-    version,
-    serialNumber: Object.freeze(serialNumber),
-    signatureAlgorithm,
-    tbsSignatureAlgorithm,
-    signatureValue,
-    issuer,
-    validity,
-    subject,
-    subjectPublicKeyInfo,
-    issuerUniqueId,
-    subjectUniqueId,
-    extensions,
-    diagnostics: Object.freeze([...ctx.emitter.diagnostics])
-  };
-  return Object.freeze(certificate);
 }
 
 // src/build/build-certificate.ts

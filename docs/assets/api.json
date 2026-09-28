@@ -4019,6 +4019,24 @@
           "summary": "CRLs, as the DER you downloaded."
         },
         {
+          "name": "ocsp",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "OCSP responses, as the DER a responder returned or a TLS server stapled."
+        },
+        {
+          "name": "ocspNonce",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The nonce you put in the request, so a replayed answer can be caught."
+        },
+        {
+          "name": "requireOcspNonce",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat a missing nonce echo as a mismatch."
+        },
+        {
           "name": "requireRevocation",
           "type": "boolean | undefined",
           "optional": true,
