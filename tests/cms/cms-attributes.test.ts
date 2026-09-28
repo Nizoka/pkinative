@@ -260,3 +260,51 @@ describe('signed attributes — DER even under BER (RFC 5652 §5.3)', () => {
 function set1(value: Uint8Array): Uint8Array {
     return universal(17, value, true);
 }
+
+// ── CMSAlgorithmProtection (RFC 6211) ──
+
+describe('signed attributes — CMSAlgorithmProtection (RFC 6211)', () => {
+    const PROTECTION = '1.2.840.113549.1.9.52';
+    const SHA256 = '2.16.840.1.101.3.4.2.1';
+    const ECDSA_SHA256 = '1.2.840.10045.4.3.2';
+    const where = 'content.signerInfos[0].signedAttrs.CMSAlgorithmProtection';
+    /** [1] is IMPLICIT: it replaces the signature AlgorithmIdentifier's SEQUENCE tag. */
+    const protection = (...fields: readonly Uint8Array[]): Uint8Array => attribute(PROTECTION, sequence(...fields));
+    const signatureField = (dotted: string, ...params: readonly Uint8Array[]): Uint8Array => context(1, true, concat(oid(dotted), ...params));
+
+    it('should decode the digest and the signature algorithm the signer protected', () => {
+        const { signer } = signerWith(sorted([contentTypeAttr, digestAttr, protection(alg(SHA256, null), signatureField(ECDSA_SHA256))]));
+        expect(signer.algorithmProtection?.digestAlgorithm.oid).toBe(SHA256);
+        expect(signer.algorithmProtection?.signatureAlgorithm.oid).toBe(ECDSA_SHA256);
+        expect(signer.algorithmProtection?.signatureAlgorithm.parameters).toBeUndefined();
+    });
+
+    it('should keep the parameters of the protected signature algorithm', () => {
+        const { signer } = signerWith(sorted([contentTypeAttr, digestAttr, protection(alg(SHA256, null), signatureField(ECDSA_SHA256, universal(5, [])))]));
+        expect(signer.algorithmProtection?.signatureAlgorithm.parameters?.tagNumber).toBe(5);
+    });
+
+    it('should leave the field undefined when the signer did not protect its algorithms', () => {
+        expect(signerWith(sorted([contentTypeAttr, digestAttr])).signer.algorithmProtection).toBeUndefined();
+    });
+
+    it.each([
+        ['a MAC algorithm where the signature algorithm belongs', protection(alg(SHA256, null), context(2, true, oid(ECDSA_SHA256)))],
+        ['no signature algorithm', protection(alg(SHA256, null))],
+        ['a MAC algorithm besides the signature algorithm', protection(alg(SHA256, null), signatureField(ECDSA_SHA256), context(2, true, oid(ECDSA_SHA256)))],
+        ['a primitive [1]', protection(alg(SHA256, null), context(1, false, [0x01]))],
+        ['a [1] that does not start with an OID', protection(alg(SHA256, null), context(1, true, universal(5, [])))],
+        ['a [1] of three fields', protection(alg(SHA256, null), signatureField(ECDSA_SHA256, universal(5, []), universal(5, [])))],
+        ['a value that is not a SEQUENCE', attribute(PROTECTION, octets([1]))],
+    ])('should refuse a protection with %s, as it refuses any malformed recognised attribute', (_, value) => {
+        const error = refusal(sorted([contentTypeAttr, digestAttr, value]));
+        expect(error).toBeInstanceOf(PkiCmsError);
+        expect(error.code).toBe('PKI_CMS_STRUCTURE_INVALID');
+        expect((error as PkiCmsError).path?.startsWith(where)).toBe(true);
+    });
+
+    it('should refuse a protected digest that is not an AlgorithmIdentifier, under the CMS error', () => {
+        const error = refusal(sorted([contentTypeAttr, digestAttr, protection(octets([1]), signatureField(ECDSA_SHA256))]));
+        expect(error.code).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
+});

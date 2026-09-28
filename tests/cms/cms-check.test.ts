@@ -13,7 +13,7 @@ import * as oids from '../../src/cms/cms-oids.js';
 import type { CmsAttribute, SignedData, SignerInfo, SigningCertificateAttribute } from '../../src/types/cms-types.js';
 import type { AlgorithmIdentifier, Certificate, GeneralName } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
-import { ascii, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+import { ascii, sequence, universal } from '../helpers/raw-der-builder.js';
 
 /**
  * The rules on a signer's attributes — the half of CMS verification that
@@ -83,6 +83,7 @@ function signer(overrides: Partial<SignerInfo> = {}): SignerInfo {
         messageDigest: new Uint8Array(32).fill(0xaa),
         signingTime: undefined,
         signingCertificate: undefined,
+        algorithmProtection: undefined,
         timeStampTokens: [],
         der: new Uint8Array(0),
         ...overrides,
@@ -185,68 +186,51 @@ describe('_signerAttributeReasons', () => {
     });
 
     describe('CMSAlgorithmProtection (RFC 6211)', () => {
-        const SHA256_OID = oidValue(0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01);
-        const SHA384_OID = oidValue(0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02);
-        const ECDSA_SHA256_OID = oidValue(0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02);
-        const ECDSA_SHA384_OID = oidValue(0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03);
-        /** The [1] is IMPLICIT: it replaces the AlgorithmIdentifier's SEQUENCE tag. */
-        const protection = (digest: Uint8Array, signature: Uint8Array): Uint8Array => sequence(sequence(digest), tlv(2, true, 1, signature));
-        const withProtection = (value: Uint8Array, extra: Partial<SignerInfo> = {}): SignerInfo =>
-            signer({ signedAttributes: [...(signer().signedAttributes ?? []), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, value)], ...extra });
+        // The parser decodes the attribute, and refuses a malformed one; what
+        // reaches this rule is a well-formed protection to compare.
+        const protectedBy = (digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier, extra: Partial<SignerInfo> = {}): SignerInfo =>
+            signer({
+                signedAttributes: [...(signer().signedAttributes ?? []), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, sequence())],
+                algorithmProtection: { digestAlgorithm, signatureAlgorithm },
+                ...extra,
+            });
 
         it('should accept a protection that agrees with the algorithms outside the signature', () => {
-            expect(_signerAttributeReasons(DATA, withProtection(protection(SHA256_OID, ECDSA_SHA256_OID)), 's')).toEqual([]);
+            expect(_signerAttributeReasons(DATA, protectedBy(SHA256, ECDSA_SHA256), 's')).toEqual([]);
         });
 
         it('should compare modulo encoding: absent and NULL parameters are one SHA-2 algorithm', () => {
-            const nulled = sequence(sequence(SHA256_OID, universal(5, [])), tlv(2, true, 1, ECDSA_SHA256_OID));
-            expect(_signerAttributeReasons(DATA, withProtection(nulled), 's')).toEqual([]);
-            expect(_signerAttributeReasons(DATA, withProtection(protection(SHA256_OID, ECDSA_SHA256_OID), { digestAlgorithm: SHA256_NULL }), 's')).toEqual([]);
+            expect(_signerAttributeReasons(DATA, protectedBy(SHA256_NULL, ECDSA_SHA256), 's')).toEqual([]);
+            expect(_signerAttributeReasons(DATA, protectedBy(SHA256, ECDSA_SHA256, { digestAlgorithm: SHA256_NULL }), 's')).toEqual([]);
         });
 
         it('should refuse a digest the signer did not protect', () => {
             // The unsigned digestAlgorithm rewritten under a genuine signature:
             // exactly what RFC 6211 was written to catch.
-            const reasons = _signerAttributeReasons(DATA, withProtection(protection(SHA384_OID, ECDSA_SHA256_OID)), 's');
-            expect(codes(reasons)).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
+            expect(codes(_signerAttributeReasons(DATA, protectedBy(SHA384, ECDSA_SHA256), 's'))).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
         });
 
         it('should refuse a signature algorithm the signer did not protect', () => {
-            const reasons = _signerAttributeReasons(DATA, withProtection(protection(SHA256_OID, ECDSA_SHA384_OID)), 's');
-            expect(codes(reasons)).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
+            const ecdsaSha384 = algorithm('1.2.840.10045.4.3.3', undefined);
+            expect(codes(_signerAttributeReasons(DATA, protectedBy(SHA256, ecdsaSha384), 's'))).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
         });
 
-        it('should accept equal parameters on both sides, compared as bytes', () => {
+        it('should compare parameters as bytes when both sides carry them', () => {
             // RSASSA-PSS is the case that matters: its parameters are the whole
             // algorithm, and they must be the ones the signer protected.
-            const params = universal(4, [1, 2]);
-            const pss = algorithm('1.2.840.113549.1.1.10', params);
-            const pssOid = oidValue(0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0a);
-            expect(_signerAttributeReasons(DATA, withProtection(protection(SHA256_OID, sequence(pssOid, params).subarray(2)), { signatureAlgorithm: pss }), 's')).toEqual([]);
-            expect(codes(_signerAttributeReasons(DATA, withProtection(protection(SHA256_OID, sequence(pssOid, universal(4, [9])).subarray(2)), { signatureAlgorithm: pss }), 's')))
-                .toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
+            const pss = algorithm('1.2.840.113549.1.1.10', universal(4, [1, 2]));
+            const other = algorithm('1.2.840.113549.1.1.10', universal(4, [9]));
+            expect(_signerAttributeReasons(DATA, protectedBy(SHA256, pss, { signatureAlgorithm: pss }), 's')).toEqual([]);
+            expect(codes(_signerAttributeReasons(DATA, protectedBy(SHA256, other, { signatureAlgorithm: pss }), 's'))).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
         });
 
-        it('should compare parameters by their bytes when they are not the NULL of a digest', () => {
-            const withParams = sequence(sequence(SHA256_OID, universal(4, [1])), tlv(2, true, 1, ECDSA_SHA256_OID));
-            expect(codes(_signerAttributeReasons(DATA, withProtection(withParams), 's'))).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
-        });
-
-        it.each([
-            ['not a SEQUENCE', universal(4, [1])],
-            ['a MAC algorithm where a signature algorithm belongs', sequence(sequence(SHA256_OID), tlv(2, true, 2, ECDSA_SHA256_OID))],
-            ['no signature algorithm', sequence(sequence(SHA256_OID))],
-            ['three fields', sequence(sequence(SHA256_OID), tlv(2, true, 1, ECDSA_SHA256_OID), tlv(2, true, 2, ECDSA_SHA256_OID))],
-            ['an algorithm of three fields', sequence(sequence(SHA256_OID, universal(5, []), universal(5, [])), tlv(2, true, 1, ECDSA_SHA256_OID))],
-            ['a primitive algorithm', sequence(universal(4, [1]), tlv(2, true, 1, ECDSA_SHA256_OID))],
-            ['bytes that do not decode', Uint8Array.of(0x30, 0x05)],
-        ])('should call a protection that is %s invalid rather than throw', (_, value) => {
-            expect(codes(_signerAttributeReasons(DATA, withProtection(value), 's'))).toEqual(['PKI_REASON_CMS_ATTRIBUTE_INVALID']);
+        it('should refuse parameters on one side only, unless they are a digest\'s NULL', () => {
+            const withParams = algorithm('2.16.840.1.101.3.4.2.1', universal(4, [1]));
+            expect(codes(_signerAttributeReasons(DATA, protectedBy(withParams, ECDSA_SHA256), 's'))).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
         });
 
         it('should leave a repeated protection to the multiplicity rule, and report it once', () => {
-            const value = protection(SHA256_OID, ECDSA_SHA256_OID);
-            const attrs = [...(signer().signedAttributes ?? []), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, value), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, value)];
+            const attrs = [...(signer().signedAttributes ?? []), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, sequence()), attribute(oids.OID_ATTR_ALGORITHM_PROTECTION, sequence())];
             expect(codes(_signerAttributeReasons(DATA, signer({ signedAttributes: attrs }), 's'))).toEqual(['PKI_REASON_CMS_ATTRIBUTE_INVALID']);
         });
 

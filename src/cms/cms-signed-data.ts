@@ -410,6 +410,7 @@ function readSignerInfo(node: Asn1Node, ctx: Asn1Context, path: string, listed: 
         messageDigest: convenience.messageDigest,
         signingTime: convenience.signingTime,
         signingCertificate: convenience.signingCertificate,
+        algorithmProtection: convenience.algorithmProtection,
         timeStampTokens: _collectTimeStampTokens(unsignedEntries),
         der: seq.bytes,
     });

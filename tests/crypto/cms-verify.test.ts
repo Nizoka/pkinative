@@ -83,6 +83,7 @@ function signerInfo(parts: SignerInfoParts): SignerInfo {
         messageDigest: undefined,
         signingTime: undefined,
         signingCertificate: undefined,
+        algorithmProtection: undefined,
         timeStampTokens: [],
         der: new Uint8Array(0),
     });

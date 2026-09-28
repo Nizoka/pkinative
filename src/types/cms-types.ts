@@ -133,7 +133,7 @@ export interface SignerInfo {
     readonly signature: Uint8Array;
     /** The unsigned attributes in encoded order; `undefined` when absent. */
     readonly unsignedAttributes: readonly CmsAttribute[] | undefined;
-    // The five fields below are conveniences over `signedAttributes`, and each
+    // The six fields below are conveniences over `signedAttributes`, and each
     // is set **only when its attribute appears exactly once, with exactly one
     // value, among the signed attributes**. A field that took "the first one"
     // would hide a second `messageDigest` — which is not a formatting slip but
@@ -148,6 +148,19 @@ export interface SignerInfo {
     readonly signingTime: PkiTime | undefined;
     /** `signingCertificate` or `signingCertificateV2`, whichever is present; `undefined` when neither is. */
     readonly signingCertificate: SigningCertificateAttribute | undefined;
+    /**
+     * `CMSAlgorithmProtection` (RFC 6211): the signer's **signed** statement of
+     * the algorithms it used. `digestAlgorithm` and `signatureAlgorithm` above
+     * are not covered by the signature; these are, and a verifier compares the
+     * two to refuse an algorithm swapped in after signing. `undefined` when the
+     * signer did not include one.
+     */
+    readonly algorithmProtection: {
+        /** The digest the signer says it used. */
+        readonly digestAlgorithm: AlgorithmIdentifier;
+        /** The signature algorithm the signer says it used; its `der` carries the IMPLICIT `[1]` tag it was read under. */
+        readonly signatureAlgorithm: AlgorithmIdentifier;
+    } | undefined;
     /**
      * Every `id-aa-signatureTimeStampToken` (RFC 3161 Appendix A) among the
      * unsigned attributes, each a `ContentInfo` DER that `parseTimeStampToken`

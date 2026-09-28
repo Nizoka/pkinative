@@ -30,12 +30,13 @@ import { compareOctets, toHex } from '../core/bytes.js';
 import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, PkiTime } from '../types/asn1-types.js';
-import type { CmsAttribute, EssCertId, SigningCertificateAttribute } from '../types/cms-types.js';
+import type { CmsAttribute, EssCertId, SignerInfo, SigningCertificateAttribute } from '../types/cms-types.js';
 import { PkiCertificateError, PkiCmsError, PkiEncodingError, type PkiCmsErrorCode } from '../types/pki-errors.js';
 import type { SerialNumber } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from '../x509/x509-algorithm.js';
 import { _readGeneralNames } from '../x509/x509-general-name.js';
 import {
+    OID_ATTR_ALGORITHM_PROTECTION,
     OID_ATTR_CONTENT_TYPE,
     OID_ATTR_MESSAGE_DIGEST,
     OID_ATTR_SIGNING_CERTIFICATE,
@@ -222,6 +223,7 @@ export interface _SignedAttributeFields {
     readonly messageDigest: Uint8Array | undefined;
     readonly signingTime: PkiTime | undefined;
     readonly signingCertificate: SigningCertificateAttribute | undefined;
+    readonly algorithmProtection: SignerInfo['algorithmProtection'];
 }
 
 /**
@@ -270,7 +272,41 @@ export function _readSignedAttributeFields(entries: readonly _AttributeEntry[], 
     const v2 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) =>
         readSigningCertificate(node, ctx, `${path}.signingCertificateV2`, 2));
     const hasV2 = entries.some((entry) => entry.attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2);
-    return { contentType, messageDigest, signingTime, signingCertificate: hasV2 ? v2 : v1 };
+    const algorithmProtection = readRecognised(singleValue(entries, OID_ATTR_ALGORITHM_PROTECTION), `${path}.CMSAlgorithmProtection`, (node) =>
+        readAlgorithmProtection(node, ctx, `${path}.CMSAlgorithmProtection`));
+    return { contentType, messageDigest, signingTime, signingCertificate: hasV2 ? v2 : v1, algorithmProtection };
+}
+
+// ── CMSAlgorithmProtection (RFC 6211) ──
+
+/**
+ * `CMSAlgorithmProtection ::= SEQUENCE { digestAlgorithm, signatureAlgorithm
+ * [1] OPTIONAL, macAlgorithm [2] OPTIONAL }`, with the RFC 6211 §2 constraint
+ * that makes it a SignedData attribute: the signature algorithm present, the
+ * MAC algorithm absent.
+ *
+ * Decoded here rather than by the verifier, because it is a recognised
+ * attribute and a malformed recognised attribute is refused at parse — the rule
+ * every other one follows. A verifier that decoded it itself would have to turn
+ * a decoding failure into a verdict, which only the composition layer may do.
+ */
+function readAlgorithmProtection(node: Asn1Node, ctx: Asn1Context, path: string): NonNullable<SignerInfo['algorithmProtection']> {
+    const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, 'a SEQUENCE');
+    const [digestNode, signatureNode, ...rest] = seq.children;
+    if (rest.length > 0 || signatureNode === undefined || signatureNode.tagClass !== 'context' || signatureNode.tagNumber !== 1 || !signatureNode.constructed) {
+        throw _cmsError('PKI_CMS_STRUCTURE_INVALID', path, seq.offset,
+            'is not a digest algorithm followed by a [1] signature algorithm; RFC 6211 §2 requires exactly that in a SignedData, and no MAC algorithm');
+    }
+    const digestAlgorithm = _viaX509(`${path}.digestAlgorithm`, seq.offset, () =>
+        _readAlgorithmIdentifier(digestNode, ctx, `${path}.digestAlgorithm`, 'PKI_X509_STRUCTURE_INVALID', seq.offset));
+    // The [1] is IMPLICIT: it replaces the AlgorithmIdentifier's SEQUENCE tag,
+    // so its children are the OID and the optional parameters themselves.
+    const [oidNode, parameters, ...extra] = signatureNode.children;
+    if (oidNode?.tagClass !== 'universal' || oidNode.tagNumber !== TAG_OID || extra.length > 0) {
+        throw _cmsError('PKI_CMS_STRUCTURE_INVALID', `${path}.signatureAlgorithm`, signatureNode.offset, 'is not an algorithm OID with optional parameters');
+    }
+    const signatureAlgorithm = Object.freeze({ oid: _readObjectIdentifier(oidNode, ctx), parameters, der: signatureNode.bytes });
+    return Object.freeze({ digestAlgorithm, signatureAlgorithm });
 }
 
 /**

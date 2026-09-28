@@ -22,9 +22,6 @@
  * @module cms/cms-check
  */
 
-import { readObjectIdentifier } from '../asn1/asn1-oid.js';
-import { decodeValueAt } from '../asn1/asn1-decode.js';
-import { createAsn1Context } from '../asn1/asn1-context.js';
 import { bytesEqual, toHex } from '../core/bytes.js';
 import {
     cmsAlgorithmMismatchReason,
@@ -35,7 +32,6 @@ import {
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { sha384, sha512 } from '../hash/sha512.js';
-import type { Asn1Node } from '../types/asn1-types.js';
 import type { CmsAttribute, SignedData, SignerIdentifier, SignerInfo } from '../types/cms-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { AlgorithmIdentifier, Certificate } from '../types/x509-types.js';
@@ -277,71 +273,34 @@ export function _signingCertificateReason(signer: SignerInfo, certificate: Certi
  * §3): the same OID with absent or NULL parameters is the same SHA-2 algorithm,
  * and anything else compares by its encoded parameters.
  *
- * Decoded here rather than by the parser because it is read for one decision
- * only; a malformed one is therefore a reason, not an exception — this module
- * reports and never throws for a verdict.
+ * The parser decoded it — a malformed one never reaches this function, because
+ * a malformed recognised attribute is refused at parse. So this compares and
+ * never has to turn a decoding failure into a verdict.
  */
 function _algorithmProtectionReason(signer: SignerInfo, signed: readonly CmsAttribute[], path: string, required: boolean): PkiReason | null {
     const where = `${path}.signedAttrs.CMSAlgorithmProtection`;
-    const found = signed.filter((attribute) => attribute.oid === OID_ATTR_ALGORITHM_PROTECTION);
-    if (found.length === 0) {
+    if (!signed.some((attribute) => attribute.oid === OID_ATTR_ALGORITHM_PROTECTION)) {
         return required
             ? cmsAttributeInvalidReason(where, 'the signer did not protect its algorithms with a CMSAlgorithmProtection attribute, and one was required')
             : null;
     }
-    // Repetition and multiple values are already reasons from the attribute rules.
-    const value = found.length === 1 ? (found[0] as CmsAttribute).values : [];
-    if (value.length !== 1) return null;
-
-    const protectedAlgorithms = _readAlgorithmProtection(value[0] as Uint8Array);
-    if (protectedAlgorithms === null) {
-        return cmsAttributeInvalidReason(where, 'the CMSAlgorithmProtection attribute is not a digest algorithm followed by a [1] signature algorithm, as RFC 6211 §2 defines it');
+    // Present but not readable as one value: repeated or multi-valued, which
+    // the multiplicity rule has already reported.
+    const protectedAlgorithms = signer.algorithmProtection;
+    if (protectedAlgorithms === undefined) return null;
+    if (!_sameAlgorithm(protectedAlgorithms.digestAlgorithm, signer.digestAlgorithm)) {
+        return cmsAlgorithmMismatchReason(where, `the signer protected ${protectedAlgorithms.digestAlgorithm.oid} as its digest and names ${signer.digestAlgorithm.oid} outside the signature`);
     }
-    if (!_sameAlgorithm(protectedAlgorithms.digest, signer.digestAlgorithm)) {
-        return cmsAlgorithmMismatchReason(where, `the signer protected ${protectedAlgorithms.digest.oid} as its digest and names ${signer.digestAlgorithm.oid} outside the signature`);
-    }
-    if (!_sameAlgorithm(protectedAlgorithms.signature, signer.signatureAlgorithm)) {
-        return cmsAlgorithmMismatchReason(where, `the signer protected ${protectedAlgorithms.signature.oid} as its signature algorithm and names ${signer.signatureAlgorithm.oid} outside the signature`);
+    if (!_sameAlgorithm(protectedAlgorithms.signatureAlgorithm, signer.signatureAlgorithm)) {
+        return cmsAlgorithmMismatchReason(where, `the signer protected ${protectedAlgorithms.signatureAlgorithm.oid} as its signature algorithm and names ${signer.signatureAlgorithm.oid} outside the signature`);
     }
     return null;
 }
 
-interface _ProtectedAlgorithm {
-    readonly oid: string;
-    readonly parameters: Uint8Array | undefined;
-}
-
-/**
- * `CMSAlgorithmProtection ::= SEQUENCE { digestAlgorithm, signatureAlgorithm
- * [1] OPTIONAL, macAlgorithm [2] OPTIONAL }` — with, for a SignedData, the
- * signature algorithm present and the MAC algorithm absent. The `[1]` is
- * IMPLICIT: it replaces the AlgorithmIdentifier's own SEQUENCE tag.
- */
-function _readAlgorithmProtection(der: Uint8Array): { readonly digest: _ProtectedAlgorithm; readonly signature: _ProtectedAlgorithm } | null {
-    try {
-        const node = decodeValueAt(der, 0, createAsn1Context(undefined));
-        const [digestNode, signatureNode, ...rest] = node.children;
-        if (node.tagNumber !== 16 || rest.length > 0 || digestNode === undefined || signatureNode === undefined) return null;
-        if (signatureNode.tagClass !== 'context' || signatureNode.tagNumber !== 1) return null;
-        const digest = _algorithmOf(digestNode);
-        const signature = _algorithmOf(signatureNode);
-        return digest === null || signature === null ? null : { digest, signature };
-    } catch {
-        return null;
-    }
-}
-
-/** The OID and the encoded parameters of an AlgorithmIdentifier-shaped node, whatever its outer tag. */
-function _algorithmOf(node: Asn1Node): _ProtectedAlgorithm | null {
-    const [oidNode, parameters, ...rest] = node.children;
-    if (!node.constructed || oidNode === undefined || rest.length > 0) return null;
-    return { oid: readObjectIdentifier(oidNode), parameters: parameters?.bytes };
-}
-
 /** RFC 6211 §3 "modulo encoding": absent and NULL parameters are the same; anything else by its bytes. */
-function _sameAlgorithm(a: _ProtectedAlgorithm, b: AlgorithmIdentifier): boolean {
+function _sameAlgorithm(a: AlgorithmIdentifier, b: AlgorithmIdentifier): boolean {
     if (a.oid !== b.oid) return false;
-    const mine = _normalised(a.parameters);
+    const mine = _normalised(a.parameters?.bytes);
     const theirs = _normalised(b.parameters?.bytes);
     return mine === undefined || theirs === undefined ? mine === theirs : bytesEqual(mine, theirs);
 }
