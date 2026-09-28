@@ -1,6 +1,6 @@
 # pkinative — brief for AI coding agents
 
-Paste this into a coding agent's context before it writes code that reads certificates with pkinative 0.3.
+Paste this into a coding agent's context before it writes code that reads, builds or verifies certificates, paths, CMS messages or timestamps with pkinative.
 
 ## Import
 

@@ -6,20 +6,20 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 2931,
-      "approxTokens": 733
+      "bytes": 3077,
+      "approxTokens": 769
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 5487,
-      "approxTokens": 1372
+      "bytes": 5538,
+      "approxTokens": 1385
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 133919,
-      "approxTokens": 33480
+      "bytes": 134065,
+      "approxTokens": 33516
     },
     {
       "url": "llms-recipes.txt",
