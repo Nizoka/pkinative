@@ -89,12 +89,15 @@ export const CORPORA: readonly Corpus[] = [
         files: [],
         archive: {
             url: 'https://csrc.nist.gov/CSRC/media/Projects/PKI-Testing/documents/PKITS_data.zip',
-            // The certificates and the revocation lists. The archive also holds
-            // PKCS#12 bundles, S/MIME messages, cross-certificate pairs and an
-            // LDIF export of all of it — none of which a path validator needs,
-            // and PKCS#12 in particular is a container pkinative will not read
-            // under the legacy KDF before 0.8.
-            include: ['certs/', 'crls/'],
+            // The certificates and the revocation lists, and since 0.7 the 224
+            // S/MIME messages: each is a detached CMS SignedData over a sample
+            // text, signed by the end-entity certificate of the PKITS test of
+            // the same name — so NIST's own expected result for the path is the
+            // expected result for the signature, and L8 scores CMS against it.
+            // The archive also holds PKCS#12 bundles, cross-certificate pairs and
+            // an LDIF export of all of it; PKCS#12 is a container pkinative will
+            // not read under the legacy KDF before 0.8.
+            include: ['certs/', 'crls/', 'smime/'],
         },
     },
 ];
