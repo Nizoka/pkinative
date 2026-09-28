@@ -72,6 +72,10 @@ export type PkiReasonCode =
     | 'PKI_REASON_REVOCATION_STALE'
     /** The revocation list was not issued by the certificate's issuer. */
     | 'PKI_REASON_REVOCATION_WRONG_ISSUER'
+    /** The list comes from the right CA but declares a scope that excludes this certificate. */
+    | 'PKI_REASON_REVOCATION_OUT_OF_SCOPE'
+    /** The list covers only some revocation reasons, so its silence rules out only those. */
+    | 'PKI_REASON_REVOCATION_PARTIAL'
     /** Revocation could not be established at all — no list, or an unverified one. */
     | 'PKI_REASON_REVOCATION_UNKNOWN'
     /** The revocation answer is about a different certificate, or does not echo the nonce that was sent. */

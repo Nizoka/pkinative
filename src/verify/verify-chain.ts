@@ -43,7 +43,7 @@
  * @module verify/verify-chain
  */
 
-import { inputMalformedReason, revocationUnknownReason } from '../core/pki-reasons.js';
+import { inputMalformedReason, revocationUnknownReason, unrecognisedCriticalExtensionReason } from '../core/pki-reasons.js';
 import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature } from '../crypto/x509-verify.js';
 import { buildCertificatePath } from '../path/path-build.js';
 import { checkExtendedKeyUsage } from '../path/path-purpose.js';
@@ -55,12 +55,13 @@ import { checkRevocation } from '../revocation/crl-check.js';
 import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
+import { _crlScopeProblem } from '../revocation/crl-scope.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PathBuildReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
 import type { PkiLimits } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { Certificate } from '../types/x509-types.js';
+import type { Certificate, ReasonFlag } from '../types/x509-types.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { OcspBasicResponse } from '../types/ocsp-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
@@ -364,13 +365,36 @@ async function _crlSigner(
 }
 
 /**
- * The end-entity certificate against the lists the caller supplied.
+ * Every revocation reason RFC 5280 §5.3.1 defines, `unused` excepted.
  *
- * Only the leaf is checked. Revoking an intermediate is real and matters, and
- * answering it properly means one list per CA and a policy for what to do when
- * some of them are missing — which is a decision, not a default. Checking only
- * what the caller can actually supply a list for is the honest half, and
- * `checkRevocation` is exported for the rest.
+ * Bit 0 is named `unused` and means nothing, so a CA that partitions the real
+ * reasons across two lists without setting it has still covered everything. A
+ * completeness test that demanded it would refuse a correct pair of lists over
+ * a bit whose own name says it carries no meaning.
+ */
+const EVERY_REASON: readonly ReasonFlag[] = [
+    'keyCompromise', 'cACompromise', 'affiliationChanged', 'superseded',
+    'cessationOfOperation', 'certificateHold', 'privilegeWithdrawn', 'aACompromise',
+];
+
+function _coversEveryReason(reasons: ReadonlySet<ReasonFlag>): boolean {
+    return EVERY_REASON.every((reason) => reasons.has(reason));
+}
+
+/**
+ * The path against the lists and responses the caller supplied.
+ *
+ * **Per certificate, not per list**, which is what makes two of the answers
+ * possible at all: which lists cover one certificate is a fact about that
+ * certificate, and so is the §6.3.3 reason mask they add up to. A loop over
+ * lists can compute neither without keeping a map on the side.
+ *
+ * Checked on every certificate of the path except the anchor, and **required**
+ * only at the leaf. Those are two questions and collapsing them gets one of
+ * them wrong: checking everywhere costs nothing and catches a revoked CA,
+ * while requiring a list for every CA would refuse most real chains, because
+ * the Web PKI handles intermediates out of band — CRLSets, OneCRL — which is
+ * not a decision a library gets to make for its caller.
  */
 async function _checkRevocation(input: VerifyChainInput, path: readonly Certificate[], at: number): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
@@ -386,9 +410,6 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // One options object for both readers: the limits are the caller's, and a
     // CRL's profile concerns are not this report's business — a caller who
     // wants them calls parseCertificateList themselves.
-    // One options object for both readers: the limits are the caller's, and a
-    // CRL's profile concerns are not this report's business — a caller who
-    // wants them calls parseCertificateList themselves.
     const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
 
     // **Every certificate on the path, not only the leaf.** A revoked
@@ -400,47 +421,19 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     //
     // The anchor is not checked: it is trusted a priori, and a list it issued
     // about itself revokes nothing. Everything else is, whether or not its own
-    // issuer ended up in the path — a list covers a certificate because it names
-    // that certificate's CA, which is a fact about the certificate.
+    // issuer ended up in the path — whether a list covers a certificate is
+    // decided from the certificate and the list alone (§5.2.5, §6.3.3 (b)), and
+    // neither of them depends on how the search happened to end.
     const anchors = new Set(input.trustAnchors.map((c) => _hex(c.der)));
     const covered = new Set<number>();
-    for (const [index, der] of lists.entries()) {
-        const where = `crl[${String(index)}]`;
-        try {
-            const crl = parseCertificateList(der, reading);
-            const about = _hex(crl.issuer.der);
-            // Whether a key entitled to sign this list did. Asked once per list
-            // rather than once per certificate, because the answer is a property
-            // of the list. `undefined` and `false` are different answers and
-            // `checkRevocation` words them differently: never checked, versus
-            // checked and wrong.
-            let signatureVerified: boolean | undefined;
-            let asked = false;
 
-            for (const [position, subject] of path.entries()) {
-                if (anchors.has(_hex(subject.der))) continue;
-                // A list is about one CA, and it covers this certificate when it
-                // names the CA that issued it — encoded names, as everywhere
-                // else, because two names that print the same and encode
-                // differently are two names. A list about somebody else is
-                // skipped in silence: a caller handing over every list they hold
-                // is the ordinary case, and `PKI_REASON_REVOCATION_WRONG_ISSUER`
-                // is for a list they *meant* to apply.
-                if (_hex(subject.issuer.der) !== about) continue;
-                covered.add(position);
-                if (!asked) {
-                    asked = true;
-                    signatureVerified = await _crlSigner(input, path, crl, about);
-                }
-                out.push(...checkRevocation({
-                    certificate: subject,
-                    crl,
-                    crlDer: der,
-                    at,
-                    ...(signatureVerified === undefined ? {} : { signatureVerified }),
-                    options: reading,
-                }));
-            }
+    // Parsed first, then applied — because the loop below runs **per
+    // certificate**, and the reason mask of §6.3.3 is a fact about one
+    // certificate and every list that covers it.
+    const parsed: Array<{ readonly der: Uint8Array; readonly crl: CertificateList }> = [];
+    for (const [index, der] of lists.entries()) {
+        try {
+            parsed.push({ der, crl: parseCertificateList(der, reading) });
         } catch (error) {
             // **The one catch this library allows**, and the reason the reason
             // registry wraps the error registry instead of copying it: the code
@@ -448,8 +441,69 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             // can promise never to throw for bad input without a second frozen
             // vocabulary of encoding failures.
             const refused = _pkiError(error);
-            out.push(inputMalformedReason(refused.code, refused.message, where));
+            out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
         }
+    }
+    // Whether a key entitled to sign a list did. Asked once per list rather than
+    // once per certificate, because the answer is a property of the list.
+    // `undefined` and `false` are different answers and `checkRevocation` words
+    // them differently: never checked, versus checked and wrong.
+    const signed = new Map<number, boolean | undefined>();
+
+    for (const [position, subject] of path.entries()) {
+        if (anchors.has(_hex(subject.der))) continue;
+        const mine: PkiReason[] = [];
+        const reasons = new Set<ReasonFlag>();
+        let complete = false;
+        for (const [index, { der, crl }] of parsed.entries()) {
+            // **Selection, not judgement.** Which of the caller's lists covers
+            // which certificate is decided here by the same §5.2.5 and §6.3.3
+            // (b) rules `checkRevocation` applies — but a list that does not
+            // cover this certificate is skipped in silence rather than
+            // reported. A caller handing over every list they hold is the
+            // ordinary case, and a CA that publishes one list per distribution
+            // point makes it the *normal* case: reporting each non-covering
+            // list would turn a correct verification into a page of reasons.
+            // `checkRevocation` still reports scope for a caller who hands it
+            // one list deliberately, which is the whole difference between a
+            // primitive and a composition.
+            //
+            // **`unusable` is the exception, and it is not a detail.** A list
+            // that would cover this certificate and carries a critical
+            // extension nothing here understands is not "somebody else's list":
+            // RFC 5280 §6.3.3 says it MUST NOT be used, and a validator that
+            // silently moved on would have used nothing *and said nothing* —
+            // reporting the certificate unchecked exactly as if the CA had
+            // published no list at all.
+            const problem = _crlScopeProblem({ certificate: subject, crl });
+            if (problem !== null && problem.kind !== 'unusable') continue;
+            if (problem !== null) {
+                mine.push(unrecognisedCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, 'revocation list'));
+                continue;
+            }
+            covered.add(position);
+            if (!signed.has(index)) signed.set(index, await _crlSigner(input, path, crl, _hex(crl.issuer.der)));
+            const signatureVerified = signed.get(index);
+            const only = crl.issuingDistributionPoint?.onlySomeReasons;
+            if (only === undefined) complete = true;
+            else for (const reason of only) reasons.add(reason);
+            mine.push(...checkRevocation({
+                certificate: subject,
+                crl,
+                crlDer: der,
+                at,
+                ...(signatureVerified === undefined ? {} : { signatureVerified }),
+                options: reading,
+            }));
+        }
+        // §6.3.3's `reasons_mask`, which only the composition can see: a CA that
+        // publishes a keyCompromise list and a second list for everything else
+        // has answered completely, and each of them says so on its own. Adding
+        // them up is the whole reason `PKI_REASON_REVOCATION_PARTIAL` is not
+        // just a wording of `UNKNOWN`.
+        out.push(...(complete || _coversEveryReason(reasons)
+            ? mine.filter((reason) => reason.code !== 'PKI_REASON_REVOCATION_PARTIAL')
+            : mine));
     }
 
     // OCSP answers about the end-entity certificate only: that is what a

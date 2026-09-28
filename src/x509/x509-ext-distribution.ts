@@ -38,7 +38,15 @@ import { expectUniversalField } from './x509-fields.js';
 import { _readGeneralName, _readGeneralNameList } from './x509-general-name.js';
 import { _readRelativeDistinguishedName } from './x509-name.js';
 
-const REASONS: readonly ReasonFlag[] = [
+/**
+ * The `ReasonFlags` bit names of RFC 5280 §4.2.1.13, shared with the
+ * `onlySomeReasons` field of a CRL's `issuingDistributionPoint` (§5.2.5): one
+ * table, because two copies of a nine-entry bit order is two chances to shift
+ * it by one.
+ *
+ * @internal
+ */
+export const _REASON_FLAGS: readonly ReasonFlag[] = Object.freeze([
     'unused',
     'keyCompromise',
     'cACompromise',
@@ -48,31 +56,48 @@ const REASONS: readonly ReasonFlag[] = [
     'certificateHold',
     'privilegeWithdrawn',
     'aACompromise',
-];
+]);
+
+/** One decoded `DistributionPointName`, both alternatives, at most one set. */
+export interface _DistributionPointName {
+    readonly fullName: readonly GeneralName[] | undefined;
+    readonly nameRelativeToCRLIssuer: RelativeDistinguishedName | undefined;
+}
+
+/**
+ * `DistributionPointName ::= CHOICE { fullName [0] GeneralNames,
+ * nameRelativeToCRLIssuer [1] RelativeDistinguishedName }`, under the explicit
+ * `[0]` its two users both wrap it in — `DistributionPoint.distributionPoint`
+ * here, and `IssuingDistributionPoint.distributionPoint` in `revocation/`. The
+ * two names are compared against each other by RFC 5280 §6.3.3 (b)(2), so they
+ * must be read by the same code or the comparison is between two dialects.
+ *
+ * @internal
+ */
+export function _readDistributionPointName(nameNode: Asn1Node, ctx: Asn1Context, namePath: string): _DistributionPointName {
+    const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] as Asn1Node : undefined;
+    if (choice?.tagClass === 'context' && choice.tagNumber === 0) {
+        return { fullName: _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false), nameRelativeToCRLIssuer: undefined };
+    }
+    if (choice?.tagClass === 'context' && choice.tagNumber === 1) {
+        return { fullName: undefined, nameRelativeToCRLIssuer: _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`) };
+    }
+    throw malformed(namePath, nameNode.offset, 'is not one DistributionPointName — fullName [0] or nameRelativeToCRLIssuer [1] — under an explicit [0] tag');
+}
 
 function readDistributionPoint(node: Asn1Node, ctx: Asn1Context, path: string): DistributionPoint {
     const seq = expectSequence(node, path, node.offset);
     const [nameNode, reasonsNode, issuerNode] = contextFields(seq.children, 2, path);
-    let fullName: readonly GeneralName[] | undefined;
-    let nameRelativeToCRLIssuer: RelativeDistinguishedName | undefined;
-    if (nameNode !== undefined) {
-        const namePath = `${path}.distributionPoint`;
-        const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] as Asn1Node : undefined;
-        if (choice?.tagClass === 'context' && choice.tagNumber === 0) {
-            fullName = _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false);
-        } else if (choice?.tagClass === 'context' && choice.tagNumber === 1) {
-            nameRelativeToCRLIssuer = _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`);
-        } else {
-            throw malformed(namePath, nameNode.offset, 'is not one DistributionPointName — fullName [0] or nameRelativeToCRLIssuer [1] — under an explicit [0] tag');
-        }
-    }
+    const name: _DistributionPointName = nameNode === undefined
+        ? { fullName: undefined, nameRelativeToCRLIssuer: undefined }
+        : _readDistributionPointName(nameNode, ctx, `${path}.distributionPoint`);
     let reasons: readonly ReasonFlag[] | undefined;
     if (reasonsNode !== undefined) {
-        reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), REASONS, ctx, `${path}.reasons`, reasonsNode.offset));
+        reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), _REASON_FLAGS, ctx, `${path}.reasons`, reasonsNode.offset));
     }
     const point: DistributionPoint = {
-        fullName,
-        nameRelativeToCRLIssuer,
+        fullName: name.fullName,
+        nameRelativeToCRLIssuer: name.nameRelativeToCRLIssuer,
         reasons,
         cRLIssuer: issuerNode === undefined ? undefined : _readGeneralNameList(issuerNode, ctx, `${path}.cRLIssuer`, false),
     };

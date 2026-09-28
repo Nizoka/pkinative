@@ -38,6 +38,7 @@ export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 // ── 7. Certification path validation (RFC 5280 section 6) ────────────
 
 export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
+export type { FindRevocationOptions } from './revocation/crl-parse.js';
 export { checkRevocation } from './revocation/crl-check.js';
 export { createOcspRequest, encodeCertId } from './revocation/ocsp-request.js';
 export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
@@ -46,7 +47,7 @@ export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
 export type { OcspCheckInput } from './revocation/ocsp-check.js';
 export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
 export type { RevocationCheckInput } from './revocation/crl-check.js';
-export type { CertificateList, CrlReason, RevokedCertificate } from './types/crl-types.js';
+export type { CertificateList, CrlReason, IssuingDistributionPoint, RevokedCertificate } from './types/crl-types.js';
 export { buildCertificatePath } from './path/path-build.js';
 export { checkServerName, dnsMatches } from './path/path-server-name.js';
 export type { CheckServerNameOptions, ServerIdentity } from './path/path-server-name.js';

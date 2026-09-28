@@ -81,6 +81,20 @@
       "standard": "RFC 5280 §6.3.3"
     },
     {
+      "code": "PKI_REASON_REVOCATION_OUT_OF_SCOPE",
+      "since": "0.5.0",
+      "returnedWhen": "The list was issued by the right CA but its issuingDistributionPoint declares a scope that excludes this certificate — the wrong kind of certificate, or a distribution point the certificate does not name.",
+      "remedy": "Fetch the list published at the distribution point the certificate's cRLDistributionPoints names. A list that does not cover a certificate does not list it either, so its silence is not evidence.",
+      "standard": "RFC 5280 §5.2.5"
+    },
+    {
+      "code": "PKI_REASON_REVOCATION_PARTIAL",
+      "since": "0.5.0",
+      "returnedWhen": "The list declares onlySomeReasons, so the certificate's absence from it rules out those revocation reasons and no others.",
+      "remedy": "Supply the other lists the CA publishes for the remaining reasons. verifyCertificateChain accumulates them (RFC 5280 §6.3.3 reasons_mask) and drops this once the union is complete.",
+      "standard": "RFC 5280 §5.2.5"
+    },
+    {
       "code": "PKI_REASON_REVOCATION_UNKNOWN",
       "since": "0.5.0",
       "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify.",

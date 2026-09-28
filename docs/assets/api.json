@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 212,
+  "exportCount": 214,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -629,6 +629,12 @@
           "type": "boolean",
           "optional": false,
           "summary": "Whether `deltaCRLIndicator` (§5.2.4) is present — a delta CRL is not a full one."
+        },
+        {
+          "name": "issuingDistributionPoint",
+          "type": "IssuingDistributionPoint | undefined",
+          "optional": false,
+          "summary": "`issuingDistributionPoint` (§5.2.5), or `undefined` when absent — in which case the list covers everything its CA issued."
         },
         {
           "name": "entryCount",
@@ -1329,6 +1335,48 @@
       ]
     },
     {
+      "name": "FindRevocationOptions",
+      "kind": "type",
+      "module": "src/revocation/crl-parse.ts",
+      "signature": "export interface FindRevocationOptions extends PkiParseOptions",
+      "summary": "What findRevocation takes beyond the ordinary parse options.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "issuerDer",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The encoded `issuer` of the certificate being asked about."
+        }
+      ]
+    },
+    {
       "name": "FingerprintAlgorithm",
       "kind": "type",
       "module": "src/types/hash-types.ts",
@@ -1586,6 +1634,60 @@
           "type": "readonly GeneralName[]",
           "optional": false,
           "summary": "Alternative names of the issuer, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "IssuingDistributionPoint",
+      "kind": "type",
+      "module": "src/types/crl-types.ts",
+      "signature": "export interface IssuingDistributionPoint",
+      "summary": "`issuingDistributionPoint` (RFC 5280 §5.2.5) — what a list declares itself to be about.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "fullName",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": "`distributionPoint` as a `fullName`, or `undefined` when the field names nothing or is relative."
+        },
+        {
+          "name": "nameRelativeToCRLIssuer",
+          "type": "RelativeDistinguishedName | undefined",
+          "optional": false,
+          "summary": "`distributionPoint` named relative to the CRL issuer; `undefined` when absent."
+        },
+        {
+          "name": "onlyContainsUserCerts",
+          "type": "boolean",
+          "optional": false,
+          "summary": "The list covers only certificates that are not CAs."
+        },
+        {
+          "name": "onlyContainsCACerts",
+          "type": "boolean",
+          "optional": false,
+          "summary": "The list covers only CA certificates."
+        },
+        {
+          "name": "onlySomeReasons",
+          "type": "readonly ReasonFlag[] | undefined",
+          "optional": false,
+          "summary": "The revocation reasons this list covers; `undefined` means all of them, which is not the same as an empty list."
+        },
+        {
+          "name": "indirectCRL",
+          "type": "boolean",
+          "optional": false,
+          "summary": "The list carries entries for CAs other than its own issuer, each named by a `certificateIssuer` entry extension."
+        },
+        {
+          "name": "onlyContainsAttributeCerts",
+          "type": "boolean",
+          "optional": false,
+          "summary": "The list covers only attribute certificates (X.509 §12), which this library does not parse — so it covers nothing here."
         }
       ]
     },
@@ -5243,7 +5345,7 @@
       "name": "findRevocation",
       "kind": "function",
       "module": "src/revocation/crl-parse.ts",
-      "signature": "export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: PkiParseOptions): RevokedCertificate | undefined",
+      "signature": "export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: FindRevocationOptions): RevokedCertificate | undefined",
       "summary": "Look one serial number up in the revocation list.",
       "throws": [
         "PkiCertificateError",
@@ -5260,7 +5362,7 @@
         },
         {
           "name": "options",
-          "description": "The same options; the limits apply to the walk."
+          "description": "The same options, plus `issuerDer`; the limits apply to the walk."
         }
       ],
       "returns": "The entry, or undefined when the serial is not listed.",

@@ -2070,7 +2070,7 @@ function decodeInhibitAnyPolicy(input) {
 }
 
 // src/x509/x509-ext-distribution.ts
-var REASONS = [
+var _REASON_FLAGS = Object.freeze([
   "unused",
   "keyCompromise",
   "cACompromise",
@@ -2080,30 +2080,28 @@ var REASONS = [
   "certificateHold",
   "privilegeWithdrawn",
   "aACompromise"
-];
+]);
+function _readDistributionPointName(nameNode, ctx, namePath) {
+  const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] : void 0;
+  if (choice?.tagClass === "context" && choice.tagNumber === 0) {
+    return { fullName: _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false), nameRelativeToCRLIssuer: void 0 };
+  }
+  if (choice?.tagClass === "context" && choice.tagNumber === 1) {
+    return { fullName: void 0, nameRelativeToCRLIssuer: _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`) };
+  }
+  throw malformed(namePath, nameNode.offset, "is not one DistributionPointName \u2014 fullName [0] or nameRelativeToCRLIssuer [1] \u2014 under an explicit [0] tag");
+}
 function readDistributionPoint(node, ctx, path) {
   const seq = expectSequence(node, path, node.offset);
   const [nameNode, reasonsNode, issuerNode] = contextFields(seq.children, 2, path);
-  let fullName;
-  let nameRelativeToCRLIssuer;
-  if (nameNode !== void 0) {
-    const namePath = `${path}.distributionPoint`;
-    const choice = nameNode.constructed && nameNode.children.length === 1 ? nameNode.children[0] : void 0;
-    if (choice?.tagClass === "context" && choice.tagNumber === 0) {
-      fullName = _readGeneralNameList(choice, ctx, `${namePath}.fullName`, false);
-    } else if (choice?.tagClass === "context" && choice.tagNumber === 1) {
-      nameRelativeToCRLIssuer = _readRelativeDistinguishedName(choice, ctx, `${namePath}.nameRelativeToCRLIssuer`);
-    } else {
-      throw malformed(namePath, nameNode.offset, "is not one DistributionPointName \u2014 fullName [0] or nameRelativeToCRLIssuer [1] \u2014 under an explicit [0] tag");
-    }
-  }
+  const name = nameNode === void 0 ? { fullName: void 0, nameRelativeToCRLIssuer: void 0 } : _readDistributionPointName(nameNode, ctx, `${path}.distributionPoint`);
   let reasons;
   if (reasonsNode !== void 0) {
-    reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), REASONS, ctx, `${path}.reasons`, reasonsNode.offset));
+    reasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), _REASON_FLAGS, ctx, `${path}.reasons`, reasonsNode.offset));
   }
   const point = {
-    fullName,
-    nameRelativeToCRLIssuer,
+    fullName: name.fullName,
+    nameRelativeToCRLIssuer: name.nameRelativeToCRLIssuer,
     reasons,
     cRLIssuer: issuerNode === void 0 ? void 0 : _readGeneralNameList(issuerNode, ctx, `${path}.cRLIssuer`, false)
   };
@@ -2370,9 +2368,170 @@ function getExtension(certificate, kind) {
   return void 0;
 }
 
+// src/revocation/crl-scope.ts
+var OID_ISSUING_DISTRIBUTION_POINT = "2.5.29.28";
+var OID_CERTIFICATE_ISSUER = "2.5.29.29";
+function _readIssuingDistributionPoint(extension, ctx) {
+  const path = "tbsCertList.crlExtensions.issuingDistributionPoint";
+  const node = expectSequence(decodeValueAt(extension.valueDer, 0, ctx), path, 0);
+  const [nameNode, userNode, caNode, reasonsNode, indirectNode, attributeNode] = contextFields(node.children, 5, path);
+  const name = nameNode === void 0 ? { fullName: void 0, nameRelativeToCRLIssuer: void 0 } : _readDistributionPointName(nameNode, ctx, `${path}.distributionPoint`);
+  let onlySomeReasons;
+  if (reasonsNode !== void 0) {
+    onlySomeReasons = Object.freeze(readNamedBits(_readBitString(reasonsNode, ctx), _REASON_FLAGS, ctx, `${path}.onlySomeReasons`, reasonsNode.offset));
+  }
+  const point = {
+    fullName: name.fullName,
+    nameRelativeToCRLIssuer: name.nameRelativeToCRLIssuer,
+    onlyContainsUserCerts: userNode !== void 0 && _readBoolean(userNode, ctx),
+    onlyContainsCACerts: caNode !== void 0 && _readBoolean(caNode, ctx),
+    onlySomeReasons,
+    indirectCRL: indirectNode !== void 0 && _readBoolean(indirectNode, ctx),
+    onlyContainsAttributeCerts: attributeNode !== void 0 && _readBoolean(attributeNode, ctx)
+  };
+  return Object.freeze(point);
+}
+var PROCESSED_CRL_EXTENSIONS = /* @__PURE__ */ new Set([
+  "2.5.29.18",
+  // issuerAltName
+  "2.5.29.20",
+  // cRLNumber
+  "2.5.29.28",
+  // issuingDistributionPoint
+  "2.5.29.35",
+  // authorityKeyIdentifier
+  "2.5.29.46",
+  // freshestCRL
+  "1.3.6.1.5.5.7.1.1"
+  // authorityInfoAccess
+]);
+function _crlScopeProblem(input) {
+  const { certificate, crl } = input;
+  const idp = crl.issuingDistributionPoint;
+  if (idp?.onlyContainsAttributeCerts === true) {
+    return _outOfScope("it declares onlyContainsAttributeCerts, so it covers X.509 attribute certificates and never a public-key certificate");
+  }
+  const isCa = getExtension(certificate, "basicConstraints")?.cA === true;
+  if (idp?.onlyContainsUserCerts === true && isCa) {
+    return _outOfScope("it declares onlyContainsUserCerts, and this certificate asserts cA in basicConstraints; a CA's absence from an end-entity list is not evidence that the CA is unrevoked");
+  }
+  if (idp?.onlyContainsCACerts === true && !isCa) {
+    return _outOfScope("it declares onlyContainsCACerts, and this certificate does not assert cA in basicConstraints");
+  }
+  const points = getExtension(certificate, "crlDistributionPoints")?.points ?? [];
+  const fromIssuer = bytesEqual(crl.issuer.der, certificate.issuer.der);
+  if (points.length === 0) {
+    if (!fromIssuer) return { kind: "wrong-issuer" };
+    if (idp !== void 0 && (idp.fullName !== void 0 || idp.nameRelativeToCRLIssuer !== void 0)) {
+      return _outOfScope("it is scoped to a distribution point, and the certificate carries no cRLDistributionPoints naming it; nothing establishes that this point covers this certificate");
+    }
+    return _usability(crl);
+  }
+  const problems = [];
+  let delegated = false;
+  for (const point of points) {
+    if (point.cRLIssuer !== void 0 && _namesInclude(point.cRLIssuer, crl.issuer.der)) delegated = true;
+    const problem = _pointProblem(point, input, idp);
+    if (problem === null) return _usability(crl);
+    problems.push(problem);
+  }
+  if (!fromIssuer && !delegated) return { kind: "wrong-issuer" };
+  return _outOfScope(`no cRLDistributionPoints entry in the certificate is answered by it \u2014 ${problems[0]}`);
+}
+function _outOfScope(why) {
+  return { kind: "out-of-scope", why };
+}
+function _usability(crl) {
+  if (crl.isDelta) {
+    return _outOfScope("it is a delta CRL: it lists what changed since a base list, so a certificate absent from it is not a certificate that is unrevoked");
+  }
+  for (const extension of crl.extensions) {
+    if (extension.critical && !PROCESSED_CRL_EXTENSIONS.has(extension.oid)) return { kind: "unusable", oid: extension.oid };
+  }
+  return null;
+}
+function _pointProblem(point, input, idp) {
+  const { certificate, crl } = input;
+  if (point.cRLIssuer !== void 0) {
+    if (!_namesInclude(point.cRLIssuer, crl.issuer.der)) {
+      return "the distribution point names a cRLIssuer other than the issuer of this list";
+    }
+    if (idp?.indirectCRL !== true) {
+      return "the distribution point delegates to a cRLIssuer, and the list does not assert indirectCRL; a list that does not claim to answer for another CA must not be read as if it did";
+    }
+  } else if (!bytesEqual(crl.issuer.der, certificate.issuer.der)) {
+    return "the distribution point delegates to nobody, so only the certificate's own issuer may publish its list";
+  }
+  if (idp === void 0 || idp.fullName === void 0 && idp.nameRelativeToCRLIssuer === void 0) return null;
+  const mine = point.fullName ?? (point.nameRelativeToCRLIssuer === void 0 ? point.cRLIssuer : void 0);
+  if (mine === void 0 && point.nameRelativeToCRLIssuer === void 0) {
+    return "the list is scoped to a distribution point, and this entry names neither a fullName nor a cRLIssuer to compare it against";
+  }
+  const listNames = idp.fullName ?? [];
+  const entryNames = mine ?? [];
+  if (point.nameRelativeToCRLIssuer !== void 0 && idp.nameRelativeToCRLIssuer !== void 0) {
+    if (_rdnEquals(point.nameRelativeToCRLIssuer, idp.nameRelativeToCRLIssuer)) return null;
+  } else if (point.nameRelativeToCRLIssuer !== void 0) {
+    if (_composedMatches(point.nameRelativeToCRLIssuer, listNames, crl.issuer)) return null;
+  } else if (idp.nameRelativeToCRLIssuer !== void 0) {
+    if (_composedMatches(idp.nameRelativeToCRLIssuer, entryNames, crl.issuer)) return null;
+  } else {
+    for (const theirs of listNames) {
+      if (_namesInclude(entryNames, theirs.der)) return null;
+    }
+  }
+  return "the list is scoped to a distribution point this entry does not name";
+}
+function _rdnEquals(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (left.type !== right.type || !bytesEqual(left.valueDer, right.valueDer)) return false;
+  }
+  return true;
+}
+function _composedMatches(relative, names, base) {
+  for (const name of names) {
+    if (name.kind !== "directoryName") continue;
+    const rdns = name.name.rdns;
+    if (rdns.length !== base.rdns.length + 1) continue;
+    if (!_rdnEquals(rdns[base.rdns.length], relative)) continue;
+    let same = true;
+    for (let i = 0; i < base.rdns.length; i += 1) {
+      if (!_rdnEquals(rdns[i], base.rdns[i])) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return true;
+  }
+  return false;
+}
+function _namesInclude(names, der) {
+  for (const name of names) {
+    if (bytesEqual(name.der, der)) return true;
+    if (name.kind === "directoryName" && bytesEqual(name.name.der, der)) return true;
+  }
+  return false;
+}
+function _findIssuingDistributionPoint(extensions, ctx) {
+  const extension = extensions.find((e) => e.oid === OID_ISSUING_DISTRIBUTION_POINT);
+  return extension === void 0 ? void 0 : _readIssuingDistributionPoint(extension, ctx);
+}
+function _entryCertificateIssuer(extensions, ctx, path) {
+  const extension = extensions.find((e) => e.oid === OID_CERTIFICATE_ISSUER);
+  if (extension === void 0) return void 0;
+  const names = _readGeneralNameList(decodeValueAt(extension.valueDer, 0, ctx), ctx, path, false);
+  for (const name of names) {
+    if (name.kind === "directoryName") return name.name.der;
+  }
+  return void 0;
+}
+
 // src/revocation/crl-parse.ts
 var STRUCTURE = "PKI_X509_STRUCTURE_INVALID";
-var REASONS2 = Object.freeze({
+var REASONS = Object.freeze({
   0: "unspecified",
   1: "keyCompromise",
   2: "cACompromise",
@@ -2388,6 +2547,14 @@ var OID_CRL_NUMBER = "2.5.29.20";
 var OID_DELTA_CRL_INDICATOR = "2.5.29.27";
 var OID_CRL_REASON = "2.5.29.21";
 var OID_INVALIDITY_DATE = "2.5.29.24";
+var CRL_OWN_EXTENSIONS = /* @__PURE__ */ new Set([
+  OID_CRL_NUMBER,
+  OID_DELTA_CRL_INDICATOR,
+  OID_CRL_REASON,
+  OID_INVALIDITY_DATE,
+  OID_ISSUING_DISTRIBUTION_POINT,
+  OID_CERTIFICATE_ISSUER
+]);
 function crlError(path, offset, why) {
   return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} \u2014 the input is not an RFC 5280 CertificateList`, path, offset);
 }
@@ -2499,6 +2666,7 @@ function parseCertificateList(der, options) {
     extensions,
     crlNumber,
     isDelta,
+    issuingDistributionPoint: _findIssuingDistributionPoint(extensions, ctx),
     entryCount: countEntries(der, env.revoked, ctx),
     diagnostics: ctx.emitter.diagnostics
   });
@@ -2520,15 +2688,22 @@ function readExtensions(der, field, ctx, path) {
       throw crlError(where2, entry.offset, "is not an Extension");
     }
     const start = valueNode.offset + valueNode.headerLength;
-    out.push(_decodeExtension(
-      der.subarray(0, start + valueNode.contentLength),
-      start,
-      readObjectIdentifier(oidNode),
-      criticalNode !== void 0 && criticalNode.content[0] !== 0,
-      valueNode.content,
-      ctx,
-      where2
-    ));
+    const oid = readObjectIdentifier(oidNode);
+    const critical = criticalNode !== void 0 && criticalNode.content[0] !== 0;
+    if (CRL_OWN_EXTENSIONS.has(oid)) {
+      const own = { kind: "unknown", oid, critical, valueDer: valueNode.content };
+      out.push(Object.freeze(own));
+    } else {
+      out.push(_decodeExtension(
+        der.subarray(0, start + valueNode.contentLength),
+        start,
+        oid,
+        critical,
+        valueNode.content,
+        ctx,
+        where2
+      ));
+    }
     index += 1;
   }
   return Object.freeze(out);
@@ -2545,6 +2720,12 @@ function findRevocation(der, serial, options) {
   const outer = readTlvHeader(der, 0, "CertificateList");
   const env = locate(der, outer);
   if (env.revoked === void 0) return void 0;
+  const crlExtensions = readExtensions(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
+  const indirect = _findIssuingDistributionPoint(crlExtensions, ctx)?.indirectCRL === true;
+  const issuerField = env.fields[env.signatureIndex + 1];
+  const crlIssuerDer = der.subarray(issuerField.offset, issuerField.end);
+  const wantedIssuer = indirect ? options?.issuerDer ?? crlIssuerDer : void 0;
+  let entryIssuer = crlIssuerDer;
   let index = 0;
   for (const entry of walkChildren(der, env.revoked, "tbsCertList.revokedCertificates")) {
     enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, `tbsCertList.revokedCertificates[${String(index)}]`);
@@ -2557,9 +2738,14 @@ function findRevocation(der, serial, options) {
     }
     index += 1;
     const content = der.subarray(serialField.contentStart, serialField.end);
-    if (!sameBytes(content, serial)) continue;
-    const revocationDate = _readTime(decodeAt(der, dateField, ctx), ctx, void 0);
+    const hit = sameBytes(content, serial);
+    if (!hit && wantedIssuer === void 0) continue;
     const extensions = readExtensions(der, parts[2], ctx, `${path}.crlEntryExtensions`);
+    if (wantedIssuer !== void 0) {
+      entryIssuer = _entryCertificateIssuer(extensions, ctx, `${path}.crlEntryExtensions.certificateIssuer`) ?? entryIssuer;
+      if (!hit || !sameBytes(entryIssuer, wantedIssuer)) continue;
+    }
+    const revocationDate = _readTime(decodeAt(der, dateField, ctx), ctx, void 0);
     return Object.freeze({
       serialNumber: Object.freeze({ bytes: content, hex: toHex(content), value: readInteger(decodeAt(der, serialField, ctx)) }),
       revocationDate,
@@ -2582,7 +2768,7 @@ function readReason(extensions, ctx) {
     const node = decodeValueAt(extension.valueDer, 0, ctx);
     if (node.tagClass !== "universal" || node.tagNumber !== 10 && node.tagNumber !== 2) return void 0;
     if (node.content.length !== 1) return void 0;
-    return REASONS2[node.content[0]];
+    return REASONS[node.content[0]];
   } catch {
     return void 0;
   }
@@ -2627,11 +2813,11 @@ function expiredReason(path, notAfter, at) {
     path
   );
 }
-function unrecognisedCriticalExtensionReason(path, oid) {
+function unrecognisedCriticalExtensionReason(path, oid, what = "certificate") {
   return _reason(
     "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
-    "RFC 5280 \xA76.1.3 (f)",
-    `the certificate carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
+    what === "certificate" ? "RFC 5280 \xA76.1.3 (f)" : "RFC 5280 \xA76.3.3",
+    `the ${what} carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
     path
   );
 }
@@ -2674,6 +2860,22 @@ function revocationWrongIssuerReason(path) {
     "PKI_REASON_REVOCATION_WRONG_ISSUER",
     "RFC 5280 \xA76.3.3",
     "the revocation list names a different issuer from the certificate, compared by encoded name; a list from another CA says nothing about this certificate",
+    path
+  );
+}
+function revocationOutOfScopeReason(path, why) {
+  return _reason(
+    "PKI_REASON_REVOCATION_OUT_OF_SCOPE",
+    "RFC 5280 \xA75.2.5",
+    `the revocation list does not cover this certificate: ${why}. It was issued by the right CA, so the absence of the serial from it proves nothing`,
+    path
+  );
+}
+function revocationPartialReason(path, covered) {
+  return _reason(
+    "PKI_REASON_REVOCATION_PARTIAL",
+    "RFC 5280 \xA75.2.5",
+    `the list declares onlySomeReasons (${covered.join(", ") || "none"}), so the serial's absence from it rules out only those reasons; another list covering the rest would complete the answer`,
     path
   );
 }
@@ -2796,9 +2998,10 @@ function limitExceededReason(path, limit, configured) {
 function checkRevocation(input) {
   const out = [];
   const path = "crl";
-  if (!bytesEqual(input.crl.issuer.der, input.certificate.issuer.der)) {
-    out.push(revocationWrongIssuerReason(path));
-  }
+  const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+  if (scope?.kind === "wrong-issuer") out.push(revocationWrongIssuerReason(path));
+  if (scope?.kind === "out-of-scope") out.push(revocationOutOfScopeReason(path, scope.why));
+  if (scope?.kind === "unusable") out.push(unrecognisedCriticalExtensionReason(path, scope.oid, "revocation list"));
   if (input.signatureVerified !== true) {
     out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the list's signature did not verify against the key it was checked with" : "the list's signature was never checked, and an unsigned list is something anyone can publish"));
   }
@@ -2807,10 +3010,16 @@ function checkRevocation(input) {
   if (nextUpdate === void 0 || input.at > nextUpdate + tolerance) {
     out.push(revocationStaleReason(path, nextUpdate, input.at));
   }
-  const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, input.options);
-  if (entry !== void 0) {
+  const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, {
+    ...input.options,
+    issuerDer: input.certificate.issuer.der
+  });
+  if (entry !== void 0 && entry.reason !== "removeFromCRL") {
     out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
+    return out;
   }
+  const covered = input.crl.issuingDistributionPoint?.onlySomeReasons;
+  if (covered !== void 0) out.push(revocationPartialReason(path, covered.filter((reason) => reason !== "unused")));
   return out;
 }
 
@@ -3522,7 +3731,7 @@ var STATUSES = Object.freeze({
   5: "sigRequired",
   6: "unauthorized"
 });
-var REASONS3 = Object.freeze({
+var REASONS2 = Object.freeze({
   0: "unspecified",
   1: "keyCompromise",
   2: "cACompromise",
@@ -3722,7 +3931,7 @@ function readCertStatus(der, field, ctx, path) {
   const reasonField = parts[1];
   if (reasonField !== void 0 && reasonField.tagClass === "context" && reasonField.tagNumber === 0) {
     const inner = [...walkChildren(der, reasonField, `${path}.revocationReason`)][0];
-    if (inner !== void 0 && inner.length === 1) reason = REASONS3[der[inner.contentStart]];
+    if (inner !== void 0 && inner.length === 1) reason = REASONS2[der[inner.contentStart]];
   }
   return { kind: "revoked", revocationTime: _readTime(decodeAt2(der, timeField, ctx), ctx, void 0), reason };
 }
@@ -5424,6 +5633,19 @@ async function _crlSigner(input, path, crl, about) {
   }
   return answer;
 }
+var EVERY_REASON = [
+  "keyCompromise",
+  "cACompromise",
+  "affiliationChanged",
+  "superseded",
+  "cessationOfOperation",
+  "certificateHold",
+  "privilegeWithdrawn",
+  "aACompromise"
+];
+function _coversEveryReason(reasons) {
+  return EVERY_REASON.every((reason) => reasons.has(reason));
+}
 async function _checkRevocation(input, path, at) {
   const out = [];
   const lists = input.crls ?? [];
@@ -5437,34 +5659,44 @@ async function _checkRevocation(input, path, at) {
   const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
   const anchors = new Set(input.trustAnchors.map((c) => _hex2(c.der)));
   const covered = /* @__PURE__ */ new Set();
+  const parsed = [];
   for (const [index, der] of lists.entries()) {
-    const where2 = `crl[${String(index)}]`;
     try {
-      const crl = parseCertificateList(der, reading);
-      const about = _hex2(crl.issuer.der);
-      let signatureVerified;
-      let asked = false;
-      for (const [position, subject] of path.entries()) {
-        if (anchors.has(_hex2(subject.der))) continue;
-        if (_hex2(subject.issuer.der) !== about) continue;
-        covered.add(position);
-        if (!asked) {
-          asked = true;
-          signatureVerified = await _crlSigner(input, path, crl, about);
-        }
-        out.push(...checkRevocation({
-          certificate: subject,
-          crl,
-          crlDer: der,
-          at,
-          ...signatureVerified === void 0 ? {} : { signatureVerified },
-          options: reading
-        }));
-      }
+      parsed.push({ der, crl: parseCertificateList(der, reading) });
     } catch (error) {
       const refused = _pkiError(error);
-      out.push(inputMalformedReason(refused.code, refused.message, where2));
+      out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
     }
+  }
+  const signed = /* @__PURE__ */ new Map();
+  for (const [position, subject] of path.entries()) {
+    if (anchors.has(_hex2(subject.der))) continue;
+    const mine = [];
+    const reasons = /* @__PURE__ */ new Set();
+    let complete = false;
+    for (const [index, { der, crl }] of parsed.entries()) {
+      const problem = _crlScopeProblem({ certificate: subject, crl });
+      if (problem !== null && problem.kind !== "unusable") continue;
+      if (problem !== null) {
+        mine.push(unrecognisedCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, "revocation list"));
+        continue;
+      }
+      covered.add(position);
+      if (!signed.has(index)) signed.set(index, await _crlSigner(input, path, crl, _hex2(crl.issuer.der)));
+      const signatureVerified = signed.get(index);
+      const only = crl.issuingDistributionPoint?.onlySomeReasons;
+      if (only === void 0) complete = true;
+      else for (const reason of only) reasons.add(reason);
+      mine.push(...checkRevocation({
+        certificate: subject,
+        crl,
+        crlDer: der,
+        at,
+        ...signatureVerified === void 0 ? {} : { signatureVerified },
+        options: reading
+      }));
+    }
+    out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
   const issuer = path[1];
   for (const [index, der] of stapled.entries()) {

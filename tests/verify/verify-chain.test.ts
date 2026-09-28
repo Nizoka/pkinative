@@ -347,9 +347,29 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica, { wideTime: true })],
+        });
+        // The list is usable and was used — its signature is nonsense on
+        // purpose, which is the verdict — and the profile concern stayed where
+        // it belongs, on a `parseCertificateList` the caller did not make.
+        expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+        expect(codes(report)).not.toContain('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION');
+    });
+
+    it('should say so rather than move on when a covering list carries a critical extension it cannot process', async () => {
+        // RFC 5280 §6.3.3: such a list MUST NOT be used. A validator that just
+        // skipped it would have used nothing *and said nothing* — reporting the
+        // certificate exactly as if the CA had published no list at all, which
+        // is the difference between "I could not read the CA's answer" and "the
+        // CA gave no answer".
+        const { root, ica, leaf } = await hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
             crls: [emptyCrl(ica, { oddExtension: true })],
         });
-        expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+        expect(codes(report)).toContain('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION');
+        expect(report.valid).toBe(false);
     });
 
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
@@ -767,6 +787,55 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual([]);
     });
 
+    it('should report what one partial list left unproven', async () => {
+        // keyCompromise and cACompromise only. The serial's absence rules those
+        // two out and says nothing about the other six, and a report that came
+        // back clean would have turned a partial answer into a complete one.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, icaKey, undefined, [0x05, 0x60])], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_PARTIAL']);
+    });
+
+    it('should add two partial lists up into a complete answer', async () => {
+        // RFC 5280 §6.3.3's `reasons_mask`, and the reason
+        // PKI_REASON_REVOCATION_PARTIAL is a code rather than a wording of
+        // UNKNOWN: a CA that publishes a keyCompromise list it can reissue in
+        // minutes and a second list for everything else has answered
+        // completely, and **only a caller holding both can see that**. Each
+        // list says what it ruled out; the composition does the addition.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [
+                await signedCrl(ica, icaKey, undefined, [0x05, 0x60]),
+                await signedCrl(ica, icaKey, undefined, [0x07, 0x1f, 0x80]),
+            ],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+    });
+
+    it('should still add up to nothing when the halves leave a gap', async () => {
+        // The same two lists minus `superseded`. One reason unaccounted for is
+        // one reason the certificate could have been revoked for, so the answer
+        // stays partial — a completeness test that rounded up would be worse
+        // than no test at all.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [
+                await signedCrl(ica, icaKey, undefined, [0x05, 0x60]),
+                await signedCrl(ica, icaKey, undefined, [0x07, 0x17, 0x80]),
+            ],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_PARTIAL', 'PKI_REASON_REVOCATION_PARTIAL']);
+    });
+
     it('should apply one list to every certificate on the path that it covers', async () => {
         // A CA rolling its key over leaves two certificates with the same
         // subject: the one its own issuer signed, and one it signed itself. The
@@ -984,11 +1053,18 @@ async function ocspResponse(options: {
  * A CRL naming `issuer` and **really signed** by `key`, Ed25519 so the
  * signature is 64 raw bytes and needs no DER conversion.
  */
-async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, revoked?: Certificate): Promise<Uint8Array> {
+async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, revoked?: Certificate, reasons?: readonly number[]): Promise<Uint8Array> {
     const entries = revoked === undefined ? [] : [encodeSequence([
         encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
         encodeTime(AT - 30 * DAY, 'UTCTime'),
     ])];
+    // issuingDistributionPoint { onlySomeReasons [3] ReasonFlags }, when asked:
+    // the bytes are the BIT STRING content, unused-bit count first.
+    const extensions = reasons === undefined ? [] : [encodeExplicit(0, encodeSequence([encodeSequence([
+        encodeObjectIdentifier('2.5.29.28'),
+        encodeBoolean(true),
+        encodeOctetString(encodeSequence([encodeTlv('context', 3, false, Uint8Array.from(reasons))])),
+    ])]))];
     const tbs = encodeSequence([
         encodeInteger(1n),
         ED25519,
@@ -996,6 +1072,7 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, revoked?: Ce
         encodeTime(AT - DAY, 'UTCTime'),
         encodeTime(AT + DAY, 'UTCTime'),
         ...(entries.length === 0 ? [] : [encodeSequence(entries)]),
+        ...extensions,
     ]);
     const signature = new Uint8Array(await crypto.subtle.sign(
         { name: 'Ed25519' },
@@ -1028,7 +1105,7 @@ function revokingCrl(issuer: Certificate, revoked: Certificate): Uint8Array {
 }
 
 /** An empty CRL naming `issuer`, whose signature is nonsense on purpose. */
-function emptyCrl(issuer: Certificate, options: { version?: bigint; sha1?: boolean; oddExtension?: boolean } = {}): Uint8Array {
+function emptyCrl(issuer: Certificate, options: { version?: bigint; sha1?: boolean; oddExtension?: boolean; wideTime?: boolean } = {}): Uint8Array {
     // ecdsa-with-SHA1 when asked: pkinative refuses to treat such a signature as
     // evidence, which is what makes "never checked" reachable here.
     const algorithm = encodeAlgorithmIdentifier(options.sha1 === true ? '1.2.840.10045.4.1' : '1.2.840.10045.4.3.2');
@@ -1036,10 +1113,14 @@ function emptyCrl(issuer: Certificate, options: { version?: bigint; sha1?: boole
         encodeInteger(options.version ?? 1n),
         algorithm,
         issuer.subject.der,
-        encodeTime(AT - DAY, 'UTCTime'),
+        // A GeneralizedTime before 2050 when asked, which RFC 5280 §4.1.2.5 says
+        // must be a UTCTime: a diagnostic on a list that is otherwise perfectly
+        // usable, so the report can be seen swallowing one without the list
+        // becoming unusable for a different reason.
+        encodeTime(AT - DAY, options.wideTime === true ? 'GeneralizedTime' : 'UTCTime'),
         encodeTime(AT + DAY, 'UTCTime'),
-        // A critical extension nobody recognises, so that reading the list
-        // emits a diagnostic and the report can be seen swallowing it.
+        // A critical extension nobody recognises. RFC 5280 §6.3.3 says such a
+        // list MUST NOT be used.
         ...(options.oddExtension === true
             ? [encodeExplicit(0, encodeSequence([encodeSequence([
                 encodeObjectIdentifier('1.3.6.1.4.1.99999.1'),

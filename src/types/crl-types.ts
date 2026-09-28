@@ -16,7 +16,15 @@
  */
 
 import type { BitString, PkiTime } from './asn1-types.js';
-import type { AlgorithmIdentifier, DistinguishedName, Extension, SerialNumber } from './x509-types.js';
+import type {
+    AlgorithmIdentifier,
+    DistinguishedName,
+    Extension,
+    GeneralName,
+    ReasonFlag,
+    RelativeDistinguishedName,
+    SerialNumber,
+} from './x509-types.js';
 import type { PkiDiagnostic } from './pki-types.js';
 
 /** One entry of `revokedCertificates` (RFC 5280 §5.1.2.6). */
@@ -51,6 +59,38 @@ export type CrlReason =
     | 'privilegeWithdrawn'
     | 'aACompromise';
 
+/**
+ * `issuingDistributionPoint` (RFC 5280 §5.2.5) — what a list declares itself to
+ * be about.
+ *
+ * This is the extension that makes "the serial is not on the list" mean
+ * something. Without it a list is assumed to cover every certificate its CA
+ * issued; with it the list says *"I only speak for end-entity certificates
+ * published at this point"*, and reading a CA certificate's absence from such a
+ * list as "not revoked" is how a revoked sub-CA is accepted. RFC 5280 requires
+ * it to be critical, for exactly that reason.
+ *
+ * The four booleans are `DEFAULT FALSE`, so an absent field is `false` here and
+ * a caller never has to distinguish absent from false — the standard already
+ * decided they are the same thing.
+ */
+export interface IssuingDistributionPoint {
+    /** `distributionPoint` as a `fullName`, or `undefined` when the field names nothing or is relative. */
+    readonly fullName: readonly GeneralName[] | undefined;
+    /** `distributionPoint` named relative to the CRL issuer; `undefined` when absent. Mutually exclusive with `fullName`. */
+    readonly nameRelativeToCRLIssuer: RelativeDistinguishedName | undefined;
+    /** The list covers only certificates that are not CAs. */
+    readonly onlyContainsUserCerts: boolean;
+    /** The list covers only CA certificates. */
+    readonly onlyContainsCACerts: boolean;
+    /** The revocation reasons this list covers; `undefined` means all of them, which is not the same as an empty list. */
+    readonly onlySomeReasons: readonly ReasonFlag[] | undefined;
+    /** The list carries entries for CAs other than its own issuer, each named by a `certificateIssuer` entry extension. */
+    readonly indirectCRL: boolean;
+    /** The list covers only attribute certificates (X.509 §12), which this library does not parse — so it covers nothing here. */
+    readonly onlyContainsAttributeCerts: boolean;
+}
+
 /** A parsed `CertificateList` (RFC 5280 §5.1). */
 export interface CertificateList {
     /** The whole CRL, as a zero-copy view of the input. */
@@ -77,6 +117,8 @@ export interface CertificateList {
     readonly crlNumber: bigint | undefined;
     /** Whether `deltaCRLIndicator` (§5.2.4) is present — a delta CRL is not a full one. */
     readonly isDelta: boolean;
+    /** `issuingDistributionPoint` (§5.2.5), or `undefined` when absent — in which case the list covers everything its CA issued. */
+    readonly issuingDistributionPoint: IssuingDistributionPoint | undefined;
     /** Entries in `revokedCertificates`, counted by walking rather than decoding. */
     readonly entryCount: number;
     /** Profile concerns found while reading the envelope, in encoded order. */

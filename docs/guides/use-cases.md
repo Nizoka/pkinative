@@ -368,7 +368,7 @@ if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.rev
 
 `findRevocation` walks from the start each time, so checking many certificates against one CRL is O(n·m). The alternative is a map keyed by serial, and that is your decision: you know how many serials you have and how much memory you will spend on them. What this library must not do is build that map behind your back for a single lookup.
 
-`crl.crlNumber` and `crl.isDelta` are read from `cRLNumber` and `deltaCRLIndicator`; a **delta CRL is not a full one**, and treating it as complete would report every certificate absent from it as unrevoked.
+`crl.crlNumber` and `crl.isDelta` are read from `cRLNumber` and `deltaCRLIndicator`; a **delta CRL is not a full one**, and treating it as complete would report every certificate absent from it as unrevoked. `crl.issuingDistributionPoint` is an [`IssuingDistributionPoint`](../assets/api.json) — the §5.2.5 scope, what the list says it is about — and [the section below](#what-a-list-is-about-rfc-5280-525) is what acts on it.
 
 The envelope is a [`CertificateList`](../assets/api.json), an entry is a [`RevokedCertificate`](../assets/api.json) carrying its `reason` as a [`CrlReason`](../assets/api.json) and its `invalidityDate`, and `maxRevokedCertificates` is the bound on the walk.
 
@@ -392,6 +392,8 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 | `PKI_REASON_REVOKED` | Listed — and the message carries the date, because a signature made before it may still be good |
 | `PKI_REASON_REVOCATION_STALE` | No `nextUpdate`, or it has passed beyond your `staleTolerance` |
 | `PKI_REASON_REVOCATION_WRONG_ISSUER` | The list names another CA, compared by encoded name |
+| `PKI_REASON_REVOCATION_OUT_OF_SCOPE` | The right CA's **wrong list** — its `issuingDistributionPoint` excludes this certificate |
+| `PKI_REASON_REVOCATION_PARTIAL` | The list declares `onlySomeReasons`, so its silence rules out only those |
 | `PKI_REASON_REVOCATION_UNKNOWN` | No evidence either way |
 
 **`UNKNOWN` is not `[]`, and that distinction is the point.** A missing or unsigned list is an absence of evidence. Reporting it as "not revoked" would make the soft-fail decision on your behalf, invisibly. If you want soft-fail, you write it — `staleTolerance` is the same idea for a lapsed list: a number you chose, not a default that chose for you.
@@ -399,6 +401,18 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.
 
 And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
+
+### What a list is *about* (RFC 5280 §5.2.5)
+
+A CRL is evidence of **absence**: your serial is not on it. That is worth exactly what the list's declared scope says it is worth, which is why `OUT_OF_SCOPE` is its own answer and not a flavour of `WRONG_ISSUER`. A CA that publishes one list for its end-entity certificates and another for its sub-CAs marks both with `issuingDistributionPoint`; read the first about a sub-CA and you get a clean bill of health for a CA that may well have been revoked on the second. RFC 5280 requires the extension to be critical for that reason alone.
+
+`checkRevocation` therefore decides, before anything else, whether the list may answer at all: the kind of certificate it covers, the distribution point it was published at against the one your certificate names in `cRLDistributionPoints` — **including a point named relative to the CRL issuer**, composed rather than refused — and, when the certificate delegates to a `cRLIssuer`, whether the list itself asserts `indirectCRL`. Without that last agreement any CA named in any `cRLIssuer` field could answer for certificates it never issued.
+
+Two more lists get refused outright, and for the same kind of reason. A **delta CRL** lists what changed since a base list, so reading it as complete reports nearly everything as unrevoked; §5.2.4 is not implemented, and until it is a delta answers nothing. A list carrying a **critical extension pkinative cannot process** is refused by §6.3.3, in the same words §6.1.3 (f) uses for a certificate — you get `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
+
+`PKI_REASON_PARTIAL` is the one answer that **adds up**. A CA may publish a keyCompromise list it can reissue in minutes and a second list for everything else; between them they have answered completely. No single list can see that, so `checkRevocation` reports what each one ruled out and `verifyCertificateChain` — which holds them all — does the addition (§6.3.3's `reasons_mask`) and drops the reason once the union is complete.
+
+On an **indirect** list, pass `issuerDer` — the one field of [`FindRevocationOptions`](../assets/api.json) beyond the ordinary parse options — to `findRevocation`. A serial is not an identity there: the list holds entries for several CAs, each named by the running `certificateIssuer` state of §5.3.3, and two CAs issue the same serial all the time. `checkRevocation` passes it for you.
 
 ## Ask a responder instead of downloading a list
 

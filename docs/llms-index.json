@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 107926,
-      "approxTokens": 26982
+      "bytes": 111363,
+      "approxTokens": 27841
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 198560,
-      "approxTokens": 49640
+      "bytes": 202396,
+      "approxTokens": 50599
     },
     {
       "url": "data/errors.json",
@@ -103,12 +103,13 @@
         "two-questions-a-validated-chain-does-not-answer",
         "ask-a-revocation-list-about-one-certificate",
         "the-decision-and-the-four-answers-it-keeps-apart",
+        "what-a-list-is-about-rfc-5280-525",
         "ask-a-responder-instead-of-downloading-a-list",
         "the-decision-and-the-substitution-it-catches",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 41958,
-      "approxTokens": 10490
+      "bytes": 44852,
+      "approxTokens": 11213
     },
     {
       "title": "Security model",
@@ -139,8 +140,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 17744,
-      "approxTokens": 4436
+      "bytes": 18287,
+      "approxTokens": 4572
     },
     {
       "title": "Errors, diagnostics and reasons",

@@ -57,10 +57,21 @@ export function expiredReason(path: string, notAfter: number, at: number): PkiRe
         path);
 }
 
-/** A critical extension nothing here recognises. RFC 5280 requires refusal, not tolerance. */
-export function unrecognisedCriticalExtensionReason(path: string, oid: string): PkiReason {
-    return _reason('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION', 'RFC 5280 §6.1.3 (f)',
-        `the certificate carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
+/**
+ * A critical extension nothing here recognises. RFC 5280 requires refusal, not
+ * tolerance.
+ *
+ * One code for two objects, because it is one rule: §6.1.3 (f) states it for a
+ * certificate and §6.3.3 states it again for a revocation list, in the same
+ * words and for the same reason — a critical marking is the issuer saying *"if
+ * you do not understand this, you do not understand what this object means"*.
+ * `what` only decides the noun and the section cited; a reader who wants to
+ * know which object it was has `path`.
+ */
+export function unrecognisedCriticalExtensionReason(path: string, oid: string, what: 'certificate' | 'revocation list' = 'certificate'): PkiReason {
+    return _reason('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION',
+        what === 'certificate' ? 'RFC 5280 §6.1.3 (f)' : 'RFC 5280 §6.3.3',
+        `the ${what} carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
         path);
 }
 
@@ -118,6 +129,50 @@ export function revocationStaleReason(path: string, nextUpdate: number | undefin
 export function revocationWrongIssuerReason(path: string): PkiReason {
     return _reason('PKI_REASON_REVOCATION_WRONG_ISSUER', 'RFC 5280 §6.3.3',
         'the revocation list names a different issuer from the certificate, compared by encoded name; a list from another CA says nothing about this certificate',
+        path);
+}
+
+/**
+ * The list is from the right CA, and says it is not about this certificate.
+ *
+ * Its own code rather than a flavour of `WRONG_ISSUER`, because the two point
+ * at different mistakes and at different fixes. A wrong issuer means the caller
+ * fetched somebody else's list. Out of scope means they fetched *a* list of the
+ * right CA's — the CA publishes several, marked by `issuingDistributionPoint`,
+ * and this one covers other certificates. The fix is another fetch from the
+ * point the certificate names, and a report that could not tell the two apart
+ * would send the caller back to the wrong CA.
+ *
+ * It exists at all because the alternative is silence. A list that does not
+ * cover a certificate does not list it either, so treating scope as a detail
+ * turns "I am not about this certificate" into "this certificate is not
+ * revoked" — the one misreading of a CRL that a compromised sub-CA survives.
+ */
+export function revocationOutOfScopeReason(path: string, why: string): PkiReason {
+    return _reason('PKI_REASON_REVOCATION_OUT_OF_SCOPE', 'RFC 5280 §5.2.5',
+        `the revocation list does not cover this certificate: ${why}. It was issued by the right CA, so the absence of the serial from it proves nothing`,
+        path);
+}
+
+/**
+ * The list covers only some revocation reasons, so its silence rules out only
+ * those.
+ *
+ * Its own code rather than a flavour of `UNKNOWN`, for a reason that only shows
+ * up one layer above: **partial answers add up**. A CA that publishes a
+ * keyCompromise list it can reissue in minutes and a second list for everything
+ * else has, between the two, answered completely — RFC 5280 §6.3.3 calls that
+ * accumulation `reasons_mask`, and no single list can see it. So each list says
+ * what it ruled out, in a code the composition can recognise and combine, and
+ * `verifyCertificateChain` drops these once the union is complete.
+ *
+ * A caller consulting one list with `checkRevocation` gets to see it too, which
+ * is the honest answer to "is it revoked?" from a list that only knows about
+ * two of the nine ways it could be.
+ */
+export function revocationPartialReason(path: string, covered: readonly string[]): PkiReason {
+    return _reason('PKI_REASON_REVOCATION_PARTIAL', 'RFC 5280 §5.2.5',
+        `the list declares onlySomeReasons (${covered.join(', ') || 'none'}), so the serial's absence from it rules out only those reasons; another list covering the rest would complete the answer`,
         path);
 }
 

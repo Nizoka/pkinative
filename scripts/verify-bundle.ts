@@ -120,7 +120,13 @@ export const PROBES: readonly Probe[] = [
     // almost every caller than 35 KB they would save by reading every CRL
     // extension as `unknown` — and it is written here so the next person to
     // look at this number knows it was a choice.
-    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 58 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    //
+    // 58 KB → 62 KB, measured at 60.0 KB when §5.2.5 landed: deciding whether a
+    // list covers a certificate reads the certificate's `cRLDistributionPoints`
+    // and compares GeneralNames, so the general-name reader is now reachable
+    // from the CRL entry points. That is the cost of the answer being about
+    // *this* certificate rather than about the CA, and it is not optional.
+    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 62 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // 156 KB → 164 KB, measured at 157.9 KB: the purpose check and the
     // composition layer. The roadmap's own projection for 1.0 is ~320 KB, so
     // this figure is on track; it is raised in the commit that measures it,
@@ -139,7 +145,8 @@ export const PROBES: readonly Probe[] = [
     // for. Recorded rather than hidden, and raised in the commit that measures
     // it.
     { exports: ['verifyCertificateChain'], maxBytes: 120 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
-    { exports: ['*'], maxBytes: 164 * 1024, mustNotContain: [] },
+    // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision.
+    { exports: ['*'], maxBytes: 168 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

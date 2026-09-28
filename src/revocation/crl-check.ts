@@ -18,9 +18,12 @@
  * before the revocation instant may still be good and the caller deciding
  * that needs the date.
  *
- * `PKI_REASON_REVOCATION_STALE` / `..._WRONG_ISSUER` — the list cannot answer
- * for this certificate. An out-of-date list says what was revoked *then*; a
- * list from another CA says nothing at all.
+ * `PKI_REASON_REVOCATION_STALE` / `..._WRONG_ISSUER` / `..._OUT_OF_SCOPE` — the
+ * list cannot answer for this certificate. An out-of-date list says what was
+ * revoked *then*; a list from another CA says nothing at all; and a list from
+ * the right CA whose `issuingDistributionPoint` excludes this certificate says
+ * nothing *about this certificate*, which is the one of the three that looks
+ * like a clean answer if you do not read §5.2.5.
  *
  * `PKI_REASON_REVOCATION_UNKNOWN` — no evidence either way. This is the answer
  * a soft-fail policy acts on, and it is deliberately **not** the same as "not
@@ -31,17 +34,20 @@
  */
 
 import {
+    revocationOutOfScopeReason,
+    revocationPartialReason,
     revocationStaleReason,
     revocationUnknownReason,
     revocationWrongIssuerReason,
     revokedReason,
+    unrecognisedCriticalExtensionReason,
 } from '../core/pki-reasons.js';
-import { bytesEqual } from '../core/bytes.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { findRevocation } from './crl-parse.js';
+import { _crlScopeProblem } from './crl-scope.js';
 
 /** What to check, and everything needed to judge it. */
 export interface RevocationCheckInput {
@@ -87,11 +93,15 @@ export interface RevocationCheckInput {
  * reached during the walk, because that is a structural failure and not a
  * verdict — the same line every other entry point draws.
  *
- * Only **one** list is consulted. Choosing which lists cover a certificate,
- * fetching them and combining a delta with its base are the caller's job, and
- * `crl.isDelta` is there so a caller does not mistake a delta for a full list:
- * a delta answers only about what changed, and reading it as complete reports
- * every certificate absent from it as unrevoked.
+ * Only **one** list is consulted, and whether it is entitled to answer is
+ * decided here: RFC 5280 §5.2.5 for what the list declares itself to be about,
+ * §6.3.3 (b) for the agreement between the certificate's `cRLDistributionPoints`
+ * and the list's own `issuingDistributionPoint`, including the indirect case.
+ *
+ * Fetching the lists and combining a delta with its base remain the caller's
+ * job, and `crl.isDelta` is there so a caller does not mistake a delta for a
+ * full list: a delta answers only about what changed, and reading it as
+ * complete reports every certificate absent from it as unrevoked.
  *
  * @param input See {@link RevocationCheckInput}.
  * @returns Every reason the answer is not a clean "not revoked", in the order
@@ -103,11 +113,19 @@ export function checkRevocation(input: RevocationCheckInput): readonly PkiReason
     const out: PkiReason[] = [];
     const path = 'crl';
 
-    // Is this list even about this certificate? Encoded names, never rendered
-    // ones: two names that print the same and encode differently are two names.
-    if (!bytesEqual(input.crl.issuer.der, input.certificate.issuer.der)) {
-        out.push(revocationWrongIssuerReason(path));
-    }
+    // Is this list even about this certificate? Two questions, and RFC 5280
+    // answers them in two places: §6.3.3 (b)(1) asks who may have issued the
+    // list — the certificate's own CA, or a cRLIssuer it delegates to — and
+    // §5.2.5 asks what the list says it is about. Names are compared encoded,
+    // never rendered: two names that print the same and encode differently are
+    // two names.
+    const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+    if (scope?.kind === 'wrong-issuer') out.push(revocationWrongIssuerReason(path));
+    if (scope?.kind === 'out-of-scope') out.push(revocationOutOfScopeReason(path, scope.why));
+    // The same rule §6.1.3 (f) sets for a certificate, and the same code: a
+    // critical extension nothing here recognises means the object does not mean
+    // what this implementation would take it to mean.
+    if (scope?.kind === 'unusable') out.push(unrecognisedCriticalExtensionReason(path, scope.oid, 'revocation list'));
 
     if (input.signatureVerified !== true) {
         out.push(revocationUnknownReason(path, input.signatureVerified === false
@@ -128,9 +146,31 @@ export function checkRevocation(input: RevocationCheckInput): readonly PkiReason
     // or from the wrong CA still tells you something worth reporting when the
     // serial is on it, and hiding that behind an earlier failure would be the
     // one direction of error that matters.
-    const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, input.options);
-    if (entry !== undefined) {
+    const entry = findRevocation(input.crlDer, input.certificate.serialNumber.bytes, {
+        ...input.options,
+        issuerDer: input.certificate.issuer.der,
+    });
+    // `removeFromCRL` (§5.3.1) is the one entry reason that means the opposite
+    // of the list it sits on: only a delta may carry it, and it says the base
+    // list's revocation has been lifted. Reporting it as a revocation would
+    // take an un-revocation and answer "revoked (reason: removeFromCRL)" — a
+    // sentence that is wrong in both halves.
+    if (entry !== undefined && entry.reason !== 'removeFromCRL') {
         out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
+        return out;
     }
+
+    // RFC 5280 §5.2.5 `onlySomeReasons`: a list that covers two reasons out of
+    // nine has ruled out two. Reporting that as "not revoked" is the same
+    // mistake as reporting an out-of-scope list that way, one step finer — and
+    // it is the step a CA takes when it publishes a separate keyCompromise list
+    // it can reissue faster than the rest.
+    //
+    // It is a **partial** answer and not an absent one, which matters one layer
+    // up: §6.3.3 accumulates these into `reasons_mask`, and two lists that each
+    // cover half answer completely between them. Only a caller holding both can
+    // see that, so this says what it ruled out and leaves the addition to them.
+    const covered = input.crl.issuingDistributionPoint?.onlySomeReasons;
+    if (covered !== undefined) out.push(revocationPartialReason(path, covered.filter((reason) => reason !== 'unused')));
     return out;
 }

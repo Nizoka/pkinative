@@ -36,6 +36,12 @@ import type { Extension, SerialNumber } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from '../x509/x509-algorithm.js';
 import { _decodeExtension } from '../x509/x509-extensions.js';
 import { _readName } from '../x509/x509-name.js';
+import {
+    OID_CERTIFICATE_ISSUER,
+    OID_ISSUING_DISTRIBUTION_POINT,
+    _entryCertificateIssuer,
+    _findIssuingDistributionPoint,
+} from './crl-scope.js';
 
 const STRUCTURE = 'PKI_X509_STRUCTURE_INVALID';
 
@@ -50,6 +56,25 @@ const OID_CRL_NUMBER = '2.5.29.20';
 const OID_DELTA_CRL_INDICATOR = '2.5.29.27';
 const OID_CRL_REASON = '2.5.29.21';
 const OID_INVALIDITY_DATE = '2.5.29.24';
+
+/**
+ * The §5.2 and §5.3 extensions this module reads itself.
+ *
+ * They are kept raw rather than handed to `_decodeExtension`, for one reason:
+ * that decoder knows the certificate profile, and every one of these OIDs is
+ * unknown to it. Three of them — `deltaCRLIndicator`, `issuingDistributionPoint`
+ * and `certificateIssuer` — MUST be critical, so passing them through would put
+ * `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION` on every correctly formed CRL, for
+ * extensions this library not only recognises but acts on.
+ */
+const CRL_OWN_EXTENSIONS: ReadonlySet<string> = new Set([
+    OID_CRL_NUMBER,
+    OID_DELTA_CRL_INDICATOR,
+    OID_CRL_REASON,
+    OID_INVALIDITY_DATE,
+    OID_ISSUING_DISTRIBUTION_POINT,
+    OID_CERTIFICATE_ISSUER,
+]);
 
 function crlError(path: string, offset: number, why: string): PkiCertificateError {
     return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} — the input is not an RFC 5280 CertificateList`, path, offset);
@@ -179,12 +204,18 @@ function countEntries(der: Uint8Array, revoked: TlvHeader | undefined, ctx: Asn1
  * The result carries `entryCount` but **no array of entries**: see the module
  * comment. Ask with {@link findRevocation}.
  *
+ * `issuingDistributionPoint` (§5.2.5) is decoded here because it decides what
+ * the list may be believed about, and a value that cannot be read leaves that
+ * unknown — so a malformed one refuses the whole list rather than leaving it
+ * looking unrestricted, which is the one way to get this wrong that matters.
+ *
  * @param der     The complete CertificateList.
  * @param options Encoding rules, limits, diagnostics — the same options every
  *   other entry point takes.
  * @returns The parsed CRL, with zero-copy views of `der`.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` when the bytes are
- *   not an RFC 5280 CertificateList.
+ *   not an RFC 5280 CertificateList, or `PKI_X509_EXTENSION_MALFORMED` when
+ *   `issuingDistributionPoint` is not one.
  * @throws {PkiEncodingError} For any DER violation in the envelope or the walk.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
  */
@@ -232,6 +263,7 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
         extensions,
         crlNumber,
         isDelta,
+        issuingDistributionPoint: _findIssuingDistributionPoint(extensions, ctx),
         entryCount: countEntries(der, env.revoked, ctx),
         diagnostics: ctx.emitter.diagnostics,
     });
@@ -266,15 +298,22 @@ function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1
         // recognised extension look like garbage followed by the rest of the
         // file, which refused every CRL carrying one.
         const start = valueNode.offset + valueNode.headerLength;
-        out.push(_decodeExtension(
-            der.subarray(0, start + valueNode.contentLength),
-            start,
-            readObjectIdentifier(oidNode),
-            criticalNode !== undefined && criticalNode.content[0] !== 0x00,
-            valueNode.content,
-            ctx,
-            where,
-        ));
+        const oid = readObjectIdentifier(oidNode);
+        const critical = criticalNode !== undefined && criticalNode.content[0] !== 0x00;
+        if (CRL_OWN_EXTENSIONS.has(oid)) {
+            const own: Extension = { kind: 'unknown', oid, critical, valueDer: valueNode.content };
+            out.push(Object.freeze(own));
+        } else {
+            out.push(_decodeExtension(
+                der.subarray(0, start + valueNode.contentLength),
+                start,
+                oid,
+                critical,
+                valueNode.content,
+                ctx,
+                where,
+            ));
+        }
         index += 1;
     }
     return Object.freeze(out);
@@ -291,6 +330,20 @@ function readIntegerValue(extension: Extension, ctx: Asn1Context): bigint | unde
     }
 }
 
+/** What {@link findRevocation} takes beyond the ordinary parse options. */
+export interface FindRevocationOptions extends PkiParseOptions {
+    /**
+     * The encoded `issuer` of the certificate being asked about.
+     *
+     * It decides nothing on an ordinary CRL, where every entry is about the
+     * list's own issuer. On an indirect CRL it is what makes the answer
+     * correct: without it the walk answers for the CRL issuer, and a serial
+     * matching some *other* CA's entry would be read as this certificate's
+     * revocation.
+     */
+    readonly issuerDer?: Uint8Array | undefined;
+}
+
 /**
  * Look one serial number up in the revocation list.
  *
@@ -305,18 +358,41 @@ function readIntegerValue(extension: Extension, ctx: Asn1Context): bigint | unde
  * serials that differ only in a leading zero octet are two different serials
  * to a CA, and comparing the `bigint` would make them one.
  *
+ * On an **indirect** CRL — one whose `issuingDistributionPoint` asserts
+ * `indirectCRL` — a serial is not enough: the list holds entries for several
+ * CAs, and two CAs issue the same serial all the time. Pass `issuerDer` and the
+ * walk honours the running `certificateIssuer` state of §5.3.3, so an entry
+ * counts only when it is about a certificate of *that* CA. Without it the walk
+ * answers for the CRL's own issuer, which is the §5.3.3 default.
+ *
  * @param der     The same bytes `parseCertificateList` was given.
  * @param serial  The certificate's serial number.
- * @param options The same options; the limits apply to the walk.
+ * @param options The same options, plus `issuerDer`; the limits apply to the walk.
  * @returns The entry, or undefined when the serial is not listed.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` for a malformed entry.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
  */
-export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: PkiParseOptions): RevokedCertificate | undefined {
+export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: FindRevocationOptions): RevokedCertificate | undefined {
     const ctx = createAsn1Context(options);
     const outer = readTlvHeader(der, 0, 'CertificateList');
     const env = locate(der, outer);
     if (env.revoked === undefined) return undefined;
+
+    // An indirect CRL (§5.2.5) holds entries for more than one CA, so a serial
+    // alone no longer identifies a certificate: two CAs can, and do, issue the
+    // same serial. Which CA an entry is about is carried by the running
+    // `certificateIssuer` state of §5.3.3 — an entry inherits the last one
+    // named before it, and the CRL's own issuer before the first.
+    //
+    // That state costs an extension decode per entry, so it is only tracked
+    // when the list says it needs it. On the ordinary direct CRL the walk below
+    // is byte-for-byte the one that was here before.
+    const crlExtensions = readExtensions(der, env.extensionsField, ctx, 'tbsCertList.crlExtensions');
+    const indirect = _findIssuingDistributionPoint(crlExtensions, ctx)?.indirectCRL === true;
+    const issuerField = env.fields[env.signatureIndex + 1] as TlvHeader;
+    const crlIssuerDer = der.subarray(issuerField.offset, issuerField.end);
+    const wantedIssuer = indirect ? options?.issuerDer ?? crlIssuerDer : undefined;
+    let entryIssuer = crlIssuerDer;
 
     let index = 0;
     for (const entry of walkChildren(der, env.revoked, 'tbsCertList.revokedCertificates')) {
@@ -332,10 +408,20 @@ export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: Pk
         // The cheap test first, on bytes, before decoding anything: a CRL with
         // a million entries is a million comparisons and at most one decode.
         const content = der.subarray(serialField.contentStart, serialField.end);
-        if (!sameBytes(content, serial)) continue;
+        const hit = sameBytes(content, serial);
+        if (!hit && wantedIssuer === undefined) continue;
+
+        const extensions = readExtensions(der, parts[2], ctx, `${path}.crlEntryExtensions`);
+        if (wantedIssuer !== undefined) {
+            // Read before the match is decided, and on every entry: the state
+            // this entry sets is the state the *next* one inherits, so skipping
+            // it for a non-matching serial would mis-attribute everything after
+            // it — the one bug an indirect CRL walk can have.
+            entryIssuer = _entryCertificateIssuer(extensions, ctx, `${path}.crlEntryExtensions.certificateIssuer`) ?? entryIssuer;
+            if (!hit || !sameBytes(entryIssuer, wantedIssuer)) continue;
+        }
 
         const revocationDate = _readTime(decodeAt(der, dateField, ctx), ctx, undefined);
-        const extensions = readExtensions(der, parts[2], ctx, `${path}.crlEntryExtensions`);
         return Object.freeze({
             serialNumber: Object.freeze({ bytes: content, hex: toHex(content), value: readInteger(decodeAt(der, serialField, ctx)) }) as SerialNumber,
             revocationDate,
