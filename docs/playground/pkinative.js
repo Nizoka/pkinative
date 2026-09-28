@@ -37,6 +37,14 @@ var PkiCryptoError = class extends PkiError {
     this.algorithm = algorithm;
   }
 };
+var PkiCmsError = class extends PkiError {
+  constructor(code, message, path, offset) {
+    super(code, message);
+    this.name = "PkiCmsError";
+    this.path = path;
+    this.offset = offset;
+  }
+};
 
 // src/core/pki-limits.ts
 var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
@@ -399,6 +407,46 @@ function rdnSetNotSortedDiagnostic(path, offset) {
     "warning",
     "ITU-T X.690 \xA711.6",
     "a multi-valued relative distinguished name is not in DER SET OF order; name comparison by bytes will differ from other implementations",
+    path,
+    offset
+  );
+}
+function cmsVersionMismatchDiagnostic(path, declared, derived, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_VERSION_MISMATCH",
+    "warning",
+    "RFC 5652 \xA75.1",
+    `declares version ${String(declared)} where the structure it carries calls for version ${String(derived)}; the version is not signed and decides nothing here, but a strict reader may refuse it`,
+    path,
+    offset
+  );
+}
+function cmsSetNotSortedDiagnostic(path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_SET_NOT_SORTED",
+    "warning",
+    "ITU-T X.690 \xA711.6",
+    "this SET OF is not in DER order; nothing signed depends on it, but a strict DER reader will refuse the message",
+    path,
+    offset
+  );
+}
+function cmsSignedAttributesNotDerDiagnostic(path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER",
+    "warning",
+    "RFC 5652 \xA75.3",
+    "the signed attributes are not in DER SET OF order; the signature is checked over the bytes as signed, but a verifier that re-encodes them before checking will reject it",
+    path,
+    offset
+  );
+}
+function cmsDigestAlgorithmNotListedDiagnostic(path, oid, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED",
+    "warning",
+    "RFC 5652 \xA75.1",
+    `the signer's digest algorithm ${oid} is not listed in digestAlgorithms, which exists so that a one-pass verifier can start hashing before it reaches the signers; RFC 5652 lets such a verifier fail`,
     path,
     offset
   );
@@ -2939,10 +2987,106 @@ function nameMismatchReason(path, wanted, found) {
 }
 function purposeNotPermittedReason(path, purpose, permitted, rule) {
   const listed2 = (permitted ?? []).join(", ") || "none";
+  if (rule === "critical") {
+    return _reason(
+      "PKI_REASON_PURPOSE_NOT_PERMITTED",
+      "RFC 3161 \xA72.3",
+      `the certificate names ${purpose}, but its extKeyUsage is not critical, and a timestamp authority's must be \u2014 a non-critical purpose is one any relying party may ignore`,
+      path
+    );
+  }
+  if (rule === "exclusive") {
+    return _reason(
+      "PKI_REASON_PURPOSE_NOT_PERMITTED",
+      "RFC 3161 \xA72.3",
+      `the certificate names ${purpose} among other purposes (${listed2}), and a timestamp authority's certificate must name it alone`,
+      path
+    );
+  }
   return _reason(
     "PKI_REASON_PURPOSE_NOT_PERMITTED",
     "RFC 5280 \xA74.2.1.12",
     permitted === null ? `the certificate carries no extKeyUsage, so it names no purpose, and ${purpose} was required to be named explicitly` : `the purpose ${purpose} is not among the ones this certificate permits (${listed2}); a certificate carrying extKeyUsage must only be used for a purpose it names`,
+    path
+  );
+}
+function cmsNoSignersReason(path) {
+  return _reason(
+    "PKI_REASON_CMS_NO_SIGNERS",
+    "RFC 5652 \xA75.1",
+    "the SignedData has no signer, so it signs nothing; a certificate bundle is read this way, and verifying one proves nothing about any content",
+    path
+  );
+}
+function cmsSignerNotFoundReason(path, identifier) {
+  return _reason(
+    "PKI_REASON_CMS_SIGNER_NOT_FOUND",
+    "RFC 5652 \xA75.3",
+    `no certificate in the message or among those supplied matches the signer identifier (${identifier}); supply the signer's certificate, since without it there is no key to check the signature with`,
+    path
+  );
+}
+function cmsContentMissingReason(path) {
+  return _reason(
+    "PKI_REASON_CMS_CONTENT_MISSING",
+    "RFC 5652 \xA75.2",
+    "the content is detached and was not supplied; pass the signed content, or its digest when the signer used signed attributes \u2014 absent content is not empty content",
+    path
+  );
+}
+function cmsDigestMismatchReason(path) {
+  return _reason(
+    "PKI_REASON_CMS_DIGEST_MISMATCH",
+    "RFC 5652 \xA711.2",
+    "the content does not hash to the digest the signer committed to in its messageDigest attribute; the content was altered, or this is not the content that was signed",
+    path
+  );
+}
+function cmsAttributeInvalidReason(path, why) {
+  return _reason(
+    "PKI_REASON_CMS_ATTRIBUTE_INVALID",
+    "RFC 5652 \xA711",
+    `${why}; the signed attributes are what bind a signature to a content and a content type, and one that breaks these rules binds nothing reliably`,
+    path
+  );
+}
+function cmsAlgorithmMismatchReason(path, why) {
+  return _reason(
+    "PKI_REASON_CMS_ALGORITHM_MISMATCH",
+    "RFC 6211 \xA73",
+    `${why}; a signer's algorithms must name one digest and one signature scheme, and disagreement between them is how an algorithm-substitution attack steers a verifier`,
+    path
+  );
+}
+function cmsSigningCertificateMismatchReason(path, why) {
+  return _reason(
+    "PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH",
+    "RFC 5035 \xA73",
+    `${why}; the signer committed to one specific certificate, and a signature presented under any other certificate for the same key is being re-attributed`,
+    path
+  );
+}
+function tspTokenInvalidReason(path, why) {
+  return _reason(
+    "PKI_REASON_TSP_TOKEN_INVALID",
+    "RFC 3161 \xA72.4.2",
+    `${why}; a timestamp token is a narrower thing than a SignedData, and one that breaks its rules is not evidence of a time`,
+    path
+  );
+}
+function tspImprintMismatchReason(path) {
+  return _reason(
+    "PKI_REASON_TSP_IMPRINT_MISMATCH",
+    "RFC 3161 \xA72.4.2",
+    "the token stamps a different hash from the one expected; it may be a perfectly good timestamp, of something else",
+    path
+  );
+}
+function tspRequestMismatchReason(path, what) {
+  return _reason(
+    "PKI_REASON_TSP_REQUEST_MISMATCH",
+    "RFC 3161 \xA72.4.2",
+    `the token does not answer the request that was sent: ${what}. A response that fails to echo its request may be replayed or substituted`,
     path
   );
 }
@@ -3978,9 +4122,10 @@ function readExtensions2(der, field, ctx, path) {
       throw ocspError(where2, entry.offset, "is not an Extension");
     }
     const criticalNode = node.children.length === 3 ? node.children[1] : void 0;
+    const start = valueNode.offset + valueNode.headerLength;
     out.push(_decodeExtension(
-      der,
-      entry.offset,
+      der.subarray(0, start + valueNode.contentLength),
+      start,
       readObjectIdentifier(oidNode),
       criticalNode !== void 0 && criticalNode.content[0] !== 0,
       valueNode.content,
@@ -4966,6 +5111,54 @@ function resolveAlgorithm(algorithm, key) {
   if (key.kind !== shape.family) return null;
   const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
   return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
+}
+var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
+var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
+var ID_ED448 = "1.3.101.113";
+var MD5_OIDS = /* @__PURE__ */ new Set(["1.2.840.113549.1.1.4", "1.2.840.113549.2.5"]);
+var hasNoHashParameters = (parameters) => parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
+function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
+  if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
+    return "MD5 is refused: its collisions have been practical since 2004";
+  }
+  if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
+    return "id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm";
+  }
+  const digest = HASH_BY_OID.get(digestAlgorithm.oid);
+  if (digest === void 0) return null;
+  if (!hasNoHashParameters(digestAlgorithm.parameters)) {
+    return `the ${digest} digestAlgorithm carries parameters, where RFC 5754 \xA72 allows only absent or NULL`;
+  }
+  if (signatureAlgorithm.oid === RSA_ENCRYPTION) return null;
+  const shape = SIGNATURE_BY_OID.get(signatureAlgorithm.oid);
+  if (shape === void 0) return null;
+  if (shape.family === "rsa-pkcs1" || shape.family === "ecdsa") {
+    return shape.hash === digest ? null : `${signatureAlgorithm.oid} signs over ${shape.hash}, but the digestAlgorithm is ${digest}`;
+  }
+  if (shape.family === "rsa-pss") {
+    if (signatureAlgorithm.parameters === void 0) return "RSASSA-PSS without parameters, which RFC 4056 \xA72.2 makes mandatory in CMS";
+    let pssHash;
+    try {
+      pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
+    } catch {
+      return null;
+    }
+    return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
+  }
+  if (shape.family === "ed25519") {
+    return digest === "SHA-512" ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 \xA73.1), not ${digest}`;
+  }
+  return null;
+}
+function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
+  if (signatureAlgorithm.oid === ID_ED448) {
+    throw unsupported("an Ed448 CMS signer digests with SHAKE256 (RFC 8419 \xA73.1), which neither Web Crypto nor pkinative computes", ID_ED448);
+  }
+  if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
+  const hash = HASH_BY_OID.get(digestAlgorithm.oid);
+  if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
+  if (!isRsaKey(key)) return null;
+  return { family: "rsa-pkcs1", importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: hash } }, verifyParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, hash };
 }
 function coordinateBytes(curve) {
   return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
@@ -6959,10 +7152,28 @@ function encodeSerial(serial) {
   }
   return encodeTlv("universal", 2, false, bytes);
 }
-async function signAndWrap(tbs, signer) {
+function isByteArray(value) {
+  return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]";
+}
+function checkExternalSignature(produced, curve) {
+  if (!isByteArray(produced) || produced.length === 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: an ExternalSigner's produceSignature must return a non-empty Uint8Array \u2014 the signature as crypto.subtle.sign would produce it; wrap an ArrayBuffer in new Uint8Array(\u2026)");
+  }
+  if (curve !== void 0) {
+    const expected = 2 * coordinateBytes(curve);
+    if (produced.length !== expected) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: an ExternalSigner for ECDSA on ${curve} must return the raw r \u2016 s of exactly ${String(expected)} octets, as crypto.subtle.sign would, and returned ${String(produced.length)} \u2014 a DER Ecdsa-Sig-Value is the usual mistake; convert it to r \u2016 s before returning it`);
+    }
+  }
+  return produced;
+}
+async function computeSignatureValue(data, signer) {
   const resolved = resolveSigner(signer.algorithm);
-  const raw = await signData(signer.key, resolved.signParams, tbs);
-  const signature = resolved.curve === void 0 ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
+  const raw = "produceSignature" in signer ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve) : await signData(signer.key, resolved.signParams, data);
+  return resolved.curve === void 0 ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
+}
+async function signAndWrap(tbs, signer) {
+  const signature = await computeSignatureValue(tbs, signer);
   return encodeSequence([tbs, signatureAlgorithmDer(signer), encodeBitString(signature, 0)]);
 }
 async function createCertificate(description, signer, options) {
@@ -7012,6 +7223,1691 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+// src/core/cms-oids.ts
+var OID_DATA = "1.2.840.113549.1.7.1";
+var OID_SIGNED_DATA = "1.2.840.113549.1.7.2";
+var OID_ENVELOPED_DATA = "1.2.840.113549.1.7.3";
+var OID_DIGESTED_DATA = "1.2.840.113549.1.7.5";
+var OID_ENCRYPTED_DATA = "1.2.840.113549.1.7.6";
+var OID_AUTH_DATA = "1.2.840.113549.1.9.16.1.2";
+var OID_TST_INFO = "1.2.840.113549.1.9.16.1.4";
+var OID_ATTR_CONTENT_TYPE = "1.2.840.113549.1.9.3";
+var OID_ATTR_MESSAGE_DIGEST = "1.2.840.113549.1.9.4";
+var OID_ATTR_SIGNING_TIME = "1.2.840.113549.1.9.5";
+var OID_ATTR_COUNTERSIGNATURE = "1.2.840.113549.1.9.6";
+var OID_ATTR_SIGNING_CERTIFICATE = "1.2.840.113549.1.9.16.2.12";
+var OID_ATTR_SIGNING_CERTIFICATE_V2 = "1.2.840.113549.1.9.16.2.47";
+var OID_ATTR_TIMESTAMP_TOKEN = "1.2.840.113549.1.9.16.2.14";
+var OID_ATTR_ALGORITHM_PROTECTION = "1.2.840.113549.1.9.52";
+var SIGNED_ONLY_ATTRIBUTES = /* @__PURE__ */ new Set([
+  OID_ATTR_CONTENT_TYPE,
+  OID_ATTR_MESSAGE_DIGEST,
+  OID_ATTR_SIGNING_TIME,
+  OID_ATTR_SIGNING_CERTIFICATE,
+  OID_ATTR_SIGNING_CERTIFICATE_V2,
+  OID_ATTR_ALGORITHM_PROTECTION
+]);
+var OID_RI_OCSP_RESPONSE = "1.3.6.1.5.5.7.16.2";
+var OID_KP_TIMESTAMPING = "1.3.6.1.5.5.7.3.8";
+
+// src/cms/cms-attributes.ts
+var REMEDIES2 = /* @__PURE__ */ Object.freeze({
+  PKI_CMS_STRUCTURE_INVALID: "the input is not an RFC 5652 SignedData; check that it is the DER of a CMS ContentInfo and not its PEM or base64 text",
+  PKI_CMS_CONTENT_TYPE_UNEXPECTED: "pass a ContentInfo of type id-signedData",
+  PKI_CMS_VERSION_UNSUPPORTED: "RFC 5652 defines no such version, so the syntax that follows cannot be read; ask the producer for a conforming message",
+  PKI_CMS_CONTENT_NOT_OCTET_STRING: "this is PKCS #7 content outside RFC 5652 \xA75.2 (Authenticode is the usual case); pkinative does not read it"
+});
+function _cmsError(code, path, offset, why) {
+  return new PkiCmsError(code, `pkinative: ${path} at offset ${String(offset)} ${why} \u2014 ${REMEDIES2[code]}`, path, offset);
+}
+function _viaX509(path, offset, read) {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof PkiCertificateError) {
+      throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, offset, `does not match its ASN.1 definition (${error.code}: ${error.message.slice("pkinative: ".length)})`);
+    }
+    throw error;
+  }
+}
+function _expectUniversal(node, tagNumber, path, parentOffset, what) {
+  if (node === void 0) throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, parentOffset, `is missing; expected ${what}`);
+  if (node.tagClass !== "universal" || node.tagNumber !== tagNumber) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, node.offset, `is not ${what}`);
+  }
+  return node;
+}
+function _inDerSetOrder(elements) {
+  for (let k = 1; k < elements.length; k++) {
+    if (compareOctets(elements[k - 1].bytes, elements[k].bytes) > 0) return false;
+  }
+  return true;
+}
+function derHeaderLength(tagNumber, contentLength) {
+  let identifier = 1;
+  if (tagNumber >= 31) for (let rest = tagNumber; rest > 0; rest = Math.floor(rest / 128)) identifier += 1;
+  let length = 1;
+  if (contentLength >= 128) for (let rest = contentLength; rest > 0; rest = Math.floor(rest / 256)) length += 1;
+  return identifier + length;
+}
+function _assertDerEncoded(root, ctx, path) {
+  if (ctx.rules === "der") return;
+  const stack = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    const why = node.indefinite ? "uses an indefinite length" : node.headerLength !== derHeaderLength(node.tagNumber, node.contentLength) ? "uses a length that is not in its shortest form" : node.constructed && node.tagClass === "universal" && isStringTag(node.tagNumber) ? "is a constructed string" : void 0;
+    if (why !== void 0) {
+      throw _cmsError(
+        "PKI_CMS_STRUCTURE_INVALID",
+        path,
+        node.offset,
+        `${why}; RFC 5652 \xA75.3 requires the signed attributes to be DER even when the rest of the message is BER, because the signature is computed over their DER`
+      );
+    }
+    for (const child of node.children) stack.push(child);
+  }
+}
+function _readAttributes(container, ctx, path) {
+  if (!container.constructed) throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, container.offset, "is primitive; an attribute set is a constructed SET OF Attribute");
+  if (container.children.length === 0) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, container.offset, "is empty; RFC 5652 \xA75.3 declares it SIZE (1..MAX), so an absent set is omitted rather than sent empty");
+  }
+  const out = [];
+  for (let i = 0; i < container.children.length; i++) {
+    const where2 = `${path}[${String(i)}]`;
+    enforceLimit(ctx.limits, "maxCmsAttributes", i + 1, where2);
+    const node = _expectUniversal(container.children[i], TAG_SEQUENCE, where2, container.offset, "an Attribute SEQUENCE");
+    if (node.children.length !== 2) {
+      throw _cmsError("PKI_CMS_STRUCTURE_INVALID", where2, node.offset, `holds ${String(node.children.length)} values where an Attribute holds a type and a set of values`);
+    }
+    const oid = _readObjectIdentifier(_expectUniversal(node.children[0], TAG_OID, `${where2}.attrType`, node.offset, "an OBJECT IDENTIFIER"), ctx);
+    const set = _expectUniversal(node.children[1], TAG_SET, `${where2}.attrValues`, node.offset, "a SET OF AttributeValue");
+    enforceLimit(ctx.limits, "maxCmsAttributes", set.children.length, `${where2}.attrValues`);
+    const attribute = {
+      oid,
+      values: Object.freeze(set.children.map((value) => value.bytes)),
+      der: node.bytes
+    };
+    out.push(Object.freeze({ attribute: Object.freeze(attribute), valueNodes: set.children }));
+  }
+  return Object.freeze(out);
+}
+function singleValue(entries, oid) {
+  const matching = entries.filter((entry) => entry.attribute.oid === oid);
+  if (matching.length !== 1) return void 0;
+  const values = matching[0].valueNodes;
+  return values.length === 1 ? values[0] : void 0;
+}
+function readRecognised(node, path, read) {
+  if (node === void 0) return void 0;
+  try {
+    return read(node);
+  } catch (error) {
+    if (error instanceof PkiEncodingError) {
+      throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, node.offset, `does not match its ASN.1 definition (${error.code})`);
+    }
+    throw error;
+  }
+}
+function _readSignedAttributeFields(entries, ctx, path) {
+  const contentType = readRecognised(singleValue(entries, OID_ATTR_CONTENT_TYPE), `${path}.contentType`, (node) => _readObjectIdentifier(_expectUniversal(node, TAG_OID, `${path}.contentType`, node.offset, "an OBJECT IDENTIFIER"), ctx));
+  const messageDigest = readRecognised(singleValue(entries, OID_ATTR_MESSAGE_DIGEST), `${path}.messageDigest`, (node) => _readOctetString(_expectUniversal(node, TAG_OCTET_STRING, `${path}.messageDigest`, node.offset, "an OCTET STRING"), ctx));
+  const signingTime = readRecognised(singleValue(entries, OID_ATTR_SIGNING_TIME), `${path}.signingTime`, (node) => {
+    if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
+      throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.signingTime`, node.offset, "is not a UTCTime or a GeneralizedTime");
+    }
+    return _readTime(node, ctx, void 0);
+  });
+  const v1 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE), `${path}.signingCertificate`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificate`, 1));
+  const v2 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificateV2`, 2));
+  const hasV2 = entries.some((entry) => entry.attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2);
+  const algorithmProtection = readRecognised(singleValue(entries, OID_ATTR_ALGORITHM_PROTECTION), `${path}.CMSAlgorithmProtection`, (node) => readAlgorithmProtection(node, ctx, `${path}.CMSAlgorithmProtection`));
+  return { contentType, messageDigest, signingTime, signingCertificate: hasV2 ? v2 : v1, algorithmProtection };
+}
+function readAlgorithmProtection(node, ctx, path) {
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, "a SEQUENCE");
+  const [digestNode, signatureNode, ...rest] = seq.children;
+  if (rest.length > 0 || signatureNode === void 0 || signatureNode.tagClass !== "context" || signatureNode.tagNumber !== 1 || !signatureNode.constructed) {
+    throw _cmsError(
+      "PKI_CMS_STRUCTURE_INVALID",
+      path,
+      seq.offset,
+      "is not a digest algorithm followed by a [1] signature algorithm; RFC 6211 \xA72 requires exactly that in a SignedData, and no MAC algorithm"
+    );
+  }
+  const digestAlgorithm = _viaX509(`${path}.digestAlgorithm`, seq.offset, () => _readAlgorithmIdentifier(digestNode, ctx, `${path}.digestAlgorithm`, "PKI_X509_STRUCTURE_INVALID", seq.offset));
+  const [oidNode, parameters, ...extra] = signatureNode.children;
+  if (oidNode?.tagClass !== "universal" || oidNode.tagNumber !== TAG_OID || extra.length > 0) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.signatureAlgorithm`, signatureNode.offset, "is not an algorithm OID with optional parameters");
+  }
+  const signatureAlgorithm = Object.freeze({ oid: _readObjectIdentifier(oidNode, ctx), parameters, der: signatureNode.bytes });
+  return Object.freeze({ digestAlgorithm, signatureAlgorithm });
+}
+function _collectTimeStampTokens(entries) {
+  const tokens = [];
+  for (const entry of entries ?? []) {
+    if (entry.attribute.oid === OID_ATTR_TIMESTAMP_TOKEN) tokens.push(...entry.attribute.values);
+  }
+  return Object.freeze(tokens);
+}
+var HASH_NAMES = /* @__PURE__ */ new Map([
+  ["1.3.14.3.2.26", "SHA-1"],
+  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
+  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
+  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
+]);
+var OID_SHA256 = "2.16.840.1.101.3.4.2.1";
+function readSigningCertificate(node, ctx, path, version) {
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, "a SEQUENCE");
+  const certs = _expectUniversal(seq.children[0], TAG_SEQUENCE, `${path}.certs`, seq.offset, "a SEQUENCE OF ESSCertID");
+  const policies = seq.children[1];
+  if (policies !== void 0) _expectUniversal(policies, TAG_SEQUENCE, `${path}.policies`, seq.offset, "a SEQUENCE OF PolicyInformation");
+  if (seq.children.length > 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values where RFC ${version === 1 ? "2634 \xA75.4" : "5035 \xA73"} defines at most two`);
+  }
+  if (certs.children.length === 0) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.certs`, certs.offset, "is empty; its first entry is what names the signing certificate");
+  }
+  const certIds = [];
+  for (let i = 0; i < certs.children.length; i++) {
+    enforceLimit(ctx.limits, "maxChainLength", i + 1, `${path}.certs[${String(i)}]`);
+    certIds.push(readEssCertId(certs.children[i], ctx, `${path}.certs[${String(i)}]`, version));
+  }
+  return Object.freeze({ version, certIds: Object.freeze(certIds) });
+}
+function readEssCertId(node, ctx, path, version) {
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, version === 1 ? "an ESSCertID SEQUENCE" : "an ESSCertIDv2 SEQUENCE");
+  let at = 0;
+  let hashAlgorithm = version === 1 ? "SHA-1" : "SHA-256";
+  const first = seq.children[0];
+  if (version === 2 && first !== void 0 && first.tagClass === "universal" && first.tagNumber === TAG_SEQUENCE) {
+    const algorithm = _viaX509(`${path}.hashAlgorithm`, first.offset, () => _readAlgorithmIdentifier(first, ctx, `${path}.hashAlgorithm`, "PKI_X509_STRUCTURE_INVALID", seq.offset));
+    if (algorithm.oid === OID_SHA256 && algorithm.parameters === void 0) {
+      ctx.emitter.emit(defaultEncodedDiagnostic(`${path}.hashAlgorithm`, "sha256", first.offset));
+    }
+    hashAlgorithm = HASH_NAMES.get(algorithm.oid) ?? algorithm.oid;
+    at = 1;
+  }
+  const certHash = _readOctetString(_expectUniversal(seq.children[at], TAG_OCTET_STRING, `${path}.certHash`, seq.offset, "an OCTET STRING"), ctx);
+  const issuerSerialNode = seq.children[at + 1];
+  const issuerSerial = issuerSerialNode === void 0 ? void 0 : readIssuerSerial(issuerSerialNode, ctx, `${path}.issuerSerial`);
+  if (seq.children.length > at + 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, seq.offset, "holds a value after issuerSerial");
+  }
+  return Object.freeze({ hashAlgorithm, certHash, issuerSerial });
+}
+function readIssuerSerial(node, ctx, path) {
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, "an IssuerSerial SEQUENCE");
+  if (seq.children.length !== 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values where IssuerSerial holds an issuer and a serial number`);
+  }
+  const issuerNode = _expectUniversal(seq.children[0], TAG_SEQUENCE, `${path}.issuer`, seq.offset, "a GeneralNames SEQUENCE");
+  const issuer = _viaX509(`${path}.issuer`, issuerNode.offset, () => _readGeneralNames(issuerNode, ctx, `${path}.issuer`, false));
+  return Object.freeze({ issuer, serialNumber: _readSerialNumber(seq.children[1], ctx, `${path}.serialNumber`, seq.offset) });
+}
+function _readSerialNumber(node, ctx, path, parentOffset) {
+  const serial = _expectUniversal(node, TAG_INTEGER, path, parentOffset, "an INTEGER");
+  const value = _readInteger(serial, ctx);
+  const serialNumber = { bytes: serial.content, hex: toHex(serial.content), value };
+  return Object.freeze(serialNumber);
+}
+
+// src/cms/cms-signed-data.ts
+var CONTENT_TYPE_NAMES = /* @__PURE__ */ new Map([
+  [OID_DATA, "data, which carries no signature"],
+  [OID_ENVELOPED_DATA, "enveloped-data, which pkinative does not decrypt"],
+  [OID_DIGESTED_DATA, "digested-data, which carries no signature"],
+  [OID_ENCRYPTED_DATA, "encrypted-data, which pkinative does not decrypt"],
+  [OID_AUTH_DATA, "authenticated-data, a MAC pkinative does not check"],
+  [OID_TST_INFO, "a bare TSTInfo; a timestamp token is the SignedData around it"]
+]);
+function parseSignedData(der, options) {
+  const bytes = assertBytes(der, "parseSignedData input");
+  const ctx = createAsn1Context(options);
+  const allow = options?.allowTrailingData;
+  if (allow !== void 0 && typeof allow !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: allowTrailingData must be a boolean, got ${typeof allow}`);
+  }
+  const root = decodeWithContext(bytes, ctx, allow === true);
+  const contentInfo = _expectUniversal(root, TAG_SEQUENCE, "ContentInfo", 0, "a SEQUENCE");
+  const typeNode = _expectUniversal(contentInfo.children[0], TAG_OID, "contentType", contentInfo.offset, "an OBJECT IDENTIFIER");
+  const contentType = _readObjectIdentifier(typeNode, ctx);
+  if (contentType !== OID_SIGNED_DATA) {
+    const known = CONTENT_TYPE_NAMES.get(contentType);
+    throw _cmsError(
+      "PKI_CMS_CONTENT_TYPE_UNEXPECTED",
+      "contentType",
+      typeNode.offset,
+      `is ${known === void 0 ? contentType : `${contentType} (${known})`}, not id-signedData`
+    );
+  }
+  const wrapper = contentInfo.children[1];
+  if (wrapper === void 0 || wrapper.tagClass !== "context" || wrapper.tagNumber !== 0 || !wrapper.constructed) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", "content", wrapper?.offset ?? contentInfo.offset, "is not the [0] EXPLICIT content RFC 5652 \xA73 requires");
+  }
+  if (wrapper.children.length !== 1 || contentInfo.children.length !== 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", "content", wrapper.offset, "is not exactly one SignedData under [0], the last field of ContentInfo");
+  }
+  const signedData = _expectUniversal(wrapper.children[0], TAG_SEQUENCE, "content", wrapper.offset, "a SignedData SEQUENCE");
+  return readSignedData(root, signedData, ctx);
+}
+function readSignedData(root, seq, ctx) {
+  const fields = seq.children;
+  const versionNode = _expectUniversal(fields[0], TAG_INTEGER, "content.version", seq.offset, "an INTEGER");
+  const declared = _readInteger(versionNode, ctx);
+  if (declared !== 1n && declared !== 3n && declared !== 4n && declared !== 5n) {
+    throw _cmsError(
+      "PKI_CMS_VERSION_UNSUPPORTED",
+      "content.version",
+      versionNode.offset,
+      `is ${String(declared)}; RFC 5652 \xA75.1 defines SignedData versions 1, 3, 4 and 5 only`
+    );
+  }
+  const digestAlgorithms = readDigestAlgorithms(fields[1], ctx, seq.offset);
+  const encap = readEncapsulatedContent(fields[2], ctx, seq.offset);
+  let at = 3;
+  const certificatesField = isContext(fields[at], 0) ? fields[at++] : void 0;
+  const crlsField = isContext(fields[at], 1) ? fields[at++] : void 0;
+  const bag = readBag(certificatesField, crlsField, ctx);
+  const signerSet = _expectUniversal(fields[at], TAG_SET, "content.signerInfos", seq.offset, "a SET OF SignerInfo");
+  if (fields.length !== at + 1) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", "content", seq.offset, `holds ${String(fields.length - at - 1)} value(s) after signerInfos, where RFC 5652 \xA75.1 defines none`);
+  }
+  const listed2 = new Set(digestAlgorithms.map((algorithm) => algorithm.oid));
+  const signerInfos = [];
+  for (let i = 0; i < signerSet.children.length; i++) {
+    const path = `content.signerInfos[${String(i)}]`;
+    enforceLimit(ctx.limits, "maxSignerInfos", i + 1, path);
+    signerInfos.push(readSignerInfo(signerSet.children[i], ctx, path, listed2));
+  }
+  if (!_inDerSetOrder(signerSet.children)) ctx.emitter.emit(cmsSetNotSortedDiagnostic("content.signerInfos", signerSet.offset));
+  const derived = bag.hasOtherFormat ? 5 : bag.hasV2AttrCert ? 4 : bag.hasV1AttrCert || signerInfos.some((signer) => signer.version === 3) || encap.contentType !== OID_DATA ? 3 : 1;
+  const version = Number(declared);
+  if (version !== derived) ctx.emitter.emit(cmsVersionMismatchDiagnostic("content.version", version, derived, versionNode.offset));
+  return Object.freeze({
+    der: root.bytes,
+    version,
+    digestAlgorithms,
+    contentType: encap.contentType,
+    content: encap.content,
+    certificates: bag.certificates,
+    crls: bag.crls,
+    ocspResponses: bag.ocspResponses,
+    signerInfos: Object.freeze(signerInfos),
+    diagnostics: ctx.emitter.diagnostics
+  });
+}
+function isContext(node, tag) {
+  return node !== void 0 && node.tagClass === "context" && node.tagNumber === tag;
+}
+function readDigestAlgorithms(node, ctx, parentOffset) {
+  const set = _expectUniversal(node, TAG_SET, "content.digestAlgorithms", parentOffset, "a SET OF DigestAlgorithmIdentifier");
+  const out = [];
+  for (let i = 0; i < set.children.length; i++) {
+    const path = `content.digestAlgorithms[${String(i)}]`;
+    enforceLimit(ctx.limits, "maxSignerInfos", i + 1, path);
+    const child = set.children[i];
+    out.push(_viaX509(path, child.offset, () => _readAlgorithmIdentifier(child, ctx, path, "PKI_X509_STRUCTURE_INVALID", set.offset)));
+  }
+  if (!_inDerSetOrder(set.children)) ctx.emitter.emit(cmsSetNotSortedDiagnostic("content.digestAlgorithms", set.offset));
+  return Object.freeze(out);
+}
+function readEncapsulatedContent(node, ctx, parentOffset) {
+  const path = "content.encapContentInfo";
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, parentOffset, "an EncapsulatedContentInfo SEQUENCE");
+  const contentType = _readObjectIdentifier(_expectUniversal(seq.children[0], TAG_OID, `${path}.eContentType`, seq.offset, "an OBJECT IDENTIFIER"), ctx);
+  const wrapper = seq.children[1];
+  if (wrapper === void 0) {
+    return { contentType, content: void 0 };
+  }
+  if (!isContext(wrapper, 0) || !wrapper.constructed || wrapper.children.length !== 1 || seq.children.length !== 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.eContent`, wrapper.offset, "is not one value under [0] EXPLICIT, the last field of EncapsulatedContentInfo");
+  }
+  const inner = wrapper.children[0];
+  if (inner.tagClass !== "universal" || inner.tagNumber !== TAG_OCTET_STRING) {
+    throw _cmsError(
+      "PKI_CMS_CONTENT_NOT_OCTET_STRING",
+      `${path}.eContent`,
+      inner.offset,
+      "is not an OCTET STRING; RFC 5652 \xA75.2.1 notes that PKCS #7 allowed any type here, and the digest of such content is not defined the same way"
+    );
+  }
+  return { contentType, content: _readOctetString(inner, ctx) };
+}
+function readBag(certificatesField, crlsField, ctx) {
+  const certificates = [];
+  const crls = [];
+  const ocspResponses = [];
+  let hasOtherFormat = false;
+  let hasV2AttrCert = false;
+  let hasV1AttrCert = false;
+  let entries = 0;
+  const children = (field, path) => {
+    if (field === void 0) return [];
+    if (!field.constructed) throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, field.offset, "is primitive; it is a SET OF under an implicit tag");
+    if (!_inDerSetOrder(field.children)) ctx.emitter.emit(cmsSetNotSortedDiagnostic(path, field.offset));
+    return field.children;
+  };
+  const certificateNodes = children(certificatesField, "content.certificates");
+  for (let i = 0; i < certificateNodes.length; i++) {
+    const path = `content.certificates[${String(i)}]`;
+    entries += 1;
+    enforceLimit(ctx.limits, "maxCmsBagEntries", entries, path);
+    const node = certificateNodes[i];
+    if (node.tagClass === "universal" && node.tagNumber === TAG_SEQUENCE) {
+      certificates.push(node.bytes);
+    } else if (node.tagClass === "context" && node.tagNumber <= 3 && node.constructed) {
+      if (node.tagNumber === 1) hasV1AttrCert = true;
+      if (node.tagNumber === 2) hasV2AttrCert = true;
+      if (node.tagNumber === 3) hasOtherFormat = true;
+    } else {
+      throw _cmsError(
+        "PKI_CMS_STRUCTURE_INVALID",
+        path,
+        node.offset,
+        "is not a CertificateChoices value: a Certificate SEQUENCE or a constructed [0] to [3] (RFC 5652 \xA710.2.2)"
+      );
+    }
+  }
+  const crlNodes = children(crlsField, "content.crls");
+  for (let i = 0; i < crlNodes.length; i++) {
+    const path = `content.crls[${String(i)}]`;
+    entries += 1;
+    enforceLimit(ctx.limits, "maxCmsBagEntries", entries, path);
+    const node = crlNodes[i];
+    if (node.tagClass === "universal" && node.tagNumber === TAG_SEQUENCE) {
+      crls.push(node.bytes);
+      continue;
+    }
+    if (!isContext(node, 1) || !node.constructed || node.children.length !== 2) {
+      throw _cmsError(
+        "PKI_CMS_STRUCTURE_INVALID",
+        path,
+        node.offset,
+        "is not a RevocationInfoChoice: a CertificateList SEQUENCE or an OtherRevocationInfoFormat under [1] (RFC 5652 \xA710.2.1)"
+      );
+    }
+    hasOtherFormat = true;
+    const format = _readObjectIdentifier(_expectUniversal(node.children[0], TAG_OID, `${path}.otherRevInfoFormat`, node.offset, "an OBJECT IDENTIFIER"), ctx);
+    if (format === OID_RI_OCSP_RESPONSE) ocspResponses.push(node.children[1].bytes);
+  }
+  return {
+    certificates: Object.freeze(certificates),
+    crls: Object.freeze(crls),
+    ocspResponses: Object.freeze(ocspResponses),
+    hasOtherFormat,
+    hasV2AttrCert,
+    hasV1AttrCert
+  };
+}
+function readSignerInfo(node, ctx, path, listed2) {
+  const seq = _expectUniversal(node, TAG_SEQUENCE, path, node.offset, "a SignerInfo SEQUENCE");
+  const fields = seq.children;
+  const versionNode = _expectUniversal(fields[0], TAG_INTEGER, `${path}.version`, seq.offset, "an INTEGER");
+  const declared = _readInteger(versionNode, ctx);
+  if (declared !== 1n && declared !== 3n) {
+    throw _cmsError(
+      "PKI_CMS_VERSION_UNSUPPORTED",
+      `${path}.version`,
+      versionNode.offset,
+      `is ${String(declared)}; RFC 5652 \xA75.3 defines SignerInfo versions 1 and 3 only`
+    );
+  }
+  const version = declared === 1n ? 1 : 3;
+  const sidNode = fields[1];
+  const sid = readSignerIdentifier(sidNode, ctx, `${path}.sid`, seq.offset);
+  const expected = sid.kind === "issuerAndSerialNumber" ? 1 : 3;
+  if (version !== expected) ctx.emitter.emit(cmsVersionMismatchDiagnostic(`${path}.version`, version, expected, versionNode.offset));
+  const digestNode = fields[2];
+  const digestAlgorithm = _viaX509(`${path}.digestAlgorithm`, digestNode?.offset ?? seq.offset, () => _readAlgorithmIdentifier(digestNode, ctx, `${path}.digestAlgorithm`, "PKI_X509_STRUCTURE_INVALID", seq.offset));
+  if (!listed2.has(digestAlgorithm.oid)) {
+    ctx.emitter.emit(cmsDigestAlgorithmNotListedDiagnostic(`${path}.digestAlgorithm`, digestAlgorithm.oid, digestNode.offset));
+  }
+  let at = 3;
+  const signedNode = isContext(fields[at], 0) ? fields[at++] : void 0;
+  const algorithmNode = fields[at++];
+  const signatureAlgorithm = _viaX509(`${path}.signatureAlgorithm`, algorithmNode?.offset ?? seq.offset, () => _readAlgorithmIdentifier(algorithmNode, ctx, `${path}.signatureAlgorithm`, "PKI_X509_STRUCTURE_INVALID", seq.offset));
+  const signature = _readOctetString(_expectUniversal(fields[at++], TAG_OCTET_STRING, `${path}.signature`, seq.offset, "an OCTET STRING"), ctx);
+  const unsignedNode = isContext(fields[at], 1) ? fields[at++] : void 0;
+  if (fields.length !== at) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, seq.offset, `holds ${String(fields.length - at)} value(s) after the signature that RFC 5652 \xA75.3 does not define`);
+  }
+  let signedEntries;
+  let signedAttributesDer;
+  if (signedNode !== void 0) {
+    _assertDerEncoded(signedNode, ctx, `${path}.signedAttrs`);
+    signedEntries = _readAttributes(signedNode, ctx, `${path}.signedAttrs`);
+    if (!_inDerSetOrder(signedNode.children)) ctx.emitter.emit(cmsSignedAttributesNotDerDiagnostic(`${path}.signedAttrs`, signedNode.offset));
+    signedAttributesDer = signedNode.bytes.slice();
+    signedAttributesDer[0] = 49;
+  }
+  const unsignedEntries = unsignedNode === void 0 ? void 0 : _readAttributes(unsignedNode, ctx, `${path}.unsignedAttrs`);
+  const convenience = _readSignedAttributeFields(signedEntries ?? [], ctx, `${path}.signedAttrs`);
+  return Object.freeze({
+    version,
+    sid,
+    digestAlgorithm,
+    signedAttributes: signedEntries === void 0 ? void 0 : Object.freeze(signedEntries.map((entry) => entry.attribute)),
+    signedAttributesDer,
+    signatureAlgorithm,
+    signature,
+    unsignedAttributes: unsignedEntries === void 0 ? void 0 : Object.freeze(unsignedEntries.map((entry) => entry.attribute)),
+    contentType: convenience.contentType,
+    messageDigest: convenience.messageDigest,
+    signingTime: convenience.signingTime,
+    signingCertificate: convenience.signingCertificate,
+    algorithmProtection: convenience.algorithmProtection,
+    timeStampTokens: _collectTimeStampTokens(unsignedEntries),
+    der: seq.bytes
+  });
+}
+function readSignerIdentifier(node, ctx, path, parentOffset) {
+  if (node !== void 0 && node.tagClass === "context" && node.tagNumber === 0 && !node.constructed) {
+    return Object.freeze({ kind: "subjectKeyIdentifier", keyIdentifier: node.content });
+  }
+  if (node === void 0 || node.tagClass !== "universal" || node.tagNumber !== TAG_SEQUENCE) {
+    throw _cmsError(
+      "PKI_CMS_STRUCTURE_INVALID",
+      path,
+      node?.offset ?? parentOffset,
+      "is not a SignerIdentifier: an IssuerAndSerialNumber SEQUENCE or a primitive [0] subjectKeyIdentifier (RFC 5652 \xA75.3)"
+    );
+  }
+  if (node.children.length !== 2) {
+    throw _cmsError("PKI_CMS_STRUCTURE_INVALID", path, node.offset, `holds ${String(node.children.length)} values where IssuerAndSerialNumber holds an issuer and a serial number`);
+  }
+  const issuerNode = node.children[0];
+  const issuer = _viaX509(`${path}.issuer`, issuerNode.offset, () => _readName(issuerNode, ctx, `${path}.issuer`, node.offset));
+  const serialNumber = _readSerialNumber(node.children[1], ctx, `${path}.serialNumber`, node.offset);
+  return Object.freeze({ kind: "issuerAndSerialNumber", issuer, serialNumber });
+}
+
+// src/crypto/cms-verify.ts
+async function verifySignerInfoSignature(signerInfo, signer, options) {
+  const info = assertSignerInfo(signerInfo);
+  const certificate = assertCertificate2(signer);
+  const covered = info.signedAttributesDer ?? options?.content;
+  if (covered === void 0) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      "pkinative: this signer has no signed attributes, so its signature is over the content itself \u2014 pass { content } with the eContent or the detached content"
+    );
+  }
+  if (_cmsAlgorithmProblem(info.digestAlgorithm, info.signatureAlgorithm) !== null) return false;
+  const resolved = resolveCmsAlgorithm(info.digestAlgorithm, info.signatureAlgorithm, certificate.subjectPublicKeyInfo);
+  if (resolved === null) return false;
+  if (resolved.hash === "SHA-1" && options?.allowSha1 !== true) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_REFUSED",
+      "pkinative: this signer signed over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 have it re-signed under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
+      info.signatureAlgorithm.oid
+    );
+  }
+  let signature = info.signature;
+  if (resolved.curve !== void 0) {
+    const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
+    if (raw === null) return false;
+    signature = raw;
+  }
+  const key = await importPublicKey(certificate.subjectPublicKeyInfo.der, resolved.importParams, info.signatureAlgorithm.oid);
+  return verifySignature(key, resolved.verifyParams, signature, covered);
+}
+function assertSignerInfo(value) {
+  const candidate = value;
+  if (typeof value !== "object" || candidate === null || !(candidate.signature instanceof Uint8Array) || typeof candidate.digestAlgorithm !== "object" || candidate.digestAlgorithm === null || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: signerInfo must be an entry of parseSignedData().signerInfos \u2014 pass the parsed value, not its DER");
+  }
+  return value;
+}
+function assertCertificate2(value) {
+  const candidate = value;
+  if (typeof value !== "object" || candidate === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null || !(candidate.subjectPublicKeyInfo.der instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: signer must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER");
+  }
+  return value;
+}
+
+// src/build/build-signed-data.ts
+var SIGNED_ONLY = SIGNED_ONLY_ATTRIBUTES;
+var DIGESTS = /* @__PURE__ */ Object.freeze({
+  "SHA-1": { oid: "1.3.14.3.2.26", length: 20 },
+  "SHA-256": { oid: "2.16.840.1.101.3.4.2.1", length: 32 },
+  "SHA-384": { oid: "2.16.840.1.101.3.4.2.2", length: 48 },
+  "SHA-512": { oid: "2.16.840.1.101.3.4.2.3", length: 64 }
+});
+var CERTIFICATE_CHOICES = /* @__PURE__ */ new Map([[48, 1], [160, 1], [161, 3], [162, 4], [163, 5]]);
+var CRL_CHOICES = /* @__PURE__ */ new Map([[48, 1], [161, 5]]);
+function misuse(message) {
+  return new PkiError("PKI_API_MISUSE", `pkinative: ${message}`);
+}
+function isTag(header, tagClass, tagNumber, constructed) {
+  return header !== void 0 && header.tagClass === tagClass && header.tagNumber === tagNumber && header.constructed === constructed;
+}
+function readAttributeType(bytes) {
+  const outer = readTlvHeader(bytes, 0, "attribute");
+  if (outer.end !== bytes.length || !isTag(outer, "universal", TAG_SEQUENCE, true)) return null;
+  const fields = [];
+  for (const field of walkChildren(bytes, outer, "attribute")) {
+    fields.push(field);
+    if (fields.length > 2) return null;
+  }
+  const [type, values] = fields;
+  if (type === void 0 || !isTag(type, "universal", TAG_OID, false) || !isTag(values, "universal", TAG_SET, true)) return null;
+  return decodeOid(bytes.subarray(type.contentStart, type.end));
+}
+function attributeType(der, what) {
+  const bytes = assertBytes(der, what);
+  let type;
+  try {
+    type = readAttributeType(bytes);
+  } catch {
+    type = null;
+  }
+  if (type === null) {
+    throw misuse(`${what} is not a DER Attribute \u2014 one SEQUENCE of an OBJECT IDENTIFIER and a SET OF values (RFC 5652 \xA75.3); pass one complete encoding, e.g. from encodeAttribute`);
+  }
+  return type;
+}
+function bagEntryVersion(der, what, choices) {
+  let header;
+  try {
+    header = readTlvHeader(der, 0, what);
+  } catch {
+    header = null;
+  }
+  const version = header !== null && header.end === der.length ? choices.get(byteView(der).getUint8(0)) : void 0;
+  if (version === void 0) {
+    throw misuse(`${what} is not one complete DER encoding of an alternative the field allows (RFC 5652 \xA710.2) \u2014 pass each certificate or revocation list as its own DER, e.g. certificate.der`);
+  }
+  return version;
+}
+function signerDigest(signer) {
+  const algorithm = signer.algorithm;
+  if (algorithm.name === "Ed448") {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
+      "pkinative: a CMS signature with Ed448 names SHAKE256 as its digest (RFC 8419 \xA73.1), which neither Web Crypto nor pkinative computes \u2014 sign with Ed25519, ECDSA or RSA instead",
+      "1.3.101.113"
+    );
+  }
+  return algorithm.name === "Ed25519" ? "SHA-512" : algorithm.hash;
+}
+function isSubjectKeyIdentifier(extension) {
+  return extension.kind === "subjectKeyIdentifier";
+}
+function signerIdentifier(certificate, sid, serial) {
+  if (sid === "subjectKeyIdentifier") {
+    const extension = certificate.extensions.find(isSubjectKeyIdentifier);
+    if (extension === void 0) {
+      throw misuse("sid 'subjectKeyIdentifier' needs a certificate with a decoded subjectKeyIdentifier extension, and this one has none \u2014 use 'issuerAndSerialNumber', or parse the certificate with decodeExtensions left on");
+    }
+    return { der: encodeImplicit(0, encodeOctetString(extension.keyIdentifier)), version: 3 };
+  }
+  if (sid !== void 0 && sid !== "issuerAndSerialNumber") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: sid must be 'issuerAndSerialNumber' or 'subjectKeyIdentifier', got ${String(sid)}`);
+  }
+  return { der: encodeSequence([assertBytes(certificate.issuer.der, "certificate.issuer.der"), serial]), version: 1 };
+}
+function signingTimeValue(time) {
+  if (typeof time !== "number" || !Number.isFinite(time)) {
+    throw misuse(`signingTime is an instant in epoch milliseconds and must be a finite number, got ${String(time)}`);
+  }
+  return encodeTime(Math.floor(time / 1e3) * 1e3);
+}
+async function resolveContent(input, digest) {
+  if (input.content === void 0 === (input.contentDigest === void 0)) {
+    throw misuse("createSignedData takes exactly one of content and contentDigest \u2014 content to have it hashed (and embedded unless detached), contentDigest for a detached signature over bytes you have already hashed");
+  }
+  if (input.contentDigest !== void 0) {
+    if (input.detached === false) {
+      throw misuse("contentDigest makes the signature detached, since there is no content to embed \u2014 drop detached: false, or pass the content itself");
+    }
+    const messageDigest = assertBytes(input.contentDigest, "contentDigest");
+    if (messageDigest.length !== DIGESTS[digest].length) {
+      throw misuse(`contentDigest is ${String(messageDigest.length)} octets, and a ${digest} digest is ${String(DIGESTS[digest].length)} \u2014 hash the content with ${digest}, the digest the signer's algorithm implies`);
+    }
+    return { eContent: void 0, messageDigest };
+  }
+  const content = assertBytes(input.content, "content");
+  return { eContent: input.detached === true ? void 0 : content, messageDigest: await computeFingerprintAsync(content, digest) };
+}
+async function createSignedData(input, signer, options) {
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  const digest = signerDigest(signer);
+  const signatureAlgorithm = signatureAlgorithmDer(signer);
+  const digestAlgorithm = encodeAlgorithmIdentifier(DIGESTS[digest].oid);
+  const contentType = input.contentType ?? OID_DATA;
+  const certificate = input.certificate;
+  const certificateDer = assertBytes(certificate.der, "certificate.der");
+  const serial = encodeTlv("universal", TAG_INTEGER, false, assertBytes(certificate.serialNumber.bytes, "certificate.serialNumber.bytes"));
+  const sid = signerIdentifier(certificate, input.sid, serial);
+  const extraCertificates = input.certificates ?? [];
+  const crls = input.crls ?? [];
+  enforceLimit(limits, "maxCmsBagEntries", extraCertificates.length + crls.length, "the certificates and revocation lists given");
+  let version = sid.version === 3 || contentType !== OID_DATA ? 3 : 1;
+  const certificates = [certificateDer];
+  extraCertificates.forEach((entry, index) => {
+    const bytes = assertBytes(entry, `certificates[${String(index)}]`);
+    version = Math.max(version, bagEntryVersion(bytes, `certificates[${String(index)}]`, CERTIFICATE_CHOICES));
+    if (!certificates.some((held) => bytesEqual(held, bytes))) certificates.push(bytes);
+  });
+  const revocation = crls.map((entry, index) => {
+    const bytes = assertBytes(entry, `crls[${String(index)}]`);
+    version = Math.max(version, bagEntryVersion(bytes, `crls[${String(index)}]`, CRL_CHOICES));
+    return bytes;
+  });
+  enforceLimit(limits, "maxCmsBagEntries", certificates.length + revocation.length, "the certificates and revocation lists being embedded");
+  const written = /* @__PURE__ */ new Set([OID_ATTR_CONTENT_TYPE, OID_ATTR_MESSAGE_DIGEST]);
+  if (input.signingTime !== void 0) written.add(OID_ATTR_SIGNING_TIME);
+  if (input.signingCertificateV2 !== false) written.add(OID_ATTR_SIGNING_CERTIFICATE_V2);
+  if (input.algorithmProtection !== false) written.add(OID_ATTR_ALGORITHM_PROTECTION);
+  const extraSigned = input.signedAttributes ?? [];
+  enforceLimit(limits, "maxCmsAttributes", written.size + extraSigned.length, "the signed attributes being built");
+  extraSigned.forEach((attribute, index) => {
+    const what = `signedAttributes[${String(index)}]`;
+    const type = attributeType(attribute, what);
+    if (type === OID_ATTR_COUNTERSIGNATURE) {
+      throw misuse(`${what} is a countersignature, which RFC 5652 \xA711.4 allows only among the unsigned attributes \u2014 pass it in unsignedAttributes`);
+    }
+    if (written.has(type)) {
+      throw misuse(`${what} is a second ${type} attribute; the signed attributes carry one of each \u2014 createSignedData writes contentType and messageDigest itself, and signingTime, signingCertificateV2 and algorithmProtection when their options ask, so drop this one or turn that option off`);
+    }
+    written.add(type);
+  });
+  const unsigned = input.unsignedAttributes ?? [];
+  enforceLimit(limits, "maxCmsAttributes", unsigned.length, "the unsigned attributes being built");
+  unsigned.forEach((attribute, index) => {
+    const what = `unsignedAttributes[${String(index)}]`;
+    const type = attributeType(attribute, what);
+    if (SIGNED_ONLY.has(type)) {
+      throw misuse(`${what} is a ${type} attribute, which RFC 5652 \xA711, RFC 5035 and RFC 6211 allow only among the signed attributes \u2014 a verifier rejects it unsigned; pass it in signedAttributes, or use the option that writes it`);
+    }
+  });
+  const { eContent, messageDigest } = await resolveContent(input, digest);
+  const signed = [
+    encodeAttribute(OID_ATTR_CONTENT_TYPE, [encodeObjectIdentifier(contentType)]),
+    encodeAttribute(OID_ATTR_MESSAGE_DIGEST, [encodeOctetString(messageDigest)])
+  ];
+  if (input.signingTime !== void 0) signed.push(encodeAttribute(OID_ATTR_SIGNING_TIME, [signingTimeValue(input.signingTime)]));
+  if (input.signingCertificateV2 !== false) {
+    const essCertIdV2 = encodeSequence([
+      // hashAlgorithm DEFAULT id-sha256: DER omits a DEFAULT (X.690 §11.5).
+      ...digest === "SHA-256" ? [] : [digestAlgorithm],
+      encodeOctetString(await computeFingerprintAsync(certificateDer, digest)),
+      // IssuerSerial: the issuer as the one directoryName [4] — explicit,
+      // because Name is a CHOICE — and the serial (RFC 5035 §4).
+      encodeSequence([encodeSequence([encodeExplicit(4, certificate.issuer.der)]), serial])
+    ]);
+    signed.push(encodeAttribute(OID_ATTR_SIGNING_CERTIFICATE_V2, [encodeSequence([encodeSequence([essCertIdV2])])]));
+  }
+  if (input.algorithmProtection !== false) {
+    signed.push(encodeAttribute(OID_ATTR_ALGORITHM_PROTECTION, [encodeSequence([digestAlgorithm, encodeImplicit(1, signatureAlgorithm)])]));
+  }
+  for (const attribute of extraSigned) signed.push(attribute);
+  const signedSet = encodeSetOf(signed);
+  const signature = await computeSignatureValue(signedSet, signer);
+  const transmitted = signedSet.slice();
+  transmitted[0] = 160;
+  const signerInfo = encodeSequence([
+    encodeInteger(sid.version),
+    sid.der,
+    digestAlgorithm,
+    transmitted,
+    signatureAlgorithm,
+    encodeOctetString(signature),
+    ...unsigned.length > 0 ? [encodeImplicit(1, encodeSetOf(unsigned))] : []
+  ]);
+  const encapContentInfo = encodeSequence([
+    encodeObjectIdentifier(contentType),
+    ...eContent === void 0 ? [] : [encodeExplicit(0, encodeOctetString(eContent))]
+  ]);
+  const signedData = encodeSequence([
+    encodeInteger(version),
+    encodeSetOf([digestAlgorithm]),
+    encapContentInfo,
+    encodeImplicit(0, encodeSetOf(certificates)),
+    ...revocation.length > 0 ? [encodeImplicit(1, encodeSetOf(revocation))] : [],
+    encodeSetOf([signerInfo])
+  ]);
+  return encodeSequence([encodeObjectIdentifier(OID_SIGNED_DATA), encodeExplicit(0, signedData)]);
+}
+function structure(path, expected, offset) {
+  return new PkiCmsError(
+    "PKI_CMS_STRUCTURE_INVALID",
+    `pkinative: ${path} is not ${expected} (RFC 5652 \xA73, \xA75) \u2014 pass the DER ContentInfo of a SignedData, as createSignedData returns it`,
+    path,
+    offset
+  );
+}
+function fieldsOf(data, parent, path, max) {
+  const fields = [];
+  for (const field of walkChildren(data, parent, path)) {
+    if (fields.length === max) throw structure(path, `a value of at most ${String(max)} fields`, field.offset);
+    fields.push(field);
+  }
+  return fields;
+}
+function expectTag(header, tagClass, tagNumber, constructed, path, expected, parent) {
+  if (header === void 0) throw structure(path, expected, parent.end);
+  if (!isTag(header, tagClass, tagNumber, constructed)) throw structure(path, expected, header.offset);
+  return header;
+}
+function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options) {
+  const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+  const der = assertBytes(signedDataDer, "signedDataDer");
+  const attribute = assertBytes(attributeDer, "attributeDer");
+  const type = attributeType(attribute, "attributeDer");
+  if (SIGNED_ONLY.has(type)) {
+    throw misuse(`attributeDer is a ${type} attribute, which RFC 5652 \xA711, RFC 5035 and RFC 6211 allow only among the signed attributes \u2014 it cannot be added after signing; sign again with it`);
+  }
+  if (!Number.isSafeInteger(signerIndex) || signerIndex < 0) {
+    throw misuse(`signerIndex is the position of a signer in signerInfos, a non-negative integer, got ${String(signerIndex)}`);
+  }
+  enforceLimit(limits, "maxInputBytes", der.length, "the SignedData");
+  const contentInfo = readTlvHeader(der, 0, "contentInfo");
+  if (!isTag(contentInfo, "universal", TAG_SEQUENCE, true)) throw structure("contentInfo", "a SEQUENCE", 0);
+  if (contentInfo.end !== der.length) throw structure("contentInfo", "the whole input \u2014 bytes follow it", contentInfo.end);
+  const [typeField, contentField] = fieldsOf(der, contentInfo, "contentInfo", 2);
+  const contentTypeField = expectTag(typeField, "universal", TAG_OID, false, "contentInfo.contentType", "an OBJECT IDENTIFIER", contentInfo);
+  const contentType = decodeOid(der.subarray(contentTypeField.contentStart, contentTypeField.end));
+  if (contentType !== OID_SIGNED_DATA) {
+    throw new PkiCmsError(
+      "PKI_CMS_CONTENT_TYPE_UNEXPECTED",
+      `pkinative: this ContentInfo holds ${contentType}, not id-signedData (${OID_SIGNED_DATA}) \u2014 only a SignedData has signers to add an attribute to`,
+      "contentInfo.contentType",
+      contentTypeField.offset
+    );
+  }
+  const explicit = expectTag(contentField, "context", 0, true, "contentInfo.content", "a [0] EXPLICIT value", contentInfo);
+  const signedData = expectTag(fieldsOf(der, explicit, "contentInfo.content", 1)[0], "universal", TAG_SEQUENCE, true, "signedData", "a SEQUENCE", explicit);
+  const fields = fieldsOf(der, signedData, "signedData", 6);
+  expectTag(fields[0], "universal", TAG_INTEGER, false, "signedData.version", "an INTEGER", signedData);
+  expectTag(fields[1], "universal", TAG_SET, true, "signedData.digestAlgorithms", "a SET", signedData);
+  expectTag(fields[2], "universal", TAG_SEQUENCE, true, "signedData.encapContentInfo", "a SEQUENCE", signedData);
+  const last = fields.length - 1;
+  for (let index = 3; index < last; index++) {
+    const field = fields[index];
+    if (!isTag(field, "context", 0, true) && !isTag(field, "context", 1, true)) {
+      throw structure(`signedData[${String(index)}]`, "certificates [0] or crls [1]", field.offset);
+    }
+  }
+  const signerInfos = expectTag(last < 3 ? void 0 : fields[last], "universal", TAG_SET, true, "signedData.signerInfos", "a SET", signedData);
+  const infos = [];
+  for (const info of walkChildren(der, signerInfos, "signerInfos")) {
+    infos.push(expectTag(info, "universal", TAG_SEQUENCE, true, `signerInfos[${String(infos.length)}]`, "a SEQUENCE", signerInfos));
+    enforceLimit(limits, "maxSignerInfos", infos.length, "the signerInfos of the SignedData");
+  }
+  const target = infos[signerIndex];
+  if (target === void 0) {
+    throw misuse(`signerIndex ${String(signerIndex)} is out of range \u2014 this SignedData has ${String(infos.length)} signer(s), counted from 0`);
+  }
+  const path = `signerInfos[${String(signerIndex)}]`;
+  const parts = fieldsOf(der, target, path, 7);
+  expectTag(parts[0], "universal", TAG_INTEGER, false, `${path}.version`, "an INTEGER", target);
+  if (!isTag(parts[1], "context", 0, false)) expectTag(parts[1], "universal", TAG_SEQUENCE, true, `${path}.sid`, "an IssuerAndSerialNumber or a [0] SubjectKeyIdentifier", target);
+  expectTag(parts[2], "universal", TAG_SEQUENCE, true, `${path}.digestAlgorithm`, "an AlgorithmIdentifier", target);
+  let at = isTag(parts[3], "context", 0, true) ? 4 : 3;
+  expectTag(parts[at], "universal", TAG_SEQUENCE, true, `${path}.signatureAlgorithm`, "an AlgorithmIdentifier", target);
+  at += 1;
+  expectTag(parts[at], "universal", TAG_OCTET_STRING, false, `${path}.signature`, "an OCTET STRING", target);
+  at += 1;
+  const existing = parts[at];
+  if (existing !== void 0 && (!isTag(existing, "context", 1, true) || at !== parts.length - 1)) {
+    throw structure(`${path}.unsignedAttrs`, "a [1] SET OF Attribute, the last field of a SignerInfo", existing.offset);
+  }
+  const attributes = [];
+  if (existing !== void 0) {
+    for (const held of walkChildren(der, existing, `${path}.unsignedAttrs`)) {
+      expectTag(held, "universal", TAG_SEQUENCE, true, `${path}.unsignedAttrs[${String(attributes.length)}]`, "an Attribute", existing);
+      attributes.push(der.subarray(held.offset, held.end));
+      enforceLimit(limits, "maxCmsAttributes", attributes.length + 1, `the unsigned attributes of ${path}`);
+    }
+  }
+  attributes.push(attribute);
+  const kept = der.subarray(target.contentStart, existing === void 0 ? target.end : existing.offset);
+  const rebuilt = encodeTlv("universal", TAG_SEQUENCE, true, concatBytes([kept, encodeImplicit(1, encodeSetOf(attributes))]));
+  const newInfos = encodeSetOf(infos.map((info) => info === target ? rebuilt : der.subarray(info.offset, info.end)));
+  const newSignedData = encodeTlv("universal", TAG_SEQUENCE, true, concatBytes([der.subarray(signedData.contentStart, signerInfos.offset), newInfos]));
+  return encodeSequence([der.subarray(contentTypeField.offset, contentTypeField.end), encodeExplicit(0, newSignedData)]);
+}
+function addTimeStampToken(signedDataDer, signerIndex, tokenDer, options) {
+  if (!(tokenDer instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: tokenDer must be the TimeStampToken bytes \u2014 the tokenDer of a parsed TimeStampResponse");
+  }
+  return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [tokenDer]), options);
+}
+
+// src/cms/tsp-tst-info.ts
+var DIGEST_BYTES = /* @__PURE__ */ new Map([
+  ["1.3.14.3.2.26", 20],
+  ["2.16.840.1.101.3.4.2.1", 32],
+  ["2.16.840.1.101.3.4.2.2", 48],
+  ["2.16.840.1.101.3.4.2.3", 64]
+]);
+function _tspError(path, offset, why) {
+  return new PkiCmsError("PKI_CMS_STRUCTURE_INVALID", `pkinative: ${path} ${why} \u2014 the input is not an RFC 3161 structure`, path, offset);
+}
+function _readMessageImprint(node, ctx, path, parentOffset) {
+  if (node === void 0 || node.tagClass !== "universal" || node.tagNumber !== 16 || node.children.length !== 2) {
+    throw _tspError(path, node?.offset ?? parentOffset, "is not a MessageImprint: a SEQUENCE of a hash algorithm and a hash");
+  }
+  const hashAlgorithm = _viaX509(`${path}.hashAlgorithm`, node.offset, () => _readAlgorithmIdentifier(node.children[0], ctx, `${path}.hashAlgorithm`, "PKI_X509_STRUCTURE_INVALID", node.offset));
+  const hashedMessage = _readOctetString(node.children[1], ctx);
+  const expected = DIGEST_BYTES.get(hashAlgorithm.oid);
+  if (expected !== void 0 && hashedMessage.length !== expected) {
+    throw _tspError(
+      `${path}.hashedMessage`,
+      node.offset,
+      `is ${String(hashedMessage.length)} octets, and a ${hashAlgorithm.oid} digest is ${String(expected)}`
+    );
+  }
+  return Object.freeze({ hashAlgorithm, hashedMessage });
+}
+function _serialOf(node, ctx) {
+  return Object.freeze({ bytes: node.content, hex: toHex(node.content), value: _readInteger(node, ctx) });
+}
+function parseTstInfo(der, options) {
+  const ctx = createAsn1Context({ ...options, encodingRules: "der" });
+  const root = decodeWithContext(der, ctx, false);
+  const path = "TSTInfo";
+  if (root.tagClass !== "universal" || root.tagNumber !== 16) throw _tspError(path, root.offset, "is not a SEQUENCE");
+  const fields = root.children;
+  let at = 0;
+  const take = (what) => {
+    const field2 = fields[at];
+    if (field2 === void 0) throw _tspError(`${path}.${what}`, root.offset, "is missing");
+    at += 1;
+    return field2;
+  };
+  const versionNode = take("version");
+  if (versionNode.tagClass !== "universal" || versionNode.tagNumber !== 2) throw _tspError(`${path}.version`, versionNode.offset, "is not an INTEGER");
+  const version = _readInteger(versionNode, ctx);
+  if (version !== 1n) {
+    throw new PkiCmsError(
+      "PKI_CMS_VERSION_UNSUPPORTED",
+      `pkinative: ${path}.version is ${String(version)}; RFC 3161 \xA72.4.2 defines only version 1, so this token promises a syntax this reader cannot know`,
+      `${path}.version`,
+      versionNode.offset
+    );
+  }
+  const policy = _readObjectIdentifier(take("policy"), ctx);
+  const messageImprint = _readMessageImprint(take("messageImprint"), ctx, `${path}.messageImprint`, root.offset);
+  const serialNode = take("serialNumber");
+  if (serialNode.tagClass !== "universal" || serialNode.tagNumber !== 2) throw _tspError(`${path}.serialNumber`, serialNode.offset, "is not an INTEGER");
+  const serialNumber = _serialOf(serialNode, ctx);
+  const genTimeNode = take("genTime");
+  if (genTimeNode.tagClass !== "universal" || genTimeNode.tagNumber !== 24) {
+    throw _tspError(`${path}.genTime`, genTimeNode.offset, "is not a GeneralizedTime; RFC 3161 \xA72.4.2 allows no other time type");
+  }
+  const genTime = _readTime(genTimeNode, ctx, void 0);
+  let accuracy;
+  let ordering = false;
+  let nonce;
+  let tsa;
+  let extensions = [];
+  const next = () => fields[at];
+  let field = next();
+  if (field?.tagClass === "universal" && field.tagNumber === 16) {
+    accuracy = readAccuracy(field, ctx, `${path}.accuracy`);
+    at += 1;
+    field = next();
+  }
+  if (field?.tagClass === "universal" && field.tagNumber === 1) {
+    ordering = _readBoolean(field, ctx);
+    if (!ordering) ctx.emitter.emit(defaultEncodedDiagnostic(`${path}.ordering`, "FALSE", field.offset));
+    at += 1;
+    field = next();
+  }
+  if (field?.tagClass === "universal" && field.tagNumber === 2) {
+    nonce = _readInteger(field, ctx);
+    at += 1;
+    field = next();
+  }
+  if (field?.tagClass === "context" && field.tagNumber === 0) {
+    const inner = field.constructed && field.children.length === 1 ? field.children[0] : void 0;
+    if (inner === void 0) throw _tspError(`${path}.tsa`, field.offset, "is not one GeneralName under an explicit [0] tag");
+    tsa = _viaX509(`${path}.tsa`, field.offset, () => _readGeneralName(inner, ctx, `${path}.tsa`, false));
+    at += 1;
+    field = next();
+  }
+  if (field?.tagClass === "context" && field.tagNumber === 1) {
+    extensions = readExtensions4(der, field, ctx, `${path}.extensions`);
+    at += 1;
+    field = next();
+  }
+  if (field !== void 0) {
+    throw _tspError(`${path}[${String(at)}]`, field.offset, "is not a field TSTInfo defines, or not in the order RFC 3161 \xA72.4.2 fixes");
+  }
+  return Object.freeze({
+    version: 1,
+    policy,
+    messageImprint,
+    serialNumber,
+    genTime,
+    accuracy,
+    ordering,
+    nonce,
+    tsa,
+    extensions,
+    der: der.subarray(root.offset, root.offset + root.headerLength + root.contentLength)
+  });
+}
+function readAccuracy(node, ctx, path) {
+  let seconds = 0;
+  let millis = 0;
+  let micros = 0;
+  let last = -1;
+  for (const child of node.children) {
+    const slot = child.tagClass === "universal" && child.tagNumber === 2 ? 0 : child.tagClass === "context" && child.tagNumber <= 1 && !child.constructed ? child.tagNumber + 1 : -1;
+    if (slot <= last) throw _tspError(path, child.offset, "holds a field Accuracy does not define, or holds its fields twice or out of order");
+    last = slot;
+    const value = readSmallNonNegative(child, ctx, path);
+    if (slot === 0) {
+      seconds = value;
+      continue;
+    }
+    if (value < 1 || value > 999) {
+      throw _tspError(`${path}.${slot === 1 ? "millis" : "micros"}`, child.offset, `is ${String(value)}, outside the 1..999 the type allows`);
+    }
+    if (slot === 1) millis = value;
+    else micros = value;
+  }
+  return Object.freeze({ seconds, millis, micros });
+}
+function readSmallNonNegative(node, ctx, path) {
+  const value = _readInteger(node, ctx);
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw _tspError(path, node.offset, `holds ${String(value)}, which is not a non-negative count a clock can mean`);
+  }
+  return Number(value);
+}
+function readExtensions4(der, field, ctx, path) {
+  const out = [];
+  for (const [index, entry] of field.children.entries()) {
+    const where2 = `${path}[${String(index)}]`;
+    enforceLimit(ctx.limits, "maxExtensions", index + 1, where2);
+    const oidNode = entry.children[0];
+    const valueNode = entry.children[entry.children.length - 1];
+    if (entry.tagClass !== "universal" || entry.tagNumber !== 16 || entry.children.length < 2 || entry.children.length > 3 || oidNode === void 0 || valueNode === void 0) {
+      throw _tspError(where2, entry.offset, "is not an Extension");
+    }
+    const criticalNode = entry.children.length === 3 ? entry.children[1] : void 0;
+    const start = valueNode.offset + valueNode.headerLength;
+    out.push(_viaX509(where2, entry.offset, () => _decodeExtension(
+      der.subarray(0, start + valueNode.contentLength),
+      start,
+      readObjectIdentifier(oidNode),
+      criticalNode !== void 0 && _readBoolean(criticalNode, ctx),
+      valueNode.content,
+      ctx,
+      where2
+    )));
+  }
+  return Object.freeze(out);
+}
+
+// src/cms/tsp-response.ts
+var STATUSES2 = /* @__PURE__ */ Object.freeze([
+  "granted",
+  "grantedWithMods",
+  "rejection",
+  "waiting",
+  "revocationWarning",
+  "revocationNotification"
+]);
+var FAILURES = /* @__PURE__ */ new Map([
+  [0, "badAlg"],
+  [2, "badRequest"],
+  [5, "badDataFormat"],
+  [14, "timeNotAvailable"],
+  [15, "unacceptedPolicy"],
+  [16, "unacceptedExtension"],
+  [17, "addInfoNotAvailable"],
+  [25, "systemFailure"]
+]);
+function parseTimeStampToken(der, options) {
+  const signedData = parseSignedData(der, options);
+  if (signedData.contentType !== OID_TST_INFO) {
+    throw new PkiCmsError(
+      "PKI_CMS_CONTENT_TYPE_UNEXPECTED",
+      `pkinative: this SignedData carries ${signedData.contentType}, not a TSTInfo (${OID_TST_INFO}) \u2014 it is a signed message, not a timestamp token; read it with parseSignedData`,
+      "content.encapContentInfo.eContentType",
+      0
+    );
+  }
+  const content = signedData.content;
+  if (content === void 0) {
+    throw new PkiCmsError(
+      "PKI_CMS_STRUCTURE_INVALID",
+      "pkinative: this timestamp token carries no TSTInfo \u2014 its eContent is absent, and RFC 3161 \xA72.4.2 requires the token to hold what the TSA asserts",
+      "content.encapContentInfo.eContent",
+      0
+    );
+  }
+  return Object.freeze({ signedData, tstInfo: parseTstInfo(content, options) });
+}
+function parseTimeStampResponse(der, options) {
+  const ctx = createAsn1Context(options);
+  const root = decodeWithContext(der, ctx, false);
+  const path = "TimeStampResp";
+  if (root.tagClass !== "universal" || root.tagNumber !== 16 || root.children.length < 1 || root.children.length > 2) {
+    throw _tspError(path, root.offset, "is not a SEQUENCE of a status and, optionally, a token");
+  }
+  const [statusNode, tokenNode] = root.children;
+  const { status, statusStrings, failInfo } = readStatusInfo(statusNode, ctx, `${path}.status`);
+  const granted = status === "granted" || status === "grantedWithMods";
+  if (granted && tokenNode === void 0) {
+    throw _tspError(path, root.offset, `says ${status} and carries no token; RFC 3161 \xA72.4.2 requires one`);
+  }
+  if (!granted && tokenNode !== void 0) {
+    throw _tspError(path, tokenNode.offset, `says ${status} and still carries a token; RFC 3161 \xA72.4.2 forbids one`);
+  }
+  let tokenDer;
+  let token;
+  if (tokenNode !== void 0) {
+    tokenDer = der.subarray(tokenNode.offset, tokenNode.offset + tokenNode.headerLength + tokenNode.contentLength);
+    token = parseTimeStampToken(tokenDer, options);
+  }
+  return Object.freeze({
+    der: der.subarray(root.offset, root.offset + root.headerLength + root.contentLength),
+    status,
+    statusStrings,
+    failInfo,
+    tokenDer,
+    token,
+    diagnostics: ctx.emitter.diagnostics
+  });
+}
+function readStatusInfo(node, ctx, path) {
+  if (node.tagClass !== "universal" || node.tagNumber !== 16) throw _tspError(path, node.offset, "is not a PKIStatusInfo SEQUENCE");
+  const [statusNode, ...rest] = node.children;
+  if (statusNode?.tagClass !== "universal" || statusNode.tagNumber !== 2) throw _tspError(`${path}.status`, node.offset, "is missing or not an INTEGER");
+  const value = _readInteger(statusNode, ctx);
+  const status = value >= 0n && value < BigInt(STATUSES2.length) ? STATUSES2[Number(value)] : void 0;
+  if (status === void 0) {
+    throw _tspError(`${path}.status`, statusNode.offset, `is ${String(value)}, which RFC 3161 \xA72.4.2 does not define \u2014 a status this reader does not know is one it cannot tell apart from a grant`);
+  }
+  let statusStrings = [];
+  let failInfo = [];
+  let last = -1;
+  for (const field of rest) {
+    const slot = field.tagClass === "universal" && field.tagNumber === 16 ? 0 : field.tagClass === "universal" && field.tagNumber === 3 ? 1 : -1;
+    if (slot <= last) throw _tspError(path, field.offset, "holds a field PKIStatusInfo does not define, or holds its fields twice or out of order");
+    last = slot;
+    if (slot === 0) statusStrings = readFreeText(field, ctx, `${path}.statusString`);
+    else failInfo = readFailInfo(field, ctx, `${path}.failInfo`);
+  }
+  return { status, statusStrings, failInfo };
+}
+function readFreeText(node, ctx, path) {
+  if (node.children.length === 0) throw _tspError(path, node.offset, "is empty; PKIFreeText holds at least one string");
+  return Object.freeze(node.children.map((child, index) => {
+    if (child.tagClass !== "universal" || child.tagNumber !== 12) {
+      throw _tspError(`${path}[${String(index)}]`, child.offset, "is not a UTF8String, the only string type PKIFreeText allows");
+    }
+    return _readString(child, ctx, void 0, `${path}[${String(index)}]`).value;
+  }));
+}
+function readFailInfo(node, ctx, path) {
+  const bits = _readBitString(node, ctx);
+  const total = bits.bytes.length * 8 - bits.unusedBits;
+  const out = [];
+  for (let bit = 0; bit < total; bit += 1) {
+    if ((bits.bytes[bit >> 3] & 128 >> (bit & 7)) === 0) continue;
+    const name = FAILURES.get(bit);
+    if (name === void 0) throw _tspError(path, node.offset, `sets bit ${String(bit)}, which RFC 3161 \xA72.4.2 does not name`);
+    out.push(name);
+  }
+  return Object.freeze(out);
+}
+
+// src/cms/tsp-request.ts
+var HASHES = /* @__PURE__ */ Object.freeze({
+  "SHA-256": { oid: "2.16.840.1.101.3.4.2.1", bytes: 32 },
+  "SHA-384": { oid: "2.16.840.1.101.3.4.2.2", bytes: 48 },
+  "SHA-512": { oid: "2.16.840.1.101.3.4.2.3", bytes: 64 }
+});
+var NULL_PARAMETERS2 = /* @__PURE__ */ encodeTlv("universal", 5, false, new Uint8Array(0));
+function createTimeStampRequest(hash, options) {
+  if (!(hash instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: the hash to timestamp must be a Uint8Array \u2014 hash the data first, with the algorithm you name in hashAlgorithm");
+  }
+  const name = options?.hashAlgorithm ?? "SHA-256";
+  const algorithm = HASHES[name];
+  if (typeof algorithm !== "object") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: hashAlgorithm must be 'SHA-256', 'SHA-384' or 'SHA-512', got ${String(name)} \u2014 SHA-1 is not offered for new timestamps, because a collision would let one token cover two documents`);
+  }
+  if (hash.length !== algorithm.bytes) {
+    throw new PkiError("PKI_API_MISUSE", `pkinative: a ${name} hash is ${String(algorithm.bytes)} octets and this one is ${String(hash.length)} \u2014 pass the digest itself, computed with the algorithm you name`);
+  }
+  const nonce = options?.nonce;
+  if (nonce !== void 0 && typeof nonce !== "bigint") {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: the timestamp nonce must be a bigint of random bits \u2014 pkinative generates none, so this is yours to produce with crypto.getRandomValues");
+  }
+  const fields = [
+    encodeInteger(1n),
+    encodeSequence([encodeAlgorithmIdentifier(algorithm.oid, NULL_PARAMETERS2), encodeOctetString(hash)])
+  ];
+  if (options?.policy !== void 0) fields.push(encodeObjectIdentifier(options.policy));
+  if (nonce !== void 0) fields.push(encodeInteger(nonce));
+  if (options?.certReq !== false) fields.push(encodeBoolean(true));
+  return encodeSequence(fields);
+}
+function _parseTimeStampRequest(der, options) {
+  const ctx = createAsn1Context({ ...options, encodingRules: "der" });
+  const root = decodeWithContext(der, ctx, false);
+  const path = "TimeStampReq";
+  if (root.tagClass !== "universal" || root.tagNumber !== 16) throw _tspError(path, root.offset, "is not a SEQUENCE");
+  const [versionNode, imprintNode, ...rest] = root.children;
+  if (versionNode?.tagClass !== "universal" || versionNode.tagNumber !== 2) throw _tspError(`${path}.version`, root.offset, "is missing or not an INTEGER");
+  if (_readInteger(versionNode, ctx) !== 1n) {
+    throw new PkiCmsError("PKI_CMS_VERSION_UNSUPPORTED", `pkinative: ${path}.version is not 1, the only version RFC 3161 \xA72.4.1 defines`, `${path}.version`, versionNode.offset);
+  }
+  const messageImprint = _readMessageImprint(imprintNode, ctx, `${path}.messageImprint`, root.offset);
+  let policy;
+  let nonce;
+  let certReq = false;
+  let last = -1;
+  for (const field of rest) {
+    const slot = field.tagClass === "universal" ? field.tagNumber === 6 ? 0 : field.tagNumber === 2 ? 1 : field.tagNumber === 1 ? 2 : -1 : field.tagClass === "context" && field.tagNumber === 0 ? 3 : -1;
+    if (slot <= last) throw _tspError(path, field.offset, "holds a field TimeStampReq does not define, or holds its fields twice or out of order");
+    last = slot;
+    if (slot === 0) policy = _readObjectIdentifier(field, ctx);
+    if (slot === 1) nonce = _readInteger(field, ctx);
+    if (slot === 2) certReq = _readBoolean(field, ctx);
+  }
+  return Object.freeze({ messageImprint, policy, nonce, certReq });
+}
+
+// src/cms/cms-check.ts
+var DIGESTS2 = /* @__PURE__ */ new Map([
+  ["SHA-1", sha1],
+  ["SHA-256", sha256],
+  ["SHA-384", sha384],
+  ["SHA-512", sha512]
+]);
+var SINGLE_VALUED = /* @__PURE__ */ new Map([
+  [OID_ATTR_CONTENT_TYPE, "contentType"],
+  [OID_ATTR_MESSAGE_DIGEST, "messageDigest"],
+  [OID_ATTR_SIGNING_TIME, "signingTime"],
+  [OID_ATTR_SIGNING_CERTIFICATE, "signingCertificate"],
+  [OID_ATTR_SIGNING_CERTIFICATE_V2, "signingCertificateV2"],
+  [OID_ATTR_ALGORITHM_PROTECTION, "CMSAlgorithmProtection"]
+]);
+function _signerCandidates(sid, certificates) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const certificate of certificates) {
+    const matches3 = sid.kind === "issuerAndSerialNumber" ? bytesEqual(certificate.issuer.der, sid.issuer.der) && bytesEqual(certificate.serialNumber.bytes, sid.serialNumber.bytes) : _keyIdentifierMatches(certificate, sid.keyIdentifier);
+    if (!matches3) continue;
+    const key = toHex(certificate.der);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(certificate);
+  }
+  return out;
+}
+function _keyIdentifierMatches(certificate, keyIdentifier) {
+  const extension = getExtension(certificate, "subjectKeyIdentifier");
+  return extension !== void 0 && bytesEqual(extension.keyIdentifier, keyIdentifier);
+}
+function _describeSid(sid) {
+  return sid.kind === "issuerAndSerialNumber" ? `issuer ${toHex(sid.issuer.der).slice(0, 32)}\u2026, serial ${sid.serialNumber.hex}` : `subjectKeyIdentifier ${toHex(sid.keyIdentifier)}`;
+}
+function _signerAttributeReasons(signedData, signer, path, options) {
+  const out = [];
+  const signed = signer.signedAttributes;
+  if (signed === void 0) {
+    if (signedData.contentType !== OID_DATA) {
+      out.push(cmsAttributeInvalidReason(
+        `${path}.signedAttrs`,
+        `the content type is ${signedData.contentType}, not id-data, and RFC 5652 \xA75.3 then requires signed attributes to say so`
+      ));
+    }
+    return [...out, ..._unsignedReasons(signer, path)];
+  }
+  for (const [oid, name] of SINGLE_VALUED) {
+    const found = signed.filter((attribute) => attribute.oid === oid);
+    if (found.length > 1) {
+      out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.${name}`, `the ${name} attribute appears ${String(found.length)} times, where it may appear once`));
+    } else if (found.length === 1 && found[0].values.length !== 1) {
+      out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.${name}`, `the ${name} attribute holds ${String(found[0].values.length)} values, where it must hold one`));
+    }
+  }
+  if (!signed.some((attribute) => attribute.oid === OID_ATTR_CONTENT_TYPE)) {
+    out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.contentType`, "there is no contentType attribute, which RFC 5652 \xA711.1 requires whenever there are signed attributes"));
+  } else if (signer.contentType !== void 0 && signer.contentType !== signedData.contentType) {
+    out.push(cmsAttributeInvalidReason(
+      `${path}.signedAttrs.contentType`,
+      `the contentType attribute names ${signer.contentType} while the content is ${signedData.contentType}; RFC 5652 \xA75.6 requires them equal`
+    ));
+  }
+  if (!signed.some((attribute) => attribute.oid === OID_ATTR_MESSAGE_DIGEST)) {
+    out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.messageDigest`, "there is no messageDigest attribute, which RFC 5652 \xA711.2 requires whenever there are signed attributes \u2014 without it the signature binds no content"));
+  }
+  if (signed.some((attribute) => attribute.oid === OID_ATTR_COUNTERSIGNATURE)) {
+    out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.countersignature`, "a countersignature is among the signed attributes, and RFC 5652 \xA711.4 allows it only unsigned"));
+  }
+  out.push(..._unsignedReasons(signer, path));
+  const protection = _algorithmProtectionReason(signer, signed, path, options?.requireAlgorithmProtection === true);
+  if (protection !== null) out.push(protection);
+  return out;
+}
+function _unsignedReasons(signer, path) {
+  const out = [];
+  for (const attribute of signer.unsignedAttributes ?? []) {
+    if (!SIGNED_ONLY_ATTRIBUTES.has(attribute.oid)) continue;
+    out.push(cmsAttributeInvalidReason(
+      `${path}.unsignedAttrs`,
+      `the ${SINGLE_VALUED.get(attribute.oid)} attribute is unsigned, and it means something only when it is signed`
+    ));
+  }
+  return out;
+}
+function _digestReason(signer, computed, path) {
+  if (signer.messageDigest === void 0 || computed === void 0) return null;
+  return bytesEqual(signer.messageDigest, computed) ? null : cmsDigestMismatchReason(`${path}.signedAttrs.messageDigest`);
+}
+function _signingCertificateReason(signer, certificate, path) {
+  const attribute = signer.signingCertificate;
+  if (attribute === void 0) return null;
+  const where2 = `${path}.signedAttrs.${attribute.version === 2 ? "signingCertificateV2" : "signingCertificate"}`;
+  const first = attribute.certIds[0];
+  if (first === void 0) {
+    return cmsSigningCertificateMismatchReason(where2, "the attribute lists no certificate at all");
+  }
+  const digest = DIGESTS2.get(first.hashAlgorithm);
+  if (digest === void 0) {
+    return cmsSigningCertificateMismatchReason(where2, `its certificate hash is computed with ${first.hashAlgorithm}, which pkinative does not compute, so the binding cannot be established`);
+  }
+  if (!bytesEqual(digest(certificate.der), first.certHash)) {
+    return cmsSigningCertificateMismatchReason(where2, "its certificate hash is not the hash of the certificate whose key verified the signature");
+  }
+  const issuerSerial = first.issuerSerial;
+  if (issuerSerial === void 0) return null;
+  const [only, ...rest] = issuerSerial.issuer;
+  if (rest.length > 0 || only?.kind !== "directoryName" || !bytesEqual(only.name.der, certificate.issuer.der)) {
+    return cmsSigningCertificateMismatchReason(where2, "its issuerSerial does not name the issuer of the certificate whose key verified the signature");
+  }
+  if (!bytesEqual(issuerSerial.serialNumber.bytes, certificate.serialNumber.bytes)) {
+    return cmsSigningCertificateMismatchReason(where2, "its issuerSerial names another serial number");
+  }
+  return null;
+}
+function _algorithmProtectionReason(signer, signed, path, required) {
+  const where2 = `${path}.signedAttrs.CMSAlgorithmProtection`;
+  if (!signed.some((attribute) => attribute.oid === OID_ATTR_ALGORITHM_PROTECTION)) {
+    return required ? cmsAttributeInvalidReason(where2, "the signer did not protect its algorithms with a CMSAlgorithmProtection attribute, and one was required") : null;
+  }
+  const protectedAlgorithms = signer.algorithmProtection;
+  if (protectedAlgorithms === void 0) return null;
+  if (!_sameAlgorithm(protectedAlgorithms.digestAlgorithm, signer.digestAlgorithm)) {
+    return cmsAlgorithmMismatchReason(where2, `the signer protected ${protectedAlgorithms.digestAlgorithm.oid} as its digest and names ${signer.digestAlgorithm.oid} outside the signature`);
+  }
+  if (!_sameAlgorithm(protectedAlgorithms.signatureAlgorithm, signer.signatureAlgorithm)) {
+    return cmsAlgorithmMismatchReason(where2, `the signer protected ${protectedAlgorithms.signatureAlgorithm.oid} as its signature algorithm and names ${signer.signatureAlgorithm.oid} outside the signature`);
+  }
+  return null;
+}
+function _sameAlgorithm(a, b) {
+  if (a.oid !== b.oid) return false;
+  const mine = _normalised(a.parameters?.bytes);
+  const theirs = _normalised(b.parameters?.bytes);
+  return mine === void 0 || theirs === void 0 ? mine === theirs : bytesEqual(mine, theirs);
+}
+var NULL = /* @__PURE__ */ Uint8Array.of(5, 0);
+function _normalised(parameters) {
+  return parameters === void 0 || bytesEqual(parameters, NULL) ? void 0 : parameters;
+}
+
+// src/verify/verify-signer.ts
+var DIGEST_NAMES = /* @__PURE__ */ new Map([
+  ["1.3.14.3.2.26", "SHA-1"],
+  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
+  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
+  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
+]);
+function _digestName(oid) {
+  return DIGEST_NAMES.get(oid);
+}
+async function _verifySigner(ctx, signer, path) {
+  const reasons = [..._signerAttributeReasons(ctx.signedData, signer, path, { requireAlgorithmProtection: ctx.requireAlgorithmProtection })];
+  if (ctx.requireSigningCertificate && !(signer.signedAttributes ?? []).some((attribute) => attribute.oid === OID_ATTR_SIGNING_CERTIFICATE || attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2)) {
+    reasons.push(cmsAttributeInvalidReason(
+      `${path}.signedAttrs.signingCertificate`,
+      "the signer names no signing certificate (ESSCertID or ESSCertIDv2), and one was required \u2014 without it, the signature can be presented under any certificate for the same key"
+    ));
+  }
+  const problem = _cmsAlgorithmProblem(signer.digestAlgorithm, signer.signatureAlgorithm);
+  if (problem !== null) {
+    reasons.push(cmsAlgorithmMismatchReason(`${path}.signatureAlgorithm`, problem));
+    return { reasons, certificate: void 0, intact: false, verified: 0 };
+  }
+  const hasAttributes = signer.signedAttributes !== void 0;
+  const digestName = _digestName(signer.digestAlgorithm.oid);
+  let computed;
+  if (ctx.content !== void 0) {
+    if (digestName === void 0) {
+      reasons.push(signatureNotCheckedReason(
+        `${path}.digestAlgorithm`,
+        "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
+        `the content digest ${signer.digestAlgorithm.oid} is one pkinative does not compute, so the content cannot be tied to this signature`
+      ));
+    } else {
+      computed = await computeFingerprintAsync(ctx.content, digestName);
+    }
+  } else if (ctx.contentDigest !== void 0 && hasAttributes) {
+    computed = ctx.contentDigest;
+  } else if (ctx.contentDigest !== void 0) {
+    reasons.push(signatureNotCheckedReason(
+      path,
+      "PKI_API_MISUSE",
+      "this signer has no signed attributes, so its signature is over the content itself and cannot be checked from a digest \u2014 pass the content"
+    ));
+    return { reasons, certificate: void 0, intact: false, verified: 0 };
+  } else {
+    reasons.push(cmsContentMissingReason(`${path}`));
+    if (!hasAttributes) return { reasons, certificate: void 0, intact: false, verified: 0 };
+  }
+  const mismatch = _digestReason(signer, computed, path);
+  if (mismatch !== null) reasons.push(mismatch);
+  const candidates = _signerCandidates(signer.sid, ctx.candidates);
+  if (candidates.length === 0) {
+    const unread = ctx.unreadable === 0 ? "" : `; ${String(ctx.unreadable)} certificate(s) in the message could not be read`;
+    reasons.push(cmsSignerNotFoundReason(`${path}.sid`, `${_describeSid(signer.sid)}${unread}`));
+    return { reasons, certificate: void 0, intact: false, verified: 0 };
+  }
+  let verified = 0;
+  let refusal;
+  const signedBy = [];
+  for (const candidate of candidates) {
+    verified += 1;
+    try {
+      const valid = await verifySignerInfoSignature(signer, candidate, {
+        ...hasAttributes || ctx.content === void 0 ? {} : { content: ctx.content },
+        allowSha1: ctx.allowSha1
+      });
+      if (valid) signedBy.push(candidate);
+    } catch (error) {
+      refusal ?? (refusal = _pkiError(error));
+    }
+  }
+  if (signedBy.length === 0) {
+    reasons.push(refusal === void 0 ? signatureInvalidReason(`${path}.signature`) : signatureNotCheckedReason(`${path}.signature`, refusal.code, refusal.message));
+    return { reasons, certificate: void 0, intact: false, verified };
+  }
+  const committed = signedBy.find((certificate) => _signingCertificateReason(signer, certificate, path) === null);
+  if (committed === void 0) {
+    reasons.push(_signingCertificateReason(signer, signedBy[0], path));
+    return { reasons, certificate: void 0, intact: false, verified };
+  }
+  return { reasons, certificate: committed, intact: reasons.length === 0, verified };
+}
+function _under(prefix, reason) {
+  return Object.freeze({ ...reason, path: `${prefix}.${reason.path}` });
+}
+
+// src/verify/verify-timestamp.ts
+async function verifyTimeStampToken(input) {
+  const expectation = _expectation(input);
+  const reasons = [];
+  const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
+  let token;
+  try {
+    token = parseTimeStampToken(input.token, reading);
+  } catch (error) {
+    const refused = _pkiError(error);
+    reasons.push(inputMalformedReason(refused.code, refused.message, "token"));
+    return _report(reasons, void 0, void 0, void 0, 0);
+  }
+  const { signedData, tstInfo } = token;
+  const [signer, ...others] = signedData.signerInfos;
+  if (signer === void 0) {
+    reasons.push(cmsNoSignersReason("token.signerInfos"));
+    return _report(reasons, token, void 0, void 0, 0);
+  }
+  if (others.length > 0) {
+    reasons.push(tspTokenInvalidReason(
+      "token.signerInfos",
+      `the token carries ${String(signedData.signerInfos.length)} signers, and RFC 3161 \xA72.4.2 allows only the TSA's`
+    ));
+  }
+  reasons.push(...await _imprintReasons(tstInfo.messageImprint, expectation));
+  if (expectation.nonce !== void 0 && tstInfo.nonce !== expectation.nonce) {
+    reasons.push(tspRequestMismatchReason("token.tstInfo.nonce", tstInfo.nonce === void 0 ? "the request carried a nonce and the token echoes none" : `the request carried the nonce ${String(expectation.nonce)} and the token echoes ${String(tstInfo.nonce)}`));
+  }
+  if (expectation.policy !== void 0 && tstInfo.policy !== expectation.policy) {
+    reasons.push(tspRequestMismatchReason("token.tstInfo.policy", `the request asked for the policy ${expectation.policy} and the token was issued under ${tstInfo.policy}`));
+  }
+  const { candidates, unreadable } = _parseBag(signedData.certificates, input.certificates ?? [], reading);
+  const outcome = await _verifySigner({
+    signedData,
+    candidates,
+    unreadable,
+    content: signedData.content,
+    contentDigest: void 0,
+    allowSha1: input.allowSha1 === true,
+    requireSigningCertificate: true,
+    requireAlgorithmProtection: false
+  }, signer, "token.signerInfos[0]");
+  reasons.push(...outcome.reasons);
+  let verified = outcome.verified;
+  const tsa = outcome.certificate;
+  if (tsa === void 0) return _report(reasons, token, void 0, void 0, verified);
+  const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimestampingEku === true);
+  if (purpose !== null) reasons.push(purpose);
+  const genTime = tstInfo.genTime.epochMilliseconds;
+  if (genTime < tsa.validity.notBefore.epochMilliseconds) {
+    reasons.push(notYetValidReason("token.tsaCertificate", tsa.validity.notBefore.epochMilliseconds, genTime));
+  } else if (genTime > tsa.validity.notAfter.epochMilliseconds) {
+    reasons.push(expiredReason("token.tsaCertificate", tsa.validity.notAfter.epochMilliseconds, genTime));
+  }
+  const named = tstInfo.tsa;
+  if (named !== void 0 && !_holdsName(tsa, named)) {
+    reasons.push(tspTokenInvalidReason("token.tstInfo.tsa", "the token names a TSA that is neither the subject of its signing certificate nor among that certificate's subjectAltName"));
+  }
+  const chain = await verifyCertificateChain({
+    leaf: tsa,
+    candidates,
+    trustAnchors: input.trustAnchors,
+    at: input.at ?? Date.now(),
+    // The purpose goes into the path search only when the certificate itself
+    // passed the RFC 3161 test above: otherwise the chain would say again
+    // what that test already said, one reason per round trip.
+    ...purpose === null ? { purposes: [OID_KP_TIMESTAMPING] } : {},
+    crls: [...signedData.crls, ...input.crls ?? []],
+    ocsp: [...signedData.ocspResponses, ...input.ocsp ?? []],
+    ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
+    ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
+    ...input.limits === void 0 ? {} : { limits: input.limits }
+  });
+  verified += chain.verified;
+  reasons.push(...chain.reasons.map((reason) => _under("token.tsaChain", reason)));
+  return _report(reasons, token, tsa, chain, verified);
+}
+function _report(reasons, token, tsa, chain, verified) {
+  const valid = reasons.length === 0;
+  const info = valid ? token?.tstInfo : void 0;
+  const accuracy = info?.accuracy;
+  const slack = accuracy === void 0 ? 0 : accuracy.seconds * 1e3 + accuracy.millis + accuracy.micros / 1e3;
+  return Object.freeze({
+    valid,
+    token,
+    genTime: info?.genTime,
+    earliest: info === void 0 ? void 0 : info.genTime.epochMilliseconds - slack,
+    latest: info === void 0 ? void 0 : info.genTime.epochMilliseconds + slack,
+    tsaCertificate: tsa,
+    chain,
+    reasons: Object.freeze([...reasons]),
+    verified
+  });
+}
+function _expectation(input) {
+  if (input.request === void 0 && input.data === void 0 && input.imprint === void 0) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      "pkinative: say what was stamped \u2014 pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued"
+    );
+  }
+  const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, { limits: input.limits ?? {} });
+  return {
+    imprint: input.imprint,
+    data: input.data,
+    requested: request?.messageImprint,
+    nonce: request?.nonce,
+    policy: request?.policy
+  };
+}
+async function _imprintReasons(stamped, expectation) {
+  const out = [];
+  const where2 = "token.tstInfo.messageImprint";
+  const requested = expectation.requested;
+  if (requested !== void 0 && (requested.hashAlgorithm.oid !== stamped.hashAlgorithm.oid || !bytesEqual(requested.hashedMessage, stamped.hashedMessage))) {
+    out.push(tspImprintMismatchReason(where2));
+  }
+  if (expectation.imprint !== void 0 && !bytesEqual(expectation.imprint, stamped.hashedMessage)) {
+    out.push(tspImprintMismatchReason(where2));
+  }
+  if (expectation.data !== void 0) {
+    const name = _digestName(stamped.hashAlgorithm.oid);
+    if (name === void 0) {
+      out.push(tspTokenInvalidReason(where2, `the token stamps a ${stamped.hashAlgorithm.oid} digest, which pkinative does not compute, so what it stamps cannot be established`));
+    } else if (!bytesEqual(await computeFingerprintAsync(expectation.data, name), stamped.hashedMessage)) {
+      out.push(tspImprintMismatchReason(where2));
+    }
+  }
+  return out.slice(0, 1);
+}
+function _tsaPurposeReason(certificate, allowNonCritical) {
+  const eku = getExtension(certificate, "extendedKeyUsage");
+  const where2 = "token.tsaCertificate.extKeyUsage";
+  if (eku === void 0) return purposeNotPermittedReason(where2, OID_KP_TIMESTAMPING, null);
+  if (!eku.purposes.includes(OID_KP_TIMESTAMPING)) return purposeNotPermittedReason(where2, OID_KP_TIMESTAMPING, eku.purposes);
+  if (eku.purposes.length > 1) return purposeNotPermittedReason(where2, OID_KP_TIMESTAMPING, eku.purposes, "exclusive");
+  if (!eku.critical && !allowNonCritical) return purposeNotPermittedReason(where2, OID_KP_TIMESTAMPING, eku.purposes, "critical");
+  return null;
+}
+function _holdsName(certificate, name) {
+  if (name.kind === "directoryName" && bytesEqual(name.name.der, certificate.subject.der)) return true;
+  return (getExtension(certificate, "subjectAltName")?.names ?? []).some((alt) => bytesEqual(alt.der, name.der));
+}
+function _parseBag(ders, extra, reading) {
+  const candidates = [];
+  let unreadable = 0;
+  for (const der of ders) {
+    try {
+      candidates.push(parseCertificate(der, { ...reading, onDiagnostic: () => void 0 }));
+    } catch (error) {
+      _pkiError(error);
+      unreadable += 1;
+    }
+  }
+  return { candidates: [...candidates, ...extra], unreadable };
+}
+
+// src/verify/verify-signed-data.ts
+async function verifySignedData(input) {
+  if (input.content !== void 0 && input.contentDigest !== void 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: pass the detached content or its digest, not both \u2014 there would be two answers to which bytes were signed");
+  }
+  const quiet = { onDiagnostic: () => void 0 };
+  let signedData;
+  try {
+    signedData = parseSignedData(input.signedData, {
+      ...quiet,
+      limits: input.limits ?? {},
+      ...input.encodingRules === void 0 ? {} : { encodingRules: input.encodingRules },
+      ...input.allowTrailingData === void 0 ? {} : { allowTrailingData: input.allowTrailingData }
+    });
+  } catch (error) {
+    const refused = _pkiError(error);
+    return Object.freeze({ valid: false, signedData: void 0, signers: [], reasons: Object.freeze([inputMalformedReason(refused.code, refused.message, "signedData")]), verified: 0 });
+  }
+  if (signedData.content !== void 0 && (input.content !== void 0 || input.contentDigest !== void 0)) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: this message carries its own content, so the content or digest passed alongside it is ambiguous \u2014 drop it, or verify the message whose content is detached");
+  }
+  if (signedData.signerInfos.length === 0) {
+    return Object.freeze({ valid: false, signedData, signers: [], reasons: Object.freeze([cmsNoSignersReason("signerInfos")]), verified: 0 });
+  }
+  const reading = { limits: input.limits ?? {} };
+  const { candidates, unreadable } = _parseBag(signedData.certificates, input.certificates ?? [], reading);
+  const signers = [];
+  let verified = 0;
+  for (const [index, signer] of signedData.signerInfos.entries()) {
+    const path = `signerInfos[${String(index)}]`;
+    const outcome = await _verifySigner({
+      signedData,
+      candidates,
+      unreadable,
+      content: signedData.content ?? input.content,
+      contentDigest: input.contentDigest,
+      allowSha1: input.allowSha1 === true,
+      requireSigningCertificate: input.requireSigningCertificate === true,
+      requireAlgorithmProtection: input.requireAlgorithmProtection === true
+    }, signer, path);
+    verified += outcome.verified;
+    const reasons2 = [...outcome.reasons];
+    const timeStamps = [];
+    for (const [position, token] of signer.timeStampTokens.entries()) {
+      const stamp = await verifyTimeStampToken({
+        token,
+        data: signer.signature,
+        certificates: candidates,
+        trustAnchors: input.trustAnchors,
+        ...input.crls === void 0 ? {} : { crls: input.crls },
+        ...input.ocsp === void 0 ? {} : { ocsp: input.ocsp },
+        ...input.at === void 0 ? {} : { at: input.at },
+        ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
+        ...input.limits === void 0 ? {} : { limits: input.limits }
+      });
+      verified += stamp.verified;
+      timeStamps.push(stamp);
+      reasons2.push(...stamp.reasons.map((reason) => _under(`${path}.unsignedAttrs.timeStampToken[${String(position)}]`, reason)));
+    }
+    let chain;
+    const certificate = outcome.certificate;
+    if (certificate !== void 0) {
+      chain = await verifyCertificateChain({
+        leaf: certificate,
+        candidates,
+        trustAnchors: input.trustAnchors,
+        at: _instant(input, timeStamps),
+        ...input.purposes === void 0 ? {} : { purposes: input.purposes },
+        crls: [...signedData.crls, ...input.crls ?? []],
+        ocsp: [...signedData.ocspResponses, ...input.ocsp ?? []],
+        ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
+        ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
+        ...input.limits === void 0 ? {} : { limits: input.limits }
+      });
+      verified += chain.verified;
+      reasons2.push(...chain.reasons.map((reason) => _under(`${path}.chain`, reason)));
+    }
+    signers.push(Object.freeze({
+      index,
+      valid: reasons2.length === 0,
+      intact: outcome.intact,
+      certificate,
+      signingTime: signer.signingTime,
+      timeStamps: Object.freeze(timeStamps),
+      chain,
+      reasons: Object.freeze(reasons2)
+    }));
+  }
+  const reasons = signers.flatMap((signer) => signer.reasons);
+  return Object.freeze({
+    valid: reasons.length === 0,
+    signedData,
+    signers: Object.freeze(signers),
+    reasons: Object.freeze(reasons),
+    verified
+  });
+}
+function _instant(input, stamps) {
+  const proved = stamps.flatMap((stamp) => stamp.valid && stamp.latest !== void 0 ? [stamp.latest] : []);
+  if (input.atTimeStamp === true && proved.length > 0) return Math.min(...proved);
+  return input.at ?? Date.now();
+}
+
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

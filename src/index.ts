@@ -11,7 +11,7 @@
 
 // ── 1. Errors, limits and diagnostics ────────────────────────────────
 
-export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError } from './types/pki-errors.js';
+export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError, PkiCmsError } from './types/pki-errors.js';
 export type {
     PkiErrorCode,
     PkiBaseErrorCode,
@@ -19,6 +19,7 @@ export type {
     PkiCertificateErrorCode,
     PkiLimitErrorCode,
     PkiCryptoErrorCode,
+    PkiCmsErrorCode,
 } from './types/pki-errors.js';
 export { DEFAULT_PKI_LIMITS } from './core/pki-limits.js';
 export type {
@@ -224,4 +225,41 @@ export type {
     NameAttribute,
     NameDescription,
 } from './types/build-types.js';
-export type { SignatureAlgorithm, SignatureHash, SigningKey } from './types/crypto-types.js';
+export type { ExternalSigner, SignatureAlgorithm, SignatureHash, Signer, SigningKey } from './types/crypto-types.js';
+
+// ── 9. CMS signed messages and RFC 3161 timestamps ───────────────────
+// Parsing in cms/, the signature at the Web Crypto boundary in crypto/,
+// writing in build/, and the two one-call verdicts in verify/ — the same
+// split every other subsystem keeps.
+
+export { parseSignedData } from './cms/cms-signed-data.js';
+export type {
+    CmsAttribute,
+    EssCertId,
+    ParseSignedDataOptions,
+    SignedData,
+    SignerIdentifier,
+    SignerInfo,
+    SigningCertificateAttribute,
+} from './types/cms-types.js';
+export { verifySignerInfoSignature } from './crypto/cms-verify.js';
+export type { VerifySignerInfoOptions } from './crypto/cms-verify.js';
+export { addTimeStampToken, addUnsignedAttribute, createSignedData } from './build/build-signed-data.js';
+export type { CreateSignedDataInput } from './build/build-signed-data.js';
+export { parseTstInfo } from './cms/tsp-tst-info.js';
+export { parseTimeStampResponse, parseTimeStampToken } from './cms/tsp-response.js';
+export { createTimeStampRequest } from './cms/tsp-request.js';
+export type { CreateTimeStampRequestOptions, TimeStampHashAlgorithm } from './cms/tsp-request.js';
+export type {
+    MessageImprint,
+    TimeStampAccuracy,
+    TimeStampFailure,
+    TimeStampResponse,
+    TimeStampStatus,
+    TimeStampToken,
+    TstInfo,
+} from './types/tsp-types.js';
+export { verifySignedData } from './verify/verify-signed-data.js';
+export type { SignerVerification, VerifySignedDataInput, VerifySignedDataReport } from './verify/verify-signed-data.js';
+export { verifyTimeStampToken } from './verify/verify-timestamp.js';
+export type { VerifyTimeStampInput, VerifyTimeStampReport } from './verify/verify-timestamp.js';

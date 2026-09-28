@@ -51,6 +51,7 @@ import {
     OID_ATTR_MESSAGE_DIGEST,
     OID_ATTR_SIGNING_CERTIFICATE_V2,
     OID_ATTR_SIGNING_TIME,
+    OID_ATTR_TIMESTAMP_TOKEN,
     OID_DATA,
     OID_SIGNED_DATA,
     SIGNED_ONLY_ATTRIBUTES,
@@ -488,8 +489,8 @@ function expectTag(header: TlvHeader | undefined, tagClass: TagClass, tagNumber:
  * ```ts
  * import { addUnsignedAttribute, encodeAttribute } from 'pkinative';
  *
- * // An RFC 3161 token over signerInfos[0]'s signature value (RFC 3161 Appendix A).
- * const timestamped = addUnsignedAttribute(p7s, 0, encodeAttribute('1.2.840.113549.1.9.16.2.14', [tokenDer]));
+ * // Any unsigned attribute; for a timestamp token, addTimeStampToken writes it for you.
+ * const extended = addUnsignedAttribute(p7s, 0, encodeAttribute('1.2.3.4', [valueDer]));
  * ```
  *
  * This is how a signature timestamp — PAdES-T, CAdES-T — is added after
@@ -602,4 +603,40 @@ export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: num
     const newInfos = encodeSetOf(infos.map((info) => (info === target ? rebuilt : der.subarray(info.offset, info.end))));
     const newSignedData = encodeTlv('universal', TAG_SEQUENCE, true, concatBytes([der.subarray(signedData.contentStart, signerInfos.offset), newInfos]));
     return encodeSequence([der.subarray(contentTypeField.offset, contentTypeField.end), encodeExplicit(0, newSignedData)]);
+}
+
+/**
+ * Add an RFC 3161 timestamp to a signer — the step that turns a signature into
+ * one whose time is proved (CAdES-T, PAdES B-T).
+ *
+ * ```ts
+ * const signerInfo = parseSignedData(p7s).signerInfos[0];
+ * const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signerInfo.signature));
+ * const response = parseTimeStampResponse(await askYourTsa(createTimeStampRequest(hash, { nonce })));
+ * const stamped = addTimeStampToken(p7s, 0, response.tokenDer);
+ * ```
+ *
+ * What the token must stamp is the hash of the signer's **signature value**,
+ * the OCTET STRING's content without its tag and length (RFC 3161 Appendix A)
+ * — not the content, and not the signed attributes. `verifySignedData` checks
+ * exactly that, and a token over anything else is reported as stamping the
+ * wrong hash.
+ *
+ * It is {@link addUnsignedAttribute} with the attribute written for you, so the
+ * OID `1.2.840.113549.1.9.16.2.14` is typed once, here, and not at every call
+ * site that needs it.
+ *
+ * @param signedDataDer The DER ContentInfo to add the timestamp to; not modified.
+ * @param signerIndex   Which signer, counted from 0 in encoded order.
+ * @param tokenDer      The TimeStampToken, as `parseTimeStampResponse` hands it back in `tokenDer`.
+ * @param options       Limits, as `addUnsignedAttribute` takes them.
+ * @returns A new DER ContentInfo, every signed octet unchanged.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `tokenDer` is not bytes; everything
+ *   {@link addUnsignedAttribute} throws.
+ */
+export function addTimeStampToken(signedDataDer: Uint8Array, signerIndex: number, tokenDer: Uint8Array, options?: CreateOptions): Uint8Array {
+    if (!(tokenDer instanceof Uint8Array)) {
+        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: tokenDer must be the TimeStampToken bytes — the tokenDer of a parsed TimeStampResponse');
+    }
+    return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [tokenDer]), options);
 }

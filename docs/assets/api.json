@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 215,
+  "exportCount": 253,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -783,6 +783,36 @@
       ]
     },
     {
+      "name": "CmsAttribute",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface CmsAttribute",
+      "summary": "One `Attribute` (RFC 5652 §5.3): a type and a non-empty set of values.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each `AttributeValue`, as its exact DER, in encoded order."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole `Attribute` SEQUENCE, exactly as encoded."
+        }
+      ]
+    },
+    {
       "name": "CpsQualifier",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -851,6 +881,132 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Bounds on what is built — `maxNameAttributes` and `maxExtensions` apply."
+        }
+      ]
+    },
+    {
+      "name": "CreateSignedDataInput",
+      "kind": "type",
+      "module": "src/build/build-signed-data.ts",
+      "signature": "export interface CreateSignedDataInput",
+      "summary": "What `createSignedData` signs, and what it writes around the signature.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "content",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The content to sign."
+        },
+        {
+          "name": "contentDigest",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The content's digest, already computed with the signer's digest — the detached, pre-hashed case of a PDF signature, whose signer hashes the `/ByteRange` itself."
+        },
+        {
+          "name": "detached",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Omit `eContent`, so the signature travels without what it signs."
+        },
+        {
+          "name": "contentType",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "`eContentType`, and the value of the `contentType` attribute."
+        },
+        {
+          "name": "certificate",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The signer's parsed certificate."
+        },
+        {
+          "name": "sid",
+          "type": "'issuerAndSerialNumber' | 'subjectKeyIdentifier' | undefined",
+          "optional": true,
+          "summary": "How the SignerInfo names the certificate."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "Further certificates to embed verbatim, typically the chain."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "Revocation lists to embed verbatim, each a `CertificateList` or an `other [1]` RevocationInfoChoice."
+        },
+        {
+          "name": "signingTime",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "The time the signer claims, in epoch milliseconds, truncated to whole seconds (RFC 5652 §11.3 forbids a fraction)."
+        },
+        {
+          "name": "signingCertificateV2",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Write SigningCertificateV2 (RFC 5035), binding the signature to this certificate and not merely to its key."
+        },
+        {
+          "name": "algorithmProtection",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Write CMSAlgorithmProtection (RFC 6211), the signer's own signed statement of the algorithms it used."
+        },
+        {
+          "name": "signedAttributes",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "Further signed attributes, each one `Attribute` encoding, written verbatim — e.g. adbe-revocationInfoArchival."
+        },
+        {
+          "name": "unsignedAttributes",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "Unsigned attributes, each one `Attribute` encoding, written verbatim — e.g. a timestamp token already in hand."
+        }
+      ]
+    },
+    {
+      "name": "CreateTimeStampRequestOptions",
+      "kind": "type",
+      "module": "src/cms/tsp-request.ts",
+      "signature": "export interface CreateTimeStampRequestOptions",
+      "summary": "Options of createTimeStampRequest.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "hashAlgorithm",
+          "type": "TimeStampHashAlgorithm | undefined",
+          "optional": true,
+          "summary": "The digest `hash` was computed with."
+        },
+        {
+          "name": "nonce",
+          "type": "bigint | undefined",
+          "optional": true,
+          "summary": "A nonce (RFC 3161 §2.4.1), which the TSA must echo in the token."
+        },
+        {
+          "name": "policy",
+          "type": "string | undefined",
+          "optional": true,
+          "summary": "The TSA policy to issue under; the TSA's default when absent."
+        },
+        {
+          "name": "certReq",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Ask the TSA to include its certificate in the token."
         }
       ]
     },
@@ -1258,6 +1414,36 @@
       "members": null
     },
     {
+      "name": "EssCertId",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface EssCertId",
+      "summary": "One `ESSCertID` (RFC 2634 §5.4.1) or `ESSCertIDv2` (RFC 5035 §4): a hash of a certificate the signer commits to having signed with.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "hashAlgorithm",
+          "type": "string",
+          "optional": false,
+          "summary": "The digest `certHash` was computed with, as Web Crypto names it — SHA-1 for v1, SHA-256 when a v2 omits it — or the dotted OID when it is a digest pkinative does not compute."
+        },
+        {
+          "name": "certHash",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The digest of the whole certificate DER."
+        },
+        {
+          "name": "issuerSerial",
+          "type": "{",
+          "optional": false,
+          "summary": "`issuerSerial`, when the signer included it; `undefined` otherwise."
+        }
+      ]
+    },
+    {
       "name": "ExtendedKeyUsageExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -1367,6 +1553,30 @@
           "type": "Uint8Array",
           "optional": false,
           "summary": "The DER encoding of the extension's value — what goes inside `extnValue`'s OCTET STRING."
+        }
+      ]
+    },
+    {
+      "name": "ExternalSigner",
+      "kind": "type",
+      "module": "src/types/crypto-types.ts",
+      "signature": "export interface ExternalSigner",
+      "summary": "A signer whose key pkinative never sees at all — a hardware security module, a smart card, a cloud KMS, a remote signing service.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "SignatureAlgorithm",
+          "optional": false,
+          "summary": "The algorithm the signer uses, which decides the OID written into the structure."
+        },
+        {
+          "name": "produceSignature",
+          "type": "(data: Uint8Array) => Promise<Uint8Array> | Uint8Array",
+          "optional": false,
+          "summary": "Sign `data` — the exact bytes the signature covers, not a digest of them — and return the signature **as `crypto.subtle.sign` would**: raw `r ‖ s` for ECDSA, which pkinative converts to DER, and the plain octets for every other family."
         }
       ]
     },
@@ -1807,6 +2017,30 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "MessageImprint",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface MessageImprint",
+      "summary": "`MessageImprint` (RFC 3161 §2.4.1): the hash of the stamped data, and how it was computed.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "hashAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The digest algorithm."
+        },
+        {
+          "name": "hashedMessage",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The digest."
+        }
+      ]
     },
     {
       "name": "NameAttribute",
@@ -2444,6 +2678,48 @@
       ]
     },
     {
+      "name": "ParseSignedDataOptions",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface ParseSignedDataOptions extends PkiParseOptions",
+      "summary": "What `parseSignedData` takes beyond the ordinary parse options.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "allowTrailingData",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept bytes after the `ContentInfo`, and ignore them."
+        }
+      ]
+    },
+    {
       "name": "PathBuildInput",
       "kind": "type",
       "module": "src/path/path-build.ts",
@@ -2669,6 +2945,28 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export type PkiCertificateErrorCode = | 'PKI_X509_STRUCTURE_INVALID' // the certificate does not match the RFC 5280 ASN.1 module (CWE-1286) | 'PKI_X509_VERSION_INVALID' // a version other than v1, v2 or v3 (CWE-1286) | 'PKI_X509_NAME_INVALID' // a malformed distinguished name (CWE-1286) | 'PKI_X509_VALIDITY_INVALID' // a malformed validity period (CWE-1286) | 'PKI_X509_SPKI_INVALID' // a malformed subject public key info (CWE-1286) | 'PKI_X509_UNIQUE_ID_INVALID' // a malformed or misplaced unique identifier (CWE-1286) | 'PKI_X509_EXTENSIONS_EMPTY' // an extensions field with no extension (CWE-1286) | 'PKI_X509_EXTENSION_DUPLICATE' // the same extension OID twice (CWE-694) | 'PKI_X509_EXTENSION_MALFORMED' // a recognised extension whose value does not match its definition (CWE-1286) | 'PKI_X509_GENERAL_NAME_INVALID'",
       "summary": "Codes carried by PkiCertificateError: the RFC 5280 certificate structure.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "PkiCmsError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiCmsError extends PkiError<PkiCmsErrorCode>",
+      "summary": "The DER is well formed but does not match the RFC 5652 CMS or RFC 3161 timestamp structure it was read as.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "PkiCmsErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiCmsErrorCode = | 'PKI_CMS_STRUCTURE_INVALID' // the value does not match the RFC 5652 or RFC 3161 ASN.1 module (CWE-1286) | 'PKI_CMS_CONTENT_TYPE_UNEXPECTED' // a ContentInfo of another type than the one asked for, e.g. enveloped-data (CWE-843) | 'PKI_CMS_VERSION_UNSUPPORTED' // a SignedData or TSTInfo version the syntax does not define (CWE-1286) | 'PKI_CMS_CONTENT_NOT_OCTET_STRING'",
+      "summary": "Codes carried by PkiCmsError: the DER is well formed but is not the RFC 5652 or RFC 3161 structure it was read as.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -3730,6 +4028,286 @@
       ]
     },
     {
+      "name": "SignedData",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface SignedData",
+      "summary": "A parsed `ContentInfo` whose `contentType` is `id-signedData` (RFC 5652 §3, §5.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole `ContentInfo`, as a zero-copy view of the input."
+        },
+        {
+          "name": "version",
+          "type": "1 | 3 | 4 | 5",
+          "optional": false,
+          "summary": "`1`, `3`, `4` or `5`, as §5.1 derives it from what the structure carries."
+        },
+        {
+          "name": "digestAlgorithms",
+          "type": "readonly AlgorithmIdentifier[]",
+          "optional": false,
+          "summary": "`digestAlgorithms`: every digest any signer used, in encoded order."
+        },
+        {
+          "name": "contentType",
+          "type": "string",
+          "optional": false,
+          "summary": "`eContentType` — `id-data` for arbitrary bytes, `id-ct-TSTInfo` for a timestamp token."
+        },
+        {
+          "name": "content",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The `eContent` octets; `undefined` when the content is **detached**, which is how a PDF signature and most S/MIME signatures are made."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every `certificate` choice of `certificates`, as DER, in encoded order."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every `CertificateList` of `crls`, as DER, in encoded order."
+        },
+        {
+          "name": "ocspResponses",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every `OCSPResponse` carried as `other` with `id-ri-ocsp-response` in `crls` (RFC 5940), as DER."
+        },
+        {
+          "name": "signerInfos",
+          "type": "readonly SignerInfo[]",
+          "optional": false,
+          "summary": "The signers, in encoded order."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "Signer",
+      "kind": "type",
+      "module": "src/types/crypto-types.ts",
+      "signature": "export type Signer = SigningKey | ExternalSigner",
+      "summary": "Anything pkinative can sign with.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "SignerIdentifier",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export type SignerIdentifier = | { /** Discriminant: `version` 1 signers use this alternative. */ readonly kind: 'issuerAndSerialNumber'",
+      "summary": "`SignerIdentifier` (RFC 5652 §5.3): which certificate holds the key that signed.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "SignerInfo",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface SignerInfo",
+      "summary": "One `SignerInfo` (RFC 5652 §5.3).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "version",
+          "type": "1 | 3",
+          "optional": false,
+          "summary": "`1` when `sid` is `issuerAndSerialNumber`, `3` when it is `subjectKeyIdentifier`."
+        },
+        {
+          "name": "sid",
+          "type": "SignerIdentifier",
+          "optional": false,
+          "summary": "Which certificate holds the signing key."
+        },
+        {
+          "name": "digestAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The digest over the content, and — when `signedAttributes` are present — over them too."
+        },
+        {
+          "name": "signedAttributes",
+          "type": "readonly CmsAttribute[] | undefined",
+          "optional": false,
+          "summary": "The signed attributes in encoded order; `undefined` when absent, which is not the same as empty."
+        },
+        {
+          "name": "signedAttributesDer",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The exact bytes the signature covers when `signedAttributes` are present: the transmitted `[0]` value with its tag replaced by the `SET OF` tag `0x31` (RFC 5652 §5.4)."
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the signature was made with — often a bare key algorithm such as `rsaEncryption`, the digest being `digestAlgorithm`."
+        },
+        {
+          "name": "signature",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The signature value, as the OCTET STRING content."
+        },
+        {
+          "name": "unsignedAttributes",
+          "type": "readonly CmsAttribute[] | undefined",
+          "optional": false,
+          "summary": "The unsigned attributes in encoded order; `undefined` when absent."
+        },
+        {
+          "name": "contentType",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "`contentType` (§11.1), the one attribute that makes the signed attributes bind to what they sign; `undefined` when absent."
+        },
+        {
+          "name": "messageDigest",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "`messageDigest` (§11.2), the digest of the content the signer committed to; `undefined` when absent."
+        },
+        {
+          "name": "signingTime",
+          "type": "PkiTime | undefined",
+          "optional": false,
+          "summary": "`signingTime` (§11.3) as the signer **claims** it — nothing vouches for it but the signer."
+        },
+        {
+          "name": "signingCertificate",
+          "type": "SigningCertificateAttribute | undefined",
+          "optional": false,
+          "summary": "`signingCertificate` or `signingCertificateV2`, whichever is present; `undefined` when neither is."
+        },
+        {
+          "name": "algorithmProtection",
+          "type": "{",
+          "optional": false,
+          "summary": "`CMSAlgorithmProtection` (RFC 6211): the signer's **signed** statement of the algorithms it used."
+        },
+        {
+          "name": "timeStampTokens",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every `id-aa-signatureTimeStampToken` (RFC 3161 Appendix A) among the unsigned attributes, each a `ContentInfo` DER that `parseTimeStampToken` reads."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole `SignerInfo`, exactly as encoded."
+        }
+      ]
+    },
+    {
+      "name": "SignerVerification",
+      "kind": "type",
+      "module": "src/verify/verify-signed-data.ts",
+      "signature": "export interface SignerVerification",
+      "summary": "The verdict on one signer.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "index",
+          "type": "number",
+          "optional": false,
+          "summary": "The signer's position in `signerInfos`, in encoded order."
+        },
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether this signer is valid: intact, timestamps valid, and chaining to a trusted anchor."
+        },
+        {
+          "name": "intact",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether every check that needs no trust store passed: the attributes say what they must, the algorithms agree, the content hashes to the committed digest, the signature verifies, and the key's certificate is the one the signer named."
+        },
+        {
+          "name": "certificate",
+          "type": "Certificate | undefined",
+          "optional": false,
+          "summary": "The certificate that signed; `undefined` when none could be established."
+        },
+        {
+          "name": "signingTime",
+          "type": "PkiTime | undefined",
+          "optional": false,
+          "summary": "The time the signer **claims** it signed."
+        },
+        {
+          "name": "timeStamps",
+          "type": "readonly VerifyTimeStampReport[]",
+          "optional": false,
+          "summary": "Each RFC 3161 timestamp over this signer's signature, verified."
+        },
+        {
+          "name": "chain",
+          "type": "VerifyChainReport | undefined",
+          "optional": false,
+          "summary": "The signer's chain, judged; `undefined` when there was no certificate to judge."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason this signer is not valid, with paths under `signerInfos[i]`."
+        }
+      ]
+    },
+    {
+      "name": "SigningCertificateAttribute",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface SigningCertificateAttribute",
+      "summary": "`SigningCertificate` (RFC 2634 §5.4) or `SigningCertificateV2` (RFC 5035 §3).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "version",
+          "type": "1 | 2",
+          "optional": false,
+          "summary": "`1` for `id-aa-signingCertificate`, `2` for `id-aa-signingCertificateV2`."
+        },
+        {
+          "name": "certIds",
+          "type": "readonly EssCertId[]",
+          "optional": false,
+          "summary": "The first entry names the signing certificate; any others constrain the path (RFC 5035 §3)."
+        }
+      ]
+    },
+    {
       "name": "SigningKey",
       "kind": "type",
       "module": "src/types/crypto-types.ts",
@@ -3932,6 +4510,147 @@
       ]
     },
     {
+      "name": "TimeStampAccuracy",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TimeStampAccuracy",
+      "summary": "`Accuracy` (RFC 3161 §2.4.2): how far the stated time may be from the real one.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "seconds",
+          "type": "number",
+          "optional": false,
+          "summary": "Whole seconds; `0` when absent."
+        },
+        {
+          "name": "millis",
+          "type": "number",
+          "optional": false,
+          "summary": "Milliseconds, 1 to 999; `0` when absent."
+        },
+        {
+          "name": "micros",
+          "type": "number",
+          "optional": false,
+          "summary": "Microseconds, 1 to 999; `0` when absent."
+        }
+      ]
+    },
+    {
+      "name": "TimeStampFailure",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export type TimeStampFailure = | 'badAlg' | 'badRequest' | 'badDataFormat' | 'timeNotAvailable' | 'unacceptedPolicy' | 'unacceptedExtension' | 'addInfoNotAvailable' | 'systemFailure'",
+      "summary": "The `PKIFailureInfo` bits RFC 3161 §2.4.2 names, in bit order.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "TimeStampHashAlgorithm",
+      "kind": "type",
+      "module": "src/cms/tsp-request.ts",
+      "signature": "export type TimeStampHashAlgorithm = 'SHA-256' | 'SHA-384' | 'SHA-512'",
+      "summary": "The digests a new request may stamp.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "TimeStampResponse",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TimeStampResponse",
+      "summary": "A parsed `TimeStampResp` (RFC 3161 §2.4.2).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole response, as a zero-copy view of the input."
+        },
+        {
+          "name": "status",
+          "type": "TimeStampStatus",
+          "optional": false,
+          "summary": "Whether the TSA granted the request."
+        },
+        {
+          "name": "statusStrings",
+          "type": "readonly string[]",
+          "optional": false,
+          "summary": "`statusString`, the TSA's free text, in encoded order; empty when absent."
+        },
+        {
+          "name": "failInfo",
+          "type": "readonly TimeStampFailure[]",
+          "optional": false,
+          "summary": "`failInfo`, the reasons a request was declined; empty when absent."
+        },
+        {
+          "name": "tokenDer",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The token as DER — the bytes to embed as `id-aa-signatureTimeStampToken`; `undefined` unless granted."
+        },
+        {
+          "name": "token",
+          "type": "TimeStampToken | undefined",
+          "optional": false,
+          "summary": "The token, parsed; `undefined` unless granted."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "TimeStampStatus",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export type TimeStampStatus = 'granted' | 'grantedWithMods' | 'rejection' | 'waiting' | 'revocationWarning' | 'revocationNotification'",
+      "summary": "`PKIStatus` (RFC 3161 §2.4.2).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "TimeStampToken",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TimeStampToken",
+      "summary": "A timestamp token: a SignedData over a TSTInfo (RFC 3161 §2.4.2).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "signedData",
+          "type": "SignedData",
+          "optional": false,
+          "summary": "The CMS envelope — who signed, with what, and what certificates came with it."
+        },
+        {
+          "name": "tstInfo",
+          "type": "TstInfo",
+          "optional": false,
+          "summary": "What was stamped, and when."
+        }
+      ]
+    },
+    {
       "name": "TimeType",
       "kind": "type",
       "module": "src/types/asn1-types.ts",
@@ -3941,6 +4660,84 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "TstInfo",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TstInfo",
+      "summary": "`TSTInfo` (RFC 3161 §2.4.2): what the authority asserts.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "version",
+          "type": "1",
+          "optional": false,
+          "summary": "Always `1`; any other version is refused."
+        },
+        {
+          "name": "policy",
+          "type": "string",
+          "optional": false,
+          "summary": "The TSA policy under which the token was issued."
+        },
+        {
+          "name": "messageImprint",
+          "type": "MessageImprint",
+          "optional": false,
+          "summary": "The hash that was stamped."
+        },
+        {
+          "name": "serialNumber",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": "Unique per token issued by this TSA."
+        },
+        {
+          "name": "genTime",
+          "type": "PkiTime",
+          "optional": false,
+          "summary": "The time the TSA asserts, in epoch milliseconds, with the fraction the TSA encoded."
+        },
+        {
+          "name": "accuracy",
+          "type": "TimeStampAccuracy | undefined",
+          "optional": false,
+          "summary": "How far `genTime` may be from the real time; `undefined` when the TSA declared none."
+        },
+        {
+          "name": "ordering",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether tokens from this TSA may be ordered by `genTime` alone, whatever their accuracy."
+        },
+        {
+          "name": "nonce",
+          "type": "bigint | undefined",
+          "optional": false,
+          "summary": "The request's nonce, echoed; `undefined` when the request carried none."
+        },
+        {
+          "name": "tsa",
+          "type": "GeneralName | undefined",
+          "optional": false,
+          "summary": "The TSA's name as it chose to state it; `undefined` when absent."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`extensions`, decoded; empty when there are none."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole `TSTInfo`, exactly as encoded — the `eContent` the token's signer signed."
+        }
+      ]
     },
     {
       "name": "UnknownExtension",
@@ -4285,6 +5082,405 @@
       ]
     },
     {
+      "name": "VerifySignedDataInput",
+      "kind": "type",
+      "module": "src/verify/verify-signed-data.ts",
+      "signature": "export interface VerifySignedDataInput",
+      "summary": "What to verify a signed message against.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "signedData",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The DER `ContentInfo`: a `.p7s` or `.p7m` file, or a PDF signature's `/Contents`."
+        },
+        {
+          "name": "content",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The content, when it is detached — as it is for a PDF signature and most S/MIME."
+        },
+        {
+          "name": "contentDigest",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The detached content's digest, instead of the content — the PDF case, where the caller hashes the `/ByteRange` and never holds it whole."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Certificate[] | undefined",
+          "optional": true,
+          "summary": "Certificates to look for the signers and their issuers among, beyond those the message carries."
+        },
+        {
+          "name": "trustAnchors",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The anchors every signer must chain to."
+        },
+        {
+          "name": "purposes",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "KeyPurposeId OIDs each signer's chain must permit — `KEY_PURPOSES.emailProtection` for S/MIME, for instance."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "CRLs, as DER, added to those the message carries."
+        },
+        {
+          "name": "ocsp",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "OCSP responses, as DER, added to those the message carries."
+        },
+        {
+          "name": "requireRevocation",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Report `PKI_REASON_REVOCATION_UNKNOWN` when nothing covered a signer's certificate."
+        },
+        {
+          "name": "at",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "The instant to judge the chains at."
+        },
+        {
+          "name": "atTimeStamp",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Judge each signer's chain at the time its own verified RFC 3161 timestamp proves the signature existed by — `genTime` plus the declared accuracy — instead of `at`."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat SHA-1 signatures as evidence."
+        },
+        {
+          "name": "requireSigningCertificate",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Require every signer to name its certificate in a signing-certificate attribute, as CAdES and PAdES do."
+        },
+        {
+          "name": "requireAlgorithmProtection",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Require every signer to protect its algorithms with `CMSAlgorithmProtection` (RFC 6211)."
+        },
+        {
+          "name": "allowTrailingData",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Ignore bytes after the ContentInfo — the zero padding of a PDF `/Contents`."
+        },
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'ber'` for a message from a PKCS #7 producer that streams with indefinite lengths."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        }
+      ]
+    },
+    {
+      "name": "VerifySignedDataReport",
+      "kind": "type",
+      "module": "src/verify/verify-signed-data.ts",
+      "signature": "export interface VerifySignedDataReport",
+      "summary": "The verdict on a signed message.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the message has at least one signer and every signer is valid."
+        },
+        {
+          "name": "signedData",
+          "type": "SignedData | undefined",
+          "optional": false,
+          "summary": "The message, parsed; `undefined` when it could not be read."
+        },
+        {
+          "name": "signers",
+          "type": "readonly SignerVerification[]",
+          "optional": false,
+          "summary": "One verdict per signer, in encoded order."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason, from every signer and from the message itself."
+        },
+        {
+          "name": "verified",
+          "type": "number",
+          "optional": false,
+          "summary": "How many signature verifications this cost, chains and timestamps included."
+        }
+      ]
+    },
+    {
+      "name": "VerifySignerInfoOptions",
+      "kind": "type",
+      "module": "src/crypto/cms-verify.ts",
+      "signature": "export interface VerifySignerInfoOptions",
+      "summary": "Options of verifySignerInfoSignature.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "content",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The content octets, for a signer **without** signed attributes: such a signer signs the content itself (RFC 5652 §5.4), so nothing else can be checked."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat a SHA-1 signature as evidence."
+        }
+      ]
+    },
+    {
+      "name": "VerifyTimeStampInput",
+      "kind": "type",
+      "module": "src/verify/verify-timestamp.ts",
+      "signature": "export interface VerifyTimeStampInput",
+      "summary": "What to verify a timestamp token against.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "token",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The token: a ContentInfo whose content is a SignedData over a TSTInfo."
+        },
+        {
+          "name": "request",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The `TimeStampReq` you sent."
+        },
+        {
+          "name": "data",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The data that was stamped."
+        },
+        {
+          "name": "imprint",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The hash that was stamped, when you hold that rather than the data."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Certificate[] | undefined",
+          "optional": true,
+          "summary": "Certificates to look for the TSA's among, beyond those the token carries — needed when the request set certReq to false."
+        },
+        {
+          "name": "trustAnchors",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The anchors the TSA must chain to."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "CRLs for the TSA's chain, as DER."
+        },
+        {
+          "name": "ocsp",
+          "type": "readonly Uint8Array[] | undefined",
+          "optional": true,
+          "summary": "OCSP responses for the TSA's certificate, as DER."
+        },
+        {
+          "name": "requireRevocation",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Report `PKI_REASON_REVOCATION_UNKNOWN` when nothing covered the TSA's certificate."
+        },
+        {
+          "name": "at",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "The instant to judge the TSA's chain at."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat SHA-1 signatures as evidence."
+        },
+        {
+          "name": "allowNonCriticalTimestampingEku",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept a TSA whose extKeyUsage names timestamping but is not critical."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        }
+      ]
+    },
+    {
+      "name": "VerifyTimeStampReport",
+      "kind": "type",
+      "module": "src/verify/verify-timestamp.ts",
+      "signature": "export interface VerifyTimeStampReport",
+      "summary": "The verdict on a timestamp token, and what it established.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the token is evidence that the expected hash existed at `genTime`."
+        },
+        {
+          "name": "token",
+          "type": "TimeStampToken | undefined",
+          "optional": false,
+          "summary": "The token, parsed; `undefined` when it could not be read."
+        },
+        {
+          "name": "genTime",
+          "type": "PkiTime | undefined",
+          "optional": false,
+          "summary": "The time the token asserts — established only when `valid`."
+        },
+        {
+          "name": "earliest",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": "`genTime` minus the declared accuracy, in epoch milliseconds: the earliest the stamping can have happened."
+        },
+        {
+          "name": "latest",
+          "type": "number | undefined",
+          "optional": false,
+          "summary": "`genTime` plus the declared accuracy: the latest."
+        },
+        {
+          "name": "tsaCertificate",
+          "type": "Certificate | undefined",
+          "optional": false,
+          "summary": "The TSA's certificate, when its key verified the token and it is the one the token names."
+        },
+        {
+          "name": "chain",
+          "type": "VerifyChainReport | undefined",
+          "optional": false,
+          "summary": "The TSA's chain, judged by `verifyCertificateChain`; `undefined` when there was no certificate to judge."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the token is not evidence of what was asked."
+        },
+        {
+          "name": "verified",
+          "type": "number",
+          "optional": false,
+          "summary": "How many signature verifications this cost, the TSA's chain included."
+        }
+      ]
+    },
+    {
+      "name": "addTimeStampToken",
+      "kind": "function",
+      "module": "src/build/build-signed-data.ts",
+      "signature": "export function addTimeStampToken(signedDataDer: Uint8Array, signerIndex: number, tokenDer: Uint8Array, options?: CreateOptions): Uint8Array",
+      "summary": "Add an RFC 3161 timestamp to a signer — the step that turns a signature into one whose time is proved (CAdES-T, PAdES B-T).",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "signedDataDer",
+          "description": "The DER ContentInfo to add the timestamp to; not modified."
+        },
+        {
+          "name": "signerIndex",
+          "description": "Which signer, counted from 0 in encoded order."
+        },
+        {
+          "name": "tokenDer",
+          "description": "The TimeStampToken, as `parseTimeStampResponse` hands it back in `tokenDer`."
+        },
+        {
+          "name": "options",
+          "description": "Limits, as `addUnsignedAttribute` takes them."
+        }
+      ],
+      "returns": "A new DER ContentInfo, every signed octet unchanged.",
+      "members": null
+    },
+    {
+      "name": "addUnsignedAttribute",
+      "kind": "function",
+      "module": "src/build/build-signed-data.ts",
+      "signature": "export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: number, attributeDer: Uint8Array, options?: CreateOptions): Uint8Array",
+      "summary": "Add one unsigned attribute to one signer of a SignedData.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "signedDataDer",
+          "description": "The DER `ContentInfo` of a SignedData. It is not modified."
+        },
+        {
+          "name": "signerIndex",
+          "description": "Which `signerInfos` entry, counted from 0 in encoded order."
+        },
+        {
+          "name": "attributeDer",
+          "description": "One `Attribute` encoding, e.g. from `encodeAttribute`."
+        },
+        {
+          "name": "options",
+          "description": "`limits`: `maxInputBytes`, `maxSignerInfos` and `maxCmsAttributes` apply."
+        }
+      ],
+      "returns": "A new `ContentInfo`, in DER.",
+      "members": null
+    },
+    {
       "name": "buildCertificatePath",
       "kind": "function",
       "module": "src/path/path-build.ts",
@@ -4477,7 +5673,7 @@
       "name": "createCertificate",
       "kind": "function",
       "module": "src/build/build-certificate.ts",
-      "signature": "export async function createCertificate(description: CertificateDescription, signer: SigningKey, options?: CreateOptions): Promise<Uint8Array>",
+      "signature": "export async function createCertificate(description: CertificateDescription, signer: Signer, options?: CreateOptions): Promise<Uint8Array>",
       "summary": "Build and sign an RFC 5280 certificate.",
       "throws": [
         "PkiCryptoError",
@@ -4491,7 +5687,7 @@
         },
         {
           "name": "signer",
-          "description": "The key that signs it, and the algorithm it signs with."
+          "description": "The key that signs it, and the algorithm it signs with: a `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere."
         },
         {
           "name": "options",
@@ -4505,7 +5701,7 @@
       "name": "createCertificationRequest",
       "kind": "function",
       "module": "src/build/build-csr.ts",
-      "signature": "export async function createCertificationRequest( description: CertificationRequestDescription, signer: SigningKey, options?: CreateOptions, ): Promise<Uint8Array>",
+      "signature": "export async function createCertificationRequest( description: CertificationRequestDescription, signer: Signer, options?: CreateOptions, ): Promise<Uint8Array>",
       "summary": "Build and sign a PKCS#10 certification request.",
       "throws": [
         "PkiCryptoError",
@@ -4519,7 +5715,7 @@
         },
         {
           "name": "signer",
-          "description": "The key that signs it — the private half of `subjectPublicKey`."
+          "description": "The key that signs it — the private half of `subjectPublicKey` — as a `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere."
         },
         {
           "name": "options",
@@ -4553,6 +5749,58 @@
         }
       ],
       "returns": "The encoded `OCSPRequest`, ready to POST.",
+      "members": null
+    },
+    {
+      "name": "createSignedData",
+      "kind": "function",
+      "module": "src/build/build-signed-data.ts",
+      "signature": "export async function createSignedData(input: CreateSignedDataInput, signer: Signer, options?: CreateOptions): Promise<Uint8Array>",
+      "summary": "Build and sign an RFC 5652 SignedData, returned as a DER `ContentInfo`.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "What is signed and what is written around it; see {@link CreateSignedDataInput}."
+        },
+        {
+          "name": "signer",
+          "description": "The key that signs: a `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere."
+        },
+        {
+          "name": "options",
+          "description": "`limits`: `maxCmsAttributes` bounds each attribute list, `maxCmsBagEntries` the certificates and revocation lists."
+        }
+      ],
+      "returns": "The `ContentInfo` (id-signedData), in DER.",
+      "members": null
+    },
+    {
+      "name": "createTimeStampRequest",
+      "kind": "function",
+      "module": "src/cms/tsp-request.ts",
+      "signature": "export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeStampRequestOptions): Uint8Array",
+      "summary": "Build an RFC 3161 `TimeStampReq` for a hash.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "hash",
+          "description": "The digest to stamp, computed with `hashAlgorithm`."
+        },
+        {
+          "name": "options",
+          "description": "See {@link CreateTimeStampRequestOptions}."
+        }
+      ],
+      "returns": "The DER `TimeStampReq`, ready to POST.",
       "members": null
     },
     {
@@ -5596,6 +6844,103 @@
       "members": null
     },
     {
+      "name": "parseSignedData",
+      "kind": "function",
+      "module": "src/cms/cms-signed-data.ts",
+      "signature": "export function parseSignedData(der: Uint8Array, options?: ParseSignedDataOptions): SignedData",
+      "summary": "Parse a CMS `ContentInfo` whose content is a `SignedData`.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER (or, with `encodingRules: 'ber'`, BER) of the ContentInfo."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics and `allowTrailingData`."
+        }
+      ],
+      "returns": "The parsed SignedData, with zero-copy views of `der` — except `signedAttributesDer`, which is a copy with its tag replaced, and a segmented BER `eContent`, which is the concatenation of its segments. The caller must not mutate `der` while the result is in use.",
+      "members": null
+    },
+    {
+      "name": "parseTimeStampResponse",
+      "kind": "function",
+      "module": "src/cms/tsp-response.ts",
+      "signature": "export function parseTimeStampResponse(der: Uint8Array, options?: PkiParseOptions): TimeStampResponse",
+      "summary": "Parse a `TimeStampResp` — what a TSA answers to a `TimeStampReq`.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The response, as the TSA sent it."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits and diagnostics."
+        }
+      ],
+      "returns": "The parsed response, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
+      "name": "parseTimeStampToken",
+      "kind": "function",
+      "module": "src/cms/tsp-response.ts",
+      "signature": "export function parseTimeStampToken(der: Uint8Array, options?: PkiParseOptions): TimeStampToken",
+      "summary": "Parse a `TimeStampToken` — the token itself, as it is embedded in a signature or a PDF document timestamp.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The token: a ContentInfo whose content is a SignedData over a TSTInfo."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits and diagnostics, as `parseSignedData` takes them. The TSTInfo inside is always read as DER."
+        }
+      ],
+      "returns": "The SignedData envelope and the TSTInfo it carries.",
+      "members": null
+    },
+    {
+      "name": "parseTstInfo",
+      "kind": "function",
+      "module": "src/cms/tsp-tst-info.ts",
+      "signature": "export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInfo",
+      "summary": "Parse a DER `TSTInfo` — the `eContent` of a timestamp token.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of one TSTInfo."
+        },
+        {
+          "name": "options",
+          "description": "Limits and diagnostics. `encodingRules` is ignored: a TSTInfo is always DER."
+        }
+      ],
+      "returns": "The parsed TSTInfo, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
       "name": "readBitString",
       "kind": "function",
       "module": "src/asn1/asn1-read.ts",
@@ -5792,7 +7137,7 @@
       "name": "signatureAlgorithmDer",
       "kind": "function",
       "module": "src/build/build-certificate.ts",
-      "signature": "export function signatureAlgorithmDer(signer: SigningKey): Uint8Array",
+      "signature": "export function signatureAlgorithmDer(signer: Signer): Uint8Array",
       "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
       "throws": [
         "PkiCryptoError"
@@ -5800,7 +7145,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "The key and the algorithm; only the algorithm is read."
+          "description": "A `SigningKey` or an `ExternalSigner`; only its algorithm is read."
         }
       ],
       "returns": "The `AlgorithmIdentifier` encoding.",
@@ -5941,6 +7286,71 @@
         }
       ],
       "returns": "Whether the certificate's own key signed it, and its subject and issuer names are byte-identical.",
+      "members": null
+    },
+    {
+      "name": "verifySignedData",
+      "kind": "function",
+      "module": "src/verify/verify-signed-data.ts",
+      "signature": "export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport>",
+      "summary": "Verify a CMS SignedData — a PDF signature, an S/MIME message, a `.p7s` — the whole way.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link VerifySignedDataInput}."
+        }
+      ],
+      "returns": "The verdict, one verdict per signer, and every reason.",
+      "members": null
+    },
+    {
+      "name": "verifySignerInfoSignature",
+      "kind": "function",
+      "module": "src/crypto/cms-verify.ts",
+      "signature": "export async function verifySignerInfoSignature( signerInfo: SignerInfo, signer: Certificate, options?: VerifySignerInfoOptions, ): Promise<boolean>",
+      "summary": "Verify that `signer`'s public key signed what `signerInfo` covers — its signed attributes when it has them, the content otherwise.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "signerInfo",
+          "description": "One entry of a parsed `SignedData`'s `signerInfos`."
+        },
+        {
+          "name": "signer",
+          "description": "The certificate whose key is alleged to have signed."
+        },
+        {
+          "name": "options",
+          "description": "See {@link VerifySignerInfoOptions}."
+        }
+      ],
+      "returns": "Whether the signer's key signed `signerInfo.signedAttributesDer`, or `options.content` when the signer has no signed attributes.",
+      "members": null
+    },
+    {
+      "name": "verifyTimeStampToken",
+      "kind": "function",
+      "module": "src/verify/verify-timestamp.ts",
+      "signature": "export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise<VerifyTimeStampReport>",
+      "summary": "Verify an RFC 3161 timestamp token.",
+      "throws": [
+        "PkiCmsError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "See {@link VerifyTimeStampInput}."
+        }
+      ],
+      "returns": "The verdict and what it established.",
       "members": null
     }
   ]

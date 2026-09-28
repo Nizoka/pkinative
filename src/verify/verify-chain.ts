@@ -174,12 +174,17 @@ export interface VerifyChainReport extends PathBuildReport {
 /**
  * The `PkiError` a layer below threw, or a rethrow.
  *
- * This is the only module allowed to catch, and catching in JavaScript catches
+ * `verify/` is the only layer allowed to catch, and catching in JavaScript catches
  * *everything* — so the one thing it must not do is turn a programming error
  * into a verdict. A `PkiReason` built from a `TypeError` would carry
  * `errorCode: undefined` and read like a statement about the certificate.
+ *
+ * Shared by every composition in `verify/`, so that the invariant — and the
+ * one coverage exemption it needs — is stated once.
+ *
+ * @internal
  */
-function _pkiError(error: unknown): PkiError {
+export function _pkiError(error: unknown): PkiError {
     /* v8 ignore next -- unreachable: every layer below promises that only a PkiError subclass escapes for an input reason, and tests/tools/architecture.test.ts holds the shape that makes that true. The rethrow exists so that a breach of that promise reaches the caller as the bug it is instead of being reported as a fact about their certificate; no input can reach it. */
     if (!(error instanceof PkiError)) throw error;
     return error;
