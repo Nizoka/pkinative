@@ -1,6 +1,7 @@
 import { createHash, KeyObject, sign as nodeSign, webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { addUnsignedAttribute, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
+import { addTimeStampToken, addUnsignedAttribute, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
+import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import {
     createCertificate,
     decodeAsn1,
@@ -21,8 +22,9 @@ import {
     type SigningKey,
 } from '../../src/index.js';
 import type { ExternalSigner } from '../../src/types/crypto-types.js';
-import { PkiCmsError, PkiEncodingError } from '../../src/types/pki-errors.js';
+import { PkiCmsError, PkiEncodingError, PkiError } from '../../src/types/pki-errors.js';
 import { concat, sequence, tlv } from '../helpers/raw-der-builder.js';
+import { issueTsa, makeRoot, makeToken, tstInfo } from '../verify/_cms-pki.js';
 
 /**
  * CMS SignedData creation, checked without the CMS parser (written in
@@ -801,3 +803,77 @@ function STRUCTURES(): Array<[string, Build, string]> {
         ['an unsigned attribute is not a SEQUENCE', (d) => withInfo(d, [...infoParts(d), tlv(2, true, 1, encodeSetOf([]))]), 'signerInfos[0].unsignedAttrs[0]'],
     ];
 }
+
+// ── addTimeStampToken ────────────────────────────────────────────────
+
+/** A real RFC 3161 token over `imprint`, signed by a TSA made for it. */
+async function timeStampToken(imprint: Uint8Array): Promise<Uint8Array> {
+    const root = await makeRoot();
+    const tsa = await issueTsa(root);
+    return makeToken(tsa, tstInfo({ imprint }));
+}
+
+describe('addTimeStampToken', () => {
+    it('should add the token as id-aa-signatureTimeStampToken, readable back and leaving the signature good', async () => {
+        const m = await p256();
+        const before = await createSignedData(input(m), m.signer);
+        const signature = parseSignedData(before).signerInfos[0]?.signature as Uint8Array;
+        const token = await timeStampToken(new Uint8Array(createHash('sha256').update(signature).digest()));
+        const after = addTimeStampToken(before, 0, token);
+
+        // The attribute, read back with the generic decoder.
+        const a = dissect(after);
+        const attribute = child(a.unsignedAttrs, 0);
+        expect(readObjectIdentifier(child(attribute, 0))).toBe(OID.timeStampToken);
+        expect(hex(child(child(attribute, 1), 0).bytes)).toBe(hex(token));
+        // Every signed octet unchanged, and the signature still verifies.
+        expect(hex(a.signedAttrs.bytes)).toBe(hex(dissect(before).signedAttrs.bytes));
+        expect(await verifies(m, a)).toBe(true);
+        // The CMS reader hands it back where a verifier looks for it.
+        expect(parseSignedData(after).signerInfos[0]?.timeStampTokens.map(hex)).toEqual([hex(token)]);
+    });
+
+    it('should add a second token beside the first', async () => {
+        const m = await p256();
+        const token = await timeStampToken(new Uint8Array(32));
+        const twice = addTimeStampToken(addTimeStampToken(await BASE(), 0, token), 0, token);
+        // One attribute per call; each holds one token.
+        expect(dissect(twice).unsignedAttrs?.children).toHaveLength(2);
+        expect(parseSignedData(twice).signerInfos[0]?.timeStampTokens).toHaveLength(2);
+        expect(await verifies(m, dissect(twice))).toBe(true);
+    });
+
+    it('should refuse a signerIndex that names no signer with PKI_API_MISUSE', async () => {
+        const der = await BASE();
+        for (const index of [1, -1, 0.5]) {
+            const error = catchError(() => addTimeStampToken(der, index, TOKEN));
+            expect(error).toBeInstanceOf(PkiError);
+            expect(error).toMatchObject({ code: 'PKI_API_MISUSE' });
+        }
+    });
+
+    it('should refuse a token that is not bytes with PKI_INVALID_INPUT', async () => {
+        const der = await BASE();
+        expect(catchError(() => addTimeStampToken(der, 0, 'MIIB' as unknown as Uint8Array))).toMatchObject({ code: 'PKI_INVALID_INPUT' });
+    });
+
+    it('should refuse a ContentInfo that is not id-signedData with PKI_CMS_CONTENT_TYPE_UNEXPECTED', () => {
+        const data = encodeSequence([encodeObjectIdentifier(OID.data), tlv(2, true, 0, encodeOctetString(CONTENT))]);
+        const error = catchError(() => addTimeStampToken(data, 0, TOKEN));
+        expect(error).toBeInstanceOf(PkiCmsError);
+        expect(error).toMatchObject({ code: 'PKI_CMS_CONTENT_TYPE_UNEXPECTED' });
+    });
+
+    it('should refuse a malformed SignedData with PKI_CMS_STRUCTURE_INVALID, and input that is not DER with the encoding error', async () => {
+        const valid = dissect(await BASE());
+        const [, build, path] = STRUCTURES().find(([label]) => label === 'signerInfos is missing') as [string, Build, string];
+        expect(catchError(() => addTimeStampToken(build(valid), 0, TOKEN))).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path });
+        expect(catchError(() => addTimeStampToken(Uint8Array.of(0x30, 0x05, 0x06), 0, TOKEN))).toBeInstanceOf(PkiEncodingError);
+    });
+
+    it('should apply the caller\'s limits', async () => {
+        const der = await BASE();
+        expect(catchError(() => addTimeStampToken(der, 0, TOKEN, { limits: { maxInputBytes: 10 } })))
+            .toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxInputBytes' });
+    });
+});
