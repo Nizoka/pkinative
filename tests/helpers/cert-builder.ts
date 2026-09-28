@@ -63,6 +63,15 @@ export const rsaKey = (modulus: ArrayLike<number>, exponent: ArrayLike<number> =
 
 export const BASIC_CONSTRAINTS_CA = extension('2.5.29.19', sequence(boolean(true)), true);
 
+/**
+ * The two key identifiers RFC 5280 §4.2.1.1 and §4.2.1.2 ask a conforming CA
+ * for, with fixed values: a test fixture that omitted them would be diagnosed
+ * as non-conforming, and a fixture called *a well-formed v3 certificate* had
+ * better be one. The identifier is an opaque OCTET STRING, so any bytes do.
+ */
+export const SUBJECT_KEY_ID = extension('2.5.29.14', octetString([0x01, 0x02, 0x03, 0x04]));
+export const AUTHORITY_KEY_ID = extension('2.5.29.35', sequence(context(0, false, [0x0a, 0x0b, 0x0c, 0x0d])));
+
 export interface TbsParts {
     /** `null` omits the field (a v1 certificate). */
     readonly version?: Uint8Array | null;
@@ -87,7 +96,7 @@ export function tbsCertificate(parts: TbsParts = {}): Uint8Array {
         parts.validity ?? sequence(utcTime('250101000000Z'), utcTime('350101000000Z')),
         parts.subject ?? name([['2.5.4.3', utf8('leaf.example')]]),
         parts.subjectPublicKeyInfo ?? ecKey(),
-        ...(parts.trailing ?? [explicit(3, sequence(BASIC_CONSTRAINTS_CA))]),
+        ...(parts.trailing ?? [explicit(3, sequence(BASIC_CONSTRAINTS_CA, SUBJECT_KEY_ID, AUTHORITY_KEY_ID))]),
     );
     return sequence(...fields);
 }

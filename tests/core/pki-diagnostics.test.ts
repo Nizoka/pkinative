@@ -86,6 +86,8 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL', diagnostics.basicConstraintsNotCriticalDiagnostic()],
         ['PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL', diagnostics.policyConstraintsNotCriticalDiagnostic()],
         ['PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA', diagnostics.keyCertSignWithoutCaDiagnostic()],
+        ['PKI_DIAG_AKI_MISSING', diagnostics.akiMissingDiagnostic()],
+        ['PKI_DIAG_SKI_MISSING', diagnostics.skiMissingDiagnostic()],
         ['PKI_DIAG_COMMON_NAME_NOT_IN_SAN', diagnostics.commonNameNotInSanDiagnostic('notinsan.example.com')],
         ['PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX', diagnostics.dnsNameNotPreferredSyntaxDiagnostic('under_score.example.com', 'tbsCertificate.extensions.subjectAltName[0]')],
         ['PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', diagnostics.akiIssuerSerialUnpairedDiagnostic()],

@@ -27,6 +27,7 @@
 
 import { encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { encodeAlgorithmIdentifier } from '../build/build-structures.js';
+import { computeKeyIdentifier } from '../hash/key-identifier.js';
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -79,8 +80,10 @@ export function encodeCertId(certificate: Certificate, issuer: Certificate, algo
     // the issuer's distinguished name (DN)", and the DN is the encoded field.
     const nameHash = digest(issuer.subject.der);
     // The BIT STRING's content WITHOUT its unused-bits octet — not the SPKI.
-    // `subjectPublicKey.bytes` is already that content in this library.
-    const keyHash = digest(issuer.subjectPublicKeyInfo.publicKey.bytes);
+    // `subjectPublicKey.bytes` is already that content in this library, and this
+    // is byte for byte the RFC 5280 §4.2.1.2 key identifier: one value, named
+    // once, so the two callers cannot drift into hashing different things.
+    const keyHash = computeKeyIdentifier(issuer.subjectPublicKeyInfo.publicKey.bytes, algorithm);
     return encodeSequence([
         encodeAlgorithmIdentifier(HASH_OID[algorithm], NULL_PARAMETERS),
         encodeOctetString(nameHash),

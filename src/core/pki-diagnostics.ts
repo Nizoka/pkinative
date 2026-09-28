@@ -244,6 +244,18 @@ export function dnsNameNotPreferredSyntaxDiagnostic(name: string, path: string):
         path, undefined);
 }
 
+export function akiMissingDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AKI_MISSING', 'warning', 'RFC 5280 §4.2.1.1',
+        'authorityKeyIdentifier is absent from a certificate that names another subject as its issuer; RFC 5280 requires conforming CAs to include it, and without it a path builder must try every candidate issuer by name',
+        'tbsCertificate.extensions', undefined);
+}
+
+export function skiMissingDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SKI_MISSING', 'warning', 'RFC 5280 §4.2.1.2',
+        'subjectKeyIdentifier is absent from a CA certificate; RFC 5280 requires conforming CAs to include it so that the certificates they issue can name their key',
+        'tbsCertificate.extensions', undefined);
+}
+
 export function akiIssuerSerialUnpairedDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', 'warning', 'RFC 5280 §4.2.1.1',
         'authorityKeyIdentifier carries only one of authorityCertIssuer and authorityCertSerialNumber; they must appear together',

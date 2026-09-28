@@ -230,7 +230,8 @@
         "encodeValidity",
         "KEY_USAGE_BITS",
         "GeneralNameDescription",
-        "getExtension"
+        "getExtension",
+        "computeKeyIdentifier"
       ],
       "since": "0.3.0",
       "expects": [

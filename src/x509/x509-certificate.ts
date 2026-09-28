@@ -31,6 +31,7 @@ import {
 import { _readTime } from '../asn1/asn1-time.js';
 import { assertBytes, bytesEqual, toHex } from '../core/bytes.js';
 import {
+    akiMissingDiagnostic,
     commonNameNotInSanDiagnostic,
     defaultEncodedDiagnostic,
     emptyIssuerDiagnostic,
@@ -42,6 +43,7 @@ import {
     generalizedTimeFractionDiagnostic,
     serialNotPositiveDiagnostic,
     serialTooLongDiagnostic,
+    skiMissingDiagnostic,
     signatureAlgorithmMismatchDiagnostic,
     uniqueIdRequiresV2Diagnostic,
     validityInvertedDiagnostic,
@@ -61,6 +63,8 @@ const OID_SUBJECT_ALT_NAME = '2.5.29.17';
 const OID_BASIC_CONSTRAINTS = '2.5.29.19';
 const OID_KEY_USAGE = '2.5.29.15';
 const OID_NAME_CONSTRAINTS = '2.5.29.30';
+const OID_SUBJECT_KEY_IDENTIFIER = '2.5.29.14';
+const OID_AUTHORITY_KEY_IDENTIFIER = '2.5.29.35';
 const OID_COMMON_NAME = '2.5.4.3';
 
 /**
@@ -91,20 +95,38 @@ function looksLikeHost(value: string): boolean {
 
 function emitProfileDiagnostics(
     ctx: Asn1Context,
+    version: 1 | 2 | 3,
     subject: DistinguishedName,
+    issuer: DistinguishedName,
     extensions: readonly Extension[],
 ): void {
     const find = (oid: string): Extension | undefined => extensions.find((e) => e.oid === oid);
     const basicConstraints = find(OID_BASIC_CONSTRAINTS);
     const isCa = basicConstraints?.kind === 'basicConstraints' && basicConstraints.cA;
 
-    // A MISSING authorityKeyIdentifier or subjectKeyIdentifier is deliberately
-    // not diagnosed here, and the reason is measured rather than assumed: they
-    // are absent from 0.7 % and 1.3 % of x509-limbo's certificates, so they
-    // would be a real signal — but flagging them means `createCertificate` has
-    // to be able to emit both, or everything this library builds trips its own
-    // reader, which the pki-core rule forbids. That is its own change, and the
-    // reason lives beside the x509-limbo cases in scripts/data/limbo-score.json.
+    // The key identifiers, each under the condition RFC 5280 actually sets, and
+    // each measured before it was added: absent from 0.7 % and 1.3 % of
+    // x509-limbo's certificates, which is a signal rather than chatter.
+    //
+    // §4.2.1.1 exempts a certificate that names nobody above it — a self-signed
+    // root has no authority to identify — and equal encoded names is how that is
+    // visible without a key operation. §4.2.1.2 requires the subject identifier
+    // of **CA certificates**; for an end entity it is a SHOULD, and reporting a
+    // SHOULD on the commonest shape in existence would be chatter.
+    //
+    // Neither is a verdict: the field is an opaque hint a path builder uses to
+    // order its candidates, and `buildCertificatePath` works by name, so a
+    // missing one costs exploration and not correctness.
+    // …and only of a v3 certificate. A v1 or v2 certificate has nowhere to put
+    // an extension — RFC 5280 §4.1.2.1 ties the field to the version — so
+    // reporting one as missing would be reporting the format rather than a
+    // choice the issuer made.
+    if (version === 3) {
+        if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === undefined) {
+            ctx.emitter.emit(akiMissingDiagnostic());
+        }
+        if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === undefined) ctx.emitter.emit(skiMissingDiagnostic());
+    }
     if (!isCa && find(OID_NAME_CONSTRAINTS) !== undefined) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
 
     const keyUsage = find(OID_KEY_USAGE);
@@ -315,7 +337,7 @@ export function parseCertificate(der: Uint8Array, options?: ParseCertificateOpti
     if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
         ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
     }
-    emitProfileDiagnostics(ctx, subject, extensions);
+    emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
 
     const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, 'signatureAlgorithm', STRUCTURE, cert.offset);
     if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {

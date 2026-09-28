@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 211,
+  "exportCount": 212,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -2610,7 +2610,7 @@
       "name": "PkiDiagnosticCode",
       "kind": "type",
       "module": "src/types/pki-types.ts",
-      "signature": "export type PkiDiagnosticCode = | 'PKI_DIAG_SERIAL_TOO_LONG' | 'PKI_DIAG_SERIAL_NOT_POSITIVE' | 'PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH' | 'PKI_DIAG_RSA_PARAMETERS_NOT_NULL' | 'PKI_DIAG_EXTENSIONS_REQUIRE_V3' | 'PKI_DIAG_UNIQUE_ID_REQUIRES_V2' | 'PKI_DIAG_GENERALIZED_TIME_BEFORE_2050' | 'PKI_DIAG_GENERALIZED_TIME_FRACTION' | 'PKI_DIAG_VALIDITY_INVERTED' | 'PKI_DIAG_EMPTY_ISSUER' | 'PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL' | 'PKI_DIAG_SAN_EMPTY' | 'PKI_DIAG_RDN_SET_NOT_SORTED' | 'PKI_DIAG_PRINTABLE_STRING_CHARSET' | 'PKI_DIAG_TELETEX_AS_LATIN1' | 'PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION' | 'PKI_DIAG_PATHLEN_WITHOUT_CA' | 'PKI_DIAG_KEY_USAGE_EMPTY' | 'PKI_DIAG_NAMED_BITS_TRAILING_ZERO' | 'PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY' | 'PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA' | 'PKI_DIAG_COMMON_NAME_NOT_IN_SAN' | 'PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX' | 'PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED' | 'PKI_DIAG_POLICY_DUPLICATE' | 'PKI_DIAG_POLICY_CONSTRAINTS_EMPTY' | 'PKI_DIAG_DEFAULT_ENCODED' | 'PKI_DIAG_BER_CONSTRUCT_ACCEPTED' | 'PKI_DIAG_PEM_LAX_ACCEPTED'",
+      "signature": "export type PkiDiagnosticCode = | 'PKI_DIAG_SERIAL_TOO_LONG' | 'PKI_DIAG_SERIAL_NOT_POSITIVE' | 'PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH' | 'PKI_DIAG_RSA_PARAMETERS_NOT_NULL' | 'PKI_DIAG_EXTENSIONS_REQUIRE_V3' | 'PKI_DIAG_UNIQUE_ID_REQUIRES_V2' | 'PKI_DIAG_GENERALIZED_TIME_BEFORE_2050' | 'PKI_DIAG_GENERALIZED_TIME_FRACTION' | 'PKI_DIAG_VALIDITY_INVERTED' | 'PKI_DIAG_EMPTY_ISSUER' | 'PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL' | 'PKI_DIAG_SAN_EMPTY' | 'PKI_DIAG_RDN_SET_NOT_SORTED' | 'PKI_DIAG_PRINTABLE_STRING_CHARSET' | 'PKI_DIAG_TELETEX_AS_LATIN1' | 'PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION' | 'PKI_DIAG_PATHLEN_WITHOUT_CA' | 'PKI_DIAG_KEY_USAGE_EMPTY' | 'PKI_DIAG_NAMED_BITS_TRAILING_ZERO' | 'PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY' | 'PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL' | 'PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA' | 'PKI_DIAG_AKI_MISSING' | 'PKI_DIAG_SKI_MISSING' | 'PKI_DIAG_COMMON_NAME_NOT_IN_SAN' | 'PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX' | 'PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED' | 'PKI_DIAG_POLICY_DUPLICATE' | 'PKI_DIAG_POLICY_CONSTRAINTS_EMPTY' | 'PKI_DIAG_DEFAULT_ENCODED' | 'PKI_DIAG_BER_CONSTRUCT_ACCEPT…",
       "summary": "Every diagnostic code.",
       "throws": null,
       "params": null,
@@ -4269,6 +4269,28 @@
         }
       ],
       "returns": "A promise of the digest octets.",
+      "members": null
+    },
+    {
+      "name": "computeKeyIdentifier",
+      "kind": "function",
+      "module": "src/hash/key-identifier.ts",
+      "signature": "export function computeKeyIdentifier(publicKeyBits: Uint8Array, algorithm: 'SHA-1' | 'SHA-256' = 'SHA-1'): Uint8Array",
+      "summary": "Compute a key identifier from a public key's BIT STRING content.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "publicKeyBits",
+          "description": "The BIT STRING **content** of the public key: no tag, no length, no unused-bits octet. `subjectPublicKeyInfo.publicKey.bytes` on a parsed certificate is exactly this."
+        },
+        {
+          "name": "algorithm",
+          "description": "The digest. `'SHA-1'` by default, per §4.2.1.2 method 1."
+        }
+      ],
+      "returns": "The identifier: 20 bytes for SHA-1, 32 for SHA-256.",
       "members": null
     },
     {

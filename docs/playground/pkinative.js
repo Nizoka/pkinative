@@ -530,6 +530,26 @@ function dnsNameNotPreferredSyntaxDiagnostic(name, path) {
     void 0
   );
 }
+function akiMissingDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_AKI_MISSING",
+    "warning",
+    "RFC 5280 \xA74.2.1.1",
+    "authorityKeyIdentifier is absent from a certificate that names another subject as its issuer; RFC 5280 requires conforming CAs to include it, and without it a path builder must try every candidate issuer by name",
+    "tbsCertificate.extensions",
+    void 0
+  );
+}
+function skiMissingDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SKI_MISSING",
+    "warning",
+    "RFC 5280 \xA74.2.1.2",
+    "subjectKeyIdentifier is absent from a CA certificate; RFC 5280 requires conforming CAs to include it so that the certificates they issue can name their key",
+    "tbsCertificate.extensions",
+    void 0
+  );
+}
 function akiIssuerSerialUnpairedDiagnostic() {
   return _diagnostic(
     "PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED",
@@ -3442,6 +3462,12 @@ function sha256(input) {
   return out;
 }
 
+// src/hash/key-identifier.ts
+function computeKeyIdentifier(publicKeyBits, algorithm = "SHA-1") {
+  assertBytes(publicKeyBits, "publicKeyBits");
+  return algorithm === "SHA-256" ? sha256(publicKeyBits) : sha1(publicKeyBits);
+}
+
 // src/revocation/ocsp-request.ts
 var HASH_OID = Object.freeze({
   "SHA-1": "1.3.14.3.2.26",
@@ -3452,7 +3478,7 @@ function encodeCertId(certificate, issuer, algorithm = "SHA-1") {
   assertParsed(issuer, "issuer");
   const digest = algorithm === "SHA-1" ? sha1 : sha256;
   const nameHash = digest(issuer.subject.der);
-  const keyHash = digest(issuer.subjectPublicKeyInfo.publicKey.bytes);
+  const keyHash = computeKeyIdentifier(issuer.subjectPublicKeyInfo.publicKey.bytes, algorithm);
   return encodeSequence([
     encodeAlgorithmIdentifier(HASH_OID[algorithm], NULL_PARAMETERS),
     encodeOctetString(nameHash),
@@ -6286,15 +6312,23 @@ var OID_SUBJECT_ALT_NAME = "2.5.29.17";
 var OID_BASIC_CONSTRAINTS = "2.5.29.19";
 var OID_KEY_USAGE = "2.5.29.15";
 var OID_NAME_CONSTRAINTS = "2.5.29.30";
+var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
+var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
 var OID_COMMON_NAME2 = "2.5.4.3";
 function looksLikeHost(value) {
   if (value === "" || /[\s/=,]/.test(value)) return false;
   return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
 }
-function emitProfileDiagnostics(ctx, subject, extensions) {
+function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
   const find = (oid) => extensions.find((e) => e.oid === oid);
   const basicConstraints = find(OID_BASIC_CONSTRAINTS);
   const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
+  if (version === 3) {
+    if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
+      ctx.emitter.emit(akiMissingDiagnostic());
+    }
+    if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === void 0) ctx.emitter.emit(skiMissingDiagnostic());
+  }
   if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
   const keyUsage = find(OID_KEY_USAGE);
   if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
@@ -6470,7 +6504,7 @@ function parseCertificate(der, options) {
   if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
     ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
   }
-  emitProfileDiagnostics(ctx, subject, extensions);
+  emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
   const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
   if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
     ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
@@ -6579,6 +6613,6 @@ async function createCertificationRequest(description, signer, options) {
   return signAndWrap(info, signer);
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

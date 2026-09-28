@@ -56,7 +56,7 @@ The write direction of the matrix is impossible before 0.3 creates anything, and
 - [x] RFC 6125 server identity matching — a separate question from §6, which has no notion of the name you asked for, and the one whose absence turns a valid certificate for somebody else into an accepted one
 - [x] x509-limbo scored on SUCCESS / FAILURE as conformance level L6 — every case built, name-matched and revocation-checked the way a caller would, with a reviewed deviation baseline in which every disagreement carries a written reason, a subset pinned on its `PkiReasonCode` rather than on the boolean, and two canaries against a scorer that stopped deciding anything
 - [x] Extended key usage as its own exported check, beside `checkServerName` — not a §6 input (RFC 5280 §4.2.1.12 leaves the purpose decision to the application), including the rule no sentence of the RFC states and every Web PKI validator applies: a CA own extKeyUsage restricts what it may issue for
-- [ ] `createCertificate` able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier`, so their absence can be diagnosed without everything this library builds tripping its own reader
+- [x] `computeKeyIdentifier` (RFC 5280 §4.2.1.2 method 1, the same value as an OCSP `issuerKeyHash`), so the builder can write both key identifiers — and their absence is diagnosed without everything this library builds tripping its own reader
 - [ ] NIST PKITS
 
 ## 0.7.x — M4: CMS and timestamps

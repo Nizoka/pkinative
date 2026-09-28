@@ -3,6 +3,7 @@ import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
 import type { PkiDiagnostic, PkiParseOptions } from '../../src/types/pki-types.js';
 import {
+    AUTHORITY_KEY_ID,
     BASIC_CONSTRAINTS_CA,
     ECDSA_SHA256,
     algorithm,
@@ -18,6 +19,7 @@ import {
     nullValue,
     octetString,
     oid,
+    SUBJECT_KEY_ID,
     tbsCertificate,
     utcTime,
     utf8,
@@ -71,7 +73,9 @@ describe('parseCertificate', () => {
         });
 
         it('should decode the extensions and keep their encoding', () => {
-            expect(cert.extensions).toHaveLength(1);
+            // basicConstraints, and the two key identifiers a conforming CA
+            // must include — §4.2.1.1 and §4.2.1.2.
+            expect(cert.extensions.map((e) => e.kind)).toEqual(['basicConstraints', 'subjectKeyIdentifier', 'authorityKeyIdentifier']);
             expect(cert.extensions[0]).toMatchObject({ kind: 'basicConstraints', oid: '2.5.29.19', critical: true, cA: true, pathLenConstraint: undefined });
             expect([...(cert.extensions[0]?.valueDer ?? [])]).toEqual([0x30, 0x03, 0x01, 0x01, 0xff]);
         });
@@ -121,6 +125,38 @@ describe('parseCertificate', () => {
             certificate({ trailing: [explicit(3, sequence(...extensions))] });
         const BC_LEAF = extension('2.5.29.19', sequence(boolean(false)), true);
         const dnsSan = (host: string): Uint8Array => extension('2.5.29.17', sequence(context(2, false, [...ascii(host)])));
+
+        it('should report a missing authorityKeyIdentifier, and not on a self-signed root', () => {
+            // §4.2.1.1 exempts a certificate that names nobody above it: a
+            // self-signed root has no authority to identify. Equal encoded names
+            // is how that is visible without a key operation.
+            expect(diagnosticsOf(leaf(BC_LEAF))).toContain('PKI_DIAG_AKI_MISSING');
+            expect(diagnosticsOf(leaf(BC_LEAF, AUTHORITY_KEY_ID))).not.toContain('PKI_DIAG_AKI_MISSING');
+            const selfSigned = certificate({
+                issuer: name([['2.5.4.3', utf8('Root')]]),
+                subject: name([['2.5.4.3', utf8('Root')]]),
+                trailing: [explicit(3, sequence(BASIC_CONSTRAINTS_CA, SUBJECT_KEY_ID))],
+            });
+            expect(diagnosticsOf(selfSigned)).not.toContain('PKI_DIAG_AKI_MISSING');
+        });
+
+        it('should report a missing subjectKeyIdentifier on a CA and not on a leaf', () => {
+            // §4.2.1.2 requires it of CA certificates; for an end entity it is a
+            // SHOULD, and reporting a SHOULD on the commonest shape in existence
+            // would be chatter rather than signal.
+            expect(diagnosticsOf(leaf(BASIC_CONSTRAINTS_CA, AUTHORITY_KEY_ID))).toContain('PKI_DIAG_SKI_MISSING');
+            expect(diagnosticsOf(leaf(BASIC_CONSTRAINTS_CA, SUBJECT_KEY_ID, AUTHORITY_KEY_ID))).not.toContain('PKI_DIAG_SKI_MISSING');
+            expect(diagnosticsOf(leaf(BC_LEAF, AUTHORITY_KEY_ID))).not.toContain('PKI_DIAG_SKI_MISSING');
+        });
+
+        it('should report neither on a v1 certificate, which has nowhere to put them', () => {
+            // RFC 5280 §4.1.2.1 ties the extensions field to the version, so a
+            // v1 certificate cannot carry either. Reporting them as missing
+            // would be reporting the format rather than a choice the issuer made.
+            const v1 = diagnosticsOf(certificate({ version: null, trailing: [] }));
+            expect(v1).not.toContain('PKI_DIAG_AKI_MISSING');
+            expect(v1).not.toContain('PKI_DIAG_SKI_MISSING');
+        });
 
         it('should report nameConstraints in a certificate that is not a CA', () => {
             // §4.2.1.10's "MUST be used only in a CA certificate" addresses the
@@ -361,12 +397,15 @@ describe('parseCertificate', () => {
         });
 
         it('should report an empty subject with a non-critical subjectAltName', () => {
+            // The AKI is absent from this minimal trailing, and §4.2.1.1 asks
+            // for one on any certificate that names another subject as issuer.
             const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN)))];
-            expect(diagnosticsOf(certificate({ subject: name(), trailing }))).toEqual(['PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL']);
+            expect(diagnosticsOf(certificate({ subject: name(), trailing })))
+                .toEqual(['PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL', 'PKI_DIAG_AKI_MISSING']);
         });
 
         it('should accept an empty subject with a critical subjectAltName', () => {
-            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN, true)))];
+            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN, true), AUTHORITY_KEY_ID))];
             expect(diagnosticsOf(certificate({ subject: name(), trailing }))).toEqual([]);
         });
     });
@@ -421,7 +460,7 @@ describe('parseCertificate', () => {
         });
 
         it('should read an explicit FALSE critical flag with a diagnostic', () => {
-            const der = withExtensions(extension('2.5.29.14', octetString([1]), false));
+            const der = withExtensions(extension('2.5.29.14', octetString([1]), false), AUTHORITY_KEY_ID);
             expect(parseCertificate(der, QUIET).extensions[0]?.critical).toBe(false);
             expect(diagnosticsOf(der)).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
         });

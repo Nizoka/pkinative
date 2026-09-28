@@ -14,6 +14,9 @@
  * has written something someone else's reader will refuse.
  */
 import {
+    computeKeyIdentifier,
+    decodeAsn1,
+    readBitString,
     canSign,
     createCertificate,
     createCertificationRequest,
@@ -40,6 +43,7 @@ import {
     verifySelfSignature,
     type GeneralNameDescription,
     type SigningKey,
+    type Asn1Node,
 } from 'pkinative';
 
 const DAY = 86_400_000;
@@ -64,9 +68,14 @@ export default async function run(): Promise<Record<string, string>> {
     const leaf = await keyPair();
     const quiet = { onDiagnostic: () => undefined };
 
-    // A key identifier is conventionally a digest of the key bits; any
-    // stable value does, and this recipe needs a deterministic one.
-    const caKeyId = new Uint8Array(20).fill(0xca);
+    // RFC 5280 §4.2.1.2 method 1: the SHA-1 of the public key's BIT STRING
+    // content — not of the SubjectPublicKeyInfo, which is the mistake that
+    // produces an identifier matching nothing and an OCSP request every
+    // responder answers 'unknown' to. The two lines that get from an exported
+    // SPKI to those bytes are here rather than hidden, for the same reason
+    // createCertificate takes SPKI DER instead of a CryptoKey.
+    const caKeyBits = readBitString(decodeAsn1(ca.spki).children[1] as Asn1Node);
+    const caKeyId = computeKeyIdentifier(caKeyBits.bytes);
 
     // An iPAddress takes BYTES, in network byte order, not text — the same
     // rule as `issuerDer`, applied to a value that must be exact. '2001:db8::1'
