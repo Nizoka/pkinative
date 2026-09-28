@@ -559,5 +559,15 @@ describe('verifySignedData', () => {
             expect(paths(report)[0]?.startsWith('signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain.')).toBe(true);
             expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);
         });
+
+        it('should hold each timestamp to requireRevocation too, so an unchecked TSA is not evidence', async () => {
+            const s = await stampable();
+            const stamped = addTimeStampToken(s.p7s, 0, await stamp(s, AT));
+            const report = await verify(s.w, stamped, { requireRevocation: true, ocsp: [] });
+            expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
+            expect(paths(report).filter((path) => path.startsWith('signerInfos[0].unsignedAttrs.timeStampToken[0].'))).toHaveLength(1);
+            expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);
+            expect(codes(await verify(s.w, stamped, { requireRevocation: true, crls: [await makeCrl(s.w.root)] }))).toEqual([]);
+        });
     });
 });

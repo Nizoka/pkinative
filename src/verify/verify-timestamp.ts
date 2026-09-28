@@ -259,7 +259,9 @@ function _expectation(input: VerifyTimeStampInput): _Expectation {
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: say what was stamped — pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued');
     }
-    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, { limits: input.limits ?? {} });
+    // Silent, as the token and the bag are: a verdict call reports in its
+    // report, and a request that strays from a profile is the caller's own.
+    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined });
     return {
         imprint: input.imprint,
         data: input.data,

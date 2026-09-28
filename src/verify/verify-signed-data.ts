@@ -217,6 +217,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 trustAnchors: input.trustAnchors,
                 ...(input.crls === undefined ? {} : { crls: input.crls }),
                 ...(input.ocsp === undefined ? {} : { ocsp: input.ocsp }),
+                ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
                 ...(input.at === undefined ? {} : { at: input.at }),
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
