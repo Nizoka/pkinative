@@ -22,8 +22,22 @@
  */
 
 import type { PkiTime } from './asn1-types.js';
-import type { PkiDiagnostic } from './pki-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
 import type { AlgorithmIdentifier, DistinguishedName, GeneralName, SerialNumber } from './x509-types.js';
+
+/** What `parseSignedData` takes beyond the ordinary parse options. */
+export interface ParseSignedDataOptions extends PkiParseOptions {
+    /**
+     * Accept bytes after the `ContentInfo`, and ignore them.
+     *
+     * For one case, and it is common enough to name: a PDF signature's
+     * `/Contents` is a fixed-size placeholder, zero-padded after the DER. Off by
+     * default, because anywhere else bytes after the structure are either a
+     * second object or an attempt to smuggle one past a reader that stops early.
+     * `SignedData.der` never includes them.
+     */
+    readonly allowTrailingData?: boolean | undefined;
+}
 
 /**
  * `SignerIdentifier` (RFC 5652 §5.3): which certificate holds the key that
@@ -70,7 +84,12 @@ export interface CmsAttribute {
  * instead; the hash binds the signature to one specific certificate.
  */
 export interface EssCertId {
-    /** The digest `certHash` was computed with, as Web Crypto names it. SHA-1 for v1; SHA-256 when a v2 omits it. */
+    /**
+     * The digest `certHash` was computed with, as Web Crypto names it — SHA-1
+     * for v1, SHA-256 when a v2 omits it — or the dotted OID when it is a digest
+     * pkinative does not compute. An unknown digest is not refused here: it only
+     * means the binding cannot be checked, which is the verifier's to say.
+     */
     readonly hashAlgorithm: string;
     /** The digest of the whole certificate DER. */
     readonly certHash: Uint8Array;
@@ -114,6 +133,13 @@ export interface SignerInfo {
     readonly signature: Uint8Array;
     /** The unsigned attributes in encoded order; `undefined` when absent. */
     readonly unsignedAttributes: readonly CmsAttribute[] | undefined;
+    // The five fields below are conveniences over `signedAttributes`, and each
+    // is set **only when its attribute appears exactly once, with exactly one
+    // value, among the signed attributes**. A field that took "the first one"
+    // would hide a second `messageDigest` — which is not a formatting slip but
+    // the shape of an attack — so a repeated or multi-valued attribute leaves
+    // the field `undefined`, and `verifySignedData`, reading the raw list, says
+    // why. A recognised attribute whose value is malformed is refused outright.
     /** `contentType` (§11.1), the one attribute that makes the signed attributes bind to what they sign; `undefined` when absent. */
     readonly contentType: string | undefined;
     /** `messageDigest` (§11.2), the digest of the content the signer committed to; `undefined` when absent. */
