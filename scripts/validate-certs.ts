@@ -38,12 +38,21 @@
  *       pass/fail count can see, and two canaries — one case that must succeed,
  *       one that must fail — catch a harness that stopped deciding anything.
  *       See scripts/lib/limbo-score.ts;
+ *   L7  every NIST PKITS path is scored the same way against a second corpus,
+ *       written independently for the US Federal PKI, with its own reviewed
+ *       baseline scripts/data/pkits-score.json. See scripts/lib/pkits.ts;
+ *   L8  every NIST PKITS S/MIME message is verified whole by
+ *       verifySignedData — signature, signer and chain — and makes two claims:
+ *       the CMS layer finds every message intact, and the verdict on each
+ *       message is the L7 verdict on its signer's path, refused for a reason
+ *       that path is refused for. Reviewed baseline:
+ *       scripts/data/pkits-smime-score.json. See scripts/lib/pkits-smime.ts;
  *   Wycheproof  ECDSA signatures decode as a strict Ecdsa-Sig-Value
  *       (SEQUENCE of two INTEGERs): every valid vector parses, every vector
  *       flagged as an encoding defect is refused.
  *
  * Usage:
- *   npx tsx scripts/validate-certs.ts [--level 0-6] [--require-all] [--update-baseline]
+ *   npx tsx scripts/validate-certs.ts [--level 0-8] [--require-all] [--update-baseline]
  *
  * Exit: 0 pass, 1 failure, 2 corpora or build missing.
  *
@@ -52,13 +61,14 @@
 
 import { spawnSync } from 'node:child_process';
 import { X509Certificate } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
 import { CLAUSES } from './lib/clauses.js';
 import { newScoreCache, scoreCase, type LimboScoreCase } from './lib/limbo-score.js';
 import { corpusWindowProblem, expectationOfName, PKITS_AT, readPkits } from './lib/pkits.js';
+import { reasonLayer, reasonsBeyondPath, splitPkitsMessage, testsOfSigner, type PkitsSignedMessage } from './lib/pkits-smime.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
 import { evaluateClauses } from './validators/rfc5280-clauses.js';
@@ -76,6 +86,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
 const SCORE_BASELINE = join(ROOT, 'scripts', 'data', 'limbo-score.json');
 const PKITS_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-score.json');
+const PKITS_SMIME_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-smime-score.json');
 const REPORT_DIR = join(ROOT, 'test-output', 'conformance');
 const OPENSSL_SAMPLE = 200;
 /** How many certificates each cross-implementation validator is given (L4). */
@@ -85,7 +96,7 @@ const ENCODING_FLAGS: ReadonlySet<string> = new Set(['BerEncodedSignature', 'Inv
 
 const args = process.argv.slice(2);
 const levelAt = args.indexOf('--level');
-const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 7;
+const level = levelAt >= 0 ? Number(args[levelAt + 1]) : 8;
 const requireAll = args.includes('--require-all');
 const updateBaseline = args.includes('--update-baseline');
 
@@ -114,7 +125,15 @@ interface WycheproofFile {
 interface Declared {
     readonly 'x509-limbo'?: { readonly commit?: string; readonly testcases?: number; readonly certificates?: number; readonly refused?: number; readonly agree?: number };
     readonly wycheproof?: { readonly commit?: string; readonly tests?: number };
-    readonly pkits?: { readonly commit?: string; readonly certificates?: number; readonly tests?: number; readonly agree?: number };
+    readonly pkits?: {
+        readonly commit?: string;
+        readonly certificates?: number;
+        readonly tests?: number;
+        readonly agree?: number;
+        readonly messages?: number;
+        readonly messagesIntact?: number;
+        readonly messagesAgree?: number;
+    };
 }
 
 interface Baseline {
@@ -343,7 +362,10 @@ async function main(): Promise<number> {
 
     if (level >= 6) await runPathScorer(pki, limbo.testcases as unknown as readonly LimboScoreCase[], declared);
 
-    if (level >= 7) await runPkitsScorer(pki, declared);
+    if (level >= 7) {
+        const paths = await runPkitsScorer(pki, declared);
+        if (level >= 8) await runPkitsSmimeScorer(pki, declared, paths);
+    }
 
     // Wycheproof — strict Ecdsa-Sig-Value decoding.
     let vectors = 0;
@@ -635,8 +657,13 @@ interface PkitsBaseline {
  * refusal list at all. x509-limbo is adversarial and its 565 refusals are the
  * point; PKITS is a conformance suite issued by a standards body, and a
  * certificate in it that pkinative cannot read is a defect here.
+ *
+ * It returns the verdict it measured on every scored test, because L8 holds
+ * each signed message to the verdict on its own signer's path; an empty map
+ * when the corpus could not be scored at all.
  */
-async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void> {
+async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<PkitsPathVerdicts> {
+    const paths = new Map<string, PkitsPathVerdict>();
     const dir = corpusDir(ROOT, corpus('pkits'));
     const baseline = existsSync(PKITS_BASELINE) ? JSON.parse(readFileSync(PKITS_BASELINE, 'utf8')) as PkitsBaseline : null;
     if (baseline !== null && baseline.commit !== corpus('pkits').commit) {
@@ -648,7 +675,7 @@ async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void
         fail(`L7 ${name}: refused with ${code} — PKITS is a conformance suite, and a certificate in it this library cannot read is a defect here, not a reviewed refusal`);
     }
     const aged = corpusWindowProblem(pkits.anchor);
-    if (aged !== null) { fail(`L7 ${aged}`); return; }
+    if (aged !== null) { fail(`L7 ${aged}`); return paths; }
 
     const total = pkits.candidates.length + pkits.tests.size + 1;
     if (total !== declared.pkits?.certificates) {
@@ -682,6 +709,7 @@ async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void
         });
         verified += report.verified;
         measured.set(name, report.reasons.map((reason) => reason.code).join(','));
+        paths.set(name, { valid: report.valid, codes: report.reasons.map((reason) => reason.code) });
         if (report.valid === expected) agree += 1;
         else disagreed.set(name, { expected: expected ? 'SUCCESS' : 'FAILURE', reasons: report.reasons.map((r) => r.code) });
     }
@@ -722,12 +750,12 @@ async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void
         mkdirSync(dirname(PKITS_BASELINE), { recursive: true });
         writeFileSync(PKITS_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
         record('L7', `pkits baseline rewritten: ${String(agree)} agree, ${String(disagreed.size)} deviations`);
-        return;
+        return paths;
     }
 
     if (baseline === null) {
         fail(`L7 ${PKITS_BASELINE} is missing — run with --update-baseline once, then write the reason for each deviation`);
-        return;
+        return paths;
     }
     for (const [which, name] of [['mustSucceed', baseline.canaries.mustSucceed], ['mustFail', baseline.canaries.mustFail]] as const) {
         const reasons = measured.get(name);
@@ -764,6 +792,282 @@ async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<void
 
     const rate = measured.size === 0 ? 0 : (agree / measured.size) * 100;
     record('L7', `pkits@${corpus('pkits').commit.slice(0, 12)}: ${String(agree)}/${String(measured.size)} NIST paths agree (${rate.toFixed(2)} %), ${String(disagreed.size)} reviewed deviations, ${String(Object.keys(baseline.reasons).length)} pinned on their reason codes, ${String(skipped.length)} skipped, every one of ${String(total)} certificates and ${String(pkits.crls.length)} lists parsed — ${String(verified)} signature verifications in ${String(seconds)} s`);
+    return paths;
+}
+
+// ── L8 — the PKITS signed messages, verified whole ─────────────────
+
+/** What L7 measured on one test: the verdict, and the codes behind it. */
+interface PkitsPathVerdict {
+    readonly valid: boolean;
+    readonly codes: readonly string[];
+}
+
+/** L7's verdicts, by test name. */
+type PkitsPathVerdicts = ReadonlyMap<string, PkitsPathVerdict>;
+
+/** The reviewed S/MIME baseline, `scripts/data/pkits-smime-score.json`. */
+interface PkitsSmimeBaseline {
+    readonly $comment: string;
+    readonly corpus: string;
+    readonly commit: string;
+    /** Message names, as `splitPkitsMessage` gives them — not the test names of their signers. */
+    readonly canaries: { readonly mustSucceed: string; readonly mustFail: string };
+    readonly totals: {
+        readonly messages: number;
+        readonly intact: number;
+        readonly scored: number;
+        readonly agree: number;
+        readonly deviations: number;
+        readonly skipped: number;
+    };
+    /** Claim (a): every message whose signer the CMS layer does not find intact, with its CMS-layer codes. */
+    readonly notIntact: Readonly<Record<string, { readonly reasons: string; readonly why: string }>>;
+    /** Messages whose verdict is not the one NIST expects for their signer's test. */
+    readonly deviations: Readonly<Record<string, { readonly test: string; readonly expected: string; readonly why: string }>>;
+    /** Claim (b): messages whose verdict or chain reasons differ from L7's on the same test. */
+    readonly pathDisagreements: Readonly<Record<string, { readonly test: string; readonly why: string }>>;
+    /** Messages pinned on every reason code `verifySignedData` reports, in order. */
+    readonly reasons: Readonly<Record<string, string>>;
+}
+
+/**
+ * L7 judges a path to an end-entity certificate. **L8 judges what that
+ * certificate signed**: each of the 224 PKITS messages is handed whole to
+ * `verifySignedData` — the detached content, the SignedData, the anchor, the
+ * same lists and the same instant as L7, and no certificate beyond those the
+ * message carries — which is the call an S/MIME client makes.
+ *
+ * Two claims, kept apart because they fail for different reasons:
+ *
+ *   - **(a) the CMS layer.** NIST signed every message correctly, so every
+ *     signer must be `intact`: attributes, algorithms, digest, signature and
+ *     signer certificate all check out. A signer that is not is either a CMS
+ *     defect or a signature this platform cannot check, and only a reviewed
+ *     `notIntact` entry says which;
+ *   - **(b) end to end.** The verdict on a message is the L7 verdict on its
+ *     signer's path — L7's reviewed deviations included — and a refused message
+ *     is refused for a reason that path is refused for. A message may not
+ *     disagree with its own test without a reviewed `pathDisagreements` entry.
+ *
+ * On top of those, the L6 and L7 discipline: expectations from NIST's own
+ * file names (through the signer's test, never a table of pairs), reviewed
+ * deviations with a written reason, pinned reason codes, two canaries, and
+ * counts held to `docs/assets/ecosystem.json`.
+ */
+async function runPkitsSmimeScorer(pki: typeof Pki, declared: Declared, paths: PkitsPathVerdicts): Promise<void> {
+    const dir = corpusDir(ROOT, corpus('pkits'));
+    const baseline = existsSync(PKITS_SMIME_BASELINE) ? JSON.parse(readFileSync(PKITS_SMIME_BASELINE, 'utf8')) as PkitsSmimeBaseline : null;
+    if (baseline !== null && baseline.commit !== corpus('pkits').commit) {
+        fail(`L8 the score baseline was made at pkits ${baseline.commit}, the pin is ${corpus('pkits').commit} — rescore and review it`);
+    }
+    if (paths.size === 0) {
+        fail('L8 L7 scored no path, so no message has a path verdict to be held to');
+        return;
+    }
+
+    const pkits = readPkits(pki, dir);
+    const files = readdirSync(join(dir, 'smime')).filter((file) => file.endsWith('.eml')).sort();
+    if (files.length !== declared.pkits?.messages) {
+        fail(`L8 pkits holds ${String(files.length)} signed messages; ecosystem.json declares ${String(declared.pkits?.messages)} (canary)`);
+    }
+
+    const started = Date.now();
+    const measured = new Map<string, string>();
+    const links = new Map<string, string>();
+    const notIntact = new Map<string, string>();
+    const disagreed = new Map<string, { test: string; expected: string; reasons: string }>();
+    const beyondPath = new Map<string, { test: string; detail: string }>();
+    const skipped: string[] = [];
+    let intact = 0;
+    let agree = 0;
+    let verified = 0;
+    for (const file of files) {
+        let message: PkitsSignedMessage;
+        try {
+            message = splitPkitsMessage(`smime/${file}`, new Uint8Array(readFileSync(join(dir, 'smime', file))));
+        } catch (error) {
+            fail(`L8 ${file}: ${String(error)}`);
+            continue;
+        }
+        const name = message.test;
+
+        let report: Pki.VerifySignedDataReport;
+        try {
+            // Nothing beyond the message's own certificates: an S/MIME client
+            // has what the sender attached and its trust store. The lists are
+            // L7's, added to those the message carries, and so are the anchor,
+            // the instant, requireRevocation and the path-search budget.
+            report = await pki.verifySignedData({
+                signedData: message.signature,
+                content: message.content,
+                trustAnchors: [pkits.anchor],
+                at: PKITS_AT,
+                crls: pkits.crls,
+                requireRevocation: true,
+                limits: { maxPathsExplored: 200 },
+            });
+        } catch (error) {
+            const crash = !(error instanceof pki.PkiError);
+            fail(`L8 ${crash ? 'CRASH ' : ''}${name}: verifySignedData threw ${String(error)} — it throws only for API misuse${crash ? ', and only a PkiError may leave it' : ''}`);
+            continue;
+        }
+        verified += report.verified;
+        const signer = report.signers[0];
+        const sid = report.signedData?.signerInfos[0]?.sid;
+        if (report.signedData === undefined || sid === undefined || report.signers.length !== 1 || signer === undefined) {
+            fail(`L8 ${name}: ${report.signedData === undefined ? 'the SignedData was not read' : `${String(report.signers.length)} signers`} [${report.reasons.map((r) => r.code).join(',')}] — every PKITS message is a readable SignedData with one signer`);
+            continue;
+        }
+        const tests = testsOfSigner(pki, sid, pkits.tests);
+        const test = tests[0];
+        if (tests.length !== 1 || test === undefined) {
+            fail(`L8 ${name}: its signer names ${tests.length === 0 ? 'no PKITS end-entity certificate' : `${String(tests.length)} of them (${tests.join(', ')})`} — the message cannot be held to a test`);
+            continue;
+        }
+
+        links.set(name, test);
+        const codes = report.reasons.map((reason) => reason.code);
+        const cmsCodes = report.reasons.filter((reason) => reasonLayer(reason.path) === 'cms').map((reason) => reason.code);
+        const chainCodes = report.reasons.filter((reason) => reasonLayer(reason.path) === 'chain').map((reason) => reason.code);
+        measured.set(name, codes.join(','));
+        if (signer.intact) intact += 1;
+        else notIntact.set(name, cmsCodes.join(','));
+
+        // The message's own name, where it says Valid or Invalid, must say what
+        // its signer's test says — the check that the link above is right.
+        const expected = expectationOfName(test);
+        const named = expectationOfName(name);
+        if (named !== null && named !== expected) {
+            fail(`L8 ${name}: its file name expects ${named ? 'SUCCESS' : 'FAILURE'} and its signer's test ${test} does not — the link is wrong or the archive contradicts itself`);
+        }
+        const path = paths.get(test);
+        if (expected === null || path === undefined) { skipped.push(name); continue; }
+
+        if (report.valid === expected) agree += 1;
+        else disagreed.set(name, { test, expected: expected ? 'SUCCESS' : 'FAILURE', reasons: codes.join(',') });
+        const beyond = reasonsBeyondPath(chainCodes, path.codes);
+        if (report.valid !== path.valid) {
+            beyondPath.set(name, { test, detail: `the message is ${report.valid ? 'valid' : 'refused'} and L7 ${path.valid ? 'validates' : 'refuses'} the path of ${test}` });
+        } else if (beyond.length > 0) {
+            beyondPath.set(name, { test, detail: `the chain is refused for ${beyond.join(',')}, which L7 does not refuse the path of ${test} for [${path.codes.join(',')}]` });
+        }
+    }
+    const seconds = Math.round((Date.now() - started) / 1000);
+    const scored = measured.size - skipped.length;
+
+    if (updateBaseline) {
+        const byName = <T>(entries: Iterable<[string, T]>): Array<[string, T]> => [...entries].sort(([a], [b]) => (a < b ? -1 : 1));
+        const deviations: Record<string, { test: string; expected: string; why: string }> = {};
+        for (const [name, { test, expected }] of byName(disagreed)) deviations[name] = { test, expected, why: baseline?.deviations[name]?.why ?? '' };
+        const reviewedNotIntact: Record<string, { reasons: string; why: string }> = {};
+        for (const [name, reasons] of byName(notIntact)) reviewedNotIntact[name] = { reasons, why: baseline?.notIntact[name]?.why ?? '' };
+        const pathDisagreements: Record<string, { test: string; why: string }> = {};
+        for (const [name, { test }] of byName(beyondPath)) pathDisagreements[name] = { test, why: baseline?.pathDisagreements[name]?.why ?? '' };
+        // Where L7 pins a test on its reason codes, L8 pins the messages its
+        // signer signed — a sampling the tool may take. What the codes ARE is
+        // measured, never invented, and a later run only re-measures the pins.
+        const pinned = Object.keys(baseline?.reasons ?? {});
+        const reasons: Record<string, string> = {};
+        if (pinned.length === 0) {
+            const l7 = existsSync(PKITS_BASELINE) ? (JSON.parse(readFileSync(PKITS_BASELINE, 'utf8')) as PkitsBaseline).reasons : {};
+            for (const [name, codes] of byName(measured)) {
+                if (codes === '' || disagreed.has(name) || !Object.hasOwn(l7, links.get(name) ?? '')) continue;
+                reasons[name] = codes;
+            }
+        } else {
+            for (const name of pinned.sort()) reasons[name] = measured.get(name) ?? '(not scored)';
+        }
+        const next: PkitsSmimeBaseline = {
+            $comment: 'Reviewed score of the NIST PKITS S/MIME messages (conformance level L8): every message verified whole by verifySignedData against the L7 anchor, lists and instant. `notIntact` is claim (a) — a signer the CMS layer does not find intact; `pathDisagreements` is claim (b) — a message whose verdict, or whose chain reasons, differ from L7 on its signer\'s own test; `deviations` are messages whose verdict is not the one NIST expects. Keys are message names; `test` is the PKITS test the signer\'s certificate belongs to. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE every `why` by hand; the tool never fills one in, and an empty one fails the gate.',
+            corpus: 'pkits',
+            commit: corpus('pkits').commit,
+            canaries: baseline?.canaries ?? { mustSucceed: '', mustFail: '' },
+            totals: { messages: measured.size, intact, scored, agree, deviations: disagreed.size, skipped: skipped.length },
+            notIntact: reviewedNotIntact,
+            deviations,
+            pathDisagreements,
+            reasons,
+        };
+        mkdirSync(dirname(PKITS_SMIME_BASELINE), { recursive: true });
+        writeFileSync(PKITS_SMIME_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+        record('L8', `pkits S/MIME baseline rewritten: ${String(intact)} intact, ${String(agree)} agree, ${String(disagreed.size)} deviations, ${String(beyondPath.size)} path disagreements`);
+        return;
+    }
+
+    if (baseline === null) {
+        fail(`L8 ${PKITS_SMIME_BASELINE} is missing — run with --update-baseline once, then write the reason for each entry`);
+        return;
+    }
+    const unexplained = (why: string): boolean => why.trim() === '';
+
+    for (const [which, name] of [['mustSucceed', baseline.canaries.mustSucceed], ['mustFail', baseline.canaries.mustFail]] as const) {
+        const reasons = measured.get(name);
+        if (reasons === undefined) { fail(`L8 canary ${which} ${name} was not verified — the harness is not exercising the messages`); continue; }
+        const wants = which === 'mustSucceed';
+        if ((reasons === '') !== wants) {
+            fail(`L8 canary ${which} ${name} ${wants ? `must verify cleanly and reported ${reasons}` : 'must be refused and verified cleanly'} — the scorer is not deciding anything`);
+        }
+    }
+
+    // (a) the CMS layer.
+    for (const [name, reasons] of notIntact) {
+        const reviewed = baseline.notIntact[name];
+        if (reviewed === undefined) fail(`L8 NOT-INTACT ${name}: the CMS layer refuses a message NIST signed correctly [${reasons || 'no CMS reason'}] — a CMS defect, or a signature this platform cannot check; fix it, or review it with the sentence that says which`);
+        else if (reviewed.reasons !== reasons) fail(`L8 ${name}: the CMS layer reports [${reasons || 'none'}], the baseline reviewed [${reviewed.reasons || 'none'}] — not intact for a different reason is a change in behaviour`);
+        else if (unexplained(reviewed.why)) fail(`L8 ${name}: the not-intact entry has no reason written`);
+    }
+    for (const name of Object.keys(baseline.notIntact)) {
+        if (notIntact.has(name)) continue;
+        if (!measured.has(name)) fail(`L8 stale not-intact entry ${name}: no such message was verified`);
+        else fail(`L8 UNEXPECTED-INTACT ${name}: the baseline expects the CMS layer to refuse this signer and it is now intact — delete the entry, its reason has stopped being true`);
+    }
+
+    // The verdict against NIST's expectation.
+    for (const [name, { test, expected, reasons }] of disagreed) {
+        const reviewed = baseline.deviations[name];
+        if (reviewed === undefined) {
+            fail(`L8 NEW-DISAGREEMENT ${name}: PKITS expects ${expected} for ${test} and verifySignedData says otherwise [${reasons || 'accepted'}] — fix it, or add it to the baseline with the sentence that makes it acceptable`);
+        } else if (reviewed.test !== test) {
+            fail(`L8 ${name}: the baseline reviewed it as a message of ${reviewed.test}, its signer belongs to ${test}`);
+        } else if (unexplained(reviewed.why)) {
+            fail(`L8 ${name}: the deviation has no reason written — a disagreement is either a defect or a decision, and only a sentence tells them apart`);
+        }
+    }
+    for (const name of Object.keys(baseline.deviations)) {
+        if (disagreed.has(name)) continue;
+        if (!measured.has(name)) fail(`L8 stale deviation ${name}: no such message is scored`);
+        else fail(`L8 UNEXPECTED-AGREEMENT ${name}: the baseline expects a deviation and verifySignedData now agrees with PKITS — delete the entry, its reason has stopped being true`);
+    }
+
+    // (b) end to end: the message against its own path.
+    for (const [name, { test, detail }] of beyondPath) {
+        const reviewed = baseline.pathDisagreements[name];
+        if (reviewed === undefined) fail(`L8 PATH-DISAGREEMENT ${name}: ${detail} — a message may not disagree with its own test's path verdict without a reviewed entry`);
+        else if (reviewed.test !== test || unexplained(reviewed.why)) fail(`L8 ${name}: the path-disagreement entry names ${reviewed.test} or carries no reason; the signer belongs to ${test}`);
+    }
+    for (const name of Object.keys(baseline.pathDisagreements)) {
+        if (!beyondPath.has(name)) fail(`L8 UNEXPECTED-PATH-AGREEMENT ${name}: the message now agrees with the path of its test — delete the entry, its reason has stopped being true`);
+    }
+
+    for (const [name, expected] of Object.entries(baseline.reasons)) {
+        const actual = measured.get(name);
+        if (actual === undefined) fail(`L8 pinned message ${name} was not verified — the pin is stale`);
+        else if (actual !== expected) fail(`L8 ${name}: reasons are [${actual || 'none'}], the baseline pins [${expected || 'none'}] — refused for a different reason is a change in behaviour, whatever the boolean says`);
+    }
+    const totals = baseline.totals;
+    if (measured.size !== totals.messages || scored !== totals.scored || skipped.length !== totals.skipped) {
+        fail(`L8 ${String(measured.size)} messages verified, ${String(scored)} scored and ${String(skipped.length)} skipped; the baseline says ${String(totals.messages)}, ${String(totals.scored)} and ${String(totals.skipped)} (canary)`);
+    }
+    if (intact !== declared.pkits?.messagesIntact) {
+        fail(`L8 ${String(intact)} messages intact at the CMS layer; ecosystem.json declares ${String(declared.pkits?.messagesIntact)} (canary)`);
+    }
+    if (agree !== declared.pkits?.messagesAgree) {
+        fail(`L8 ${String(agree)} messages agree; ecosystem.json declares ${String(declared.pkits?.messagesAgree)} (canary)`);
+    }
+
+    const rate = scored === 0 ? 0 : (agree / scored) * 100;
+    record('L8', `pkits@${corpus('pkits').commit.slice(0, 12)}: ${String(intact)}/${String(measured.size)} S/MIME messages intact at the CMS layer (${String(notIntact.size)} reviewed), ${String(agree)}/${String(scored)} verdicts agree with NIST (${rate.toFixed(2)} %), ${String(scored - beyondPath.size)}/${String(scored)} equal to the L7 verdict on their signer's path (${String(beyondPath.size)} reviewed), ${String(disagreed.size)} reviewed deviations, ${String(Object.keys(baseline.reasons).length)} pinned on their reason codes, ${String(skipped.length)} skipped — ${String(verified)} signature verifications in ${String(seconds)} s`);
 }
 
 // ── L4 — confrontation with other implementations ───────────────────

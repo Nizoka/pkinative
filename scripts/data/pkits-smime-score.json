@@ -1,0 +1,149 @@
+{
+  "$comment": "Reviewed score of the NIST PKITS S/MIME messages (conformance level L8): every message verified whole by verifySignedData against the L7 anchor, lists and instant. `notIntact` is claim (a) — a signer the CMS layer does not find intact; `pathDisagreements` is claim (b) — a message whose verdict, or whose chain reasons, differ from L7 on its signer's own test; `deviations` are messages whose verdict is not the one NIST expects. Keys are message names; `test` is the PKITS test the signer's certificate belongs to. Rescore with `npx tsx scripts/validate-certs.ts --update-baseline`, then WRITE every `why` by hand; the tool never fills one in, and an empty one fails the gate.",
+  "corpus": "pkits",
+  "commit": "592f66030d2eff80fced7ad022e197d96b7ee4ccce7da9df9c9b2007b1665665",
+  "canaries": {
+    "mustSucceed": "ValidSignaturesTest1",
+    "mustFail": "InvalidRevokedEETest3"
+  },
+  "totals": {
+    "messages": 224,
+    "intact": 221,
+    "scored": 204,
+    "agree": 195,
+    "deviations": 9,
+    "skipped": 20
+  },
+  "notIntact": {
+    "InvalidDSASignatureTest6": {
+      "reasons": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+      "why": "The message itself is signed with DSA (`id-dsa-with-sha1` over a SHA-1 digest), by a DSA end-entity key. Web Crypto implements no DSA, so `verifySignerInfoSignature` cannot put the question and reports `PKI_REASON_SIGNATURE_NOT_CHECKED` — never INVALID — and the signer is not intact. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript), so this closes only if a runtime grows DSA. It is not a CMS defect: the attributes, the digest and the signer certificate all check out, and the signature is the one question this platform cannot ask. With no signature checked there is no established signer certificate, so no chain is judged either. NIST expects this message to be refused because a certificate on its path carries a bad DSA signature; it is refused, but at the CMS layer and for SIGNATURE_NOT_CHECKED, one step before the path L7 refuses — so it counts as agreeing on the verdict and is pinned on the code that actually decides it."
+    },
+    "ValidDSAParameterInheritanceTest5": {
+      "reasons": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+      "why": "The message itself is signed with DSA (`id-dsa-with-sha1` over a SHA-1 digest), by a DSA end-entity key. Web Crypto implements no DSA, so `verifySignerInfoSignature` cannot put the question and reports `PKI_REASON_SIGNATURE_NOT_CHECKED` — never INVALID — and the signer is not intact. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript), so this closes only if a runtime grows DSA. It is not a CMS defect: the attributes, the digest and the signer certificate all check out, and the signature is the one question this platform cannot ask. With no signature checked there is no established signer certificate, so no chain is judged either. Here the signer's DSA key also inherits its parameters from its issuer, a shape only DSA has."
+    },
+    "ValidDSASignaturesTest4": {
+      "reasons": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+      "why": "The message itself is signed with DSA (`id-dsa-with-sha1` over a SHA-1 digest), by a DSA end-entity key. Web Crypto implements no DSA, so `verifySignerInfoSignature` cannot put the question and reports `PKI_REASON_SIGNATURE_NOT_CHECKED` — never INVALID — and the signer is not intact. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript), so this closes only if a runtime grows DSA. It is not a CMS defect: the attributes, the digest and the signer certificate all check out, and the signature is the one question this platform cannot ask. With no signature checked there is no established signer certificate, so no chain is judged either."
+    }
+  },
+  "deviations": {
+    "InvalidDNandRFC822nameConstraintsTest29": {
+      "test": "InvalidDNandRFC822nameConstraintsTest29",
+      "expected": "FAILURE",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 string preparation is what would make the excluded directoryName match the signer's subject; byte comparison does not match it, so the constraint does not fire and the message is accepted. The same missing comparison as the five name-chaining entries, in the accepting direction because a name that does not match is a name not excluded."
+    },
+    "ValidDSAParameterInheritanceTest5": {
+      "test": "ValidDSAParameterInheritanceTest5",
+      "expected": "SUCCESS",
+      "why": "DSA, twice over: L7 cannot check the DSA certificate signatures on the path, and here the CMS signature over the message is DSA too, so the message stops at the CMS layer with PKI_REASON_SIGNATURE_NOT_CHECKED (see notIntact) before any chain is judged. Web Crypto implements no DSA and pkinative implements no signature algorithm itself, so the verdict is the L7 one — refused — and it is not a gap that closes."
+    },
+    "ValidDSASignaturesTest4": {
+      "test": "ValidDSASignaturesTest4",
+      "expected": "SUCCESS",
+      "why": "DSA, twice over: L7 cannot check the DSA certificate signatures on the path, and here the CMS signature over the message is DSA too, so the message stops at the CMS layer with PKI_REASON_SIGNATURE_NOT_CHECKED (see notIntact) before any chain is judged. Web Crypto implements no DSA and pkinative implements no signature algorithm itself, so the verdict is the L7 one — refused — and it is not a gap that closes."
+    },
+    "ValidNameChainingCapitalizationTest5": {
+      "test": "ValidNameChainingCapitalizationTest5",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 matches distinguished names after LDAP string preparation; pkinative compares encoded bytes, as Go crypto/x509 and webpki do, so the signer's path does not chain and the message is refused with the path's own NO_TRUST_ANCHOR reasons. The direction of the miss is refusal."
+    },
+    "ValidNameChainingWhitespaceTest3": {
+      "test": "ValidNameChainingWhitespaceTest3",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 matches distinguished names after LDAP string preparation; pkinative compares encoded bytes, as Go crypto/x509 and webpki do, so the signer's path does not chain and the message is refused with the path's own NO_TRUST_ANCHOR reasons. The direction of the miss is refusal."
+    },
+    "ValidNameChainingWhitespaceTest4": {
+      "test": "ValidNameChainingWhitespaceTest4",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 matches distinguished names after LDAP string preparation; pkinative compares encoded bytes, as Go crypto/x509 and webpki do, so the signer's path does not chain and the message is refused with the path's own NO_TRUST_ANCHOR reasons. The direction of the miss is refusal."
+    },
+    "ValidRolloverfromPrintableStringtoUTF8StringTest10": {
+      "test": "ValidRolloverfromPrintableStringtoUTF8StringTest10",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 matches distinguished names after LDAP string preparation; pkinative compares encoded bytes, as Go crypto/x509 and webpki do, so the signer's path does not chain and the message is refused with the path's own NO_TRUST_ANCHOR reasons. The direction of the miss is refusal."
+    },
+    "ValidSelfIssuedinhibitAnyPolicyTest9": {
+      "test": "ValidSelfIssuedinhibitAnyPolicyTest9",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. The signer's path is refused with PKI_REASON_NO_VALID_POLICY where RFC 5280 §6.1.4 (h) and (j) exempt the self-issued certificate from spending inhibit_anyPolicy; L7 records it as the one suspected policy defect, and the message inherits it unchanged."
+    },
+    "ValidUTF8StringCaseInsensitiveMatchTest11": {
+      "test": "ValidUTF8StringCaseInsensitiveMatchTest11",
+      "expected": "SUCCESS",
+      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 matches distinguished names after LDAP string preparation; pkinative compares encoded bytes, as Go crypto/x509 and webpki do, so the signer's path does not chain and the message is refused with the path's own NO_TRUST_ANCHOR reasons. The direction of the miss is refusal."
+    }
+  },
+  "pathDisagreements": {},
+  "reasons": {
+    "InvalidBadCRLIssuerNameTest5": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidBadCRLSignatureTest4": "PKI_REASON_REVOCATION_UNKNOWN,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidBasicSelfIssuedCRLSigningKeyTest7": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidBasicSelfIssuedCRLSigningKeyTest8": "PKI_REASON_NOT_A_CA,PKI_REASON_NOT_A_CA",
+    "InvalidCASignatureTest2": "PKI_REASON_SIGNATURE_INVALID",
+    "InvalidCAnotAfterDateTest5": "PKI_REASON_EXPIRED",
+    "InvalidCAnotBeforeDateTest1": "PKI_REASON_NOT_YET_VALID",
+    "InvalidDNSnameConstraintsTest31": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDNSnameConstraintsTest33": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidDNandRFC822nameConstraintsTest28": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDNnameConstraintsTest10": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidDNnameConstraintsTest12": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidDSASignatureTest6": "PKI_REASON_SIGNATURE_NOT_CHECKED",
+    "InvalidEESignatureTest3": "PKI_REASON_SIGNATURE_INVALID",
+    "InvalidEEnotAfterDateTest6": "PKI_REASON_EXPIRED",
+    "InvalidEEnotBeforeDateTest2": "PKI_REASON_NOT_YET_VALID",
+    "InvalidIDPwithindirectCRLTest23": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidIDPwithindirectCRLTest26": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidLongSerialNumberTest18": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidMappingFromanyPolicyTest7": "PKI_REASON_POLICY_MAPPING_INVALID",
+    "InvalidMappingToanyPolicyTest8": "PKI_REASON_POLICY_MAPPING_INVALID",
+    "InvalidMissingbasicConstraintsTest1": "PKI_REASON_NOT_A_CA",
+    "InvalidNameChainingEETest1": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidNameChainingOrderTest2": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidNegativeSerialNumberTest15": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidOldCRLnextUpdateTest11": "PKI_REASON_REVOCATION_STALE,PKI_REASON_REVOCATION_STALE",
+    "InvalidPolicyMappingTest10": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidPolicyMappingTest2": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidRFC822nameConstraintsTest22": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidRFC822nameConstraintsTest24": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidRequireExplicitPolicyTest3": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidRequireExplicitPolicyTest5": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidRevokedEETest3": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidSelfIssuedinhibitAnyPolicyTest10": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedinhibitAnyPolicyTest8": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedpathLenConstraintTest16": "PKI_REASON_PATH_TOO_LONG",
+    "InvalidSelfIssuedrequireExplicitPolicyTest7": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidSelfIssuedrequireExplicitPolicyTest8": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidSeparateCertificateandCRLKeysTest20": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidURInameConstraintsTest35": "PKI_REASON_NAME_NOT_PERMITTED",
+    "InvalidURInameConstraintsTest37": "PKI_REASON_NAME_EXCLUDED",
+    "InvalidUnknownCRLEntryExtensionTest8": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidUnknownCRLExtensionTest9": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION,PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidUnknownCriticalCertificateExtensionTest2": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "InvalidWrongCRLTest6": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidcAFalseTest2": "PKI_REASON_NOT_A_CA",
+    "InvalidcAFalseTest3": "PKI_REASON_NOT_A_CA",
+    "InvalidcRLIssuerTest27": "PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidcRLIssuerTest31": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvaliddeltaCRLTest10": "PKI_REASON_REVOCATION_STALE,PKI_REASON_REVOCATION_STALE",
+    "InvaliddeltaCRLTest3": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvaliddistributionPointTest2": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvaliddistributionPointTest6": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidinhibitAnyPolicyTest1": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitAnyPolicyTest4": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitPolicyMappingTest1": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidinhibitPolicyMappingTest3": "PKI_REASON_NO_VALID_POLICY",
+    "InvalidkeyUsageCriticalcRLSignFalseTest4": "PKI_REASON_REVOCATION_UNKNOWN,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidkeyUsageCriticalkeyCertSignFalseTest1": "PKI_REASON_NOT_A_CA",
+    "InvalidkeyUsageNotCriticalcRLSignFalseTest5": "PKI_REASON_REVOCATION_UNKNOWN,PKI_REASON_REVOCATION_UNKNOWN",
+    "InvalidkeyUsageNotCriticalkeyCertSignFalseTest2": "PKI_REASON_NOT_A_CA",
+    "InvalidonlySomeReasonsTest15": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidonlySomeReasonsTest16": "PKI_REASON_REVOKED,PKI_REASON_REVOKED",
+    "InvalidpathLenConstraintTest10": "PKI_REASON_PATH_TOO_LONG",
+    "InvalidpathLenConstraintTest11": "PKI_REASON_PATH_TOO_LONG",
+    "Invalidpre2000CRLnextUpdateTest12": "PKI_REASON_REVOCATION_STALE,PKI_REASON_REVOCATION_STALE",
+    "Invalidpre2000UTCEEnotAfterDateTest7": "PKI_REASON_EXPIRED",
+    "MissingCRLTest1": "PKI_REASON_REVOCATION_UNKNOWN"
+  }
+}

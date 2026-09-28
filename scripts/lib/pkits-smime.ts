@@ -16,8 +16,22 @@
  * splitter that canonicalised the whole file to CRLF first would hash an extra
  * octet and report every one of the 224 signatures as a digest mismatch.
  *
+ * ## Which test a message belongs to
+ *
+ * **The signer says, not the file name.** The message names are close to the
+ * certificate names and not equal to them: `SignedMissingCRLTest1.eml` belongs
+ * to `InvalidMissingCRLTest1EE.crt`, `SignedValidSignaturesTest1.eml` and
+ * `SignedAllCertificatesSamePolicyTest1.eml` both to
+ * `ValidCertificatePathTest1EE.crt`, and fourteen more differ in case or in a
+ * word. A hand-written table of those pairs would be a transcription of the
+ * archive; the `SignerIdentifier` inside each message already names the
+ * certificate that signed it, so the link is read from there, and a message
+ * whose signer matches no end-entity certificate — or two — fails the gate.
+ *
  * @module scripts/lib/pkits-smime
  */
+
+import type * as Pki from '../../src/index.js';
 
 /** One signed message, taken apart. */
 export interface PkitsSignedMessage {
@@ -76,4 +90,77 @@ function afterLineBreak(text: string, from: number): number {
 function beforeLineBreak(text: string, at: number): number {
     if (text[at - 1] !== '\n') return at;
     return text[at - 2] === '\r' ? at - 2 : at - 1;
+}
+
+// ── Scoring ──────────────────────────────────────────────────────────
+
+/**
+ * The PKITS tests whose end-entity certificate the signer names.
+ *
+ * `issuerAndSerialNumber` is matched on the encoded issuer and the serial's
+ * content octets, never on a rendering; `subjectKeyIdentifier` on the
+ * certificate's own extension. Exactly one match is the only answer the
+ * runner accepts — none means the message is signed by a certificate PKITS
+ * does not ship as a test, two that the link is ambiguous.
+ *
+ * @param pki   The built package.
+ * @param sid   The signer's identifier, as `parseSignedData` read it.
+ * @param tests The end-entity certificates, by test name (`readPkits`).
+ * @returns Every matching test name, in the map's order.
+ */
+export function testsOfSigner(pki: typeof Pki, sid: Pki.SignerIdentifier, tests: ReadonlyMap<string, Pki.Certificate>): string[] {
+    const matches: string[] = [];
+    for (const [name, certificate] of tests) {
+        const hit = sid.kind === 'issuerAndSerialNumber'
+            ? sameBytes(certificate.issuer.der, sid.issuer.der) && sameBytes(certificate.serialNumber.bytes, sid.serialNumber.bytes)
+            : sameBytes(pki.getExtension(certificate, 'subjectKeyIdentifier')?.keyIdentifier, sid.keyIdentifier);
+        if (hit) matches.push(name);
+    }
+    return matches;
+}
+
+/** Where a reason came from: the signer itself, or the chain of its certificate. */
+export type ReasonLayer = 'cms' | 'chain';
+
+/**
+ * Which layer of `verifySignedData` raised a reason, read from its path.
+ *
+ * `verifySignedData` puts every reason of a signer's chain under
+ * `signerInfos[i].chain`; everything else about a signer — its attributes,
+ * its algorithms, the digest, the signature, the certificate it committed to —
+ * is the CMS layer. The distinction is the whole of L8's first claim: the CMS
+ * layer must find every PKITS message intact, whatever its path says.
+ *
+ * @param path A `PkiReason.path` from a `VerifySignedDataReport`.
+ * @returns `'chain'` for a reason under a signer's chain, `'cms'` otherwise.
+ */
+export function reasonLayer(path: string): ReasonLayer {
+    return /^signerInfos\[\d+\]\.chain(?:[.[]|$)/.test(path) ? 'chain' : 'cms';
+}
+
+/**
+ * The chain reasons of a message that the path verdict of its own test does
+ * not give.
+ *
+ * L8's second claim is that a message is refused **for a reason its path is
+ * refused for**. The comparison is on the *set* of codes, not on the list,
+ * for two measured reasons: the candidate bag L7 hands the path builder holds
+ * cross-certificates a message does not carry, so a path search there can
+ * record a `PKI_REASON_SIGNATURE_INVALID` detour a message never takes; and a
+ * list supplied twice — carried by the message and supplied by the caller —
+ * is reported twice. Neither changes what the verdict is about.
+ *
+ * @param message The codes of the message's chain reasons, in any order.
+ * @param path    The codes L7 measured for the linked test.
+ * @returns Each code the message gives and the path does not, once, sorted.
+ */
+export function reasonsBeyondPath(message: readonly string[], path: readonly string[]): string[] {
+    const known = new Set(path);
+    return [...new Set(message)].filter((code) => !known.has(code)).sort();
+}
+
+function sameBytes(a: Uint8Array | undefined, b: Uint8Array): boolean {
+    if (a?.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
 }

@@ -108,7 +108,10 @@
       "commit": "592f66030d2eff80fced7ad022e197d96b7ee4ccce7da9df9c9b2007b1665665",
       "certificates": 405,
       "tests": 223,
-      "agree": 194
+      "agree": 194,
+      "messages": 224,
+      "messagesIntact": 221,
+      "messagesAgree": 195
     }
   }
 }

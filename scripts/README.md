@@ -38,7 +38,7 @@ is swallowed before `npm run gate` sees it.
 | `verify-docs.ts` | `verify:docs` | yes | 52 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
-| `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L4 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
+| `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
 | `fetch-corpora.ts` | `conformance:fetch` | — | Downloads x509-limbo and Wycheproof at their pinned commits, refusing any file whose SHA-256 differs | 0/1/2 |
 | `release-prepare.ts` | — | — | The mechanical half of a version bump: 18 fields across 9 files, plus the release-note and pull-request-body scaffolds. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
@@ -64,6 +64,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `corpora.ts` | The corpus pins, their checksum paths and their local directories |
 | `raw-der.ts` | An engine-independent DER walker: the conformance gate's second opinion, which never imports `src/` |
 | `validators.ts` | The cross-implementation confrontation of level L4, its blob format and its canaries |
+| `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |
 
 ## Conventions
