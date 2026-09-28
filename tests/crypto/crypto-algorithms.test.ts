@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
-import { coordinateBytes, resolveAlgorithm } from '../../src/crypto/crypto-algorithms.js';
+import { _cmsAlgorithmProblem, coordinateBytes, resolveAlgorithm, resolveCmsAlgorithm } from '../../src/crypto/crypto-algorithms.js';
 import { PkiCryptoError } from '../../src/types/pki-errors.js';
 import type { AlgorithmIdentifier, SubjectPublicKeyInfo } from '../../src/types/x509-types.js';
 import { algorithm, nullValue, oid } from '../helpers/cert-builder.js';
@@ -189,5 +189,97 @@ describe('the OID table', () => {
             expect(error).toBeInstanceOf(PkiCryptoError);
             expect((error as PkiCryptoError).algorithm).toBe('1.2.3.4');
         }
+    });
+});
+
+// ── CMS (RFC 5652 §5.3, RFC 8933) ────────────────────────────────────
+
+const SHA1 = '1.3.14.3.2.26';
+const SHA384 = '2.16.840.1.101.3.4.2.2';
+const SHA512 = '2.16.840.1.101.3.4.2.3';
+const SHA224 = '2.16.840.1.101.3.4.2.4';
+const RSA_ENCRYPTION = '1.2.840.113549.1.1.1';
+const MGF1 = '1.2.840.113549.1.1.8';
+
+/** Full RSASSA-PSS-params over one hash, MGF1 over the same hash, as a conforming CMS signer writes them. */
+const pssParams = (hash: string, salt: number): Uint8Array =>
+    sequence(tagged(0, algorithm(hash)), tagged(1, algorithm(MGF1, algorithm(hash))), tagged(2, universal(2, [salt])));
+
+describe('_cmsAlgorithmProblem', () => {
+    it.each([
+        ['rsaEncryption, the hash taken from digestAlgorithm (RFC 3370 §3.2)', SHA256, identifier(RSA_ENCRYPTION, nullValue())],
+        ['sha256WithRSAEncryption over SHA-256', SHA256, identifier('1.2.840.113549.1.1.11', nullValue())],
+        ['sha1WithRSAEncryption over SHA-1 — consistent, refused later as SHA-1', SHA1, identifier('1.2.840.113549.1.1.5', nullValue())],
+        ['ecdsa-with-SHA384 over SHA-384 (RFC 5753 §2.1.1)', SHA384, identifier('1.2.840.10045.4.3.3')],
+        ['RSASSA-PSS whose hash is the digest (RFC 4056 §3)', SHA256, identifier(PSS, pssParams(SHA256, 32))],
+        ['RSASSA-PSS with an empty SEQUENCE over a SHA-1 digest — the DEFAULTs are SHA-1', SHA1, identifier(PSS, sequence())],
+        ['Ed25519 over SHA-512 (RFC 8419 §3.1)', SHA512, identifier('1.3.101.112')],
+    ])('should accept %s', (_what, digest, signature) => {
+        expect(_cmsAlgorithmProblem(identifier(digest), signature)).toBeNull();
+    });
+
+    it.each([
+        ['md5WithRSAEncryption', identifier(SHA256), identifier('1.2.840.113549.1.1.4', nullValue())],
+        ['an MD5 digestAlgorithm', identifier('1.2.840.113549.2.5', nullValue()), identifier(RSA_ENCRYPTION, nullValue())],
+        ['id-ecPublicKey as the signature algorithm', identifier(SHA256), identifier('1.2.840.10045.2.1')],
+        ['sha256WithRSAEncryption over a SHA-384 digest', identifier(SHA384), identifier('1.2.840.113549.1.1.11', nullValue())],
+        ['ecdsa-with-SHA384 over a SHA-256 digest', identifier(SHA256), identifier('1.2.840.10045.4.3.3')],
+        ['RSASSA-PSS without parameters (RFC 4056 §2.2)', identifier(SHA256), identifier(PSS)],
+        ['RSASSA-PSS with an empty SEQUENCE — SHA-1 — over a SHA-256 digest', identifier(SHA256), identifier(PSS, sequence())],
+        ['RSASSA-PSS over SHA-384 with a SHA-256 digest', identifier(SHA256), identifier(PSS, pssParams(SHA384, 48))],
+        ['Ed25519 over a SHA-256 digest', identifier(SHA256), identifier('1.3.101.112')],
+        ['a digestAlgorithm whose parameters are neither absent nor NULL', identifier(SHA256, oid('1.2.3')), identifier(RSA_ENCRYPTION, nullValue())],
+    ])('should name the problem with %s', (_what, digest, signature) => {
+        expect(_cmsAlgorithmProblem(digest, signature)).not.toBeNull();
+    });
+
+    it('should treat absent and NULL SHA-2 parameters as the same algorithm (RFC 5754 §2)', () => {
+        const signature = identifier('1.2.840.10045.4.3.2');
+        expect(_cmsAlgorithmProblem(identifier(SHA256), signature)).toBeNull();
+        expect(_cmsAlgorithmProblem(identifier(SHA256, nullValue()), signature)).toBeNull();
+    });
+
+    it('should not mistake a NULL with content octets for NULL', () => {
+        // Strict DER cannot produce one; BER, or a hand-built value, can.
+        const digest: AlgorithmIdentifier = { ...identifier(SHA256), parameters: { ...decodeAsn1(nullValue()), contentLength: 1 } };
+        expect(_cmsAlgorithmProblem(digest, identifier(RSA_ENCRYPTION, nullValue()))).not.toBeNull();
+    });
+
+    it.each([
+        ['a digest Web Crypto does not compute (SHA-224)', SHA224, identifier('1.2.840.113549.1.1.14', nullValue())],
+        ['DSA, which Web Crypto does not run', SHA256, identifier('2.16.840.1.101.3.4.3.2')],
+        ['Ed448, whose CMS digest is SHAKE256', SHA512, identifier('1.3.101.113')],
+        ['RSASSA-PSS parameters Web Crypto cannot express', SHA256, identifier(PSS, sequence(tagged(0, algorithm(SHA256))))],
+    ])('should leave %s to resolution: unsupported is not inconsistent', (_what, digest, signature) => {
+        expect(_cmsAlgorithmProblem(identifier(digest), signature)).toBeNull();
+    });
+});
+
+describe('resolveCmsAlgorithm', () => {
+    it('should map rsaEncryption to PKCS#1 v1.5 over the digestAlgorithm', () => {
+        const resolved = resolveCmsAlgorithm(identifier(SHA384, nullValue()), identifier(RSA_ENCRYPTION, nullValue()), RSA_KEY);
+        expect(resolved?.importParams).toEqual({ name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-384' } });
+        expect(resolved?.verifyParams).toEqual({ name: 'RSASSA-PKCS1-v1_5' });
+        expect(resolved?.hash).toBe('SHA-384');
+    });
+
+    it('should return null for rsaEncryption against a key that is not RSA', () => {
+        expect(resolveCmsAlgorithm(identifier(SHA256), identifier(RSA_ENCRYPTION, nullValue()), EC_KEY('P-256'))).toBeNull();
+    });
+
+    it('should refuse rsaEncryption over a digest Web Crypto does not compute', () => {
+        expect(() => resolveCmsAlgorithm(identifier(SHA224), identifier(RSA_ENCRYPTION, nullValue()), RSA_KEY))
+            .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+    });
+
+    it('should refuse Ed448, whose CMS digest is SHAKE256', () => {
+        expect(() => resolveCmsAlgorithm(identifier(SHA512), identifier('1.3.101.113'), ED_KEY('ed448')))
+            .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', algorithm: '1.3.101.113' }));
+    });
+
+    it('should resolve a combined OID through the X.509 table', () => {
+        const resolved = resolveCmsAlgorithm(identifier(SHA256), identifier('1.2.840.10045.4.3.2'), EC_KEY('P-256'));
+        expect(resolved?.verifyParams).toEqual({ name: 'ECDSA', hash: { name: 'SHA-256' } });
+        expect(resolved?.curve).toBe('P-256');
     });
 });

@@ -11,12 +11,17 @@
  * (RFC 4055 §3.1), so its hash and salt length are read out of the
  * certificate — the one place this layer touches ASN.1.
  *
+ * CMS reads the same table with two differences (RFC 5652 §5.3): a signer
+ * names its digest separately, and may name the bare key algorithm
+ * `rsaEncryption` as its signature algorithm. The CMS entry points below add
+ * exactly that, and the check that the two named hashes agree.
+ *
  * @module crypto/crypto-algorithms
  */
 
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
-import { TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
@@ -237,6 +242,121 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
     if (key.kind !== shape.family) return null;
     const name = shape.family === 'ed25519' ? 'Ed25519' : 'Ed448';
     return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined };
+}
+
+// ── The same table, under CMS (0.7) ──────────────────────────────────
+
+/**
+ * `rsaEncryption`, the key OID. RFC 3370 §3.2 makes it a MUST as a CMS
+ * *signature* algorithm, with the hash taken from `digestAlgorithm` — it is
+ * what OpenSSL and most PDF signers write, so a verifier built on the X.509
+ * table alone would refuse the commonest CMS signature there is.
+ */
+const RSA_ENCRYPTION = '1.2.840.113549.1.1.1';
+const ID_EC_PUBLIC_KEY = '1.2.840.10045.2.1';
+const ID_ED448 = '1.3.101.113';
+
+/** `md5WithRSAEncryption` and `id-md5`: refused as inconsistent, never reported as merely unsupported. */
+const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1.4', '1.2.840.113549.2.5']);
+
+/** RFC 5754 §2: a SHA-2 AlgorithmIdentifier's parameters are absent or NULL, and the two are the same algorithm. */
+const hasNoHashParameters = (parameters: Asn1Node | undefined): boolean =>
+    parameters === undefined || (parameters.tagClass === 'universal' && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0);
+
+/**
+ * Whether a SignerInfo's two algorithms contradict each other — or name one
+ * pkinative refuses outright — and if so, why.
+ *
+ * A CMS signer names up to three hashes (RFC 5652 §5.3): `digestAlgorithm`,
+ * the one built into `signatureAlgorithm`, and the one inside RSASSA-PSS
+ * parameters. Only `digestAlgorithm` is used for the content and the signed
+ * attributes (RFC 8933 §3), so a signature algorithm that names another hash
+ * describes a computation that did not happen; accepting it would let the
+ * unsigned `digestAlgorithm` field be rewritten under a valid signature.
+ *
+ * `null` does not mean *supported*. DSA, Ed448, SHA-224 and unknown OIDs are
+ * not inconsistent, they are outside what Web Crypto runs, and
+ * {@link resolveCmsAlgorithm} says so by throwing. Keeping the two answers
+ * apart is what lets a report distinguish "this signer is wrong" from "this
+ * signer could not be checked here".
+ *
+ * @internal
+ * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
+ * @param signatureAlgorithm The SignerInfo's `signatureAlgorithm`.
+ * @returns One English clause naming the inconsistency, or `null`.
+ * @throws Never — a PSS parameter set too malformed to read is left to the
+ *   resolver, which reports it with a code.
+ */
+export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier): string | null {
+    if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
+        return 'MD5 is refused: its collisions have been practical since 2004';
+    }
+    if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
+        return 'id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm';
+    }
+
+    const digest = HASH_BY_OID.get(digestAlgorithm.oid);
+    if (digest === undefined) return null;
+    if (!hasNoHashParameters(digestAlgorithm.parameters)) {
+        return `the ${digest} digestAlgorithm carries parameters, where RFC 5754 §2 allows only absent or NULL`;
+    }
+    if (signatureAlgorithm.oid === RSA_ENCRYPTION) return null;
+
+    const shape = SIGNATURE_BY_OID.get(signatureAlgorithm.oid);
+    if (shape === undefined) return null;
+
+    if (shape.family === 'rsa-pkcs1' || shape.family === 'ecdsa') {
+        return shape.hash === digest ? null : `${signatureAlgorithm.oid} signs over ${shape.hash}, but the digestAlgorithm is ${digest}`;
+    }
+    if (shape.family === 'rsa-pss') {
+        // RFC 4056 §2.2: mandatory in CMS. An absent field is not "whatever
+        // the key says" — reading it that way picks parameters nobody signed.
+        if (signatureAlgorithm.parameters === undefined) return 'RSASSA-PSS without parameters, which RFC 4056 §2.2 makes mandatory in CMS';
+        let pssHash: string;
+        try {
+            // An empty SEQUENCE is legal and means the RFC 4055 defaults —
+            // SHA-1 — so it is consistent only with a SHA-1 digest.
+            pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
+        } catch {
+            return null;
+        }
+        return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
+    }
+    if (shape.family === 'ed25519') {
+        return digest === 'SHA-512' ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 §3.1), not ${digest}`;
+    }
+    return null;
+}
+
+/**
+ * Resolve a SignerInfo's algorithm pair and the signer's key into the Web
+ * Crypto parameters, as {@link resolveAlgorithm} does for a certificate.
+ *
+ * It maps; it does not judge. Call {@link _cmsAlgorithmProblem} first — this
+ * resolves `ecdsa-with-SHA384` whatever `digestAlgorithm` says.
+ *
+ * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
+ * @param signatureAlgorithm The SignerInfo's `signatureAlgorithm`.
+ * @param key The signer certificate's `subjectPublicKeyInfo`.
+ * @returns The import and verify parameters, or `null` when this key cannot
+ *   have signed under this algorithm.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for Ed448 (its
+ *   CMS digest is SHAKE256), for `rsaEncryption` over a digest Web Crypto
+ *   does not compute, and wherever {@link resolveAlgorithm} throws it;
+ *   `PKI_CRYPTO_KEY_UNSUPPORTED` as {@link resolveAlgorithm}.
+ * @throws {PkiEncodingError} When the signature algorithm's parameters are
+ *   malformed DER.
+ */
+export function resolveCmsAlgorithm(digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier, key: SubjectPublicKeyInfo): ResolvedAlgorithm | null {
+    if (signatureAlgorithm.oid === ID_ED448) {
+        throw unsupported('an Ed448 CMS signer digests with SHAKE256 (RFC 8419 §3.1), which neither Web Crypto nor pkinative computes', ID_ED448);
+    }
+    if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
+
+    const hash = HASH_BY_OID.get(digestAlgorithm.oid);
+    if (hash === undefined) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
+    if (!isRsaKey(key)) return null;
+    return { family: 'rsa-pkcs1', importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: hash } }, verifyParams: { name: 'RSASSA-PKCS1-v1_5' }, curve: undefined, hash };
 }
 
 /** The curve of an ECDSA signature's r and s, in bytes — P-521 is 66, not 65. */
