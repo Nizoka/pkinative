@@ -319,6 +319,20 @@ describe('parseOcspResponse — extensions and every structural refusal', () => 
         expect(response.basicResponse?.extensions[0]?.oid).toBe('1.3.6.1.5.5.7.48.1.2');
     });
 
+    it('should decode a recognised extension in place, as the CRL parser learned to', () => {
+        // The nonce is unknown to the certificate extension reader, so it is
+        // never decoded and never exercises the decoding path. A recognised one
+        // is — here extKeyUsage — and the reader must be handed a view that ends
+        // where the extnValue ends, starting at the value's content. Handed the
+        // whole response and the Extension's own offset, it reads the SEQUENCE
+        // header as the value and refuses a well-formed response: the defect
+        // that once made the CRL parser refuse every list with such an extension.
+        const eku = sequence(universal(6, [0x55, 0x1d, 0x25]), universal(4, [...sequence(universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x09]))]));
+        const tbs = tbsOf(BY_KEY, gen('20260501000000Z'), sequence(single()), tlv(2, true, 1, sequence(eku)));
+        const response = parseOcspResponse(basicOf(tbs, ALG_ED25519, SIG), quiet);
+        expect(response.basicResponse?.extensions[0]).toMatchObject({ kind: 'extendedKeyUsage', oid: '2.5.29.37' });
+    });
+
     it('should read singleExtensions on one answer', () => {
         const withExtensions = sequence(CERT_ID, tlv(2, false, 0, new Uint8Array(0)), gen('20260501000000Z'), tlv(2, true, 1, sequence(nonceExtension)));
         const tbs = tbsOf(BY_KEY, gen('20260501000000Z'), sequence(withExtensions));

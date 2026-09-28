@@ -349,8 +349,16 @@ function readExtensions(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
             throw ocspError(where, entry.offset, 'is not an Extension');
         }
         const criticalNode = node.children.length === 3 ? node.children[1] : undefined;
+        // In place, from a view that ends where the extnValue ends, starting at
+        // its content — the only way the reader can tell trailing octets inside
+        // the value from a well-formed one. The CRL parser shipped this wrong in
+        // 0.5 and refused every list carrying a recognised extension; this
+        // reader had the same mistake, hidden because the extension an OCSP
+        // response usually carries — the nonce — is one the certificate reader
+        // does not recognise and so never decodes.
+        const start = valueNode.offset + valueNode.headerLength;
         out.push(_decodeExtension(
-            der, entry.offset,
+            der.subarray(0, start + valueNode.contentLength), start,
             readObjectIdentifier(oidNode),
             criticalNode !== undefined && criticalNode.content[0] !== 0x00,
             valueNode.content,
