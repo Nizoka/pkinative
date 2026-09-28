@@ -257,9 +257,18 @@ function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1
         if (oidNode === undefined || valueNode === undefined || node.children.length < 2) {
             throw crlError(where, entry.offset, 'is not an Extension');
         }
+        // `_decodeExtension` decodes the value **in place**, from a buffer that
+        // ends where the value ends: that is how it can tell a value with
+        // trailing octets inside its extnValue from a well-formed one. So it
+        // takes the offset of the extnValue's *content* and a view trimmed to
+        // its end — exactly what the certificate parser hands it. Passing the
+        // Extension SEQUENCE's own offset and the whole CRL instead made every
+        // recognised extension look like garbage followed by the rest of the
+        // file, which refused every CRL carrying one.
+        const start = valueNode.offset + valueNode.headerLength;
         out.push(_decodeExtension(
-            der,
-            entry.offset,
+            der.subarray(0, start + valueNode.contentLength),
+            start,
             readObjectIdentifier(oidNode),
             criticalNode !== undefined && criticalNode.content[0] !== 0x00,
             valueNode.content,

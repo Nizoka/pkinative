@@ -30,8 +30,14 @@ const int = (...bytes: readonly number[]): Uint8Array => universal(2, bytes);
 const entry = (serial: readonly number[], date = '260601000000Z', ...extensions: readonly Uint8Array[]): Uint8Array =>
     sequence(int(...serial), utc(date), ...(extensions.length === 0 ? [] : [sequence(...extensions)]));
 
-const extension = (oid: readonly number[], value: Uint8Array, critical?: boolean): Uint8Array =>
-    sequence(universal(6, oid), ...(critical === undefined ? [] : [universal(1, [critical ? 0xff : 0x00])]), universal(4, value));
+const extension = (oid: readonly number[], value: Uint8Array, critical?: boolean, trailing?: readonly number[]): Uint8Array =>
+    sequence(
+        universal(6, oid),
+        ...(critical === undefined ? [] : [universal(1, [critical ? 0xff : 0x00])]),
+        // `trailing` puts octets INSIDE extnValue behind the value, which is
+        // the one thing the in-place decoder exists to catch.
+        universal(4, trailing === undefined ? value : Uint8Array.from([...value, ...trailing])),
+    );
 
 interface CrlParts {
     readonly version?: Uint8Array | null;
@@ -147,6 +153,35 @@ describe('parseCertificateList', () => {
         const list = parseCertificateList(sequence(tbs, ALG, universal(3, [])), quiet);
         expect(list.signatureValue.unusedBits).toBe(0);
         expect(list.signatureValue.bytes).toHaveLength(0);
+    });
+
+    it('should decode an extension it recognises, in place', () => {
+        // Every CRL in the wild carries an authorityKeyIdentifier, and this is
+        // the first test here to use an extension pkinative actually *decodes*
+        // — cRLNumber and the delta marker above are read from their raw value
+        // and never reach the decoder table, which is why the defect this locks
+        // survived a whole suite.
+        //
+        // `_decodeExtension` decodes the value in place and refuses trailing
+        // octets inside extnValue, so it needs the offset of the value's
+        // content and a view that ends where the value ends. Handed the
+        // Extension SEQUENCE's own offset and the whole CRL instead, it read
+        // the SEQUENCE as the value and saw the rest of the file behind it —
+        // which refused **every CRL carrying a recognised extension**.
+        const keyIdentifier = tlv(2, false, 0, [0xde, 0xad, 0xbe, 0xef]);
+        const aki = crl({ crlExtensions: [extension([0x55, 0x1d, 0x23], sequence(keyIdentifier))] });
+        const list = parseCertificateList(aki, quiet);
+        expect(list.extensions).toHaveLength(1);
+        expect(list.extensions[0]).toMatchObject({ kind: 'authorityKeyIdentifier', oid: '2.5.29.35', critical: false });
+        expect(Array.from((list.extensions[0] as { keyIdentifier?: Uint8Array }).keyIdentifier ?? [])).toEqual([0xde, 0xad, 0xbe, 0xef]);
+    });
+
+    it('should still refuse an extension value with octets behind it', () => {
+        // The check the fix above must not have disabled: an extnValue holding
+        // its value *and* something else is two readings of one field.
+        const trailing = crl({ crlExtensions: [extension([0x55, 0x1d, 0x23], sequence(tlv(2, false, 0, [0x01])), undefined, [0x05, 0x00])] });
+        expect(() => parseCertificateList(trailing, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_EXTENSION_MALFORMED' }));
     });
 
     it('should accept an empty crlExtensions field', () => {

@@ -33,25 +33,28 @@
  * id with no `why` fails the gate. A baseline a tool can rewrite unattended is a
  * baseline that silently absorbs regressions.
  *
- * ## Every reachable pair is verified, and a lazier scheme was tried and rejected
+ * ## It scores the call callers make
  *
- * `validateCertificatePath` takes verdicts precomputed — that is what keeps §6
- * synchronous — so a scorer must verify pairs before it knows which ones the
- * path will use. That costs tens of thousands of public-key operations over the
- * corpus, and the obvious saving is a fixpoint: build with what is known, verify
- * the links of the path the builder reports, build again.
+ * This runner composes nothing. It unwraps PEM, translates the corpus's
+ * vocabulary into the library's — `validation_kind` into a key purpose,
+ * `max_chain_depth` into a chain-length bound — and hands the whole question to
+ * `verifyCertificateChain`. A harness that arranged the primitives itself would
+ * score an arrangement that ships in no package, and the arrangement is exactly
+ * the part a caller is most likely to get wrong.
  *
- * **It is wrong, and it was measured being wrong.** When no verdict is known
- * every path fails identically, so the report is the *deepest* attempt, which is
- * often a decoy — and once the decoy's links are verified and found invalid it
- * is still the deepest attempt. The good path's links are never asked about, and
- * the loop stalls on a chain it should have accepted: 15 cases the corpus expects
- * to succeed were refused that way.
+ * It cost the signature cache an earlier version kept: the layer verifies each
+ * pair afresh, which is roughly a fifth more work here because the corpus reuses
+ * its roots and almost never reuses a leaf. Paying it buys a number that is a
+ * claim about the shipped entry point.
  *
- * So every pair the builder could use is verified up front. "Could use" is not
- * "exists": the builder only walks name chains **from the leaf**, so the bag is
- * first reduced to the certificates reachable that way, which prunes a large
- * trust store without changing a single verdict.
+ * **A lazier scheme was tried and measured being wrong**, and it is recorded
+ * because the idea is a natural one. §6 takes verdicts precomputed, so something
+ * must verify pairs before knowing which the path will use; the obvious saving
+ * is a fixpoint — verify only the links of the path the builder reports, then
+ * build again. When no verdict is known every path fails identically, so the
+ * report is the *deepest* attempt, which is often a decoy, and once the decoy is
+ * known invalid it is still the deepest. The good path's links are never asked
+ * about. Fifteen cases the corpus expects to succeed were refused that way.
  *
  * @module scripts/lib/limbo-score
  */
@@ -106,7 +109,6 @@ const EKU_BY_NAME: Readonly<Record<string, string>> = Object.freeze({
 });
 
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
-const hex = (bytes: Uint8Array): string => Buffer.from(bytes).toString('hex');
 
 /**
  * Parsed certificates and signature verdicts, reused across every case.
@@ -196,146 +198,65 @@ export async function scoreCase(pki: typeof Pki, test: LimboScoreCase, cache: Sc
     // `validation_time: null` means "now", which the corpus uses for cases whose
     // certificates have an open-ended window.
     const at = test.validation_time === null ? Date.now() : Date.parse(test.validation_time);
-    const all = [leaf, ...intermediates, ...anchors];
-
-    const verdictFor = async (subject: Pki.Certificate, issuer: Pki.Certificate): Promise<Pki.SignatureResult> => {
-        const key = `${sha(subject.der)}|${sha(issuer.der)}`;
-        let held = cache.signatures.get(key);
-        if (held === undefined) {
-            cache.verifications += 1;
-            try {
-                held = { verdict: await pki.verifyCertificateSignature(subject, issuer) ? 'valid' : 'invalid' };
-            } catch (error) {
-                const { code, message } = error as { code?: string; message?: string };
-                held = { verdict: 'not-checked', errorCode: code ?? 'PKI_CRYPTO_UNAVAILABLE', detail: message ?? '' };
-            }
-            cache.signatures.set(key, held);
-        }
-        // The issuer is named on every result: two candidates sharing a subject
-        // name is what this corpus is full of, and a verdict that does not say
-        // which issuer it is about cannot decide between them.
-        return { certificate: subject, issuer, ...held };
-    };
 
     // x509-limbo's `max_chain_depth` counts logical intermediates; a chain is
     // the leaf, those intermediates and the anchor.
     const limits = test.max_chain_depth === null
         ? { maxPathsExplored: 200 }
         : { maxPathsExplored: 200, maxChainLength: test.max_chain_depth + 2 };
-    const wantedPurposes = test.extended_key_usage.length > 0
+
+    // Which purpose the chain has to serve. The corpus states it twice over: in
+    // `extended_key_usage` for the 14 cases that name one, and in
+    // `validation_kind` for every case, where SERVER means *validate this as a
+    // TLS server certificate* and therefore serverAuth. Reading the second is
+    // not an assumption of this harness — it is the field by which x509-limbo
+    // records what a validation is for, and the bettertls suites it imports
+    // wrote their FAILURE verdicts with purpose chaining enforced.
+    const purposes = test.extended_key_usage.length > 0
         ? test.extended_key_usage.map((name) => EKU_BY_NAME[name] ?? name)
         : [test.validation_kind === 'CLIENT' ? '1.3.6.1.5.5.7.3.2' : '1.3.6.1.5.5.7.3.1'];
 
-    // Index the bag by encoded subject name, then keep only what a name chain
-    // from the leaf can reach. The builder walks nothing else, so a pair outside
-    // this closure could not change an answer — and a trust store of hundreds is
-    // reduced to the handful that name the right subjects.
-    const bySubject = new Map<string, Pki.Certificate[]>();
-    for (const candidate of all) {
-        const key = hex(candidate.subject.der);
-        bySubject.set(key, [...(bySubject.get(key) ?? []), candidate]);
-    }
-    const signatures: Pki.SignatureResult[] = [];
-    const walked = new Set<Pki.Certificate>();
-    const queue: Pki.Certificate[] = [leaf];
-    while (queue.length > 0) {
-        const subject = queue.pop() as Pki.Certificate;
-        if (walked.has(subject)) continue;
-        walked.add(subject);
-        for (const issuer of bySubject.get(hex(subject.issuer.der)) ?? []) {
-            // A self-signed certificate is not a link to verify: §6 does not
-            // check a trust anchor's own signature, and following the edge would
-            // loop.
-            if (issuer === subject) continue;
-            signatures.push(await verdictFor(subject, issuer));
-            queue.push(issuer);
-        }
-    }
+    // The host name, when the corpus names one. An IPv6 literal is skipped
+    // rather than guessed: `ServerIdentity` takes octets, and turning text into
+    // them is a parse this runner has no business doing on the library's behalf.
+    const wanted = test.expected_peer_name;
+    const identity: Pki.ServerIdentity | null = wanted === null
+        ? null
+        : wanted.kind === 'DNS'
+            ? { kind: 'dns', value: wanted.value }
+            : ((bytes) => bytes === null ? null : { kind: 'ip' as const, value: bytes })(ipBytes(wanted.value));
 
-    const report = pki.buildCertificatePath({
-        leaf, candidates: intermediates, trustAnchors: anchors, at, signatures, limits,
-        requiredPurposes: wantedPurposes,
-    });
-    const reasons = report.reasons.map((reason) => reason.code);
-
-    // Revocation is a separate question from §6, asked the way a caller would.
+    // CRLs as DER, which is what the library takes: the runner unwraps the PEM
+    // and stops there. A list it cannot even unwrap is dropped, because a
+    // corpus case carrying an unreadable envelope is not asking a question
+    // about revocation.
+    const crls: Uint8Array[] = [];
     for (const pem of test.crls) {
-        let blocks;
         try {
-            blocks = pki.decodePem(pem, { label: 'X509 CRL', mode: 'lax', ...quiet });
+            for (const block of pki.decodePem(pem, { label: 'X509 CRL', mode: 'lax', ...quiet })) crls.push(block.bytes);
         } catch {
             continue;
         }
-        for (const block of blocks) {
-            let crl;
-            try {
-                crl = pki.parseCertificateList(block.bytes, quiet);
-            } catch (error) {
-                return { kind: 'unparsed', code: (error as { code?: string }).code ?? 'PKI_X509_STRUCTURE_INVALID' };
-            }
-            // The list is only evidence if a key entitled to sign it did.
-            let signatureVerified: boolean | undefined;
-            for (const candidate of all) {
-                if (hex(crl.issuer.der) !== hex(candidate.subject.der)) continue;
-                try {
-                    signatureVerified = await pki.verifyCrlSignature(crl, candidate);
-                } catch {
-                    signatureVerified = undefined;
-                }
-                if (signatureVerified === true) break;
-            }
-            const input: Pki.RevocationCheckInput = { certificate: leaf, crl, crlDer: block.bytes, at, options: quiet };
-            reasons.push(...pki.checkRevocation(signatureVerified === undefined ? input : { ...input, signatureVerified })
-                .map((reason) => reason.code));
-        }
     }
 
-    // Name matching is a separate question too, and both are needed: a chain
-    // from nobody in particular and a certificate for somebody else are two
-    // different failures, and §6 sees only the first.
-    const wanted = test.expected_peer_name;
-    if (wanted !== null) {
-        const identity: Pki.ServerIdentity | null = wanted.kind === 'DNS'
-            ? { kind: 'dns', value: wanted.value }
-            : ((bytes) => bytes === null ? null : { kind: 'ip' as const, value: bytes })(ipBytes(wanted.value));
-        if (identity !== null) reasons.push(...pki.checkServerName(leaf, identity).map((reason) => reason.code));
-    }
-
-    // And so is the purpose. RFC 5280 §6 never reads extKeyUsage: which purpose
-    // a chain has to serve is a fact about the caller's protocol, and the corpus
-    // states it twice over — in `extended_key_usage` for the 14 cases that name
-    // one, and in `validation_kind` for every case, where SERVER means *validate
-    // this as a TLS server certificate* and therefore serverAuth.
-    //
-    // Reading `validation_kind` as a purpose is not an assumption of this
-    // harness: it is the field by which x509-limbo records what the validation
-    // is for, and the bettertls suites it imports wrote their FAILURE verdicts
-    // with purpose chaining enforced. Turning it on found a real defect in path
-    // *building* rather than in the purpose check — see `requiredPurposes` in
-    // `buildCertificatePath`.
-    const named = test.extended_key_usage.map((name) => EKU_BY_NAME[name] ?? name);
-    // A purpose whose name this harness cannot map would be dropped, and a
-    // purpose silently not checked is a case that passes for the wrong reason —
-    // so it is a skip with the name in it rather than a quiet omission.
-    const unknown = test.extended_key_usage.filter((name) => EKU_BY_NAME[name] === undefined);
-    if (unknown.length > 0) {
-        return { kind: 'skipped', why: `the case names the key purpose(s) ${unknown.join(', ')}, which this runner does not map to an OID` };
-    }
-    const purposes = named.length > 0
-        ? named
-        : [test.validation_kind === 'CLIENT' ? pki.KEY_PURPOSES.clientAuth : pki.KEY_PURPOSES.serverAuth];
-    // The purposes go **into** the search, not after it: a builder that picks a
-    // path without knowing what the path is for will confidently return one a
-    // later check condemns while an acceptable one existed. The check below is
-    // then a restatement on the path that was chosen, and it runs only when §6
-    // accepted that path — `report.path` is the best attempt otherwise, and
-    // judging a partial chain would put reasons about certificates that are on
-    // no accepted path into the pinned reason codes.
-    if (report.valid) {
-        for (const purpose of purposes) {
-            reasons.push(...pki.checkExtendedKeyUsage(report.path, purpose).map((reason) => reason.code));
-        }
-    }
+    // **One call, the one callers make.** Composing the primitives here instead
+    // would score an arrangement that ships in no package: the number below is
+    // meant to be a claim about `verifyCertificateChain`, so it is the thing
+    // being measured. It costs the signature cache this runner used to keep —
+    // roughly a fifth of the work, since the corpus reuses roots but almost
+    // never reuses a leaf — and buys a score about the shipped entry point.
+    const report = await pki.verifyCertificateChain({
+        leaf,
+        candidates: intermediates,
+        trustAnchors: anchors,
+        at,
+        limits,
+        purposes,
+        ...(identity === null ? {} : { serverName: identity }),
+        ...(crls.length === 0 ? {} : { crls }),
+    });
+    cache.verifications += report.verified;
+    const reasons = report.reasons.map((reason) => reason.code);
 
     return { kind: 'scored', valid: report.valid && reasons.length === 0, reasons };
 }

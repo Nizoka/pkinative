@@ -66,6 +66,8 @@ async function issue(options: {
     readonly notAfter?: number;
     /** Sign over SHA-1, which pkinative refuses to treat as evidence. */
     readonly sha1?: boolean;
+    /** Add cRLSign, without which a CA may not issue a revocation list. */
+    readonly crlSign?: boolean;
 }): Promise<Material> {
     const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
     const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
@@ -80,7 +82,7 @@ async function issue(options: {
             ...(options.ca
                 ? [
                     { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
-                    { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
+                    { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(options.crlSign === true ? ['keyCertSign', 'cRLSign'] : ['keyCertSign']) },
                 ]
                 : [{ oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) }]),
             ...(options.purposes === undefined ? [] : [{ oid: '2.5.29.37', value: encodeExtendedKeyUsage([...options.purposes]) }]),
@@ -91,11 +93,14 @@ async function issue(options: {
 }
 
 /** root → ica → leaf, every signature real, the leaf naming `leaf.example`. */
-async function hierarchy(overrides: { leafNotAfter?: number } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate }> {
+async function hierarchy(overrides: { leafNotAfter?: number; crlSign?: boolean } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate }> {
     const rootName = encodeSequence([]);
     const root = await issue({ subject: 'Verify Root', issuerDer: rootName, ca: true, serial: 1n });
     const realRoot = await issue({ subject: 'Verify Root', issuerDer: root.certificate.subject.der, signer: root.key, ca: true, serial: 1n });
-    const ica = await issue({ subject: 'Verify ICA', issuerDer: realRoot.certificate.subject.der, signer: realRoot.key, ca: true, serial: 2n });
+    const ica = await issue({
+        subject: 'Verify ICA', issuerDer: realRoot.certificate.subject.der, signer: realRoot.key, ca: true, serial: 2n,
+        ...(overrides.crlSign === undefined ? {} : { crlSign: overrides.crlSign }),
+    });
     const leaf = await issue({
         subject: 'leaf.example', issuerDer: ica.certificate.subject.der, signer: ica.key, ca: false, serial: 3n,
         purposes: [KEY_PURPOSES.serverAuth], host: 'leaf.example',
@@ -371,6 +376,58 @@ describe('verifyCertificateChain — what it passes through', () => {
             crls: [emptyCrl(ica, { sha1: true })],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+    });
+
+    it('should refuse a list from a CA that may not issue one', async () => {
+        // RFC 5280 §4.2.1.3: a CA that issues CRLs MUST assert `cRLSign`. The
+        // hierarchy here gives its intermediates `keyCertSign` and nothing else,
+        // so its list is not evidence whatever the arithmetic says — accepting
+        // it would let a CA constrained to signing certificates revoke them
+        // instead. `signatureVerified: false` is the exact answer, because the
+        // field asks whether a key **entitled** to sign it did.
+        const { root, ica, leaf } = await hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica)],
+        });
+        expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+        expect(report.reasons.find((r) => r.code === 'PKI_REASON_REVOCATION_UNKNOWN')?.message)
+            .toMatch(/signature|signed/i);
+    });
+
+    it('should check the signature of a list its CA was entitled to issue', async () => {
+        // With `cRLSign` present the entitlement question is answered yes and
+        // the arithmetic one is actually put. This list is signed by nobody, so
+        // the answer is "checked and wrong" — which is still UNKNOWN rather than
+        // "not revoked", because an unsigned list is not evidence and pretending
+        // otherwise lets anyone publish one.
+        const { root, ica, leaf } = await hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica)],
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+    });
+
+    it('should report NOT CHECKED rather than forged for a list signed over SHA-1', async () => {
+        // The entitlement holds, the arithmetic is refused: neither boolean is
+        // honest about a SHA-1 signature, so the question was never put.
+        const { root, ica, leaf } = await hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica, { sha1: true })],
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        // …and saying so is allowed when the caller is reading an archive.
+        const archival = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [emptyCrl(ica, { sha1: true })], allowSha1: true,
+        });
+        expect(codes(archival)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
     });
 
     it('should consult a covering list even when the path stopped at the leaf', async () => {

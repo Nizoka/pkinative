@@ -56,6 +56,8 @@ import type { SignatureResult } from '../types/path-types.js';
 import type { PkiLimits } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
+import type { CertificateList } from '../types/crl-types.js';
+import { getExtension } from '../x509/x509-extensions.js';
 
 /** What to accept, and everything needed to decide it. */
 export interface VerifyChainInput {
@@ -274,6 +276,21 @@ export async function verifyCertificateChain(input: VerifyChainInput): Promise<V
 }
 
 /**
+ * Whether that key signed that list, or `undefined` when the question could not
+ * be put — a runtime without Web Crypto, or a digest this library will not treat
+ * as evidence. `checkRevocation` words those two differently, and collapsing
+ * them would turn *"ask me elsewhere"* into *"this list is forged"*.
+ */
+async function _crlSignature(crl: CertificateList, issuer: Certificate, allowSha1: boolean): Promise<boolean | undefined> {
+    try {
+        return await verifyCrlSignature(crl, issuer, { allowSha1 });
+    } catch (error) {
+        _pkiError(error);
+        return undefined;
+    }
+}
+
+/**
  * The end-entity certificate against the lists the caller supplied.
  *
  * Only the leaf is checked. Revoking an intermediate is real and matters, and
@@ -316,12 +333,17 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             // words them differently: never checked, versus checked and wrong.
             let signatureVerified: boolean | undefined;
             if (issuer !== undefined) {
-                try {
-                    signatureVerified = await verifyCrlSignature(crl, issuer, { allowSha1: input.allowSha1 === true });
-                } catch (error) {
-                    _pkiError(error);
-                    signatureVerified = undefined;
-                }
+                // "Entitled" is the operative word, and it is two questions.
+                // RFC 5280 §4.2.1.3: a CA that issues CRLs MUST assert
+                // `cRLSign`, so a CA whose keyUsage omits it is not entitled
+                // whatever its key computes — accepting its list would let a CA
+                // constrained to signing certificates revoke them instead.
+                // Absent keyUsage asserts nothing and constrains nothing, which
+                // is the same reading §6.1.4 (n) takes of `keyCertSign`.
+                const usage = getExtension(issuer, 'keyUsage');
+                signatureVerified = usage !== undefined && !usage.usages.includes('cRLSign')
+                    ? false
+                    : await _crlSignature(crl, issuer, input.allowSha1 === true);
             }
             out.push(...checkRevocation({
                 certificate: input.leaf,

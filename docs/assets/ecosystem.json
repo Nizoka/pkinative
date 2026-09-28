@@ -41,7 +41,7 @@
       "testcases": 9793,
       "certificates": 30361,
       "refused": 565,
-      "agree": 9150
+      "agree": 9156
     },
     "wycheproof": {
       "commit": "3fa63dd0344abb611f1fb1d77e119938603ea230",
@@ -82,9 +82,9 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "02b765b4e777958d42562fc29e253832158b7d1de6d7a0022a698c38b02cda01",
-      "bundleSha256": "25c3e2d7da3c009ee5e8ec32ec383603b4460c6adbdee8fba5a3f4b7e2e50343",
-      "bytes": 271008,
+      "sourceSha256": "84c4b74c84a0a17c13446950a38421fc3732ab1f5fd2eeafb5b88d9d99d4fb30",
+      "bundleSha256": "eee685226aeea7ce571863f3e2a445a7a79a51fb573e2bcc633d9be0f6e3b556",
+      "bytes": 271284,
       "maxBytes": 280000
     },
     "socialImages": [

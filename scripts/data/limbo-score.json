@@ -7,13 +7,21 @@
     "mustFail": "rfc5280::validity::expired-leaf"
   },
   "totals": {
-    "scored": 9200,
-    "agree": 9150,
-    "deviations": 50,
-    "unparsed": 573,
+    "scored": 9208,
+    "agree": 9156,
+    "deviations": 52,
+    "unparsed": 565,
     "skipped": 20
   },
   "deviations": {
+    "crl::crlnumber-critical": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.3 addresses the CRL issuer, not the verifier, and what it asks for is about **sequencing lists** rather than about this certificate: `cRLNumber` is a monotonically increasing number that lets a relying party tell a newer list from an older one. The entries themselves are covered by the signature either way, so a list without a usable number still says, signed, that this serial is or is not on it — which is the question `checkRevocation` was asked. pkinative answers that question and does not invent a second one. Here it is marked critical, which §5.2.3 forbids. Criticality asks a verifier to refuse what it cannot process, and pkinative processes `cRLNumber` — so the marking changes nothing about how this list is read, and refusing over it would be refusing a list whose every field was understood."
+    },
+    "crl::crlnumber-missing": {
+      "expected": "FAILURE",
+      "why": "RFC 5280 §5.2.3 addresses the CRL issuer, not the verifier, and what it asks for is about **sequencing lists** rather than about this certificate: `cRLNumber` is a monotonically increasing number that lets a relying party tell a newer list from an older one. The entries themselves are covered by the signature either way, so a list without a usable number still says, signed, that this serial is or is not on it — which is the question `checkRevocation` was asked. pkinative answers that question and does not invent a second one. Here the extension is absent. What it costs is the ability to detect a replayed older list, and the honest place for that is a caller who keeps the last number they saw — pkinative exposes `crl.crlNumber` precisely so they can, and holding state across fetches is not something a stateless verifier can do on their behalf."
+    },
     "pathlen::max-chain-depth-0-exhausted": {
       "expected": "FAILURE",
       "why": "x509-limbo's max_chain_depth counts LOGICAL intermediates and excludes self-issued certificates; pkinative's maxChainLength is a resource bound on the certificates actually walked, counting every one. This runner maps one onto the other as max_chain_depth + 2, which is right for an ordinary hierarchy and off by one wherever the chain carries a self-issued certificate. The deviation is in the translation, not in the validator: a caller who wants x509-limbo's notion states it as a pathLenConstraint, which §6.1.4 (l) and (m) already implement exactly."
@@ -222,6 +230,8 @@
     "bettertls::nameconstraints::tc1001": "PKI_REASON_NAME_EXCLUDED",
     "bettertls::nameconstraints::tc1002": "PKI_REASON_NAME_EXCLUDED",
     "bettertls::nameconstraints::tc1009": "PKI_REASON_NAME_EXCLUDED",
+    "crl::issuer-missing-crlsign": "PKI_REASON_REVOCATION_UNKNOWN",
+    "crl::revoked-certificate-with-crl": "PKI_REASON_REVOKED",
     "cve::cve-2025-61727": "PKI_REASON_NAME_EXCLUDED",
     "cve::cve-2025-61727-nc-permits-variant": "PKI_REASON_NAME_NOT_PERMITTED",
     "pathlen::intermediate-pathlen-too-long": "PKI_REASON_PATH_TOO_LONG",

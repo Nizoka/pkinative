@@ -2499,9 +2499,10 @@ function readExtensions(der, field, ctx, path) {
     if (oidNode === void 0 || valueNode === void 0 || node.children.length < 2) {
       throw crlError(where2, entry.offset, "is not an Extension");
     }
+    const start = valueNode.offset + valueNode.headerLength;
     out.push(_decodeExtension(
-      der,
-      entry.offset,
+      der.subarray(0, start + valueNode.contentLength),
+      start,
       readObjectIdentifier(oidNode),
       criticalNode !== void 0 && criticalNode.content[0] !== 0,
       valueNode.content,
@@ -5029,6 +5030,14 @@ async function verifyCertificateChain(input) {
   reasons.push(...await _checkRevocation(input, report.path, at));
   return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, verified: pairs.length };
 }
+async function _crlSignature(crl, issuer, allowSha1) {
+  try {
+    return await verifyCrlSignature(crl, issuer, { allowSha1 });
+  } catch (error) {
+    _pkiError(error);
+    return void 0;
+  }
+}
 async function _checkRevocation(input, path, at) {
   const out = [];
   const lists = input.crls ?? [];
@@ -5049,12 +5058,8 @@ async function _checkRevocation(input, path, at) {
       covered = true;
       let signatureVerified;
       if (issuer !== void 0) {
-        try {
-          signatureVerified = await verifyCrlSignature(crl, issuer, { allowSha1: input.allowSha1 === true });
-        } catch (error) {
-          _pkiError(error);
-          signatureVerified = void 0;
-        }
+        const usage = getExtension(issuer, "keyUsage");
+        signatureVerified = usage !== void 0 && !usage.usages.includes("cRLSign") ? false : await _crlSignature(crl, issuer, input.allowSha1 === true);
       }
       out.push(...checkRevocation({
         certificate: input.leaf,
