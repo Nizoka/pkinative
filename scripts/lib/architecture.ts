@@ -86,8 +86,8 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // Someone still has to put them in the right order, verify the signatures
     // in parallel first, and turn the exceptions the primitives throw into
     // reasons — and if that someone is every caller, every caller gets it
-    // slightly wrong. So it is here, once, and `verify` is the ONLY module of
-    // src/ allowed to catch a PkiError.
+    // slightly wrong. So it is here, once, and `verify` is the ONLY layer of
+    // src/ that turns a PkiError into a reason.
     verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation', 'cms', 'keys'],
 });
 

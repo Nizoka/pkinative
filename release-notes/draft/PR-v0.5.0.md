@@ -23,7 +23,7 @@ New layers `path`, `revocation` and `verify`, registered in `LAYERS` in the comm
 - `src/revocation/` — `parseCertificateList` and `findRevocation` (walked with a lazy TLV cursor, never decoded into nodes), `checkRevocation` with §5.2.4 deltas / §5.2.5 scope / §5.3.3 indirect lists, and the RFC 6960 quartet `createOcspRequest`, `encodeCertId`, `parseOcspResponse`, `checkOcspStatus`.
 - `src/crypto/` — `verifyCrlSignature`, `verifyOcspSignature`.
 - `src/hash/key-identifier.ts` — `computeKeyIdentifier` (§4.2.1.2 method 1, byte for byte RFC 6960's `issuerKeyHash`).
-- `src/verify/verify-chain.ts` — `verifyCertificateChain`, the only place in `src/` allowed to catch a `PkiError`.
+- `src/verify/verify-chain.ts` — `verifyCertificateChain`, the only place in `src/` that turns a `PkiError` into a reason.
 - Six new profile diagnostics on `x509/`, each measured against the corpus before it was added.
 
 Nothing was removed. `SignatureResult` gained an optional `issuer`; `CertificateList` gained `issuingDistributionPoint` and `baseCrlNumber`.
@@ -80,7 +80,7 @@ One thing to know rather than to migrate: `PkiReason` is a **returned** value. N
 ## Out of scope (tracked in ROADMAP.md)
 
 - The 20 PKITS §4.8 certificate-policy tests, skipped until a reviewed transcription of their `user-initial-policy-set` expectations exists. A runner that guessed would be scoring its own guess.
-- RFC 5280 §7.1 name comparison by LDAP string preparation. pkinative compares encoded bytes, as Go's `crypto/x509` and webpki do; six PKITS tests turn on that, and the direction of the miss is refusal.
+- RFC 5280 §7.1 name comparison by LDAP string preparation. pkinative compares encoded bytes, as Go's `crypto/x509` and webpki do; six PKITS tests turn on that: five refusals, and one acceptance, `InvalidDNandRFC822nameConstraintsTest29`, where an excluded `directoryName` that matches only after §7.1 preparation does not exclude.
 - DSA — Web Crypto implements none of it, and pkinative implements no signature algorithm itself.
 - `ValidSelfIssuedinhibitAnyPolicyTest9`, recorded as a *suspected defect* in §6.1.5's policy wrap-up rather than an absent feature. It is the one deviation in either baseline that has not been explained.
 - ClusterFuzzLite has still never executed.

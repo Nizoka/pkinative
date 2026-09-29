@@ -59,7 +59,7 @@ preparation described in CONTRIBUTING.md §Release.
 - [x] CRL signature verification and the revocation decision — synchronous, taking a precomputed signature verdict, and keeping "unknown" apart from "not revoked"
 - [x] OCSP request building, response parsing and signature verification (RFC 6960) — good, revoked and unknown stay three states
 - [x] An OCSP status decision returning PkiReason, reporting all four of RFC 6960 section 3.2 client responsibilities and keeping a substituted answer apart from an unknown one
-- [x] One call that asks every question — signatures in parallel, then the path with the purpose inside the search, the host name, and revocation by CRL or OCSP including the RFC 6960 §4.2.2.2 delegated-responder rule — in a `verify` layer that is the only place in `src/` allowed to catch a `PkiError`
+- [x] One call that asks every question — signatures in parallel, then the path with the purpose inside the search, the host name, and revocation by CRL or OCSP including the RFC 6960 §4.2.2.2 delegated-responder rule — in a `verify` layer that is the only place in `src/` that turns a `PkiError` into a reason
 - [x] RFC 6125 server identity matching — a separate question from §6, which has no notion of the name you asked for, and the one whose absence turns a valid certificate for somebody else into an accepted one
 - [x] x509-limbo scored on SUCCESS / FAILURE as conformance level L6 — every case built, name-matched and revocation-checked the way a caller would, with a reviewed deviation baseline in which every disagreement carries a written reason, a subset pinned on its `PkiReasonCode` rather than on the boolean, and two canaries against a scorer that stopped deciding anything
 - [x] Extended key usage as its own exported check, beside `checkServerName` — not a §6 input (RFC 5280 §4.2.1.12 leaves the purpose decision to the application), including the rule no sentence of the RFC states and every Web PKI validator applies: a CA own extKeyUsage restricts what it may issue for
@@ -115,6 +115,23 @@ Consuming pkinative from pdfnative's PAdES and LTV stack is pdfnative's mileston
 **Known limitations, stated rather than discovered.** Most PKCS#12 files' integrity cannot be checked here: only an RFC 9579 PBMAC1 MAC can, and `readPkcs12` fails closed on the rest unless told otherwise. `id-RSASSA-PSS` private keys are refused by every current runtime's Web Crypto and end in `PKI_CRYPTO_KEY_UNSUPPORTED`. A key in a PKCS#12 is matched to its certificate by `localKeyId` only. pkinative writes neither PKCS#8 nor PKCS#12, in any version: encrypting or wrapping a key is refused by `KEY_OPERATION_POLICY`.
 
 ## 0.9.x — M5b: The freeze, rehearsed
+
+<!-- What each item was taken to mean, decided at the start of the band:
+     - "Zero new exports, codes, behaviour" is made executable rather than
+       promised: the export surface is snapshotted at 0.8.0 and, in the
+       rehearsal phase, ANY change to it fails, as does a code whose `since` is
+       0.9.x. The same rules then carry 1.0's semver semantics, having bitten a
+       whole band first.
+     - "Coverage pass": line coverage has been 100 % since 0.2, so what the
+       year left unproven is whether a test would notice the code being wrong.
+       That is mutation testing, run in-house on the security-critical modules.
+     - "Clause completeness": the L5 runner already fails on an unexercised
+       clause. What was never checked is the table against the RFC itself —
+       that every quote is verbatim and every normative sentence of §4.1–§4.2 is
+       either a clause or a reviewed exclusion. RFC 5280 is pinned as a corpus
+       for it. §6 is judged by the scored corpora L6–L8, not by a second clause
+       table: the 0.4 release note promised that table "at 0.5", 0.5 scored whole
+       corpora instead, and an ADR says so. -->
 
 - [ ] Zero new exports, zero new codes, zero new engine behaviour. The band exists to prove the freeze holds: propose here every rename you will ever want, because after 0.8 a rename is semver-major
 - [ ] A coverage pass over whatever the year left unproven, and an ADR for anything that will not ship

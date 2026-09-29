@@ -44,7 +44,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
 | `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
-| `src/path/`, `src/revocation/`, `src/cms/`, `src/keys/`, `src/verify/` | §6 paths, §5 revocation, CMS and timestamps, PKCS#8/#12; `verify/` composes them and alone catches a `PkiError` | `.github/instructions/pki-core.instructions.md` |
+| `src/path/`, `src/revocation/`, `src/cms/`, `src/keys/`, `src/verify/` | §6 paths, §5 revocation, CMS, TSP, PKCS#8/#12; `verify/` composes them and alone turns a `PkiError` into a reason | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |

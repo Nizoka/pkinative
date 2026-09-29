@@ -14,7 +14,7 @@ They are separate because they answer different questions, and one registry answ
 
 The rule this establishes, and that every composed operation follows:
 
-> **Primitives return and throw. Compositions report.** Exactly one layer converts, and it is the only place in `src/` that catches a `PkiError`.
+> **Primitives return and throw. Compositions report.** Exactly one layer converts, and it is the only place in `src/` that turns a `PkiError` into a reason. Anywhere else a `PkiError` is caught, it is to throw it again under a more precise class, or to diagnose and drop a value no verdict depends on — and every such catch passes what it caught through one guard that throws anything that is not a `PkiError` on, as the bug it is.
 
 Two consequences worth knowing before you write a `catch`:
 

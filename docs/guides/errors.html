@@ -89,7 +89,7 @@
       </tbody></table>
       <p>The rule this establishes, and that every composed operation follows:</p>
       <blockquote>
-      <p><strong>Primitives return and throw. Compositions report.</strong> Exactly one layer converts, and it is the only place in <code>src/</code> that catches a <code>PkiError</code>.</p>
+      <p><strong>Primitives return and throw. Compositions report.</strong> Exactly one layer converts, and it is the only place in <code>src/</code> that turns a <code>PkiError</code> into a reason. Anywhere else a <code>PkiError</code> is caught, it is to throw it again under a more precise class, or to diagnose and drop a value no verdict depends on — and every such catch passes what it caught through one guard that throws anything that is not a <code>PkiError</code> on, as the bug it is.</p>
       </blockquote>
       <p>Two consequences worth knowing before you write a <code>catch</code>:</p>
       <ul>
