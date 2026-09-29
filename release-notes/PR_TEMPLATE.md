@@ -91,7 +91,7 @@ number typed from memory is the failure this instruction exists to prevent.
 2. Wait for the seven required checks: `ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows`, `conformance-macos`.
 3. Tag `vX.Y.Z` on the merge commit and push it. **`tags.json` has an empty `bypass_actors`: a pushed tag can never be moved or deleted, by anyone.**
 4. Publish the GitHub Release (title `vX.Y.Z — <headline>`, body = `release-notes/vX.Y.Z.md`).
-   Below 1.0.0 expect `release-assets` green and `publish` red — the pre-1.0 refusal is deliberate and is the only proof the 1.0 guard still works.
+   Expect `publish.yml` to pass its `guard` job, wait for the `npm-publish` reviewer, then publish and attest; afterwards `npm view pkinative version` names X.Y.Z and `npm run check:npm-drift` is clean.
 5. <Anything version-specific: a ruleset re-import, an npm name reservation, a social image upload.>
 
 ## Self-review checklist

@@ -15,10 +15,9 @@ on:
 #   Publishing can only be configured on a package that already exists: the
 #   maintainer publishes an empty 0.0.1 name reservation by hand first.
 #
-# Pre-1.0 policy: versions below 1.0.0 are git tags, never npm releases
-# (ROADMAP.md); release-assets.yml attests and attaches their tarball. This
-# workflow is complete so it is exercised and audited from day one, and its
-# guard job refuses such a version.
+# Pre-1.0 policy: versions below 1.0.0 are git tags only, never released on
+# GitHub or npm (ROADMAP.md). The guard job still refuses such a version, for
+# a release someone might cut from an old tag.
 #
 # Job graph: guard → publish → attest. The guard needs no secret and no
 # environment, so every check that can end the run without one — the tag

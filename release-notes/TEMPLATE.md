@@ -88,11 +88,13 @@ _Released YYYY-MM-DD_
 
 ## Install
 
-<!-- Pre-1.0 install honesty: versions below 1.0.0 are git tags, not npm releases. A git
-     install carries no dist/, so the command is the tarball release-assets.yml attaches. -->
+<!-- The registry is the install, with npm provenance; the GitHub release carries the same
+     tarball, fetched back from the registry and attested by publish.yml. Never a git URL:
+     a git install carries no dist/. -->
 
 \`\`\`bash
-npm install https://github.com/Nizoka/pkinative/releases/download/vX.Y.Z/pkinative-X.Y.Z.tgz
+npm install pkinative@X.Y.Z
+npm audit signatures
 \`\`\`
 
 ## Upgrade
@@ -128,7 +130,7 @@ Thanks to @handle1, @handle2 for contributions to this release.
 - **Security section first** when a release contains security fixes — always include the CWE identifier and mitigation.
 - **Code blocks** for install commands and migration examples only.
 - **Backward-compatibility statement** in the summary paragraph for every release.
-- **Pre-1.0 install honesty.** Below 1.0.0 the Install section installs the attested tarball of the GitHub release (never a git URL, which carries no `dist/`) and says the version is not on npm.
+- **Install honesty.** The Install section installs from npm and names `npm audit signatures`; never a git URL, which carries no `dist/`. Versions below 1.0.0 are git tags only and have no install.
 
 ## Publication workflow
 
