@@ -367,6 +367,12 @@ describe('verify-docs rule table', () => {
         expect(await surfaceProblems(stable)).toEqual([]);
     });
 
+    it('should fire api-surface-frozen on a rebaseline that names no accepted ADR', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/assets/api.frozen.json', '"asOf": "0.8.0",\n', '"asOf": "0.8.0",\n  "rebaselines": [\n    { "adr": "docs/adr/0099-never-written.md", "asOf": "0.8.0" }\n  ],\n');
+        expect(await surfaceProblems(files)).toEqual([expect.stringContaining('the rebaseline on "docs/adr/0099-never-written.md" names no accepted ADR')]);
+    });
+
     it('should hold api-surface-frozen to package.json: a rehearsal snapshot at 1.0.0 must be rebased', async () => {
         const files = { ...TREE };
         edit(files, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');

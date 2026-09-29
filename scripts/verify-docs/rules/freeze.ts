@@ -29,7 +29,7 @@
  * @module scripts/verify-docs/rules/freeze
  */
 
-import { API_FROZEN, API_JSON, currentSurface, diffSurface, reasonCodes, REASONS_JSON, type FrozenExport, type Reader } from '../../lib/api-surface.js';
+import { ADR_PATH, adrAccepted, API_FROZEN, API_JSON, currentSurface, diffSurface, reasonCodes, REASONS_JSON, type FrozenExport, type Reader } from '../../lib/api-surface.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 import { compareSemver, ERRORS_REGISTRY, FROZEN_REGISTRY } from './registries.js';
 
@@ -84,12 +84,23 @@ const apiSurfaceFrozen: Rule = {
             return out;
         }
         if (compareSemver(asOf, frozenAt) < 0) out.push(error(API_FROZEN, `"asOf" ${asOf} is older than "frozenAt" ${frozenAt}`, lineContaining(snapText, '"asOf"')));
+        // Every move of the snapshot names the accepted decision behind it.
+        const moves: unknown = (snap as { rebaselines?: unknown }).rebaselines;
+        if (moves !== undefined) {
+            if (!Array.isArray(moves)) out.push(error(API_FROZEN, '"rebaselines" must be a list of { adr, asOf }', lineContaining(snapText, '"rebaselines"')));
+            else for (const m of moves as Array<{ adr?: unknown; asOf?: unknown }>) {
+                const adr = typeof m?.adr === 'string' ? m.adr : '';
+                if (!ADR_PATH.test(adr) || !adrAccepted(ctx.read(adr)) || typeof m.asOf !== 'string' || !SEMVER.test(m.asOf)) {
+                    out.push(error(API_FROZEN, `the rebaseline on "${adr}" names no accepted ADR at a version — a rehearsal snapshot moves only on a recorded decision (${GENERATOR} --rebaseline docs/adr/NNNN-slug.md)`, lineContaining(snapText, adr.length > 0 ? adr : '"rebaselines"')));
+                }
+            }
+        }
 
         const released = compareSemver(version, asOf) >= 0;
         const remedy = !released
             ? `${asOf} is not released yet: a deliberate change is recorded by regenerating with \`${GENERATOR}\``
             : phase === 'rehearsal'
-                ? 'the pre-1.0 rehearsal admits no change (ROADMAP 0.9.x: zero new exports, zero new codes) — revert it, and propose the change for a later major'
+                ? `the pre-1.0 rehearsal admits no change (ROADMAP 0.9.x: zero new exports, zero new codes) — revert it, or record the decision in an accepted ADR and move the snapshot with \`${GENERATOR} --rebaseline docs/adr/NNNN-slug.md\``
                 : 'that is semver-major — restore it (a rename keeps the old name beside the new one, deprecated), or make it part of the next major';
 
         const surface = currentSurface(reader(ctx));

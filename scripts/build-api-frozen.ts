@@ -26,6 +26,16 @@
  *                    in 1.2 and pass. Refused unless every change against
  *                    the snapshot is compatible. release-prepare.ts runs it
  *                    on every stable-phase bump.
+ *   --rebaseline docs/adr/NNNN-….md
+ *                    Rehearsal phase only: the one sanctioned way to move a
+ *                    released rehearsal snapshot. The band that rehearses the
+ *                    freeze is also where "every rename you will ever want" is
+ *                    proposed (ROADMAP 0.9), so a rename set must be able to
+ *                    land — but never silently: it names an accepted ADR that
+ *                    records the change, and the move is appended to the
+ *                    snapshot's `rebaselines` log, which api-surface-frozen
+ *                    holds to docs/adr/. A hand edit, which is what the rule
+ *                    used to suggest, leaves no trace a rule can check.
  *   --major X.0.0    Rebases the snapshot at a major release: phase `stable`,
  *                    `frozenAt` and `asOf` X.0.0. At 1.0.0 (rehearsal →
  *                    stable) it is refused unless the rehearsal held — the
@@ -37,6 +47,7 @@
  * Usage:
  *   npx tsx scripts/build-api-frozen.ts                  # (re)write while asOf is unreleased
  *   npx tsx scripts/build-api-frozen.ts --ratchet        # stable phase: record compatible additions
+ *   npx tsx scripts/build-api-frozen.ts --rebaseline docs/adr/0013-….md   # a reviewed rename set, before 1.0
  *   npx tsx scripts/build-api-frozen.ts --major 1.0.0    # the 1.0 (or any major) release commit
  *
  * Exit: 0 written or already in sync, 1 refused, 2 bad usage or an
@@ -48,7 +59,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { API_FROZEN, currentSurface, diffSurface, reasonCodes, type FrozenExport, type Reader } from './lib/api-surface.js';
+import { API_FROZEN, currentSurface, diffSurface, reasonCodes, type FrozenExport, type Reader, ADR_PATH, adrAccepted } from './lib/api-surface.js';
 import { compareSemver } from './verify-docs/rules/registries.js';
 
 /** The version the surface freezes at, when no snapshot exists yet. */
@@ -60,11 +71,23 @@ export interface ApiFrozen {
     readonly frozenAt: string;
     readonly phase: FreezePhase;
     readonly asOf: string;
+    /** Every sanctioned move of a rehearsal snapshot: the ADR that records it, and the version it was made at. */
+    readonly rebaselines?: readonly Rebaseline[] | undefined;
     readonly reasons: readonly string[];
     readonly exports: readonly FrozenExport[];
 }
 
-export type FrozenMode = { readonly kind: 'default' } | { readonly kind: 'ratchet' } | { readonly kind: 'major'; readonly version: string };
+/** One sanctioned move of a rehearsal snapshot. */
+export interface Rebaseline {
+    readonly adr: string;
+    readonly asOf: string;
+}
+
+export type FrozenMode =
+    | { readonly kind: 'default' }
+    | { readonly kind: 'ratchet' }
+    | { readonly kind: 'rebaseline'; readonly adr: string }
+    | { readonly kind: 'major'; readonly version: string };
 
 export interface FrozenPlan {
     readonly action: 'write' | 'unchanged' | 'refuse';
@@ -84,8 +107,10 @@ const major = (v: string): number => Number(v.split('.')[0]);
 export function renderApiFrozen(snapshot: ApiFrozen): string {
     const rows = snapshot.exports.map((r) => `    { "name": ${JSON.stringify(r.name)}, "kind": ${JSON.stringify(r.kind)}, "signature": ${JSON.stringify(r.signature)} }`);
     const reasons = snapshot.reasons.map((c) => `    ${JSON.stringify(c)}`);
+    const moves = snapshot.rebaselines ?? [];
+    const log = moves.length === 0 ? '' : `  "rebaselines": [\n${moves.map((m) => `    { "adr": ${JSON.stringify(m.adr)}, "asOf": ${JSON.stringify(m.asOf)} }`).join(',\n')}\n  ],\n`;
     return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "frozenAt": ${JSON.stringify(snapshot.frozenAt)},\n  "phase": ${JSON.stringify(snapshot.phase)},\n  "asOf": ${JSON.stringify(snapshot.asOf)},\n`
-        + `  "reasons": [\n${reasons.join(',\n')}\n  ],\n  "exports": [\n${rows.join(',\n')}\n  ]\n}\n`;
+        + log + `  "reasons": [\n${reasons.join(',\n')}\n  ],\n  "exports": [\n${rows.join(',\n')}\n  ]\n}\n`;
 }
 
 /** The snapshot of a text, or null when it is not one. */
@@ -94,6 +119,7 @@ export function parseApiFrozen(text: string): ApiFrozen | null {
         const v = JSON.parse(text) as Partial<ApiFrozen>;
         if (typeof v.frozenAt !== 'string' || typeof v.asOf !== 'string' || (v.phase !== 'rehearsal' && v.phase !== 'stable')) return null;
         if (!Array.isArray(v.exports) || !Array.isArray(v.reasons)) return null;
+        if (v.rebaselines !== undefined && !(Array.isArray(v.rebaselines) && v.rebaselines.every((m) => typeof m?.adr === 'string' && typeof m.asOf === 'string'))) return null;
         return v as ApiFrozen;
     } catch {
         return null;
@@ -141,7 +167,18 @@ export function planApiFrozen(read: Reader, version: string, mode: FrozenMode): 
                 return { action: 'refuse', text: null, message: `the rehearsal did not hold — ${String(drift.length)} export change(s)${reasonDrift ? ' and a reason-code change' : ''} since ${snapshot.frozenAt} (npx tsx scripts/verify-docs.ts --only api-surface-frozen lists them); 1.0.0 is the freeze itself and adds nothing over 0.9` };
             }
         }
-        return finish({ frozenAt: v, phase: 'stable', asOf: v, reasons, exports: surface.rows }, `rebased ${API_FROZEN} at the ${v} major`);
+        return finish({ frozenAt: v, phase: 'stable', asOf: v, ...(snapshot?.rebaselines === undefined ? {} : { rebaselines: snapshot.rebaselines }), reasons, exports: surface.rows }, `rebased ${API_FROZEN} at the ${v} major`);
+    }
+
+    if (mode.kind === 'rebaseline') {
+        if (snapshot === null || snapshot.phase !== 'rehearsal') return { action: 'refuse', text: null, message: '--rebaseline applies to the rehearsal phase only: from 1.0.0 a change is an addition (--ratchet) or waits for the next major (--major X.0.0)' };
+        if (!ADR_PATH.test(mode.adr)) return { action: 'refuse', text: null, message: `--rebaseline takes the path of an ADR, docs/adr/NNNN-slug.md, not ${mode.adr}` };
+        if (!adrAccepted(read(mode.adr))) return { action: 'refuse', text: null, message: `${mode.adr} does not exist or is not "status: accepted" — a rehearsal snapshot moves only on a recorded, accepted decision` };
+        const next: ApiFrozen = { ...snapshot, rebaselines: [...(snapshot.rebaselines ?? []), { adr: mode.adr, asOf: version }], reasons, exports: surface.rows };
+        const drift = diffSurface(snapshot.exports, surface.rows);
+        const reasonDrift = reasons.length !== snapshot.reasons.length || reasons.some((c) => !snapshot.reasons.includes(c));
+        if (drift.length === 0 && !reasonDrift) return { action: 'refuse', text: null, message: 'nothing to rebaseline: the surface is the one the snapshot records' };
+        return finish(next, `rebaselined ${API_FROZEN} on ${mode.adr}`);
     }
 
     if (mode.kind === 'ratchet') {
@@ -163,7 +200,7 @@ export function planApiFrozen(read: Reader, version: string, mode: FrozenMode): 
             action: 'refuse', text: null,
             message: `refusing — package.json is at ${version}, so the surface recorded at ${snapshot.asOf} is released (${snapshot.phase} phase). `
                 + (snapshot.phase === 'rehearsal'
-                    ? 'The rehearsal admits no change: revert it, or — if the band decides to break its own promise — edit the snapshot by hand in a reviewed commit and say so in the release note.'
+                    ? 'The rehearsal admits no change: revert it, or record the decision in an accepted ADR and move the snapshot with --rebaseline, which logs the move where api-surface-frozen can check it.'
                     : 'Compatible additions are recorded by --ratchet at the release that ships them; an incompatible change waits for the next major (--major X.0.0).'),
         };
     }
@@ -172,9 +209,11 @@ export function planApiFrozen(read: Reader, version: string, mode: FrozenMode): 
 
 function parseMode(argv: readonly string[]): FrozenMode | null {
     const at = argv.indexOf('--major');
-    const known = argv.filter((a, i) => a === '--ratchet' || a === '--major' || (at >= 0 && i === at + 1));
+    const rb = argv.indexOf('--rebaseline');
+    const known = argv.filter((a, i) => a === '--ratchet' || a === '--major' || a === '--rebaseline' || (at >= 0 && i === at + 1) || (rb >= 0 && i === rb + 1));
     if (known.length !== argv.length) return null;
-    if (argv.includes('--ratchet') && at >= 0) return null;
+    if ([argv.includes('--ratchet'), at >= 0, rb >= 0].filter(Boolean).length > 1) return null;
+    if (rb >= 0) return argv[rb + 1] === undefined ? null : { kind: 'rebaseline', adr: argv[rb + 1] ?? '' };
     if (at >= 0) return argv[at + 1] === undefined ? null : { kind: 'major', version: argv[at + 1] ?? '' };
     return argv.includes('--ratchet') ? { kind: 'ratchet' } : { kind: 'default' };
 }
@@ -182,7 +221,7 @@ function parseMode(argv: readonly string[]): FrozenMode | null {
 function main(argv: readonly string[]): number {
     const mode = parseMode(argv);
     if (mode === null) {
-        console.error('usage: npx tsx scripts/build-api-frozen.ts [--ratchet | --major X.0.0]');
+        console.error('usage: npx tsx scripts/build-api-frozen.ts [--ratchet | --rebaseline docs/adr/NNNN-slug.md | --major X.0.0]');
         return 2;
     }
     const root = resolve(import.meta.dirname, '..');

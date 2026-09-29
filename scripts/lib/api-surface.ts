@@ -436,3 +436,11 @@ export function diffSurface(frozen: readonly FrozenExport[], current: readonly F
     for (const row of current) if (!before.has(row.name)) out.push({ name: row.name, verdict: 'added', detail: `${row.name} (${row.kind}) is a new export` });
     return out;
 }
+
+/**
+ * Where an ADR lives, and the one status that sanctions a move of a rehearsal
+ * snapshot (`build-api-frozen.ts --rebaseline`); the api-surface-frozen rule
+ * holds the snapshot's `rebaselines` log to both.
+ */
+export const ADR_PATH = /^docs\/adr\/\d{4}-[a-z0-9-]+\.md$/;
+export const adrAccepted = (text: string | null): boolean => text !== null && /^status: accepted$/m.test(text);
