@@ -51,7 +51,7 @@ export interface PkiLimits {
     readonly maxPathsExplored: number;
     /** Maximum number of SignerInfo entries in one SignedData — each costs a signature verification. CWE-400. */
     readonly maxSignerInfos: number;
-    /** Maximum number of attributes in one signed or unsigned attribute set. CWE-400. */
+    /** Maximum number of attributes in one attribute set — a CMS signer's signed or unsigned set, a PKCS#8 key's, a PKCS#12 bag's. CWE-400. */
     readonly maxCmsAttributes: number;
     /** Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them. CWE-400. */
     readonly maxCmsBagEntries: number;

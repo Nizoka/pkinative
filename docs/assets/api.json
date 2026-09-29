@@ -3257,7 +3257,7 @@
           "name": "maxCmsAttributes",
           "type": "number",
           "optional": false,
-          "summary": "Maximum number of attributes in one signed or unsigned attribute set."
+          "summary": "Maximum number of attributes in one attribute set — a CMS signer's signed or unsigned set, a PKCS#8 key's, a PKCS#12 bag's."
         },
         {
           "name": "maxCmsBagEntries",

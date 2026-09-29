@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 138513,
-      "approxTokens": 34628
+      "bytes": 138546,
+      "approxTokens": 34637
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 255791,
-      "approxTokens": 63948
+      "bytes": 255847,
+      "approxTokens": 63962
     },
     {
       "url": "data/errors.json",
@@ -48,8 +48,8 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 4629,
-      "approxTokens": 1157
+      "bytes": 4682,
+      "approxTokens": 1171
     },
     {
       "url": "data/surfaces.json",
@@ -128,8 +128,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 5932,
-      "approxTokens": 1483
+      "bytes": 5965,
+      "approxTokens": 1491
     },
     {
       "title": "Conformance",
