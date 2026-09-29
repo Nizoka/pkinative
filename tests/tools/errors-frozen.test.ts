@@ -27,6 +27,15 @@ describe('planErrorsFrozen', () => {
         expect(planErrorsFrozen(added, FROZEN, '0.8.0', 'default')).toMatchObject({ action: 'refuse', message: expect.stringContaining('--ratchet') });
     });
 
+    it('should refresh the $comment under the freeze, and still refuse when a code leaves with it', () => {
+        const recommented = FROZEN.replace(/"\$comment": "(?:[^"\\]|\\.)*"/, '"$comment": "an older explanation"');
+        const same = registry([{ code: 'PKI_A', since: '0.1.0' }, { code: 'PKI_B', since: '0.8.0' }]);
+        expect(recommented).not.toBe(FROZEN);
+        expect(planErrorsFrozen(same, recommented, '0.9.0', 'default')).toMatchObject({ action: 'write', message: expect.stringContaining('$comment') });
+        const removed = registry([{ code: 'PKI_A', since: '0.1.0' }]);
+        expect(planErrorsFrozen(removed, recommented, '0.9.0', 'default').action).toBe('refuse');
+    });
+
     it('should ratchet a shipped addition into the snapshot, so that removing it later fails', () => {
         const withC = registry([{ code: 'PKI_A', since: '0.1.0' }, { code: 'PKI_B', since: '0.8.0' }, { code: 'PKI_C', since: '1.1.0' }]);
         const ratcheted = planErrorsFrozen(withC, FROZEN, '1.1.0', 'ratchet');
