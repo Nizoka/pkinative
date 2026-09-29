@@ -92,9 +92,27 @@ Consuming pkinative from pdfnative's PAdES and LTV stack is pdfnative's mileston
 
 ## 0.8.x — M5: Keys, and the vocabulary frozen
 
-- [ ] PKCS#8 reading, and PKCS#12 reading **under PBES2 only** — PBKDF2 and AES through Web Crypto. RFC 7292 Appendix B, RC2 and 3DES are refused by a named code that names `openssl pkcs12 -legacy` as the conversion: that KDF is iterated SHA-1 over a password, and implementing it would be the secret-dependent cryptography this library exists without. The refusal is a policy, stated in SECURITY.md, not a gap
-- [ ] One-call verification reports that never throw for input problems
-- [ ] **The error-code vocabulary frozen under semantic versioning.** PKCS#12 is the last subsystem that introduces codes, so this is the first version at which the vocabulary is complete — and freezing a whole band before the release that depends on it is what gives 0.9 something to prove
+<!-- Decided at the start of the band, each against a detail of the original
+     plan that turned out to be wrong:
+     - The password is UTF-8 (RFC 9579, OpenSSL) or octets as given — not the
+       BMPString of RFC 7292 Appendix B, which belongs to the KDF refused here.
+     - Most PKCS#12 MACs cannot be verified: even OpenSSL 3 files encrypted
+       with AES and PBKDF2 key their MAC with Appendix B. Only RFC 9579 PBMAC1
+       (OpenSSL 3.4+, -pbmac1_pbkdf2) is checked; anything else is reported as
+       unverified, and the one-call reader fails closed unless told otherwise.
+     - A private key is unwrapped straight into a non-extractable CryptoKey,
+       so its algorithm must be known before decryption: from the certificate
+       sharing its localKeyId, or named by the caller.
+     - The conversion command was run against OpenSSL 4.0.0 before it was
+       written into a remedy; the one-line pipe first drafted does not work. -->
+
+- [x] The Web Crypto door opens `deriveKey`, `unwrapKey` and `decrypt` — each returning a handle or public bytes, never key material — in its own reviewed commit
+- [x] The `keys` layer, PBES2 with PBKDF2 and AES-CBC bounded by `maxKdfIterations` before the host runs an iteration, every refused scheme described by name, and the PKCS#8 structure readers, which describe a key without exposing its secret
+- [x] PKCS#8 reading (`importPrivateKey`, `decryptPrivateKey`) and PKCS#12 reading (`parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`) **under PBES2 only** — PBKDF2 and AES-CBC through Web Crypto, every key unwrapped into a non-extractable `CryptoKey` without its plaintext ever existing in JavaScript. RFC 7292 Appendix B, RC2 and 3DES are refused by a named code whose remedy is a conversion run against OpenSSL 4.0.0: that KDF is iterated hashing with byte arithmetic over a password, and implementing it would be the secret-dependent cryptography this library exists without. The refusal is a policy, stated in SECURITY.md and held to the code by `pkcs12-policy-parity`, not a gap
+- [x] One-call reports that never throw for input problems — `readPkcs12` joins the three, and all four decide misuse before their first catch, so a bad argument throws its documented code and bad bytes become a reason. A seeded fuzzer drives the reports with structural mutations and tiny limits; it found a CRL entry that escaped as a throw from all three, and the opposite leak, misuse swallowed into a reason
+- [x] **The error-code vocabulary frozen under semantic versioning.** `docs/data/errors.frozen.json` holds the 57 codes at 0.8.0, and `error-codes-frozen` fails on a removal, a rename or a class move; `error-parity` now also decides every throw site's code from the syntax tree, following a code passed through a typed helper to every caller. Diagnostics are not frozen: a diagnostic is advice
+
+**Known limitations, stated rather than discovered.** Most PKCS#12 files' integrity cannot be checked here: only an RFC 9579 PBMAC1 MAC can, and `readPkcs12` fails closed on the rest unless told otherwise. `id-RSASSA-PSS` private keys are refused by every current runtime's Web Crypto and end in `PKI_CRYPTO_KEY_UNSUPPORTED`. A key in a PKCS#12 is matched to its certificate by `localKeyId` only. pkinative writes neither PKCS#8 nor PKCS#12, in any version: encrypting or wrapping a key is refused by `KEY_OPERATION_POLICY`.
 
 ## 0.9.x — M5b: The freeze, rehearsed
 

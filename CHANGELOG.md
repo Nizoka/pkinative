@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **feat(keys): private keys and PKCS#12, under PBES2 only** — the 0.8 band's subject, and the last subsystem that introduces error codes.
+
+  **A key never exists in plaintext here.** An encrypted PKCS#8 is opened with `unwrapKey`, which turns ciphertext straight into a non-extractable `CryptoKey`; the password becomes a PBKDF2 base key and is never used again, and `deriveBits` stays refused because `deriveKey` returns a handle where it would return bytes. `parsePrivateKeyInfo` describes a key — algorithm, curve, attributes, the v2 public key — without a field holding its secret. The cost of that design is stated rather than hidden: Web Crypto must be told what a key is *before* it decrypts it, so `decryptPrivateKey` takes the algorithm, and `readPkcs12` takes it from the certificate sharing the key's `localKeyId`.
+
+  **PBES2 with PBKDF2 and AES-CBC is the one scheme opened, by policy.** RFC 7292's own schemes derive their key with the Appendix B KDF — iterated hashing with byte arithmetic over the password — and protect it with 3DES or 40-bit RC2. Every such scheme is still *described* by name, so `parseEncryptedPrivateKeyInfo` and `parsePkcs12` say what a file is protected with before anyone types a password, and refused with `PKI_KEY_ENCRYPTION_UNSUPPORTED`, whose remedy is a conversion run against OpenSSL 4.0.0 before it was written down. The password is UTF-8, as RFC 9579 and OpenSSL use it, or octets as given — not the BMPString of the KDF refused here. `maxKdfIterations` is checked before the host runs a single iteration, because the count is the file's to declare and runs where no JavaScript bound can reach.
+
+  **Most PKCS#12 MACs cannot be verified, and the one call fails closed on them.** Even an OpenSSL 3 file encrypted with AES and PBKDF2 keys its MAC with Appendix B. `verifyPkcs12Mac` checks RFC 9579 PBMAC1 (OpenSSL 3.4 and later, `-pbmac1_pbkdf2`); `readPkcs12` reports anything else as `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` unless the caller passes `allowUnverifiedIntegrity`, because without a MAC an unencrypted bag can be replaced by anyone who can write the file.
+
+  **The Web Crypto door** opened `deriveKey`, `unwrapKey` and `decrypt` in its own reviewed commit, to the two boundary files only. A new `keys` layer never imports `x509`: describing a key file or a `.p12` ships neither the certificate parser nor the Web Crypto bridge (39.8 KB), and can run on a host with no `crypto.subtle`. `PkiKeyError` carries four codes, six `PKI_REASON_PKCS12_*` reasons say why a container was not opened, one diagnostic flags an iteration count below RFC 8018's recommended 1 000, and two named limits bound the band.
+
+- **feat(docs): the error-code vocabulary frozen at 0.8.0** — `docs/data/errors.frozen.json` holds the 57 codes, and the `error-codes-frozen` rule fails on a removal, a rename or a class move, which from this release are semver-major. `error-parity` found a hole in itself on the way: it checked a throw site's message but never its code, so a computed code could make the codes reachable at run time differ from the registry. It now decides every code from the syntax tree, following one passed through a typed helper to every caller; `src/` had no violation. `pkcs12-policy-parity` holds SECURITY.md's table of what is opened and refused to the code, both ways.
+
+### Fixed
+
+- **fix(verify): a CRL entry the walk cannot read is reported, not thrown** — `parseCertificateList` reads a list's envelope and counts its entries; the entries are read later, and that later read was outside any catch. A list with sound framing and an entry missing its revocation date made `verifyCertificateChain`, `verifySignedData` and `verifyTimeStampToken` throw. Found by a seeded fuzzer that now drives all the one-call reports with structural mutations and tiny limits.
+- **fix(verify): misuse throws before the reports' catch** — the opposite leak, found by the same work: an unknown limit, a bad option, an argument that is not bytes or a certificate `parseCertificate` did not make was converted into a reason, or escaped as a `TypeError`. Each report now decides misuse before anything is read.
+- **fix: a caller's type error is `PKI_INVALID_INPUT`** — `parseTimeStampResponse`, the TimeStampReq reader and `parseCertificateList` threw a `TypeError` or a length error for an argument that is not bytes; and a reason about a CRL now names where the caller put it rather than its position among the lists that parsed.
+- **fix(verify-docs): `count-tokens` read "Twenty-one" as "one"** — compound number words are parsed, so a count past twenty written in words is held to its source too.
+
 ## [0.7.0] – 2026-09-29
 
 ### Added
