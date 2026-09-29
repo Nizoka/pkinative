@@ -9,7 +9,7 @@
  * the byte budgets of `declared.bundle` and to the legal texts on disk).
  *
  * What is pinned per file, and why nothing more:
- *   - `path` and `mode` — a file added, removed or made executable is a
+ *   - `path` and `executable` — a file added, removed or made executable is a
  *     reviewed diff;
  *   - `role` — derived from the path, so the manifest says why a file ships;
  *   - `sha256` for the `legal` role only. LICENSE and THIRD-PARTY-NOTICES.md
@@ -32,8 +32,12 @@ export type PackageFileRole = 'build' | 'legal' | 'doc' | 'manifest';
 
 export interface PackageFile {
     readonly path: string;
-    /** The POSIX mode npm reports (420 = 0644; an executable bit shows as 493). */
-    readonly mode: number;
+    /**
+     * Whether npm packs it with an executable bit. The bit, not the mode: a
+     * checkout under umask 002 packs 0664 where CI packs 0644, and group
+     * write says nothing about what a consumer installs.
+     */
+    readonly executable: boolean;
     readonly role: PackageFileRole;
     /** SHA-256 of the file's bytes, for the `legal` role only. */
     readonly sha256?: string;
@@ -96,10 +100,11 @@ export function manifestEntries(
     return [...packed]
         .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
         .map(({ path, mode }) => {
+            const executable = (mode & 0o111) !== 0;
             const role = roleOf(path);
-            if (role !== 'legal') return { path, mode, role };
+            if (role !== 'legal') return { path, executable, role };
             const bytes = readBytes(path);
-            return bytes === null ? { path, mode, role } : { path, mode, role, sha256: sha256(bytes) };
+            return bytes === null ? { path, executable, role } : { path, executable, role, sha256: sha256(bytes) };
         });
 }
 
@@ -149,7 +154,7 @@ export function compareEntries(pinned: readonly PackageFile[], actual: readonly 
             out.push(`added: ${file.path}`);
             continue;
         }
-        if (pin.mode !== file.mode) out.push(`mode changed: ${file.path} ${pin.mode} → ${file.mode}`);
+        if (pin.executable !== file.executable) out.push(`executable bit ${file.executable ? 'set' : 'cleared'}: ${file.path}`);
         if (pin.role !== file.role) out.push(`role changed: ${file.path} ${pin.role} → ${file.role}`);
         if (pin.sha256 !== file.sha256) out.push(`content changed: ${file.path} sha256 ${pin.sha256 ?? 'none'} → ${file.sha256 ?? 'none'}`);
     }
@@ -166,7 +171,7 @@ export function manifestShapeFindings(files: readonly PackageFile[]): string[] {
     if (new Set(paths).size !== paths.length) out.push('a path is listed twice');
     if (paths.some((p, i) => i > 0 && (paths[i - 1] ?? '') >= p)) out.push('the files are not sorted by path');
     for (const f of files) {
-        if (typeof f.path !== 'string' || typeof f.mode !== 'number') out.push(`an entry lacks a string path or a numeric mode: ${JSON.stringify(f)}`);
+        if (typeof f.path !== 'string' || typeof f.executable !== 'boolean') out.push(`an entry lacks a string path or a boolean executable: ${JSON.stringify(f)}`);
         else if (f.role !== roleOf(f.path)) out.push(`${f.path} has role ${String(f.role)}, derived role is ${roleOf(f.path)}`);
         else if ((f.role === 'legal') !== (typeof f.sha256 === 'string' && /^[0-9a-f]{64}$/.test(f.sha256))) {
             out.push(`${f.path}: a sha256 is pinned for the legal files and for them only`);

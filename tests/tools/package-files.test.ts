@@ -82,17 +82,22 @@ describe('compareEntries', () => {
         const diff = compareEntries(pinned, actual);
         expect(diff).toContain('added: dist/extra.js');
         expect(diff).toContain('removed: SECURITY.md');
-        expect(diff).toContain('mode changed: dist/index.js 420 → 493');
+        expect(diff).toContain('executable bit set: dist/index.js');
         expect(diff.some((l) => l.startsWith('content changed: LICENSE'))).toBe(true);
         expect(diff).toHaveLength(4);
+    });
+
+    it('should not see a group-write bit, which only says what umask the checkout ran under', () => {
+        const umask002 = manifestEntries(SHIPPED.map((path) => ({ path, mode: 0o664 })), (p) => `text of ${p}`);
+        expect(compareEntries(pinned, umask002)).toEqual([]);
     });
 });
 
 describe('manifestShapeFindings', () => {
     it('should refuse an unsorted list, a hand-written role and a hash outside the legal texts', () => {
         const findings = manifestShapeFindings([
-            { path: 'dist/index.js', mode: 420, role: 'doc' },
-            { path: 'README.md', mode: 420, role: 'doc', sha256: '0'.repeat(64) },
+            { path: 'dist/index.js', executable: false, role: 'doc' },
+            { path: 'README.md', executable: false, role: 'doc', sha256: '0'.repeat(64) },
         ]);
         expect(findings).toEqual([
             'the files are not sorted by path',
@@ -114,6 +119,6 @@ describe(PACKAGE_FILES_MANIFEST, () => {
             'dist/index.cjs', 'dist/index.cjs.map', 'dist/index.d.cts', 'dist/index.d.ts', 'dist/index.js', 'dist/index.js.map',
             'package.json',
         ]);
-        expect(manifest.files.every((f) => f.mode === 420)).toBe(true);
+        expect(manifest.files.every((f) => !f.executable)).toBe(true);
     });
 });
