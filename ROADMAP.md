@@ -140,9 +140,9 @@ Consuming pkinative from pdfnative's PAdES and LTV stack is pdfnative's mileston
 
 ## 1.0.0 — M6: The freeze and the first publication
 
-- [ ] **The three-part compatibility promise**, written in SECURITY.md and machine-readable in `ecosystem.json → contracts`: the export surface, the error vocabulary, and the *decision surface* — which certificate pkinative refuses, with which code, plus `encode(decode(der)) === der`. Each held by a rule, not by a sentence
-- [ ] First npm publication with provenance, through Trusted Publishing
-- [ ] Adds no engine behaviour over 0.9: 1.0.0 is the freeze itself
+- [x] **The three-part compatibility promise**, written in SECURITY.md and machine-readable in `ecosystem.json → contracts`: the export surface, the error vocabulary, and the *decision surface* — which certificate pkinative refuses, with which code, plus `encode(decode(der)) === der`. Each held by a rule, not by a sentence: `api-surface-frozen`, `error-codes-frozen` and `refusal-baseline-frozen`, with `contracts-shape` holding the promise to its snapshots, rules and ADRs ([ADR 0014](docs/adr/0014-the-decision-surface-contract.md))
+- [ ] First npm publication with provenance, through Trusted Publishing — the path is ready and tested (a tag-only guard before the approval prompt, the tarball checked file by file, the registry's own bytes attested); the publication is the maintainer's act
+- [x] Adds no engine behaviour over 0.9: 1.0.0 is the freeze itself — nothing under `src/` changed in the band
 
 There is **no external security audit** at 1.0, and the line that once promised one has been removed rather than left to be broken. Neither pdfnative nor zipnative shipped 1.0 with one; what stands in its place is named in SECURITY.md §In place of an external audit — the adversarial release audit (two independent auditors and a verifier that re-derives every finding), the L0–L8 conformance gate over third-party corpora and the pinned text of RFC 5280, 100 % coverage on all four axes and mutation testing, the seeded adversarial suites, and CodeQL, Scorecard and Dependency Review, each on the trigger SECURITY.md names. If you need an audit for procurement, open an issue: it will be scoped, and it will be said here when it happens.
 

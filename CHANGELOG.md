@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Added
+
+- **The three-part compatibility promise, each leg held by a rule.** SECURITY.md §Compatibility promise states what 1.x keeps — the export surface (`api-surface-frozen`), the error vocabulary (`error-codes-frozen`) and, new, the *decision surface*: every x509-limbo certificate pkinative refuses stays refused with the same code, a new refusal is a recorded fix listed in its release note, and every corpus certificate re-encodes byte for byte. `docs/data/refusals.frozen.json` snapshots the 565 refusals, `refusal-baseline-frozen` holds it, conformance L1 now reads it directly so `--update-baseline` cannot drop a promised refusal, and [ADR 0014](docs/adr/0014-the-decision-surface-contract.md) decides what is and is not promised. `ecosystem.json → contracts.compatibility` is the machine-readable form, and `contracts-shape` holds it to SECURITY.md both ways.
+- **The 1.0.0 prose swap as a reviewed table.** Every sentence that says pkinative is not on npm has its stable-era replacement written, reviewed and held since now in `PRE_1_0_PROSE`; `release-prepare.ts` applies it at the 1.0.0 bump and refuses, writing nothing, if any span is not found exactly once. The same bump rebases all three snapshots.
+- **The tarball inspected file by file.** `docs/data/package-files.json` lists the twelve files the package ships, with the executable bit of each and the SHA-256 of the licence files; `check:package` fails on any other file, a missing one or a changed bit.
+
+### Changed
+
+- **ci(publish): the publication path hardened before its first use.** A guard job with no environment refuses a run not started from a matching `v*` tag, and any version below 1.0.0, before the `npm-publish` approval is ever asked. Neither release job restores a dependency cache. The attestation job fetches the tarball back from the registry instead of rebuilding it, so the attested bytes and the bytes npm serves are the same.
+- **docs: SECURITY.md restructured** around the compatibility promise, what stands in place of an external audit (each scanner on the trigger it actually runs on) and release integrity; six sentences false at 0.9 corrected; the roadmap names the L0–L8 gate and places the satellites after 1.0.
+
 ## [0.9.0] – 2026-09-29
 
 ### Changed
