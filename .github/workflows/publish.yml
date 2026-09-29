@@ -66,7 +66,14 @@ jobs:
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+          # Only a tag publishes. A workflow_dispatch on a branch would
+          # otherwise publish whatever that branch holds, with nothing but
+          # the environment approval in the way.
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "::error::publish runs from a v* tag only, not from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
             echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
             exit 1
           fi
@@ -122,7 +129,8 @@ jobs:
           # contributors develop on — not on whatever ">= floor" resolves to.
           node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
-          cache: npm
+          # No `cache: npm`: a restored cache is written by other workflows,
+          # and a release job must not build from what they left behind.
 
       # Same commit as the guard, so the same package.json: this re-reads it
       # so that the version published is provably the version guarded, and a
@@ -169,8 +177,12 @@ jobs:
       - name: Publish
         run: npm publish --provenance --access public
 
-  # Attests the tarball and a CycloneDX SBOM built from the same commit, and
+  # Attests the tarball npm published — fetched back from the registry, so the
+  # attested bytes ARE the published ones, with no reproducible-build
+  # assumption — and a CycloneDX SBOM from the same commit's lockfile, and
   # attaches both to the GitHub release when the maintainer has created it.
+  # Kept apart from `publish` on purpose: that job runs every dev dependency
+  # through the gate, and must not hold contents: write or attestations: write.
   attest:
     needs: publish
     runs-on: ubuntu-latest
@@ -196,24 +208,26 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      # .npmrc sets ignore-scripts, so prepublishOnly does not run for
-      # `npm pack`: build explicitly, as the gate did in the publish job.
-      - name: Build
-        run: npm run build
-
+      # The lockfile alone describes the runtime dependency set; nothing is
+      # installed or built here.
       - name: Generate the SBOM (CycloneDX, runtime dependencies only)
         run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pkinative-${VERSION}.cdx.json"
 
-      - name: Pack the tarball
+      # `npm pack <name>@<version>` downloads the published tarball and checks
+      # it against the registry's integrity. Retried: a version can take a
+      # moment to be served after `npm publish` returns.
+      - name: Fetch the published tarball from the registry
         run: |
           set -euo pipefail
-          npm pack
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if npm pack "pkinative@${VERSION}" >/dev/null 2>&1; then break; fi
+            echo "pkinative@${VERSION} not served yet (attempt ${attempt}); retrying in 15 s"
+            sleep 15
+          done
           test -f "pkinative-${VERSION}.tgz"
+          npm view "pkinative@${VERSION}" dist.integrity
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

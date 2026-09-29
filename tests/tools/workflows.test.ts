@@ -356,6 +356,28 @@ describe('publish.yml', () => {
         expect(jobBody('publish')).toMatch(/^ {6}version:\s*\$\{\{ needs\.guard\.outputs\.version \}\}\s*$/m);
     });
 
+    it('should publish from a tag only: the guard refuses a branch before anything else', () => {
+        // A workflow_dispatch on a branch would otherwise publish whatever that
+        // branch holds, with only the environment approval in the way.
+        const guard = jobBody('guard');
+        expect(guard).toMatch(/if \[ "\$\{GITHUB_REF_TYPE\}" != "tag" \]; then\s*\n\s*echo "::error::publish runs from a v\* tag only[^\n]*\n\s*exit 1/);
+        expect(guard.indexOf('!= "tag"')).toBeLessThan(guard.indexOf('Refuse a pre-1.0 publication'));
+    });
+
+    it('should attest the bytes npm published, fetched from the registry, not a rebuild', () => {
+        // A tarball rebuilt in another job is only the published one if the
+        // build is byte-for-byte reproducible; fetching it back makes the
+        // attested file the published file by construction.
+        const attest = jobBody('attest');
+        expect(attest).toMatch(/npm pack "pkinative@\$\{VERSION\}"/);
+        expect(attest).not.toMatch(/run: npm run build|run: npm ci/);
+        expect(attest).not.toMatch(/^\s*run: npm pack\s*$/m);
+    });
+
+    it('should restore no dependency cache in a release job', () => {
+        expect(publish).not.toMatch(/^\s+cache:\s*npm\s*$/m);
+    });
+
     it('should run the publish gate with --require-all before packing and publishing, and list no gate step by hand', () => {
         const steps = jobs.get('publish') ?? [];
         const index = (needle: string | RegExp): number => steps.findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
