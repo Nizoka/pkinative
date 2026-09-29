@@ -8,15 +8,11 @@
   },
   "totals": {
     "scored": 203,
-    "agree": 194,
-    "deviations": 9,
+    "agree": 195,
+    "deviations": 8,
     "skipped": 20
   },
   "deviations": {
-    "InvalidDNandRFC822nameConstraintsTest29": {
-      "expected": "FAILURE",
-      "why": "RFC 5280 §7.1 says two distinguished names match when they compare equal after LDAP string preparation — case folded, whitespace collapsed, and across `PrintableString` and `UTF8String` alike. **pkinative compares encoded bytes**, everywhere and deliberately, and says so in every module that touches a name.\n\nThat is a conformance deviation and it is the one modern implementations share: Go's `crypto/x509` compares `RawIssuer` and `RawSubject` with `bytes.Equal`, and webpki does the same. The reason is that byte equality is the only comparison under which a cross-signed pair is decidable: two CAs that print the same name and encode it differently are two CAs, and a validator that merged them chooses a chain by accident. The direction of the miss is refusal — pkinative rejects a path a §7.1 validator accepts — which is why it costs availability rather than security, and why x509-limbo, written for the Web PKI, scores 99.44 % on the same code. Here the same rule reaches a name constraint rather than the chain: §7.1 preparation is what would make the constrained directoryName match the subject, and byte comparison does not. The direction is inverted for a constraint — a name that does not match is a name not excluded — so this one is an acceptance rather than a refusal, and it is the same missing comparison."
-    },
     "ValidDSAParameterInheritanceTest5": {
       "expected": "SUCCESS",
       "why": "DSA. Web Crypto implements no DSA at all, so `resolveAlgorithm` maps the signature to nothing and `verifyCertificateSignature` reports that the question could not be put — `PKI_REASON_SIGNATURE_NOT_CHECKED`, never `INVALID`. pkinative implements no signature algorithm of its own by construction (AGENTS.md: no secret-dependent cryptography in TypeScript, ever), so this is not a gap that closes; it closes only if a runtime grows DSA, which none is going to. NIST's suite predates that consensus. This one also needs parameter inheritance, where a certificate omits its DSA parameters and takes the issuer's — a shape that exists only for DSA."

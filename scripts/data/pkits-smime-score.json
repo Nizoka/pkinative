@@ -10,8 +10,8 @@
     "messages": 224,
     "intact": 221,
     "scored": 204,
-    "agree": 195,
-    "deviations": 9,
+    "agree": 196,
+    "deviations": 8,
     "skipped": 20
   },
   "notIntact": {
@@ -29,11 +29,6 @@
     }
   },
   "deviations": {
-    "InvalidDNandRFC822nameConstraintsTest29": {
-      "test": "InvalidDNandRFC822nameConstraintsTest29",
-      "expected": "FAILURE",
-      "why": "The same verdict as L7 on the same test, for the same reason; see the entry of the same name in scripts/data/pkits-score.json. RFC 5280 §7.1 string preparation is what would make the excluded directoryName match the signer's subject; byte comparison does not match it, so the constraint does not fire and the message is accepted. The same missing comparison as the five name-chaining entries, in the accepting direction because a name that does not match is a name not excluded."
-    },
     "ValidDSAParameterInheritanceTest5": {
       "test": "ValidDSAParameterInheritanceTest5",
       "expected": "SUCCESS",

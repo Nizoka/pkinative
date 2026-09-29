@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 166000,
-      "approxTokens": 41500
+      "bytes": 166381,
+      "approxTokens": 41595
     },
     {
       "url": "llms-recipes.txt",
@@ -146,8 +146,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 30210,
-      "approxTokens": 7553
+      "bytes": 30591,
+      "approxTokens": 7648
     },
     {
       "title": "Errors, diagnostics and reasons",

@@ -4422,6 +4422,32 @@ function _sameRdn(a, b) {
     return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
   });
 }
+var PREPARED_STRING_TYPES = /* @__PURE__ */ new Set(["printable", "utf8", "teletex", "bmp", "universal", "ia5"]);
+var MAPPED_TO_SPACE = /[\t\n\v\f\r\u0085\p{Zs}\u2028\u2029]+/gu;
+function _prepareString(text) {
+  const folded = text.normalize("NFKC").toUpperCase().toLowerCase().normalize("NFKC");
+  return folded.replace(MAPPED_TO_SPACE, " ").replace(/^ | $/g, "");
+}
+function _attributeKey(attribute) {
+  const value = attribute.value;
+  return value !== void 0 && PREPARED_STRING_TYPES.has(value.stringType) ? `p:${attribute.type}:${_prepareString(value.value)}` : `b:${attribute.type}:${toHex(attribute.valueDer)}`;
+}
+function _samePreparedRdn(a, b) {
+  if (a.length !== b.length) return false;
+  const left = a.map(_attributeKey).sort();
+  const right = b.map(_attributeKey).sort();
+  return left.every((key, i) => key === right[i]);
+}
+function directoryMatchesPrepared(constraint, name) {
+  if (constraint.rdns.length > name.rdns.length) return false;
+  return constraint.rdns.every((rdn, i) => _samePreparedRdn(rdn, name.rdns[i]));
+}
+function excludedCovers(subtree, name) {
+  if (subtreeCovers(subtree, name)) return true;
+  const base = subtree.base;
+  if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
+  return base.kind === "directoryName" && name.kind === "directoryName" && directoryMatchesPrepared(base.name, name.name);
+}
 function wellFormedName(name) {
   switch (name.kind) {
     case "dNSName":
@@ -4534,7 +4560,7 @@ function checkName(state, name) {
   }
   if (constrained && !wellFormedName(name)) return { form, text, why: "not-permitted" };
   for (const subtree of state.excluded[form]) {
-    if (subtreeCovers(subtree, name)) return { form, text, why: "excluded" };
+    if (excludedCovers(subtree, name)) return { form, text, why: "excluded" };
   }
   const permitted = state.permitted[form];
   if (permitted === null) return null;
@@ -4734,6 +4760,7 @@ function formatDistinguishedName(name) {
 }
 
 // src/path/path-validate.ts
+var EMAIL_ADDRESS = "1.2.840.113549.1.9.1";
 var PROCESSED_CRITICAL_EXTENSIONS = /* @__PURE__ */ new Set([
   "2.5.29.19",
   // basicConstraints — §6.1.4 (k), (l)
@@ -4815,7 +4842,17 @@ function checkNamesAgainstConstraints(certificate, names, path) {
       out.push(verdict.why === "excluded" ? nameExcludedReason(`${path}.subject`, "subject", formatDistinguishedName(certificate.subject)) : nameNotPermittedReason(`${path}.subject`, "subject", formatDistinguishedName(certificate.subject)));
     }
   }
-  for (const entry of getExtension(certificate, "subjectAltName")?.names ?? []) {
+  const subjectAltName = getExtension(certificate, "subjectAltName");
+  if (subjectAltName === void 0) {
+    for (const attribute of certificate.subject.rdns.flat()) {
+      if (attribute.type !== EMAIL_ADDRESS) continue;
+      const mailbox = { kind: "rfc822Name", value: attribute.value?.value ?? "", der: attribute.valueDer };
+      const verdict = checkName(names, mailbox);
+      if (verdict === null) continue;
+      out.push(verdict.why === "excluded" ? nameExcludedReason(`${path}.subject`, verdict.form, verdict.text) : nameNotPermittedReason(`${path}.subject`, verdict.form, verdict.text));
+    }
+  }
+  for (const entry of subjectAltName?.names ?? []) {
     const verdict = checkName(names, entry);
     if (verdict === null) continue;
     out.push(verdict.why === "excluded" ? nameExcludedReason(`${path}.subjectAltName`, verdict.form, verdict.text) : nameNotPermittedReason(`${path}.subjectAltName`, verdict.form, verdict.text));

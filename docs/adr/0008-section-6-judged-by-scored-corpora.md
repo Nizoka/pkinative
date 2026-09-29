@@ -28,7 +28,7 @@ The 0.4.0 release note promised more: "L5 covers RFC 5280 §4 only. §6 roughly 
 Chosen option: 2, in three levels:
 
 - **L6 — x509-limbo, scored.** 9 156 of 9 208 chains agree (99.44 %); 52 reviewed deviations, each with a reason; 30 cases pinned on their `PkiReasonCode`; two canaries against a scorer that stopped deciding anything.
-- **L7 — NIST PKITS.** A second corpus written independently, around the US Federal PKI: 194 of 203 paths agree (95.57 %), nine deviations, the 20 §4.8 policy tests skipped because the archive states no `user-initial-policy-set`.
+- **L7 — NIST PKITS.** A second corpus written independently, around the US Federal PKI: 195 of 203 paths agree (96.06 %), eight deviations, the 20 §4.8 policy tests skipped because the archive states no `user-initial-policy-set`.
 - **L8 — the 224 PKITS S/MIME messages**, each verified whole: 221 intact at the CMS layer, and 204 of 204 scored verdicts equal to the L7 verdict on the signer's own path.
 
 L5 keeps what a clause table does well: attributing a violation of §4 to its sentence and proving that pkinative's diagnostic fires for it, with every clause exercised by a corpus certificate or waived to `tests/conformance/clauses.test.ts` with a written reason.
