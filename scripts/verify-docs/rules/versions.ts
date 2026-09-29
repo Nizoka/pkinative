@@ -68,14 +68,20 @@ const packageVersionSync: Rule = {
     },
 };
 
+/** The registry install. Below 1.0.0 it resolves to the empty 0.0.1 name reservation. */
+const REGISTRY_INSTALL = /\bnpm (?:install|i|add) pkinative(?![\w/-])/;
+/** Where a reader or an agent looks for how to install: from 1.0.0 each one names the registry. */
+export const PRIMARY_INSTALL_DOCS: readonly string[] = ['README.md', 'docs/guides/quickstart.md', 'docs/agent-brief.md', 'docs/index.html'];
+
 const installUrlVersion: Rule = {
     id: 'install-url-version',
-    summary: 'Every release-tarball install command outside release-notes/ names the current version, in both the tag and the file name, and the prose that names the current minor beside it agrees — a frozen URL does not break, it quietly installs the wrong artefact.',
+    summary: 'Every release-tarball install command outside release-notes/ names the current version, in both the tag and the file name, and the prose that names the current minor beside it agrees — a frozen URL does not break, it quietly installs the wrong artefact. The landing page\'s copy button copies the command it shows. Below 1.0.0 nothing says `npm install pkinative` (it installs the 0.0.1 name reservation); from 1.0.0 README, the quick start, the agent brief and the landing page all do, and the tarball stays the attested alternative publish.yml attaches to every release.',
     check(ctx) {
         const version = packageVersion(ctx);
         if (version === null) return [];
+        const stable = Number(version.split('.')[0]) >= 1;
         const minor = version.split('.').slice(0, 2).join('.');
-        const sources = ['README.md', 'llms.txt', 'docs/agent-brief.md', ...ctx.list('docs').filter((p) => p.endsWith('.md'))];
+        const sources = ['README.md', 'llms.txt', 'docs/agent-brief.md', 'docs/index.html', ...ctx.list('docs').filter((p) => p.endsWith('.md'))];
         const out: Finding[] = [];
         for (const path of new Set(sources)) {
             const text = ctx.read(path);
@@ -84,14 +90,27 @@ const installUrlVersion: Rule = {
                 if (m[1] === version && m[2] === version) continue;
                 out.push(error(path, `installs pkinative-${m[2] ?? ''}.tgz from tag v${m[1] ?? ''}; package.json says ${version}`, lineContaining(text, m[0])));
             }
-            // The two sentences that carry a bare `X.Y` next to those URLs.
-            // release-prepare.ts deliberately does not rewrite them — they
-            // change meaning at 1.0, not just digits — so the rule is what
-            // remembers they exist.
+            // The sentences that carry a bare `X.Y` next to those URLs.
+            // release-prepare.ts rewrites their digits; the one about the
+            // release tarball is swapped out at 1.0.0 (PRE_1_0_PROSE), and
+            // this loop then simply finds nothing there.
             for (const m of text.matchAll(/\*\*Status: (\d+\.\d+) |\b(\d+\.\d+) is the release tarball\b/g)) {
                 const quoted = m[1] ?? m[2] ?? '';
                 if (quoted === minor) continue;
                 out.push(error(path, `names minor ${quoted} beside the install command; package.json says ${minor}`, lineContaining(text, m[0])));
+            }
+            const registry = REGISTRY_INSTALL.exec(text);
+            if (!stable && registry !== null) {
+                out.push(error(path, `says \`${registry[0]}\` with package.json at ${version} — below 1.0.0 that installs the empty 0.0.1 name reservation, not this release; document the release tarball`, lineContaining(text, registry[0])));
+            }
+            if (stable && registry === null && PRIMARY_INSTALL_DOCS.includes(path)) {
+                out.push(error(path, `does not say \`npm install pkinative\` with package.json at ${version} — from 1.0.0 the registry is the install, and the release tarball its attested alternative (scripts/release-prepare.ts swaps the text on the 1.0.0 bump)`));
+            }
+            // A copy button whose data-copy no rule read once shipped the
+            // previous version's command to anyone who clicked it.
+            const button = /<code>([^<]*)<\/code>\s*<button\b[^>]*\bdata-copy="([^"]*)"/.exec(text);
+            if (button !== null && button[1] !== button[2]) {
+                out.push(error(path, `the copy button copies "${button[2] ?? ''}" beside a command that reads "${button[1] ?? ''}"`, lineContaining(text, 'data-copy="')));
             }
         }
         return out;

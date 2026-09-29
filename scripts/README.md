@@ -40,7 +40,7 @@ is swallowed before `npm run gate` sees it.
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
 | `fetch-corpora.ts` | `conformance:fetch` | — | Downloads x509-limbo and Wycheproof at their pinned commits, refusing any file whose SHA-256 differs | 0/1/2 |
-| `release-prepare.ts` | — | — | The mechanical half of a version bump: 18 fields across 9 files, plus the release-note and pull-request-body scaffolds. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
+| `release-prepare.ts` | — | — | The mechanical half of a version bump: every row of its `EDITS` table, at 1.0.0 every stable-era swap of `PRE_1_0_PROSE`, plus the release-note and pull-request-body scaffolds; a pure `planRelease` a test runs on the in-memory tree. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
 | `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages, plus the nav and footer every hand-written page pastes | 0/1 |
 | `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares | 0/1 |
