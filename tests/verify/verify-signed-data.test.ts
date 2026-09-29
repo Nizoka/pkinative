@@ -182,6 +182,26 @@ describe('verifySignedData', () => {
             await expect(verify(w, await sign(w), extra)).rejects.toMatchObject({ code: 'PKI_API_MISUSE' });
         });
 
+        it.each([
+            ['a signedData that is not bytes', { signedData: 'MIAGCSqGSIb3DQEHAqCAMIA=' }, 'PKI_INVALID_INPUT'],
+            ['detached content that is not bytes', { content: 'text' }, 'PKI_INVALID_INPUT'],
+            ['a digest that is not bytes', { contentDigest: [1, 2, 3] }, 'PKI_INVALID_INPUT'],
+            ['an unknown limit', { limits: { maxNode: 50 } }, 'PKI_LIMIT_INVALID'],
+            ['a limit of zero', { limits: { maxNodes: 0 } }, 'PKI_LIMIT_INVALID'],
+            ['unknown encoding rules', { encodingRules: 'cer' }, 'PKI_INVALID_OPTION'],
+            ['an allowTrailingData that is not a boolean', { allowTrailingData: 'yes' }, 'PKI_INVALID_OPTION'],
+            ['a certificate that parseCertificate did not make', { certificates: [{ der: new Uint8Array(1) }] }, 'PKI_INVALID_INPUT'],
+            ['a trust anchor that parseCertificate did not make', { trustAnchors: [null] }, 'PKI_INVALID_INPUT'],
+        ])('should throw for %s — misuse, never a reason about the message', async (_label, extra, code) => {
+            // Decided before the parse, whose catch would otherwise have
+            // reported the caller's own mistake as INPUT_MALFORMED — or, for an
+            // object that is not a certificate, let a TypeError escape.
+            const w = await world();
+            const call = verify(w, await sign(w, { detached: true }), extra as Partial<VerifySignedDataInput>);
+            await expect(call).rejects.toBeInstanceOf(PkiError);
+            await expect(call).rejects.toMatchObject({ code });
+        });
+
         it('should report bytes that are not a SignedData as INPUT_MALFORMED, with the error that would have been thrown', async () => {
             const w = await world();
             const report = await verify(w, Uint8Array.of(0x30, 0x05, 0x06));

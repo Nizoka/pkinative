@@ -33,7 +33,7 @@ import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { EncodingRules, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
-import { _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
+import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
 import { _under, _verifySigner } from './verify-signer.js';
 import { _parseBag, verifyTimeStampToken, type VerifyTimeStampReport } from './verify-timestamp.js';
 
@@ -162,6 +162,17 @@ export interface VerifySignedDataReport {
 export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport> {
     if (input.content !== undefined && input.contentDigest !== undefined) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: pass the detached content or its digest, not both — there would be two answers to which bytes were signed');
+    }
+    // Misuse is decided here, before the parse below converts every refusal
+    // into a reason about the message.
+    _assertCertificates(input.certificates ?? [], 'certificates');
+    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    _assertArguments([['signedData', input.signedData], ['content', input.content], ['contentDigest', input.contentDigest]], {
+        limits: input.limits ?? {},
+        ...(input.encodingRules === undefined ? {} : { encodingRules: input.encodingRules }),
+    });
+    if (input.allowTrailingData !== undefined && typeof input.allowTrailingData !== 'boolean') {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: allowTrailingData must be a boolean, got ${typeof input.allowTrailingData}`);
     }
     const quiet = { onDiagnostic: (): undefined => undefined };
     let signedData: SignedData;

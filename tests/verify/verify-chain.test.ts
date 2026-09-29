@@ -27,6 +27,7 @@ import { sha256 } from '../../src/hash/sha256.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
+import { PkiError } from '../../src/types/pki-errors.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
 import type { CryptoKeyHandle } from '../../src/types/webcrypto.js';
 import type { Certificate } from '../../src/types/x509-types.js';
@@ -251,6 +252,26 @@ describe('verifyCertificateChain — the one place that catches', () => {
         const malformed = report.reasons.find((r) => r.code === 'PKI_REASON_INPUT_MALFORMED');
         expect(malformed?.errorCode).toMatch(/^PKI_/);
         expect(malformed?.path).toBe('crl[0]');
+    });
+
+    const bytes = new Uint8Array(1);
+    it.each([
+        ['a leaf that is its DER', { leaf: R12.der }],
+        ['a leaf of null', { leaf: null }],
+        ['a candidate without its DER', { candidates: [{ ...R12, der: undefined }] }],
+        ['a candidate without a subject', { candidates: [{ der: bytes }] }],
+        ['a trust anchor without an issuer', { trustAnchors: [{ der: bytes, subject: { der: bytes } }] }],
+        ['a trust anchor whose extensions are not a list', { trustAnchors: [{ ...ROOT_X1, extensions: 'none' }] }],
+        ['a CRL that is not bytes', { crls: ['MIIB'] }],
+        ['an OCSP response that is not bytes', { ocsp: [[0x30, 0x00]] }],
+        ['a nonce that is not bytes', { ocspNonce: 'nonce' }],
+    ])('should throw PKI_INVALID_INPUT for %s — misuse, never a reason and never a TypeError', async (_label, extra) => {
+        // Decided before anything is read: past that point every PkiError is
+        // converted into a reason about the input, and an object that is not a
+        // certificate reached `subject.der` and escaped as a TypeError.
+        const call = verifyCertificateChain({ leaf: R12, candidates: [], trustAnchors: [ROOT_X1], at: AT, ...extra } as never);
+        await expect(call).rejects.toBeInstanceOf(PkiError);
+        await expect(call).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
     });
 
     it('should say nothing about revocation when no list was supplied', async () => {

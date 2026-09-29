@@ -57,6 +57,8 @@ import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies } from '../revocation/crl-scope.js';
+import { createAsn1Context } from '../asn1/asn1-context.js';
+import { assertBytes } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PathBuildReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
@@ -190,6 +192,43 @@ export function _pkiError(error: unknown): PkiError {
     return error;
 }
 
+/**
+ * Refuse, before anything is read, what is not a certificate `parseCertificate`
+ * made.
+ *
+ * The other half of the promise *"a report throws only for API misuse"*. A
+ * composition that catches has to decide misuse up front, because once inside
+ * the catch a `PKI_INVALID_INPUT` from a layer below reads exactly like a fact
+ * about the input — and an object that is not a certificate otherwise reaches
+ * `certificate.subject.der` and escapes as a `TypeError`.
+ *
+ * @internal
+ */
+export function _assertCertificates(values: readonly unknown[], what: string): void {
+    for (const [index, value] of values.entries()) {
+        const candidate = value as Partial<Certificate> | null;
+        if (typeof value !== 'object' || candidate === null
+            || !(candidate.der instanceof Uint8Array)
+            || !(candidate.subject?.der instanceof Uint8Array)
+            || !(candidate.issuer?.der instanceof Uint8Array)
+            || !Array.isArray(candidate.extensions)) {
+            throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what}[${String(index)}] must be a certificate from parseCertificate — pass the parsed value, not its DER`);
+        }
+    }
+}
+
+/**
+ * Refuse byte inputs of the wrong type, and malformed reading options, before
+ * anything is read — for the same reason as {@link _assertCertificates}: past
+ * this point every `PkiError` is converted into a reason about the input.
+ *
+ * @internal
+ */
+export function _assertArguments(bytes: ReadonlyArray<readonly [string, unknown]>, reading: PkiParseOptions): void {
+    for (const [what, value] of bytes) if (value !== undefined) assertBytes(value, what);
+    createAsn1Context(reading);
+}
+
 /** `id-kp-OCSPSigning`, the only purpose that makes a delegate a responder. */
 const OCSP_SIGNING = '1.3.6.1.5.5.7.3.9';
 
@@ -249,6 +288,14 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  *   produced.
  */
 export async function verifyCertificateChain(input: VerifyChainInput): Promise<VerifyChainReport> {
+    _assertCertificates([input.leaf], 'leaf');
+    _assertCertificates(input.candidates ?? [], 'candidates');
+    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    _assertArguments([
+        ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der] as const),
+        ...(input.ocsp ?? []).map((der, index) => [`ocsp[${String(index)}]`, der] as const),
+        ['ocspNonce', input.ocspNonce],
+    ], { limits: input.limits ?? {} });
     const at = input.at ?? Date.now();
     const candidates = input.candidates ?? [];
     const all = [input.leaf, ...candidates, ...input.trustAnchors];

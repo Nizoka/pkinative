@@ -46,7 +46,7 @@ import type { MessageImprint, TimeStampToken } from '../types/tsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
 import { getExtension } from '../x509/x509-extensions.js';
-import { _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
+import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
 import { _digestName, _under, _verifySigner } from './verify-signer.js';
 
 /** What to verify a timestamp token against. */
@@ -288,6 +288,13 @@ function _expectation(input: VerifyTimeStampInput, reading: PkiParseOptions): _E
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: say what was stamped — pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued');
     }
+    // Misuse is decided here, before the parse in the caller converts every
+    // refusal into a reason about the token.
+    _assertCertificates(input.certificates ?? [], 'certificates');
+    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    _assertArguments([
+        ['token', input.token], ['response', input.response], ['request', input.request], ['data', input.data], ['imprint', input.imprint],
+    ], reading);
     const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, reading);
     return {
         imprint: input.imprint,

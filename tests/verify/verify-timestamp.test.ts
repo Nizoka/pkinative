@@ -80,6 +80,26 @@ describe('verifyTimeStampToken', () => {
             }
         });
 
+        it.each([
+            ['a token that is not bytes', { token: 'MIAGCSqGSIb3DQEHAqCAMIA=' }, 'PKI_INVALID_INPUT'],
+            ['a response that is not bytes', { token: undefined, response: 'MAMCAQI=' }, 'PKI_INVALID_INPUT'],
+            ['a request that is not bytes', { data: undefined, request: 'MAA=' }, 'PKI_INVALID_INPUT'],
+            ['data that is not bytes', { data: 'the document' }, 'PKI_INVALID_INPUT'],
+            ['an imprint that is not bytes', { data: undefined, imprint: [1, 2, 3] }, 'PKI_INVALID_INPUT'],
+            ['an unknown limit', { limits: { maxNode: 50 } }, 'PKI_LIMIT_INVALID'],
+            ['a certificate that parseCertificate did not make', { certificates: ['MIIB'] }, 'PKI_INVALID_INPUT'],
+            ['a trust anchor that parseCertificate did not make', { trustAnchors: [{}] }, 'PKI_INVALID_INPUT'],
+        ])('should throw for %s — misuse, never a reason about the token', async (_label, extra, code) => {
+            // Decided before the token is parsed, whose catch would otherwise
+            // have reported the caller's own mistake as INPUT_MALFORMED — or,
+            // for a string, let a TypeError escape.
+            const w = await world();
+            const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+            const call = verify(w, token, extra as Partial<VerifyTimeStampInput>);
+            await expect(call).rejects.toBeInstanceOf(PkiError);
+            await expect(call).rejects.toMatchObject({ code });
+        });
+
         it('should refuse a request that is not a TimeStampReq with the CMS error', async () => {
             const w = await world();
             const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
