@@ -105,7 +105,13 @@ export const PROBES: readonly Probe[] = [
     // Every one of those was a bypass, so the bytes bought correctness rather
     // than features — and the headroom is named here so the next rise has to be
     // argued too.
-    { exports: ['validateCertificatePath'], maxBytes: 20 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    //
+    // 20 KB → 22 KB, measured at 20.5 KB in 0.9: two acceptance defects closed.
+    // An excluded directoryName now also matches after RFC 5280 §7.1
+    // preparation, and an rfc822Name constraint reaches the subject's
+    // emailAddress when there is no subjectAltName (§4.2.1.10) — the second is
+    // what let NIST's InvalidDNandRFC822nameConstraintsTest29 through since 0.5.
+    { exports: ['validateCertificatePath'], maxBytes: 22 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "Revocation is synchronous and carries no crypto", weighed. The Web
     // Crypto marker is the invariant: `checkRevocation` takes a signature
     // verdict rather than a key, and a bundle retaining the bridge would mean
@@ -153,7 +159,9 @@ export const PROBES: readonly Probe[] = [
     // rules landed: the composition now pairs a delta with its base and judges
     // whether a delegated signer's own certificate is still good, which is a
     // second revocation question asked inside the first one.
-    { exports: ['verifyCertificateChain'], maxBytes: 124 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 124 KB → 128 KB, measured at 124.6 KB in 0.9: the same two name-constraint
+    // fixes, which the composition carries with the §6 walk.
+    { exports: ['verifyCertificateChain'], maxBytes: 128 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.7 band, weighed from four sides — measured 2026-09-29 at 70.5,
     // 35.2, 17.2 and 167.2 KB.
     //
