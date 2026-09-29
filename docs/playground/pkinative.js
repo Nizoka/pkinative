@@ -5785,6 +5785,17 @@ var _hex2 = (bytes) => {
   for (const b of bytes) out += b.toString(16).padStart(2, "0");
   return out;
 };
+function _firstOfEach(ders) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const [index, der] of ders.entries()) {
+    const key = _hex2(der);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([index, der]);
+  }
+  return out;
+}
 async function verifyCertificateChain(input) {
   const at = input.at ?? Date.now();
   const candidates = input.candidates ?? [];
@@ -5931,7 +5942,7 @@ async function _checkRevocation(input, path, at) {
   const anchors = new Set(input.trustAnchors.map((c) => _hex2(c.der)));
   const covered = /* @__PURE__ */ new Set();
   const parsed = [];
-  for (const [index, der] of lists.entries()) {
+  for (const [index, der] of _firstOfEach(lists)) {
     try {
       parsed.push({ der, crl: parseCertificateList(der, reading) });
     } catch (error) {
@@ -5973,7 +5984,7 @@ async function _checkRevocation(input, path, at) {
     out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
   const issuer = path[1];
-  for (const [index, der] of stapled.entries()) {
+  for (const [index, der] of _firstOfEach(stapled)) {
     const where2 = `ocsp[${String(index)}]`;
     try {
       const response = parseOcspResponse(der, reading);
