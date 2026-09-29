@@ -35,6 +35,8 @@ describe('DEFAULT_PKI_LIMITS', () => {
             maxSignerInfos: 64,
             maxCmsAttributes: 256,
             maxCmsBagEntries: 1024,
+            maxKdfIterations: 10_000_000,
+            maxPkcs12Bags: 4096,
         });
     });
 });

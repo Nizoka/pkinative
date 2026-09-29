@@ -79,6 +79,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_CMS_SET_NOT_SORTED', diagnostics.cmsSetNotSortedDiagnostic('content.certificates', 40)],
         ['PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER', diagnostics.cmsSignedAttributesNotDerDiagnostic('content.signerInfos[0].signedAttrs', 900)],
         ['PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED', diagnostics.cmsDigestAlgorithmNotListedDiagnostic('content.signerInfos[0].digestAlgorithm', '2.16.840.1.101.3.4.2.3')],
+        ['PKI_DIAG_KEY_KDF_ITERATIONS_LOW', diagnostics.keyKdfIterationsLowDiagnostic('encryptionAlgorithm.parameters.keyDerivationFunc.parameters.iterationCount', 1)],
         ['PKI_DIAG_PRINTABLE_STRING_CHARSET', diagnostics.printableStringCharsetDiagnostic('tbsCertificate.subject[2]', '*')],
         ['PKI_DIAG_TELETEX_AS_LATIN1', diagnostics.teletexAsLatin1Diagnostic('tbsCertificate.issuer[1]')],
         ['PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION', diagnostics.unknownCriticalExtensionDiagnostic('1.3.6.1.4.1.99999.1', 'tbsCertificate.extensions[4]')],

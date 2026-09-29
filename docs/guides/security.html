@@ -186,6 +186,18 @@
       <td>CWE-400</td>
       <td>The certificates and revocation entries one SignedData carries</td>
       </tr>
+      <tr>
+      <td><code>maxKdfIterations</code></td>
+      <td>10 000 000</td>
+      <td>CWE-400</td>
+      <td>The PBKDF2 iteration count honoured — declared by the file, run by the host</td>
+      </tr>
+      <tr>
+      <td><code>maxPkcs12Bags</code></td>
+      <td>4 096</td>
+      <td>CWE-400</td>
+      <td>The SafeBags read from one PKCS#12, across every SafeContents</td>
+      </tr>
       </tbody></table>
       <p>Exceeding a limit throws <code>PkiLimitError</code> with code <code>PKI_LIMIT_EXCEEDED</code> and the <code>limit</code>, <code>configured</code> and <code>observed</code> values. Override per call with <code>options.limits</code>; <code>DEFAULT_PKI_LIMITS</code> holds the defaults.</p>
       <h2 id="fail-in-one-way">Fail in one way <a class="heading-anchor" href="#fail-in-one-way" aria-label="Link to this section">#</a></h2>

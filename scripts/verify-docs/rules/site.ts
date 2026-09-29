@@ -448,7 +448,11 @@ const apiExists: Rule = {
 };
 
 const NUMBER_WORDS: readonly string[] = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
-const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${NUMBER_WORDS.join('|')})`;
+/** The tens a compound number word starts with — `twenty-one` is how prose writes 21. */
+const TENS_WORDS: readonly string[] = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const COMPOUND = `(?:${TENS_WORDS.join('|')})-(?:${NUMBER_WORDS.slice(1, 10).join('|')})`;
+// The compound form comes first: otherwise `Twenty-one` is read as `one`.
+const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.join('|')}|${TENS_WORDS.join('|')})`;
 
 /**
  * The changelog is history: an entry for a released version records what that
@@ -463,7 +467,10 @@ function topEntryOnly(path: string, text: string): string {
 }
 
 function quotedValue(token: string): number {
-    const word = NUMBER_WORDS.indexOf(token.toLowerCase());
+    const [head = '', unit] = token.toLowerCase().split('-');
+    const tens = TENS_WORDS.indexOf(head);
+    if (tens >= 0) return 20 + tens * 10 + (unit === undefined ? 0 : NUMBER_WORDS.indexOf(unit));
+    const word = NUMBER_WORDS.indexOf(head);
     return word >= 0 ? word : Number(token.replace(/[ \u00a0,]/g, ''));
 }
 

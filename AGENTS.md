@@ -44,7 +44,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
 | `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
-| `src/path/`, `src/revocation/`, `src/cms/`, `src/verify/` | §6 paths, §5 revocation, CMS and timestamps; `verify/` composes them and alone catches a `PkiError` | `.github/instructions/pki-core.instructions.md` |
+| `src/path/`, `src/revocation/`, `src/cms/`, `src/keys/`, `src/verify/` | §6 paths, §5 revocation, CMS and timestamps, PKCS#8/#12; `verify/` composes them and alone catches a `PkiError` | `.github/instructions/pki-core.instructions.md` |
 | `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
 | `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
 | `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
@@ -66,12 +66,13 @@ build  → types, core, asn1, hash, crypto
 path   → types, core, x509
 revocation → types, core, asn1, hash, x509, build
 cms    → types, core, asn1, hash, x509, build
-verify → types, core, asn1, hash, x509, crypto, path, revocation, cms
+keys   → types, core, asn1, crypto
+verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 ```
 
 `src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**; `path` and `cms` never import `crypto` (verdicts arrive precomputed).
-**Web Crypto has one door.** Only `src/crypto/webcrypto.ts` may name `importKey`, `verify` or `sign`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` in every version.
+`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**; `path` and `cms` never import `crypto` (verdicts arrive precomputed); `keys` never imports `x509` (certificate bags leave as DER).
+**Web Crypto has one door.** Only `src/crypto/webcrypto.ts` names `importKey`, `verify`, `sign`, `deriveKey`, `unwrapKey`, `decrypt`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt`, `wrapKey` forever.
 
 ## Conventions
 
@@ -85,8 +86,7 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms
 
 ## Never touch
 
-- `release-notes/v*.md` of already-tagged versions (read-only history).
-- `dist/`, `coverage/`, `test-output/`, `node_modules/`, `package-lock.json` (npm owns it), and every generated file below: regenerate, never hand-edit.
+- `release-notes/v*.md` of already-tagged versions (read-only history); `dist/`, `coverage/`, `test-output/`, `node_modules/`, `package-lock.json` (npm owns it), and every generated file below: regenerate, never hand-edit.
 - `tests/fixtures/**` committed certificates (foreign provenance — regenerating them locally destroys the point) and the SHA pins in `.github/workflows/*.yml` (Dependabot owns bumps).
 
 ## Generated files

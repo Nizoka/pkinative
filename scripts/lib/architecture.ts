@@ -72,6 +72,13 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // two syntaxes share; build and hash for the one thing that writes, a
     // timestamp request, which carries a digest of what is to be stamped.
     cms: ['types', 'core', 'asn1', 'hash', 'x509', 'build'],
+    // PKCS#8 and PKCS#12 under PBES2 (0.8): the one layer besides verify that
+    // reaches crypto for something other than a signature, because opening a
+    // password-protected key IS a Web Crypto call — derive, then unwrap. No
+    // x509: a certificate bag comes out as DER and the caller, or verify,
+    // parses it, so reading a key file never ships the certificate parser.
+    // No hash: PBKDF2 and the PBMAC1 HMAC run in the host.
+    keys: ['types', 'core', 'asn1', 'crypto'],
     // The composition layer, and the only one that reaches both a key and a
     // verdict. Everything below it answers one question and answers it the
     // narrow way: primitives return and throw, and each of section 6, name
@@ -81,7 +88,7 @@ export const LAYERS: Readonly<Record<string, readonly string[]>> = Object.freeze
     // reasons — and if that someone is every caller, every caller gets it
     // slightly wrong. So it is here, once, and `verify` is the ONLY module of
     // src/ allowed to catch a PkiError.
-    verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation', 'cms'],
+    verify: ['types', 'core', 'asn1', 'hash', 'x509', 'crypto', 'path', 'revocation', 'cms', 'keys'],
 });
 
 export const ENTRY = 'src/index.ts';

@@ -143,9 +143,29 @@ export interface SubtlePassword {
     verify(algorithm: { readonly name: 'HMAC' }, key: CryptoKeyHandle, signature: Uint8Array, data: Uint8Array): Promise<boolean>;
 }
 
+/**
+ * What is probed on `crypto.subtle` before anything is called: each member's
+ * **presence**, never its signature.
+ *
+ * The signatures belong to the interfaces above, and are asserted only after
+ * a run-time check has found every member a caller needs. Declaring them here
+ * too would claim a shape for a host object pkinative has not inspected — and
+ * an intersection of `importKey` overloads that no real `SubtleCrypto` is
+ * comparable to once a host's own lib types are in scope.
+ */
+export interface HostSubtle {
+    readonly digest?: unknown;
+    readonly importKey?: unknown;
+    readonly verify?: unknown;
+    readonly sign?: unknown;
+    readonly deriveKey?: unknown;
+    readonly unwrapKey?: unknown;
+    readonly decrypt?: unknown;
+}
+
 /** The shape of `globalThis` as far as Web Crypto is concerned. */
 export interface WebCryptoHost {
     readonly crypto?: {
-        readonly subtle?: Partial<SubtleDigest & SubtlePublicKey & SubtlePassword> | undefined;
+        readonly subtle?: HostSubtle | undefined;
     } | undefined;
 }

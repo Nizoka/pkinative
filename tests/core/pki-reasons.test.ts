@@ -11,6 +11,12 @@ import {
     tspImprintMismatchReason,
     tspNotGrantedReason,
     tspRequestMismatchReason,
+    pkcs12DecryptionFailedReason,
+    pkcs12EncryptionUnsupportedReason,
+    pkcs12IntegrityUnverifiedReason,
+    pkcs12KeyUnmatchedReason,
+    pkcs12KeyUnsupportedReason,
+    pkcs12MacMismatchReason,
     tspTokenInvalidReason,
     expiredReason,
     inputMalformedReason,
@@ -80,6 +86,12 @@ const ALL: ReadonlyArray<{ readonly code: PkiReasonCode; readonly reason: PkiRea
     { code: 'PKI_REASON_TSP_TOKEN_INVALID', reason: tspTokenInvalidReason('token', 'the token carries two signers') },
     { code: 'PKI_REASON_TSP_IMPRINT_MISMATCH', reason: tspImprintMismatchReason('tstInfo.messageImprint') },
     { code: 'PKI_REASON_TSP_REQUEST_MISMATCH', reason: tspRequestMismatchReason('tstInfo.nonce', 'the nonce 17 was sent and 18 came back') },
+    { code: 'PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED', reason: pkcs12EncryptionUnsupportedReason('authSafe[0]', 'pbeWithSHAAnd40BitRC2-CBC') },
+    { code: 'PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED', reason: pkcs12IntegrityUnverifiedReason('macData', 'pkcs12-kdf') },
+    { code: 'PKI_REASON_PKCS12_MAC_MISMATCH', reason: pkcs12MacMismatchReason('macData') },
+    { code: 'PKI_REASON_PKCS12_DECRYPTION_FAILED', reason: pkcs12DecryptionFailedReason('authSafe[1].bags[0]') },
+    { code: 'PKI_REASON_PKCS12_KEY_UNMATCHED', reason: pkcs12KeyUnmatchedReason('authSafe[1].bags[0]') },
+    { code: 'PKI_REASON_PKCS12_KEY_UNSUPPORTED', reason: pkcs12KeyUnsupportedReason('authSafe[1].bags[0]', 'a DSA key has no Web Crypto form') },
     { code: 'PKI_REASON_NO_VALID_POLICY', reason: noValidPolicyReason('path') },
     { code: 'PKI_REASON_POLICY_MAPPING_INVALID', reason: policyMappingInvalidReason('path[1].policyMappings', '2.5.29.32.0', '1.3.6.1.4.1.1') },
     { code: 'PKI_REASON_ISSUER_NOT_FOUND', reason: issuerNotFoundReason('path[0]', 'CN=Example Root') },
@@ -100,6 +112,15 @@ describe('validation reasons', () => {
         // and never built — so its message would first be written, wrongly,
         // by whoever needed it in production.
         expect(ALL.map((r) => r.code).sort()).toEqual(REGISTRY.reasons.map((r) => r.code).sort());
+    });
+
+    it('should say why a PKCS#12 could not be vouched for, and say it differently for each cause', () => {
+        // Three causes, three remedies: re-export with PBMAC1, add a MAC at
+        // all, or leave public-key mode. One sentence for all three would send
+        // the caller to the wrong one.
+        const messages = (['pkcs12-kdf', 'absent', 'public-key'] as const).map((why) => pkcs12IntegrityUnverifiedReason('macData', why).message);
+        expect(new Set(messages).size).toBe(3);
+        expect(messages[0]).toContain('Appendix B');
     });
 
     it.each(ALL)('$code should carry its own code, a path, a standard and a message', ({ code, reason }) => {

@@ -35,6 +35,8 @@ Every loop over input consults a named limit. The decoder is iterative, so nesti
 | `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData, each costing a signature verification |
 | `maxCmsAttributes` | 256 | CWE-400 | The attributes in one signed or unsigned attribute set |
 | `maxCmsBagEntries` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries |
+| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured — declared by the file, run by the host |
+| `maxPkcs12Bags` | 4 096 | CWE-400 | The SafeBags read from one PKCS#12, across every SafeContents |
 
 Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` values. Override per call with `options.limits`; `DEFAULT_PKI_LIMITS` holds the defaults.
 

@@ -1,3 +1,4 @@
+import type { webcrypto } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
     canDecrypt,
@@ -17,6 +18,9 @@ import type { CryptoKeyHandle, Pbkdf2Params } from '../../src/types/webcrypto.js
  * the host's own `encrypt`, `wrapKey` and `sign` — operations `src/` may never
  * name — so the door is checked against an independent writer.
  */
+
+type CryptoKey = webcrypto.CryptoKey;
+type CryptoKeyPair = webcrypto.CryptoKeyPair;
 
 const subtle = globalThis.crypto.subtle;
 const PASSWORD = new TextEncoder().encode('correct horse battery staple');

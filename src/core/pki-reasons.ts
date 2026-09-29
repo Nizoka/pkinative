@@ -399,6 +399,66 @@ export function tspImprintMismatchReason(path: string): PkiReason {
 }
 
 /**
+ * A key or a bag of certificates is encrypted with a scheme pkinative refuses.
+ *
+ * The policy of `PKI_KEY_ENCRYPTION_UNSUPPORTED`, reported instead of thrown:
+ * the rest of the container may still be read.
+ */
+export function pkcs12EncryptionUnsupportedReason(path: string, scheme: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED', 'RFC 8018 §6.2',
+        `encrypted with ${scheme}, which pkinative does not open: only PBES2 with PBKDF2 and AES-CBC is, because the PKCS#12 schemes derive their key with RFC 7292 Appendix B`,
+        path);
+}
+
+/**
+ * The container's integrity could not be checked.
+ *
+ * Returned whenever the MAC is not RFC 9579 PBMAC1 — which is most files
+ * written before OpenSSL 3.4 — and when there is no MAC at all, unless the
+ * caller said with `allowUnverifiedIntegrity` that they accept that.
+ */
+export function pkcs12IntegrityUnverifiedReason(path: string, why: 'pkcs12-kdf' | 'absent' | 'public-key'): PkiReason {
+    const detail = why === 'absent'
+        ? 'the container carries no MAC, so nothing vouches that its contents are what was written'
+        : why === 'public-key'
+            ? 'the container uses public-key integrity mode, which pkinative does not verify'
+            : 'its MAC is keyed with the RFC 7292 Appendix B KDF, which pkinative does not implement; only an RFC 9579 PBMAC1 MAC can be checked';
+    return _reason('PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED', 'RFC 9579 §3', detail, path);
+}
+
+/** The RFC 9579 MAC does not match. */
+export function pkcs12MacMismatchReason(path: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_MAC_MISMATCH', 'RFC 9579 §3',
+        'the MAC does not match: the password is wrong, or the container was altered after it was written',
+        path);
+}
+
+/** A key or a bag of certificates would not decrypt. */
+export function pkcs12DecryptionFailedReason(path: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_DECRYPTION_FAILED', 'RFC 8018 §6.2',
+        'it would not decrypt under the password: the password is wrong, or the data was altered — AES-CBC cannot tell the two apart',
+        path);
+}
+
+/**
+ * A key shares its `localKeyId` with no certificate.
+ *
+ * An encrypted key is unwrapped straight into a `CryptoKey`, so its algorithm
+ * must be known before it is decrypted; pkinative takes it from the certificate
+ * the key belongs to, and here there is none.
+ */
+export function pkcs12KeyUnmatchedReason(path: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_KEY_UNMATCHED', 'RFC 7292 §4.2',
+        'no certificate in the container shares this key\'s localKeyId, so its algorithm is unknown until it is decrypted, and pkinative never decrypts a key into the clear',
+        path);
+}
+
+/** A key of a kind this runtime or pkinative cannot import. */
+export function pkcs12KeyUnsupportedReason(path: string, detail: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_KEY_UNSUPPORTED', 'W3C WebCryptoAPI', detail, path);
+}
+
+/**
  * The token does not answer the request that was sent.
  *
  * Its own code rather than a flavour of `IMPRINT_MISMATCH`, for the reason

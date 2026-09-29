@@ -156,6 +156,15 @@ describe('verify-docs rule table', () => {
         expect(problems).toEqual([expect.objectContaining({ file: 'src/core/pki-limits.ts', message: expect.stringContaining('must start with "pkinative: "') })]);
     });
 
+    it('should fire count-tokens on a compound number word, which it used to read as its last half', async () => {
+        // "Twenty-two named limits" was parsed as "two" — so a count past
+        // twenty written in words could be wrong by any amount and pass.
+        const files = { ...TREE };
+        edit(files, 'README.md', /\b[A-Z][a-z]+-[a-z]+ named limits/, 'Twenty-two named limits');
+        const problems = await runRules(createMemoryContext(files), RULES, 'count-tokens');
+        expect(problems).toEqual([expect.objectContaining({ file: 'README.md', message: expect.stringContaining('"Twenty-two named limits"') })]);
+    });
+
     it('should fire coverage-ignore-budget on an ignore comment that states no reason', async () => {
         // The count stays 1, so only the justification finding appears: this
         // proves that half of the rule independently of the budget half.

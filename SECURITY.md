@@ -80,6 +80,8 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData. Each costs a signature verification and, when a trust store is supplied, a path search — so a message carrying thousands of signers is a way to make a verifier do thousands of both. A PDF signature has one; a detached S/MIME message rarely more than two. |
 | `maxCmsAttributes` | 256 | CWE-400 | The attributes in one signed or unsigned attribute set. Real signers use fewer than ten; the bound stops a signer from making the per-attribute rules of RFC 5652 §11 walk an arbitrarily long list. |
 | `maxCmsBagEntries` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries. The bag is a claim by whoever assembled the message, and the signer search walks it; 1 024 leaves room for a `.p7b` bundle of a whole trust store. |
+| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured. The file declares the count and the host runs it, so a PKCS#12 declaring 2³¹ iterations would otherwise freeze the reader inside Web Crypto, where no JavaScript bound can reach. Ten million is about ten seconds of SHA-256 on current hardware — above anything a real writer uses, below a hang. |
+| `maxPkcs12Bags` | 4 096 | CWE-400 | The SafeBags read from one PKCS#12, across every SafeContents. Each certificate bag is parsed and each key bag may cost a decryption; 4 096 holds a whole trust store exported as one file. |
 
 ### Verification of the Parser
 

@@ -26,13 +26,17 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
   multiplication and no signature algorithm. Hashing covers public data only. Signing and verification are each
   one call to Web Crypto with a key the **caller** owns.
 - **Web Crypto has exactly one door**, `src/crypto/webcrypto.ts`: the only module that may name `importKey`,
-  `verify` or `sign`. `KEY_OPERATION_POLICY` (`scripts/lib/architecture.ts`) is the table, it is per module and
-  not per layer, and `tests/tools/architecture.test.ts` enforces it from the syntax tree — a declaration in an
-  interface counts. Adding a key operation anywhere means editing that table in its own reviewed commit.
+  `verify`, `sign` and, since 0.8, `deriveKey`, `unwrapKey` and `decrypt`. `KEY_OPERATION_POLICY`
+  (`scripts/lib/architecture.ts`) is the table, it is per module and not per layer, and
+  `tests/tools/architecture.test.ts` enforces it from the syntax tree — a declaration in an interface counts. Adding a key operation anywhere means editing that table in its own reviewed commit.
 - **`generateKey` and `exportKey` are refused in every version.** That is why `createCertificate` takes
   `subjectPublicKey` as SubjectPublicKeyInfo **DER** and not a `CryptoKey`: extracting the public half is one
   line in the caller's code, where it is visible, and an API that hid it would make this promise unverifiable.
-  A private key reaches `src/` only as an opaque handle passed straight to `subtle.sign`.
+  A private key reaches `src/` only as an opaque handle: one the caller passes to be handed straight to
+  `subtle.sign`, or one the door itself creates non-extractable from a PKCS#8 — `unwrapKey` for an encrypted
+  one, so its plaintext never exists in JavaScript. `deriveBits` stays refused because `deriveKey` returns a
+  handle where it would return bytes, and **RFC 7292 Appendix B is never implemented**: it is iterated hashing
+  with byte arithmetic over the password.
 - **Verification fails closed; signing does not.** A host that throws during `verify` is a `false`, because "no"
   is a legitimate verdict. A signature that did not happen has no safe falsy value — an empty signature is a
   certificate that verifies nowhere and looks valid until someone checks — so `signData` throws.

@@ -55,6 +55,10 @@ export interface PkiLimits {
     readonly maxCmsAttributes: number;
     /** Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them. CWE-400. */
     readonly maxCmsBagEntries: number;
+    /** Maximum PBKDF2 iteration count honoured — a count the file declares, and the host then runs. CWE-400. */
+    readonly maxKdfIterations: number;
+    /** Maximum number of SafeBags read from one PKCS#12, across every SafeContents. CWE-400. */
+    readonly maxPkcs12Bags: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────
@@ -101,7 +105,8 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_CMS_VERSION_MISMATCH'
     | 'PKI_DIAG_CMS_SET_NOT_SORTED'
     | 'PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER'
-    | 'PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED';
+    | 'PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED'
+    | 'PKI_DIAG_KEY_KDF_ITERATIONS_LOW';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';

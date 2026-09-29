@@ -214,6 +214,19 @@ export function cmsDigestAlgorithmNotListedDiagnostic(path: string, oid: string,
         path, offset);
 }
 
+/**
+ * A PBKDF2 iteration count below the 1 000 RFC 8018 recommends.
+ *
+ * Not refused: the file opens, and the count protects the password rather than
+ * the reader. A diagnostic because it is the one number in the file that says
+ * how cheaply a stolen copy can be brute-forced.
+ */
+export function keyKdfIterationsLowDiagnostic(path: string, iterations: number, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_KEY_KDF_ITERATIONS_LOW', 'warning', 'RFC 8018 §4.2',
+        `PBKDF2 runs ${String(iterations)} iterations, below the minimum of 1 000 RFC 8018 recommends; a stolen copy of this file is cheap to brute-force`,
+        path, offset);
+}
+
 export function printableStringCharsetDiagnostic(path: string, character: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_PRINTABLE_STRING_CHARSET', 'warning', 'ITU-T X.680 §41.4',
         `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,

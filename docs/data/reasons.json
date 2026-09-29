@@ -249,6 +249,48 @@
       "standard": "RFC 3161 §2.4.2"
     },
     {
+      "code": "PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED",
+      "since": "0.8.0",
+      "returnedWhen": "A key or a bag of certificates in the container is encrypted with a scheme other than PBES2 with PBKDF2 and AES-CBC — an RFC 7292 Appendix C scheme, PBES1, or public-key privacy mode. The rest of the container is still read.",
+      "remedy": "Convert the file once with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 (the key in bundle.pem stays encrypted under the passphrase you give; PBES2 with AES-256-CBC is already the default; delete bundle.pem afterwards). pkinative will not implement the Appendix B KDF, in any version.",
+      "standard": "RFC 8018 §6.2"
+    },
+    {
+      "code": "PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED",
+      "since": "0.8.0",
+      "returnedWhen": "The container's MAC is keyed with the RFC 7292 Appendix B KDF, or it carries no MAC, or it uses public-key integrity mode — and the caller did not pass allowUnverifiedIntegrity. Its contents are still reported, and valid is false.",
+      "remedy": "Re-export with openssl pkcs12 -export -pbmac1_pbkdf2 (OpenSSL 3.4 or later) so the MAC can be checked. Pass allowUnverifiedIntegrity only for a file whose origin you trust by other means: without a MAC, an unencrypted bag can be replaced by anyone who can write the file.",
+      "standard": "RFC 9579 §3"
+    },
+    {
+      "code": "PKI_REASON_PKCS12_MAC_MISMATCH",
+      "since": "0.8.0",
+      "returnedWhen": "The RFC 9579 PBMAC1 MAC does not match the AuthenticatedSafe under the password given.",
+      "remedy": "Check the password first; a string is encoded as UTF-8. A file that fails with the right password was altered after it was written.",
+      "standard": "RFC 9579 §3"
+    },
+    {
+      "code": "PKI_REASON_PKCS12_DECRYPTION_FAILED",
+      "since": "0.8.0",
+      "returnedWhen": "A key or a bag of certificates would not decrypt, or a key would not unwrap as the algorithm of its certificate, under the password given.",
+      "remedy": "Check the password; a string is encoded as UTF-8, and a Uint8Array is used as given for files written with another encoding. If the MAC verified and a key still fails, the key is not of the certificate's algorithm.",
+      "standard": "RFC 8018 §6.2"
+    },
+    {
+      "code": "PKI_REASON_PKCS12_KEY_UNMATCHED",
+      "since": "0.8.0",
+      "returnedWhen": "A key bag shares its localKeyId with no certificate in the container, so its algorithm — which Web Crypto must be told before it unwraps the key — is unknown.",
+      "remedy": "Decrypt the key with decryptPrivateKey and name its algorithm, or re-export the container with the key's certificate (openssl pkcs12 -export writes the localKeyId on both).",
+      "standard": "RFC 7292 §4.2"
+    },
+    {
+      "code": "PKI_REASON_PKCS12_KEY_UNSUPPORTED",
+      "since": "0.8.0",
+      "returnedWhen": "A key is of a kind Web Crypto does not import as a signing key — DSA, an X25519 or X448 key-agreement key, an EC key on a curve other than P-256, P-384 and P-521 — or this runtime refused it.",
+      "remedy": "Such a key cannot sign through Web Crypto on this runtime. Ed448 is implemented on some runtimes and not others; try another before concluding the file is at fault.",
+      "standard": "W3C WebCryptoAPI"
+    },
+    {
       "code": "PKI_REASON_LIMIT_EXCEEDED",
       "since": "0.5.0",
       "returnedWhen": "A named PkiLimits bound stopped the search.",

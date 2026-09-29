@@ -130,6 +130,20 @@ export type PkiReasonCode =
     /** The token does not answer the request that was sent: its nonce or its policy differ. */
     | 'PKI_REASON_TSP_REQUEST_MISMATCH'
 
+    // ── PKCS#12 (RFC 7292, RFC 9579) ──
+    /** A key or a bag of certificates is encrypted with a scheme pkinative refuses: anything but PBES2 with PBKDF2 and AES-CBC. */
+    | 'PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED'
+    /** The container's integrity could not be checked: its MAC uses the RFC 7292 Appendix B KDF, or it has none. */
+    | 'PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED'
+    /** The RFC 9579 MAC does not match: the password is wrong, or the container was altered. */
+    | 'PKI_REASON_PKCS12_MAC_MISMATCH'
+    /** A key or a bag of certificates would not decrypt under the password. */
+    | 'PKI_REASON_PKCS12_DECRYPTION_FAILED'
+    /** A key shares its `localKeyId` with no certificate, so what kind of key it is cannot be known before decrypting it. */
+    | 'PKI_REASON_PKCS12_KEY_UNMATCHED'
+    /** A key is of a kind this runtime or pkinative cannot import. */
+    | 'PKI_REASON_PKCS12_KEY_UNSUPPORTED'
+
     // ── The caller's limits, reached while judging ──
     /** A named `PkiLimits` bound stopped the search. `limit` names it. */
     | 'PKI_REASON_LIMIT_EXCEEDED';

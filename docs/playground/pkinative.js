@@ -66,7 +66,9 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxPathsExplored: 1e3,
   maxSignerInfos: 64,
   maxCmsAttributes: 256,
-  maxCmsBagEntries: 1024
+  maxCmsBagEntries: 1024,
+  maxKdfIterations: 1e7,
+  maxPkcs12Bags: 4096
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;

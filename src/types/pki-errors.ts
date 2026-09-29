@@ -104,6 +104,22 @@ export type PkiCmsErrorCode =
     | 'PKI_CMS_CONTENT_NOT_OCTET_STRING';   // PKCS #7 content that is not an OCTET STRING, e.g. Authenticode (CWE-843)
 
 /**
+ * Codes carried by {@link PkiKeyError}: a PKCS#8 or PKCS#12 structure that is
+ * well-formed DER but not what pkinative will open.
+ *
+ * Four, and two of them are policy rather than defect. A password-based scheme
+ * other than PBES2 with PBKDF2 and AES-CBC, and a MAC computed with RFC 7292
+ * Appendix B, are refused by name: that KDF is iterated hashing with byte
+ * arithmetic over the password, which is the secret-dependent cryptography
+ * this library exists without. The refusal names the conversion.
+ */
+export type PkiKeyErrorCode =
+    | 'PKI_KEY_STRUCTURE_INVALID'           // the value does not match the RFC 5958 or RFC 7292 ASN.1 module (CWE-1286)
+    | 'PKI_KEY_VERSION_UNSUPPORTED'         // a PrivateKeyInfo or PFX version the syntax does not define (CWE-1286)
+    | 'PKI_KEY_ENCRYPTION_UNSUPPORTED'      // a password scheme other than PBES2 + PBKDF2 + AES-CBC, e.g. RFC 7292 Appendix B, RC2, 3DES (CWE-327)
+    | 'PKI_KEY_MAC_UNSUPPORTED';            // a PKCS#12 MAC under the Appendix B KDF, or public-key integrity mode (CWE-327)
+
+/**
  * Every stable error code pkinative can throw. Frozen from 0.8.0:
  * removal or renaming is semver-major; additions are semver-minor.
  */
@@ -113,7 +129,8 @@ export type PkiErrorCode =
     | PkiCertificateErrorCode
     | PkiLimitErrorCode
     | PkiCryptoErrorCode
-    | PkiCmsErrorCode;
+    | PkiCmsErrorCode
+    | PkiKeyErrorCode;
 
 // ── Classes ──────────────────────────────────────────────────────────
 
@@ -232,6 +249,28 @@ export class PkiCmsError extends PkiError<PkiCmsErrorCode> {
     constructor(code: PkiCmsErrorCode, message: string, path?: string, offset?: number) {
         super(code, message);
         this.name = 'PkiCmsError';
+        this.path = path;
+        this.offset = offset;
+    }
+}
+
+/**
+ * A PKCS#8 or PKCS#12 structure pkinative cannot or will not open.
+ *
+ * It says nothing about the password. A wrong password is
+ * `PKI_CRYPTO_DECRYPTION_FAILED` from the Web Crypto door, because only the
+ * host can find out, and AES-CBC does not let it say which of a wrong
+ * password or altered data it found.
+ */
+export class PkiKeyError extends PkiError<PkiKeyErrorCode> {
+    /** Where in the structure, e.g. `authSafe[1].bags[0]`, when known. */
+    readonly path: string | undefined;
+    /** Absolute byte offset of the offending value, when known. */
+    readonly offset: number | undefined;
+
+    constructor(code: PkiKeyErrorCode, message: string, path?: string, offset?: number) {
+        super(code, message);
+        this.name = 'PkiKeyError';
         this.path = path;
         this.offset = offset;
     }

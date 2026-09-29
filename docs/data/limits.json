@@ -21,6 +21,8 @@
     { "limit": "maxPathsExplored", "default": 1000, "display": "1 000", "cwe": "CWE-400", "guards": "The candidate paths explored while building one. Path building is exponential in the candidate set, not linear in the chain length, so this is THE denial-of-service bound of section 6 rather than maxChainLength." },
     { "limit": "maxSignerInfos", "default": 64, "display": "64", "cwe": "CWE-400", "guards": "The signers of one SignedData. Each costs a signature verification and, with a trust store, a path search." },
     { "limit": "maxCmsAttributes", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The attributes in one signed or unsigned attribute set. Real signers use fewer than ten." },
-    { "limit": "maxCmsBagEntries", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The certificates and revocation entries one SignedData carries. The bag is unauthenticated and the signer search walks it." }
+    { "limit": "maxCmsBagEntries", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The certificates and revocation entries one SignedData carries. The bag is unauthenticated and the signer search walks it." },
+    { "limit": "maxKdfIterations", "default": 10000000, "display": "10 000 000", "cwe": "CWE-400", "guards": "The PBKDF2 iteration count honoured. The count is declared by the file and run by the host, so without a bound a PKCS#12 declaring 2^31 iterations freezes the reader inside Web Crypto." },
+    { "limit": "maxPkcs12Bags", "default": 4096, "display": "4 096", "cwe": "CWE-400", "guards": "The SafeBags read from one PKCS#12, across every SafeContents. Each certificate bag is parsed and each key bag may cost a decryption." }
   ]
 }

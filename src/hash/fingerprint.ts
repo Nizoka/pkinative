@@ -13,7 +13,7 @@
 import { assertBytes, toHex } from '../core/bytes.js';
 import type { FingerprintAlgorithm, FormatFingerprintOptions } from '../types/hash-types.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { WebCryptoHost } from '../types/webcrypto.js';
+import type { SubtleDigest, WebCryptoHost } from '../types/webcrypto.js';
 import { sha1 } from './sha1.js';
 import { sha256 } from './sha256.js';
 import { sha384, sha512 } from './sha512.js';
@@ -59,7 +59,7 @@ export async function computeFingerprintAsync(der: Uint8Array, algorithm: Finger
     const subtle = (globalThis as WebCryptoHost).crypto?.subtle;
     if (subtle !== undefined && typeof subtle.digest === 'function') {
         try {
-            return new Uint8Array(await subtle.digest(algorithm, bytes));
+            return new Uint8Array(await (subtle as SubtleDigest).digest(algorithm, bytes));
         } catch {
             // A host that exposes Web Crypto but refuses the algorithm or the
             // input (some embedded runtimes lack SHA-1): the pure path agrees.
