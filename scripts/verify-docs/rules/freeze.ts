@@ -197,8 +197,13 @@ export type EraProseRow = EraProseSwap | (EraProseBase & { readonly at1: 'kept' 
  */
 export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     {
+        file: 'README.md', phrase: '| pre-1.0 (git tag) |', at1: 'absent', why: 'the comparison table',
+        from: '| **pkinative** | pre-1.0 (git tag) |',
+        to: '| **pkinative** | {minor} (npm) |',
+    },
+    {
         file: 'README.md', phrase: 'pre-1.0, not on npm', at1: 'absent', why: 'the status line',
-        from: 'pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.3 reads certificates and verifies their signatures through Web Crypto; it does not validate chains yet.',
+        from: 'pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). It reads, builds and validates — certificates, paths with revocation, CMS signatures and timestamps, PKCS#8 and PKCS#12 — with Web Crypto doing every signature.',
         to: 'stable, on npm.** From 1.0.0 the public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md)). Versions below 1.0.0 were git tags with an attested release tarball.',
     },
     {
@@ -270,7 +275,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     },
     {
         file: 'docs/index.html', phrase: 'Pre-1.0 is a git tag, not an npm release.', at1: 'absent', why: 'the landing page hero',
-        from: 'Pre-1.0 is a git tag, not an npm release. It reads certificates and verifies their signatures through Web Crypto; path validation arrives in 0.5.',
+        from: 'Pre-1.0 is a git tag, not an npm release. It reads, builds and validates certificates, paths, CMS signatures and PKCS#12, with Web Crypto doing every signature.',
         to: 'On npm with provenance since 1.0.0, under semantic versioning: a minor release only adds.',
     },
     {

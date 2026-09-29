@@ -55,7 +55,7 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 
 ## Do not
 
-- Do not claim pkinative validates a chain. 0.3 verifies **one signature against one issuer** (`verifyCertificateSignature`); a trust anchor, a validity window, name constraints, policies and revocation are RFC 5280 §6 and arrive in 0.5. A verified signature is not a trusted certificate, and saying otherwise is the most expensive mistake on this page.
+- Do not treat a verified signature as a trusted certificate. `verifyCertificateSignature` checks **one signature against one issuer**; a trust anchor, a validity window, name constraints, policies and revocation are RFC 5280 §6, and `verifyCertificateChain` is the call that judges them. Saying otherwise is an authentication bypass.
 - Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto. pkinative generates and exports no key: `createCertificate` takes a SubjectPublicKeyInfo in DER and a private `CryptoKey` it only hands to `subtle.sign`, so the one `crypto.subtle.exportKey('spki', …)` call is yours to write.
 - Do not raise a limit (`options.limits`) for untrusted input.
 - Do not report `verifySignerInfoSignature`'s `true` as the verdict on a message: it checks one key against the signed attributes, and reads no content digest, no signer identifier and no chain. `verifySignedData` is the verdict.

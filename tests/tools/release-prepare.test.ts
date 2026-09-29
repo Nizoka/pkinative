@@ -85,7 +85,7 @@ describe('release-prepare — the 1.0.0 bump', () => {
 
     it('should refuse the whole bump when one span drifted from the table', () => {
         const drifted = releaseBranch();
-        drifted['README.md'] = (drifted['README.md'] ?? '').replace('it does not validate chains yet.', 'it validates chains.');
+        drifted['README.md'] = (drifted['README.md'] ?? '').replace('with Web Crypto doing every signature.', 'with Web Crypto doing most signatures.');
         const refused = planRelease(readerOf(drifted), { version: '1.0.0', date: DATE });
         expect(refused.failures).toBe(1);
         expect(failures(refused)).toEqual([expect.stringMatching(/^README\.md: the 1\.0 swap of the status line — the span it replaces is found 0 times, not once/)]);
@@ -125,7 +125,7 @@ describe('release-prepare — the 1.0.0 bump', () => {
 
 describe('release-era-prose and install-url-version across the 1.0 boundary', () => {
     it('should fire release-era-prose below 1.0.0 when a sentence drifts from the span its swap replaces', async () => {
-        const files = { ...TREE, 'docs/index.html': (TREE['docs/index.html'] ?? '').replace('path validation arrives in 0.5.', 'path validation arrived in 0.5.') };
+        const files = { ...TREE, 'docs/index.html': (TREE['docs/index.html'] ?? '').replace('PKCS#12, with Web Crypto doing every signature.', 'PKCS#12, with Web Crypto doing most signatures.') };
         expect(await problems(files, 'release-era-prose')).toEqual([expect.stringMatching(/^docs\/index\.html: the 1\.0\.0 swap of the landing page hero would fail: the span it replaces is found 0 times/)]);
     });
 

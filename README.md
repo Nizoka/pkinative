@@ -9,7 +9,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 0.9 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). 0.3 reads certificates and verifies their signatures through Web Crypto; it does not validate chains yet.
+> **Status: 0.9 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). It reads, builds and validates — certificates, paths with revocation, CMS signatures and timestamps, PKCS#8 and PKCS#12 — with Web Crypto doing every signature.
 
 ## Why pkinative?
 
@@ -29,7 +29,7 @@ Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](
 
 | Library | Latest | Runtime dependencies | Types bundled | ES modules | Scope |
 |---|---|---|---|---|---|
-| **pkinative** | 0.1.0 (git tag) | **0** | yes | yes | ASN.1, PEM, OIDs, complete X.509 reading; creation and verification through Web Crypto from 0.3 |
+| **pkinative** | pre-1.0 (git tag) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
 | node-forge | 1.4.0 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
 | asn1js | 3.0.10 | 3 | yes | yes | ASN.1 BER/DER codec |
 | @peculiar/x509 | 2.1.0 | 11 | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
@@ -37,7 +37,7 @@ Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](
 | jsrsasign | 11.1.5 | 0 | no | no | Broad: ASN.1, X.509, JWS, its own RSA and ECDSA in JavaScript |
 | micro509 | 0.14.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
 
-Choose pkinative to **read** certificates strictly with nothing else installed; choose pkijs or @peculiar/x509 today if you need path validation, CMS or signing before pkinative's 0.5 and 0.7 milestones ([choose guide](docs/guides/choose.md)).
+Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)).
 
 ## Installation
 

@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 6986,
-      "approxTokens": 1747
+      "bytes": 6967,
+      "approxTokens": 1742
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 169334,
-      "approxTokens": 42334
+      "bytes": 169470,
+      "approxTokens": 42368
     },
     {
       "url": "llms-recipes.txt",
