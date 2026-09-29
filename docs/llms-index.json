@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 161895,
-      "approxTokens": 40474
+      "bytes": 162636,
+      "approxTokens": 40659
     },
     {
       "url": "llms-recipes.txt",
@@ -129,8 +129,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 5965,
-      "approxTokens": 1491
+      "bytes": 6166,
+      "approxTokens": 1542
     },
     {
       "title": "Conformance",
@@ -146,8 +146,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 26756,
-      "approxTokens": 6689
+      "bytes": 27147,
+      "approxTokens": 6787
     },
     {
       "title": "Errors, diagnostics and reasons",

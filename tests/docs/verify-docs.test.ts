@@ -122,6 +122,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // exception. Decided from the syntax tree, so this has to be a real
     // string literal and not a mention in a comment.
     'reason-parity': (f) => edit(f, 'src/core/pki-reasons.ts', "'the issuer\\'s public key does not verify", "'pkinative: the issuer\\'s public key does not verify"),
+    // A record dropped from the index is a decision nobody finds.
+    'adr-index': (f) => edit(f, 'docs/adr/README.md', /^\| \[0003\]\(.*\n/m, ''),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
 };
 
@@ -230,7 +232,7 @@ describe('verify-docs rule table', () => {
         const withSince = (since: string): Record<string, string> => ({ ...TREE, 'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, { ...added, since }] }, null, 2) });
         expect(await runRules(createMemoryContext(withSince('0.9.0')), RULES, 'error-codes-frozen')).toEqual([]);
         const problems = await runRules(createMemoryContext(withSince('0.8.0')), RULES, 'error-codes-frozen');
-        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('PKI_KEY_ADDED (since 0.8.0) is not in the 0.8.0 snapshot')]);
+        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('PKI_KEY_ADDED is not in the 0.8.0 snapshot, so it is an addition')]);
     });
 
     it('should fire pkcs12-policy-parity on a refused scheme the table omits, and on a row the code does not know', async () => {
@@ -274,6 +276,39 @@ describe('verify-docs rule table', () => {
         edit(files, 'src/types/pki-types.ts', 'nesting depth of constructed ASN.1 values. CWE-674.', 'nesting depth of constructed ASN.1 values. CWE-400.');
         const problems = await runRules(createMemoryContext(files), RULES, 'limits-parity');
         expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('PkiLimits.maxDepth cites CWE-400')]);
+    });
+
+    it('should fire adr-index on a record that lacks a MADR section', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/adr/0006-no-network-io-in-the-engine.md', '### Confirmation\n', '');
+        const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/adr/0006-no-network-io-in-the-engine.md', message: expect.stringContaining('lacks the "### Confirmation" section') })]);
+    });
+
+    it('should fire adr-index on a record with no row, a row with no record, and a status the record does not carry', async () => {
+        const files = { ...TREE };
+        files['docs/adr/0013-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
+        edit(files, 'docs/adr/README.md', '| No external security audit at 1.0 | accepted |', '| No external security audit at 1.0 | proposed |');
+        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0014](0014-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
+        const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
+        expect(problems.map((p) => p.message).sort()).toEqual([
+            expect.stringContaining('does not list 0013-a-new-decision.md'),
+            expect.stringContaining('gives 0010-no-external-security-audit-at-1-0.md the status "proposed"'),
+            expect.stringContaining('lists 0014-gone.md, which is not a record'),
+        ]);
+    });
+
+    it('should fire adr-index on a gap in the numbering and on a version that is not one', async () => {
+        const files = { ...TREE };
+        const text = TREE['docs/adr/0012-frozen-error-vocabulary.md'] ?? '';
+        delete files['docs/adr/0012-frozen-error-vocabulary.md'];
+        files['docs/adr/0013-frozen-error-vocabulary.md'] = text.replace('since: 0.8.0', 'since: soon');
+        edit(files, 'docs/adr/README.md', '[0012](0012-frozen-error-vocabulary.md)', '[0013](0013-frozen-error-vocabulary.md)');
+        const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
+        expect(problems.map((p) => p.message)).toEqual(expect.arrayContaining([
+            expect.stringContaining('is record 0013 where 0012 was expected'),
+            expect.stringContaining('since is "soon"'),
+        ]));
     });
 
     it('should honour a verify-docs:allow suppression on the reported line or the line above', async () => {

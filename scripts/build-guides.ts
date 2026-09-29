@@ -156,6 +156,7 @@ export function footerHtml(prefix: string, extra = ''): string {
             <li><a href="${REPOSITORY}/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="${REPOSITORY}/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="${REPOSITORY}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="${REPOSITORY}/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
           </ul>
         </div>
         <div class="footer-col">

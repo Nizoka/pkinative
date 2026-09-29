@@ -86,7 +86,8 @@ export interface Clause {
 
 /**
  * RFC 5280 §4.1 and §4.2, as far as a **reading** library can check without
- * path validation. §6 doubles this table and arrives with 0.5.
+ * path validation. §6 is judged by the scored corpora L6 to L8 instead of by
+ * clauses here (docs/adr/0008-section-6-judged-by-scored-corpora.md).
  *
  * Deliberately absent, and why:
  *

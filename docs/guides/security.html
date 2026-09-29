@@ -205,7 +205,7 @@
       <p>Decoded names and OIDs are kept in arrays and <code>Map</code>s, never as plain object keys, so a crafted <code>__proto__</code> cannot reach an object prototype (CWE-1321). <code>formatDistinguishedName</code> escapes control characters, so a crafted name cannot drive the terminal that prints it.</p>
       <h2 id="cryptography-pkinative-does-not-own">Cryptography pkinative does not own <a class="heading-anchor" href="#cryptography-pkinative-does-not-own" aria-label="Link to this section">#</a></h2>
       <p>pkinative never implements secret-dependent cryptography in TypeScript: no signing, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Verification and creation, from 0.3, go through Web Crypto, whose implementations run in constant time in the host. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.</p>
-      <p>This is a deliberate departure from the code pkinative grew out of: pdfnative&#39;s pure-JavaScript RSA and ECDSA use <code>BigInt</code> arithmetic that is not constant-time, and are not ported.</p>
+      <p>This is a deliberate departure from the code pkinative grew out of: pdfnative&#39;s pure-JavaScript RSA and ECDSA use <code>BigInt</code> arithmetic that is not constant-time, and are not ported. The reasoning behind each permanent refusal — a Web Crypto operation, a legacy PKCS#12 scheme, an algorithm Web Crypto lacks — is recorded in the <a href="../adr/README.md">architecture decision records</a>.</p>
       <h2 id="no-reach-outside-the-engine">No reach outside the engine <a class="heading-anchor" href="#no-reach-outside-the-engine" aria-label="Link to this section">#</a></h2>
       <p><code>src/</code> has no filesystem, network, process or dynamic-import access, no <code>eval</code> and no <code>Function</code>, and no module-level side effects — all enforced from the syntax tree by the architecture test. The package is tree-shakeable, and <code>npm run verify:bundle</code> proves that a certificate parser bundle carries no PEM code, no hash and no OID name registry.</p>
       <h2 id="reporting-a-vulnerability">Reporting a vulnerability <a class="heading-anchor" href="#reporting-a-vulnerability" aria-label="Link to this section">#</a></h2>
@@ -222,6 +222,7 @@
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
           </ul>
         </div>
         <div class="footer-col">

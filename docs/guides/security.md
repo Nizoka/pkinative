@@ -50,7 +50,7 @@ Decoded names and OIDs are kept in arrays and `Map`s, never as plain object keys
 
 pkinative never implements secret-dependent cryptography in TypeScript: no signing, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Verification and creation, from 0.3, go through Web Crypto, whose implementations run in constant time in the host. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.
 
-This is a deliberate departure from the code pkinative grew out of: pdfnative's pure-JavaScript RSA and ECDSA use `BigInt` arithmetic that is not constant-time, and are not ported.
+This is a deliberate departure from the code pkinative grew out of: pdfnative's pure-JavaScript RSA and ECDSA use `BigInt` arithmetic that is not constant-time, and are not ported. The reasoning behind each permanent refusal — a Web Crypto operation, a legacy PKCS#12 scheme, an algorithm Web Crypto lacks — is recorded in the [architecture decision records](../adr/README.md).
 
 ## No reach outside the engine
 

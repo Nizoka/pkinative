@@ -112,7 +112,7 @@ A blocking gate ([conformance guide](docs/guides/conformance.md)) runs the built
 
 ## What pkinative will NOT do
 
-No runtime dependency. No TypeScript implementation of signing, key generation or modular arithmetic on secrets. No filesystem, network or process access inside the engine. No lenient decoder that silently accepts what the standard forbids. No PEM parsing inside the certificate parser.
+No runtime dependency. No TypeScript implementation of signing, key generation or modular arithmetic on secrets. No filesystem, network or process access inside the engine. No lenient decoder that silently accepts what the standard forbids. No PEM parsing inside the certificate parser. The larger refusals, and why each is a decision rather than a gap, are recorded as architecture decision records in [docs/adr/](docs/adr/README.md).
 
 ## Ecosystem
 
