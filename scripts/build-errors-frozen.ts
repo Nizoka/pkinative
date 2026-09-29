@@ -16,8 +16,18 @@
  * command makes a removal pass, only a major version that moves `frozenAt`
  * by hand, in a reviewed commit.
  *
+ * `--ratchet` is the other half, and the reason the snapshot is not written
+ * once and forgotten: an addition is semver-minor, but once it ships it is a
+ * promise too. Without a ratchet, a code added in 1.1 is outside the snapshot
+ * and could be removed in 1.2 without failing anything. The ratchet records
+ * every code the release being prepared ships (`since` at most its version)
+ * and refuses when a code already recorded has left the registry.
+ * release-prepare.ts runs it on every release from 1.0.0, beside the API
+ * surface's own ratchet.
+ *
  * Usage:
  *   npx tsx scripts/build-errors-frozen.ts          # (re)write the snapshot while frozenAt is unreleased
+ *   npx tsx scripts/build-errors-frozen.ts --ratchet   # record the codes the release at package.json ships
  *
  * Exit: 0 written or already in sync, 1 refused (the freeze is in force and
  * the snapshot would change), 2 an unreadable registry or manifest.
@@ -36,50 +46,87 @@ const COMMENT =
     'The error-codes-frozen rule of scripts/verify-docs.ts fails when a code listed here leaves the registry or its code union, or changes class: that is semver-major. ' +
     'A code absent from this list is an addition (semver-minor) and must carry a "since" newer than frozenAt. Diagnostic codes are not frozen; limit names freeze at 1.0.';
 
-/** The snapshot text for `registryText`, keeping every code introduced at or before `frozenAt`, in registry order. */
-export function renderFrozenSnapshot(registryText: string, frozenAt: string): string {
+/**
+ * The snapshot text for `registryText`, keeping every code introduced at or
+ * before `through` (`frozenAt` by default; the release being prepared, for a
+ * ratchet), in registry order. `asOf` is written only once a ratchet moved it.
+ */
+export function renderFrozenSnapshot(registryText: string, frozenAt: string, through: string = frozenAt): string {
     const registry = JSON.parse(registryText) as { errors?: Array<{ code?: unknown; class?: unknown; since?: unknown }> };
     const rows = (registry.errors ?? [])
-        .filter((e) => typeof e.code === 'string' && typeof e.class === 'string' && typeof e.since === 'string' && compareSemver(e.since, frozenAt) <= 0)
+        .filter((e) => typeof e.code === 'string' && typeof e.class === 'string' && typeof e.since === 'string' && compareSemver(e.since, through) <= 0)
         .map((e) => `    { "code": ${JSON.stringify(e.code)}, "class": ${JSON.stringify(e.class)} }`);
-    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "frozenAt": ${JSON.stringify(frozenAt)},\n  "codes": [\n${rows.join(',\n')}\n  ]\n}\n`;
+    const asOf = through === frozenAt ? '' : `  "asOf": ${JSON.stringify(through)},\n`;
+    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "frozenAt": ${JSON.stringify(frozenAt)},\n${asOf}  "codes": [\n${rows.join(',\n')}\n  ]\n}\n`;
 }
 
-function main(): number {
+export type ErrorsFrozenMode = 'default' | 'ratchet';
+
+export interface ErrorsFrozenPlan {
+    readonly action: 'write' | 'unchanged' | 'refuse';
+    readonly text: string | null;
+    readonly message: string;
+}
+
+/** What the generator would do, as a pure function of the registry, the current snapshot, package.json's version and the mode. */
+export function planErrorsFrozen(registryText: string, currentText: string | null, version: string, mode: ErrorsFrozenMode): ErrorsFrozenPlan {
+    let frozenAt = DEFAULT_FROZEN_AT;
+    let recorded: Array<{ code: string }> = [];
+    if (currentText !== null) {
+        const current = JSON.parse(currentText) as { frozenAt?: unknown; codes?: Array<{ code: string }> };
+        if (typeof current.frozenAt === 'string') frozenAt = current.frozenAt;
+        recorded = current.codes ?? [];
+    }
+    if (mode === 'ratchet') {
+        if (currentText === null || compareSemver(version, frozenAt) < 0) {
+            return { action: 'refuse', text: null, message: `--ratchet records a release that ships under the freeze; package.json is at ${version} and the vocabulary freezes at ${frozenAt}` };
+        }
+        const registry = JSON.parse(registryText) as { errors?: Array<{ code?: unknown }> };
+        const present = new Set((registry.errors ?? []).map((e) => e.code));
+        const gone = recorded.filter((r) => !present.has(r.code)).map((r) => r.code);
+        if (gone.length > 0) {
+            return { action: 'refuse', text: null, message: `refusing to ratchet over a removal: ${gone.join(', ')} left the registry, which is semver-major` };
+        }
+        const next = renderFrozenSnapshot(registryText, frozenAt, version);
+        return next === currentText
+            ? { action: 'unchanged', text: null, message: `${FROZEN_REGISTRY} already records every code ${version} ships.` }
+            : { action: 'write', text: next, message: `ratcheted ${FROZEN_REGISTRY} to the codes ${version} ships (frozenAt ${frozenAt}).` };
+    }
+    const next = renderFrozenSnapshot(registryText, frozenAt);
+    if (next === currentText) return { action: 'unchanged', text: null, message: `${FROZEN_REGISTRY} is in sync (frozenAt ${frozenAt}).` };
+    if (compareSemver(version, frozenAt) >= 0) {
+        return { action: 'refuse', text: null, message: `refusing — package.json is at ${version}, so the ${frozenAt} freeze is in force; removing, renaming or re-classing a frozen code is semver-major, and a shipped addition is recorded with --ratchet` };
+    }
+    return { action: 'write', text: next, message: `wrote ${FROZEN_REGISTRY} (frozenAt ${frozenAt}, package ${version}).` };
+}
+
+function main(argv: readonly string[]): number {
+    if (argv.some((a) => a !== '--ratchet')) {
+        console.error('usage: npx tsx scripts/build-errors-frozen.ts [--ratchet]');
+        return 2;
+    }
     const root = resolve(import.meta.dirname, '..');
     const target = join(root, FROZEN_REGISTRY);
-    let registryText: string;
-    let version: string;
-    let frozenAt = DEFAULT_FROZEN_AT;
-    let current: string | null = null;
+    let plan: ErrorsFrozenPlan;
     try {
-        registryText = readFileSync(join(root, ERRORS_REGISTRY), 'utf8');
-        version = (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }).version;
-        if (existsSync(target)) {
-            current = readFileSync(target, 'utf8');
-            frozenAt = (JSON.parse(current) as { frozenAt: string }).frozenAt;
-        }
+        const registryText = readFileSync(join(root, ERRORS_REGISTRY), 'utf8');
+        const version = (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }).version;
+        const current = existsSync(target) ? readFileSync(target, 'utf8') : null;
+        plan = planErrorsFrozen(registryText, current, version, argv.includes('--ratchet') ? 'ratchet' : 'default');
     } catch (err) {
         console.error(`build-errors-frozen: ${(err as Error).message}`);
         return 2;
     }
-
-    const next = renderFrozenSnapshot(registryText, frozenAt);
-    if (next === current) {
-        console.log(`build-errors-frozen: ${FROZEN_REGISTRY} is in sync (frozenAt ${frozenAt}).`);
-        return 0;
-    }
-    if (compareSemver(version, frozenAt) >= 0) {
-        console.error(`build-errors-frozen: refusing — package.json is at ${version}, so the ${frozenAt} freeze is in force.`);
-        console.error('build-errors-frozen: removing, renaming or re-classing a frozen code is semver-major; add codes with a newer "since" instead.');
+    if (plan.action === 'refuse') {
+        console.error(`build-errors-frozen: ${plan.message}`);
         return 1;
     }
-    writeFileSync(target, next, 'utf8');
-    console.log(`build-errors-frozen: wrote ${FROZEN_REGISTRY} (frozenAt ${frozenAt}, package ${version}).`);
+    if (plan.action === 'write' && plan.text !== null) writeFileSync(target, plan.text, 'utf8');
+    console.log(`build-errors-frozen: ${plan.message}`);
     return 0;
 }
 
 // Run only when invoked directly (keeps the module import-safe for tests).
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-    process.exit(main());
+    process.exit(main(process.argv.slice(2)));
 }

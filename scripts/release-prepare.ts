@@ -49,6 +49,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseApiFrozen, planApiFrozen, releaseModeFor } from './build-api-frozen.js';
+import { planErrorsFrozen } from './build-errors-frozen.js';
+import { ERRORS_REGISTRY, FROZEN_REGISTRY } from './verify-docs/rules/registries.js';
 import { API_FROZEN } from './lib/api-surface.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -187,6 +189,18 @@ function main(): number {
         } else if (plan.action === 'write' && plan.text !== null) {
             texts.set(API_FROZEN, plan.text);
             console.log(`edit  ${API_FROZEN}: ${plan.message}`);
+        }
+    }
+    // The error vocabulary ratchets with it: a code a 1.x release ships is a
+    // promise from that release on, and the snapshot is where the rule keeps it.
+    if (Number(args.version.split('.')[0]) >= 1) {
+        const errorsPlan = planErrorsFrozen(read(ERRORS_REGISTRY) ?? '', read(FROZEN_REGISTRY), args.version, 'ratchet');
+        if (errorsPlan.action === 'refuse') {
+            console.error(`FAIL  ${FROZEN_REGISTRY}: ${errorsPlan.message}`);
+            failures++;
+        } else if (errorsPlan.action === 'write' && errorsPlan.text !== null) {
+            texts.set(FROZEN_REGISTRY, errorsPlan.text);
+            console.log(`edit  ${FROZEN_REGISTRY}: ${errorsPlan.message}`);
         }
     }
     if (failures > 0) return 1;
