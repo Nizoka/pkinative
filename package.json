@@ -51,7 +51,7 @@
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:scripts",
-    "check:package": "npm run build && npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm && npx publint",
+    "check:package": "npm run build && npx attw --pack . --profile node16 --ignore-rules cjs-resolves-to-esm && npx publint && npx tsx scripts/package-files.ts",
     "verify:bundle": "npx tsx scripts/verify-bundle.ts",
     "verify:samples": "npx tsx scripts/verify-samples.ts",
     "smoke:install": "npx tsx scripts/smoke-install.ts",

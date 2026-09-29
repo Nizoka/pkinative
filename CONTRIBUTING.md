@@ -36,7 +36,7 @@ Every file the project writes uses LF line endings (`.gitattributes` says `* tex
 ```bash
 npm run build          # tsup → dist/ (ESM + CJS + .d.ts)
 npm run dev            # tsup --watch
-npm run check:package  # build + @arethetypeswrong/cli + publint
+npm run check:package  # build + @arethetypeswrong/cli + publint + the tarball file by file (docs/data/package-files.json)
 ```
 
 ### Preview the site
@@ -182,14 +182,14 @@ The version bump is mechanical; the judgement goes into the release note.
 6. `npx tsx scripts/gate.ts --publish --require-all`: the full gate, conformance included.
 7. Fill `release-notes/draft/PR-vX.Y.Z.md`, which step 2 scaffolded from [release-notes/PR_TEMPLATE.md](release-notes/PR_TEMPLATE.md). **These bodies are committed.** They are the auditable record of what each release claimed and what was actually run — the one place a reader can check, a year later, whether a figure came from a command or from somebody's memory. Paste the numbers the gate printed into the Verification table, and mark anything not run as `not run`, never as a guess.
 8. Squash-merge with the title `release: vX.Y.Z — <headline>`, where the headline is the release note's GitHub Release title.
-9. The maintainer tags `vX.Y.Z` on the merge commit and publishes the GitHub Release (title `vX.Y.Z — <headline>`, body = the release note). Below 1.0.0, `release-assets.yml` builds the tag, runs the publish gate, proves the tarball installs, and attaches it with its SBOM and build provenance to the release, while `publish.yml` refuses to publish to npm by design; from 1.0.0 it waits for the `npm-publish` environment's reviewer, runs the publish gate, publishes with provenance and attests the tarball and SBOM.
+9. The maintainer tags `vX.Y.Z` on the merge commit and publishes the GitHub Release (title `vX.Y.Z — <headline>`, body = the release note). Below 1.0.0, `release-assets.yml` builds the tag, runs the publish gate, proves the tarball installs, and attaches it with its SBOM and build provenance to the release, while the `guard` job of `publish.yml` refuses to publish to npm by design, before any approval is asked; from 1.0.0 the guard passes, the `publish` job waits for the `npm-publish` environment's reviewer, runs the publish gate (the tarball checked file by file against `docs/data/package-files.json` included) and publishes with provenance, and `attest` attests the tarball and SBOM.
 10. After a 1.x publication: `npm run check:npm-drift` — the registry's `latest` against the manifest (below 1.0.0 it expects the `0.0.1` name reservation and nothing else; the Docs workflow runs it weekly).
 
 ### Branch protection
 
 The rules for `main` are versioned in [.github/rulesets/main.json](.github/rulesets/main.json), GitHub's ruleset format: no deletion, no force-push, pull request required (single maintainer, so zero approvals — but every review thread resolved, stale reviews dismissed on push, squash merges only), and seven status checks required and up to date with `main`: `ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows` and `conformance-macos`. The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting, moving or updating a `v*` tag, with an empty `bypass_actors` — **a pushed tag is permanent for everyone, the repository owner included.** Import a file after editing it: Settings → Rules → Rulesets → Import a ruleset.
 
-Two consequences worth stating once. The ruleset requires a pull request, and `bypass_mode: "pull_request"` lets an admin merge one whose checks are red — it does not let anyone push directly to `main`. So on a repository whose `main` does not exist yet, **the rulesets are imported after the first push**, never before: there is no legal path to seed the branch otherwise. And below 1.0.0, publishing a GitHub Release starts two workflows: `release-assets` builds and attests the tarball, while `publish` sits at the `npm-publish` environment and then fails on *"Refuse a pre-1.0 publication"*. That red run is deliberate — it is the only proof the 1.0 guard still works.
+Two consequences worth stating once. The ruleset requires a pull request, and `bypass_mode: "pull_request"` lets an admin merge one whose checks are red — it does not let anyone push directly to `main`. So on a repository whose `main` does not exist yet, **the rulesets are imported after the first push**, never before: there is no legal path to seed the branch otherwise. And below 1.0.0, publishing a GitHub Release starts two workflows: `release-assets` builds and attests the tarball, while `publish` fails in its `guard` job on *"Refuse a pre-1.0 publication"* — before the `npm-publish` environment is reached, so no approval is ever requested for a run designed to fail. That red run is deliberate — it is the only proof the 1.0 guard still works — and an approval prompt on a 0.x tag is itself a defect: it means the guard no longer runs first.
 
 ## License
 

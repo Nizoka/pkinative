@@ -65,7 +65,7 @@ npm run gate:fast          # typecheck:all, lint, test, verify:docs — before e
 npm run gate               # the CI profile
 npm run test:coverage      # vitest with the coverage thresholds of vitest.config.ts
 npm run build              # tsup → dist/ (ESM + CJS + declarations)
-npm run check:package      # build + attw + publint
+npm run check:package      # build + attw + publint + the pinned tarball file list
 npm run verify:docs        # documentation and governance rules
 npm run agents:rules       # regenerate .claude/rules/ from .github/instructions/
 ```

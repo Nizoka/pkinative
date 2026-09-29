@@ -131,6 +131,9 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A record dropped from the index is a decision nobody finds.
     'adr-index': (f) => edit(f, 'docs/adr/README.md', /^\| \[0003\]\(.*\n/m, ''),
     'prose-language': (f) => edit(f, 'README.md', /\n$/, '\nLe certificat est valide pour tous les domaines.\n'),
+    // The one defect only the hermetic half can see without a build: a legal
+    // text that ships, edited without the pinned list being regenerated.
+    'package-files-parity': (f) => edit(f, 'LICENSE', 'MIT License', 'MIT Licence'),
 };
 
 describe('verify-docs on the repository', () => {

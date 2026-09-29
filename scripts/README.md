@@ -19,7 +19,7 @@ lines of that log and stops.
 | Profile | Command | Steps |
 |---|---|---|
 | Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:docs |
-| CI — the default | `npm run gate` | 11: adds build, dist-check, bundle-check, test:coverage, check:package, verify:bundle, smoke:install, docs:playground-fresh |
+| CI — the default | `npm run gate` | 11: adds build, dist-check, bundle-check, test:coverage, check:package (attw, publint, the tarball file by file), verify:bundle, smoke:install, docs:playground-fresh |
 | Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 12: adds conformance |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
@@ -35,9 +35,10 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 60 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 62 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
+| `package-files.ts` | inside `check:package` | yes | The tarball, file by file: `npm pack --dry-run --json` against `docs/data/package-files.json` — a file added, removed or made executable, or a changed LICENSE or THIRD-PARTY-NOTICES.md, fails; nothing under `src/`/`tests/`, no dotfile, no key or certificate, every `dist/` file budgeted, whatever the manifest says. `--update` regenerates it (and refuses a forbidden file) | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
 | `fetch-corpora.ts` | `conformance:fetch` | — | Downloads x509-limbo and Wycheproof at their pinned commits, refusing any file whose SHA-256 differs | 0/1/2 |
 | `release-prepare.ts` | — | — | The mechanical half of a version bump: every row of its `EDITS` table, at 1.0.0 every stable-era swap of `PRE_1_0_PROSE`, plus the release-note and pull-request-body scaffolds; a pure `planRelease` a test runs on the in-memory tree. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
