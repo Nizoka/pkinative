@@ -144,7 +144,7 @@ Consuming pkinative from pdfnative's PAdES and LTV stack is pdfnative's mileston
 - [ ] First npm publication with provenance, through Trusted Publishing
 - [ ] Adds no engine behaviour over 0.9: 1.0.0 is the freeze itself
 
-There is **no external security audit** at 1.0, and the line that once promised one has been removed rather than left to be broken. Neither pdfnative nor zipnative shipped 1.0 with one; what stands in its place is named in SECURITY.md — the three-agent adversarial release review, the L0–L5 conformance gate over third-party corpora, 100 % branch coverage, the seeded adversarial suites, and CodeQL, Scorecard and dependency review on every change. If you need an audit for procurement, open an issue: it will be scoped, and it will be said here when it happens.
+There is **no external security audit** at 1.0, and the line that once promised one has been removed rather than left to be broken. Neither pdfnative nor zipnative shipped 1.0 with one; what stands in its place is named in SECURITY.md — the three-agent adversarial release review, the L0–L8 conformance gate over third-party corpora and the pinned text of RFC 5280, 100 % branch coverage, the seeded adversarial suites, and CodeQL, Scorecard and dependency review on every change. If you need an audit for procurement, open an issue: it will be scoped, and it will be said here when it happens.
 
 `pkinative-cli` and `pkinative-mcp` come **after** 1.0.0, as separate repositories and separate npm packages pinning `pkinative ^1.0.0` — the order both elders used. The machine-readable contracts they will consume are named in the 1.0.0 release note.
 
