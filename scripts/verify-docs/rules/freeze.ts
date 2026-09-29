@@ -217,7 +217,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     {
         file: 'README.md', phrase: 'pre-1.0, not on npm', at1: 'absent', why: 'the status line',
         from: 'pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). It reads, builds and validates — certificates, paths with revocation, CMS signatures and timestamps, PKCS#8 and PKCS#12 — with Web Crypto doing every signature.',
-        to: 'stable, on npm.** From 1.0.0 the public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md)). Versions below 1.0.0 were git tags with an attested release tarball.',
+        to: 'stable, on npm.** From 1.0.0 the public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md)). Versions below 1.0.0 are git tags only — source snapshots of each milestone, never released on GitHub or npm.',
     },
     {
         file: 'README.md', phrase: 'is not on npm. Install the tarball attached to the GitHub release', at1: 'absent', why: 'the Installation section',
@@ -299,7 +299,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     {
         file: 'docs/assets/ecosystem.json', phrase: '"npm": "not published;', at1: 'absent', why: 'packages.pkinative.npm',
         from: '"npm": "not published; pre-1.0 versions are git tags with an attested release tarball, the first npm publication is 1.0.0"',
-        to: '"npm": "published from 1.0.0 by publish.yml, with npm provenance; versions below 1.0.0 are git tags with an attested release tarball"',
+        to: '"npm": "published from 1.0.0 by publish.yml, with npm provenance; versions below 1.0.0 are git tags only, never released"',
     },
     {
         file: 'docs/assets/ecosystem.json', phrase: 'because pkinative is not on npm before 1.0.0 and there is no CDN to load it from', at1: 'absent', why: 'the playground block\'s $comment',
