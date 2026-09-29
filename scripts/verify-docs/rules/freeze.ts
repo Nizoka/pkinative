@@ -197,6 +197,19 @@ export type EraProseRow = EraProseSwap | (EraProseBase & { readonly at1: 'kept' 
  */
 export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     {
+        file: 'SECURITY.md', phrase: '| 0.x (latest tag and its release tarball) |', at1: 'absent', why: 'the supported-versions table',
+        from: [
+            '| 0.x (latest tag and its release tarball) | ✅ (pre-1.0: fixes land in the next tag) |',
+            '| npm `0.0.1` (name reservation, when published) | ❌ contains no code |',
+        ].join('\n'),
+        to: [
+            '| the latest 1.x minor on npm | ✅ fixes land in its next patch or in the next minor |',
+            '| any older 1.x minor | ❌ upgrade to the latest minor: under the compatibility promise below it breaks nothing |',
+            '| 0.x (git tags only, never on npm) | ❌ |',
+            '| npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |',
+        ].join('\n'),
+    },
+    {
         file: 'README.md', phrase: '| pre-1.0 (git tag) |', at1: 'absent', why: 'the comparison table',
         from: '| **pkinative** | pre-1.0 (git tag) |',
         to: '| **pkinative** | {minor} (npm) |',
@@ -224,7 +237,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
             'npm audit signatures   # optional: verify the registry signatures and provenance of what you installed',
             '```',
             '',
-            'Every GitHub release also carries the tarball and a CycloneDX SBOM, built from the same commit and attested with Sigstore build provenance:',
+            'Every GitHub release also carries that same tarball, fetched back from the registry, and a CycloneDX SBOM, both attested with Sigstore build provenance:',
             '',
             '```bash',
             'npm install https://github.com/Nizoka/pkinative/releases/download/v{version}/pkinative-{version}.tgz',
