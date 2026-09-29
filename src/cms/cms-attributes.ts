@@ -30,7 +30,7 @@ import { compareOctets, toHex } from '../core/bytes.js';
 import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, PkiTime } from '../types/asn1-types.js';
-import type { CmsAttribute, EssCertId, SignerInfo, SigningCertificateAttribute } from '../types/cms-types.js';
+import type { Attribute, EssCertId, SignerInfo, SigningCertificateAttribute } from '../types/cms-types.js';
 import { PkiCertificateError, PkiCmsError, PkiEncodingError, type PkiCmsErrorCode } from '../types/pki-errors.js';
 import type { SerialNumber } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from '../x509/x509-algorithm.js';
@@ -164,7 +164,7 @@ export function _assertDerEncoded(root: Asn1Node, ctx: Asn1Context, path: string
 
 /** One decoded attribute, with the value nodes the convenience readers need. */
 export interface _AttributeEntry {
-    readonly attribute: CmsAttribute;
+    readonly attribute: Attribute;
     readonly valueNodes: readonly Asn1Node[];
 }
 
@@ -187,7 +187,7 @@ export function _readAttributes(container: Asn1Node, ctx: Asn1Context, path: str
     const out: _AttributeEntry[] = [];
     for (let i = 0; i < container.children.length; i++) {
         const where = `${path}[${String(i)}]`;
-        enforceLimit(ctx.limits, 'maxCmsAttributes', i + 1, where);
+        enforceLimit(ctx.limits, 'maxAttributes', i + 1, where);
         const node = _expectUniversal(container.children[i], TAG_SEQUENCE, where, container.offset, 'an Attribute SEQUENCE');
         if (node.children.length !== 2) {
             throw _cmsError('PKI_CMS_STRUCTURE_INVALID', where, node.offset, `holds ${String(node.children.length)} values where an Attribute holds a type and a set of values`);
@@ -196,8 +196,8 @@ export function _readAttributes(container: Asn1Node, ctx: Asn1Context, path: str
         const set = _expectUniversal(node.children[1], TAG_SET, `${where}.attrValues`, node.offset, 'a SET OF AttributeValue');
         // One bound for attributes and for the values of one attribute: both
         // are what a hostile signer would multiply to make a verifier loop.
-        enforceLimit(ctx.limits, 'maxCmsAttributes', set.children.length, `${where}.attrValues`);
-        const attribute: CmsAttribute = {
+        enforceLimit(ctx.limits, 'maxAttributes', set.children.length, `${where}.attrValues`);
+        const attribute: Attribute = {
             oid,
             values: Object.freeze(set.children.map((value) => value.bytes)),
             der: node.bytes,

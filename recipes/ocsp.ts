@@ -25,7 +25,7 @@ import {
     createOcspRequest,
     decodeAsn1,
     encodeBasicConstraints,
-    encodeCertId,
+    encodeOcspCertId,
     encodeOctetString,
     encodeSequence,
     encodeTime,
@@ -35,7 +35,7 @@ import {
     verifyOcspSignature,
     type Certificate,
     type OcspBasicResponse,
-    type OcspCheckInput,
+    type CheckOcspStatusInput,
     type OcspHashAlgorithm,
     type OcspResponse,
     type OcspSingleResponse,
@@ -78,7 +78,7 @@ function concat(...parts: readonly Uint8Array[]): Uint8Array {
 
 /** One `SingleResponse` about `R12` under `ROOT`. */
 const single = (status: Uint8Array, id?: Uint8Array): Uint8Array => encodeSequence([
-    id ?? encodeCertId(R12, ROOT),
+    id ?? encodeOcspCertId(R12, ROOT),
     status,
     encodeTime(PRODUCED_AT, 'GeneralizedTime'),
 ]);
@@ -123,7 +123,7 @@ export default async function run(): Promise<Record<string, string>> {
     const request = createOcspRequest(R12, ROOT, { nonce });
     const tbsRequest = decodeAsn1(request, QUIET).children[0];
 
-    const certId = decodeAsn1(encodeCertId(R12, ROOT), QUIET);
+    const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), QUIET);
     const nameHash = certId.children[1]?.content ?? new Uint8Array(0);
     const keyHash = certId.children[2]?.content ?? new Uint8Array(0);
 
@@ -131,7 +131,7 @@ export default async function run(): Promise<Record<string, string>> {
     // makes it mandatory for responders, and a SHA-256 CertID comes back
     // `unknown` from many of them — which a client must not read as "good".
     const wider: OcspHashAlgorithm = 'SHA-256';
-    const sha256Id = decodeAsn1(encodeCertId(R12, ROOT, wider), QUIET);
+    const sha256Id = decodeAsn1(encodeOcspCertId(R12, ROOT, wider), QUIET);
 
     // ── The responses ──
     // `generateKey` is typed as returning `CryptoKey | CryptoKeyPair` for an
@@ -176,11 +176,11 @@ export default async function run(): Promise<Record<string, string>> {
         issuerKeyHash: computeFingerprint(ROOT.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1'),
         serialNumber: R12.serialNumber.bytes,
     };
-    const decide = (der: Uint8Array, overrides: Partial<OcspCheckInput> = {}): string => {
+    const decide = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): string => {
         const found = checkOcspStatus({
             response: parseOcspResponse(der, QUIET),
             expected, at: PRODUCED_AT + 3600_000,
-            signatureVerified: true, responderAuthorised: true,
+            signatureVerified: true, responderAuthorized: true,
             ...overrides,
         });
         return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');
@@ -206,7 +206,7 @@ export default async function run(): Promise<Record<string, string>> {
         nonceOid: OCSP_NONCE_OID,
         decisionClean: decide(goodDer),
         decisionUnsigned: decide(goodDer, { signatureVerified: undefined }),
-        decisionUnauthorised: decide(goodDer, { responderAuthorised: false }),
+        decisionUnauthorised: decide(goodDer, { responderAuthorized: false }),
         decisionSubstituted: decide(substituted),
         decisionDeclined: decide(declines(3)),
         nonceEchoed: hex(nonce),

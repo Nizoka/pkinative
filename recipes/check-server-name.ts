@@ -11,7 +11,7 @@
  *
  * Every line below that refuses is a shape some implementation has accepted.
  */
-import { checkServerName, dnsMatches, parseCertificate, type Certificate, type CheckServerNameOptions, type ServerIdentity } from 'pkinative';
+import { checkServerName, matchDnsName, parseCertificate, type Certificate, type CheckServerNameOptions, type ServerIdentity } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
 const leaf: Certificate = parseCertificate(fixture('letsencrypt-org-leaf'), { onDiagnostic: (): undefined => undefined });
@@ -50,15 +50,15 @@ export default function run(): Record<string, string> {
         // matching two labels are all refused; `*.example.com` does not match
         // `example.com`. `*.com` is refused outright, because the correct test
         // is a public suffix list and pkinative will not carry one stale.
-        wildcardOneLabel: String(dnsMatches('*.bank.example', 'www.bank.example')),
-        wildcardNotTheParent: String(dnsMatches('*.bank.example', 'bank.example')),
-        wildcardNotTwoLabels: String(dnsMatches('*.bank.example', 'a.b.bank.example')),
-        wildcardNotPartial: String(dnsMatches('w*.bank.example', 'www.bank.example')),
-        wildcardNotRegistry: String(dnsMatches('*.example', 'bank.example')),
+        wildcardOneLabel: String(matchDnsName('*.bank.example', 'www.bank.example')),
+        wildcardNotTheParent: String(matchDnsName('*.bank.example', 'bank.example')),
+        wildcardNotTwoLabels: String(matchDnsName('*.bank.example', 'a.b.bank.example')),
+        wildcardNotPartial: String(matchDnsName('w*.bank.example', 'www.bank.example')),
+        wildcardNotRegistry: String(matchDnsName('*.example', 'bank.example')),
         // An internal PKI that issues no wildcards should accept none, which is
         // what `allowWildcards: false` is for. It is the one option here whose
         // default is permissive, because the public web runs on wildcards.
-        wildcardsOff: String(dnsMatches('*.bank.example', 'www.bank.example', false)),
+        wildcardsOff: String(matchDnsName('*.bank.example', 'www.bank.example', { allowWildcards: false })),
         exactStillMatchesWithWildcardsOff: check(host('www.letsencrypt.org'), { allowWildcards: false }),
 
         // ── The commonName fallback rescues nothing here ──

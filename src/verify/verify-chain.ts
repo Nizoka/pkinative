@@ -43,7 +43,7 @@
  * @module verify/verify-chain
  */
 
-import { inputMalformedReason, revocationUnknownReason, unrecognisedCriticalExtensionReason } from '../core/pki-reasons.js';
+import { inputMalformedReason, revocationUnknownReason, unknownCriticalExtensionReason } from '../core/pki-reasons.js';
 import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature } from '../crypto/x509-verify.js';
 import { buildCertificatePath } from '../path/path-build.js';
 import { checkExtendedKeyUsage } from '../path/path-purpose.js';
@@ -52,7 +52,7 @@ import { computeKeyIdentifier } from '../hash/key-identifier.js';
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { checkRevocation } from '../revocation/crl-check.js';
-import type { DeltaCrlInput, RevocationCheckInput } from '../revocation/crl-check.js';
+import type { DeltaCrlInput, CheckRevocationInput } from '../revocation/crl-check.js';
 import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
@@ -61,7 +61,7 @@ import { createAsn1Context } from '../asn1/asn1-context.js';
 import { assertBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { PathBuildReport } from '../path/path-build.js';
+import type { BuildCertificatePathReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
 import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -72,7 +72,7 @@ import { parseCertificate } from '../x509/x509-certificate.js';
 import { getExtension } from '../x509/x509-extensions.js';
 
 /** What to accept, and everything needed to decide it. */
-export interface VerifyChainInput {
+export interface VerifyCertificateChainInput {
     /** The certificate presented — the end entity. */
     readonly leaf: Certificate;
     /**
@@ -124,7 +124,7 @@ export interface VerifyChainInput {
      * response *attaches* are a convenience for path building, never a claim of
      * authority.
      */
-    readonly ocsp?: readonly Uint8Array[] | undefined;
+    readonly ocspResponses?: readonly Uint8Array[] | undefined;
     /**
      * The nonce you put in the request, so a replayed answer can be caught. A
      * different one coming back is always a mismatch; a **missing** echo is
@@ -164,14 +164,14 @@ export interface VerifyChainInput {
 }
 
 /** The verdict, every reason behind it, and the path that was judged. */
-export interface VerifyChainReport extends PathBuildReport {
+export interface VerifyCertificateChainReport extends BuildCertificatePathReport {
     /**
      * How many signature verifications were performed. Worth logging: it is the
      * cost of the call, and a number far above the path length means the bag
      * held many plausible issuers — which is what cross-signing looks like, and
      * what a caller passing a whole trust store will see.
      */
-    readonly verified: number;
+    readonly signatureVerifications: number;
 }
 
 /**
@@ -270,20 +270,20 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  * that throws is misusing the API — an unknown key in `limits`, or a `leaf`
  * that is not a parsed certificate.
  *
- * @param input See {@link VerifyChainInput}.
+ * @param input See {@link VerifyCertificateChainInput}.
  * @returns The verdict, every reason behind it, the path judged, how many
  *   candidate paths were explored and how many signatures were verified.
  * @throws {PkiError} `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`,
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate`
  *   produced.
  */
-export async function verifyCertificateChain(input: VerifyChainInput): Promise<VerifyChainReport> {
+export async function verifyCertificateChain(input: VerifyCertificateChainInput): Promise<VerifyCertificateChainReport> {
     _assertCertificates([input.leaf], 'leaf');
     _assertCertificates(input.candidates ?? [], 'candidates');
     _assertCertificates(input.trustAnchors, 'trustAnchors');
     _assertArguments([
         ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der] as const),
-        ...(input.ocsp ?? []).map((der, index) => [`ocsp[${String(index)}]`, der] as const),
+        ...(input.ocspResponses ?? []).map((der, index) => [`ocspResponses[${String(index)}]`, der] as const),
         ['ocspNonce', input.ocspNonce],
     ], { limits: input.limits ?? {} });
     const at = input.at ?? Date.now();
@@ -337,7 +337,7 @@ export async function verifyCertificateChain(input: VerifyChainInput): Promise<V
         trustAnchors: input.trustAnchors,
         at,
         signatures,
-        ...(input.purposes === undefined ? {} : { requiredPurposes: input.purposes }),
+        ...(input.purposes === undefined ? {} : { purposes: input.purposes }),
         ...(input.initialPolicySet === undefined ? {} : { initialPolicySet: input.initialPolicySet }),
         ...(input.requireExplicitPolicy === undefined ? {} : { requireExplicitPolicy: input.requireExplicitPolicy }),
         ...(input.inhibitPolicyMapping === undefined ? {} : { inhibitPolicyMapping: input.inhibitPolicyMapping }),
@@ -372,7 +372,7 @@ export async function verifyCertificateChain(input: VerifyChainInput): Promise<V
 
     reasons.push(...await _checkRevocation(input, report.path, at));
 
-    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, verified: pairs.length };
+    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
 }
 
 /**
@@ -467,7 +467,7 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     for (const { der, crl } of ctx.lists) {
         if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
         if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
-        const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading }, 'crl');
+        const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, onDiagnostic: ctx.reading.onDiagnostic }, 'crl');
         // A list its CA signed and nobody can walk has not said the delegate
         // is unrevoked, so the delegate is not believed — fail closed.
         if (reasons.some((reason) => reason.code === 'PKI_REASON_REVOKED' || reason.code === 'PKI_REASON_INPUT_MALFORMED')) return false;
@@ -477,7 +477,7 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
 
 /** Everything `_crlSigner` needs to decide who was entitled to sign a list. */
 interface CrlSignerContext {
-    readonly input: VerifyChainInput;
+    readonly input: VerifyCertificateChainInput;
     readonly path: readonly Certificate[];
     readonly at: number;
     /** Every list the caller supplied, parsed — a delegated signer may be revoked on one of them. */
@@ -583,10 +583,10 @@ async function _deltaFor(
  * the Web PKI handles intermediates out of band — CRLSets, OneCRL — which is
  * not a decision a library gets to make for its caller.
  */
-async function _checkRevocation(input: VerifyChainInput, path: readonly Certificate[], at: number): Promise<PkiReason[]> {
+async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const lists = input.crls ?? [];
-    const stapled = input.ocsp ?? [];
+    const stapled = input.ocspResponses ?? [];
     if (lists.length === 0 && stapled.length === 0) {
         if (input.requireRevocation === true) {
             out.push(revocationUnknownReason('path[0]', 'no revocation list and no OCSP response were supplied for this certificate'));
@@ -666,7 +666,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             const problem = _crlScopeProblem({ certificate: subject, crl });
             if (problem !== null && problem.kind !== 'unusable') continue;
             if (problem !== null) {
-                mine.push(unrecognisedCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, 'revocation list'));
+                mine.push(unknownCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, 'revocation list'));
                 continue;
             }
             covered.add(position);
@@ -688,7 +688,8 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
                 at,
                 ...(signatureVerified === undefined ? {} : { signatureVerified }),
                 ...(delta === undefined ? {} : { delta }),
-                options: reading,
+                limits: reading.limits,
+                onDiagnostic: reading.onDiagnostic,
             }, `crl[${String(index)}]`));
         }
         // §6.3.3's `reasons_mask`, which only the composition can see: a CA that
@@ -706,7 +707,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // chain. The issuer is path[1], the CA whose CertID the answer binds to.
     const issuer = path[1];
     for (const [index, der] of _firstOfEach(stapled)) {
-        const where = `ocsp[${String(index)}]`;
+        const where = `ocspResponses[${String(index)}]`;
         try {
             const response = parseOcspResponse(der, reading);
             const basic = response.basicResponse;
@@ -732,7 +733,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
                 response,
                 expected: _certId(input.leaf, issuer, algorithm),
                 at,
-                ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorised: authorised.authorised }),
+                ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised }),
                 ...(input.ocspNonce === undefined ? {} : { nonce: input.ocspNonce }),
                 ...(input.requireOcspNonce === undefined ? {} : { requireNonce: input.requireOcspNonce }),
             }));
@@ -771,7 +772,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
  * does not parse at all. When a delta is paired with the base, the walk that
  * failed may be the delta's; the thrown message names the field either way.
  */
-function _judged(check: RevocationCheckInput, where: string): readonly PkiReason[] {
+function _judged(check: CheckRevocationInput, where: string): readonly PkiReason[] {
     try {
         return checkRevocation(check);
     } catch (error) {

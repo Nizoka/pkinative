@@ -99,7 +99,9 @@ npm run agents:rules       # regenerate .claude/rules/ from .github/instructions
 - Every code is registered in `docs/data/errors.json` with `since`, `raisedWhen`, `remedy`, `standard` and `cwe`
 - Codes are frozen from 0.8.0: removal, renaming or a class move is semver-major, addition is semver-minor (`docs/data/errors.frozen.json`, rule `error-codes-frozen`)
 - The public surface is frozen too (`docs/assets/api.frozen.json`, rule `api-surface-frozen`): in the 0.9 rehearsal nothing changes
-  — no export, signature, error code or reason code; from 1.0.0 a removal or an incompatible signature is semver-major. Diagnostics are never frozen
+  — no export, signature, error code or reason code; from 1.0.0 a removal or an incompatible signature is semver-major.
+  The one sanctioned rehearsal move is a rename set recorded in an accepted ADR (`build-api-frozen.ts --rebaseline`, ADR 0013).
+  Diagnostic codes are additions-only; their severity and wording may change
 
 ### Security
 - Every loop over input consults a named limit (`PkiLimits`) with a CWE tag, a default, a fuzzing test and a SECURITY.md row

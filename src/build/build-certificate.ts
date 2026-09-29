@@ -21,22 +21,15 @@ import { assertBytes } from '../core/bytes.js';
 import { coordinateBytes, resolveSigner } from '../crypto/crypto-algorithms.js';
 import { ecdsaRawToDer } from '../crypto/crypto-signature.js';
 import { signData } from '../crypto/webcrypto.js';
-import type { CertificateDescription } from '../types/build-types.js';
+import type { CertificateDescription, PkiBuildOptions } from '../types/build-types.js';
 import type { Signer } from '../types/crypto-types.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { PkiLimits } from '../types/pki-types.js';
 import {
     encodeAlgorithmIdentifier,
     encodeDistinguishedName,
     encodeExtensions,
     encodeValidity,
 } from './build-structures.js';
-
-/** Options shared by the two creation entry points. */
-export interface CreateOptions {
-    /** Bounds on what is built — `maxNameAttributes` and `maxExtensions` apply. */
-    readonly limits?: Partial<PkiLimits> | undefined;
-}
 
 /**
  * The `AlgorithmIdentifier` a signature algorithm writes into a structure,
@@ -52,7 +45,7 @@ export interface CreateOptions {
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
  *   algorithm has no RFC 5280 OID, or its salt length is negative.
  */
-export function signatureAlgorithmDer(signer: Signer): Uint8Array {
+export function encodeSignatureAlgorithm(signer: Signer): Uint8Array {
     const resolved = resolveSigner(signer.algorithm);
     if (resolved.pss === undefined) return encodeAlgorithmIdentifier(resolved.oid);
     // RFC 4055 §3.1. hashAlgorithm [0], maskGenAlgorithm [1] as MGF1 over
@@ -149,7 +142,7 @@ export async function computeSignatureValue(data: Uint8Array, signer: Signer): P
  */
 export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint8Array> {
     const signature = await computeSignatureValue(tbs, signer);
-    return encodeSequence([tbs, signatureAlgorithmDer(signer), encodeBitString(signature, 0)]);
+    return encodeSequence([tbs, encodeSignatureAlgorithm(signer), encodeBitString(signature, 0)]);
 }
 
 /**
@@ -182,7 +175,7 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  * @param description What the certificate says.
  * @param signer      The key that signs it, and the algorithm it signs with: a
  *   `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
- * @param options     See {@link CreateOptions}.
+ * @param options     See {@link PkiBuildOptions}.
  * @returns The complete certificate, in DER.
  * @throws {PkiError} `PKI_API_MISUSE` for a negative or malformed serial, an
  *   inverted validity window, a duplicated extension, or an `ExternalSigner`
@@ -193,7 +186,7 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  *   RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxNameAttributes` or `maxExtensions`.
  */
-export async function createCertificate(description: CertificateDescription, signer: Signer, options?: CreateOptions): Promise<Uint8Array> {
+export async function createCertificate(description: CertificateDescription, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array> {
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };
     const subject = description.subjectDer !== undefined
         ? assertBytes(description.subjectDer, 'subjectDer')
@@ -214,7 +207,7 @@ export async function createCertificate(description: CertificateDescription, sig
         // tbsCertificate.signature is the field the signature covers; the
         // outer one is not. They must be equal, and they are, because both
         // come from the same call.
-        signatureAlgorithmDer(signer),
+        encodeSignatureAlgorithm(signer),
         issuer,
         encodeValidity(description.notBefore, description.notAfter),
         subject,

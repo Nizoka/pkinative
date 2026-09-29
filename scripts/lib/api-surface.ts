@@ -35,8 +35,8 @@
  *   - **The three code unions are delegated to their registries**
  *     (`VOCABULARIES`): an error code is frozen by
  *     docs/data/errors.frozen.json, a reason code by the `reasons` list of
- *     the snapshot, and a diagnostic code by nothing — diagnostics are
- *     advice and never frozen.
+ *     the snapshot, and a diagnostic code by nothing — diagnostic codes are
+ *     additions-only by their own contract, and a diagnostic is advice.
  *
  * @module scripts/lib/api-surface
  */

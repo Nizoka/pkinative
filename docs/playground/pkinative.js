@@ -70,11 +70,11 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxChainLength: 10,
   maxPolicyNodes: 4096,
   maxRevokedCertificates: 1e6,
-  maxOcspResponses: 256,
+  maxOcspSingleResponses: 256,
   maxPathsExplored: 1e3,
   maxSignerInfos: 64,
-  maxCmsAttributes: 256,
-  maxCmsBagEntries: 1024,
+  maxAttributes: 256,
+  maxCmsCertificatesAndCrls: 1024,
   maxKdfIterations: 1e7,
   maxPkcs12Bags: 4096
 });
@@ -2920,9 +2920,9 @@ function expiredReason(path, notAfter, at) {
     path
   );
 }
-function unrecognisedCriticalExtensionReason(path, oid, what = "certificate") {
+function unknownCriticalExtensionReason(path, oid, what = "certificate") {
   return _reason(
-    "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION",
     what === "certificate" ? "RFC 5280 \xA76.1.3 (f)" : "RFC 5280 \xA76.3.3",
     `the ${what} carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
     path
@@ -3261,7 +3261,7 @@ function checkRevocation(input) {
   const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
   if (scope?.kind === "wrong-issuer") out.push(revocationWrongIssuerReason(path));
   if (scope?.kind === "out-of-scope") out.push(revocationOutOfScopeReason(path, scope.why));
-  if (scope?.kind === "unusable") out.push(unrecognisedCriticalExtensionReason(path, scope.oid, "revocation list"));
+  if (scope?.kind === "unusable") out.push(unknownCriticalExtensionReason(path, scope.oid, "revocation list"));
   if (input.signatureVerified !== true) {
     out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the list's signature did not verify against the key it was checked with" : "the list's signature was never checked, and an unsigned list is something anyone can publish"));
   }
@@ -3271,7 +3271,7 @@ function checkRevocation(input) {
     out.push(revocationStaleReason(path, nextUpdate, input.at));
   }
   const serial = input.certificate.serialNumber.bytes;
-  const lookup = { ...input.options, issuerDer: input.certificate.issuer.der };
+  const lookup = { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
   const delta = _applicableDelta(input);
   const changed = delta === void 0 ? void 0 : findRevocation(delta.crlDer, serial, lookup);
   const entry = changed ?? findRevocation(input.crlDer, serial, lookup);
@@ -3943,7 +3943,7 @@ var HASH_OID = Object.freeze({
   "SHA-1": "1.3.14.3.2.26",
   "SHA-256": "2.16.840.1.101.3.4.2.1"
 });
-function encodeCertId(certificate, issuer, algorithm = "SHA-1") {
+function encodeOcspCertId(certificate, issuer, algorithm = "SHA-1") {
   assertParsed(certificate, "certificate");
   assertParsed(issuer, "issuer");
   const digest = algorithm === "SHA-1" ? sha1 : sha256;
@@ -3958,7 +3958,7 @@ function encodeCertId(certificate, issuer, algorithm = "SHA-1") {
 }
 var NULL_PARAMETERS = /* @__PURE__ */ encodeTlv("universal", 5, false, new Uint8Array(0));
 function createOcspRequest(certificate, issuer, options) {
-  const certId = encodeCertId(certificate, issuer, options?.hashAlgorithm ?? "SHA-1");
+  const certId = encodeOcspCertId(certificate, issuer, options?.hashAlgorithm ?? "SHA-1");
   const requestList = encodeSequence([encodeSequence([certId])]);
   const fields = [requestList];
   const nonce = options?.nonce;
@@ -4120,7 +4120,7 @@ function readResponseData(der, tbs, ctx) {
   const responses = [];
   let index = 0;
   for (const single of walkChildren(der, responsesField, "ResponseData.responses")) {
-    enforceLimit(ctx.limits, "maxOcspResponses", index + 1, `ResponseData.responses[${String(index)}]`);
+    enforceLimit(ctx.limits, "maxOcspSingleResponses", index + 1, `ResponseData.responses[${String(index)}]`);
     responses.push(readSingleResponse(der, single, ctx, `ResponseData.responses[${String(index)}]`));
     index += 1;
   }
@@ -4245,8 +4245,8 @@ function checkOcspStatus(input) {
   if (input.signatureVerified !== true) {
     out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the responder's signature did not verify against the key it was checked with" : "the responder's signature was never checked, and an unsigned response is something anyone can produce"));
   }
-  if (input.responderAuthorised !== true) {
-    out.push(revocationUnknownReason(path, input.responderAuthorised === false ? "the signer is not authorised to answer for this CA (RFC 6960 \xA74.2.2.2)" : "nothing says the signer is authorised to answer for this CA, and a responder nobody authorised is a responder anyone can be"));
+  if (input.responderAuthorized !== true) {
+    out.push(revocationUnknownReason(path, input.responderAuthorized === false ? "the signer is not authorised to answer for this CA (RFC 6960 \xA74.2.2.2)" : "nothing says the signer is authorised to answer for this CA, and a responder nobody authorised is a responder anyone can be"));
   }
   out.push(...checkNonce(basic, input, path));
   const answer = basic.responses.find((single) => matches(single, input.expected));
@@ -4330,7 +4330,7 @@ function checkExtendedKeyUsage(path, purpose, options) {
     if (index > 0 && !restrictIssuers) break;
     const extension = getExtension(certificate, "extendedKeyUsage");
     if (extension === void 0) {
-      if (index === 0 && options?.requireExplicit === true) {
+      if (index === 0 && options?.requireExplicitPurpose === true) {
         out.push(purposeNotPermittedReason(`path[${String(index)}]`, purpose, null));
       }
       continue;
@@ -4356,7 +4356,7 @@ function formOf(base) {
   return FORMS.includes(base.kind) ? base.kind : null;
 }
 var fold = (text) => text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
-function dnsMatches(constraint, name) {
+function dnsConstraintCovers(constraint, name) {
   const c = fold(constraint);
   const n = fold(name);
   if (c === "") return true;
@@ -4482,7 +4482,7 @@ function subtreeCoversWildcard(base, parent) {
   const b = fold(base);
   if (b === "") return true;
   if (b.startsWith(".")) return parent === b.slice(1) || parent.endsWith(b);
-  return dnsMatches(b, parent);
+  return dnsConstraintCovers(b, parent);
 }
 function wildcardMeetsSubtree(base, parent, labels = 1) {
   if (subtreeCoversWildcard(base, parent)) return true;
@@ -4496,7 +4496,7 @@ function subtreeCovers(subtree, name) {
   if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
   switch (base.kind) {
     case "dNSName":
-      return name.kind === "dNSName" && dnsMatches(base.value, name.value);
+      return name.kind === "dNSName" && dnsConstraintCovers(base.value, name.value);
     case "rfc822Name":
       return name.kind === "rfc822Name" && emailMatches(base.value, name.value);
     case "uniformResourceIdentifier":
@@ -4796,7 +4796,7 @@ function checkCriticalExtensions(certificate, path) {
   const out = [];
   for (const extension of certificate.extensions) {
     if (extension.critical && !PROCESSED_CRITICAL_EXTENSIONS.has(extension.oid)) {
-      out.push(unrecognisedCriticalExtensionReason(`${path}.extensions`, extension.oid));
+      out.push(unknownCriticalExtensionReason(`${path}.extensions`, extension.oid));
     }
   }
   return out;
@@ -4914,7 +4914,7 @@ function validateCertificatePath(input) {
   };
   const walked = [];
   let anchored = false;
-  for (const [index, certificate] of input.certificates.entries()) {
+  for (const [index, certificate] of input.path.entries()) {
     const path = `path[${String(index)}]`;
     if (index >= context.maxCertificates) {
       state.reasons.push(limitExceededReason(path, "maxChainLength", context.maxCertificates));
@@ -4939,7 +4939,7 @@ function validateCertificatePath(input) {
       break;
     }
     const wanted = _hex(certificate.issuer.der);
-    const issuer = input.certificates[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+    const issuer = input.path[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
     const signature = checkSignature(certificate, context, path, issuer);
     if (signature !== null) state.reasons.push(signature);
     state.expectedIssuer = certificate.issuer;
@@ -5001,10 +5001,10 @@ function buildCertificatePath(input) {
     const existing = bySubject.get(key) ?? [];
     if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
   }
-  const judge = (certificates) => {
-    const report = validateCertificatePath({ ...input, certificates });
-    if (!report.valid || input.requiredPurposes === void 0) return report;
-    const refused = input.requiredPurposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
+  const judge = (path) => {
+    const report = validateCertificatePath({ ...input, path });
+    if (!report.valid || input.purposes === void 0) return report;
+    const refused = input.purposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
     return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
   };
   const first = judge([input.leaf]);
@@ -5056,10 +5056,10 @@ function checkServerName(certificate, identity, options) {
   const san = getExtension(certificate, "subjectAltName");
   const names = san?.names ?? [];
   const sanIsAuthoritative = names.some((name) => name.kind === "dNSName" || name.kind === "iPAddress");
-  const wildcards = options?.allowWildcards !== false;
+  const dns = { allowWildcards: options?.allowWildcards !== false };
   if (sanIsAuthoritative) {
     for (const name of names) {
-      if (matches2(name, identity, wildcards)) return [];
+      if (matches2(name, identity, dns)) return [];
     }
     return [nameMismatchReason("certificate.subjectAltName", identityText(identity), listed(names))];
   }
@@ -5071,25 +5071,25 @@ function checkServerName(certificate, identity, options) {
     )];
   }
   for (const common of commonNames(certificate)) {
-    if (identity.kind === "dns" && dnsMatches2(common, identity.value, wildcards)) return [];
+    if (identity.kind === "dns" && matchDnsName(common, identity.value, dns)) return [];
   }
   return [nameMismatchReason("certificate.subject", identityText(identity), `commonName ${commonNames(certificate).map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
 }
-function matches2(name, identity, wildcards) {
+function matches2(name, identity, dns) {
   if (identity.kind === "dns") {
-    return name.kind === "dNSName" && dnsMatches2(name.value, identity.value, wildcards);
+    return name.kind === "dNSName" && matchDnsName(name.value, identity.value, dns);
   }
   return name.kind === "iPAddress" && sameBytes2(name.bytes, identity.value);
 }
 function fold2(text) {
   return text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
-function dnsMatches2(presented, reference, wildcards = true) {
+function matchDnsName(presented, reference, options) {
   if (presented === "" || presented.includes("\0") || reference === "" || reference.includes("\0")) return false;
   const host = fold2(stripTrailingDot(reference));
   const pattern = fold2(stripTrailingDot(presented));
   if (!pattern.includes("*")) return pattern === host;
-  if (!wildcards) return false;
+  if (options?.allowWildcards === false) return false;
   const labels = pattern.split(".");
   const first = labels[0];
   if (first !== "*") return false;
@@ -6020,7 +6020,7 @@ async function verifyCertificateChain(input) {
   _assertCertificates(input.trustAnchors, "trustAnchors");
   _assertArguments([
     ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der]),
-    ...(input.ocsp ?? []).map((der, index) => [`ocsp[${String(index)}]`, der]),
+    ...(input.ocspResponses ?? []).map((der, index) => [`ocspResponses[${String(index)}]`, der]),
     ["ocspNonce", input.ocspNonce]
   ], { limits: input.limits ?? {} });
   const at = input.at ?? Date.now();
@@ -6060,7 +6060,7 @@ async function verifyCertificateChain(input) {
     trustAnchors: input.trustAnchors,
     at,
     signatures,
-    ...input.purposes === void 0 ? {} : { requiredPurposes: input.purposes },
+    ...input.purposes === void 0 ? {} : { purposes: input.purposes },
     ...input.initialPolicySet === void 0 ? {} : { initialPolicySet: input.initialPolicySet },
     ...input.requireExplicitPolicy === void 0 ? {} : { requireExplicitPolicy: input.requireExplicitPolicy },
     ...input.inhibitPolicyMapping === void 0 ? {} : { inhibitPolicyMapping: input.inhibitPolicyMapping },
@@ -6075,7 +6075,7 @@ async function verifyCertificateChain(input) {
     for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
   }
   reasons.push(...await _checkRevocation(input, report.path, at));
-  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, verified: pairs.length };
+  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
 }
 async function _crlSignature(crl, issuer, allowSha1) {
   try {
@@ -6115,7 +6115,7 @@ async function _signerStillGood(ctx, candidate) {
   for (const { der, crl } of ctx.lists) {
     if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
     if (await _crlSigner(ctx, crl, _hex2(crl.issuer.der), true) !== true) continue;
-    const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading }, "crl");
+    const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, onDiagnostic: ctx.reading.onDiagnostic }, "crl");
     if (reasons.some((reason) => reason.code === "PKI_REASON_REVOKED" || reason.code === "PKI_REASON_INPUT_MALFORMED")) return false;
   }
   return true;
@@ -6157,7 +6157,7 @@ async function _deltaFor(ctx, subject, base, signed) {
 async function _checkRevocation(input, path, at) {
   const out = [];
   const lists = input.crls ?? [];
-  const stapled = input.ocsp ?? [];
+  const stapled = input.ocspResponses ?? [];
   if (lists.length === 0 && stapled.length === 0) {
     if (input.requireRevocation === true) {
       out.push(revocationUnknownReason("path[0]", "no revocation list and no OCSP response were supplied for this certificate"));
@@ -6187,7 +6187,7 @@ async function _checkRevocation(input, path, at) {
       const problem = _crlScopeProblem({ certificate: subject, crl });
       if (problem !== null && problem.kind !== "unusable") continue;
       if (problem !== null) {
-        mine.push(unrecognisedCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, "revocation list"));
+        mine.push(unknownCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, "revocation list"));
         continue;
       }
       covered.add(position);
@@ -6204,14 +6204,15 @@ async function _checkRevocation(input, path, at) {
         at,
         ...signatureVerified === void 0 ? {} : { signatureVerified },
         ...delta === void 0 ? {} : { delta },
-        options: reading
+        limits: reading.limits,
+        onDiagnostic: reading.onDiagnostic
       }, `crl[${String(index)}]`));
     }
     out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
   const issuer = path[1];
   for (const [index, der] of _firstOfEach(stapled)) {
-    const where2 = `ocsp[${String(index)}]`;
+    const where2 = `ocspResponses[${String(index)}]`;
     try {
       const response = parseOcspResponse(der, reading);
       const basic = response.basicResponse;
@@ -6227,7 +6228,7 @@ async function _checkRevocation(input, path, at) {
         response,
         expected: _certId(input.leaf, issuer, algorithm),
         at,
-        ...authorised === void 0 ? {} : { signatureVerified: authorised.signed, responderAuthorised: authorised.authorised },
+        ...authorised === void 0 ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised },
         ...input.ocspNonce === void 0 ? {} : { nonce: input.ocspNonce },
         ...input.requireOcspNonce === void 0 ? {} : { requireNonce: input.requireOcspNonce }
       }));
@@ -7379,7 +7380,7 @@ function formatFingerprint(digest, options) {
 }
 
 // src/build/build-certificate.ts
-function signatureAlgorithmDer(signer) {
+function encodeSignatureAlgorithm(signer) {
   const resolved = resolveSigner(signer.algorithm);
   if (resolved.pss === void 0) return encodeAlgorithmIdentifier(resolved.oid);
   const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid);
@@ -7429,7 +7430,7 @@ async function computeSignatureValue(data, signer) {
 }
 async function signAndWrap(tbs, signer) {
   const signature = await computeSignatureValue(tbs, signer);
-  return encodeSequence([tbs, signatureAlgorithmDer(signer), encodeBitString(signature, 0)]);
+  return encodeSequence([tbs, encodeSignatureAlgorithm(signer), encodeBitString(signature, 0)]);
 }
 async function createCertificate(description, signer, options) {
   const limits = options?.limits === void 0 ? void 0 : { limits: options.limits };
@@ -7445,7 +7446,7 @@ async function createCertificate(description, signer, options) {
     // tbsCertificate.signature is the field the signature covers; the
     // outer one is not. They must be equal, and they are, because both
     // come from the same call.
-    signatureAlgorithmDer(signer),
+    encodeSignatureAlgorithm(signer),
     issuer,
     encodeValidity(description.notBefore, description.notAfter),
     subject,
@@ -7570,14 +7571,14 @@ function _readAttributes(container, ctx, path) {
   const out = [];
   for (let i = 0; i < container.children.length; i++) {
     const where2 = `${path}[${String(i)}]`;
-    enforceLimit(ctx.limits, "maxCmsAttributes", i + 1, where2);
+    enforceLimit(ctx.limits, "maxAttributes", i + 1, where2);
     const node = _expectUniversal(container.children[i], TAG_SEQUENCE, where2, container.offset, "an Attribute SEQUENCE");
     if (node.children.length !== 2) {
       throw _cmsError("PKI_CMS_STRUCTURE_INVALID", where2, node.offset, `holds ${String(node.children.length)} values where an Attribute holds a type and a set of values`);
     }
     const oid = _readObjectIdentifier(_expectUniversal(node.children[0], TAG_OID, `${where2}.attrType`, node.offset, "an OBJECT IDENTIFIER"), ctx);
     const set = _expectUniversal(node.children[1], TAG_SET, `${where2}.attrValues`, node.offset, "a SET OF AttributeValue");
-    enforceLimit(ctx.limits, "maxCmsAttributes", set.children.length, `${where2}.attrValues`);
+    enforceLimit(ctx.limits, "maxAttributes", set.children.length, `${where2}.attrValues`);
     const attribute = {
       oid,
       values: Object.freeze(set.children.map((value) => value.bytes)),
@@ -7847,7 +7848,7 @@ function readBag(certificatesField, crlsField, ctx) {
   for (let i = 0; i < certificateNodes.length; i++) {
     const path = `content.certificates[${String(i)}]`;
     entries += 1;
-    enforceLimit(ctx.limits, "maxCmsBagEntries", entries, path);
+    enforceLimit(ctx.limits, "maxCmsCertificatesAndCrls", entries, path);
     const node = certificateNodes[i];
     if (node.tagClass === "universal" && node.tagNumber === TAG_SEQUENCE) {
       certificates.push(node.bytes);
@@ -7868,7 +7869,7 @@ function readBag(certificatesField, crlsField, ctx) {
   for (let i = 0; i < crlNodes.length; i++) {
     const path = `content.crls[${String(i)}]`;
     entries += 1;
-    enforceLimit(ctx.limits, "maxCmsBagEntries", entries, path);
+    enforceLimit(ctx.limits, "maxCmsCertificatesAndCrls", entries, path);
     const node = crlNodes[i];
     if (node.tagClass === "universal" && node.tagNumber === TAG_SEQUENCE) {
       crls.push(node.bytes);
@@ -8129,7 +8130,7 @@ async function resolveContent(input, digest) {
 async function createSignedData(input, signer, options) {
   const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
   const digest = signerDigest(signer);
-  const signatureAlgorithm = signatureAlgorithmDer(signer);
+  const signatureAlgorithm = encodeSignatureAlgorithm(signer);
   const digestAlgorithm = encodeAlgorithmIdentifier(DIGESTS[digest].oid);
   const contentType = input.contentType ?? OID_DATA;
   const certificate = input.certificate;
@@ -8138,7 +8139,7 @@ async function createSignedData(input, signer, options) {
   const sid = signerIdentifier(certificate, input.sid, serial);
   const extraCertificates = input.certificates ?? [];
   const crls = input.crls ?? [];
-  enforceLimit(limits, "maxCmsBagEntries", extraCertificates.length + crls.length, "the certificates and revocation lists given");
+  enforceLimit(limits, "maxCmsCertificatesAndCrls", extraCertificates.length + crls.length, "the certificates and revocation lists given");
   let version = sid.version === 3 || contentType !== OID_DATA ? 3 : 1;
   const certificates = [certificateDer];
   extraCertificates.forEach((entry, index) => {
@@ -8151,13 +8152,13 @@ async function createSignedData(input, signer, options) {
     version = Math.max(version, bagEntryVersion(bytes, `crls[${String(index)}]`, CRL_CHOICES));
     return bytes;
   });
-  enforceLimit(limits, "maxCmsBagEntries", certificates.length + revocation.length, "the certificates and revocation lists being embedded");
+  enforceLimit(limits, "maxCmsCertificatesAndCrls", certificates.length + revocation.length, "the certificates and revocation lists being embedded");
   const written = /* @__PURE__ */ new Set([OID_ATTR_CONTENT_TYPE, OID_ATTR_MESSAGE_DIGEST]);
   if (input.signingTime !== void 0) written.add(OID_ATTR_SIGNING_TIME);
   if (input.signingCertificateV2 !== false) written.add(OID_ATTR_SIGNING_CERTIFICATE_V2);
   if (input.algorithmProtection !== false) written.add(OID_ATTR_ALGORITHM_PROTECTION);
   const extraSigned = input.signedAttributes ?? [];
-  enforceLimit(limits, "maxCmsAttributes", written.size + extraSigned.length, "the signed attributes being built");
+  enforceLimit(limits, "maxAttributes", written.size + extraSigned.length, "the signed attributes being built");
   extraSigned.forEach((attribute, index) => {
     const what = `signedAttributes[${String(index)}]`;
     const type = attributeType(attribute, what);
@@ -8170,7 +8171,7 @@ async function createSignedData(input, signer, options) {
     written.add(type);
   });
   const unsigned = input.unsignedAttributes ?? [];
-  enforceLimit(limits, "maxCmsAttributes", unsigned.length, "the unsigned attributes being built");
+  enforceLimit(limits, "maxAttributes", unsigned.length, "the unsigned attributes being built");
   unsigned.forEach((attribute, index) => {
     const what = `unsignedAttributes[${String(index)}]`;
     const type = attributeType(attribute, what);
@@ -8315,7 +8316,7 @@ function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options)
     for (const held of walkChildren(der, existing, `${path}.unsignedAttrs`)) {
       expectTag(held, "universal", TAG_SEQUENCE, true, `${path}.unsignedAttrs[${String(attributes.length)}]`, "an Attribute", existing);
       attributes.push(der.subarray(held.offset, held.end));
-      enforceLimit(limits, "maxCmsAttributes", attributes.length + 1, `the unsigned attributes of ${path}`);
+      enforceLimit(limits, "maxAttributes", attributes.length + 1, `the unsigned attributes of ${path}`);
     }
   }
   attributes.push(attribute);
@@ -8838,7 +8839,7 @@ async function _verifySigner(ctx, signer, path) {
   const problem = _cmsAlgorithmProblem(signer.digestAlgorithm, signer.signatureAlgorithm);
   if (problem !== null) {
     reasons.push(cmsAlgorithmMismatchReason(`${path}.signatureAlgorithm`, problem));
-    return { reasons, certificate: void 0, intact: false, verified: 0 };
+    return { reasons, certificate: void 0, intact: false, signatureVerifications: 0 };
   }
   const hasAttributes = signer.signedAttributes !== void 0;
   const digestName = _digestName(signer.digestAlgorithm.oid);
@@ -8861,10 +8862,10 @@ async function _verifySigner(ctx, signer, path) {
       "PKI_API_MISUSE",
       "this signer has no signed attributes, so its signature is over the content itself and cannot be checked from a digest \u2014 pass the content"
     ));
-    return { reasons, certificate: void 0, intact: false, verified: 0 };
+    return { reasons, certificate: void 0, intact: false, signatureVerifications: 0 };
   } else {
     reasons.push(cmsContentMissingReason(`${path}`));
-    if (!hasAttributes) return { reasons, certificate: void 0, intact: false, verified: 0 };
+    if (!hasAttributes) return { reasons, certificate: void 0, intact: false, signatureVerifications: 0 };
   }
   const mismatch = _digestReason(signer, computed, path);
   if (mismatch !== null) reasons.push(mismatch);
@@ -8872,13 +8873,13 @@ async function _verifySigner(ctx, signer, path) {
   if (candidates.length === 0) {
     const unread = ctx.unreadable === 0 ? "" : `; ${String(ctx.unreadable)} certificate(s) in the message could not be read`;
     reasons.push(cmsSignerNotFoundReason(`${path}.sid`, `${_describeSid(signer.sid)}${unread}`));
-    return { reasons, certificate: void 0, intact: false, verified: 0 };
+    return { reasons, certificate: void 0, intact: false, signatureVerifications: 0 };
   }
-  let verified = 0;
+  let signatureVerifications = 0;
   let refusal;
   const signedBy = [];
   for (const candidate of candidates) {
-    verified += 1;
+    signatureVerifications += 1;
     try {
       const valid = await verifySignerInfoSignature(signer, candidate, {
         ...hasAttributes || ctx.content === void 0 ? {} : { content: ctx.content },
@@ -8891,14 +8892,14 @@ async function _verifySigner(ctx, signer, path) {
   }
   if (signedBy.length === 0) {
     reasons.push(refusal === void 0 ? signatureInvalidReason(`${path}.signature`) : signatureNotCheckedReason(`${path}.signature`, refusal.code, refusal.message));
-    return { reasons, certificate: void 0, intact: false, verified };
+    return { reasons, certificate: void 0, intact: false, signatureVerifications };
   }
   const committed = signedBy.find((certificate) => _signingCertificateReason(signer, certificate, path) === null);
   if (committed === void 0) {
     reasons.push(_signingCertificateReason(signer, signedBy[0], path));
-    return { reasons, certificate: void 0, intact: false, verified };
+    return { reasons, certificate: void 0, intact: false, signatureVerifications };
   }
-  return { reasons, certificate: committed, intact: reasons.length === 0, verified };
+  return { reasons, certificate: committed, intact: reasons.length === 0, signatureVerifications };
 }
 function _under(prefix, reason) {
   return Object.freeze({ ...reason, path: `${prefix}.${reason.path}` });
@@ -8957,10 +8958,10 @@ async function verifyTimeStampToken(input) {
     requireAlgorithmProtection: false
   }, signer, "token.signerInfos[0]");
   reasons.push(...outcome.reasons);
-  let verified = outcome.verified;
+  let signatureVerifications = outcome.signatureVerifications;
   const tsa = outcome.certificate;
-  if (tsa === void 0) return _report(reasons, token, void 0, void 0, verified);
-  const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimestampingEku === true);
+  if (tsa === void 0) return _report(reasons, token, void 0, void 0, signatureVerifications);
+  const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimeStampingEku === true);
   if (purpose !== null) reasons.push(purpose);
   const genTime = tstInfo.genTime.epochMilliseconds;
   if (genTime < tsa.validity.notBefore.epochMilliseconds) {
@@ -8982,16 +8983,16 @@ async function verifyTimeStampToken(input) {
     // what that test already said, one reason per round trip.
     ...purpose === null ? { purposes: [OID_KP_TIMESTAMPING] } : {},
     crls: [...signedData.crls, ...input.crls ?? []],
-    ocsp: [...signedData.ocspResponses, ...input.ocsp ?? []],
+    ocspResponses: [...signedData.ocspResponses, ...input.ocspResponses ?? []],
     ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
     ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
     ...input.limits === void 0 ? {} : { limits: input.limits }
   });
-  verified += chain.verified;
+  signatureVerifications += chain.signatureVerifications;
   reasons.push(...chain.reasons.map((reason) => _under("token.tsaChain", reason)));
-  return _report(reasons, token, tsa, chain, verified);
+  return _report(reasons, token, tsa, chain, signatureVerifications);
 }
-function _report(reasons, token, tsa, chain, verified) {
+function _report(reasons, token, tsa, chain, signatureVerifications) {
   const valid = reasons.length === 0;
   const info = valid ? token?.tstInfo : void 0;
   const accuracy = info?.accuracy;
@@ -9005,7 +9006,7 @@ function _report(reasons, token, tsa, chain, verified) {
     tsaCertificate: tsa,
     chain,
     reasons: Object.freeze([...reasons]),
-    verified
+    signatureVerifications
   });
 }
 function _expectation(input, reading) {
@@ -9111,18 +9112,18 @@ async function verifySignedData(input) {
     });
   } catch (error) {
     const refused = _pkiError(error);
-    return Object.freeze({ valid: false, signedData: void 0, signers: [], reasons: Object.freeze([inputMalformedReason(refused.code, refused.message, "signedData")]), verified: 0 });
+    return Object.freeze({ valid: false, signedData: void 0, signers: [], reasons: Object.freeze([inputMalformedReason(refused.code, refused.message, "signedData")]), signatureVerifications: 0 });
   }
   if (signedData.content !== void 0 && (input.content !== void 0 || input.contentDigest !== void 0)) {
     throw new PkiError("PKI_API_MISUSE", "pkinative: this message carries its own content, so the content or digest passed alongside it is ambiguous \u2014 drop it, or verify the message whose content is detached");
   }
   if (signedData.signerInfos.length === 0) {
-    return Object.freeze({ valid: false, signedData, signers: [], reasons: Object.freeze([cmsNoSignersReason("signerInfos")]), verified: 0 });
+    return Object.freeze({ valid: false, signedData, signers: [], reasons: Object.freeze([cmsNoSignersReason("signerInfos")]), signatureVerifications: 0 });
   }
   const reading = { limits: input.limits ?? {} };
   const { candidates, unreadable } = _parseBag(signedData.certificates, input.certificates ?? [], reading);
   const signers = [];
-  let verified = 0;
+  let signatureVerifications = 0;
   for (const [index, signer] of signedData.signerInfos.entries()) {
     const path = `signerInfos[${String(index)}]`;
     const outcome = await _verifySigner({
@@ -9135,7 +9136,7 @@ async function verifySignedData(input) {
       requireSigningCertificate: input.requireSigningCertificate === true,
       requireAlgorithmProtection: input.requireAlgorithmProtection === true
     }, signer, path);
-    verified += outcome.verified;
+    signatureVerifications += outcome.signatureVerifications;
     const reasons2 = [...outcome.reasons];
     const timeStamps = [];
     for (const [position, token] of signer.timeStampTokens.entries()) {
@@ -9145,13 +9146,13 @@ async function verifySignedData(input) {
         certificates: candidates,
         trustAnchors: input.trustAnchors,
         ...input.crls === void 0 ? {} : { crls: input.crls },
-        ...input.ocsp === void 0 ? {} : { ocsp: input.ocsp },
+        ...input.ocspResponses === void 0 ? {} : { ocspResponses: input.ocspResponses },
         ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
         ...input.at === void 0 ? {} : { at: input.at },
         ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
         ...input.limits === void 0 ? {} : { limits: input.limits }
       });
-      verified += stamp.verified;
+      signatureVerifications += stamp.signatureVerifications;
       timeStamps.push(stamp);
       reasons2.push(...stamp.reasons.map((reason) => _under(`${path}.unsignedAttrs.timeStampToken[${String(position)}]`, reason)));
     }
@@ -9165,12 +9166,12 @@ async function verifySignedData(input) {
         at: _instant(input, timeStamps),
         ...input.purposes === void 0 ? {} : { purposes: input.purposes },
         crls: [...signedData.crls, ...input.crls ?? []],
-        ocsp: [...signedData.ocspResponses, ...input.ocsp ?? []],
+        ocspResponses: [...signedData.ocspResponses, ...input.ocspResponses ?? []],
         ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
         ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
         ...input.limits === void 0 ? {} : { limits: input.limits }
       });
-      verified += chain.verified;
+      signatureVerifications += chain.signatureVerifications;
       reasons2.push(...chain.reasons.map((reason) => _under(`${path}.chain`, reason)));
     }
     signers.push(Object.freeze({
@@ -9190,7 +9191,7 @@ async function verifySignedData(input) {
     signedData,
     signers: Object.freeze(signers),
     reasons: Object.freeze(reasons),
-    verified
+    signatureVerifications
   });
 }
 function _instant(input, stamps) {
@@ -9407,7 +9408,7 @@ var KEY_TYPES = /* @__PURE__ */ new Map([
 function _readAttributes2(set, ctx, path) {
   const out = [];
   for (const [i, attribute] of set.children.entries()) {
-    enforceLimit(ctx.limits, "maxCmsAttributes", i + 1, path);
+    enforceLimit(ctx.limits, "maxAttributes", i + 1, path);
     const at = `${path}[${String(i)}]`;
     const seq = _expectField(attribute, TAG_SEQUENCE, at, set.offset, "an Attribute SEQUENCE");
     if (seq.children.length !== 2) {
@@ -9450,10 +9451,10 @@ function _readPrivateKeyInfo(node, ctx, path, parentOffset) {
       publicKey = _readBitString(field, ctx);
     }
   }
-  const keyType = KEY_TYPES.get(algorithm.oid) ?? "unknown";
+  const kind = KEY_TYPES.get(algorithm.oid) ?? "unknown";
   const parameters = algorithm.parameters;
-  const namedCurve = keyType === "ec" && parameters !== void 0 && parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? EC_CURVE_OIDS.get(_readObjectIdentifier(parameters, ctx)) : void 0;
-  return Object.freeze({ der: seq.bytes, version, algorithm, keyType, namedCurve, attributes, publicKey });
+  const curve = kind === "ec" && parameters !== void 0 && parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? EC_CURVE_OIDS.get(_readObjectIdentifier(parameters, ctx)) : void 0;
+  return Object.freeze({ der: seq.bytes, version, algorithm, kind, curve, attributes, publicKey });
 }
 function _readEncryptedPrivateKeyInfo(node, ctx, path, parentOffset) {
   const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "an EncryptedPrivateKeyInfo SEQUENCE");
@@ -9508,9 +9509,9 @@ function _unsupported(why, oid) {
 }
 function _signingAlgorithm(info, requested) {
   const oid = info.algorithm.oid;
-  switch (info.keyType) {
+  switch (info.kind) {
     case "ec": {
-      const curve = info.namedCurve;
+      const curve = info.curve;
       if (curve === void 0) throw _unsupported("is an EC key on a curve that is not P-256, P-384 or P-521, or not named", oid);
       if (requested === void 0) return { name: "ECDSA", hash: CUSTOMARY_HASH[curve], namedCurve: curve };
       if (requested.name !== "ECDSA" || requested.namedCurve !== curve) throw _mismatch(`an EC key on ${curve}`, requested);
@@ -9518,7 +9519,7 @@ function _signingAlgorithm(info, requested) {
     }
     case "ed25519":
     case "ed448": {
-      const name = info.keyType === "ed25519" ? "Ed25519" : "Ed448";
+      const name = info.kind === "ed25519" ? "Ed25519" : "Ed448";
       if (requested === void 0) return { name };
       if (requested.name !== name) throw _mismatch(`an ${name} key`, requested);
       return requested;
@@ -9880,10 +9881,10 @@ async function openSafeContents(contents, password, options) {
 
 // src/verify/verify-pkcs12.ts
 var CURVE_HASH = { "P-256": "SHA-256", "P-384": "SHA-384", "P-521": "SHA-512" };
-async function readPkcs12(der, options) {
+async function openPkcs12(der, options) {
   const password = _password(options);
   const rsaAlgorithm = _rsaAlgorithm(options.rsaAlgorithm);
-  assertBytes(der, "readPkcs12 input");
+  assertBytes(der, "openPkcs12 input");
   const reading = {
     limits: options.limits ?? {},
     onDiagnostic: () => void 0,
@@ -9993,7 +9994,7 @@ async function readPkcs12(der, options) {
 function _password(options) {
   const password = options?.password;
   if (typeof password !== "string" && !(password instanceof Uint8Array)) {
-    throw new PkiError("PKI_INVALID_OPTION", "pkinative: readPkcs12 needs options.password, as a string or a Uint8Array \u2014 an empty string is a password, undefined is not");
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: openPkcs12 needs options.password, as a string or a Uint8Array \u2014 an empty string is a password, undefined is not");
   }
   return password;
 }
@@ -10001,7 +10002,7 @@ function _rsaAlgorithm(chosen) {
   if (chosen === void 0) return void 0;
   const candidate = chosen;
   if (typeof chosen !== "object" || candidate === null || candidate.name !== "RSASSA-PKCS1-v1_5" && candidate.name !== "RSA-PSS" || !RSA_HASHES.has(candidate.hash)) {
-    throw new PkiError("PKI_INVALID_OPTION", "pkinative: readPkcs12 options.rsaAlgorithm must be { name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS', hash: 'SHA-256' | 'SHA-384' | 'SHA-512' | 'SHA-1' } \u2014 it says what an RSA key will sign with");
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: openPkcs12 options.rsaAlgorithm must be { name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS', hash: 'SHA-256' | 'SHA-384' | 'SHA-512' | 'SHA-1' } \u2014 it says what an RSA key will sign with");
   }
   return chosen;
 }
@@ -10049,6 +10050,6 @@ function _report2(reasons, integrity, pkcs12, keys, certificates, crls) {
   });
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readPkcs12, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

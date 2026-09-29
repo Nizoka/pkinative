@@ -61,9 +61,9 @@ function _unsupported(why: string, oid: string): PkiCryptoError {
  */
 export function _signingAlgorithm(info: PrivateKeyInfo, requested: SignatureAlgorithm | undefined): SignatureAlgorithm {
     const oid = info.algorithm.oid;
-    switch (info.keyType) {
+    switch (info.kind) {
         case 'ec': {
-            const curve = info.namedCurve;
+            const curve = info.curve;
             if (curve === undefined) throw _unsupported('is an EC key on a curve that is not P-256, P-384 or P-521, or not named', oid);
             if (requested === undefined) return { name: 'ECDSA', hash: CUSTOMARY_HASH[curve], namedCurve: curve };
             if (requested.name !== 'ECDSA' || requested.namedCurve !== curve) throw _mismatch(`an EC key on ${curve}`, requested);
@@ -71,7 +71,7 @@ export function _signingAlgorithm(info: PrivateKeyInfo, requested: SignatureAlgo
         }
         case 'ed25519':
         case 'ed448': {
-            const name = info.keyType === 'ed25519' ? 'Ed25519' : 'Ed448';
+            const name = info.kind === 'ed25519' ? 'Ed25519' : 'Ed448';
             if (requested === undefined) return { name };
             if (requested.name !== name) throw _mismatch(`an ${name} key`, requested);
             return requested;

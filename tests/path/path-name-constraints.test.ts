@@ -4,7 +4,7 @@ import {
     checkName,
     directoryMatches,
     directoryMatchesPrepared,
-    dnsMatches,
+    dnsConstraintCovers,
     emailMatches,
     excludedCovers,
     initialNameConstraints,
@@ -45,7 +45,7 @@ const directory = (dn: DistinguishedName): GeneralName => ({ kind: 'directoryNam
 
 const subtree = (base: GeneralName): GeneralSubtree => ({ base, minimum: 0, maximum: undefined });
 
-describe('dnsMatches — §4.2.1.10', () => {
+describe('dnsConstraintCovers — §4.2.1.10', () => {
     it.each([
         { constraint: 'example.com', name: 'example.com', expected: true },
         { constraint: 'example.com', name: 'host.example.com', expected: true },
@@ -61,7 +61,7 @@ describe('dnsMatches — §4.2.1.10', () => {
         { constraint: '.example.com', name: 'example.com', expected: false },
         { constraint: 'host.example.com', name: 'example.com', expected: false },
     ])('$constraint vs $name → $expected', ({ constraint, name: n, expected }) => {
-        expect(dnsMatches(constraint, n)).toBe(expected);
+        expect(dnsConstraintCovers(constraint, n)).toBe(expected);
     });
 });
 

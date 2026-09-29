@@ -63,13 +63,13 @@ export interface SignatureResult {
 }
 
 /** What to validate, and everything needed to judge it. */
-export interface PathValidationInput {
+export interface ValidateCertificatePathInput {
     /**
      * The chain, **leaf first**, as parsed certificates. The trust anchor may
      * be the last element or supplied only in `trustAnchors`; both are
      * accepted, because a server sends the chain both ways in practice.
      */
-    readonly certificates: readonly Certificate[];
+    readonly path: readonly Certificate[];
     /**
      * The certificates the caller trusts a priori. An empty list is accepted
      * and always produces `PKI_REASON_NO_TRUST_ANCHOR`: a chain with no
@@ -115,7 +115,7 @@ export interface PathValidationInput {
  * independent fields: a report that said `valid: true` while listing reasons
  * would be two answers to one question.
  */
-export interface PathValidationReport {
+export interface ValidateCertificatePathReport {
     /** True only when `reasons` is empty; the two are one answer, not two. */
     readonly valid: boolean;
     /**
@@ -127,7 +127,7 @@ export interface PathValidationReport {
     readonly reasons: readonly PkiReason[];
     /**
      * The path actually walked, leaf first, ending at the trust anchor when
-     * one was reached. Shorter than `certificates` when the walk stopped.
+     * one was reached. Shorter than the input `path` when the walk stopped.
      */
     readonly path: readonly Certificate[];
 }

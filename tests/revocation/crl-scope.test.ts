@@ -146,7 +146,7 @@ async function certificate(options: CertOptions = {}): Promise<Certificate> {
 /** The scope decision alone: a verified, current list, so nothing else can speak. */
 function codesFor(cert: Certificate, crlDer: Uint8Array): readonly string[] {
     const crl = parseCertificateList(crlDer, quiet);
-    return checkRevocation({ certificate: cert, crl, crlDer, at: AT, signatureVerified: true, options: quiet })
+    return checkRevocation({ certificate: cert, crl, crlDer, at: AT, signatureVerified: true, ...quiet })
         .map((reason) => reason.code);
 }
 
@@ -522,7 +522,7 @@ describe('a list this implementation only half understands (RFC 5280 §6.3.3)', 
         // it must not answer from it, and that is a different sentence.
         const crlDer = buildCrl({ extensions: [extension(OID_DELTA, int(0x02))] });
         const crl = parseCertificateList(crlDer, quiet);
-        const [reason] = checkRevocation({ certificate: EE, crl, crlDer, at: AT, signatureVerified: true, options: quiet });
+        const [reason] = checkRevocation({ certificate: EE, crl, crlDer, at: AT, signatureVerified: true, ...quiet });
         expect(reason?.message).toContain('delta CRL');
     });
 
@@ -543,7 +543,7 @@ describe('a list this implementation only half understands (RFC 5280 §6.3.3)', 
 
     it('should refuse to use a list carrying a critical extension it cannot process', () => {
         const crl = buildCrl({ extensions: [extension([0x2b, 0x06, 0x01, 0x04, 0x01, 0x8d, 0x8d, 0x1f, 0x01], universal(5, []))] });
-        expect(codesFor(EE, crl)).toEqual(['PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION']);
+        expect(codesFor(EE, crl)).toEqual(['PKI_REASON_UNKNOWN_CRITICAL_EXTENSION']);
     });
 
     it('should tolerate the same extension when it is not critical', () => {
@@ -590,7 +590,7 @@ describe('delta CRLs (RFC 5280 §5.2.4)', () => {
             at: AT,
             signatureVerified: true,
             delta: { crl: parseCertificateList(deltaDer, quiet), crlDer: deltaDer, signatureVerified: signed },
-            options: quiet,
+            ...quiet,
         }).map((reason) => reason.code);
     }
 
@@ -683,7 +683,7 @@ describe('onlySomeReasons (RFC 5280 §5.2.5)', () => {
     it('should say which reasons the list did cover', () => {
         const crlDer = buildCrl({ extensions: [extension(OID_IDP, idp({ onlySomeReasons: [0x06, 0x40] }))] });
         const crl = parseCertificateList(crlDer, quiet);
-        const [reason] = checkRevocation({ certificate: EE, crl, crlDer, at: AT, signatureVerified: true, options: quiet });
+        const [reason] = checkRevocation({ certificate: EE, crl, crlDer, at: AT, signatureVerified: true, ...quiet });
         expect(reason?.message).toContain('keyCompromise');
     });
 

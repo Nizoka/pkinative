@@ -34,7 +34,7 @@ openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem
 openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 ```
 
-`readPkcs12` reports a MAC it cannot check as `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` and calls the container invalid unless the caller passes `allowUnverifiedIntegrity`. The password is UTF-8, as RFC 9579 and OpenSSL use it, or octets as given — not the BMPString of the refused KDF.
+`openPkcs12` reports a MAC it cannot check as `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` and calls the container invalid unless the caller passes `allowUnverifiedIntegrity`. The password is UTF-8, as RFC 9579 and OpenSSL use it, or octets as given — not the BMPString of the refused KDF.
 
 ### Consequences
 
@@ -42,7 +42,7 @@ openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 - Good, because a tool can say what a file holds before asking for a password, and the remedy is a command that was run before it was written down.
 - Good, because a file pkinative vouches for is one whose integrity it actually checked.
 - Bad, because most PKCS#12 files in circulation cannot be integrity-checked here, and legacy ones cannot be opened at all: the caller converts them once.
-- Bad, because a plain keyBag a writer nests inside an encrypted SafeContents is plaintext once opened; `readPkcs12` wipes those bytes after import, and that is a best effort, stated as one ([SECURITY.md](../../SECURITY.md)).
+- Bad, because a plain keyBag a writer nests inside an encrypted SafeContents is plaintext once opened; `openPkcs12` wipes those bytes after import, and that is a best effort, stated as one ([SECURITY.md](../../SECURITY.md)).
 
 ### Confirmation
 

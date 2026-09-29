@@ -18,7 +18,7 @@
  * RFC 5280 §6.1.3 (f) says a verifier must **refuse** a certificate carrying
  * a critical extension it does not process. `PROCESSED_CRITICAL_EXTENSIONS`
  * below is the set this validator handles, and everything else critical is
- * `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION`.
+ * `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
  *
  * That is not a placeholder, it is the correct behaviour — and it means a
  * chain constrained by `nameConstraints` or `policyConstraints`, which this
@@ -47,7 +47,7 @@ import {
     pathTooLongReason,
     signatureInvalidReason,
     signatureNotCheckedReason,
-    unrecognisedCriticalExtensionReason,
+    unknownCriticalExtensionReason,
 } from '../core/pki-reasons.js';
 import {
     accumulateNameConstraints,
@@ -67,7 +67,7 @@ import {
 } from './path-policies.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { PathValidationInput, PathValidationReport, SignatureVerdict } from '../types/path-types.js';
+import type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureVerdict } from '../types/path-types.js';
 import type { Certificate, DistinguishedName, GeneralName } from '../types/x509-types.js';
 import { getExtension } from '../x509/x509-extensions.js';
 import { formatDistinguishedName } from '../x509/x509-name-format.js';
@@ -172,7 +172,7 @@ export function checkCriticalExtensions(certificate: Certificate, path: string):
     const out: PkiReason[] = [];
     for (const extension of certificate.extensions) {
         if (extension.critical && !PROCESSED_CRITICAL_EXTENSIONS.has(extension.oid)) {
-            out.push(unrecognisedCriticalExtensionReason(`${path}.extensions`, extension.oid));
+            out.push(unknownCriticalExtensionReason(`${path}.extensions`, extension.oid));
         }
     }
     return out;
@@ -375,7 +375,7 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  *     certificate: cert,
  *     verdict: await verifyCertificateSignature(cert, chain[i + 1]) ? 'valid' as const : 'invalid' as const,
  * })));
- * const report = validateCertificatePath({ certificates: chain, trustAnchors: roots, at: Date.now(), signatures });
+ * const report = validateCertificatePath({ path: chain, trustAnchors: roots, at: Date.now(), signatures });
  * if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
  * ```
  *
@@ -392,7 +392,7 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * @returns The verdict and every reason behind it.
  * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
  */
-export function validateCertificatePath(input: PathValidationInput): PathValidationReport {
+export function validateCertificatePath(input: ValidateCertificatePathInput): ValidateCertificatePathReport {
     const limits = resolveLimits(input.limits);
     const signatures = new Map<string, SignatureEntry>();
     for (const result of input.signatures ?? []) {
@@ -430,7 +430,7 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
     const walked: Certificate[] = [];
     let anchored = false;
 
-    for (const [index, certificate] of input.certificates.entries()) {
+    for (const [index, certificate] of input.path.entries()) {
         const path = `path[${String(index)}]`;
         if (index >= context.maxCertificates) {
             state.reasons.push(limitExceededReason(path, 'maxChainLength', context.maxCertificates));
@@ -470,7 +470,7 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
         // itself as its issuer. Naming it is what lets a caller distinguish two
         // cross-signed issuers of the same name.
         const wanted = _hex(certificate.issuer.der);
-        const issuer = input.certificates[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+        const issuer = input.path[index + 1] ?? input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
         const signature = checkSignature(certificate, context, path, issuer);
         if (signature !== null) state.reasons.push(signature);
         state.expectedIssuer = certificate.issuer;
@@ -500,7 +500,7 @@ export function validateCertificatePath(input: PathValidationInput): PathValidat
             // is self-consistent.
             //
             // Its **validity window and its critical extensions are**, and the
-            // same two checks run when the anchor arrives inside `certificates`
+            // same two checks run when the anchor arrives inside `path`
             // instead — a certificate that is judged differently depending on
             // which of two inputs the caller put it in is a certificate nobody
             // can reason about. Trusting a key is not the same as believing its

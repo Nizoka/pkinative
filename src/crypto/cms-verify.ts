@@ -23,7 +23,7 @@ import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
 
 /** Options of {@link verifySignerInfoSignature}. */
-export interface VerifySignerInfoOptions {
+export interface VerifySignerInfoSignatureOptions {
     /**
      * The content octets, for a signer **without** signed attributes: such a
      * signer signs the content itself (RFC 5652 §5.4), so nothing else can be
@@ -72,7 +72,7 @@ export interface VerifySignerInfoOptions {
  *
  * @param signerInfo One entry of a parsed `SignedData`'s `signerInfos`.
  * @param signer The certificate whose key is alleged to have signed.
- * @param options See {@link VerifySignerInfoOptions}.
+ * @param options See {@link VerifySignerInfoSignatureOptions}.
  * @returns Whether the signer's key signed `signerInfo.signedAttributesDer`,
  *   or `options.content` when the signer has no signed attributes.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed;
@@ -89,7 +89,7 @@ export interface VerifySignerInfoOptions {
 export async function verifySignerInfoSignature(
     signerInfo: SignerInfo,
     signer: Certificate,
-    options?: VerifySignerInfoOptions,
+    options?: VerifySignerInfoSignatureOptions,
 ): Promise<boolean> {
     const info = assertSignerInfo(signerInfo);
     const certificate = assertCertificate(signer);

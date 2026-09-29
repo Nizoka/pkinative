@@ -125,7 +125,7 @@ const fold = (text: string): string => text.replace(/[A-Z]/g, (c) => String.from
  * that, the constraint `example.com` would match `notexample.com`, which is
  * the whole attack.
  */
-export function dnsMatches(constraint: string, name: string): boolean {
+export function dnsConstraintCovers(constraint: string, name: string): boolean {
     const c = fold(constraint);
     const n = fold(name);
     if (c === '') return true; // An empty constraint matches every name of the form.
@@ -451,7 +451,7 @@ export function subtreeCoversWildcard(base: string, parent: string): boolean {
     // when the parent is at or below that domain, since every member sits one
     // further label down.
     if (b.startsWith('.')) return parent === b.slice(1) || parent.endsWith(b);
-    return dnsMatches(b, parent);
+    return dnsConstraintCovers(b, parent);
 }
 
 /**
@@ -496,7 +496,7 @@ export function subtreeCovers(subtree: GeneralSubtree, name: GeneralName): boole
     // "covered" would be the permissive mistake.
     if (subtree.minimum !== 0 || subtree.maximum !== undefined) return false;
     switch (base.kind) {
-        case 'dNSName': return name.kind === 'dNSName' && dnsMatches(base.value, name.value);
+        case 'dNSName': return name.kind === 'dNSName' && dnsConstraintCovers(base.value, name.value);
         case 'rfc822Name': return name.kind === 'rfc822Name' && emailMatches(base.value, name.value);
         case 'uniformResourceIdentifier': return name.kind === 'uniformResourceIdentifier' && uriMatches(base.value, name.value);
         case 'iPAddress': return name.kind === 'iPAddress' && ipMatches(base.bytes, name.bytes);

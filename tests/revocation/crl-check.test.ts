@@ -77,7 +77,7 @@ const check = (certificate: Certificate, crlDer: Uint8Array, overrides: Partial<
         crlDer,
         at: AT,
         signatureVerified: true,
-        options: quiet,
+        ...quiet,
         ...overrides,
     });
 

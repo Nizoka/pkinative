@@ -4,7 +4,7 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeKeyUsage } from '../../src/build/build-structures.js';
 import { signData } from '../../src/crypto/webcrypto.js';
 import { PkiError } from '../../src/types/pki-errors.js';
-import { readPkcs12, type ReadPkcs12Options } from '../../src/verify/verify-pkcs12.js';
+import { openPkcs12, type OpenPkcs12Options } from '../../src/verify/verify-pkcs12.js';
 import { alg, int, octets } from '../helpers/cms-signed-data-builder.js';
 import {
     authenticatedSafe,
@@ -53,7 +53,7 @@ async function withHost(overrides: Record<string, unknown> | undefined, run: () 
 import { AT, DAY, codes, issue, keyPair, makeRoot, type Authority, type Family, type Holder } from './_cms-pki.js';
 
 /**
- * `readPkcs12`: RFC 7292 opened the whole way in one call, and reported
+ * `openPkcs12`: RFC 7292 opened the whole way in one call, and reported
  * rather than thrown. Every file here is assembled by the engine-independent
  * writer in tests/helpers/pkcs12-builder.ts from keys and certificates of the
  * test PKI, so the reader is checked against the standards and a real key.
@@ -116,10 +116,10 @@ async function foreignKey(root: Authority, type: 'x25519' | 'secp256k1'): Promis
     return { der, pkcs8: new Uint8Array(pair.privateKey.export({ format: 'der', type: 'pkcs8' })) };
 }
 
-const read = (der: Uint8Array, extra: Partial<ReadPkcs12Options> = {}): ReturnType<typeof readPkcs12> =>
-    readPkcs12(der, { password: PASSWORD, ...extra });
+const read = (der: Uint8Array, extra: Partial<OpenPkcs12Options> = {}): ReturnType<typeof openPkcs12> =>
+    openPkcs12(der, { password: PASSWORD, ...extra });
 
-async function signsLikeItsCertificate(report: Awaited<ReturnType<typeof readPkcs12>>, holder: Holder): Promise<boolean> {
+async function signsLikeItsCertificate(report: Awaited<ReturnType<typeof openPkcs12>>, holder: Holder): Promise<boolean> {
     const signingKey = report.keys[0]?.signingKey;
     if (signingKey === undefined) return false;
     const data = new TextEncoder().encode('signed with the key the file held');
@@ -136,7 +136,7 @@ async function signsLikeItsCertificate(report: Awaited<ReturnType<typeof readPkc
     return webcrypto.subtle.verify(params as never, publicKey, signature, data);
 }
 
-describe('readPkcs12 — a file it can vouch for', () => {
+describe('openPkcs12 — a file it can vouch for', () => {
     it('should verify the MAC, open everything, and hand back a key that signs as its certificate', async () => {
         const root = await makeRoot();
         const holder = await issue(root);
@@ -226,7 +226,7 @@ describe('readPkcs12 — a file it can vouch for', () => {
     });
 });
 
-describe('readPkcs12 — integrity, failing closed', () => {
+describe('openPkcs12 — integrity, failing closed', () => {
     it('should stop at a MAC that does not match, before decrypting anything', async () => {
         const holder = await issue(await makeRoot());
         const report = await read(await file({ holder }), { password: 'Tr0ub4dor&3' });
@@ -273,7 +273,7 @@ describe('readPkcs12 — integrity, failing closed', () => {
     });
 });
 
-describe('readPkcs12 — what it reports instead of throwing', () => {
+describe('openPkcs12 — what it reports instead of throwing', () => {
     it('should report bytes that are not a PFX as malformed input', async () => {
         const report = await read(sequence(int(7)));
         expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
@@ -439,16 +439,16 @@ describe('readPkcs12 — what it reports instead of throwing', () => {
     });
 });
 
-describe('readPkcs12 — a runtime without Web Crypto', () => {
+describe('openPkcs12 — a runtime without Web Crypto', () => {
     it('should throw once, up front, rather than report every bag', async () => {
         await withHost(undefined, async () => {
-            const call = readPkcs12(sequence(int(3)), { password: PASSWORD });
+            const call = openPkcs12(sequence(int(3)), { password: PASSWORD });
             await expect(call).rejects.toMatchObject({ code: 'PKI_CRYPTO_UNAVAILABLE' });
         });
     });
 });
 
-describe('readPkcs12 — misuse still throws', () => {
+describe('openPkcs12 — misuse still throws', () => {
     it.each([
         ['no options', undefined],
         ['no password', {}],
@@ -457,18 +457,18 @@ describe('readPkcs12 — misuse still throws', () => {
         ['an rsaAlgorithm with a digest Web Crypto lacks', { password: PASSWORD, rsaAlgorithm: { name: 'RSA-PSS', hash: 'MD5' } }],
         ['an rsaAlgorithm that is not an object', { password: PASSWORD, rsaAlgorithm: 'RSA' }],
     ])('should refuse %s with PKI_INVALID_OPTION', async (_what, options) => {
-        const call = readPkcs12(sequence(int(3)), options as unknown as ReadPkcs12Options);
+        const call = openPkcs12(sequence(int(3)), options as unknown as OpenPkcs12Options);
         await expect(call).rejects.toBeInstanceOf(PkiError);
         await expect(call).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
     });
 
     it('should refuse input that is not bytes, and limits that are not limits', async () => {
-        await expect(readPkcs12('p12' as unknown as Uint8Array, { password: PASSWORD })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
-        await expect(readPkcs12(sequence(int(3)), { password: PASSWORD, limits: { maxNode: 1 } as never })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
+        await expect(openPkcs12('p12' as unknown as Uint8Array, { password: PASSWORD })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
+        await expect(openPkcs12(sequence(int(3)), { password: PASSWORD, limits: { maxNode: 1 } as never })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
     });
 
     it('should accept an empty password, which is a password', async () => {
-        const report = await readPkcs12(sequence(int(3)), { password: '' });
+        const report = await openPkcs12(sequence(int(3)), { password: '' });
         expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
     });
 });

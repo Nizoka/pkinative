@@ -46,11 +46,11 @@ import type { MessageImprint, TimeStampToken } from '../types/tsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
 import { getExtension } from '../x509/x509-extensions.js';
-import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
+import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyCertificateChainReport } from './verify-chain.js';
 import { _digestName, _under, _verifySigner } from './verify-signer.js';
 
 /** What to verify a timestamp token against. */
-export interface VerifyTimeStampInput {
+export interface VerifyTimeStampTokenInput {
     /**
      * The token: a ContentInfo whose content is a SignedData over a TSTInfo.
      * Give this or `response`, not both.
@@ -81,7 +81,7 @@ export interface VerifyTimeStampInput {
     /** CRLs for the TSA's chain, as DER. */
     readonly crls?: readonly Uint8Array[] | undefined;
     /** OCSP responses for the TSA's certificate, as DER. */
-    readonly ocsp?: readonly Uint8Array[] | undefined;
+    readonly ocspResponses?: readonly Uint8Array[] | undefined;
     /** Report `PKI_REASON_REVOCATION_UNKNOWN` when nothing covered the TSA's certificate. Off by default, as for a chain. */
     readonly requireRevocation?: boolean | undefined;
     /**
@@ -98,13 +98,13 @@ export interface VerifyTimeStampInput {
      * RFC 3161 §2.3 requires it critical and some deployed TSAs are not; this
      * is the documented escape for them, off by default.
      */
-    readonly allowNonCriticalTimestampingEku?: boolean | undefined;
+    readonly allowNonCriticalTimeStampingEku?: boolean | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
 }
 
 /** The verdict on a timestamp token, and what it established. */
-export interface VerifyTimeStampReport {
+export interface VerifyTimeStampTokenReport {
     /** Whether the token is evidence that the expected hash existed at `genTime`. */
     readonly valid: boolean;
     /** The token, parsed; `undefined` when it could not be read. */
@@ -118,11 +118,11 @@ export interface VerifyTimeStampReport {
     /** The TSA's certificate, when its key verified the token and it is the one the token names. */
     readonly tsaCertificate: Certificate | undefined;
     /** The TSA's chain, judged by `verifyCertificateChain`; `undefined` when there was no certificate to judge. */
-    readonly chain: VerifyChainReport | undefined;
+    readonly chain: VerifyCertificateChainReport | undefined;
     /** Every reason the token is not evidence of what was asked. */
     readonly reasons: readonly PkiReason[];
     /** How many signature verifications this cost, the TSA's chain included. */
-    readonly verified: number;
+    readonly signatureVerifications: number;
 }
 
 /** What a token must stamp, and what else it must echo. */
@@ -149,14 +149,14 @@ interface _Expectation {
  * misuse: saying nothing about what was stamped, or a malformed `request`,
  * which is your own bytes.
  *
- * @param input See {@link VerifyTimeStampInput}.
+ * @param input See {@link VerifyTimeStampTokenInput}.
  * @returns The verdict and what it established.
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
  *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
-export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise<VerifyTimeStampReport> {
+export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Promise<VerifyTimeStampTokenReport> {
     // Silent for everything this call reads — the request, the token and the
     // bag: a verdict call reports in its report.
     const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
@@ -220,12 +220,12 @@ export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise
         requireAlgorithmProtection: false,
     }, signer, 'token.signerInfos[0]');
     reasons.push(...outcome.reasons);
-    let verified = outcome.verified;
+    let signatureVerifications = outcome.signatureVerifications;
     const tsa = outcome.certificate;
-    if (tsa === undefined) return _report(reasons, token, undefined, undefined, verified);
+    if (tsa === undefined) return _report(reasons, token, undefined, undefined, signatureVerifications);
 
     // ── Whether that signer may stamp (RFC 3161 §2.3, §2.4.2) ──
-    const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimestampingEku === true);
+    const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimeStampingEku === true);
     if (purpose !== null) reasons.push(purpose);
     const genTime = tstInfo.genTime.epochMilliseconds;
     if (genTime < tsa.validity.notBefore.epochMilliseconds) {
@@ -249,18 +249,18 @@ export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise
         // what that test already said, one reason per round trip.
         ...(purpose === null ? { purposes: [OID_KP_TIMESTAMPING] } : {}),
         crls: [...signedData.crls, ...(input.crls ?? [])],
-        ocsp: [...signedData.ocspResponses, ...(input.ocsp ?? [])],
+        ocspResponses: [...signedData.ocspResponses, ...(input.ocspResponses ?? [])],
         ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
         ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
         ...(input.limits === undefined ? {} : { limits: input.limits }),
     });
-    verified += chain.verified;
+    signatureVerifications += chain.signatureVerifications;
     reasons.push(...chain.reasons.map((reason) => _under('token.tsaChain', reason)));
-    return _report(reasons, token, tsa, chain, verified);
+    return _report(reasons, token, tsa, chain, signatureVerifications);
 }
 
 /** The report, with the time window filled in only when the token is evidence. */
-function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefined, tsa: Certificate | undefined, chain: VerifyChainReport | undefined, verified: number): VerifyTimeStampReport {
+function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefined, tsa: Certificate | undefined, chain: VerifyCertificateChainReport | undefined, signatureVerifications: number): VerifyTimeStampTokenReport {
     const valid = reasons.length === 0;
     const info = valid ? token?.tstInfo : undefined;
     const accuracy = info?.accuracy;
@@ -274,12 +274,12 @@ function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefine
         tsaCertificate: tsa,
         chain,
         reasons: Object.freeze([...reasons]),
-        verified,
+        signatureVerifications,
     });
 }
 
 /** What the caller said was stamped, resolved once and refused if they said nothing. */
-function _expectation(input: VerifyTimeStampInput, reading: PkiParseOptions): _Expectation {
+function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions): _Expectation {
     if ((input.token === undefined) === (input.response === undefined)) {
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: pass the timestamp as exactly one of token (the token alone) or response (the whole TimeStampResp the TSA sent)');

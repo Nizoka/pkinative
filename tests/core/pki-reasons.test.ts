@@ -42,7 +42,7 @@ import {
     revokedReason,
     signatureInvalidReason,
     signatureNotCheckedReason,
-    unrecognisedCriticalExtensionReason,
+    unknownCriticalExtensionReason,
 } from '../../src/core/pki-reasons.js';
 import type { PkiReason, PkiReasonCode } from '../../src/types/pki-reasons.js';
 
@@ -63,7 +63,7 @@ const ALL: ReadonlyArray<{ readonly code: PkiReasonCode; readonly reason: PkiRea
     { code: 'PKI_REASON_INPUT_MALFORMED', reason: inputMalformedReason('PKI_ASN1_TRUNCATED', 'pkinative: the value runs past the input', 'path[1]') },
     { code: 'PKI_REASON_NOT_YET_VALID', reason: notYetValidReason('path[0].validity', Date.UTC(2027, 0, 1), AT) },
     { code: 'PKI_REASON_EXPIRED', reason: expiredReason('path[0].validity', Date.UTC(2025, 0, 1), AT) },
-    { code: 'PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION', reason: unrecognisedCriticalExtensionReason('path[0].extensions', '1.3.6.1.4.1.99999.7') },
+    { code: 'PKI_REASON_UNKNOWN_CRITICAL_EXTENSION', reason: unknownCriticalExtensionReason('path[0].extensions', '1.3.6.1.4.1.99999.7') },
     { code: 'PKI_REASON_NAME_NOT_PERMITTED', reason: nameNotPermittedReason('path[0].subjectAltName', 'dNSName', 'evil.test') },
     { code: 'PKI_REASON_NAME_EXCLUDED', reason: nameExcludedReason('path[0].subjectAltName', 'dNSName', 'secret.example.com') },
     { code: 'PKI_REASON_PURPOSE_NOT_PERMITTED', reason: purposeNotPermittedReason('path[1].extKeyUsage', '1.3.6.1.5.5.7.3.1', ['1.3.6.1.5.5.7.3.4']) },

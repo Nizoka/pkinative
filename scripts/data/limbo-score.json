@@ -180,7 +180,7 @@
     },
     "webpki::eku::ee-without-eku": {
       "expected": "FAILURE",
-      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here the end entity carries no extKeyUsage at all, which §4.2.1.12 makes optional and whose absence restricts nothing. Requiring it is the stricter Web PKI reading and is available as `requireExplicit: true`; it is off by default because turning it on refuses a large part of every internal PKI ever issued — and rfc5280::eku::ee-without-eku, the same shape scored against RFC 5280 rather than webpki, expects exactly the opposite answer."
+      "why": "Extended key usage is not an RFC 5280 §6 input: §4.2.1.12 says the extension indicates the purposes a key may be used for and leaves the consequence to the application. `checkExtendedKeyUsage` asks that question — including the rule no sentence of RFC 5280 states, that a CA's own extKeyUsage restricts what it may issue for — and `buildCertificatePath` takes the purposes into the search, so it agrees with the corpus wherever the corpus is applying RFC 5280. These four are where it is applying webpki's policy instead, and x509-limbo marks all four pedantic-webpki-eku itself. Here the end entity carries no extKeyUsage at all, which §4.2.1.12 makes optional and whose absence restricts nothing. Requiring it is the stricter Web PKI reading and is available as `requireExplicitPurpose: true`; it is off by default because turning it on refuses a large part of every internal PKI ever issued — and rfc5280::eku::ee-without-eku, the same shape scored against RFC 5280 rather than webpki, expects exactly the opposite answer."
     },
     "webpki::eku::root-has-eku": {
       "expected": "FAILURE",
@@ -212,11 +212,11 @@
     },
     "webpki::san::public-suffix-multi-label-wildcard-san": {
       "expected": "FAILURE",
-      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. dnsMatches requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
+      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. matchDnsName requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
     },
     "webpki::san::public-suffix-private-namespace-wildcard-san": {
       "expected": "FAILURE",
-      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. dnsMatches requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
+      "why": "Refusing a wildcard at a registry boundary needs a public suffix list, which is data that changes weekly; a parsing library carrying a stale copy is worse than one that says it does not know, so pkinative will not embed one. matchDnsName requires at least three labels, which stops the obvious `*.com`, and registry-level policy stays with the caller, where the list actually lives. x509-limbo marks both cases pedantic-public-suffix-wildcard."
     },
     "webpki::san::san-critical-with-nonempty-subject": {
       "expected": "FAILURE",
@@ -242,10 +242,10 @@
     "pathological::pathological-chain-distinct-subject-distinct-key": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
     "pathological::pathological-chain-distinct-subject-same-key": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
     "pathological::pathological-chain-same-subject-distinct-key": "PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_INVALID,PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR,PKI_REASON_LIMIT_EXCEEDED",
-    "rfc5280::aki::critical-aki": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "rfc5280::aki::critical-aki": "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION",
     "rfc5280::ca-as-leaf-wrong-san": "PKI_REASON_NAME_MISMATCH",
     "rfc5280::chain-untrusted-root": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
-    "rfc5280::ee-critical-aia-invalid": "PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION",
+    "rfc5280::ee-critical-aia-invalid": "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION",
     "rfc5280::ee-empty-issuer": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",
     "rfc5280::eku::ee-wrong-eku": "PKI_REASON_PURPOSE_NOT_PERMITTED",
     "webpki::cryptographydotio-chain-missing-intermediate": "PKI_REASON_SIGNATURE_NOT_CHECKED,PKI_REASON_NO_TRUST_ANCHOR",

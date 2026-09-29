@@ -24,13 +24,13 @@ import { assertBytes } from '../core/bytes.js';
 import { EC_CURVE_OIDS, OID_EC_PUBLIC_KEY, OID_ED25519, OID_ED448, OID_RSA_ENCRYPTION, OID_RSASSA_PSS } from '../core/key-oids.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, BitString } from '../types/asn1-types.js';
-import type { CmsAttribute } from '../types/cms-types.js';
-import type { EncryptedPrivateKeyInfo, PrivateKeyInfo, PrivateKeyType } from '../types/key-types.js';
+import type { Attribute } from '../types/cms-types.js';
+import type { EncryptedPrivateKeyInfo, PrivateKeyInfo, PrivateKeyKind } from '../types/key-types.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
 import { _expectField, _keyError, _readKeyAlgorithm, _readPasswordEncryption } from './key-pbes2.js';
 
 /** Private key algorithm OIDs, by what they name. */
-const KEY_TYPES: ReadonlyMap<string, PrivateKeyType> = /*#__PURE__*/ new Map<string, PrivateKeyType>([
+const KEY_TYPES: ReadonlyMap<string, PrivateKeyKind> = /*#__PURE__*/ new Map<string, PrivateKeyKind>([
     [OID_RSA_ENCRYPTION, 'rsa'],
     [OID_RSASSA_PSS, 'rsa-pss'],
     [OID_EC_PUBLIC_KEY, 'ec'],
@@ -44,15 +44,15 @@ const KEY_TYPES: ReadonlyMap<string, PrivateKeyType> = /*#__PURE__*/ new Map<str
  * An `Attributes` SET OF — the syntax PKCS#8, PKCS#12 bags and CMS signers
  * share — kept as encoded: order, duplicates and multi-valued sets and all.
  *
- * Bounded by `maxCmsAttributes`, the limit on one attribute set whatever
+ * Bounded by `maxAttributes`, the limit on one attribute set whatever
  * structure carries it.
  *
  * @internal
  */
-export function _readAttributes(set: Asn1Node, ctx: Asn1Context, path: string): CmsAttribute[] {
-    const out: CmsAttribute[] = [];
+export function _readAttributes(set: Asn1Node, ctx: Asn1Context, path: string): Attribute[] {
+    const out: Attribute[] = [];
     for (const [i, attribute] of set.children.entries()) {
-        enforceLimit(ctx.limits, 'maxCmsAttributes', i + 1, path);
+        enforceLimit(ctx.limits, 'maxAttributes', i + 1, path);
         const at = `${path}[${String(i)}]`;
         const seq = _expectField(attribute, TAG_SEQUENCE, at, set.offset, 'an Attribute SEQUENCE');
         if (seq.children.length !== 2) {
@@ -86,7 +86,7 @@ export function _readPrivateKeyInfo(node: Asn1Node | undefined, ctx: Asn1Context
     // The octets are the secret: checked for shape, never kept.
     _readOctetString(_expectField(keyNode, TAG_OCTET_STRING, `${path}.privateKey`, seq.offset, 'an OCTET STRING private key'), ctx);
 
-    let attributes: readonly CmsAttribute[] = [];
+    let attributes: readonly Attribute[] = [];
     let publicKey: BitString | undefined;
     let rank = -1;
     for (const field of optional) {
@@ -106,12 +106,12 @@ export function _readPrivateKeyInfo(node: Asn1Node | undefined, ctx: Asn1Context
         }
     }
 
-    const keyType = KEY_TYPES.get(algorithm.oid) ?? 'unknown';
+    const kind = KEY_TYPES.get(algorithm.oid) ?? 'unknown';
     const parameters = algorithm.parameters;
-    const namedCurve = keyType === 'ec' && parameters !== undefined && parameters.tagClass === 'universal' && parameters.tagNumber === TAG_OID
+    const curve = kind === 'ec' && parameters !== undefined && parameters.tagClass === 'universal' && parameters.tagNumber === TAG_OID
         ? EC_CURVE_OIDS.get(_readObjectIdentifier(parameters, ctx))
         : undefined;
-    return Object.freeze({ der: seq.bytes, version, algorithm, keyType, namedCurve, attributes, publicKey });
+    return Object.freeze({ der: seq.bytes, version, algorithm, kind, curve, attributes, publicKey });
 }
 
 /**
@@ -141,7 +141,7 @@ export function _readEncryptedPrivateKeyInfo(node: Asn1Node | undefined, ctx: As
  *
  * const [block] = decodePem(pemText, { label: 'PRIVATE KEY' });
  * const info = parsePrivateKeyInfo(block.der);
- * console.log(info.keyType, info.namedCurve);   // 'ec' 'P-256'
+ * console.log(info.kind, info.curve);   // 'ec' 'P-256'
  * ```
  *
  * @param der     The DER of a RFC 5958 `OneAsymmetricKey` (version 0 is RFC 5208 PKCS#8).

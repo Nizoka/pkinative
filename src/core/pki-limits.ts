@@ -24,11 +24,11 @@
  * | maxChainLength    | 10      | CWE-400 |
  * | maxPolicyNodes    | 4 096   | CWE-770 |
  * | maxRevokedCertificates | 1 000 000 | CWE-400 |
- * | maxOcspResponses  | 256     | CWE-400 |
+ * | maxOcspSingleResponses | 256  | CWE-400 |
  * | maxPathsExplored  | 1 000   | CWE-400 |
  * | maxSignerInfos    | 64      | CWE-400 |
- * | maxCmsAttributes  | 256     | CWE-400 |
- * | maxCmsBagEntries  | 1 024   | CWE-400 |
+ * | maxAttributes     | 256     | CWE-400 |
+ * | maxCmsCertificatesAndCrls | 1 024 | CWE-400 |
  * | maxKdfIterations  | 10 000 000 | CWE-400 |
  * | maxPkcs12Bags     | 4 096   | CWE-400 |
  *
@@ -54,11 +54,11 @@ export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
     maxChainLength: 10,
     maxPolicyNodes: 4096,
     maxRevokedCertificates: 1_000_000,
-    maxOcspResponses: 256,
+    maxOcspSingleResponses: 256,
     maxPathsExplored: 1000,
     maxSignerInfos: 64,
-    maxCmsAttributes: 256,
-    maxCmsBagEntries: 1024,
+    maxAttributes: 256,
+    maxCmsCertificatesAndCrls: 1024,
     maxKdfIterations: 10_000_000,
     maxPkcs12Bags: 4096,
 });

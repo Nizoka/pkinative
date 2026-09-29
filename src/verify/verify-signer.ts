@@ -84,7 +84,7 @@ export interface _SignerOutcome {
      */
     readonly intact: boolean;
     /** How many Web Crypto verifications this cost. */
-    readonly verified: number;
+    readonly signatureVerifications: number;
 }
 
 /**
@@ -111,7 +111,7 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
     const problem = _cmsAlgorithmProblem(signer.digestAlgorithm, signer.signatureAlgorithm);
     if (problem !== null) {
         reasons.push(cmsAlgorithmMismatchReason(`${path}.signatureAlgorithm`, problem));
-        return { reasons, certificate: undefined, intact: false, verified: 0 };
+        return { reasons, certificate: undefined, intact: false, signatureVerifications: 0 };
     }
 
     // ── The content ──
@@ -132,11 +132,11 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
         // them is not enough: Web Crypto hashes what it is handed.
         reasons.push(signatureNotCheckedReason(path, 'PKI_API_MISUSE',
             'this signer has no signed attributes, so its signature is over the content itself and cannot be checked from a digest — pass the content'));
-        return { reasons, certificate: undefined, intact: false, verified: 0 };
+        return { reasons, certificate: undefined, intact: false, signatureVerifications: 0 };
     } else {
         reasons.push(cmsContentMissingReason(`${path}`));
         // Without signed attributes there is nothing else the signature covers.
-        if (!hasAttributes) return { reasons, certificate: undefined, intact: false, verified: 0 };
+        if (!hasAttributes) return { reasons, certificate: undefined, intact: false, signatureVerifications: 0 };
     }
     const mismatch = _digestReason(signer, computed, path);
     if (mismatch !== null) reasons.push(mismatch);
@@ -146,14 +146,14 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
     if (candidates.length === 0) {
         const unread = ctx.unreadable === 0 ? '' : `; ${String(ctx.unreadable)} certificate(s) in the message could not be read`;
         reasons.push(cmsSignerNotFoundReason(`${path}.sid`, `${_describeSid(signer.sid)}${unread}`));
-        return { reasons, certificate: undefined, intact: false, verified: 0 };
+        return { reasons, certificate: undefined, intact: false, signatureVerifications: 0 };
     }
 
-    let verified = 0;
+    let signatureVerifications = 0;
     let refusal: PkiError | undefined;
     const signedBy: Certificate[] = [];
     for (const candidate of candidates) {
-        verified += 1;
+        signatureVerifications += 1;
         try {
             const valid = await verifySignerInfoSignature(signer, candidate, {
                 ...(hasAttributes || ctx.content === undefined ? {} : { content: ctx.content }),
@@ -171,7 +171,7 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
         reasons.push(refusal === undefined
             ? signatureInvalidReason(`${path}.signature`)
             : signatureNotCheckedReason(`${path}.signature`, refusal.code, refusal.message));
-        return { reasons, certificate: undefined, intact: false, verified };
+        return { reasons, certificate: undefined, intact: false, signatureVerifications };
     }
 
     // RFC 5035 §2: when more than one certificate holds the key that verified,
@@ -180,9 +180,9 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
     const committed = signedBy.find((certificate) => _signingCertificateReason(signer, certificate, path) === null);
     if (committed === undefined) {
         reasons.push(_signingCertificateReason(signer, signedBy[0] as Certificate, path) as PkiReason);
-        return { reasons, certificate: undefined, intact: false, verified };
+        return { reasons, certificate: undefined, intact: false, signatureVerifications };
     }
-    return { reasons, certificate: committed, intact: reasons.length === 0, verified };
+    return { reasons, certificate: committed, intact: reasons.length === 0, signatureVerifications };
 }
 
 /**

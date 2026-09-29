@@ -39,14 +39,14 @@
 import { bytesEqual } from '../core/bytes.js';
 import { limitExceededReason } from '../core/pki-reasons.js';
 import { resolveLimits } from '../core/pki-limits.js';
-import type { PathValidationInput, PathValidationReport } from '../types/path-types.js';
+import type { ValidateCertificatePathInput, ValidateCertificatePathReport } from '../types/path-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
 import { checkExtendedKeyUsage } from './path-purpose.js';
 import { validateCertificatePath } from './path-validate.js';
 
 /** What to build from, and everything needed to judge each candidate. */
-export interface PathBuildInput extends Omit<PathValidationInput, 'certificates'> {
+export interface BuildCertificatePathInput extends Omit<ValidateCertificatePathInput, 'path'> {
     /** The certificate a path is wanted for. */
     readonly leaf: Certificate;
     /**
@@ -71,11 +71,11 @@ export interface PathBuildInput extends Omit<PathValidationInput, 'certificates'
      * `validateCertificatePath` is untouched by this: §6 has no notion of
      * purpose, and searching is not §6.
      */
-    readonly requiredPurposes?: readonly string[] | undefined;
+    readonly purposes?: readonly string[] | undefined;
 }
 
 /** A path that was tried, and what §6 made of it. */
-export interface PathBuildReport extends PathValidationReport {
+export interface BuildCertificatePathReport extends ValidateCertificatePathReport {
     /**
      * How many candidate paths were explored before this answer. Worth
      * logging: a number near `maxPathsExplored` is a bag of certificates
@@ -113,12 +113,12 @@ const fingerprint = (certificate: Certificate): string => {
  * is reported as `PKI_REASON_SIGNATURE_NOT_CHECKED` and the path is not taken,
  * which fails closed.
  *
- * @param input See {@link PathBuildInput}.
+ * @param input See {@link BuildCertificatePathInput}.
  * @returns The first accepted path with §6's report, or the report of the
  *   attempt that got furthest; `explored` counts the candidates tried.
  * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
  */
-export function buildCertificatePath(input: PathBuildInput): PathBuildReport {
+export function buildCertificatePath(input: BuildCertificatePathInput): BuildCertificatePathReport {
     const limits = resolveLimits(input.limits);
     const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
     const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
@@ -155,10 +155,10 @@ export function buildCertificatePath(input: PathBuildInput): PathBuildReport {
      * found" cannot see that the one path there was is restricted to signing
      * e-mail.
      */
-    const judge = (certificates: readonly Certificate[]): PathValidationReport => {
-        const report = validateCertificatePath({ ...input, certificates });
-        if (!report.valid || input.requiredPurposes === undefined) return report;
-        const refused = input.requiredPurposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
+    const judge = (path: readonly Certificate[]): ValidateCertificatePathReport => {
+        const report = validateCertificatePath({ ...input, path });
+        if (!report.valid || input.purposes === undefined) return report;
+        const refused = input.purposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
         return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
     };
 
@@ -166,12 +166,12 @@ export function buildCertificatePath(input: PathBuildInput): PathBuildReport {
     let explored = 1;
     if (first.valid) return { ...first, explored };
 
-    let best: PathValidationReport = first;
+    let best: ValidateCertificatePathReport = first;
     let bestDepth = 0;
     let limitHit = false;
 
     /** Try every extension of `chain`, deepest-first, and stop at the first §6 accepts. */
-    const extend = (chain: readonly Certificate[], seen: ReadonlySet<string>): PathBuildReport | null => {
+    const extend = (chain: readonly Certificate[], seen: ReadonlySet<string>): BuildCertificatePathReport | null => {
         // Only extend while the chain could still reach an anchor. A chain
         // already at the length bound cannot, and trying anyway is the
         // exponential blow-up `maxPathsExplored` exists to stop.

@@ -46,15 +46,15 @@ export interface PkiLimits {
     /** Maximum number of entries walked in one CRL revokedCertificates list. CWE-400. */
     readonly maxRevokedCertificates: number;
     /** Maximum number of SingleResponse entries in one OCSP response. CWE-400. */
-    readonly maxOcspResponses: number;
+    readonly maxOcspSingleResponses: number;
     /** Maximum number of candidate paths explored while building one. CWE-400. */
     readonly maxPathsExplored: number;
     /** Maximum number of SignerInfo entries in one SignedData — each costs a signature verification. CWE-400. */
     readonly maxSignerInfos: number;
     /** Maximum number of attributes in one attribute set — a CMS signer's signed or unsigned set, a PKCS#8 key's, a PKCS#12 bag's. CWE-400. */
-    readonly maxCmsAttributes: number;
+    readonly maxAttributes: number;
     /** Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them. CWE-400. */
-    readonly maxCmsBagEntries: number;
+    readonly maxCmsCertificatesAndCrls: number;
     /** Maximum PBKDF2 iteration count honoured — a count the file declares, and the host then runs. CWE-400. */
     readonly maxKdfIterations: number;
     /** Maximum number of SafeBags read from one PKCS#12, across every SafeContents. CWE-400. */

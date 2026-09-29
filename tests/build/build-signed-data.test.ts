@@ -15,7 +15,7 @@ import {
     parseCertificate,
     readObjectIdentifier,
     readTime,
-    signatureAlgorithmDer,
+    encodeSignatureAlgorithm,
     type Asn1Node,
     type Certificate,
     type SignatureAlgorithm,
@@ -220,7 +220,7 @@ describe('createSignedData', () => {
 
         // The signature algorithm is the signer's full one — never a bare
         // rsaEncryption, and PSS with its parameters written out.
-        expect(hex(d.signatureAlgorithm.bytes)).toBe(hex(signatureAlgorithmDer(m.signer)));
+        expect(hex(d.signatureAlgorithm.bytes)).toBe(hex(encodeSignatureAlgorithm(m.signer)));
     }, 60_000);
 
     it.each([
@@ -434,15 +434,15 @@ describe('createSignedData', () => {
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
         });
 
-        it('should bound the bag by maxCmsBagEntries, as given and as written', async () => {
+        it('should bound the bag by maxCmsCertificatesAndCrls, as given and as written', async () => {
             const m = await p256();
             const crl = encodeSequence([]);
-            await expect(createSignedData(input(m, { crls: [crl, crl] }), m.signer, { limits: { maxCmsBagEntries: 1 } }))
-                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsBagEntries' }));
+            await expect(createSignedData(input(m, { crls: [crl, crl] }), m.signer, { limits: { maxCmsCertificatesAndCrls: 1 } }))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsCertificatesAndCrls' }));
             // One given, but the signer's own certificate makes it two.
-            await expect(createSignedData(input(m, { crls: [crl] }), m.signer, { limits: { maxCmsBagEntries: 1 } }))
-                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsBagEntries' }));
-            await expect(createSignedData(input(m, { certificates: [m.certificate.der] }), m.signer, { limits: { maxCmsBagEntries: 1 } }))
+            await expect(createSignedData(input(m, { crls: [crl] }), m.signer, { limits: { maxCmsCertificatesAndCrls: 1 } }))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsCertificatesAndCrls' }));
+            await expect(createSignedData(input(m, { certificates: [m.certificate.der] }), m.signer, { limits: { maxCmsCertificatesAndCrls: 1 } }))
                 .resolves.toBeInstanceOf(Uint8Array);
         });
     });
@@ -524,14 +524,14 @@ describe('createSignedData', () => {
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
         });
 
-        it('should bound each attribute list by maxCmsAttributes', async () => {
+        it('should bound each attribute list by maxAttributes', async () => {
             const m = await p256();
             // contentType, messageDigest, signingCertificateV2 and algorithmProtection are four.
-            await expect(createSignedData(input(m), m.signer, { limits: { maxCmsAttributes: 3 } }))
-                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsAttributes' }));
+            await expect(createSignedData(input(m), m.signer, { limits: { maxAttributes: 3 } }))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' }));
             const token = encodeAttribute(OID.timeStampToken, [encodeInteger(0)]);
-            await expect(createSignedData(input(m, { algorithmProtection: false, signingCertificateV2: false, unsignedAttributes: [token, token, token] }), m.signer, { limits: { maxCmsAttributes: 2 } }))
-                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsAttributes' }));
+            await expect(createSignedData(input(m, { algorithmProtection: false, signingCertificateV2: false, unsignedAttributes: [token, token, token] }), m.signer, { limits: { maxAttributes: 2 } }))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' }));
         });
     });
 
@@ -737,7 +737,7 @@ describe('addUnsignedAttribute', () => {
         expect(thrown).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path });
     });
 
-    it('should bound what it walks by maxInputBytes, maxSignerInfos and maxCmsAttributes', async () => {
+    it('should bound what it walks by maxInputBytes, maxSignerInfos and maxAttributes', async () => {
         const m = await p256();
         const der = await createSignedData(input(m, { unsignedAttributes: [encodeAttribute('2.5.4.3', [encodeInteger(1)])] }), m.signer);
         const info = dissect(der).signerInfo.bytes;
@@ -745,8 +745,8 @@ describe('addUnsignedAttribute', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxInputBytes' }));
         expect(() => addUnsignedAttribute(withSignerInfos(der, [info, info]), 0, TOKEN, { limits: { maxSignerInfos: 1 } }))
             .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxSignerInfos' }));
-        expect(() => addUnsignedAttribute(der, 0, TOKEN, { limits: { maxCmsAttributes: 1 } }))
-            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsAttributes' }));
+        expect(() => addUnsignedAttribute(der, 0, TOKEN, { limits: { maxAttributes: 1 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' }));
     });
 });
 

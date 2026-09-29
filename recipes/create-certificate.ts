@@ -38,7 +38,7 @@ import {
     getExtension,
     KEY_USAGE_BITS,
     parseCertificate,
-    signatureAlgorithmDer,
+    encodeSignatureAlgorithm,
     verifyCertificateSignature,
     verifySelfSignature,
     type GeneralNameDescription,
@@ -144,7 +144,7 @@ export default async function run(): Promise<Record<string, string>> {
         hex(encodeExtensions([{ oid: '2.5.29.19', value: encodeBasicConstraints({ cA: false }) }])),
         hex(encodeAttribute('1.2.3', [encodeBasicConstraints({ cA: false })])),
         hex(encodeSubjectPublicKeyInfo('1.3.101.112', new Uint8Array(4)).subarray(0, 2)),
-        hex(signatureAlgorithmDer(ca.signer)),
+        hex(encodeSignatureAlgorithm(ca.signer)),
     ].join(' ');
 
     return {

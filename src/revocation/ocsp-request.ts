@@ -72,7 +72,7 @@ export interface CreateOcspRequestOptions {
  * @returns The encoded `CertID`.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
  */
-export function encodeCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array {
+export function encodeOcspCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array {
     assertParsed(certificate, 'certificate');
     assertParsed(issuer, 'issuer');
     const digest = algorithm === 'SHA-1' ? sha1 : sha256;
@@ -125,7 +125,7 @@ const NULL_PARAMETERS = /*#__PURE__*/ encodeTlv('universal', 5, false, new Uint8
  *   or the nonce is not bytes.
  */
 export function createOcspRequest(certificate: Certificate, issuer: Certificate, options?: CreateOcspRequestOptions): Uint8Array {
-    const certId = encodeCertId(certificate, issuer, options?.hashAlgorithm ?? 'SHA-1');
+    const certId = encodeOcspCertId(certificate, issuer, options?.hashAlgorithm ?? 'SHA-1');
     const requestList = encodeSequence([encodeSequence([certId])]);
 
     const fields: Uint8Array[] = [requestList];

@@ -10,7 +10,7 @@ import {
     _signingCertificateReason,
 } from '../../src/cms/cms-check.js';
 import * as oids from '../../src/core/cms-oids.js';
-import type { CmsAttribute, SignedData, SignerInfo, SigningCertificateAttribute } from '../../src/types/cms-types.js';
+import type { Attribute, SignedData, SignerInfo, SigningCertificateAttribute } from '../../src/types/cms-types.js';
 import type { AlgorithmIdentifier, Certificate, GeneralName } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { ascii, sequence, universal } from '../helpers/raw-der-builder.js';
@@ -43,7 +43,7 @@ function algorithm(oid: string, parameters: Uint8Array | undefined): AlgorithmId
     return { oid, parameters: parameters === undefined ? undefined : { bytes: parameters }, der: new Uint8Array(0) } as unknown as AlgorithmIdentifier;
 }
 
-const attribute = (oid: string, ...values: readonly Uint8Array[]): CmsAttribute => ({ oid, values, der: new Uint8Array(0) });
+const attribute = (oid: string, ...values: readonly Uint8Array[]): Attribute => ({ oid, values, der: new Uint8Array(0) });
 const oidValue = (...content: readonly number[]): Uint8Array => universal(6, content);
 const ID_DATA = oidValue(0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01);
 

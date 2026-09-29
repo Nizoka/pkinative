@@ -23,7 +23,7 @@ Several answers pkinative gives depend on bytes that live elsewhere: a CRL named
 
 ## Decision Outcome
 
-Chosen option: 2. Nothing in `src/` fetches — not a CRL, not an OCSP response, not a missing intermediate, not a timestamp. `verifyCertificateChain` takes `crls` and `ocsp`, `buildCertificatePath` searches the bag it is given, and a TSA request is built with `createTimeStampRequest` and sent by the caller ([docs/guides/use-cases.md](../guides/use-cases.md)).
+Chosen option: 2. Nothing in `src/` fetches — not a CRL, not an OCSP response, not a missing intermediate, not a timestamp. `verifyCertificateChain` takes `crls` and `ocspResponses`, `buildCertificatePath` searches the bag it is given, and a TSA request is built with `createTimeStampRequest` and sent by the caller ([docs/guides/use-cases.md](../guides/use-cases.md)).
 
 ### Consequences
 

@@ -68,8 +68,8 @@ export function expiredReason(path: string, notAfter: number, at: number): PkiRe
  * `what` only decides the noun and the section cited; a reader who wants to
  * know which object it was has `path`.
  */
-export function unrecognisedCriticalExtensionReason(path: string, oid: string, what: 'certificate' | 'revocation list' = 'certificate'): PkiReason {
-    return _reason('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION',
+export function unknownCriticalExtensionReason(path: string, oid: string, what: 'certificate' | 'revocation list' = 'certificate'): PkiReason {
+    return _reason('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION',
         what === 'certificate' ? 'RFC 5280 §6.1.3 (f)' : 'RFC 5280 §6.3.3',
         `the ${what} carries the critical extension ${oid}, which this implementation does not recognise; a verifier must refuse rather than ignore it`,
         path);

@@ -66,7 +66,7 @@ export const KEY_PURPOSES: Readonly<Record<'serverAuth' | 'clientAuth' | 'codeSi
     });
 
 /** Options of {@link checkExtendedKeyUsage}. */
-export interface CheckPurposeOptions {
+export interface CheckExtendedKeyUsageOptions {
     /**
      * Apply a CA's own `extKeyUsage` to what it issued. **On by default.**
      *
@@ -85,7 +85,7 @@ export interface CheckPurposeOptions {
      * On is the stricter Web PKI reading, where a server certificate that does
      * not say `serverAuth` is not a server certificate.
      */
-    readonly requireExplicit?: boolean | undefined;
+    readonly requireExplicitPurpose?: boolean | undefined;
 }
 
 /**
@@ -106,7 +106,7 @@ export interface CheckPurposeOptions {
  *
  * @param path    The validated path, **leaf first**, as a report returns it.
  * @param purpose The KeyPurposeId OID needed, e.g. `KEY_PURPOSES.serverAuth`.
- * @param options See {@link CheckPurposeOptions}.
+ * @param options See {@link CheckExtendedKeyUsageOptions}.
  * @returns One `PKI_REASON_PURPOSE_NOT_PERMITTED` per certificate that forbids
  *   the purpose; empty when every certificate permits it.
  * @throws Never — a purpose a chain does not permit is an answer.
@@ -114,7 +114,7 @@ export interface CheckPurposeOptions {
 export function checkExtendedKeyUsage(
     path: readonly Certificate[],
     purpose: string,
-    options?: CheckPurposeOptions,
+    options?: CheckExtendedKeyUsageOptions,
 ): readonly PkiReason[] {
     const out: PkiReason[] = [];
     const restrictIssuers = options?.restrictIssuers !== false;
@@ -128,7 +128,7 @@ export function checkExtendedKeyUsage(
             // reported for the end entity: requiring every CA above it to
             // enumerate the purposes of everything it may ever issue is not a
             // reading anyone holds.
-            if (index === 0 && options?.requireExplicit === true) {
+            if (index === 0 && options?.requireExplicitPurpose === true) {
                 out.push(purposeNotPermittedReason(`path[${String(index)}]`, purpose, null));
             }
             continue;

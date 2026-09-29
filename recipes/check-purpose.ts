@@ -23,7 +23,7 @@ import {
     KEY_PURPOSES,
     parseCertificate,
     type Certificate,
-    type CheckPurposeOptions,
+    type CheckExtendedKeyUsageOptions,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
@@ -40,7 +40,7 @@ const purposes = (certificate: Certificate): string =>
     getExtension(certificate, 'extendedKeyUsage')?.purposes.join('+') ?? '(none)';
 
 /** `'ok'` when every certificate permits the purpose, the refused paths otherwise. */
-const check = (purpose: string, options?: CheckPurposeOptions): string =>
+const check = (purpose: string, options?: CheckExtendedKeyUsageOptions): string =>
     checkExtendedKeyUsage(path, purpose, options).map((reason) => reason.path).join(' ') || 'ok';
 
 export default function run(): Record<string, string> {
@@ -73,7 +73,7 @@ export default function run(): Record<string, string> {
         issuersIgnored: check(KEY_PURPOSES.codeSigning, { restrictIssuers: false }),
 
         // An absent extKeyUsage means unrestricted, which is why the root does
-        // not appear above. `requireExplicit` is the stricter Web PKI reading —
+        // not appear above. `requireExplicitPurpose` is the stricter Web PKI reading —
         // a server certificate that does not say serverAuth is not a server
         // certificate — and it applies to the end entity only: requiring every
         // CA to enumerate the purposes of everything it may ever issue is not a
@@ -86,7 +86,7 @@ export default function run(): Record<string, string> {
         // them, and taking it is one comparison on `purposes`.
         anyMeansEvery: ANY_EXTENDED_KEY_USAGE,
         leafDoesNotClaimAny: String(getExtension(leaf, 'extendedKeyUsage')?.purposes.includes(ANY_EXTENDED_KEY_USAGE) === true),
-        explicitRequired: checkExtendedKeyUsage([root], KEY_PURPOSES.codeSigning, { requireExplicit: true })
+        explicitRequired: checkExtendedKeyUsage([root], KEY_PURPOSES.codeSigning, { requireExplicitPurpose: true })
             .map((reason) => reason.code).join(',') || 'ok',
     };
 }

@@ -128,16 +128,18 @@ describe('build-api-frozen', () => {
     });
 
     it('should move a released rehearsal only on an accepted ADR, and log the move', () => {
-        const adr = 'docs/adr/0013-a-rename-set.md';
+        const adr = 'docs/adr/0014-a-rename-set.md';
         const accepted = { ...changed(), [adr]: '---\nstatus: accepted\n---\n# A rename set\n' };
         const proposed = { ...changed(), [adr]: '---\nstatus: proposed\n---\n# A rename set\n' };
         expect(planApiFrozen(readerOf(changed()), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse', message: expect.stringContaining('does not exist or is not "status: accepted"') });
         expect(planApiFrozen(readerOf(proposed), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse' });
-        expect(planApiFrozen(readerOf(accepted), '0.8.0', { kind: 'rebaseline', adr: 'docs/0013.md' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('docs/adr/NNNN-slug.md') });
+        expect(planApiFrozen(readerOf(accepted), '0.8.0', { kind: 'rebaseline', adr: 'docs/0014.md' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('docs/adr/NNNN-slug.md') });
         expect(planApiFrozen(readerOf({ ...TREE, [adr]: accepted[adr] ?? '' }), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse', message: expect.stringContaining('nothing to rebaseline') });
         const moved = planApiFrozen(readerOf(accepted), '0.8.0', { kind: 'rebaseline', adr });
         expect(moved.action).toBe('write');
-        expect(parseApiFrozen(moved.text ?? '')?.rebaselines).toEqual([{ adr, asOf: '0.8.0' }]);
+        // Appended to the log, never replacing a move already recorded (ADR 0013 was the first).
+        const before = parseApiFrozen(TREE['docs/assets/api.frozen.json'] ?? '')?.rebaselines ?? [];
+        expect(parseApiFrozen(moved.text ?? '')?.rebaselines).toEqual([...before, { adr, asOf: '0.8.0' }]);
     });
 
     it('should refuse --rebaseline once the surface is stable', () => {

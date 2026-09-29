@@ -16,7 +16,7 @@ import {
     parseCertificate,
     verifyCertificateChain,
     type Certificate,
-    type VerifyChainReport,
+    type VerifyCertificateChainReport,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
@@ -29,7 +29,7 @@ const intermediate = load('lets-encrypt-r12');
 const at = Date.UTC(2026, 9, 1);
 
 /** `ok` when nothing is wrong, the reason codes otherwise. */
-const summarise = (report: VerifyChainReport): string =>
+const summarise = (report: VerifyCertificateChainReport): string =>
     report.reasons.map((reason) => reason.code).join(',') || `ok, ${String(report.path.length)} certificates`;
 
 export default async function run(): Promise<Record<string, string>> {
@@ -86,7 +86,7 @@ export default async function run(): Promise<Record<string, string>> {
     // response at all, which is reported rather than thrown.
     const badOcsp = await verifyCertificateChain({
         leaf: intermediate, trustAnchors: [root], at,
-        ocsp: [Uint8Array.of(0x30, 0x80, 0x00)],
+        ocspResponses: [Uint8Array.of(0x30, 0x80, 0x00)],
     });
 
     return {
@@ -94,7 +94,7 @@ export default async function run(): Promise<Record<string, string>> {
         // How many signatures the call had to compute. A number far above the
         // path length is what a bag full of plausible issuers looks like, which
         // is what a caller passing a whole trust store will see.
-        verified: String(real.verified),
+        signatureVerifications: String(real.signatureVerifications),
         untrusted: summarise(untrusted),
         expired: summarise(late),
         wrongHost: summarise(wrongHost),

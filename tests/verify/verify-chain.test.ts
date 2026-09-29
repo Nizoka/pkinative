@@ -151,7 +151,7 @@ describe('verifyCertificateChain', () => {
         // on certificates it built itself is tested against its own encoder.
         const report = await verifyCertificateChain({ leaf: R12, trustAnchors: [ROOT_X1], at: AT });
         expect(codes(report)).toEqual([]);
-        expect(report.verified).toBe(1);
+        expect(report.signatureVerifications).toBe(1);
     });
 
     it('should report how many signatures it had to compute', async () => {
@@ -159,7 +159,7 @@ describe('verifyCertificateChain', () => {
         // a bag full of plausible issuers looks like.
         const { root, ica, leaf } = await hierarchy();
         const report = await verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT });
-        expect(report.verified).toBe(2);
+        expect(report.signatureVerifications).toBe(2);
         expect(report.explored).toBeGreaterThanOrEqual(1);
     });
 
@@ -263,7 +263,7 @@ describe('verifyCertificateChain — the one place that catches', () => {
         ['a trust anchor without an issuer', { trustAnchors: [{ der: bytes, subject: { der: bytes } }] }],
         ['a trust anchor whose extensions are not a list', { trustAnchors: [{ ...ROOT_X1, extensions: 'none' }] }],
         ['a CRL that is not bytes', { crls: ['MIIB'] }],
-        ['an OCSP response that is not bytes', { ocsp: [[0x30, 0x00]] }],
+        ['an OCSP response that is not bytes', { ocspResponses: [[0x30, 0x00]] }],
         ['a nonce that is not bytes', { ocspNonce: 'nonce' }],
     ])('should throw PKI_INVALID_INPUT for %s — misuse, never a reason and never a TypeError', async (_label, extra) => {
         // Decided before anything is read: past that point every PkiError is
@@ -374,7 +374,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         // purpose, which is the verdict — and the profile concern stayed where
         // it belongs, on a `parseCertificateList` the caller did not make.
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
-        expect(codes(report)).not.toContain('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION');
+        expect(codes(report)).not.toContain('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION');
     });
 
     it('should say so rather than move on when a covering list carries a critical extension it cannot process', async () => {
@@ -389,7 +389,7 @@ describe('verifyCertificateChain — what it passes through', () => {
             serverName: { kind: 'dns', value: 'leaf.example' },
             crls: [emptyCrl(ica, { oddExtension: true })],
         });
-        expect(codes(report)).toContain('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION');
+        expect(codes(report)).toContain('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION');
         expect(report.valid).toBe(false);
     });
 
@@ -404,7 +404,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         });
         const paths = report.reasons.map((r) => `${r.code}@${r.path}`);
         expect(paths).toContain('PKI_REASON_INPUT_MALFORMED@crl[0]');
-        expect(paths.some((p) => p.startsWith('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION@crl[1]'))).toBe(true);
+        expect(paths.some((p) => p.startsWith('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crl[1]'))).toBe(true);
     });
 
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
@@ -506,7 +506,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response], requireRevocation: true,
+            ocspResponses: [response], requireRevocation: true,
         });
         expect(codes(report)).toEqual([]);
     });
@@ -518,7 +518,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOKED');
     });
@@ -540,7 +540,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response], requireRevocation: true,
+            ocspResponses: [response], requireRevocation: true,
         });
         expect(codes(report)).toEqual([]);
     });
@@ -563,7 +563,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -581,7 +581,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -597,7 +597,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_MISMATCH');
     });
@@ -611,7 +611,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [declined],
+            ocspResponses: [declined],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -625,7 +625,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response], requireRevocation: true,
+            ocspResponses: [response], requireRevocation: true,
         });
         expect(codes(report)).toEqual([]);
     });
@@ -638,16 +638,16 @@ describe('verifyCertificateChain — what it passes through', () => {
             serverName: { kind: 'dns', value: 'leaf.example' }, ocspNonce: nonce,
         } as const;
         const echoed = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, nonce });
-        expect(codes(await verifyCertificateChain({ ...common, ocsp: [echoed] }))).toEqual([]);
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [echoed] }))).toEqual([]);
 
         // A different nonce is always a mismatch; a missing echo is reported
         // only when asked, because most public responders omit it on purpose.
         const other = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, nonce: Uint8Array.of(9, 9) });
-        expect(codes(await verifyCertificateChain({ ...common, ocsp: [other] }))).toContain('PKI_REASON_REVOCATION_MISMATCH');
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [other] }))).toContain('PKI_REASON_REVOCATION_MISMATCH');
 
         const silent = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } });
-        expect(codes(await verifyCertificateChain({ ...common, ocsp: [silent] }))).toEqual([]);
-        expect(codes(await verifyCertificateChain({ ...common, ocsp: [silent], requireOcspNonce: true })))
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [silent] }))).toEqual([]);
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [silent], requireOcspNonce: true })))
             .toContain('PKI_REASON_REVOCATION_MISMATCH');
     });
 
@@ -667,7 +667,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -688,7 +688,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -709,7 +709,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -727,7 +727,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -748,7 +748,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [response],
+            ocspResponses: [response],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -759,7 +759,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         // never established is not evidence, whoever signed it.
         const { ica, leaf, icaKey } = await ed25519Hierarchy();
         const response = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } });
-        const report = await verifyCertificateChain({ leaf, trustAnchors: [], at: AT, ocsp: [response] });
+        const report = await verifyCertificateChain({ leaf, trustAnchors: [], at: AT, ocspResponses: [response] });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_MISMATCH');
     });
 
@@ -768,10 +768,10 @@ describe('verifyCertificateChain — what it passes through', () => {
         const report = await verifyCertificateChain({
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
-            ocsp: [Uint8Array.of(0x30, 0x80, 0x00)],
+            ocspResponses: [Uint8Array.of(0x30, 0x80, 0x00)],
         });
         expect(codes(report)).toContain('PKI_REASON_INPUT_MALFORMED');
-        expect(report.reasons.find((r) => r.code === 'PKI_REASON_INPUT_MALFORMED')?.path).toBe('ocsp[0]');
+        expect(report.reasons.find((r) => r.code === 'PKI_REASON_INPUT_MALFORMED')?.path).toBe('ocspResponses[0]');
     });
 
     it('should check the certificate above the leaf, because a revoked CA is a revoked chain', async () => {
@@ -898,7 +898,7 @@ describe('verifyCertificateChain — what it passes through', () => {
         });
         expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
         const junk = Uint8Array.of(0x30, 0x00);
-        const twice = await verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT, ocsp: [junk, junk.slice()] });
+        const twice = await verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT, ocspResponses: [junk, junk.slice()] });
         expect(codes(twice)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
     });
 

@@ -60,7 +60,7 @@ describe('checkExtendedKeyUsage — the end entity', () => {
         // say serverAuth is not a server certificate. The reason distinguishes
         // absent from naming-something-else, because the two call for different
         // conversations with the CA.
-        const reasons = checkExtendedKeyUsage([certificate(null)], serverAuth, { requireExplicit: true });
+        const reasons = checkExtendedKeyUsage([certificate(null)], serverAuth, { requireExplicitPurpose: true });
         expect(codes(reasons)).toEqual(['PKI_REASON_PURPOSE_NOT_PERMITTED']);
         expect(reasons[0]?.message).toContain('carries no extKeyUsage');
         expect(reasons[0]?.path).toBe('path[0]');
@@ -91,12 +91,12 @@ describe('checkExtendedKeyUsage — a CA restricts what it issued', () => {
         expect(checkExtendedKeyUsage(path, serverAuth)).toEqual([]);
     });
 
-    it('should never require a CA to name the purpose, even under requireExplicit', () => {
+    it('should never require a CA to name the purpose, even under requireExplicitPurpose', () => {
         // Requiring every CA above the leaf to enumerate the purposes of
         // everything it may ever issue is not a reading anyone holds, so the
         // option applies to the end entity alone.
         const path = [certificate([serverAuth]), certificate(null)];
-        expect(checkExtendedKeyUsage(path, serverAuth, { requireExplicit: true })).toEqual([]);
+        expect(checkExtendedKeyUsage(path, serverAuth, { requireExplicitPurpose: true })).toEqual([]);
     });
 
     it('should report every certificate that forbids the purpose, not just the first', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sha1 } from '../../src/hash/sha1.js';
-import { checkOcspStatus, OCSP_NONCE_OID, type OcspCheckInput } from '../../src/revocation/ocsp-check.js';
+import { checkOcspStatus, OCSP_NONCE_OID, type CheckOcspStatusInput } from '../../src/revocation/ocsp-check.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 
@@ -87,13 +87,13 @@ function build(parts: ResponseParts = {}): Uint8Array {
     return sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...basic]))));
 }
 
-const check = (der: Uint8Array, overrides: Partial<OcspCheckInput> = {}): readonly { code: string; message: string }[] =>
+const check = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): readonly { code: string; message: string }[] =>
     checkOcspStatus({
         response: parseOcspResponse(der, quiet),
         expected: EXPECTED,
         at: AT,
         signatureVerified: true,
-        responderAuthorised: true,
+        responderAuthorized: true,
         ...overrides,
     });
 
@@ -138,8 +138,8 @@ describe('checkOcspStatus', () => {
     it('should report UNKNOWN when nothing says the responder is authorised', () => {
         // A responder nobody authorised is a responder anyone can be. RFC 6960
         // §4.2.2.2 gives three routes and this library decides none of them.
-        expect(check(build(), { responderAuthorised: undefined })[0]?.message).toContain('nothing says the signer is authorised');
-        expect(check(build(), { responderAuthorised: false })[0]?.message).toContain('not authorised');
+        expect(check(build(), { responderAuthorized: undefined })[0]?.message).toContain('nothing says the signer is authorised');
+        expect(check(build(), { responderAuthorized: false })[0]?.message).toContain('not authorised');
     });
 
     it('should report MISMATCH for an answer about another serial, and name both', () => {
@@ -263,7 +263,7 @@ describe('checkOcspStatus — several reasons at once', () => {
         // A caller fixing one problem per round trip is a caller the report
         // failed.
         const stale = build({ singles: [single({ status: revokedStatus(AT - 30 * DAY), thisUpdate: AT - 40 * DAY, nextUpdate: AT - 10 * DAY })] });
-        expect(codes(check(stale, { signatureVerified: false, responderAuthorised: false }))).toEqual([
+        expect(codes(check(stale, { signatureVerified: false, responderAuthorized: false }))).toEqual([
             'PKI_REASON_REVOCATION_STALE',
             'PKI_REASON_REVOCATION_UNKNOWN',
             'PKI_REASON_REVOCATION_UNKNOWN',
@@ -280,7 +280,7 @@ describe('checkOcspStatus — several reasons at once', () => {
             expected: EXPECTED,
             at: AT,
             signatureVerified: true,
-            responderAuthorised: true,
+            responderAuthorized: true,
         });
         expect(codes(reasons)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
         expect(reasons[0]?.message).toContain('no body');
@@ -304,6 +304,6 @@ describe('checkOcspStatus — several reasons at once', () => {
     });
 
     it('should never throw for a status issue', () => {
-        expect(() => check(build({ statusCode: 3 }), { signatureVerified: undefined, responderAuthorised: undefined })).not.toThrow();
+        expect(() => check(build({ statusCode: 3 }), { signatureVerified: undefined, responderAuthorized: undefined })).not.toThrow();
     });
 });

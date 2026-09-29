@@ -255,7 +255,7 @@ export async function scoreCase(pki: typeof Pki, test: LimboScoreCase, cache: Sc
         ...(identity === null ? {} : { serverName: identity }),
         ...(crls.length === 0 ? {} : { crls }),
     });
-    cache.verifications += report.verified;
+    cache.verifications += report.signatureVerifications;
     const reasons = report.reasons.map((reason) => reason.code);
 
     return { kind: 'scored', valid: report.valid && reasons.length === 0, reasons };

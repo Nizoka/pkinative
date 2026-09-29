@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 166381,
-      "approxTokens": 41595
+      "bytes": 166788,
+      "approxTokens": 41697
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 125927,
-      "approxTokens": 31482
+      "bytes": 126105,
+      "approxTokens": 31526
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 287925,
-      "approxTokens": 71981
+      "bytes": 289290,
+      "approxTokens": 72323
     },
     {
       "url": "data/errors.json",
@@ -48,14 +48,14 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 4682,
-      "approxTokens": 1171
+      "bytes": 4694,
+      "approxTokens": 1174
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 7694,
-      "approxTokens": 1924
+      "bytes": 7703,
+      "approxTokens": 1926
     },
     {
       "url": "assets/ecosystem.json",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 77263,
-      "approxTokens": 19316
+      "bytes": 77663,
+      "approxTokens": 19416
     },
     {
       "title": "Security model",
@@ -129,8 +129,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 6166,
-      "approxTokens": 1542
+      "bytes": 6178,
+      "approxTokens": 1545
     },
     {
       "title": "Conformance",
@@ -170,8 +170,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 20982,
-      "approxTokens": 5246
+      "bytes": 20977,
+      "approxTokens": 5244
     },
     {
       "title": "Choosing a PKI library",

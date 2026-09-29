@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 281,
+  "exportCount": 282,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -181,6 +181,36 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "Attribute",
+      "kind": "type",
+      "module": "src/types/cms-types.ts",
+      "signature": "export interface Attribute",
+      "summary": "One `Attribute` (RFC 5652 §5.3): a type and a non-empty set of values.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each `AttributeValue`, as its exact DER, in encoded order."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole `Attribute` SEQUENCE, exactly as encoded."
+        }
+      ]
     },
     {
       "name": "AttributeTypeAndValue",
@@ -377,6 +407,72 @@
           "type": "number",
           "optional": false,
           "summary": "How many bits of the final octet are padding, 0 to 7."
+        }
+      ]
+    },
+    {
+      "name": "BuildCertificatePathInput",
+      "kind": "type",
+      "module": "src/path/path-build.ts",
+      "signature": "export interface BuildCertificatePathInput extends Omit<ValidateCertificatePathInput, 'path'>",
+      "summary": "What to build from, and everything needed to judge each candidate.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "leaf",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate a path is wanted for."
+        },
+        {
+          "name": "candidates",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "Every certificate that may appear in the path, in any order, duplicates and irrelevant entries included."
+        },
+        {
+          "name": "purposes",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "KeyPurposeId OIDs every certificate on the path must permit, checked **during** the search rather than after it."
+        }
+      ]
+    },
+    {
+      "name": "BuildCertificatePathReport",
+      "kind": "type",
+      "module": "src/path/path-build.ts",
+      "signature": "export interface BuildCertificatePathReport extends ValidateCertificatePathReport",
+      "summary": "A path that was tried, and what §6 made of it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only when `reasons` is empty; the two are one answer, not two."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the answer is no, not just the first."
+        },
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
+        },
+        {
+          "name": "explored",
+          "type": "number",
+          "optional": false,
+          "summary": "How many candidate paths were explored before this answer."
         }
       ]
     },
@@ -735,10 +831,10 @@
       ]
     },
     {
-      "name": "CheckPurposeOptions",
+      "name": "CheckExtendedKeyUsageOptions",
       "kind": "type",
       "module": "src/path/path-purpose.ts",
-      "signature": "export interface CheckPurposeOptions",
+      "signature": "export interface CheckExtendedKeyUsageOptions",
       "summary": "Options of checkExtendedKeyUsage.",
       "throws": null,
       "params": null,
@@ -751,10 +847,142 @@
           "summary": "Apply a CA's own `extKeyUsage` to what it issued."
         },
         {
-          "name": "requireExplicit",
+          "name": "requireExplicitPurpose",
           "type": "boolean | undefined",
           "optional": true,
           "summary": "Require the end-entity certificate to carry `extKeyUsage` and name the purpose explicitly."
+        }
+      ]
+    },
+    {
+      "name": "CheckOcspStatusInput",
+      "kind": "type",
+      "module": "src/revocation/ocsp-check.ts",
+      "signature": "export interface CheckOcspStatusInput",
+      "summary": "What to check, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "response",
+          "type": "OcspResponse",
+          "optional": false,
+          "summary": "The parsed response."
+        },
+        {
+          "name": "expected",
+          "type": "{",
+          "optional": false,
+          "summary": "The `CertID` that was asked about, as `encodeOcspCertId` produced it."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to judge at, in epoch milliseconds."
+        },
+        {
+          "name": "signatureVerified",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the responder's signature verified."
+        },
+        {
+          "name": "responderAuthorized",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the signer is authorised to answer for this CA (RFC 6960 §4.2.2.2)."
+        },
+        {
+          "name": "nonce",
+          "type": "Uint8Array | undefined",
+          "optional": true,
+          "summary": "The nonce that was sent, if any."
+        },
+        {
+          "name": "requireNonce",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Report a missing nonce echo as a mismatch."
+        },
+        {
+          "name": "staleTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Accept a response whose `nextUpdate` has passed, up to this many milliseconds."
+        },
+        {
+          "name": "futureTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Refuse a response whose `thisUpdate` is more than this far in the future."
+        }
+      ]
+    },
+    {
+      "name": "CheckRevocationInput",
+      "kind": "type",
+      "module": "src/revocation/crl-check.ts",
+      "signature": "export interface CheckRevocationInput",
+      "summary": "What to check, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certificate",
+          "type": "Certificate",
+          "optional": false,
+          "summary": "The certificate whose status is in question."
+        },
+        {
+          "name": "crl",
+          "type": "CertificateList",
+          "optional": false,
+          "summary": "The parsed list."
+        },
+        {
+          "name": "crlDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The same bytes `parseCertificateList` was given — the walk needs them."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to judge at, in epoch milliseconds."
+        },
+        {
+          "name": "signatureVerified",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Whether the CRL's signature was verified against a key entitled to sign it."
+        },
+        {
+          "name": "staleTolerance",
+          "type": "number | undefined",
+          "optional": true,
+          "summary": "Accept a list whose `nextUpdate` has passed, up to this many milliseconds."
+        },
+        {
+          "name": "delta",
+          "type": "DeltaCrlInput | undefined",
+          "optional": true,
+          "summary": "A delta CRL (RFC 5280 §5.2.4) describing the changes since `crl`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic the walk raises — an entry extension that is malformed and dropped — instead of the default once-per-code `console.warn`."
         }
       ]
     },
@@ -779,36 +1007,6 @@
           "type": "boolean | undefined",
           "optional": true,
           "summary": "Accept a wildcard certificate at all."
-        }
-      ]
-    },
-    {
-      "name": "CmsAttribute",
-      "kind": "type",
-      "module": "src/types/cms-types.ts",
-      "signature": "export interface CmsAttribute",
-      "summary": "One `Attribute` (RFC 5652 §5.3): a type and a non-empty set of values.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "oid",
-          "type": "string",
-          "optional": false,
-          "summary": "The attribute type."
-        },
-        {
-          "name": "values",
-          "type": "readonly Uint8Array[]",
-          "optional": false,
-          "summary": "Each `AttributeValue`, as its exact DER, in encoded order."
-        },
-        {
-          "name": "der",
-          "type": "Uint8Array",
-          "optional": false,
-          "summary": "The whole `Attribute` SEQUENCE, exactly as encoded."
         }
       ]
     },
@@ -863,24 +1061,6 @@
           "type": "Uint8Array | undefined",
           "optional": true,
           "summary": "A nonce (RFC 6960 §4.4.1), which binds the response to this request."
-        }
-      ]
-    },
-    {
-      "name": "CreateOptions",
-      "kind": "type",
-      "module": "src/build/build-certificate.ts",
-      "signature": "export interface CreateOptions",
-      "summary": "Options shared by the two creation entry points.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "limits",
-          "type": "Partial<PkiLimits> | undefined",
-          "optional": true,
-          "summary": "Bounds on what is built — `maxNameAttributes` and `maxExtensions` apply."
         }
       ]
     },
@@ -1067,7 +1247,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspResponses: 256, maxPathsExplored: 1000, maxSignerInfos: 64, maxCmsAttributes: 256, maxCmsBagEntries: 1024, maxKdfIterations: 10_000_000, maxPkcs12Bags: 4096, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspSingleResponses: 256, maxPathsExplored: 1000, maxSignerInfos: 64, maxAttributes: 256, maxCmsCertificatesAndCrls: 1024, maxKdfIterations: 10_000_000, maxPkcs12Bags: 4096, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -2145,6 +2325,24 @@
       "members": null
     },
     {
+      "name": "MatchDnsNameOptions",
+      "kind": "type",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export interface MatchDnsNameOptions",
+      "summary": "Options of matchDnsName.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "allowWildcards",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Let a wildcard match at all."
+        }
+      ]
+    },
+    {
       "name": "MessageImprint",
       "kind": "type",
       "module": "src/types/tsp-types.ts",
@@ -2411,72 +2609,6 @@
       "members": null
     },
     {
-      "name": "OcspCheckInput",
-      "kind": "type",
-      "module": "src/revocation/ocsp-check.ts",
-      "signature": "export interface OcspCheckInput",
-      "summary": "What to check, and everything needed to judge it.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "response",
-          "type": "OcspResponse",
-          "optional": false,
-          "summary": "The parsed response."
-        },
-        {
-          "name": "expected",
-          "type": "{",
-          "optional": false,
-          "summary": "The `CertID` that was asked about, as `encodeCertId` produced it."
-        },
-        {
-          "name": "at",
-          "type": "number",
-          "optional": false,
-          "summary": "The instant to judge at, in epoch milliseconds."
-        },
-        {
-          "name": "signatureVerified",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Whether the responder's signature verified."
-        },
-        {
-          "name": "responderAuthorised",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Whether the signer is authorised to answer for this CA (RFC 6960 §4.2.2.2)."
-        },
-        {
-          "name": "nonce",
-          "type": "Uint8Array | undefined",
-          "optional": true,
-          "summary": "The nonce that was sent, if any."
-        },
-        {
-          "name": "requireNonce",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Report a missing nonce echo as a mismatch."
-        },
-        {
-          "name": "staleTolerance",
-          "type": "number | undefined",
-          "optional": true,
-          "summary": "Accept a response whose `nextUpdate` has passed, up to this many milliseconds."
-        },
-        {
-          "name": "futureTolerance",
-          "type": "number | undefined",
-          "optional": true,
-          "summary": "Refuse a response whose `thisUpdate` is more than this far in the future."
-        }
-      ]
-    },
-    {
       "name": "OcspHashAlgorithm",
       "kind": "type",
       "module": "src/revocation/ocsp-request.ts",
@@ -2726,6 +2858,114 @@
       ]
     },
     {
+      "name": "OpenPkcs12Options",
+      "kind": "type",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export interface OpenPkcs12Options extends PkiParseOptions",
+      "summary": "What `openPkcs12` takes.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "password",
+          "type": "Uint8Array | string",
+          "optional": false,
+          "summary": "The password."
+        },
+        {
+          "name": "allowUnverifiedIntegrity",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept a container whose integrity cannot be checked — a MAC keyed with RFC 7292 Appendix B, which is most files written before OpenSSL 3.4, or no MAC at all — and report it `valid`."
+        },
+        {
+          "name": "rsaAlgorithm",
+          "type": "Extract<SignatureAlgorithm, { readonly name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS' }> | undefined",
+          "optional": true,
+          "summary": "What an RSA key will sign with."
+        }
+      ]
+    },
+    {
+      "name": "OpenPkcs12Report",
+      "kind": "type",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export interface OpenPkcs12Report",
+      "summary": "What `openPkcs12` found.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether everything was opened, and its integrity verified or explicitly waived."
+        },
+        {
+          "name": "integrity",
+          "type": "'verified' | 'unverified' | 'mismatch'",
+          "optional": false,
+          "summary": "`verified` for a matching RFC 9579 MAC; `unverified` when it could not be checked; `mismatch` when it did not match, in which case nothing was decrypted."
+        },
+        {
+          "name": "pkcs12",
+          "type": "Pkcs12 | undefined",
+          "optional": false,
+          "summary": "The container as parsed, or `undefined` when it could not be."
+        },
+        {
+          "name": "keys",
+          "type": "readonly Pkcs12Key[]",
+          "optional": false,
+          "summary": "Every private key, in encoded order."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "Every certificate that parsed, in encoded order — the keys' own and any chain the file carries."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every CRL bag's DER, in encoded order."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Why `valid` is false; empty when it is true."
+        }
+      ]
+    },
+    {
       "name": "OtherGeneralName",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -2872,168 +3112,6 @@
           "type": "string",
           "optional": false,
           "summary": "The scheme in words — `PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)`, or the name of a refused one such as `pbeWithSHAAnd3-KeyTripleDES-CBC` — so a tool can say what a file is protected with before anyone types a password."
-        }
-      ]
-    },
-    {
-      "name": "PathBuildInput",
-      "kind": "type",
-      "module": "src/path/path-build.ts",
-      "signature": "export interface PathBuildInput extends Omit<PathValidationInput, 'certificates'>",
-      "summary": "What to build from, and everything needed to judge each candidate.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "leaf",
-          "type": "Certificate",
-          "optional": false,
-          "summary": "The certificate a path is wanted for."
-        },
-        {
-          "name": "candidates",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "Every certificate that may appear in the path, in any order, duplicates and irrelevant entries included."
-        },
-        {
-          "name": "requiredPurposes",
-          "type": "readonly string[] | undefined",
-          "optional": true,
-          "summary": "KeyPurposeId OIDs every certificate on the path must permit, checked **during** the search rather than after it."
-        }
-      ]
-    },
-    {
-      "name": "PathBuildReport",
-      "kind": "type",
-      "module": "src/path/path-build.ts",
-      "signature": "export interface PathBuildReport extends PathValidationReport",
-      "summary": "A path that was tried, and what §6 made of it.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "valid",
-          "type": "boolean",
-          "optional": false,
-          "summary": "True only when `reasons` is empty; the two are one answer, not two."
-        },
-        {
-          "name": "reasons",
-          "type": "readonly PkiReason[]",
-          "optional": false,
-          "summary": "Every reason the answer is no, not just the first."
-        },
-        {
-          "name": "path",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
-        },
-        {
-          "name": "explored",
-          "type": "number",
-          "optional": false,
-          "summary": "How many candidate paths were explored before this answer."
-        }
-      ]
-    },
-    {
-      "name": "PathValidationInput",
-      "kind": "type",
-      "module": "src/types/path-types.ts",
-      "signature": "export interface PathValidationInput",
-      "summary": "What to validate, and everything needed to judge it.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "certificates",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "The chain, **leaf first**, as parsed certificates."
-        },
-        {
-          "name": "trustAnchors",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "The certificates the caller trusts a priori."
-        },
-        {
-          "name": "at",
-          "type": "number",
-          "optional": false,
-          "summary": "The instant to validate at, in epoch milliseconds."
-        },
-        {
-          "name": "signatures",
-          "type": "readonly SignatureResult[] | undefined",
-          "optional": true,
-          "summary": "Signature verdicts computed beforehand — by `verifyCertificateSignature`, or by whatever the caller trusts."
-        },
-        {
-          "name": "initialPolicySet",
-          "type": "readonly string[] | undefined",
-          "optional": true,
-          "summary": "`user-initial-policy-set` (RFC 5280 §6.1.1 (c)): the policy OIDs the caller is willing to accept."
-        },
-        {
-          "name": "requireExplicitPolicy",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "`initial-explicit-policy` (§6.1.1 (e))."
-        },
-        {
-          "name": "inhibitPolicyMapping",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "`initial-policy-mapping-inhibit` (§6.1.1 (f))."
-        },
-        {
-          "name": "inhibitAnyPolicy",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "`initial-any-policy-inhibit` (§6.1.1 (g))."
-        },
-        {
-          "name": "limits",
-          "type": "Partial<PkiLimits> | undefined",
-          "optional": true,
-          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
-        }
-      ]
-    },
-    {
-      "name": "PathValidationReport",
-      "kind": "type",
-      "module": "src/types/path-types.ts",
-      "signature": "export interface PathValidationReport",
-      "summary": "The verdict, and every reason behind it.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "valid",
-          "type": "boolean",
-          "optional": false,
-          "summary": "True only when `reasons` is empty; the two are one answer, not two."
-        },
-        {
-          "name": "reasons",
-          "type": "readonly PkiReason[]",
-          "optional": false,
-          "summary": "Every reason the answer is no, not just the first."
-        },
-        {
-          "name": "path",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
         }
       ]
     },
@@ -3291,6 +3369,24 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "PkiBuildOptions",
+      "kind": "type",
+      "module": "src/types/build-types.ts",
+      "signature": "export interface PkiBuildOptions",
+      "summary": "Options of every function that builds a structure from a description — the certificate, the request, the SignedData and the encoders they share.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Bounds on what is built; each function names under `@throws` the limits that apply to it."
+        }
+      ]
     },
     {
       "name": "PkiCertificateError",
@@ -3622,7 +3718,7 @@
           "summary": "Maximum number of entries walked in one CRL revokedCertificates list."
         },
         {
-          "name": "maxOcspResponses",
+          "name": "maxOcspSingleResponses",
           "type": "number",
           "optional": false,
           "summary": "Maximum number of SingleResponse entries in one OCSP response."
@@ -3640,13 +3736,13 @@
           "summary": "Maximum number of SignerInfo entries in one SignedData — each costs a signature verification."
         },
         {
-          "name": "maxCmsAttributes",
+          "name": "maxAttributes",
           "type": "number",
           "optional": false,
           "summary": "Maximum number of attributes in one attribute set — a CMS signer's signed or unsigned set, a PKCS#8 key's, a PKCS#12 bag's."
         },
         {
-          "name": "maxCmsBagEntries",
+          "name": "maxCmsCertificatesAndCrls",
           "type": "number",
           "optional": false,
           "summary": "Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them."
@@ -3968,20 +4064,20 @@
           "summary": "The private key algorithm, as encoded."
         },
         {
-          "name": "keyType",
-          "type": "PrivateKeyType",
+          "name": "kind",
+          "type": "PrivateKeyKind",
           "optional": false,
           "summary": "What the algorithm OID names."
         },
         {
-          "name": "namedCurve",
-          "type": "'P-256' | 'P-384' | 'P-521' | undefined",
+          "name": "curve",
+          "type": "EcCurve | undefined",
           "optional": false,
           "summary": "For an EC key, the curve named in the algorithm parameters, when Web Crypto implements it; otherwise `undefined`."
         },
         {
           "name": "attributes",
-          "type": "readonly CmsAttribute[]",
+          "type": "readonly Attribute[]",
           "optional": false,
           "summary": "The `[0]` attributes, in encoded order; empty when absent."
         },
@@ -4000,10 +4096,10 @@
       ]
     },
     {
-      "name": "PrivateKeyType",
+      "name": "PrivateKeyKind",
       "kind": "type",
       "module": "src/types/key-types.ts",
-      "signature": "export type PrivateKeyType = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown'",
+      "signature": "export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown'",
       "summary": "The kinds of private key a PrivateKeyInfo can name that pkinative recognises.",
       "throws": null,
       "params": null,
@@ -4043,114 +4139,6 @@
           "type": "'raw'",
           "optional": false,
           "summary": "Discriminant."
-        }
-      ]
-    },
-    {
-      "name": "ReadPkcs12Options",
-      "kind": "type",
-      "module": "src/verify/verify-pkcs12.ts",
-      "signature": "export interface ReadPkcs12Options extends PkiParseOptions",
-      "summary": "What `readPkcs12` takes.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "encodingRules",
-          "type": "EncodingRules | undefined",
-          "optional": true,
-          "summary": "`'der'` (default) or `'ber'`."
-        },
-        {
-          "name": "limits",
-          "type": "Partial<PkiLimits> | undefined",
-          "optional": true,
-          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
-        },
-        {
-          "name": "strict",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
-        },
-        {
-          "name": "onDiagnostic",
-          "type": "PkiDiagnosticHandler | undefined",
-          "optional": true,
-          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
-        },
-        {
-          "name": "password",
-          "type": "Uint8Array | string",
-          "optional": false,
-          "summary": "The password."
-        },
-        {
-          "name": "allowUnverifiedIntegrity",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Accept a container whose integrity cannot be checked — a MAC keyed with RFC 7292 Appendix B, which is most files written before OpenSSL 3.4, or no MAC at all — and report it `valid`."
-        },
-        {
-          "name": "rsaAlgorithm",
-          "type": "Extract<SignatureAlgorithm, { readonly name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS' }> | undefined",
-          "optional": true,
-          "summary": "What an RSA key will sign with."
-        }
-      ]
-    },
-    {
-      "name": "ReadPkcs12Report",
-      "kind": "type",
-      "module": "src/verify/verify-pkcs12.ts",
-      "signature": "export interface ReadPkcs12Report",
-      "summary": "What `readPkcs12` found.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "valid",
-          "type": "boolean",
-          "optional": false,
-          "summary": "Whether everything was opened, and its integrity verified or explicitly waived."
-        },
-        {
-          "name": "integrity",
-          "type": "'verified' | 'unverified' | 'mismatch'",
-          "optional": false,
-          "summary": "`verified` for a matching RFC 9579 MAC; `unverified` when it could not be checked; `mismatch` when it did not match, in which case nothing was decrypted."
-        },
-        {
-          "name": "pkcs12",
-          "type": "Pkcs12 | undefined",
-          "optional": false,
-          "summary": "The container as parsed, or `undefined` when it could not be."
-        },
-        {
-          "name": "keys",
-          "type": "readonly Pkcs12Key[]",
-          "optional": false,
-          "summary": "Every private key, in encoded order."
-        },
-        {
-          "name": "certificates",
-          "type": "readonly Certificate[]",
-          "optional": false,
-          "summary": "Every certificate that parsed, in encoded order — the keys' own and any chain the file carries."
-        },
-        {
-          "name": "crls",
-          "type": "readonly Uint8Array[]",
-          "optional": false,
-          "summary": "Every CRL bag's DER, in encoded order."
-        },
-        {
-          "name": "reasons",
-          "type": "readonly PkiReason[]",
-          "optional": false,
-          "summary": "Why `valid` is false; empty when it is true."
         }
       ]
     },
@@ -4291,66 +4279,6 @@
       "members": null
     },
     {
-      "name": "RevocationCheckInput",
-      "kind": "type",
-      "module": "src/revocation/crl-check.ts",
-      "signature": "export interface RevocationCheckInput",
-      "summary": "What to check, and everything needed to judge it.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "certificate",
-          "type": "Certificate",
-          "optional": false,
-          "summary": "The certificate whose status is in question."
-        },
-        {
-          "name": "crl",
-          "type": "CertificateList",
-          "optional": false,
-          "summary": "The parsed list."
-        },
-        {
-          "name": "crlDer",
-          "type": "Uint8Array",
-          "optional": false,
-          "summary": "The same bytes `parseCertificateList` was given — the walk needs them."
-        },
-        {
-          "name": "at",
-          "type": "number",
-          "optional": false,
-          "summary": "The instant to judge at, in epoch milliseconds."
-        },
-        {
-          "name": "signatureVerified",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Whether the CRL's signature was verified against a key entitled to sign it."
-        },
-        {
-          "name": "staleTolerance",
-          "type": "number | undefined",
-          "optional": true,
-          "summary": "Accept a list whose `nextUpdate` has passed, up to this many milliseconds."
-        },
-        {
-          "name": "delta",
-          "type": "DeltaCrlInput | undefined",
-          "optional": true,
-          "summary": "A delta CRL (RFC 5280 §5.2.4) describing the changes since `crl`."
-        },
-        {
-          "name": "options",
-          "type": "PkiParseOptions | undefined",
-          "optional": true,
-          "summary": "Options for the walk — the limits apply to it."
-        }
-      ]
-    },
-    {
       "name": "RevokedCertificate",
       "kind": "type",
       "module": "src/types/crl-types.ts",
@@ -4488,7 +4416,7 @@
         },
         {
           "name": "attributes",
-          "type": "readonly CmsAttribute[]",
+          "type": "readonly Attribute[]",
           "optional": false,
           "summary": "Every `bagAttributes` entry, in encoded order."
         },
@@ -4859,7 +4787,7 @@
         },
         {
           "name": "signedAttributes",
-          "type": "readonly CmsAttribute[] | undefined",
+          "type": "readonly Attribute[] | undefined",
           "optional": false,
           "summary": "The signed attributes in encoded order; `undefined` when absent, which is not the same as empty."
         },
@@ -4883,7 +4811,7 @@
         },
         {
           "name": "unsignedAttributes",
-          "type": "readonly CmsAttribute[] | undefined",
+          "type": "readonly Attribute[] | undefined",
           "optional": false,
           "summary": "The unsigned attributes in encoded order; `undefined` when absent."
         },
@@ -4932,10 +4860,10 @@
       ]
     },
     {
-      "name": "SignerVerification",
+      "name": "SignerReport",
       "kind": "type",
       "module": "src/verify/verify-signed-data.ts",
-      "signature": "export interface SignerVerification",
+      "signature": "export interface SignerReport",
       "summary": "The verdict on one signer.",
       "throws": null,
       "params": null,
@@ -4973,13 +4901,13 @@
         },
         {
           "name": "timeStamps",
-          "type": "readonly VerifyTimeStampReport[]",
+          "type": "readonly VerifyTimeStampTokenReport[]",
           "optional": false,
           "summary": "Each RFC 3161 timestamp over this signer's signature, verified."
         },
         {
           "name": "chain",
-          "type": "VerifyChainReport | undefined",
+          "type": "VerifyCertificateChainReport | undefined",
           "optional": false,
           "summary": "The signer's chain, judged; `undefined` when there was no certificate to judge."
         },
@@ -5586,6 +5514,102 @@
       ]
     },
     {
+      "name": "ValidateCertificatePathInput",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export interface ValidateCertificatePathInput",
+      "summary": "What to validate, and everything needed to judge it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The chain, **leaf first**, as parsed certificates."
+        },
+        {
+          "name": "trustAnchors",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The certificates the caller trusts a priori."
+        },
+        {
+          "name": "at",
+          "type": "number",
+          "optional": false,
+          "summary": "The instant to validate at, in epoch milliseconds."
+        },
+        {
+          "name": "signatures",
+          "type": "readonly SignatureResult[] | undefined",
+          "optional": true,
+          "summary": "Signature verdicts computed beforehand — by `verifyCertificateSignature`, or by whatever the caller trusts."
+        },
+        {
+          "name": "initialPolicySet",
+          "type": "readonly string[] | undefined",
+          "optional": true,
+          "summary": "`user-initial-policy-set` (RFC 5280 §6.1.1 (c)): the policy OIDs the caller is willing to accept."
+        },
+        {
+          "name": "requireExplicitPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-explicit-policy` (§6.1.1 (e))."
+        },
+        {
+          "name": "inhibitPolicyMapping",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-policy-mapping-inhibit` (§6.1.1 (f))."
+        },
+        {
+          "name": "inhibitAnyPolicy",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "`initial-any-policy-inhibit` (§6.1.1 (g))."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        }
+      ]
+    },
+    {
+      "name": "ValidateCertificatePathReport",
+      "kind": "type",
+      "module": "src/types/path-types.ts",
+      "signature": "export interface ValidateCertificatePathReport",
+      "summary": "The verdict, and every reason behind it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "True only when `reasons` is empty; the two are one answer, not two."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason the answer is no, not just the first."
+        },
+        {
+          "name": "path",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "The path actually walked, leaf first, ending at the trust anchor when one was reached."
+        }
+      ]
+    },
+    {
       "name": "Validity",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -5610,34 +5634,10 @@
       ]
     },
     {
-      "name": "VerifyCertificateSignatureOptions",
-      "kind": "type",
-      "module": "src/crypto/x509-verify.ts",
-      "signature": "export interface VerifyCertificateSignatureOptions",
-      "summary": "Options of verifyCertificateSignature.",
-      "throws": null,
-      "params": null,
-      "returns": null,
-      "members": [
-        {
-          "name": "requireAlgorithmMatch",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Check that the outer `signatureAlgorithm` equals the inner `tbsCertificate.signature`, as RFC 5280 §4.1.1.2 requires."
-        },
-        {
-          "name": "allowSha1",
-          "type": "boolean | undefined",
-          "optional": true,
-          "summary": "Treat a SHA-1 signature as evidence."
-        }
-      ]
-    },
-    {
-      "name": "VerifyChainInput",
+      "name": "VerifyCertificateChainInput",
       "kind": "type",
       "module": "src/verify/verify-chain.ts",
-      "signature": "export interface VerifyChainInput",
+      "signature": "export interface VerifyCertificateChainInput",
       "summary": "What to accept, and everything needed to decide it.",
       "throws": null,
       "params": null,
@@ -5686,7 +5686,7 @@
           "summary": "CRLs, as the DER you downloaded."
         },
         {
-          "name": "ocsp",
+          "name": "ocspResponses",
           "type": "readonly Uint8Array[] | undefined",
           "optional": true,
           "summary": "OCSP responses, as the DER a responder returned or a TLS server stapled."
@@ -5748,10 +5748,10 @@
       ]
     },
     {
-      "name": "VerifyChainReport",
+      "name": "VerifyCertificateChainReport",
       "kind": "type",
       "module": "src/verify/verify-chain.ts",
-      "signature": "export interface VerifyChainReport extends PathBuildReport",
+      "signature": "export interface VerifyCertificateChainReport extends BuildCertificatePathReport",
       "summary": "The verdict, every reason behind it, and the path that was judged.",
       "throws": null,
       "params": null,
@@ -5782,10 +5782,34 @@
           "summary": "How many candidate paths were explored before this answer."
         },
         {
-          "name": "verified",
+          "name": "signatureVerifications",
           "type": "number",
           "optional": false,
           "summary": "How many signature verifications were performed."
+        }
+      ]
+    },
+    {
+      "name": "VerifyCertificateSignatureOptions",
+      "kind": "type",
+      "module": "src/crypto/x509-verify.ts",
+      "signature": "export interface VerifyCertificateSignatureOptions",
+      "summary": "Options of verifyCertificateSignature.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "requireAlgorithmMatch",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Check that the outer `signatureAlgorithm` equals the inner `tbsCertificate.signature`, as RFC 5280 §4.1.1.2 requires."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat a SHA-1 signature as evidence."
         }
       ]
     },
@@ -5842,7 +5866,7 @@
           "summary": "CRLs, as DER, added to those the message carries."
         },
         {
-          "name": "ocsp",
+          "name": "ocspResponses",
           "type": "readonly Uint8Array[] | undefined",
           "optional": true,
           "summary": "OCSP responses, as DER, added to those the message carries."
@@ -5927,7 +5951,7 @@
         },
         {
           "name": "signers",
-          "type": "readonly SignerVerification[]",
+          "type": "readonly SignerReport[]",
           "optional": false,
           "summary": "One verdict per signer, in encoded order."
         },
@@ -5938,7 +5962,7 @@
           "summary": "Every reason, from every signer and from the message itself."
         },
         {
-          "name": "verified",
+          "name": "signatureVerifications",
           "type": "number",
           "optional": false,
           "summary": "How many signature verifications this cost, chains and timestamps included."
@@ -5946,10 +5970,10 @@
       ]
     },
     {
-      "name": "VerifySignerInfoOptions",
+      "name": "VerifySignerInfoSignatureOptions",
       "kind": "type",
       "module": "src/crypto/cms-verify.ts",
-      "signature": "export interface VerifySignerInfoOptions",
+      "signature": "export interface VerifySignerInfoSignatureOptions",
       "summary": "Options of verifySignerInfoSignature.",
       "throws": null,
       "params": null,
@@ -5970,10 +5994,10 @@
       ]
     },
     {
-      "name": "VerifyTimeStampInput",
+      "name": "VerifyTimeStampTokenInput",
       "kind": "type",
       "module": "src/verify/verify-timestamp.ts",
-      "signature": "export interface VerifyTimeStampInput",
+      "signature": "export interface VerifyTimeStampTokenInput",
       "summary": "What to verify a timestamp token against.",
       "throws": null,
       "params": null,
@@ -6028,7 +6052,7 @@
           "summary": "CRLs for the TSA's chain, as DER."
         },
         {
-          "name": "ocsp",
+          "name": "ocspResponses",
           "type": "readonly Uint8Array[] | undefined",
           "optional": true,
           "summary": "OCSP responses for the TSA's certificate, as DER."
@@ -6052,7 +6076,7 @@
           "summary": "Treat SHA-1 signatures as evidence."
         },
         {
-          "name": "allowNonCriticalTimestampingEku",
+          "name": "allowNonCriticalTimeStampingEku",
           "type": "boolean | undefined",
           "optional": true,
           "summary": "Accept a TSA whose extKeyUsage names timestamping but is not critical."
@@ -6066,10 +6090,10 @@
       ]
     },
     {
-      "name": "VerifyTimeStampReport",
+      "name": "VerifyTimeStampTokenReport",
       "kind": "type",
       "module": "src/verify/verify-timestamp.ts",
-      "signature": "export interface VerifyTimeStampReport",
+      "signature": "export interface VerifyTimeStampTokenReport",
       "summary": "The verdict on a timestamp token, and what it established.",
       "throws": null,
       "params": null,
@@ -6113,7 +6137,7 @@
         },
         {
           "name": "chain",
-          "type": "VerifyChainReport | undefined",
+          "type": "VerifyCertificateChainReport | undefined",
           "optional": false,
           "summary": "The TSA's chain, judged by `verifyCertificateChain`; `undefined` when there was no certificate to judge."
         },
@@ -6124,7 +6148,7 @@
           "summary": "Every reason the token is not evidence of what was asked."
         },
         {
-          "name": "verified",
+          "name": "signatureVerifications",
           "type": "number",
           "optional": false,
           "summary": "How many signature verifications this cost, the TSA's chain included."
@@ -6135,7 +6159,7 @@
       "name": "addTimeStampToken",
       "kind": "function",
       "module": "src/build/build-signed-data.ts",
-      "signature": "export function addTimeStampToken(signedDataDer: Uint8Array, signerIndex: number, tokenDer: Uint8Array, options?: CreateOptions): Uint8Array",
+      "signature": "export function addTimeStampToken(signedDataDer: Uint8Array, signerIndex: number, tokenDer: Uint8Array, options?: PkiBuildOptions): Uint8Array",
       "summary": "Add an RFC 3161 timestamp to a signer — the step that turns a signature into one whose time is proved (CAdES-T, PAdES B-T).",
       "throws": [
         "PkiError"
@@ -6165,7 +6189,7 @@
       "name": "addUnsignedAttribute",
       "kind": "function",
       "module": "src/build/build-signed-data.ts",
-      "signature": "export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: number, attributeDer: Uint8Array, options?: CreateOptions): Uint8Array",
+      "signature": "export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: number, attributeDer: Uint8Array, options?: PkiBuildOptions): Uint8Array",
       "summary": "Add one unsigned attribute to one signer of a SignedData.",
       "throws": [
         "PkiCmsError",
@@ -6188,7 +6212,7 @@
         },
         {
           "name": "options",
-          "description": "`limits`: `maxInputBytes`, `maxSignerInfos` and `maxCmsAttributes` apply."
+          "description": "`limits`: `maxInputBytes`, `maxSignerInfos` and `maxAttributes` apply."
         }
       ],
       "returns": "A new `ContentInfo`, in DER.",
@@ -6198,7 +6222,7 @@
       "name": "buildCertificatePath",
       "kind": "function",
       "module": "src/path/path-build.ts",
-      "signature": "export function buildCertificatePath(input: PathBuildInput): PathBuildReport",
+      "signature": "export function buildCertificatePath(input: BuildCertificatePathInput): BuildCertificatePathReport",
       "summary": "Build and validate a certification path.",
       "throws": [
         "PkiError"
@@ -6206,7 +6230,7 @@
       "params": [
         {
           "name": "input",
-          "description": "See {@link PathBuildInput}."
+          "description": "See {@link BuildCertificatePathInput}."
         }
       ],
       "returns": "The first accepted path with §6's report, or the report of the attempt that got furthest; `explored` counts the candidates tried.",
@@ -6249,7 +6273,7 @@
       "name": "checkExtendedKeyUsage",
       "kind": "function",
       "module": "src/path/path-purpose.ts",
-      "signature": "export function checkExtendedKeyUsage( path: readonly Certificate[], purpose: string, options?: CheckPurposeOptions, ): readonly PkiReason[]",
+      "signature": "export function checkExtendedKeyUsage( path: readonly Certificate[], purpose: string, options?: CheckExtendedKeyUsageOptions, ): readonly PkiReason[]",
       "summary": "Check that every certificate in a path permits a purpose.",
       "throws": [],
       "params": [
@@ -6263,7 +6287,7 @@
         },
         {
           "name": "options",
-          "description": "See {@link CheckPurposeOptions}."
+          "description": "See {@link CheckExtendedKeyUsageOptions}."
         }
       ],
       "returns": "One `PKI_REASON_PURPOSE_NOT_PERMITTED` per certificate that forbids the purpose; empty when every certificate permits it.",
@@ -6273,13 +6297,13 @@
       "name": "checkOcspStatus",
       "kind": "function",
       "module": "src/revocation/ocsp-check.ts",
-      "signature": "export function checkOcspStatus(input: OcspCheckInput): readonly PkiReason[]",
+      "signature": "export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[]",
       "summary": "Decide what an OCSP response establishes about one certificate.",
       "throws": [],
       "params": [
         {
           "name": "input",
-          "description": "See {@link OcspCheckInput}."
+          "description": "See {@link CheckOcspStatusInput}."
         }
       ],
       "returns": "Every reason the answer is not a clean `good`; empty when it is.",
@@ -6289,7 +6313,7 @@
       "name": "checkRevocation",
       "kind": "function",
       "module": "src/revocation/crl-check.ts",
-      "signature": "export function checkRevocation(input: RevocationCheckInput): readonly PkiReason[]",
+      "signature": "export function checkRevocation(input: CheckRevocationInput): readonly PkiReason[]",
       "summary": "Decide a certificate's revocation status against one CRL.",
       "throws": [
         "PkiCertificateError",
@@ -6298,7 +6322,7 @@
       "params": [
         {
           "name": "input",
-          "description": "See {@link RevocationCheckInput}."
+          "description": "See {@link CheckRevocationInput}."
         }
       ],
       "returns": "Every reason the answer is not a clean \"not revoked\", in the order they were established; empty when the certificate is not revoked.",
@@ -6398,7 +6422,7 @@
       "name": "createCertificate",
       "kind": "function",
       "module": "src/build/build-certificate.ts",
-      "signature": "export async function createCertificate(description: CertificateDescription, signer: Signer, options?: CreateOptions): Promise<Uint8Array>",
+      "signature": "export async function createCertificate(description: CertificateDescription, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array>",
       "summary": "Build and sign an RFC 5280 certificate.",
       "throws": [
         "PkiCryptoError",
@@ -6416,7 +6440,7 @@
         },
         {
           "name": "options",
-          "description": "See {@link CreateOptions}."
+          "description": "See {@link PkiBuildOptions}."
         }
       ],
       "returns": "The complete certificate, in DER.",
@@ -6426,7 +6450,7 @@
       "name": "createCertificationRequest",
       "kind": "function",
       "module": "src/build/build-csr.ts",
-      "signature": "export async function createCertificationRequest( description: CertificationRequestDescription, signer: Signer, options?: CreateOptions, ): Promise<Uint8Array>",
+      "signature": "export async function createCertificationRequest( description: CertificationRequestDescription, signer: Signer, options?: PkiBuildOptions, ): Promise<Uint8Array>",
       "summary": "Build and sign a PKCS#10 certification request.",
       "throws": [
         "PkiCryptoError",
@@ -6444,7 +6468,7 @@
         },
         {
           "name": "options",
-          "description": "See {@link CreateOptions}."
+          "description": "See {@link PkiBuildOptions}."
         }
       ],
       "returns": "The complete `CertificationRequest`, in DER.",
@@ -6480,7 +6504,7 @@
       "name": "createSignedData",
       "kind": "function",
       "module": "src/build/build-signed-data.ts",
-      "signature": "export async function createSignedData(input: CreateSignedDataInput, signer: Signer, options?: CreateOptions): Promise<Uint8Array>",
+      "signature": "export async function createSignedData(input: CreateSignedDataInput, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array>",
       "summary": "Build and sign an RFC 5652 SignedData, returned as a DER `ContentInfo`.",
       "throws": [
         "PkiCryptoError",
@@ -6499,7 +6523,7 @@
         },
         {
           "name": "options",
-          "description": "`limits`: `maxCmsAttributes` bounds each attribute list, `maxCmsBagEntries` the certificates and revocation lists."
+          "description": "`limits`: `maxAttributes` bounds each attribute list, `maxCmsCertificatesAndCrls` the certificates and revocation lists."
         }
       ],
       "returns": "The `ContentInfo` (id-signedData), in DER.",
@@ -6679,30 +6703,6 @@
       "members": null
     },
     {
-      "name": "dnsMatches",
-      "kind": "function",
-      "module": "src/path/path-server-name.ts",
-      "signature": "export function dnsMatches(presented: string, reference: string, wildcards = true): boolean",
-      "summary": "RFC 6125 §6.4: a presented `dNSName` against a reference host name.",
-      "throws": [],
-      "params": [
-        {
-          "name": "presented",
-          "description": "The certificate's name, possibly a wildcard."
-        },
-        {
-          "name": "reference",
-          "description": "The host the caller asked about."
-        },
-        {
-          "name": "wildcards",
-          "description": "Whether a wildcard may match at all."
-        }
-      ],
-      "returns": "Whether they identify the same host.",
-      "members": null
-    },
-    {
       "name": "encodeAlgorithmIdentifier",
       "kind": "function",
       "module": "src/build/build-structures.ts",
@@ -6840,36 +6840,10 @@
       "members": null
     },
     {
-      "name": "encodeCertId",
-      "kind": "function",
-      "module": "src/revocation/ocsp-request.ts",
-      "signature": "export function encodeCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array",
-      "summary": "Build a `CertID` for one certificate under one issuer.",
-      "throws": [
-        "PkiError"
-      ],
-      "params": [
-        {
-          "name": "certificate",
-          "description": "The certificate being asked about."
-        },
-        {
-          "name": "issuer",
-          "description": "The certificate that issued it."
-        },
-        {
-          "name": "algorithm",
-          "description": "The digest; SHA-1 by default."
-        }
-      ],
-      "returns": "The encoded `CertID`.",
-      "members": null
-    },
-    {
       "name": "encodeDistinguishedName",
       "kind": "function",
       "module": "src/build/build-structures.ts",
-      "signature": "export function encodeDistinguishedName(name: NameDescription, options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array",
+      "signature": "export function encodeDistinguishedName(name: NameDescription, options?: PkiBuildOptions): Uint8Array",
       "summary": "Encode a `Name` (an RDNSequence).",
       "throws": [
         "PkiError",
@@ -6975,7 +6949,7 @@
       "name": "encodeExtensions",
       "kind": "function",
       "module": "src/build/build-structures.ts",
-      "signature": "export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array",
+      "signature": "export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: PkiBuildOptions): Uint8Array",
       "summary": "Encode an `Extensions` SEQUENCE.",
       "throws": [
         "PkiError",
@@ -7124,6 +7098,32 @@
       "members": null
     },
     {
+      "name": "encodeOcspCertId",
+      "kind": "function",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export function encodeOcspCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array",
+      "summary": "Build a `CertID` for one certificate under one issuer.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "certificate",
+          "description": "The certificate being asked about."
+        },
+        {
+          "name": "issuer",
+          "description": "The certificate that issued it."
+        },
+        {
+          "name": "algorithm",
+          "description": "The digest; SHA-1 by default."
+        }
+      ],
+      "returns": "The encoded `CertID`.",
+      "members": null
+    },
+    {
       "name": "encodeOctetString",
       "kind": "function",
       "module": "src/asn1/asn1-encode.ts",
@@ -7235,6 +7235,24 @@
         }
       ],
       "returns": "The SET OF encoding.",
+      "members": null
+    },
+    {
+      "name": "encodeSignatureAlgorithm",
+      "kind": "function",
+      "module": "src/build/build-certificate.ts",
+      "signature": "export function encodeSignatureAlgorithm(signer: Signer): Uint8Array",
+      "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
+      "throws": [
+        "PkiCryptoError"
+      ],
+      "params": [
+        {
+          "name": "signer",
+          "description": "A `SigningKey` or an `ExternalSigner`; only its algorithm is read."
+        }
+      ],
+      "returns": "The `AlgorithmIdentifier` encoding.",
       "members": null
     },
     {
@@ -7545,6 +7563,53 @@
         }
       ],
       "returns": "True when `encodeOid` accepts it; false for anything else, a non-string included.",
+      "members": null
+    },
+    {
+      "name": "matchDnsName",
+      "kind": "function",
+      "module": "src/path/path-server-name.ts",
+      "signature": "export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean",
+      "summary": "RFC 6125 §6.4: a presented `dNSName` against a reference host name.",
+      "throws": [],
+      "params": [
+        {
+          "name": "presented",
+          "description": "The certificate's name, possibly a wildcard."
+        },
+        {
+          "name": "reference",
+          "description": "The host the caller asked about."
+        },
+        {
+          "name": "options",
+          "description": "`allowWildcards: false` refuses every wildcard; on by default."
+        }
+      ],
+      "returns": "Whether they identify the same host.",
+      "members": null
+    },
+    {
+      "name": "openPkcs12",
+      "kind": "function",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): Promise<OpenPkcs12Report>",
+      "summary": "Open a PKCS#12 in one call: its MAC, its SafeContents, its certificates and its keys.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The PFX, as DER — or BER with `encodingRules: 'ber'`, which Windows writes."
+        },
+        {
+          "name": "options",
+          "description": "The password, and what to accept."
+        }
+      ],
+      "returns": "What was opened and why anything was not. Never rejects for a problem with the file.",
       "members": null
     },
     {
@@ -7954,29 +8019,6 @@
       "members": null
     },
     {
-      "name": "readPkcs12",
-      "kind": "function",
-      "module": "src/verify/verify-pkcs12.ts",
-      "signature": "export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): Promise<ReadPkcs12Report>",
-      "summary": "Open a PKCS#12 in one call: its MAC, its SafeContents, its certificates and its keys.",
-      "throws": [
-        "PkiCryptoError",
-        "PkiError"
-      ],
-      "params": [
-        {
-          "name": "der",
-          "description": "The PFX, as DER — or BER with `encodingRules: 'ber'`, which Windows writes."
-        },
-        {
-          "name": "options",
-          "description": "The password, and what to accept."
-        }
-      ],
-      "returns": "What was opened and why anything was not. Never rejects for a problem with the file.",
-      "members": null
-    },
-    {
       "name": "readSmallInteger",
       "kind": "function",
       "module": "src/asn1/asn1-read.ts",
@@ -8041,28 +8083,10 @@
       "members": null
     },
     {
-      "name": "signatureAlgorithmDer",
-      "kind": "function",
-      "module": "src/build/build-certificate.ts",
-      "signature": "export function signatureAlgorithmDer(signer: Signer): Uint8Array",
-      "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
-      "throws": [
-        "PkiCryptoError"
-      ],
-      "params": [
-        {
-          "name": "signer",
-          "description": "A `SigningKey` or an `ExternalSigner`; only its algorithm is read."
-        }
-      ],
-      "returns": "The `AlgorithmIdentifier` encoding.",
-      "members": null
-    },
-    {
       "name": "validateCertificatePath",
       "kind": "function",
       "module": "src/path/path-validate.ts",
-      "signature": "export function validateCertificatePath(input: PathValidationInput): PathValidationReport",
+      "signature": "export function validateCertificatePath(input: ValidateCertificatePathInput): ValidateCertificatePathReport",
       "summary": "Validate a certification path (RFC 5280 §6).",
       "throws": [
         "PkiError"
@@ -8080,7 +8104,7 @@
       "name": "verifyCertificateChain",
       "kind": "function",
       "module": "src/verify/verify-chain.ts",
-      "signature": "export async function verifyCertificateChain(input: VerifyChainInput): Promise<VerifyChainReport>",
+      "signature": "export async function verifyCertificateChain(input: VerifyCertificateChainInput): Promise<VerifyCertificateChainReport>",
       "summary": "Verify a certificate the whole way: chain, name, purpose and revocation.",
       "throws": [
         "PkiError"
@@ -8088,7 +8112,7 @@
       "params": [
         {
           "name": "input",
-          "description": "See {@link VerifyChainInput}."
+          "description": "See {@link VerifyCertificateChainInput}."
         }
       ],
       "returns": "The verdict, every reason behind it, the path judged, how many candidate paths were explored and how many signatures were verified.",
@@ -8241,7 +8265,7 @@
       "name": "verifySignerInfoSignature",
       "kind": "function",
       "module": "src/crypto/cms-verify.ts",
-      "signature": "export async function verifySignerInfoSignature( signerInfo: SignerInfo, signer: Certificate, options?: VerifySignerInfoOptions, ): Promise<boolean>",
+      "signature": "export async function verifySignerInfoSignature( signerInfo: SignerInfo, signer: Certificate, options?: VerifySignerInfoSignatureOptions, ): Promise<boolean>",
       "summary": "Verify that `signer`'s public key signed what `signerInfo` covers — its signed attributes when it has them, the content otherwise.",
       "throws": [
         "PkiCryptoError",
@@ -8259,7 +8283,7 @@
         },
         {
           "name": "options",
-          "description": "See {@link VerifySignerInfoOptions}."
+          "description": "See {@link VerifySignerInfoSignatureOptions}."
         }
       ],
       "returns": "Whether the signer's key signed `signerInfo.signedAttributesDer`, or `options.content` when the signer has no signed attributes.",
@@ -8269,7 +8293,7 @@
       "name": "verifyTimeStampToken",
       "kind": "function",
       "module": "src/verify/verify-timestamp.ts",
-      "signature": "export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise<VerifyTimeStampReport>",
+      "signature": "export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Promise<VerifyTimeStampTokenReport>",
       "summary": "Verify an RFC 3161 timestamp token.",
       "throws": [
         "PkiCmsError",
@@ -8278,7 +8302,7 @@
       "params": [
         {
           "name": "input",
-          "description": "See {@link VerifyTimeStampInput}."
+          "description": "See {@link VerifyTimeStampTokenInput}."
         }
       ],
       "returns": "The verdict and what it established.",

@@ -18,8 +18,8 @@ import {
     validateCertificatePath,
     verifyCertificateSignature,
     type Certificate,
-    type PathBuildReport,
-    type PathValidationReport,
+    type BuildCertificatePathReport,
+    type ValidateCertificatePathReport,
     type SignatureResult,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
@@ -42,7 +42,7 @@ async function verdicts(chain: readonly Certificate[]): Promise<SignatureResult[
     }));
 }
 
-const summarise = (report: PathValidationReport | PathBuildReport): string =>
+const summarise = (report: ValidateCertificatePathReport | BuildCertificatePathReport): string =>
     report.valid ? `valid, ${String(report.path.length)} certificates` : report.reasons.map((r) => r.code).join(',');
 
 export default async function run(): Promise<Record<string, string>> {
@@ -55,7 +55,7 @@ export default async function run(): Promise<Record<string, string>> {
     const chain = [intermediate, root];
     const trusted = await verdicts(chain);
 
-    const good = validateCertificatePath({ certificates: chain, trustAnchors: [root], at, signatures: trusted });
+    const good = validateCertificatePath({ path: chain, trustAnchors: [root], at, signatures: trusted });
 
     // A chain that stops one short of its root is still anchored when its last
     // certificate names a trusted subject — most servers send it this way, and
@@ -64,24 +64,24 @@ export default async function run(): Promise<Record<string, string>> {
     // the state FROM it, so its name constraints, its basicConstraints and its
     // keyUsage all bind what it issued, and a path that omitted it would be
     // claiming those were never applied.
-    const short = validateCertificatePath({ certificates: [intermediate], trustAnchors: [root], at, signatures: trusted });
+    const short = validateCertificatePath({ path: [intermediate], trustAnchors: [root], at, signatures: trusted });
 
     // No anchor at all is an answer, not an exception.
-    const untrusted = validateCertificatePath({ certificates: chain, trustAnchors: [], at, signatures: trusted });
+    const untrusted = validateCertificatePath({ path: chain, trustAnchors: [], at, signatures: trusted });
 
     // Expired, and asked for a decade too late. Note that the report carries
     // both the time reason and the anchor reason, not just the first.
-    const late = validateCertificatePath({ certificates: chain, trustAnchors: [root], at: Date.UTC(2040, 0, 1), signatures: trusted });
+    const late = validateCertificatePath({ path: chain, trustAnchors: [root], at: Date.UTC(2040, 0, 1), signatures: trusted });
 
     // Forget to supply a verdict and you get NOT_CHECKED, never a pass. A
     // validator that read silence as success would pass whenever a caller
     // forgot to verify anything.
-    const unverified = validateCertificatePath({ certificates: chain, trustAnchors: [root], at });
+    const unverified = validateCertificatePath({ path: chain, trustAnchors: [root], at });
 
     // A leaf is not a CA, so it may not issue: this is the check whose absence
     // was the 2008 Basic Constraints attack.
     const leaf = load('letsencrypt-org-leaf');
-    const forged = validateCertificatePath({ certificates: [root, leaf], trustAnchors: [leaf], at, signatures: [{ certificate: root, verdict: 'valid' }] });
+    const forged = validateCertificatePath({ path: [root, leaf], trustAnchors: [leaf], at, signatures: [{ certificate: root, verdict: 'valid' }] });
 
     // A caller with an unordered bag rather than a chain uses the builder,
     // which searches with backtracking. Cross-signing means one subject name can

@@ -42,24 +42,24 @@ export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
 export type { FindRevocationOptions } from './revocation/crl-parse.js';
 export { checkRevocation } from './revocation/crl-check.js';
-export { createOcspRequest, encodeCertId } from './revocation/ocsp-request.js';
+export { createOcspRequest, encodeOcspCertId } from './revocation/ocsp-request.js';
 export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
 export { parseOcspResponse } from './revocation/ocsp-response.js';
 export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
-export type { OcspCheckInput } from './revocation/ocsp-check.js';
+export type { CheckOcspStatusInput } from './revocation/ocsp-check.js';
 export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
-export type { DeltaCrlInput, RevocationCheckInput } from './revocation/crl-check.js';
+export type { DeltaCrlInput, CheckRevocationInput } from './revocation/crl-check.js';
 export type { CertificateList, CrlReason, IssuingDistributionPoint, RevokedCertificate } from './types/crl-types.js';
 export { buildCertificatePath } from './path/path-build.js';
-export { checkServerName, dnsMatches } from './path/path-server-name.js';
-export type { CheckServerNameOptions, ServerIdentity } from './path/path-server-name.js';
+export { checkServerName, matchDnsName } from './path/path-server-name.js';
+export type { CheckServerNameOptions, MatchDnsNameOptions, ServerIdentity } from './path/path-server-name.js';
 export { ANY_EXTENDED_KEY_USAGE, checkExtendedKeyUsage, KEY_PURPOSES } from './path/path-purpose.js';
-export type { CheckPurposeOptions } from './path/path-purpose.js';
-export type { PathBuildInput, PathBuildReport } from './path/path-build.js';
+export type { CheckExtendedKeyUsageOptions } from './path/path-purpose.js';
+export type { BuildCertificatePathInput, BuildCertificatePathReport } from './path/path-build.js';
 export { validateCertificatePath } from './path/path-validate.js';
 export { verifyCertificateChain } from './verify/verify-chain.js';
-export type { VerifyChainInput, VerifyChainReport } from './verify/verify-chain.js';
-export type { PathValidationInput, PathValidationReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
+export type { VerifyCertificateChainInput, VerifyCertificateChainReport } from './verify/verify-chain.js';
+export type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
 
 // ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────
 
@@ -197,8 +197,7 @@ export { canVerify } from './crypto/webcrypto.js';
 
 // ── 8. Building — certificates and requests, signed through Web Crypto ─
 
-export { createCertificate, signatureAlgorithmDer } from './build/build-certificate.js';
-export type { CreateOptions } from './build/build-certificate.js';
+export { createCertificate, encodeSignatureAlgorithm } from './build/build-certificate.js';
 export { createCertificationRequest } from './build/build-csr.js';
 export { canSign } from './crypto/webcrypto.js';
 export {
@@ -225,6 +224,7 @@ export type {
     ExtensionDescription,
     NameAttribute,
     NameDescription,
+    PkiBuildOptions,
 } from './types/build-types.js';
 export type { ExternalSigner, SignatureAlgorithm, SignatureHash, Signer, SigningKey } from './types/crypto-types.js';
 
@@ -235,7 +235,7 @@ export type { ExternalSigner, SignatureAlgorithm, SignatureHash, Signer, Signing
 
 export { parseSignedData } from './cms/cms-signed-data.js';
 export type {
-    CmsAttribute,
+    Attribute,
     EssCertId,
     ParseSignedDataOptions,
     SignedData,
@@ -244,7 +244,7 @@ export type {
     SigningCertificateAttribute,
 } from './types/cms-types.js';
 export { verifySignerInfoSignature } from './crypto/cms-verify.js';
-export type { VerifySignerInfoOptions } from './crypto/cms-verify.js';
+export type { VerifySignerInfoSignatureOptions } from './crypto/cms-verify.js';
 export { addTimeStampToken, addUnsignedAttribute, createSignedData } from './build/build-signed-data.js';
 export type { CreateSignedDataInput } from './build/build-signed-data.js';
 export { parseTstInfo } from './cms/tsp-tst-info.js';
@@ -261,9 +261,9 @@ export type {
     TstInfo,
 } from './types/tsp-types.js';
 export { verifySignedData } from './verify/verify-signed-data.js';
-export type { SignerVerification, VerifySignedDataInput, VerifySignedDataReport } from './verify/verify-signed-data.js';
+export type { SignerReport, VerifySignedDataInput, VerifySignedDataReport } from './verify/verify-signed-data.js';
 export { verifyTimeStampToken } from './verify/verify-timestamp.js';
-export type { VerifyTimeStampInput, VerifyTimeStampReport } from './verify/verify-timestamp.js';
+export type { VerifyTimeStampTokenInput, VerifyTimeStampTokenReport } from './verify/verify-timestamp.js';
 
 // ── 10. Private keys — PKCS#8 and PKCS#12, under PBES2 only ──────────
 // Reading in keys/, the password operations at the Web Crypto door, and the
@@ -285,10 +285,10 @@ export type {
     Pkcs12Mac,
     Pkcs12MacKind,
     PrivateKeyInfo,
-    PrivateKeyType,
+    PrivateKeyKind,
     SafeBag,
     SafeBagKind,
     SafeContentsInfo,
 } from './types/key-types.js';
-export { readPkcs12 } from './verify/verify-pkcs12.js';
-export type { Pkcs12Key, ReadPkcs12Options, ReadPkcs12Report } from './verify/verify-pkcs12.js';
+export { openPkcs12 } from './verify/verify-pkcs12.js';
+export type { Pkcs12Key, OpenPkcs12Options, OpenPkcs12Report } from './verify/verify-pkcs12.js';

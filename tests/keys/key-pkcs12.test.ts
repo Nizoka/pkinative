@@ -277,7 +277,7 @@ describe('parsePkcs12 — SafeBags (RFC 7292 §4.2)', () => {
     it('should describe a keyBag without exposing its secret', () => {
         const bag = firstBag(keyBag(PKCS8));
         expect(bag.kind).toBe('keyBag');
-        expect(bag.privateKey).toMatchObject({ keyType: 'ec', namedCurve: 'P-256', version: 0, diagnostics: [] });
+        expect(bag.privateKey).toMatchObject({ kind: 'ec', curve: 'P-256', version: 0, diagnostics: [] });
         expect(bag.privateKey).not.toHaveProperty('privateKey');
     });
 
@@ -366,9 +366,9 @@ describe('parsePkcs12 — SafeBags (RFC 7292 §4.2)', () => {
         expect(error).toEqual(expect.objectContaining({ code: 'PKI_ASN1_STRING_INVALID' }));
     });
 
-    it('should bound the bag attributes by maxCmsAttributes', () => {
-        expect(refuse(plain(certBag(CERT, [friendlyName('a'), friendlyName('b')])), { limits: { maxCmsAttributes: 1 } }))
-            .toEqual(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsAttributes' }));
+    it('should bound the bag attributes by maxAttributes', () => {
+        expect(refuse(plain(certBag(CERT, [friendlyName('a'), friendlyName('b')])), { limits: { maxAttributes: 1 } }))
+            .toEqual(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' }));
     });
 
     it('should bound the bags of one call by maxPkcs12Bags, nested and across SafeContents', () => {

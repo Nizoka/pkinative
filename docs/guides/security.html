@@ -157,7 +157,7 @@
       <td>The entries walked in one CRL — walked lazily, never decoded into nodes</td>
       </tr>
       <tr>
-      <td><code>maxOcspResponses</code></td>
+      <td><code>maxOcspSingleResponses</code></td>
       <td>256</td>
       <td>CWE-400</td>
       <td>The <code>SingleResponse</code> entries of one OCSP response</td>
@@ -175,13 +175,13 @@
       <td>The signers of one SignedData, each costing a signature verification</td>
       </tr>
       <tr>
-      <td><code>maxCmsAttributes</code></td>
+      <td><code>maxAttributes</code></td>
       <td>256</td>
       <td>CWE-400</td>
       <td>The attributes in one attribute set — a CMS signer&#39;s, a PKCS#8 key&#39;s, a PKCS#12 bag&#39;s</td>
       </tr>
       <tr>
-      <td><code>maxCmsBagEntries</code></td>
+      <td><code>maxCmsCertificatesAndCrls</code></td>
       <td>1 024</td>
       <td>CWE-400</td>
       <td>The certificates and revocation entries one SignedData carries</td>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkServerName, dnsMatches, type ServerIdentity } from '../../src/path/path-server-name.js';
+import { checkServerName, matchDnsName, type ServerIdentity } from '../../src/path/path-server-name.js';
 import type { Certificate, GeneralName } from '../../src/types/x509-types.js';
 
 /**
@@ -36,7 +36,7 @@ const address = (...bytes: readonly number[]): ServerIdentity => ({ kind: 'ip', 
 
 const codes = (reasons: readonly { code: string }[]): string[] => reasons.map((r) => r.code);
 
-describe('dnsMatches — RFC 6125 §6.4', () => {
+describe('matchDnsName — RFC 6125 §6.4', () => {
     it.each([
         // ── Exact ──
         { presented: 'example.com', reference: 'example.com', expected: true },
@@ -80,12 +80,12 @@ describe('dnsMatches — RFC 6125 §6.4', () => {
         { presented: '', reference: '', expected: false },
         { presented: '', reference: 'example.com', expected: false },
     ])('$presented vs $reference → $expected', ({ presented, reference, expected }) => {
-        expect(dnsMatches(presented, reference)).toBe(expected);
+        expect(matchDnsName(presented, reference)).toBe(expected);
     });
 
     it('should refuse every wildcard when wildcards are turned off', () => {
-        expect(dnsMatches('*.example.com', 'host.example.com', false)).toBe(false);
-        expect(dnsMatches('example.com', 'example.com', false)).toBe(true);
+        expect(matchDnsName('*.example.com', 'host.example.com', { allowWildcards: false })).toBe(false);
+        expect(matchDnsName('example.com', 'example.com', { allowWildcards: false })).toBe(true);
     });
 });
 

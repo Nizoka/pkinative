@@ -601,7 +601,7 @@ import {
     getExtension,
     KEY_USAGE_BITS,
     parseCertificate,
-    signatureAlgorithmDer,
+    encodeSignatureAlgorithm,
     verifyCertificateSignature,
     verifySelfSignature,
     type GeneralNameDescription,
@@ -707,7 +707,7 @@ export default async function run(): Promise<Record<string, string>> {
         hex(encodeExtensions([{ oid: '2.5.29.19', value: encodeBasicConstraints({ cA: false }) }])),
         hex(encodeAttribute('1.2.3', [encodeBasicConstraints({ cA: false })])),
         hex(encodeSubjectPublicKeyInfo('1.3.101.112', new Uint8Array(4)).subarray(0, 2)),
-        hex(signatureAlgorithmDer(ca.signer)),
+        hex(encodeSignatureAlgorithm(ca.signer)),
     ].join(' ');
 
     return {
@@ -746,7 +746,7 @@ import {
     parseCertificate,
     verifyCertificateChain,
     type Certificate,
-    type VerifyChainReport,
+    type VerifyCertificateChainReport,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
@@ -759,7 +759,7 @@ const intermediate = load('lets-encrypt-r12');
 const at = Date.UTC(2026, 9, 1);
 
 /** `ok` when nothing is wrong, the reason codes otherwise. */
-const summarise = (report: VerifyChainReport): string =>
+const summarise = (report: VerifyCertificateChainReport): string =>
     report.reasons.map((reason) => reason.code).join(',') || `ok, ${String(report.path.length)} certificates`;
 
 export default async function run(): Promise<Record<string, string>> {
@@ -816,7 +816,7 @@ export default async function run(): Promise<Record<string, string>> {
     // response at all, which is reported rather than thrown.
     const badOcsp = await verifyCertificateChain({
         leaf: intermediate, trustAnchors: [root], at,
-        ocsp: [Uint8Array.of(0x30, 0x80, 0x00)],
+        ocspResponses: [Uint8Array.of(0x30, 0x80, 0x00)],
     });
 
     return {
@@ -824,7 +824,7 @@ export default async function run(): Promise<Record<string, string>> {
         // How many signatures the call had to compute. A number far above the
         // path length is what a bag full of plausible issuers looks like, which
         // is what a caller passing a whole trust store will see.
-        verified: String(real.verified),
+        signatureVerifications: String(real.signatureVerifications),
         untrusted: summarise(untrusted),
         expired: summarise(late),
         wrongHost: summarise(wrongHost),
@@ -863,8 +863,8 @@ import {
     validateCertificatePath,
     verifyCertificateSignature,
     type Certificate,
-    type PathBuildReport,
-    type PathValidationReport,
+    type BuildCertificatePathReport,
+    type ValidateCertificatePathReport,
     type SignatureResult,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
@@ -887,7 +887,7 @@ async function verdicts(chain: readonly Certificate[]): Promise<SignatureResult[
     }));
 }
 
-const summarise = (report: PathValidationReport | PathBuildReport): string =>
+const summarise = (report: ValidateCertificatePathReport | BuildCertificatePathReport): string =>
     report.valid ? `valid, ${String(report.path.length)} certificates` : report.reasons.map((r) => r.code).join(',');
 
 export default async function run(): Promise<Record<string, string>> {
@@ -900,7 +900,7 @@ export default async function run(): Promise<Record<string, string>> {
     const chain = [intermediate, root];
     const trusted = await verdicts(chain);
 
-    const good = validateCertificatePath({ certificates: chain, trustAnchors: [root], at, signatures: trusted });
+    const good = validateCertificatePath({ path: chain, trustAnchors: [root], at, signatures: trusted });
 
     // A chain that stops one short of its root is still anchored when its last
     // certificate names a trusted subject — most servers send it this way, and
@@ -909,24 +909,24 @@ export default async function run(): Promise<Record<string, string>> {
     // the state FROM it, so its name constraints, its basicConstraints and its
     // keyUsage all bind what it issued, and a path that omitted it would be
     // claiming those were never applied.
-    const short = validateCertificatePath({ certificates: [intermediate], trustAnchors: [root], at, signatures: trusted });
+    const short = validateCertificatePath({ path: [intermediate], trustAnchors: [root], at, signatures: trusted });
 
     // No anchor at all is an answer, not an exception.
-    const untrusted = validateCertificatePath({ certificates: chain, trustAnchors: [], at, signatures: trusted });
+    const untrusted = validateCertificatePath({ path: chain, trustAnchors: [], at, signatures: trusted });
 
     // Expired, and asked for a decade too late. Note that the report carries
     // both the time reason and the anchor reason, not just the first.
-    const late = validateCertificatePath({ certificates: chain, trustAnchors: [root], at: Date.UTC(2040, 0, 1), signatures: trusted });
+    const late = validateCertificatePath({ path: chain, trustAnchors: [root], at: Date.UTC(2040, 0, 1), signatures: trusted });
 
     // Forget to supply a verdict and you get NOT_CHECKED, never a pass. A
     // validator that read silence as success would pass whenever a caller
     // forgot to verify anything.
-    const unverified = validateCertificatePath({ certificates: chain, trustAnchors: [root], at });
+    const unverified = validateCertificatePath({ path: chain, trustAnchors: [root], at });
 
     // A leaf is not a CA, so it may not issue: this is the check whose absence
     // was the 2008 Basic Constraints attack.
     const leaf = load('letsencrypt-org-leaf');
-    const forged = validateCertificatePath({ certificates: [root, leaf], trustAnchors: [leaf], at, signatures: [{ certificate: root, verdict: 'valid' }] });
+    const forged = validateCertificatePath({ path: [root, leaf], trustAnchors: [leaf], at, signatures: [{ certificate: root, verdict: 'valid' }] });
 
     // A caller with an unordered bag rather than a chain uses the builder,
     // which searches with backtracking. Cross-signing means one subject name can
@@ -975,7 +975,7 @@ export default async function run(): Promise<Record<string, string>> {
  *
  * Every line below that refuses is a shape some implementation has accepted.
  */
-import { checkServerName, dnsMatches, parseCertificate, type Certificate, type CheckServerNameOptions, type ServerIdentity } from 'pkinative';
+import { checkServerName, matchDnsName, parseCertificate, type Certificate, type CheckServerNameOptions, type ServerIdentity } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
 const leaf: Certificate = parseCertificate(fixture('letsencrypt-org-leaf'), { onDiagnostic: (): undefined => undefined });
@@ -1014,15 +1014,15 @@ export default function run(): Record<string, string> {
         // matching two labels are all refused; `*.example.com` does not match
         // `example.com`. `*.com` is refused outright, because the correct test
         // is a public suffix list and pkinative will not carry one stale.
-        wildcardOneLabel: String(dnsMatches('*.bank.example', 'www.bank.example')),
-        wildcardNotTheParent: String(dnsMatches('*.bank.example', 'bank.example')),
-        wildcardNotTwoLabels: String(dnsMatches('*.bank.example', 'a.b.bank.example')),
-        wildcardNotPartial: String(dnsMatches('w*.bank.example', 'www.bank.example')),
-        wildcardNotRegistry: String(dnsMatches('*.example', 'bank.example')),
+        wildcardOneLabel: String(matchDnsName('*.bank.example', 'www.bank.example')),
+        wildcardNotTheParent: String(matchDnsName('*.bank.example', 'bank.example')),
+        wildcardNotTwoLabels: String(matchDnsName('*.bank.example', 'a.b.bank.example')),
+        wildcardNotPartial: String(matchDnsName('w*.bank.example', 'www.bank.example')),
+        wildcardNotRegistry: String(matchDnsName('*.example', 'bank.example')),
         // An internal PKI that issues no wildcards should accept none, which is
         // what `allowWildcards: false` is for. It is the one option here whose
         // default is permissive, because the public web runs on wildcards.
-        wildcardsOff: String(dnsMatches('*.bank.example', 'www.bank.example', false)),
+        wildcardsOff: String(matchDnsName('*.bank.example', 'www.bank.example', { allowWildcards: false })),
         exactStillMatchesWithWildcardsOff: check(host('www.letsencrypt.org'), { allowWildcards: false }),
 
         // ── The commonName fallback rescues nothing here ──
@@ -1073,7 +1073,7 @@ import {
     KEY_PURPOSES,
     parseCertificate,
     type Certificate,
-    type CheckPurposeOptions,
+    type CheckExtendedKeyUsageOptions,
 } from 'pkinative';
 import { fixture } from './_fixtures.js';
 
@@ -1090,7 +1090,7 @@ const purposes = (certificate: Certificate): string =>
     getExtension(certificate, 'extendedKeyUsage')?.purposes.join('+') ?? '(none)';
 
 /** `'ok'` when every certificate permits the purpose, the refused paths otherwise. */
-const check = (purpose: string, options?: CheckPurposeOptions): string =>
+const check = (purpose: string, options?: CheckExtendedKeyUsageOptions): string =>
     checkExtendedKeyUsage(path, purpose, options).map((reason) => reason.path).join(' ') || 'ok';
 
 export default function run(): Record<string, string> {
@@ -1123,7 +1123,7 @@ export default function run(): Record<string, string> {
         issuersIgnored: check(KEY_PURPOSES.codeSigning, { restrictIssuers: false }),
 
         // An absent extKeyUsage means unrestricted, which is why the root does
-        // not appear above. `requireExplicit` is the stricter Web PKI reading —
+        // not appear above. `requireExplicitPurpose` is the stricter Web PKI reading —
         // a server certificate that does not say serverAuth is not a server
         // certificate — and it applies to the end entity only: requiring every
         // CA to enumerate the purposes of everything it may ever issue is not a
@@ -1136,7 +1136,7 @@ export default function run(): Record<string, string> {
         // them, and taking it is one comparison on `purposes`.
         anyMeansEvery: ANY_EXTENDED_KEY_USAGE,
         leafDoesNotClaimAny: String(getExtension(leaf, 'extendedKeyUsage')?.purposes.includes(ANY_EXTENDED_KEY_USAGE) === true),
-        explicitRequired: checkExtendedKeyUsage([root], KEY_PURPOSES.codeSigning, { requireExplicit: true })
+        explicitRequired: checkExtendedKeyUsage([root], KEY_PURPOSES.codeSigning, { requireExplicitPurpose: true })
             .map((reason) => reason.code).join(',') || 'ok',
     };
 }
@@ -1177,7 +1177,7 @@ import {
     type Certificate,
     type CertificateList,
     type CrlReason,
-    type RevocationCheckInput,
+    type CheckRevocationInput,
     type RevokedCertificate,
 } from 'pkinative';
 
@@ -1283,10 +1283,10 @@ export default async function run(): Promise<Record<string, string>> {
     // which is what keeps it synchronous and free of Web Crypto.
     const listed = await certificate(2n);
     const absent = await certificate(0x42n);
-    const ask = (subject: Certificate, overrides: Partial<RevocationCheckInput> = {}): string => {
+    const ask = (subject: Certificate, overrides: Partial<CheckRevocationInput> = {}): string => {
         const found = checkRevocation({
             certificate: subject, crl, crlDer: der, at: THIS_UPDATE + DAY,
-            signatureVerified: true, options: { onDiagnostic: () => undefined },
+            signatureVerified: true, onDiagnostic: () => undefined,
             ...overrides,
         });
         return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');
@@ -1350,7 +1350,7 @@ import {
     createOcspRequest,
     decodeAsn1,
     encodeBasicConstraints,
-    encodeCertId,
+    encodeOcspCertId,
     encodeOctetString,
     encodeSequence,
     encodeTime,
@@ -1360,7 +1360,7 @@ import {
     verifyOcspSignature,
     type Certificate,
     type OcspBasicResponse,
-    type OcspCheckInput,
+    type CheckOcspStatusInput,
     type OcspHashAlgorithm,
     type OcspResponse,
     type OcspSingleResponse,
@@ -1403,7 +1403,7 @@ function concat(...parts: readonly Uint8Array[]): Uint8Array {
 
 /** One `SingleResponse` about `R12` under `ROOT`. */
 const single = (status: Uint8Array, id?: Uint8Array): Uint8Array => encodeSequence([
-    id ?? encodeCertId(R12, ROOT),
+    id ?? encodeOcspCertId(R12, ROOT),
     status,
     encodeTime(PRODUCED_AT, 'GeneralizedTime'),
 ]);
@@ -1448,7 +1448,7 @@ export default async function run(): Promise<Record<string, string>> {
     const request = createOcspRequest(R12, ROOT, { nonce });
     const tbsRequest = decodeAsn1(request, QUIET).children[0];
 
-    const certId = decodeAsn1(encodeCertId(R12, ROOT), QUIET);
+    const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), QUIET);
     const nameHash = certId.children[1]?.content ?? new Uint8Array(0);
     const keyHash = certId.children[2]?.content ?? new Uint8Array(0);
 
@@ -1456,7 +1456,7 @@ export default async function run(): Promise<Record<string, string>> {
     // makes it mandatory for responders, and a SHA-256 CertID comes back
     // `unknown` from many of them — which a client must not read as "good".
     const wider: OcspHashAlgorithm = 'SHA-256';
-    const sha256Id = decodeAsn1(encodeCertId(R12, ROOT, wider), QUIET);
+    const sha256Id = decodeAsn1(encodeOcspCertId(R12, ROOT, wider), QUIET);
 
     // ── The responses ──
     // `generateKey` is typed as returning `CryptoKey | CryptoKeyPair` for an
@@ -1501,11 +1501,11 @@ export default async function run(): Promise<Record<string, string>> {
         issuerKeyHash: computeFingerprint(ROOT.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1'),
         serialNumber: R12.serialNumber.bytes,
     };
-    const decide = (der: Uint8Array, overrides: Partial<OcspCheckInput> = {}): string => {
+    const decide = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): string => {
         const found = checkOcspStatus({
             response: parseOcspResponse(der, QUIET),
             expected, at: PRODUCED_AT + 3600_000,
-            signatureVerified: true, responderAuthorised: true,
+            signatureVerified: true, responderAuthorized: true,
             ...overrides,
         });
         return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');
@@ -1531,7 +1531,7 @@ export default async function run(): Promise<Record<string, string>> {
         nonceOid: OCSP_NONCE_OID,
         decisionClean: decide(goodDer),
         decisionUnsigned: decide(goodDer, { signatureVerified: undefined }),
-        decisionUnauthorised: decide(goodDer, { responderAuthorised: false }),
+        decisionUnauthorised: decide(goodDer, { responderAuthorized: false }),
         decisionSubstituted: decide(substituted),
         decisionDeclined: decide(declines(3)),
         nonceEchoed: hex(nonce),
@@ -1743,7 +1743,7 @@ export default async function run(): Promise<Record<string, string>> {
 
     return {
         available: 'yes',
-        detached: `valid=${String(good.valid)} intact=${String(good.signers[0]?.intact)} verified=${String(good.verified)}`,
+        detached: `valid=${String(good.valid)} intact=${String(good.signers[0]?.intact)} signatureVerifications=${String(good.signatureVerifications)}`,
         attached: `valid=${String(attached.valid)} content=${new TextDecoder().decode(attached.signedData?.content)}`,
         missing: codes(missing),
         tampered: `intact=${String(tampered.signers[0]?.intact)} ${codes(tampered)}`,
@@ -1968,8 +1968,8 @@ import {
     type TimeStampResponse,
     type TimeStampToken,
     type TstInfo,
-    type VerifyTimeStampInput,
-    type VerifyTimeStampReport,
+    type VerifyTimeStampTokenInput,
+    type VerifyTimeStampTokenReport,
 } from 'pkinative';
 
 const NOW = Date.UTC(2026, 0, 15);
@@ -2068,8 +2068,8 @@ export default async function run(): Promise<Record<string, string>> {
     // ── Judge the token ──
     // `request` is the strongest way to say what was stamped — the only one
     // that catches a replayed response. `data` and `imprint` are the others.
-    const ask: VerifyTimeStampInput = { token: tokenDer, request, trustAnchors: [root], at: NOW };
-    const stamp: VerifyTimeStampReport = await verifyTimeStampToken(ask);
+    const ask: VerifyTimeStampTokenInput = { token: tokenDer, request, trustAnchors: [root], at: NOW };
+    const stamp: VerifyTimeStampTokenReport = await verifyTimeStampToken(ask);
     // Yesterday's answer, replayed against a new request with a new nonce.
     const replayed = await verifyTimeStampToken({ ...ask, request: createTimeStampRequest(imprint, { nonce: nonce ^ 1n }) });
     // A token over something else: the document instead of the signature value.
@@ -2272,7 +2272,7 @@ export default async function run(): Promise<Record<string, string>> {
 
     return {
         available: 'yes',
-        info: `v${String(info.version)} ${info.keyType} ${String(info.namedCurve)} attributes=${String(info.attributes.length)} publicKey=${String(info.publicKey !== undefined)}`,
+        info: `v${String(info.version)} ${info.kind} ${String(info.curve)} attributes=${String(info.attributes.length)} publicKey=${String(info.publicKey !== undefined)}`,
         imported: `${imported.algorithm.name} ${'hash' in imported.algorithm ? imported.algorithm.hash : ''} ${handle(imported)}`,
         rsaUnnamed,
         rsa: `${rsaKey.algorithm.name} ${'hash' in rsaKey.algorithm ? rsaKey.algorithm.hash : ''}`,
@@ -2299,7 +2299,7 @@ export default async function run(): Promise<Record<string, string>> {
  * primitives underneath — and read the files pkinative describes but will
  * not open.
  *
- * `readPkcs12` is the call most code wants: a password in, the signing key
+ * `openPkcs12` is the call most code wants: a password in, the signing key
  * and its certificate out, and a report that says what could not be opened
  * instead of an exception about the first thing. Three rules shape it.
  * **A key never exists in plaintext here**: Web Crypto unwraps it straight
@@ -2340,14 +2340,14 @@ import {
     parsePkcs12,
     parseSignedData,
     PkiKeyError,
-    readPkcs12,
+    openPkcs12,
     verifyPkcs12Mac,
     verifySignerInfoSignature,
     type Pkcs12,
     type PkiDiagnostic,
     type PkiKeyErrorCode,
-    type ReadPkcs12Options,
-    type ReadPkcs12Report,
+    type OpenPkcs12Options,
+    type OpenPkcs12Report,
     type SafeBag,
     type SafeContentsInfo,
     type SigningKey,
@@ -2381,7 +2381,7 @@ const handle = (signer: SigningKey): string => {
     const key = signer.key as unknown as { readonly extractable: boolean; readonly usages: readonly string[] };
     return `extractable=${String(key.extractable)} usages=${key.usages.join(',')}`;
 };
-const codes = (report: ReadPkcs12Report): string => report.reasons.map((reason) => `${reason.code}@${reason.path}`).join(' ') || 'none';
+const codes = (report: OpenPkcs12Report): string => report.reasons.map((reason) => `${reason.code}@${reason.path}`).join(' ') || 'none';
 
 // ── A small PKCS#12 writer (RFC 7292, RFC 8018, RFC 9579) ──
 
@@ -2474,14 +2474,14 @@ async function material(): Promise<Material> {
 }
 
 export default async function run(): Promise<Record<string, string>> {
-    // Without Web Crypto nothing in a PKCS#12 can be opened; readPkcs12 would throw PKI_CRYPTO_UNAVAILABLE.
+    // Without Web Crypto nothing in a PKCS#12 can be opened; openPkcs12 would throw PKI_CRYPTO_UNAVAILABLE.
     if (!canDecrypt() || !canSign()) return { available: 'no' };
     const keys = await material();
     const modern = await writePfx(keys, { scheme: 'pbes2', mac: 'pbmac1' });
 
     // ── One call ──
-    const options: ReadPkcs12Options = { password: PASSWORD };
-    const report = await readPkcs12(modern, options);
+    const options: OpenPkcs12Options = { password: PASSWORD };
+    const report = await openPkcs12(modern, options);
     const [entry] = report.keys;
 
     // The key is ready to sign, and cannot give its bits back to anyone.
@@ -2490,18 +2490,18 @@ export default async function run(): Promise<Record<string, string>> {
     const signerInfo = parseSignedData(p7s).signerInfos[0]!;
 
     // A wrong password fails the MAC, and nothing is decrypted after it.
-    const wrong = await readPkcs12(modern, { password: 'Correct horse battery staple' });
+    const wrong = await openPkcs12(modern, { password: 'Correct horse battery staple' });
 
     // ── A MAC nobody here can check ──
     // The shape of most .p12 files in circulation. The contents are read and
     // reported; `valid` stays false until you waive the check, knowingly.
     const unverifiable = await writePfx(keys, { scheme: 'pbes2', mac: 'appendix-b' });
-    const closed = await readPkcs12(unverifiable, { password: PASSWORD });
-    const waived = await readPkcs12(unverifiable, { password: PASSWORD, allowUnverifiedIntegrity: true });
+    const closed = await openPkcs12(unverifiable, { password: PASSWORD });
+    const waived = await openPkcs12(unverifiable, { password: PASSWORD, allowUnverifiedIntegrity: true });
     // With no MAC to fail first, a wrong password surfaces where it bites:
     // the encrypted certificates will not decrypt, and the key, whose
     // certificate was among them, has no algorithm to be unwrapped as.
-    const guessed = await readPkcs12(unverifiable, { password: 'Correct horse battery staple', allowUnverifiedIntegrity: true });
+    const guessed = await openPkcs12(unverifiable, { password: 'Correct horse battery staple', allowUnverifiedIntegrity: true });
 
     // ── The primitives underneath ──
     // parsePkcs12 needs no password: it says what is encrypted, with what,
@@ -2544,7 +2544,7 @@ export default async function run(): Promise<Record<string, string>> {
         if (!(error instanceof PkiKeyError)) throw error;
         macRefused = error.code;
     }
-    const legacyReport = await readPkcs12(legacy, { password: PASSWORD, allowUnverifiedIntegrity: true });
+    const legacyReport = await openPkcs12(legacy, { password: PASSWORD, allowUnverifiedIntegrity: true });
 
     return {
         available: 'yes',

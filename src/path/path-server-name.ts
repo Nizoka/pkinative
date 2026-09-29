@@ -74,6 +74,16 @@ export interface CheckServerNameOptions {
     readonly allowWildcards?: boolean | undefined;
 }
 
+/** Options of {@link matchDnsName}. */
+export interface MatchDnsNameOptions {
+    /**
+     * Let a wildcard match at all. On by default, as in
+     * {@link CheckServerNameOptions}; `false` refuses every presented name
+     * that carries a `*`.
+     */
+    readonly allowWildcards?: boolean | undefined;
+}
+
 /** `2.5.4.3`, commonName. */
 const OID_COMMON_NAME = '2.5.4.3';
 
@@ -113,10 +123,10 @@ export function checkServerName(
     // RFC 6125 leaves it open.
     const sanIsAuthoritative = names.some((name) => name.kind === 'dNSName' || name.kind === 'iPAddress');
 
-    const wildcards = options?.allowWildcards !== false;
+    const dns: MatchDnsNameOptions = { allowWildcards: options?.allowWildcards !== false };
     if (sanIsAuthoritative) {
         for (const name of names) {
-            if (matches(name, identity, wildcards)) return [];
+            if (matches(name, identity, dns)) return [];
         }
         return [nameMismatchReason('certificate.subjectAltName', identityText(identity), listed(names))];
     }
@@ -130,18 +140,18 @@ export function checkServerName(
     }
 
     for (const common of commonNames(certificate)) {
-        if (identity.kind === 'dns' && dnsMatches(common, identity.value, wildcards)) return [];
+        if (identity.kind === 'dns' && matchDnsName(common, identity.value, dns)) return [];
     }
     return [nameMismatchReason('certificate.subject', identityText(identity), `commonName ${commonNames(certificate).map((c) => JSON.stringify(c)).join(', ') || '(none)'}`)];
 }
 
 /** One GeneralName against the identity. Forms never cross. */
-function matches(name: GeneralName, identity: ServerIdentity, wildcards: boolean): boolean {
+function matches(name: GeneralName, identity: ServerIdentity, dns: MatchDnsNameOptions): boolean {
     if (identity.kind === 'dns') {
         // An IP reference never matches a dNSName and a DNS reference never
         // matches an iPAddress: `1.2.3.4` written as a DNS name is a whole
         // class of bypass.
-        return name.kind === 'dNSName' && dnsMatches(name.value, identity.value, wildcards);
+        return name.kind === 'dNSName' && matchDnsName(name.value, identity.value, dns);
     }
     return name.kind === 'iPAddress' && sameBytes(name.bytes, identity.value);
 }
@@ -156,11 +166,11 @@ function fold(text: string): string {
  *
  * @param presented The certificate's name, possibly a wildcard.
  * @param reference The host the caller asked about.
- * @param wildcards Whether a wildcard may match at all.
+ * @param options   `allowWildcards: false` refuses every wildcard; on by default.
  * @returns Whether they identify the same host.
  * @throws Never — every string is either a match or not one.
  */
-export function dnsMatches(presented: string, reference: string, wildcards = true): boolean {
+export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean {
     // An empty or NUL-bearing name identifies nothing. Exact comparison would
     // already refuse them, but saying so here makes the intent explicit — a
     // NUL in a certificate name is CVE-2009-2408's whole mechanism.
@@ -169,7 +179,7 @@ export function dnsMatches(presented: string, reference: string, wildcards = tru
     const host = fold(stripTrailingDot(reference));
     const pattern = fold(stripTrailingDot(presented));
     if (!pattern.includes('*')) return pattern === host;
-    if (!wildcards) return false;
+    if (options?.allowWildcards === false) return false;
 
     const labels = pattern.split('.');
     const first = labels[0] as string;

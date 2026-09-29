@@ -33,9 +33,9 @@ import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { EncodingRules, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
-import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyChainReport } from './verify-chain.js';
+import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyCertificateChainReport } from './verify-chain.js';
 import { _under, _verifySigner } from './verify-signer.js';
-import { _parseBag, verifyTimeStampToken, type VerifyTimeStampReport } from './verify-timestamp.js';
+import { _parseBag, verifyTimeStampToken, type VerifyTimeStampTokenReport } from './verify-timestamp.js';
 
 /** What to verify a signed message against. */
 export interface VerifySignedDataInput {
@@ -62,7 +62,7 @@ export interface VerifySignedDataInput {
     /** CRLs, as DER, added to those the message carries. */
     readonly crls?: readonly Uint8Array[] | undefined;
     /** OCSP responses, as DER, added to those the message carries. */
-    readonly ocsp?: readonly Uint8Array[] | undefined;
+    readonly ocspResponses?: readonly Uint8Array[] | undefined;
     /** Report `PKI_REASON_REVOCATION_UNKNOWN` when nothing covered a signer's certificate. Off by default, as for a chain. */
     readonly requireRevocation?: boolean | undefined;
     /** The instant to judge the chains at. Now by default. */
@@ -99,7 +99,7 @@ export interface VerifySignedDataInput {
 }
 
 /** The verdict on one signer. */
-export interface SignerVerification {
+export interface SignerReport {
     /** The signer's position in `signerInfos`, in encoded order. */
     readonly index: number;
     /** Whether this signer is valid: intact, timestamps valid, and chaining to a trusted anchor. */
@@ -117,9 +117,9 @@ export interface SignerVerification {
     /** The time the signer **claims** it signed. Nothing vouches for it; see `timeStamps` for a time that is proved. */
     readonly signingTime: PkiTime | undefined;
     /** Each RFC 3161 timestamp over this signer's signature, verified. */
-    readonly timeStamps: readonly VerifyTimeStampReport[];
+    readonly timeStamps: readonly VerifyTimeStampTokenReport[];
     /** The signer's chain, judged; `undefined` when there was no certificate to judge. */
-    readonly chain: VerifyChainReport | undefined;
+    readonly chain: VerifyCertificateChainReport | undefined;
     /** Every reason this signer is not valid, with paths under `signerInfos[i]`. */
     readonly reasons: readonly PkiReason[];
 }
@@ -131,11 +131,11 @@ export interface VerifySignedDataReport {
     /** The message, parsed; `undefined` when it could not be read. */
     readonly signedData: SignedData | undefined;
     /** One verdict per signer, in encoded order. */
-    readonly signers: readonly SignerVerification[];
+    readonly signers: readonly SignerReport[];
     /** Every reason, from every signer and from the message itself. */
     readonly reasons: readonly PkiReason[];
     /** How many signature verifications this cost, chains and timestamps included. */
-    readonly verified: number;
+    readonly signatureVerifications: number;
 }
 
 /**
@@ -185,7 +185,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
         });
     } catch (error) {
         const refused = _pkiError(error);
-        return Object.freeze({ valid: false, signedData: undefined, signers: [], reasons: Object.freeze([inputMalformedReason(refused.code, refused.message, 'signedData')]), verified: 0 });
+        return Object.freeze({ valid: false, signedData: undefined, signers: [], reasons: Object.freeze([inputMalformedReason(refused.code, refused.message, 'signedData')]), signatureVerifications: 0 });
     }
     if (signedData.content !== undefined && (input.content !== undefined || input.contentDigest !== undefined)) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: this message carries its own content, so the content or digest passed alongside it is ambiguous — drop it, or verify the message whose content is detached');
@@ -194,13 +194,13 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     if (signedData.signerInfos.length === 0) {
         // `[].every(valid)` is true, and a verifier written that way calls a
         // certificate bundle a valid signature. It is not one.
-        return Object.freeze({ valid: false, signedData, signers: [], reasons: Object.freeze([cmsNoSignersReason('signerInfos')]), verified: 0 });
+        return Object.freeze({ valid: false, signedData, signers: [], reasons: Object.freeze([cmsNoSignersReason('signerInfos')]), signatureVerifications: 0 });
     }
 
     const reading = { limits: input.limits ?? {} };
     const { candidates, unreadable } = _parseBag(signedData.certificates, input.certificates ?? [], reading);
-    const signers: SignerVerification[] = [];
-    let verified = 0;
+    const signers: SignerReport[] = [];
+    let signatureVerifications = 0;
     for (const [index, signer] of signedData.signerInfos.entries()) {
         const path = `signerInfos[${String(index)}]`;
         const outcome = await _verifySigner({
@@ -213,13 +213,13 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
             requireSigningCertificate: input.requireSigningCertificate === true,
             requireAlgorithmProtection: input.requireAlgorithmProtection === true,
         }, signer, path);
-        verified += outcome.verified;
+        signatureVerifications += outcome.signatureVerifications;
         const reasons: PkiReason[] = [...outcome.reasons];
 
         // A timestamp over this signer's signature proves when it existed — and
         // a present one that does not verify is the message claiming a time it
         // cannot prove, which makes the signer invalid, not merely unstamped.
-        const timeStamps: VerifyTimeStampReport[] = [];
+        const timeStamps: VerifyTimeStampTokenReport[] = [];
         for (const [position, token] of signer.timeStampTokens.entries()) {
             const stamp = await verifyTimeStampToken({
                 token,
@@ -227,18 +227,18 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 certificates: candidates,
                 trustAnchors: input.trustAnchors,
                 ...(input.crls === undefined ? {} : { crls: input.crls }),
-                ...(input.ocsp === undefined ? {} : { ocsp: input.ocsp }),
+                ...(input.ocspResponses === undefined ? {} : { ocspResponses: input.ocspResponses }),
                 ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
                 ...(input.at === undefined ? {} : { at: input.at }),
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
             });
-            verified += stamp.verified;
+            signatureVerifications += stamp.signatureVerifications;
             timeStamps.push(stamp);
             reasons.push(...stamp.reasons.map((reason) => _under(`${path}.unsignedAttrs.timeStampToken[${String(position)}]`, reason)));
         }
 
-        let chain: VerifyChainReport | undefined;
+        let chain: VerifyCertificateChainReport | undefined;
         const certificate = outcome.certificate;
         if (certificate !== undefined) {
             chain = await verifyCertificateChain({
@@ -248,12 +248,12 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 at: _instant(input, timeStamps),
                 ...(input.purposes === undefined ? {} : { purposes: input.purposes }),
                 crls: [...signedData.crls, ...(input.crls ?? [])],
-                ocsp: [...signedData.ocspResponses, ...(input.ocsp ?? [])],
+                ocspResponses: [...signedData.ocspResponses, ...(input.ocspResponses ?? [])],
                 ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
             });
-            verified += chain.verified;
+            signatureVerifications += chain.signatureVerifications;
             reasons.push(...chain.reasons.map((reason) => _under(`${path}.chain`, reason)));
         }
 
@@ -275,7 +275,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
         signedData,
         signers: Object.freeze(signers),
         reasons: Object.freeze(reasons),
-        verified,
+        signatureVerifications,
     });
 }
 
@@ -288,7 +288,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
  * may be as late as genTime plus the declared accuracy, and a certificate that
  * expired inside that window is not proved to have been valid.
  */
-function _instant(input: VerifySignedDataInput, stamps: readonly VerifyTimeStampReport[]): number {
+function _instant(input: VerifySignedDataInput, stamps: readonly VerifyTimeStampTokenReport[]): number {
     const proved = stamps.flatMap((stamp) => (stamp.valid && stamp.latest !== undefined ? [stamp.latest] : []));
     if (input.atTimeStamp === true && proved.length > 0) return Math.min(...proved);
     return input.at ?? Date.now();

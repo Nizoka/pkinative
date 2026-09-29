@@ -6,7 +6,7 @@ import { encodeBasicConstraints } from '../../src/build/build-structures.js';
 import { verifyOcspSignature } from '../../src/crypto/x509-verify.js';
 import { sha1 } from '../../src/hash/sha1.js';
 import { sha256 } from '../../src/hash/sha256.js';
-import { createOcspRequest, encodeCertId } from '../../src/revocation/ocsp-request.js';
+import { createOcspRequest, encodeOcspCertId } from '../../src/revocation/ocsp-request.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
@@ -34,9 +34,9 @@ const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).
 
 // ── The request ──────────────────────────────────────────────────────
 
-describe('encodeCertId', () => {
+describe('encodeOcspCertId', () => {
     it('should hash the issuer’s encoded Name, not a rendering of it', () => {
-        const certId = decodeAsn1(encodeCertId(R12, ROOT), quiet);
+        const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), quiet);
         const nameHash = certId.children[1]?.content;
         expect(hex(nameHash ?? new Uint8Array(0))).toBe(hex(sha1(ROOT.subject.der)));
     });
@@ -44,35 +44,35 @@ describe('encodeCertId', () => {
     it('should hash the public key BITS, never the SubjectPublicKeyInfo', () => {
         // The single most common OCSP client bug. Hashing the SPKI produces a
         // request the responder answers `unknown` to.
-        const certId = decodeAsn1(encodeCertId(R12, ROOT), quiet);
+        const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), quiet);
         const keyHash = certId.children[2]?.content;
         expect(hex(keyHash ?? new Uint8Array(0))).toBe(hex(sha1(ROOT.subjectPublicKeyInfo.publicKey.bytes)));
         expect(hex(keyHash ?? new Uint8Array(0))).not.toBe(hex(sha1(ROOT.subjectPublicKeyInfo.der)));
     });
 
     it('should carry the subject certificate’s serial, not the issuer’s', () => {
-        const certId = decodeAsn1(encodeCertId(R12, ROOT), quiet);
+        const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), quiet);
         expect(hex(certId.children[3]?.content ?? new Uint8Array(0))).toBe(R12.serialNumber.hex);
     });
 
     it('should name SHA-1 with an explicit NULL parameter', () => {
         // RFC 5754 says SHOULD omit; real responders answer `unknown` to the
         // absent form often enough that NULL is the interoperable choice.
-        const certId = decodeAsn1(encodeCertId(R12, ROOT), quiet);
+        const certId = decodeAsn1(encodeOcspCertId(R12, ROOT), quiet);
         const algorithm = certId.children[0];
         expect(algorithm?.children).toHaveLength(2);
         expect(algorithm?.children[1]?.tagNumber).toBe(5);
     });
 
     it('should use SHA-256 when asked', () => {
-        const certId = decodeAsn1(encodeCertId(R12, ROOT, 'SHA-256'), quiet);
+        const certId = decodeAsn1(encodeOcspCertId(R12, ROOT, 'SHA-256'), quiet);
         expect(hex(certId.children[1]?.content ?? new Uint8Array(0))).toBe(hex(sha256(ROOT.subject.der)));
         expect(certId.children[1]?.content).toHaveLength(32);
     });
 
     it.each([
-        { what: 'certificate', call: (): unknown => encodeCertId(new Uint8Array(4) as never, ROOT) },
-        { what: 'issuer', call: (): unknown => encodeCertId(R12, 'not a certificate' as never) },
+        { what: 'certificate', call: (): unknown => encodeOcspCertId(new Uint8Array(4) as never, ROOT) },
+        { what: 'issuer', call: (): unknown => encodeOcspCertId(R12, 'not a certificate' as never) },
     ])('should refuse raw bytes for $what', ({ call }) => {
         expect(call).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
@@ -91,7 +91,7 @@ describe('createOcspRequest', () => {
         const request = decodeAsn1(createOcspRequest(R12, ROOT), quiet);
         const list = request.children[0]?.children[0];
         expect(list?.children).toHaveLength(1);
-        expect(hex(list?.children[0]?.children[0]?.bytes ?? new Uint8Array(0))).toBe(hex(encodeCertId(R12, ROOT)));
+        expect(hex(list?.children[0]?.children[0]?.bytes ?? new Uint8Array(0))).toBe(hex(encodeOcspCertId(R12, ROOT)));
     });
 
     it('should wrap a nonce in two OCTET STRINGs, which is what a responder reads', () => {
@@ -293,10 +293,10 @@ describe('parseOcspResponse', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID' }));
     });
 
-    it('should stop at maxOcspResponses', () => {
+    it('should stop at maxOcspSingleResponses', () => {
         const many = Array.from({ length: 20 }, () => single());
-        expect(() => parseOcspResponse(buildResponse({ responses: many }), { ...quiet, limits: { maxOcspResponses: 5 } }))
-            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxOcspResponses' }));
+        expect(() => parseOcspResponse(buildResponse({ responses: many }), { ...quiet, limits: { maxOcspSingleResponses: 5 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxOcspSingleResponses' }));
     });
 });
 

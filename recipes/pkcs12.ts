@@ -3,7 +3,7 @@
  * primitives underneath — and read the files pkinative describes but will
  * not open.
  *
- * `readPkcs12` is the call most code wants: a password in, the signing key
+ * `openPkcs12` is the call most code wants: a password in, the signing key
  * and its certificate out, and a report that says what could not be opened
  * instead of an exception about the first thing. Three rules shape it.
  * **A key never exists in plaintext here**: Web Crypto unwraps it straight
@@ -44,14 +44,14 @@ import {
     parsePkcs12,
     parseSignedData,
     PkiKeyError,
-    readPkcs12,
+    openPkcs12,
     verifyPkcs12Mac,
     verifySignerInfoSignature,
     type Pkcs12,
     type PkiDiagnostic,
     type PkiKeyErrorCode,
-    type ReadPkcs12Options,
-    type ReadPkcs12Report,
+    type OpenPkcs12Options,
+    type OpenPkcs12Report,
     type SafeBag,
     type SafeContentsInfo,
     type SigningKey,
@@ -85,7 +85,7 @@ const handle = (signer: SigningKey): string => {
     const key = signer.key as unknown as { readonly extractable: boolean; readonly usages: readonly string[] };
     return `extractable=${String(key.extractable)} usages=${key.usages.join(',')}`;
 };
-const codes = (report: ReadPkcs12Report): string => report.reasons.map((reason) => `${reason.code}@${reason.path}`).join(' ') || 'none';
+const codes = (report: OpenPkcs12Report): string => report.reasons.map((reason) => `${reason.code}@${reason.path}`).join(' ') || 'none';
 
 // ── A small PKCS#12 writer (RFC 7292, RFC 8018, RFC 9579) ──
 
@@ -178,14 +178,14 @@ async function material(): Promise<Material> {
 }
 
 export default async function run(): Promise<Record<string, string>> {
-    // Without Web Crypto nothing in a PKCS#12 can be opened; readPkcs12 would throw PKI_CRYPTO_UNAVAILABLE.
+    // Without Web Crypto nothing in a PKCS#12 can be opened; openPkcs12 would throw PKI_CRYPTO_UNAVAILABLE.
     if (!canDecrypt() || !canSign()) return { available: 'no' };
     const keys = await material();
     const modern = await writePfx(keys, { scheme: 'pbes2', mac: 'pbmac1' });
 
     // ── One call ──
-    const options: ReadPkcs12Options = { password: PASSWORD };
-    const report = await readPkcs12(modern, options);
+    const options: OpenPkcs12Options = { password: PASSWORD };
+    const report = await openPkcs12(modern, options);
     const [entry] = report.keys;
 
     // The key is ready to sign, and cannot give its bits back to anyone.
@@ -194,18 +194,18 @@ export default async function run(): Promise<Record<string, string>> {
     const signerInfo = parseSignedData(p7s).signerInfos[0]!;
 
     // A wrong password fails the MAC, and nothing is decrypted after it.
-    const wrong = await readPkcs12(modern, { password: 'Correct horse battery staple' });
+    const wrong = await openPkcs12(modern, { password: 'Correct horse battery staple' });
 
     // ── A MAC nobody here can check ──
     // The shape of most .p12 files in circulation. The contents are read and
     // reported; `valid` stays false until you waive the check, knowingly.
     const unverifiable = await writePfx(keys, { scheme: 'pbes2', mac: 'appendix-b' });
-    const closed = await readPkcs12(unverifiable, { password: PASSWORD });
-    const waived = await readPkcs12(unverifiable, { password: PASSWORD, allowUnverifiedIntegrity: true });
+    const closed = await openPkcs12(unverifiable, { password: PASSWORD });
+    const waived = await openPkcs12(unverifiable, { password: PASSWORD, allowUnverifiedIntegrity: true });
     // With no MAC to fail first, a wrong password surfaces where it bites:
     // the encrypted certificates will not decrypt, and the key, whose
     // certificate was among them, has no algorithm to be unwrapped as.
-    const guessed = await readPkcs12(unverifiable, { password: 'Correct horse battery staple', allowUnverifiedIntegrity: true });
+    const guessed = await openPkcs12(unverifiable, { password: 'Correct horse battery staple', allowUnverifiedIntegrity: true });
 
     // ── The primitives underneath ──
     // parsePkcs12 needs no password: it says what is encrypted, with what,
@@ -248,7 +248,7 @@ export default async function run(): Promise<Record<string, string>> {
         if (!(error instanceof PkiKeyError)) throw error;
         macRefused = error.code;
     }
-    const legacyReport = await readPkcs12(legacy, { password: PASSWORD, allowUnverifiedIntegrity: true });
+    const legacyReport = await openPkcs12(legacy, { password: PASSWORD, allowUnverifiedIntegrity: true });
 
     return {
         available: 'yes',

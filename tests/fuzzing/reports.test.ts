@@ -232,8 +232,8 @@ const TINY_LIMITS: ReadonlyArray<Partial<PkiLimits> | undefined> = [
     { maxPathsExplored: 1 },
     { maxChainLength: 1 },
     { maxRevokedCertificates: 1 },
-    { maxCmsAttributes: 1 },
-    { maxCmsBagEntries: 1 },
+    { maxAttributes: 1 },
+    { maxCmsCertificatesAndCrls: 1 },
     { maxInputBytes: 512 },
 ];
 
@@ -369,7 +369,7 @@ describe('verifyCertificateChain under adversarial CRLs, OCSP responses and cert
         const seen = new Map<string, number>();
         const base = { leaf: w.signer.certificate, trustAnchors: [w.root.certificate], at: AT };
         // The valid starting point is valid: the property is not satisfied by an input nothing accepts.
-        expect((await verifyCertificateChain({ ...base, crls: [w.crl], ocsp: [w.ocsp], requireRevocation: true })).valid).toBe(true);
+        expect((await verifyCertificateChain({ ...base, crls: [w.crl], ocspResponses: [w.ocsp], requireRevocation: true })).valid).toBe(true);
         for (let i = 0; i < BUDGET; i += 1) {
             const limits = TINY_LIMITS[prng.int(TINY_LIMITS.length)];
             const which = prng.int(4);
@@ -390,7 +390,7 @@ describe('verifyCertificateChain under adversarial CRLs, OCSP responses and cert
                 leaf,
                 candidates,
                 crls: which === 0 ? [bytes, w.crl] : [w.crl],
-                ocsp: which === 1 ? [bytes] : [w.ocsp],
+                ocspResponses: which === 1 ? [bytes] : [w.ocsp],
                 requireRevocation: true,
                 serverName: { kind: 'dns', value: 'fuzz.example' },
                 ...(limits === undefined ? {} : { limits }),
@@ -419,7 +419,7 @@ describe('verifySignedData under adversarial messages, content and digests', () 
                 : mode === 'detached-digest' ? { contentDigest: digest }
                     : mode === 'wrong-content' ? { content: DATA.subarray(0, prng.int(DATA.length)) }
                         : mode === 'wrong-digest' ? { contentDigest: prng.bytes(prng.pick([0, 1, 20, 31, 33, 64])) }
-                            : mode === 'extra-crl' ? { crls: [mutate(prng, w.crl, w.donors).bytes], ocsp: [mutate(prng, w.ocsp, w.donors).bytes] }
+                            : mode === 'extra-crl' ? { crls: [mutate(prng, w.crl, w.donors).bytes], ocspResponses: [mutate(prng, w.ocsp, w.donors).bytes] }
                                 : {};
             const encodingRules = prng.int(4) === 0 ? 'ber' as const : undefined;
             const allowTrailingData = prng.int(4) === 0 ? true : undefined;
@@ -487,7 +487,7 @@ describe('the reports under API misuse', () => {
     const notACertificate = { der: new Uint8Array(1) } as unknown as Certificate;
 
     it('should still throw from verifyCertificateChain', async () => {
-        const base = { leaf: w.signer.certificate, trustAnchors: [w.root.certificate], at: AT, crls: [w.crl], ocsp: [w.ocsp] };
+        const base = { leaf: w.signer.certificate, trustAnchors: [w.root.certificate], at: AT, crls: [w.crl], ocspResponses: [w.ocsp] };
         await expect(verifyCertificateChain({ ...base, limits: { maxNode: 1 } as Partial<PkiLimits> })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
         await expect(verifyCertificateChain({ ...base, leaf: notACertificate })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
         await expect(verifyCertificateChain({ ...base, crls: ['MIIB' as unknown as Uint8Array] })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });

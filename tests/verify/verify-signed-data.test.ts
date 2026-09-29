@@ -97,7 +97,7 @@ describe('verifySignedData', () => {
             expect(signer?.signingTime).toBeUndefined();
             expect(report.signedData?.content).toEqual(CONTENT);
             // The signer's signature, and the root's over the signer's certificate.
-            expect(report.verified).toBe(2);
+            expect(report.signatureVerifications).toBe(2);
         });
 
         it('should accept detached content passed alongside', async () => {
@@ -210,7 +210,7 @@ describe('verifySignedData', () => {
             expect(report.reasons[0]?.errorCode).toMatch(/^PKI_ASN1_/);
             expect(report.signedData).toBeUndefined();
             expect(report.signers).toEqual([]);
-            expect(report.verified).toBe(0);
+            expect(report.signatureVerifications).toBe(0);
         });
 
         it('should report a message past the caller\'s limits as INPUT_MALFORMED carrying PKI_LIMIT_EXCEEDED', async () => {
@@ -275,7 +275,7 @@ describe('verifySignedData', () => {
             expect(codes(report)).toEqual(['PKI_REASON_CMS_SIGNER_NOT_FOUND']);
             expect(paths(report)).toEqual(['signerInfos[0].sid']);
             expect(report.signers[0]?.chain).toBeUndefined();
-            expect(report.verified).toBe(0);
+            expect(report.signatureVerifications).toBe(0);
         });
 
         it('should report a signer named by subjectKeyIdentifier whose certificate is nowhere as CMS_SIGNER_NOT_FOUND', async () => {
@@ -308,7 +308,7 @@ describe('verifySignedData', () => {
                     expect(codes(report)).toEqual([]);
                     expect(report.signers[0]?.certificate?.der).toEqual(w.signer.certificate.der);
                     // Both certificates hold the key, so both were tried.
-                    expect(report.verified).toBe(3);
+                    expect(report.signatureVerifications).toBe(3);
                 }
             });
 
@@ -354,7 +354,7 @@ describe('verifySignedData', () => {
             const report = await verify(w, message(w.signer.certificate, info, OIDS.sha384, true));
             expect(codes(report)).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
             expect(paths(report)).toEqual(['signerInfos[0].signatureAlgorithm']);
-            expect(report.verified).toBe(0);
+            expect(report.signatureVerifications).toBe(0);
         });
 
         it('should report a content digest pkinative does not compute as SIGNATURE_NOT_CHECKED, never as a mismatch', async () => {
@@ -410,7 +410,7 @@ describe('verifySignedData', () => {
                 const report = await verify(w, p7s);
                 expect(codes(report)).toEqual(['PKI_REASON_CMS_CONTENT_MISSING']);
                 expect(report.signers[0]?.certificate).toBeUndefined();
-                expect(report.verified).toBe(0);
+                expect(report.signatureVerifications).toBe(0);
             });
         });
 
@@ -486,7 +486,7 @@ describe('verifySignedData', () => {
         it('should report unknown revocation with requireRevocation, and accept a CRL that covers the signer', async () => {
             const w = await world();
             const p7s = await sign(w);
-            expect(codes(await verify(w, p7s, { requireRevocation: true, ocsp: [] }))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+            expect(codes(await verify(w, p7s, { requireRevocation: true, ocspResponses: [] }))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
             expect(codes(await verify(w, p7s, { requireRevocation: true, crls: [await makeCrl(w.root)] }))).toEqual([]);
         });
 
@@ -528,7 +528,7 @@ describe('verifySignedData', () => {
             expect(verdict?.valid).toBe(true);
             expect(verdict?.genTime?.epochMilliseconds).toBe(AT);
             // Signer, its link; the TSA's signature, its link.
-            expect(report.verified).toBe(4);
+            expect(report.signatureVerifications).toBe(4);
         });
 
         it('should accept a signer whose certificate has since expired with atTimeStamp, and report EXPIRED without', async () => {
@@ -572,7 +572,7 @@ describe('verifySignedData', () => {
         it('should hand the caller\'s CRLs, OCSP responses, SHA-1 policy and limits on to each timestamp', async () => {
             const s = await stampable();
             const stamped = addTimeStampToken(s.p7s, 0, await stamp(s, AT));
-            const options = { ocsp: [], allowSha1: false, limits: { maxInputBytes: 1 << 20 } };
+            const options = { ocspResponses: [], allowSha1: false, limits: { maxInputBytes: 1 << 20 } };
             expect(codes(await verify(s.w, stamped, options))).toEqual([]);
             const report = await verify(s.w, stamped, { ...options, crls: [await makeCrl(s.w.root, [s.tsa.certificate])] });
             expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
@@ -583,7 +583,7 @@ describe('verifySignedData', () => {
         it('should hold each timestamp to requireRevocation too, so an unchecked TSA is not evidence', async () => {
             const s = await stampable();
             const stamped = addTimeStampToken(s.p7s, 0, await stamp(s, AT));
-            const report = await verify(s.w, stamped, { requireRevocation: true, ocsp: [] });
+            const report = await verify(s.w, stamped, { requireRevocation: true, ocspResponses: [] });
             expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
             expect(paths(report).filter((path) => path.startsWith('signerInfos[0].unsignedAttrs.timeStampToken[0].'))).toHaveLength(1);
             expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);

@@ -87,7 +87,7 @@ const decodeAt = (der: Uint8Array, header: TlvHeader, ctx: Asn1Context): Asn1Nod
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` when the bytes are
  *   not an RFC 6960 OCSPResponse.
  * @throws {PkiEncodingError} For any DER violation.
- * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxOcspResponses` or `maxExtensions`.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxOcspSingleResponses` or `maxExtensions`.
  */
 export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): OcspResponse {
     const ctx = createAsn1Context(options);
@@ -230,7 +230,7 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     const responses: OcspSingleResponse[] = [];
     let index = 0;
     for (const single of walkChildren(der, responsesField, 'ResponseData.responses')) {
-        enforceLimit(ctx.limits, 'maxOcspResponses', index + 1, `ResponseData.responses[${String(index)}]`);
+        enforceLimit(ctx.limits, 'maxOcspSingleResponses', index + 1, `ResponseData.responses[${String(index)}]`);
         responses.push(readSingleResponse(der, single, ctx, `ResponseData.responses[${String(index)}]`));
         index += 1;
     }

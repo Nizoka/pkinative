@@ -29,7 +29,7 @@ import {
     type Certificate,
     type CertificateList,
     type CrlReason,
-    type RevocationCheckInput,
+    type CheckRevocationInput,
     type RevokedCertificate,
 } from 'pkinative';
 
@@ -135,10 +135,10 @@ export default async function run(): Promise<Record<string, string>> {
     // which is what keeps it synchronous and free of Web Crypto.
     const listed = await certificate(2n);
     const absent = await certificate(0x42n);
-    const ask = (subject: Certificate, overrides: Partial<RevocationCheckInput> = {}): string => {
+    const ask = (subject: Certificate, overrides: Partial<CheckRevocationInput> = {}): string => {
         const found = checkRevocation({
             certificate: subject, crl, crlDer: der, at: THIS_UPDATE + DAY,
-            signatureVerified: true, options: { onDiagnostic: () => undefined },
+            signatureVerified: true, onDiagnostic: () => undefined,
             ...overrides,
         });
         return found.length === 0 ? 'clean' : found.map((r) => r.code).sort().join(',');

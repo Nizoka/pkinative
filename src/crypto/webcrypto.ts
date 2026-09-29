@@ -184,7 +184,7 @@ export async function signData(key: CryptoKeyHandle, params: VerifyParams, data:
 // PKCS#8 into a non-extractable signing key without its plaintext passing
 // through here; `decrypt` opens a SafeContents, which holds certificates and,
 // when its writer put one there, an unencrypted keyBag — plaintext by
-// definition, which readPkcs12 wipes once imported; and the MAC is checked by
+// definition, which openPkcs12 wipes once imported; and the MAC is checked by
 // the host. There is no call here that could hand
 // pkinative a private key's bits, which is what lets SECURITY.md say so.
 

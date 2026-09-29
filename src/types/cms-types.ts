@@ -65,7 +65,7 @@ export type SignerIdentifier =
     };
 
 /** One `Attribute` (RFC 5652 §5.3): a type and a non-empty set of values. */
-export interface CmsAttribute {
+export interface Attribute {
     /** The attribute type. */
     readonly oid: string;
     /** Each `AttributeValue`, as its exact DER, in encoded order. */
@@ -119,7 +119,7 @@ export interface SignerInfo {
     /** The digest over the content, and — when `signedAttributes` are present — over them too. */
     readonly digestAlgorithm: AlgorithmIdentifier;
     /** The signed attributes in encoded order; `undefined` when absent, which is not the same as empty. */
-    readonly signedAttributes: readonly CmsAttribute[] | undefined;
+    readonly signedAttributes: readonly Attribute[] | undefined;
     /**
      * The exact bytes the signature covers when `signedAttributes` are present:
      * the transmitted `[0]` value with its tag replaced by the `SET OF` tag
@@ -132,7 +132,7 @@ export interface SignerInfo {
     /** The signature value, as the OCTET STRING content. ECDSA is DER-encoded here, as in X.509. */
     readonly signature: Uint8Array;
     /** The unsigned attributes in encoded order; `undefined` when absent. */
-    readonly unsignedAttributes: readonly CmsAttribute[] | undefined;
+    readonly unsignedAttributes: readonly Attribute[] | undefined;
     // The six fields below are conveniences over `signedAttributes`, and each
     // is set **only when its attribute appears exactly once, with exactly one
     // value, among the signed attributes**. A field that took "the first one"

@@ -30,9 +30,8 @@ import {
 } from '../asn1/asn1-encode.js';
 import { assertBytes } from '../core/bytes.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
-import type { ExtensionDescription, NameAttribute, NameDescription } from '../types/build-types.js';
+import type { ExtensionDescription, NameAttribute, NameDescription, PkiBuildOptions } from '../types/build-types.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { PkiLimits } from '../types/pki-types.js';
 
 /**
  * Algorithms whose parameters RFC 3279 §2.2.1 requires to be present and
@@ -101,7 +100,7 @@ export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
  * @throws {PkiError} `PKI_INVALID_INPUT` when `name` is not an array of arrays.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` when the name has more attributes than `maxNameAttributes`.
  */
-export function encodeDistinguishedName(name: NameDescription, options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array {
+export function encodeDistinguishedName(name: NameDescription, options?: PkiBuildOptions): Uint8Array {
     if (!Array.isArray(name)) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
     }
@@ -171,7 +170,7 @@ export function encodeExtension(extension: ExtensionDescription): Uint8Array {
  * @throws {PkiError} `PKI_API_MISUSE` when two extensions share an OID — which extension a verifier reads would be undefined, so a certificate carrying one twice is refused on the way out as it is on the way in.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions`.
  */
-export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: { readonly limits?: Partial<PkiLimits> | undefined }): Uint8Array {
+export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: PkiBuildOptions): Uint8Array {
     const limits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     enforceLimit(limits, 'maxExtensions', extensions.length, 'the extensions being built');
     const seen = new Set<string>();

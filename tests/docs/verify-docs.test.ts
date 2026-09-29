@@ -295,14 +295,14 @@ describe('verify-docs rule table', () => {
 
     it('should fire adr-index on a record with no row, a row with no record, and a status the record does not carry', async () => {
         const files = { ...TREE };
-        files['docs/adr/0013-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
+        files['docs/adr/0014-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
         edit(files, 'docs/adr/README.md', '| No external security audit at 1.0 | accepted |', '| No external security audit at 1.0 | proposed |');
-        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0014](0014-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
+        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0015](0015-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
         const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
         expect(problems.map((p) => p.message).sort()).toEqual([
-            expect.stringContaining('does not list 0013-a-new-decision.md'),
+            expect.stringContaining('does not list 0014-a-new-decision.md'),
             expect.stringContaining('gives 0010-no-external-security-audit-at-1-0.md the status "proposed"'),
-            expect.stringContaining('lists 0014-gone.md, which is not a record'),
+            expect.stringContaining('lists 0015-gone.md, which is not a record'),
         ]);
     });
 
@@ -369,7 +369,8 @@ describe('verify-docs rule table', () => {
 
     it('should fire api-surface-frozen on a rebaseline that names no accepted ADR', async () => {
         const files = { ...TREE };
-        edit(files, 'docs/assets/api.frozen.json', '"asOf": "0.8.0",\n', '"asOf": "0.8.0",\n  "rebaselines": [\n    { "adr": "docs/adr/0099-never-written.md", "asOf": "0.8.0" }\n  ],\n');
+        // Beside the log's real entries (ADR 0013 is the first), which must keep passing.
+        edit(files, 'docs/assets/api.frozen.json', '"rebaselines": [\n', '"rebaselines": [\n    { "adr": "docs/adr/0099-never-written.md", "asOf": "0.8.0" },\n');
         expect(await surfaceProblems(files)).toEqual([expect.stringContaining('the rebaseline on "docs/adr/0099-never-written.md" names no accepted ADR')]);
     });
 

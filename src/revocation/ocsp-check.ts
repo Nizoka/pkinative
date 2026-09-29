@@ -19,7 +19,7 @@
  *      cache or an attacker handing over somebody else's answer.
  *   2. *The signature is valid* — the caller's `signatureVerified`.
  *   3. *The signer is authorised to answer for this CA* — the caller's
- *      `responderAuthorised`. **Not decided here**, because RFC 6960 §4.2.2.2
+ *      `responderAuthorized`. **Not decided here**, because RFC 6960 §4.2.2.2
  *      gives three routes and `basicResponse.certificates` are certificates the
  *      responder *attached*: trusting them because they arrived would let the
  *      responder nominate its own authority.
@@ -52,11 +52,11 @@ import type { PkiReason } from '../types/pki-reasons.js';
 export const OCSP_NONCE_OID = '1.3.6.1.5.5.7.48.1.2';
 
 /** What to check, and everything needed to judge it. */
-export interface OcspCheckInput {
+export interface CheckOcspStatusInput {
     /** The parsed response. */
     readonly response: OcspResponse;
     /**
-     * The `CertID` that was asked about, as `encodeCertId` produced it. Compared
+     * The `CertID` that was asked about, as `encodeOcspCertId` produced it. Compared
      * to the answer's, field by field — which is RFC 6960 §3.2's first
      * requirement and the one a client that trusts the response order skips.
      */
@@ -80,7 +80,7 @@ export interface OcspCheckInput {
      * `undefined` it is reported as unknown, because a responder nobody
      * authorised is a responder anyone can be.
      */
-    readonly responderAuthorised?: boolean | undefined;
+    readonly responderAuthorized?: boolean | undefined;
     /** The nonce that was sent, if any. A different one coming back is always a mismatch. */
     readonly nonce?: Uint8Array | undefined;
     /**
@@ -116,7 +116,7 @@ const MINUTE = 60_000;
  *     expected: { issuerNameHash, issuerKeyHash, serialNumber: certificate.serialNumber.bytes },
  *     at: Date.now(),
  *     signatureVerified: basic !== undefined && await verifyOcspSignature(basic, responder),
- *     responderAuthorised: yourPolicySaysSo,
+ *     responderAuthorized: yourPolicySaysSo,
  *     nonce,
  * });
  * ```
@@ -124,12 +124,12 @@ const MINUTE = 60_000;
  * `[]` means the responder said `good`, about this certificate, recently
  * enough, signed by someone you authorised. Everything else is a reason.
  *
- * @param input See {@link OcspCheckInput}.
+ * @param input See {@link CheckOcspStatusInput}.
  * @returns Every reason the answer is not a clean `good`; empty when it is.
  * @throws Never — every negative answer is a reason in the returned list. The
  *   response was already parsed, so there are no bytes left to fail on.
  */
-export function checkOcspStatus(input: OcspCheckInput): readonly PkiReason[] {
+export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[] {
     const out: PkiReason[] = [];
     const path = 'ocsp';
 
@@ -151,8 +151,8 @@ export function checkOcspStatus(input: OcspCheckInput): readonly PkiReason[] {
             ? 'the responder\'s signature did not verify against the key it was checked with'
             : 'the responder\'s signature was never checked, and an unsigned response is something anyone can produce'));
     }
-    if (input.responderAuthorised !== true) {
-        out.push(revocationUnknownReason(path, input.responderAuthorised === false
+    if (input.responderAuthorized !== true) {
+        out.push(revocationUnknownReason(path, input.responderAuthorized === false
             ? 'the signer is not authorised to answer for this CA (RFC 6960 §4.2.2.2)'
             : 'nothing says the signer is authorised to answer for this CA, and a responder nobody authorised is a responder anyone can be'));
     }
@@ -182,14 +182,14 @@ export function checkOcspStatus(input: OcspCheckInput): readonly PkiReason[] {
 }
 
 /** All three `CertID` fields, compared by bytes. */
-function matches(single: OcspSingleResponse, expected: OcspCheckInput['expected']): boolean {
+function matches(single: OcspSingleResponse, expected: CheckOcspStatusInput['expected']): boolean {
     return bytesEqual(single.certId.issuerNameHash, expected.issuerNameHash)
         && bytesEqual(single.certId.issuerKeyHash, expected.issuerKeyHash)
         && bytesEqual(single.certId.serialNumber.bytes, expected.serialNumber);
 }
 
 /** Which field of which answer failed to match, so the report can be acted on. */
-function describeMismatch(basic: OcspBasicResponse, input: OcspCheckInput): string {
+function describeMismatch(basic: OcspBasicResponse, input: CheckOcspStatusInput): string {
     if (basic.responses.length === 0) return 'the response carries no answers at all';
     const first = basic.responses[0] as OcspSingleResponse;
     if (!bytesEqual(first.certId.serialNumber.bytes, input.expected.serialNumber)) {
@@ -208,7 +208,7 @@ function hex(bytes: Uint8Array): string {
 }
 
 /** §4.4.1: a different nonce is always wrong; a missing one is a policy choice. */
-function checkNonce(basic: OcspBasicResponse, input: OcspCheckInput, path: string): PkiReason[] {
+function checkNonce(basic: OcspBasicResponse, input: CheckOcspStatusInput, path: string): PkiReason[] {
     const sent = input.nonce;
     if (sent === undefined) return [];
     const echoed = basic.extensions.find((extension) => extension.oid === OCSP_NONCE_OID);
@@ -238,7 +238,7 @@ function unwrapOctetString(bytes: Uint8Array): Uint8Array | null {
 }
 
 /** §3.2: `thisUpdate` recent enough, `nextUpdate` not passed. */
-function checkFreshness(answer: OcspSingleResponse, input: OcspCheckInput, path: string): PkiReason[] {
+function checkFreshness(answer: OcspSingleResponse, input: CheckOcspStatusInput, path: string): PkiReason[] {
     const out: PkiReason[] = [];
     const future = input.futureTolerance ?? MINUTE;
     if (answer.thisUpdate.epochMilliseconds > input.at + future) {

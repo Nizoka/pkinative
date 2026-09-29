@@ -145,7 +145,7 @@ export default async function run(): Promise<Record<string, string>> {
 
     return {
         available: 'yes',
-        info: `v${String(info.version)} ${info.keyType} ${String(info.namedCurve)} attributes=${String(info.attributes.length)} publicKey=${String(info.publicKey !== undefined)}`,
+        info: `v${String(info.version)} ${info.kind} ${String(info.curve)} attributes=${String(info.attributes.length)} publicKey=${String(info.publicKey !== undefined)}`,
         imported: `${imported.algorithm.name} ${'hash' in imported.algorithm ? imported.algorithm.hash : ''} ${handle(imported)}`,
         rsaUnnamed,
         rsa: `${rsaKey.algorithm.name} ${'hash' in rsaKey.algorithm ? rsaKey.algorithm.hash : ''}`,

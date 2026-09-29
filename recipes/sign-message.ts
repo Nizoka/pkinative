@@ -182,7 +182,7 @@ export default async function run(): Promise<Record<string, string>> {
 
     return {
         available: 'yes',
-        detached: `valid=${String(good.valid)} intact=${String(good.signers[0]?.intact)} verified=${String(good.verified)}`,
+        detached: `valid=${String(good.valid)} intact=${String(good.signers[0]?.intact)} signatureVerifications=${String(good.signatureVerifications)}`,
         attached: `valid=${String(attached.valid)} content=${new TextDecoder().decode(attached.signedData?.content)}`,
         missing: codes(missing),
         tampered: `intact=${String(tampered.signers[0]?.intact)} ${codes(tampered)}`,

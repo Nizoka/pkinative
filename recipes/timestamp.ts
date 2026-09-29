@@ -44,8 +44,8 @@ import {
     type TimeStampResponse,
     type TimeStampToken,
     type TstInfo,
-    type VerifyTimeStampInput,
-    type VerifyTimeStampReport,
+    type VerifyTimeStampTokenInput,
+    type VerifyTimeStampTokenReport,
 } from 'pkinative';
 
 const NOW = Date.UTC(2026, 0, 15);
@@ -144,8 +144,8 @@ export default async function run(): Promise<Record<string, string>> {
     // ── Judge the token ──
     // `request` is the strongest way to say what was stamped — the only one
     // that catches a replayed response. `data` and `imprint` are the others.
-    const ask: VerifyTimeStampInput = { token: tokenDer, request, trustAnchors: [root], at: NOW };
-    const stamp: VerifyTimeStampReport = await verifyTimeStampToken(ask);
+    const ask: VerifyTimeStampTokenInput = { token: tokenDer, request, trustAnchors: [root], at: NOW };
+    const stamp: VerifyTimeStampTokenReport = await verifyTimeStampToken(ask);
     // Yesterday's answer, replayed against a new request with a new nonce.
     const replayed = await verifyTimeStampToken({ ...ask, request: createTimeStampRequest(imprint, { nonce: nonce ^ 1n }) });
     // A token over something else: the document instead of the signature value.

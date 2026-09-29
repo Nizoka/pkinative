@@ -774,7 +774,7 @@ async function runPkitsScorer(pki: typeof Pki, declared: Declared): Promise<Pkit
             requireRevocation: true,
             limits: { maxPathsExplored: 200 },
         });
-        verified += report.verified;
+        verified += report.signatureVerifications;
         measured.set(name, report.reasons.map((reason) => reason.code).join(','));
         paths.set(name, { valid: report.valid, codes: report.reasons.map((reason) => reason.code) });
         if (report.valid === expected) agree += 1;
@@ -979,7 +979,7 @@ async function runPkitsSmimeScorer(pki: typeof Pki, declared: Declared, paths: P
             fail(`L8 ${crash ? 'CRASH ' : ''}${name}: verifySignedData threw ${String(error)} — it throws only for API misuse${crash ? ', and only a PkiError may leave it' : ''}`);
             continue;
         }
-        verified += report.verified;
+        verified += report.signatureVerifications;
         const signer = report.signers[0];
         const sid = report.signedData?.signerInfos[0]?.sid;
         if (report.signedData === undefined || sid === undefined || report.signers.length !== 1 || signer === undefined) {

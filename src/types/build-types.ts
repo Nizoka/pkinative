@@ -18,6 +18,17 @@
  * @module types/build-types
  */
 
+import type { PkiLimits } from './pki-types.js';
+
+/**
+ * Options of every function that builds a structure from a description —
+ * the certificate, the request, the SignedData and the encoders they share.
+ */
+export interface PkiBuildOptions {
+    /** Bounds on what is built; each function names under `@throws` the limits that apply to it. */
+    readonly limits?: Partial<PkiLimits> | undefined;
+}
+
 /** One `AttributeTypeAndValue` of a distinguished name. */
 export interface NameAttribute {
     /** The attribute type OID, e.g. `2.5.4.3` for commonName. */

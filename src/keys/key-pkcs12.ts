@@ -54,7 +54,7 @@ import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import { decryptContent, derivePasswordKey, verifyMac } from '../crypto/webcrypto.js';
 import type { Asn1Node } from '../types/asn1-types.js';
-import type { CmsAttribute } from '../types/cms-types.js';
+import type { Attribute } from '../types/cms-types.js';
 import type { EncryptedPrivateKeyInfo, Pkcs12, Pkcs12Mac, PrivateKeyInfo, SafeBag, SafeBagKind, SafeContentsInfo } from '../types/key-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
@@ -112,15 +112,15 @@ function _wrappedDer(node: Asn1Node, ctx: Asn1Context, path: string, parentOffse
 }
 
 /** The single value of an attribute present exactly once with exactly one value, or `undefined`. */
-function _singleValue(set: Asn1Node, attributes: readonly CmsAttribute[], oid: string): Asn1Node | undefined {
+function _singleValue(set: Asn1Node, attributes: readonly Attribute[], oid: string): Asn1Node | undefined {
     let found: number | undefined;
-    // Bounded: `attributes` was read under maxCmsAttributes, one entry per child of `set`.
+    // Bounded: `attributes` was read under maxAttributes, one entry per child of `set`.
     for (const [i, attribute] of attributes.entries()) {
         if (attribute.oid !== oid) continue;
         if (found !== undefined) return undefined;
         found = i;
     }
-    if (found === undefined || (attributes[found] as CmsAttribute).values.length !== 1) return undefined;
+    if (found === undefined || (attributes[found] as Attribute).values.length !== 1) return undefined;
     // _readAttributes checked this shape: SEQUENCE { type, SET { value } }.
     return ((set.children[found] as Asn1Node).children[1] as Asn1Node).children[0];
 }
@@ -160,7 +160,7 @@ function _readBag(pending: _PendingBag, ctx: Asn1Context): { readonly bag: SafeB
     const oid = _readObjectIdentifier(_expectField(idNode, TAG_OID, `${path}.bagId`, seq.offset, 'an OBJECT IDENTIFIER'), ctx);
     const value = _explicit(valueNode, 0, `${path}.bagValue`, seq.offset, 'bagValue [0] EXPLICIT');
 
-    let attributes: readonly CmsAttribute[] = [];
+    let attributes: readonly Attribute[] = [];
     let friendlyName: string | undefined;
     let localKeyId: Uint8Array | undefined;
     if (attributesNode !== undefined) {
@@ -376,7 +376,7 @@ function _readMacData(node: Asn1Node, ctx: Asn1Context): Pkcs12Mac {
  * @throws {PkiEncodingError} When the bytes, or the bytes inside an OCTET STRING, are not valid DER (or BER).
  * @throws {PkiKeyError} `PKI_KEY_STRUCTURE_INVALID`; `PKI_KEY_VERSION_UNSUPPORTED` for a PFX version other than 3;
  *   `PKI_KEY_MAC_UNSUPPORTED` when the AuthenticatedSafe is `signedData` (public-key integrity mode).
- * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations`, `maxCmsAttributes` or another named limit.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations`, `maxAttributes` or another named limit.
  */
 export function parsePkcs12(der: Uint8Array, options?: PkiParseOptions): Pkcs12 {
     const bytes = assertBytes(der, 'parsePkcs12 input');

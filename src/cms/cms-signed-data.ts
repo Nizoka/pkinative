@@ -123,7 +123,7 @@ interface Bag {
  * @throws {PkiEncodingError} For any DER violation (any BER one under `'ber'`),
  *   including `PKI_ASN1_TRAILING_DATA`.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxSignerInfos`,
- *   `maxCmsAttributes`, `maxCmsBagEntries` or a decoder limit.
+ *   `maxAttributes`, `maxCmsCertificatesAndCrls` or a decoder limit.
  * @throws {PkiError} `PKI_INVALID_INPUT` or `PKI_INVALID_OPTION` for a wrong
  *   argument; `PKI_STRICT_DIAGNOSTIC` under `strict: true`.
  */
@@ -287,7 +287,7 @@ function readBag(certificatesField: Asn1Node | undefined, crlsField: Asn1Node | 
     for (let i = 0; i < certificateNodes.length; i++) {
         const path = `content.certificates[${String(i)}]`;
         entries += 1;
-        enforceLimit(ctx.limits, 'maxCmsBagEntries', entries, path);
+        enforceLimit(ctx.limits, 'maxCmsCertificatesAndCrls', entries, path);
         const node = certificateNodes[i] as Asn1Node;
         if (node.tagClass === 'universal' && node.tagNumber === TAG_SEQUENCE) {
             // Not parsed: the bag is a claim by whoever assembled the message,
@@ -308,7 +308,7 @@ function readBag(certificatesField: Asn1Node | undefined, crlsField: Asn1Node | 
     for (let i = 0; i < crlNodes.length; i++) {
         const path = `content.crls[${String(i)}]`;
         entries += 1;
-        enforceLimit(ctx.limits, 'maxCmsBagEntries', entries, path);
+        enforceLimit(ctx.limits, 'maxCmsCertificatesAndCrls', entries, path);
         const node = crlNodes[i] as Asn1Node;
         if (node.tagClass === 'universal' && node.tagNumber === TAG_SEQUENCE) {
             crls.push(node.bytes);

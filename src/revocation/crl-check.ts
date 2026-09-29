@@ -40,17 +40,17 @@ import {
     revocationUnknownReason,
     revocationWrongIssuerReason,
     revokedReason,
-    unrecognisedCriticalExtensionReason,
+    unknownCriticalExtensionReason,
 } from '../core/pki-reasons.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { PkiParseOptions } from '../types/pki-types.js';
+import type { PkiDiagnosticHandler, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { findRevocation } from './crl-parse.js';
 import { _crlScopeProblem, _deltaApplies } from './crl-scope.js';
 
 /** What to check, and everything needed to judge it. */
-export interface RevocationCheckInput {
+export interface CheckRevocationInput {
     /** The certificate whose status is in question. */
     readonly certificate: Certificate;
     /** The parsed list. */
@@ -91,8 +91,14 @@ export interface RevocationCheckInput {
      * result of handing over everything you hold.
      */
     readonly delta?: DeltaCrlInput | undefined;
-    /** Options for the walk — the limits apply to it. */
-    readonly options?: PkiParseOptions | undefined;
+    /** Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries. */
+    readonly limits?: Partial<PkiLimits> | undefined;
+    /**
+     * Receive every diagnostic the walk raises — an entry extension that is
+     * malformed and dropped — instead of the default once-per-code
+     * `console.warn`.
+     */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
 }
 
 /** One delta CRL, and what is known about it. */
@@ -120,7 +126,7 @@ export interface DeltaCrlInput {
  * `removeFromCRL` entry, which is a strictly easier attack than forging the
  * base, so a delta nobody vouched for is not applied at all.
  */
-function _applicableDelta(input: RevocationCheckInput): DeltaCrlInput | undefined {
+function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefined {
     const delta = input.delta;
     if (delta === undefined || delta.signatureVerified !== true) return undefined;
     if (!_deltaApplies(input.crl, delta.crl)) return undefined;
@@ -157,13 +163,13 @@ function _applicableDelta(input: RevocationCheckInput): DeltaCrlInput | undefine
  *
  * Fetching the lists is still the caller's job. This library performs no I/O.
  *
- * @param input See {@link RevocationCheckInput}.
+ * @param input See {@link CheckRevocationInput}.
  * @returns Every reason the answer is not a clean "not revoked", in the order
  *   they were established; empty when the certificate is not revoked.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` for a malformed entry.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
  */
-export function checkRevocation(input: RevocationCheckInput): readonly PkiReason[] {
+export function checkRevocation(input: CheckRevocationInput): readonly PkiReason[] {
     const out: PkiReason[] = [];
     const path = 'crl';
 
@@ -179,7 +185,7 @@ export function checkRevocation(input: RevocationCheckInput): readonly PkiReason
     // The same rule §6.1.3 (f) sets for a certificate, and the same code: a
     // critical extension nothing here recognises means the object does not mean
     // what this implementation would take it to mean.
-    if (scope?.kind === 'unusable') out.push(unrecognisedCriticalExtensionReason(path, scope.oid, 'revocation list'));
+    if (scope?.kind === 'unusable') out.push(unknownCriticalExtensionReason(path, scope.oid, 'revocation list'));
 
     if (input.signatureVerified !== true) {
         out.push(revocationUnknownReason(path, input.signatureVerified === false
@@ -201,7 +207,7 @@ export function checkRevocation(input: RevocationCheckInput): readonly PkiReason
     // serial is on it, and hiding that behind an earlier failure would be the
     // one direction of error that matters.
     const serial = input.certificate.serialNumber.bytes;
-    const lookup = { ...input.options, issuerDer: input.certificate.issuer.der };
+    const lookup = { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
     const delta = _applicableDelta(input);
     const changed = delta === undefined ? undefined : findRevocation(delta.crlDer, serial, lookup);
 

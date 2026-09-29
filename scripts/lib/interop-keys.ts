@@ -15,7 +15,7 @@
  *   Windows through facts observed once and written down beside each writer —
  *   and `parsePkcs12` / `parseEncryptedPrivateKeyInfo` must read the same MAC
  *   construction and the same encryption schemes, in one spelling.
- * - **a file pkinative can open, it opens:** `readPkcs12` reports the integrity
+ * - **a file pkinative can open, it opens:** `openPkcs12` reports the integrity
  *   the case promises, the certificate byte-identical to the one the tool
  *   holds, and a key that signs data the certificate's public key verifies —
  *   verified by the tool where it can (`openssl dgst` / `pkeyutl`), by
@@ -40,9 +40,9 @@ import {
     parseEncryptedPrivateKeyInfo,
     parsePkcs12,
     PkiError,
-    readPkcs12,
+    openPkcs12,
     type Pkcs12,
-    type ReadPkcs12Report,
+    type OpenPkcs12Report,
     type SignatureAlgorithm,
     type SigningKey,
 } from '../../src/index.js';
@@ -52,7 +52,7 @@ import { KEY_CONTAINER_CASES } from './interop.js';
 
 type KeyKind = 'ec-p256' | 'rsa-2048' | 'ed25519';
 
-/** What each kind of key signs with — the algorithm `decryptPrivateKey` is told, and the one `readPkcs12` derives from the certificate. */
+/** What each kind of key signs with — the algorithm `decryptPrivateKey` is told, and the one `openPkcs12` derives from the certificate. */
 const SIGNING: Readonly<Record<KeyKind, SignatureAlgorithm>> = {
     'ec-p256': { name: 'ECDSA', namedCurve: 'P-256', hash: 'SHA-256' },
     'rsa-2048': { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
@@ -71,12 +71,12 @@ interface Protection {
 }
 
 type Expectation =
-    /** `readPkcs12` valid, integrity verified, one key that signs, the certificate byte-identical. */
+    /** `openPkcs12` valid, integrity verified, one key that signs, the certificate byte-identical. */
     | { readonly kind: 'opens' }
     /** Refused for integrity alone; valid with `allowUnverifiedIntegrity`, one key that signs. */
     | { readonly kind: 'opens-unverified' }
     /** Reported, never thrown: exactly these reason codes, each refused scheme named. */
-    | { readonly kind: 'reports'; readonly codes: readonly string[]; readonly naming: readonly string[]; readonly integrity: ReadPkcs12Report['integrity'] }
+    | { readonly kind: 'reports'; readonly codes: readonly string[]; readonly naming: readonly string[]; readonly integrity: OpenPkcs12Report['integrity'] }
     /** `decryptPrivateKey` returns a key that signs. */
     | { readonly kind: 'decrypts' }
     /** `decryptPrivateKey` throws this code, naming the scheme. */
@@ -453,7 +453,7 @@ const WINDOWS_WRITER: Writer = {
         //  - the certificate: an encrypted SafeContents, also 3DES — so
         //    nothing opens, and the report names 3DES twice;
         //  - DER throughout at every level parsePkcs12 reads: no encodingRules
-        //    'ber' needed, although readPkcs12 documents Windows as a BER writer.
+        //    'ber' needed, although openPkcs12 documents Windows as a BER writer.
         const exported = join(dir, 'export');
         mkdirSync(exported, { recursive: true });
         const r = run('powershell', ['-NoProfile', '-NonInteractive', '-Command',
@@ -504,7 +504,7 @@ export interface KeyContainerRun {
 const sameBytes = (a: Uint8Array | undefined, b: Uint8Array): boolean =>
     a !== undefined && a.length === b.length && a.every((v, i) => v === b[i]);
 
-const codesOf = (r: ReadPkcs12Report): string => r.reasons.map((x) => x.code).sort().join(',');
+const codesOf = (r: OpenPkcs12Report): string => r.reasons.map((x) => x.code).sort().join(',');
 
 /**
  * Hand every container a tool writes to pkinative, and compare. `null` when
@@ -548,7 +548,7 @@ export async function readKeyContainers(toolId: string, dir: string): Promise<Ke
     };
 
     /** The one key a container holds: its certificate byte-identical, and a signature that verifies. */
-    const holdsKey = async (c: ForeignContainer, r: ReadPkcs12Report): Promise<string> => {
+    const holdsKey = async (c: ForeignContainer, r: OpenPkcs12Report): Promise<string> => {
         checks += 1;
         if (r.keys.length !== 1) { failures.push(`${c.caseId} ${c.key}: ${String(r.keys.length)} keys reported, one written`); return 'wrong key count'; }
         const [held] = r.keys;
@@ -587,30 +587,30 @@ export async function readKeyContainers(toolId: string, dir: string): Promise<Ke
             const e = c.expect;
             switch (e.kind) {
                 case 'opens': {
-                    const r = await readPkcs12(c.bytes, { password: c.password });
+                    const r = await openPkcs12(c.bytes, { password: c.password });
                     checks += 1;
-                    if (!r.valid || r.integrity !== 'verified') failures.push(`${label}: readPkcs12 says valid=${String(r.valid)}, integrity=${r.integrity} (${codesOf(r) || 'no reason'}); expected valid and verified`);
+                    if (!r.valid || r.integrity !== 'verified') failures.push(`${label}: openPkcs12 says valid=${String(r.valid)}, integrity=${r.integrity} (${codesOf(r) || 'no reason'}); expected valid and verified`);
                     read = `valid, integrity verified, ${await holdsKey(c, r)}`;
                     break;
                 }
                 case 'opens-unverified': {
-                    const strict = await readPkcs12(c.bytes, { password: c.password });
+                    const strict = await openPkcs12(c.bytes, { password: c.password });
                     checks += 1;
                     if (strict.valid || strict.integrity !== 'unverified' || codesOf(strict) !== PKCS12_INTEGRITY) {
-                        failures.push(`${label}: readPkcs12 says valid=${String(strict.valid)}, integrity=${strict.integrity}, reasons ${codesOf(strict) || 'none'}; expected ${PKCS12_INTEGRITY} alone`);
+                        failures.push(`${label}: openPkcs12 says valid=${String(strict.valid)}, integrity=${strict.integrity}, reasons ${codesOf(strict) || 'none'}; expected ${PKCS12_INTEGRITY} alone`);
                     }
-                    const waived = await readPkcs12(c.bytes, { password: c.password, allowUnverifiedIntegrity: true });
+                    const waived = await openPkcs12(c.bytes, { password: c.password, allowUnverifiedIntegrity: true });
                     checks += 1;
-                    if (!waived.valid) failures.push(`${label}: with allowUnverifiedIntegrity readPkcs12 is still not valid (${codesOf(waived)})`);
+                    if (!waived.valid) failures.push(`${label}: with allowUnverifiedIntegrity openPkcs12 is still not valid (${codesOf(waived)})`);
                     read = `${PKCS12_INTEGRITY}; with allowUnverifiedIntegrity valid, ${await holdsKey(c, waived)}`;
                     break;
                 }
                 case 'reports': {
-                    const r = await readPkcs12(c.bytes, { password: c.password });
+                    const r = await openPkcs12(c.bytes, { password: c.password });
                     checks += 1;
                     const want = [...e.codes].sort().join(',');
                     if (r.valid || codesOf(r) !== want || r.integrity !== e.integrity) {
-                        failures.push(`${label}: readPkcs12 says valid=${String(r.valid)}, integrity=${r.integrity}, reasons ${codesOf(r) || 'none'}; expected ${want}, integrity ${e.integrity}`);
+                        failures.push(`${label}: openPkcs12 says valid=${String(r.valid)}, integrity=${r.integrity}, reasons ${codesOf(r) || 'none'}; expected ${want}, integrity ${e.integrity}`);
                     }
                     for (const scheme of e.naming) {
                         checks += 1;
@@ -641,7 +641,7 @@ export async function readKeyContainers(toolId: string, dir: string): Promise<Ke
                 }
             }
         } catch (error) {
-            // readPkcs12 must never throw for the file's sake, and a key the
+            // openPkcs12 must never throw for the file's sake, and a key the
             // case says opens must open: either way the finding is pkinative's.
             failures.push(`${label}: threw ${error instanceof PkiError ? error.code : ''} ${error instanceof Error ? error.message : String(error)}`);
             read = 'threw';

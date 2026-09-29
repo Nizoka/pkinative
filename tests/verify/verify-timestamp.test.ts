@@ -4,7 +4,7 @@ import { encodeDistinguishedName, encodeSubjectAltName } from '../../src/build/b
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { createTimeStampRequest } from '../../src/cms/tsp-request.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
-import { verifyTimeStampToken, type VerifyTimeStampInput } from '../../src/verify/verify-timestamp.js';
+import { verifyTimeStampToken, type VerifyTimeStampTokenInput } from '../../src/verify/verify-timestamp.js';
 import {
     AT,
     type Authority,
@@ -56,7 +56,7 @@ async function world(tsaOptions: Parameters<typeof issueTsa>[1] = {}): Promise<W
     return { root, tsa: await issueTsa(root, tsaOptions), imprint: await sha('SHA-256', DATA) };
 }
 
-const verify = async (w: World, token: Uint8Array, extra: Partial<VerifyTimeStampInput> = {}): ReturnType<typeof verifyTimeStampToken> =>
+const verify = async (w: World, token: Uint8Array, extra: Partial<VerifyTimeStampTokenInput> = {}): ReturnType<typeof verifyTimeStampToken> =>
     verifyTimeStampToken({ token, data: DATA, trustAnchors: [w.root.certificate], at: AT, ...extra });
 
 describe('verifyTimeStampToken', () => {
@@ -95,7 +95,7 @@ describe('verifyTimeStampToken', () => {
             // for a string, let a TypeError escape.
             const w = await world();
             const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
-            const call = verify(w, token, extra as Partial<VerifyTimeStampInput>);
+            const call = verify(w, token, extra as Partial<VerifyTimeStampTokenInput>);
             await expect(call).rejects.toBeInstanceOf(PkiError);
             await expect(call).rejects.toMatchObject({ code });
         });
@@ -119,7 +119,7 @@ describe('verifyTimeStampToken', () => {
             expect(report.chain?.valid).toBe(true);
             expect(report.token?.tstInfo.serialNumber).toBeDefined();
             // The TSA's signature and the one link above it.
-            expect(report.verified).toBe(2);
+            expect(report.signatureVerifications).toBe(2);
         });
 
         it('should accept a token that stamps the imprint the caller holds', async () => {
@@ -230,7 +230,7 @@ describe('verifyTimeStampToken', () => {
             expect(report.reasons[0]?.path).toBe('token');
             expect(report.reasons[0]?.errorCode).toMatch(/^PKI_/);
             expect(report.token).toBeUndefined();
-            expect(report.verified).toBe(0);
+            expect(report.signatureVerifications).toBe(0);
         });
 
         it('should take a profile concern in the token for what it is — not a verdict', async () => {
@@ -326,15 +326,15 @@ describe('verifyTimeStampToken', () => {
             expect(report.chain?.valid).toBe(true);
         });
 
-        it('should accept a non-critical timestamping extKeyUsage with allowNonCriticalTimestampingEku', async () => {
+        it('should accept a non-critical timestamping extKeyUsage with allowNonCriticalTimeStampingEku', async () => {
             const w = await world({ extensions: [eku([OID.timeStamping], false)] });
-            const report = await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint })), { allowNonCriticalTimestampingEku: true });
+            const report = await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint })), { allowNonCriticalTimeStampingEku: true });
             expect(codes(report)).toEqual([]);
         });
 
-        it('should still refuse timestamping among other purposes with allowNonCriticalTimestampingEku', async () => {
+        it('should still refuse timestamping among other purposes with allowNonCriticalTimeStampingEku', async () => {
             const w = await world({ extensions: [eku([OID.timeStamping, OID.codeSigning], false)] });
-            const report = await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint })), { allowNonCriticalTimestampingEku: true });
+            const report = await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint })), { allowNonCriticalTimeStampingEku: true });
             expect(codes(report)).toEqual(['PKI_REASON_PURPOSE_NOT_PERMITTED']);
         });
 
@@ -407,10 +407,10 @@ describe('verifyTimeStampToken', () => {
             expect(codes(await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint }), { crls: [crl] })))).toEqual(['PKI_REASON_REVOKED']);
         });
 
-        it('should pass requireRevocation, ocsp, allowSha1 and limits on to the TSA\'s chain', async () => {
+        it('should pass requireRevocation, ocspResponses, allowSha1 and limits on to the TSA\'s chain', async () => {
             const w = await world();
             const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
-            const options = { ocsp: [], allowSha1: false, limits: { maxInputBytes: 1 << 20 } };
+            const options = { ocspResponses: [], allowSha1: false, limits: { maxInputBytes: 1 << 20 } };
             expect(codes(await verify(w, token, { ...options, requireRevocation: true }))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
             expect(codes(await verify(w, token, { ...options, requireRevocation: true, crls: [await makeCrl(w.root)] }))).toEqual([]);
         });

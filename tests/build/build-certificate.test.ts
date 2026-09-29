@@ -11,7 +11,7 @@ import {
     encodeSubjectAltName,
     getExtension,
     parseCertificate,
-    signatureAlgorithmDer,
+    encodeSignatureAlgorithm,
     verifyCertificateSignature,
     verifySelfSignature,
     type SignatureAlgorithm,
@@ -211,7 +211,7 @@ describe('createCertificate', () => {
     });
 });
 
-describe('signatureAlgorithmDer', () => {
+describe('encodeSignatureAlgorithm', () => {
     it('should write RSASSA-PSS parameters a verifier reads back unchanged', async () => {
         const m = await material(
             { name: 'RSA-PSS', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
@@ -226,21 +226,21 @@ describe('signatureAlgorithmDer', () => {
     }, 30_000);
 
     it('should honour an explicit salt length', async () => {
-        const der = signatureAlgorithmDer({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 48 } });
+        const der = encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 48 } });
         const params = decodeAsn1(der).children[1];
         const salt = params?.children.find((c) => c.tagNumber === 2)?.children[0];
         expect(salt?.content[0]).toBe(48);
     });
 
     it('should refuse a negative salt length', () => {
-        expect(() => signatureAlgorithmDer({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: -1 } }))
+        expect(() => encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: -1 } }))
             .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
     });
 
     it('should refuse a digest with no RFC 5280 OID', () => {
-        expect(() => signatureAlgorithmDer({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-3' as never } }))
+        expect(() => encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-3' as never } }))
             .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
-        expect(() => signatureAlgorithmDer({ key: {} as never, algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-3' as never } }))
+        expect(() => encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-3' as never } }))
             .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
     });
 });

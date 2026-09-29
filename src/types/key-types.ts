@@ -17,10 +17,10 @@
  */
 
 import type { BitString } from './asn1-types.js';
-import type { CmsAttribute } from './cms-types.js';
+import type { Attribute } from './cms-types.js';
 import type { SignatureAlgorithm, SignatureHash } from './crypto-types.js';
 import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
-import type { AlgorithmIdentifier } from './x509-types.js';
+import type { AlgorithmIdentifier, EcCurve } from './x509-types.js';
 
 /** The PBKDF2 pseudo-random functions pkinative derives with — the HMACs Web Crypto implements. */
 export type Pbkdf2Prf = SignatureHash;
@@ -59,7 +59,7 @@ export interface PasswordEncryption {
 }
 
 /** The kinds of private key a PrivateKeyInfo can name that pkinative recognises. */
-export type PrivateKeyType = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown';
+export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown';
 
 /**
  * RFC 5958 `OneAsymmetricKey` (PKCS#8 `PrivateKeyInfo` when version 0) —
@@ -73,11 +73,11 @@ export interface PrivateKeyInfo {
     /** The private key algorithm, as encoded. */
     readonly algorithm: AlgorithmIdentifier;
     /** What the algorithm OID names. */
-    readonly keyType: PrivateKeyType;
+    readonly kind: PrivateKeyKind;
     /** For an EC key, the curve named in the algorithm parameters, when Web Crypto implements it; otherwise `undefined`. */
-    readonly namedCurve: 'P-256' | 'P-384' | 'P-521' | undefined;
+    readonly curve: EcCurve | undefined;
     /** The `[0]` attributes, in encoded order; empty when absent. */
-    readonly attributes: readonly CmsAttribute[];
+    readonly attributes: readonly Attribute[];
     /** The `[1]` public key of a version 1 structure, or `undefined`. */
     readonly publicKey: BitString | undefined;
     /** Profile concerns found while reading, in encoded order. */
@@ -150,7 +150,7 @@ export interface SafeBag {
     /** `localKeyId` (PKCS#9), when present once with one value — what ties a key to its certificate. */
     readonly localKeyId: Uint8Array | undefined;
     /** Every `bagAttributes` entry, in encoded order. */
-    readonly attributes: readonly CmsAttribute[];
+    readonly attributes: readonly Attribute[];
     /** For a certBag holding an X.509 certificate, its DER; otherwise `undefined`. */
     readonly certificateDer: Uint8Array | undefined;
     /** For a crlBag holding an X.509 CRL, its DER; otherwise `undefined`. */

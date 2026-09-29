@@ -370,19 +370,19 @@ describe('parseSignedData — limits', () => {
         expect(tripped(der, { maxSignerInfos: 1 })).toBe('maxSignerInfos');
     });
 
-    it('should bound the signed attributes with maxCmsAttributes', () => {
-        expect(tripped(contentInfo(), { maxCmsAttributes: 1 })).toBe('maxCmsAttributes');
+    it('should bound the signed attributes with maxAttributes', () => {
+        expect(tripped(contentInfo(), { maxAttributes: 1 })).toBe('maxAttributes');
     });
 
-    it('should bound the values of one attribute with maxCmsAttributes', () => {
+    it('should bound the values of one attribute with maxAttributes', () => {
         const der = contentInfo(signedData({ signers: [signerInfo({ signedAttrs: [attribute('1.2.3', int(1), int(2), int(3))] })] }));
-        expect(tripped(der, { maxCmsAttributes: 2 })).toBe('maxCmsAttributes');
+        expect(tripped(der, { maxAttributes: 2 })).toBe('maxAttributes');
     });
 
-    it('should bound certificates and CRLs together with maxCmsBagEntries', () => {
+    it('should bound certificates and CRLs together with maxCmsCertificatesAndCrls', () => {
         const der = contentInfo(signedData({ certificates: [sequence(int(1))], crls: [sequence(int(2))] }));
-        expect(parse(der, { limits: { maxCmsBagEntries: 2 } }).signed.crls).toHaveLength(1);
-        expect(tripped(der, { maxCmsBagEntries: 1 })).toBe('maxCmsBagEntries');
+        expect(parse(der, { limits: { maxCmsCertificatesAndCrls: 2 } }).signed.crls).toHaveLength(1);
+        expect(tripped(der, { maxCmsCertificatesAndCrls: 1 })).toBe('maxCmsCertificatesAndCrls');
     });
 });
 

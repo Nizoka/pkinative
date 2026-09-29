@@ -73,8 +73,8 @@ describe('parsePrivateKeyInfo — what a key says about itself', () => {
         const der = pkcs8();
         const info = parsePrivateKeyInfo(der);
         expect(info.version).toBe(0);
-        expect(info.keyType).toBe('ec');
-        expect(info.namedCurve).toBe('P-256');
+        expect(info.kind).toBe('ec');
+        expect(info.curve).toBe('P-256');
         expect(info.algorithm.oid).toBe(OIDS.ec);
         expect(info.attributes).toEqual([]);
         expect(info.publicKey).toBeUndefined();
@@ -84,7 +84,7 @@ describe('parsePrivateKeyInfo — what a key says about itself', () => {
 
     it('should not expose the private key octets under any field', () => {
         const info = parsePrivateKeyInfo(pkcs8());
-        expect(Object.keys(info).sort()).toEqual(['algorithm', 'attributes', 'der', 'diagnostics', 'keyType', 'namedCurve', 'publicKey', 'version']);
+        expect(Object.keys(info).sort()).toEqual(['algorithm', 'attributes', 'curve', 'der', 'diagnostics', 'kind', 'publicKey', 'version']);
         expect('privateKey' in info).toBe(false);
         expect(Object.isFrozen(info)).toBe(true);
     });
@@ -101,17 +101,17 @@ describe('parsePrivateKeyInfo — what a key says about itself', () => {
         ['id-Ed25519 (RFC 8410)', alg(OIDS.ed25519, null), 'ed25519'],
         ['id-Ed448 (RFC 8410)', alg(OIDS.ed448, null), 'ed448'],
         ['id-X25519, a key that does not sign', alg(OIDS.x25519, null), 'unknown'],
-    ] as const)('should name the key type of %s', (_label, algorithm, keyType) => {
+    ] as const)('should name the key type of %s', (_label, algorithm, kind) => {
         const info = parsePrivateKeyInfo(pkcs8({ algorithm }));
-        expect(info.keyType).toBe(keyType);
-        expect(info.namedCurve).toBeUndefined();
+        expect(info.kind).toBe(kind);
+        expect(info.curve).toBeUndefined();
     });
 
     it.each([
         [OIDS.p384, 'P-384'],
         [OIDS.p521, 'P-521'],
     ] as const)('should name the curve %s', (curve, name) => {
-        expect(parsePrivateKeyInfo(pkcs8({ algorithm: ecAlg(curve) })).namedCurve).toBe(name);
+        expect(parsePrivateKeyInfo(pkcs8({ algorithm: ecAlg(curve) })).curve).toBe(name);
     });
 
     it.each([
@@ -119,14 +119,14 @@ describe('parsePrivateKeyInfo — what a key says about itself', () => {
         ['absent parameters', alg(OIDS.ec, null)],
         ['NULL parameters', alg(OIDS.ec)],
         ['specified-curve parameters (a SEQUENCE)', alg(OIDS.ec, sequence(int(1)))],
-    ] as const)('should leave namedCurve undefined for an EC key with %s', (_label, algorithm) => {
+    ] as const)('should leave curve undefined for an EC key with %s', (_label, algorithm) => {
         const info = parsePrivateKeyInfo(pkcs8({ algorithm }));
-        expect(info.keyType).toBe('ec');
-        expect(info.namedCurve).toBeUndefined();
+        expect(info.kind).toBe('ec');
+        expect(info.curve).toBeUndefined();
     });
 
     it('should not read a curve from the parameters of a key that is not EC', () => {
-        expect(parsePrivateKeyInfo(pkcs8({ algorithm: alg(OIDS.ed25519, oid(OIDS.p256)) })).namedCurve).toBeUndefined();
+        expect(parsePrivateKeyInfo(pkcs8({ algorithm: alg(OIDS.ed25519, oid(OIDS.p256)) })).curve).toBeUndefined();
     });
 });
 
@@ -195,16 +195,16 @@ describe('parsePrivateKeyInfo — attributes and the public key (RFC 5958 §2)',
         expect(error.path).toBe(path);
     });
 
-    it('should stop at maxCmsAttributes', () => {
+    it('should stop at maxAttributes', () => {
         const entry = attribute(OIDS.localKeyId, octets([1]));
         const der = pkcs8({ optional: [attributes(entry, entry, entry)] });
-        expect(parsePrivateKeyInfo(der, { limits: { maxCmsAttributes: 3 } }).attributes).toHaveLength(3);
+        expect(parsePrivateKeyInfo(der, { limits: { maxAttributes: 3 } }).attributes).toHaveLength(3);
         try {
-            parsePrivateKeyInfo(der, { limits: { maxCmsAttributes: 2 } });
+            parsePrivateKeyInfo(der, { limits: { maxAttributes: 2 } });
             expect.unreachable();
         } catch (error) {
             expect(error).toBeInstanceOf(PkiLimitError);
-            expect(error).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxCmsAttributes', configured: 2, observed: 3 });
+            expect(error).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes', configured: 2, observed: 3 });
         }
     });
 });

@@ -52,8 +52,8 @@ import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
 import { _assertArguments, _pkiError } from './verify-chain.js';
 
-/** What `readPkcs12` takes. */
-export interface ReadPkcs12Options extends PkiParseOptions {
+/** What `openPkcs12` takes. */
+export interface OpenPkcs12Options extends PkiParseOptions {
     /**
      * The password. A string is encoded as UTF-8, which is what OpenSSL and
      * RFC 9579 use; a `Uint8Array` is used as given, for a file written with
@@ -90,8 +90,8 @@ export interface Pkcs12Key {
     readonly signingKey: SigningKey | undefined;
 }
 
-/** What `readPkcs12` found. */
-export interface ReadPkcs12Report {
+/** What `openPkcs12` found. */
+export interface OpenPkcs12Report {
     /** Whether everything was opened, and its integrity verified or explicitly waived. */
     readonly valid: boolean;
     /** `verified` for a matching RFC 9579 MAC; `unverified` when it could not be checked; `mismatch` when it did not match, in which case nothing was decrypted. */
@@ -116,9 +116,9 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  * its keys.
  *
  * ```ts
- * import { readPkcs12, createSignedData } from 'pkinative';
+ * import { openPkcs12, createSignedData } from 'pkinative';
  *
- * const report = await readPkcs12(p12Bytes, { password });
+ * const report = await openPkcs12(p12Bytes, { password });
  * if (!report.valid) throw new Error(report.reasons.map((r) => r.message).join('; '));
  * const [{ signingKey, certificate }] = report.keys;
  * const signed = await createSignedData({ content, certificate: certificate! }, signingKey!);
@@ -132,12 +132,12 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  *   `rsaAlgorithm` is not an RSA signature algorithm, or for a bad `encodingRules`; `PKI_LIMIT_INVALID` for an unknown
  *   or non-positive key in `limits`; `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
  */
-export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): Promise<ReadPkcs12Report> {
+export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): Promise<OpenPkcs12Report> {
     // Misuse is decided here, before the first catch: past it, every PkiError
     // is converted into a reason about the file.
     const password = _password(options);
     const rsaAlgorithm = _rsaAlgorithm(options.rsaAlgorithm);
-    assertBytes(der, 'readPkcs12 input');
+    assertBytes(der, 'openPkcs12 input');
     const reading: PkiParseOptions = {
         limits: options.limits ?? {},
         onDiagnostic: (): undefined => undefined,
@@ -167,7 +167,7 @@ export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): P
     }
 
     // ── Integrity ──
-    let integrity: ReadPkcs12Report['integrity'] = 'unverified';
+    let integrity: OpenPkcs12Report['integrity'] = 'unverified';
     const mac = pkcs12.mac;
     let unverified: 'pkcs12-kdf' | 'absent' | 'pbmac1-unsupported' | undefined;
     if (mac === undefined) unverified = 'absent';
@@ -283,24 +283,24 @@ export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): P
 // ── Helpers ──
 
 /** The password, refused before anything is read when it cannot be one. */
-function _password(options: ReadPkcs12Options | undefined): Uint8Array | string {
+function _password(options: OpenPkcs12Options | undefined): Uint8Array | string {
     const password = (options as { readonly password?: unknown } | undefined)?.password;
     if (typeof password !== 'string' && !(password instanceof Uint8Array)) {
-        throw new PkiError('PKI_INVALID_OPTION', 'pkinative: readPkcs12 needs options.password, as a string or a Uint8Array — an empty string is a password, undefined is not');
+        throw new PkiError('PKI_INVALID_OPTION', 'pkinative: openPkcs12 needs options.password, as a string or a Uint8Array — an empty string is a password, undefined is not');
     }
     return password;
 }
 
 /** The RSA scheme a caller chose, refused before anything is read when it is not one. */
-function _rsaAlgorithm(chosen: unknown): ReadPkcs12Options['rsaAlgorithm'] {
+function _rsaAlgorithm(chosen: unknown): OpenPkcs12Options['rsaAlgorithm'] {
     if (chosen === undefined) return undefined;
     const candidate = chosen as { readonly name?: unknown; readonly hash?: unknown } | null;
     if (typeof chosen !== 'object' || candidate === null
         || (candidate.name !== 'RSASSA-PKCS1-v1_5' && candidate.name !== 'RSA-PSS')
         || !RSA_HASHES.has(candidate.hash as string)) {
-        throw new PkiError('PKI_INVALID_OPTION', 'pkinative: readPkcs12 options.rsaAlgorithm must be { name: \'RSASSA-PKCS1-v1_5\' | \'RSA-PSS\', hash: \'SHA-256\' | \'SHA-384\' | \'SHA-512\' | \'SHA-1\' } — it says what an RSA key will sign with');
+        throw new PkiError('PKI_INVALID_OPTION', 'pkinative: openPkcs12 options.rsaAlgorithm must be { name: \'RSASSA-PKCS1-v1_5\' | \'RSA-PSS\', hash: \'SHA-256\' | \'SHA-384\' | \'SHA-512\' | \'SHA-1\' } — it says what an RSA key will sign with');
     }
-    return chosen as ReadPkcs12Options['rsaAlgorithm'];
+    return chosen as OpenPkcs12Options['rsaAlgorithm'];
 }
 
 /** The digests an RSA signing key may be bound to. */
@@ -334,7 +334,7 @@ function _openingReason(refused: PkiError, path: string, scheme: string): PkiRea
  * name for EdDSA, and the caller's choice for RSA. `undefined` for a key Web
  * Crypto cannot sign with.
  */
-function _algorithmOf(certificate: Certificate, rsa: ReadPkcs12Options['rsaAlgorithm']): SignatureAlgorithm | undefined {
+function _algorithmOf(certificate: Certificate, rsa: OpenPkcs12Options['rsaAlgorithm']): SignatureAlgorithm | undefined {
     const spki = certificate.subjectPublicKeyInfo;
     switch (spki.kind) {
         case 'rsa':
@@ -352,12 +352,12 @@ function _algorithmOf(certificate: Certificate, rsa: ReadPkcs12Options['rsaAlgor
 
 function _report(
     reasons: readonly PkiReason[],
-    integrity: ReadPkcs12Report['integrity'],
+    integrity: OpenPkcs12Report['integrity'],
     pkcs12: Pkcs12 | undefined,
     keys: readonly Pkcs12Key[],
     certificates: readonly Certificate[],
     crls: readonly Uint8Array[],
-): ReadPkcs12Report {
+): OpenPkcs12Report {
     return Object.freeze({
         valid: reasons.length === 0,
         integrity,

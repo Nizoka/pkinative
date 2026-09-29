@@ -351,7 +351,7 @@ describe('buildCertificatePath — the purpose is part of the search', () => {
 
     it('should backtrack past an issuer that forbids the purpose, and find the one that does not', async () => {
         const { leaf, candidates, signatures } = await bag();
-        const report = buildCertificatePath({ leaf, candidates, trustAnchors: [ROOT], at: AT, signatures, requiredPurposes: [SERVER_AUTH] });
+        const report = buildCertificatePath({ leaf, candidates, trustAnchors: [ROOT], at: AT, signatures, purposes: [SERVER_AUTH] });
         expect(codes(report)).toEqual([]);
         expect(report.valid).toBe(true);
         // The path it settled on is the unrestricted one, which is the whole
@@ -364,7 +364,7 @@ describe('buildCertificatePath — the purpose is part of the search', () => {
         const { leaf, candidates, signatures } = await bag();
         const report = buildCertificatePath({
             leaf, candidates: [candidates[0] as Certificate], trustAnchors: [ROOT], at: AT, signatures,
-            requiredPurposes: [SERVER_AUTH],
+            purposes: [SERVER_AUTH],
         });
         expect(codes(report)).toContain('PKI_REASON_PURPOSE_NOT_PERMITTED');
         // A caller told only "no path found" cannot see that the one path there
@@ -386,7 +386,7 @@ describe('buildCertificatePath — the purpose is part of the search', () => {
         const solo = await issue({ subject: 'Self', issuerDer: ROOT.subject.der, ca: false, serial: 94n, purposes: [EMAIL] });
         const report = buildCertificatePath({
             leaf: solo.certificate, candidates: [], trustAnchors: [ROOT], at: AT,
-            signatures: allValid(solo.certificate), requiredPurposes: [SERVER_AUTH],
+            signatures: allValid(solo.certificate), purposes: [SERVER_AUTH],
         });
         expect(codes(report)).toContain('PKI_REASON_PURPOSE_NOT_PERMITTED');
     });

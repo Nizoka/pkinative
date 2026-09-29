@@ -32,7 +32,7 @@ import {
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { sha384, sha512 } from '../hash/sha512.js';
-import type { CmsAttribute, SignedData, SignerIdentifier, SignerInfo } from '../types/cms-types.js';
+import type { Attribute, SignedData, SignerIdentifier, SignerInfo } from '../types/cms-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { AlgorithmIdentifier, Certificate } from '../types/x509-types.js';
 import { getExtension } from '../x509/x509-extensions.js';
@@ -157,8 +157,8 @@ export function _signerAttributeReasons(signedData: SignedData, signer: SignerIn
         const found = signed.filter((attribute) => attribute.oid === oid);
         if (found.length > 1) {
             out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.${name}`, `the ${name} attribute appears ${String(found.length)} times, where it may appear once`));
-        } else if (found.length === 1 && (found[0] as CmsAttribute).values.length !== 1) {
-            out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.${name}`, `the ${name} attribute holds ${String((found[0] as CmsAttribute).values.length)} values, where it must hold one`));
+        } else if (found.length === 1 && (found[0] as Attribute).values.length !== 1) {
+            out.push(cmsAttributeInvalidReason(`${path}.signedAttrs.${name}`, `the ${name} attribute holds ${String((found[0] as Attribute).values.length)} values, where it must hold one`));
         }
     }
 
@@ -277,7 +277,7 @@ export function _signingCertificateReason(signer: SignerInfo, certificate: Certi
  * a malformed recognised attribute is refused at parse. So this compares and
  * never has to turn a decoding failure into a verdict.
  */
-function _algorithmProtectionReason(signer: SignerInfo, signed: readonly CmsAttribute[], path: string, required: boolean): PkiReason | null {
+function _algorithmProtectionReason(signer: SignerInfo, signed: readonly Attribute[], path: string, required: boolean): PkiReason | null {
     const where = `${path}.signedAttrs.CMSAlgorithmProtection`;
     if (!signed.some((attribute) => attribute.oid === OID_ATTR_ALGORITHM_PROTECTION)) {
         return required
