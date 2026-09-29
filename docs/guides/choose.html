@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Choosing a PKI library — pkinative</title>
-  <meta name="description" content="Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.">
+  <meta name="description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/choose.html">
   <meta property="og:title" content="Choosing a PKI library — pkinative">
-  <meta property="og:description" content="Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.">
+  <meta property="og:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Choosing a PKI library — pkinative">
-  <meta name="twitter:description" content="Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.">
+  <meta name="twitter:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/choose.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/choose.html">
@@ -55,46 +55,62 @@
     <article id="guide-content" class="guide-content" data-md="choose.md" data-prerendered="true">
       <h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
       <blockquote>
-      <p><strong>Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign.</strong> This guide says which, with the facts behind it and the milestone that closes each gap.</p>
+      <p><strong>Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</strong></p>
       </blockquote>
-      <h2 id="what-pkinative-01-does">What pkinative 0.1 does <a class="heading-anchor" href="#what-pkinative-01-does" aria-label="Link to this section">#</a></h2>
+      <h2 id="what-pkinative-does">What pkinative does <a class="heading-anchor" href="#what-pkinative-does" aria-label="Link to this section">#</a></h2>
       <ul>
-      <li>Parses every field and every standard extension of an RFC 5280 certificate, with profile concerns as diagnostics.</li>
-      <li>Decodes and encodes DER (and BER on request), PEM and OIDs, with typed errors and CWE-tagged limits.</li>
-      <li>Computes certificate fingerprints, synchronously or through Web Crypto.</li>
-      <li>Verifies a certificate&#39;s signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448. <code>true</code> and <code>false</code> are answers; a <code>PkiCryptoError</code> means the question could not be put.</li>
+      <li><strong>Reads</strong> DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.</li>
+      <li><strong>Builds</strong> certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an <code>ExternalSigner</code> for a key in an HSM or a remote service.</li>
+      <li><strong>Judges</strong>: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps. The one-call reports — <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>openPkcs12</code> — return every reason at once and never throw for a problem with the input.</li>
+      <li><strong>Proves it</strong>: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the <a href="conformance.html">conformance guide</a> carries the current figures and every reviewed deviation.</li>
       <li>Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.</li>
       </ul>
-      <p>Verifying a signature is <strong>not</strong> validating a chain: it says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. Treating one as the other is an authentication bypass, and RFC 5280 §6 arrives in 0.5.</p>
+      <p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
       <p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
-      <h2 id="what-it-does-not-do-yet">What it does not do yet <a class="heading-anchor" href="#what-it-does-not-do-yet" aria-label="Link to this section">#</a></h2>
+      <h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
+      <p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
       <table>
       <thead>
       <tr>
       <th>You need</th>
-      <th>pkinative</th>
-      <th>Until then</th>
+      <th>Why pkinative will not</th>
+      <th>Instead</th>
       </tr>
       </thead>
       <tbody><tr>
-      <td>Create a CSR or a certificate</td>
-      <td>0.3, signed by a Web Crypto key</td>
-      <td>@peculiar/x509</td>
+      <td>A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC</td>
+      <td>Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript (<a href="../adr/0002-pkcs12-pbes2-only.md">ADR 0002</a>)</td>
+      <td>Convert it once: <code>openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
       </tr>
       <tr>
-      <td>Validate a path, check CRL or OCSP</td>
-      <td>0.5</td>
-      <td>pkijs; on Node.js, <code>node:crypto.X509Certificate</code> plus your TLS stack</td>
+      <td>To write a PKCS#8 or PKCS#12, or to generate or export a key</td>
+      <td>Web Crypto&#39;s <code>encrypt</code>, <code>wrapKey</code>, <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>, <a href="../adr/0003-no-pkcs8-or-pkcs12-writer.md">ADR 0003</a>)</td>
+      <td>Web Crypto or <code>node:crypto</code> in your own code, or OpenSSL</td>
       </tr>
       <tr>
-      <td>Parse or build CMS, verify timestamps</td>
-      <td>0.7</td>
-      <td>pkijs</td>
+      <td>To verify DSA signatures</td>
+      <td>Web Crypto implements none of it, and pkinative implements no signature algorithm (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>)</td>
+      <td><code>node:crypto</code> on Node.js</td>
       </tr>
       <tr>
-      <td>Read PKCS#8 or PKCS#12</td>
-      <td>0.8, PKCS#12 under PBES2 only</td>
-      <td>pkijs, node-forge — and for a legacy <code>.p12</code>, <code>openssl pkcs12 -legacy</code> to convert it</td>
+      <td>To fetch a CRL, an OCSP response, a missing intermediate or a timestamp</td>
+      <td>The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker&#39;s choosing (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>)</td>
+      <td>Fetch them yourself and pass the bytes</td>
+      </tr>
+      <tr>
+      <td>ETSI long-term signatures — archive timestamps, chained proof of existence</td>
+      <td>Out of scope through 1.0; <code>atTimeStamp</code> takes one level of evidence (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>)</td>
+      <td>A PAdES or CAdES toolkit</td>
+      </tr>
+      <tr>
+      <td>Distinguished names matched by RFC 5280 §7.1 preparation when building chains</td>
+      <td>Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal (<a href="../adr/0005-names-compared-by-encoded-bytes.md">ADR 0005</a>)</td>
+      <td>Re-issue with consistent encodings</td>
+      </tr>
+      <tr>
+      <td>An npm package before 1.0.0</td>
+      <td>Pre-1.0 versions are git tags; <code>publish.yml</code> refuses them</td>
+      <td>Install the tarball attached to the GitHub release</td>
       </tr>
       </tbody></table>
       <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
@@ -156,9 +172,10 @@
       <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
       <ul>
       <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
-      <li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: a certificate parser bundle is about 55 KB minified, checked by <code>npm run verify:bundle</code>.</li>
+      <li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
       <li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
       <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
+      <li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>
       </ul>
     </article>
   </main>

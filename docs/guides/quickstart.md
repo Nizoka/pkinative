@@ -1,10 +1,10 @@
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.3 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.8 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
-pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
+pkinative 0.8 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
 npm install https://github.com/Nizoka/pkinative/releases/download/v0.8.0/pkinative-0.8.0.tgz

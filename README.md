@@ -41,7 +41,7 @@ Choose pkinative to **read** certificates strictly with nothing else installed; 
 
 ## Installation
 
-pkinative 0.3 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
+pkinative 0.8 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
 
 ```bash
 npm install https://github.com/Nizoka/pkinative/releases/download/v0.8.0/pkinative-0.8.0.tgz

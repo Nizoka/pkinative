@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 166788,
-      "approxTokens": 41697
+      "bytes": 169334,
+      "approxTokens": 42334
     },
     {
       "url": "llms-recipes.txt",
@@ -67,7 +67,7 @@
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.3 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.8 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -175,17 +175,17 @@
     },
     {
       "title": "Choosing a PKI library",
-      "summary": "Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign. This guide says which, with the facts behind it and the milestone that closes each gap.",
+      "summary": "Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.",
       "html": "guides/choose.html",
       "markdown": "guides/choose.md",
       "anchors": [
-        "what-pkinative-01-does",
-        "what-it-does-not-do-yet",
+        "what-pkinative-does",
+        "what-it-does-not-do-by-design",
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 3143,
-      "approxTokens": 786
+      "bytes": 5689,
+      "approxTokens": 1422
     }
   ]
 }

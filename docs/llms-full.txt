@@ -79,7 +79,7 @@ Choose pkinative to **read** certificates strictly with nothing else installed; 
 
 ## Installation
 
-pkinative 0.3 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
+pkinative 0.8 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
 
 ```bash
 npm install https://github.com/Nizoka/pkinative/releases/download/v0.8.0/pkinative-0.8.0.tgz
@@ -181,11 +181,11 @@ pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures.
 
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.3 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.8 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
-pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
+pkinative 0.8 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
 
 ```bash
 npm install https://github.com/Nizoka/pkinative/releases/download/v0.8.0/pkinative-0.8.0.tgz
@@ -1339,28 +1339,33 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 
 # Choosing a PKI library
 
-> **Choose pkinative to read certificates strictly with nothing else installed; choose another library today if you need to validate chains or sign.** This guide says which, with the facts behind it and the milestone that closes each gap.
+> **Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.**
 
-## What pkinative 0.1 does
+## What pkinative does
 
-- Parses every field and every standard extension of an RFC 5280 certificate, with profile concerns as diagnostics.
-- Decodes and encodes DER (and BER on request), PEM and OIDs, with typed errors and CWE-tagged limits.
-- Computes certificate fingerprints, synchronously or through Web Crypto.
-- Verifies a certificate's signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448. `true` and `false` are answers; a `PkiCryptoError` means the question could not be put.
+- **Reads** DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.
+- **Builds** certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an `ExternalSigner` for a key in an HSM or a remote service.
+- **Judges**: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps. The one-call reports — `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12` — return every reason at once and never throw for a problem with the input.
+- **Proves it**: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the [conformance guide](conformance.md) carries the current figures and every reviewed deviation.
 - Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.
 
-Verifying a signature is **not** validating a chain: it says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. Treating one as the other is an authentication bypass, and RFC 5280 §6 arrives in 0.5.
+Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
 `docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
 
-## What it does not do yet
+## What it does not do, by design
 
-| You need | pkinative | Until then |
+Each of these is a recorded decision, not a gap on a roadmap: the [decision records](../adr/README.md) say why, and what holds the line.
+
+| You need | Why pkinative will not | Instead |
 |---|---|---|
-| Create a CSR or a certificate | 0.3, signed by a Web Crypto key | @peculiar/x509 |
-| Validate a path, check CRL or OCSP | 0.5 | pkijs; on Node.js, `node:crypto.X509Certificate` plus your TLS stack |
-| Parse or build CMS, verify timestamps | 0.7 | pkijs |
-| Read PKCS#8 or PKCS#12 | 0.8, PKCS#12 under PBES2 only | pkijs, node-forge — and for a legacy `.p12`, `openssl pkcs12 -legacy` to convert it |
+| A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC | Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript ([ADR 0002](../adr/0002-pkcs12-pbes2-only.md)) | Convert it once: `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12` |
+| To write a PKCS#8 or PKCS#12, or to generate or export a key | Web Crypto's `encrypt`, `wrapKey`, `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md), [ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)) | Web Crypto or `node:crypto` in your own code, or OpenSSL |
+| To verify DSA signatures | Web Crypto implements none of it, and pkinative implements no signature algorithm ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)) | `node:crypto` on Node.js |
+| To fetch a CRL, an OCSP response, a missing intermediate or a timestamp | The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker's choosing ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)) | Fetch them yourself and pass the bytes |
+| ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope through 1.0; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
+| Distinguished names matched by RFC 5280 §7.1 preparation when building chains | Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal ([ADR 0005](../adr/0005-names-compared-by-encoded-bytes.md)) | Re-issue with consistent encodings |
+| An npm package before 1.0.0 | Pre-1.0 versions are git tags; `publish.yml` refuses them | Install the tarball attached to the GitHub release |
 
 ## The alternatives, by the facts
 
@@ -1380,6 +1385,7 @@ node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinat
 ## When pkinative is the right choice
 
 - You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.
-- You ship to browsers or edge runtimes and count every dependency and every kilobyte: a certificate parser bundle is about 55 KB minified, checked by `npm run verify:bundle`.
+- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
+- You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.

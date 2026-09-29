@@ -99,12 +99,16 @@ export const EDITS: readonly Edit[] = [
     // first release after the rule existed.
     { file: 'docs/data/surfaces.json', what: 'version', pattern: /("version": ")\d+\.\d+\.\d+(")/, replace: (v) => `$1${v}$2` },
 
-    // The two prose sentences that carry the current minor beside those
-    // URLs. They change wording at 1.0 — "pre-1.0, not on npm" stops being
+    // The prose sentences that carry the current minor beside those URLs —
+    // five since 0.9, when three were found still saying "0.3" at 0.8: no row
+    // owned them, so no bump moved them. They change wording at 1.0 — "pre-1.0, not on npm" stops being
     // true — so the rewrite is of the digits alone and the sentence is a
     // human's to revisit then.
     { file: 'README.md', what: 'status line minor', pattern: /(\*\*Status: )\d+\.\d+( )/, replace: (v) => `$1${minor(v)}$2` },
     { file: 'docs/agent-brief.md', what: 'release-tarball minor', pattern: /\b\d+\.\d+( is the release tarball\b)/, replace: (v) => `${minor(v)}$1` },
+    { file: 'README.md', what: 'install-section minor', pattern: /(pkinative )\d+\.\d+( is not on npm\.)/, replace: (v) => `$1${minor(v)}$2` },
+    { file: 'docs/guides/quickstart.md', what: 'install-step minor', pattern: /(pkinative )\d+\.\d+( is not on npm:)/, replace: (v) => `$1${minor(v)}$2` },
+    { file: 'docs/guides/quickstart.md', what: 'tested-version minor', pattern: /(runs on pkinative )\d+\.\d+( as it is tested)/, replace: (v) => `$1${minor(v)}$2` },
 ];
 
 function parseArgs(argv: readonly string[]): { version: string; date: string; dryRun: boolean } | null {
