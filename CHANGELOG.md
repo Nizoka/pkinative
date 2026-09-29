@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
+## [Unreleased]
+
+### Changed
+
+- **refactor!: the rename set before the freeze** — every name that freezes at 1.0 was audited once, and the ones a 1.0 would regret were renamed now, without aliases, because 0.9 is the last band in which that costs a minor. Three limit names (`maxCmsAttributes` → `maxAttributes`, which bounds PKCS#8 and PKCS#12 attribute sets too; `maxCmsBagEntries` → `maxCmsCertificatesAndCrls`; `maxOcspResponses` → `maxOcspSingleResponses`); a report field that read like a boolean on a failed report (`verified` → `signatureVerifications`); the input fields and types that broke the rule *function name plus `Input`, `Options` or `Report`*; `readPkcs12` → `openPkcs12`; `PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION` → `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`, one spelling with its diagnostic twin. No error code and no diagnostic code moved. [ADR 0013](docs/adr/0013-renames-before-the-freeze.md) holds the table, what was deliberately left, and why.
+
+### Added
+
+- **The freeze, rehearsed by rules that already bite.** `docs/assets/api.frozen.json` snapshots the public surface — every export's kind and a signature read from the syntax tree — and `api-surface-frozen` fails on any change to it in this rehearsal phase, as it will on any incompatible one from 1.0. The snapshot moves only through `build-api-frozen.ts --rebaseline`, which requires an accepted ADR and logs the move; the rename set was its first use. The error vocabulary now ratchets: a code a 1.x release ships is recorded then, so it cannot be removed later. `release-era-prose` holds every "not on npm" sentence to the version, and `check-npm-drift.ts` checks the registry weekly.
+- **Clause completeness against the RFC itself.** RFC 5280 is pinned as a corpus; every L5 quote must be verbatim, and each of the 182 requirement sentences of §4.1–§4.2 is a clause or a reviewed exclusion. It found four quotes the RFC does not contain — one of them invented — and six requirements pkinative already diagnosed with no clause behind them, now clauses.
+- **Mutation testing, in-house.** `npm run mutate` runs a deterministic, dependency-free mutation pass over the security-critical modules; all eight reach 100 % after 19 tests its survivors asked for.
+- **Thirteen architecture decision records** in `docs/adr/`, one per thing pkinative will not do and why, held to their index by `adr-index`.
+
+### Fixed
+
+- **fix(path): an rfc822Name constraint now reaches the subject emailAddress when there is no subjectAltName** — RFC 5280 §4.2.1.10 requires it, and pkinative skipped it, accepting a path the constraint forbids. This is what made NIST's `InvalidDNandRFC822nameConstraintsTest29` a deviation from 0.5.0 to 0.8.0; the recorded cause was wrong, and the notes of those releases now say so. NIST PKITS 195/203, S/MIME 196/204.
+- **fix(path): an excluded directoryName matches after RFC 5280 §7.1 preparation** — a subject differing from an excluded subtree only in case, spacing or string type escaped it. No corpus case reached it. Permitted subtrees keep byte comparison, whose failure mode is a refusal ([ADR 0005](docs/adr/0005-names-compared-by-encoded-bytes.md)).
+- **fix(revocation): a dropped CRL extension is diagnosed, never silently** — a malformed `cRLNumber`, delta indicator, reason code or invalidity date vanished without a word, and so would a programming error the bare catch also swallowed. They now emit `PKI_DIAG_CRL_EXTENSION_MALFORMED`, and every catch in `src/` passes what it caught through one guard.
+- **docs: two public claims corrected** — the 0.5.0 and 0.7.0 notes said no deviation accepts what a standards body rejects; `InvalidDNandRFC822nameConstraintsTest29` did. And "`verify/` is the only place that catches a `PkiError`" was never true: it is the only layer that turns one into a reason. The choice guide, which still told readers to look elsewhere for path validation and signing, describes what ships.
+
 ## [0.8.0] – 2026-09-29
 
 ### Added
