@@ -50,11 +50,16 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
         registry.errors.shift();
         f['docs/data/errors.json'] = JSON.stringify(registry, null, 2);
     },
+    // A rename done in the registry: error-parity would also see the union
+    // disagree, but only the snapshot knows the old name was a promise.
+    'error-codes-frozen': (f) => edit(f, 'docs/data/errors.json', '"PKI_API_MISUSE"', '"PKI_API_MISUSED"'),
     'diagnostics-parity': (f) => edit(f, 'docs/data/diagnostics.json', '"PKI_DIAG_SAN_EMPTY"', '"PKI_DIAG_SAN_MISSING"'),
     'limits-parity': (f) => edit(f, 'SECURITY.md', /^\| `maxDepth` \| 64 \|/m, '| `maxDepth` | 65 |'),
     // The defect that matters: the prose quietly granting an operation the
     // check still refuses. "nowhere" is the only honest value for these.
     'key-operation-parity': (f) => edit(f, 'SECURITY.md', /^\| `generateKey` \| nowhere \|/m, '| `generateKey` | `src/crypto/webcrypto.ts` |'),
+    // The same defect for passwords: the prose opening a scheme the code refuses.
+    'pkcs12-policy-parity': (f) => edit(f, 'SECURITY.md', /(`1\.2\.840\.113549\.1\.12\.1\.3` \| )refuses/, '$1opens'),
     'api-json-sync': (f) => edit(f, 'docs/assets/api.json', /"exportCount": \d+/, '"exportCount": 0'),
     // The failure to catch is a budget raised for a surface that grew
     // without anyone restating how much it grew.
@@ -154,6 +159,79 @@ describe('verify-docs rule table', () => {
         edit(files, 'src/core/pki-limits.ts', "'pkinative: options.limits must be", "'options.limits must be");
         const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
         expect(problems).toEqual([expect.objectContaining({ file: 'src/core/pki-limits.ts', message: expect.stringContaining('must start with "pkinative: "') })]);
+    });
+
+    it('should fire error-parity on a throw site whose code is computed', async () => {
+        // The message is a perfect literal; only the code argument is wrong.
+        const files = { ...TREE };
+        edit(files, 'src/core/pki-limits.ts', "throw new PkiLimitError('PKI_LIMIT_EXCEEDED',", "throw new PkiLimitError(`PKI_LIMIT_${'EXCEEDED'}`,");
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
+        expect(problems).toEqual([expect.objectContaining({ file: 'src/core/pki-limits.ts', message: expect.stringContaining('computes its code') })]);
+    });
+
+    it('should fire error-parity on a literal code of another class', async () => {
+        const files = { ...TREE };
+        edit(files, 'src/core/pki-limits.ts', "throw new PkiLimitError('PKI_LIMIT_EXCEEDED',", "throw new PkiLimitError('PKI_INTERNAL',");
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
+        expect(problems).toEqual([expect.objectContaining({ message: expect.stringContaining("passes 'PKI_INTERNAL', which is not a code of PkiLimitErrorCode") })]);
+    });
+
+    const PASS_THROUGH = [
+        "import { PkiLimitError, type PkiLimitErrorCode } from '../types/pki-errors.js';",
+        'export function _limitError(code: PkiLimitErrorCode, why: string): PkiLimitError {',
+        '    return new PkiLimitError(code, `pkinative: ${why} — raise the limit`);',
+        '}',
+        '',
+    ].join('\n');
+
+    it('should pass error-parity on a typed pass-through helper whose every caller passes a literal', async () => {
+        const files = { ...TREE };
+        files['src/core/zz-pass-through.ts'] = PASS_THROUGH;
+        files['src/core/zz-caller.ts'] = "import { _limitError } from './zz-pass-through.js';\nconst EXCEEDED = 'PKI_LIMIT_EXCEEDED';\nexport function f(big: boolean): Error {\n    return big ? _limitError(EXCEEDED, 'big') : _limitError(big ? 'PKI_LIMIT_INVALID' : 'PKI_LIMIT_EXCEEDED', 'small');\n}\n";
+        expect(await runRules(createMemoryContext(files), RULES, 'error-parity')).toEqual([]);
+    });
+
+    it('should fire error-parity at the caller of a pass-through helper that computes the code', async () => {
+        const files = { ...TREE };
+        files['src/core/zz-pass-through.ts'] = PASS_THROUGH;
+        files['src/core/zz-caller.ts'] = "import { _limitError } from './zz-pass-through.js';\nexport function f(kind: string): Error {\n    return _limitError(`PKI_LIMIT_${kind}` as never, 'computed');\n}\n";
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
+        expect(problems).toEqual([expect.objectContaining({ file: 'src/core/zz-caller.ts', line: 3, message: expect.stringContaining('_limitError(…) computes its code') })]);
+    });
+
+    it('should fire error-parity on a pass-through parameter typed wider than the class', async () => {
+        const files = { ...TREE };
+        files['src/core/zz-pass-through.ts'] = PASS_THROUGH.replace('code: PkiLimitErrorCode', 'code: string');
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-parity');
+        expect(problems).toEqual([expect.objectContaining({ message: expect.stringContaining('is not typed with a code union of PkiLimitErrorCode') })]);
+    });
+
+    it('should fire error-codes-frozen on a frozen code moved to another class, and name the way forward', async () => {
+        const files = { ...TREE };
+        edit(files, 'src/types/pki-errors.ts', "    | 'PKI_INTERNAL';", ';');
+        edit(files, 'src/types/pki-errors.ts', "    | 'PKI_LIMIT_INVALID'", "    | 'PKI_LIMIT_INVALID'\n    | 'PKI_INTERNAL'");
+        const problems = await runRules(createMemoryContext(files), RULES, 'error-codes-frozen');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringMatching(/PKI_INTERNAL was frozen at 0\.8\.0 as a PkiError and now belongs to the union of PkiLimitError: .*semver-major/)]);
+    });
+
+    it('should pass error-codes-frozen on an addition whose since is newer than the freeze, and fire on one that is not', async () => {
+        const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
+        const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', since: '0.9.0', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
+        const withSince = (since: string): Record<string, string> => ({ ...TREE, 'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, { ...added, since }] }, null, 2) });
+        expect(await runRules(createMemoryContext(withSince('0.9.0')), RULES, 'error-codes-frozen')).toEqual([]);
+        const problems = await runRules(createMemoryContext(withSince('0.8.0')), RULES, 'error-codes-frozen');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringContaining('PKI_KEY_ADDED (since 0.8.0) is not in the 0.8.0 snapshot')]);
+    });
+
+    it('should fire pkcs12-policy-parity on a refused scheme the table omits, and on a row the code does not know', async () => {
+        const files = { ...TREE };
+        edit(files, 'src/core/key-oids.ts', "    ['1.2.840.113549.1.5.11', 'pbeWithSHA1AndRC2-CBC'],", "    ['1.2.840.113549.1.5.11', 'pbeWithSHA1AndRC2-CBC'],\n    ['1.2.840.113549.1.5.99', 'pbeWithSomethingNew'],");
+        edit(files, 'SECURITY.md', '| RFC 7292 Appendix B MAC | — | refuses |', '| RFC 7292 Appendix B MAC | — | refuses |\n| DES-CBC | `1.3.14.3.2.7` | refuses |');
+        const problems = await runRules(createMemoryContext(files), RULES, 'pkcs12-policy-parity');
+        expect(problems.map((p) => p.message).sort()).toEqual([
+            expect.stringContaining('names 1.3.14.3.2.7, which src/core/key-oids.ts neither opens nor refuses'),
+            expect.stringContaining('omits `pbeWithSomethingNew` (1.2.840.113549.1.5.99)'),
+        ]);
     });
 
     it('should fire count-tokens on a compound number word, which it used to read as its last half', async () => {

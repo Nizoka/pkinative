@@ -48,6 +48,38 @@ pkinative **never implements secret-dependent cryptography in TypeScript**. Ther
 - The DER ↔ P1363 ECDSA signature converter (`src/crypto/crypto-signature.ts`) is TypeScript, and legal: a signature is public, there is no key in it, and it performs no arithmetic beyond copying bytes.
 - This is a deliberate departure from pdfnative's pure-TypeScript RSA and ECDSA, whose `BigInt` arithmetic is not constant-time; that code is not, and will not be, ported.
 
+#### Password-based encryption
+
+An encrypted private key or a PKCS#12 file is opened only where every step is one Web Crypto call; every other scheme is recognised and refused by name, so the error says what the file holds. The `pkcs12-policy-parity` rule of `npm run verify:docs` holds this table to `HMAC_OIDS`, `AES_CBC_OIDS` and `REFUSED_PBE_SCHEMES` in `src/core/key-oids.ts`, both ways.
+
+| Scheme | OID | pkinative |
+|---|---|---|
+| PBES2 (RFC 8018 §6.2) | `1.2.840.113549.1.5.13` | opens |
+| PBKDF2 (RFC 8018 §5.2) | `1.2.840.113549.1.5.12` | opens |
+| PBKDF2 PRF / PBMAC1 MAC: HMAC-SHA-1 | `1.2.840.113549.2.7` | opens |
+| PBKDF2 PRF / PBMAC1 MAC: HMAC-SHA-256 | `1.2.840.113549.2.9` | opens |
+| PBKDF2 PRF / PBMAC1 MAC: HMAC-SHA-384 | `1.2.840.113549.2.10` | opens |
+| PBKDF2 PRF / PBMAC1 MAC: HMAC-SHA-512 | `1.2.840.113549.2.11` | opens |
+| AES-128-CBC | `2.16.840.1.101.3.4.1.2` | opens |
+| AES-192-CBC | `2.16.840.1.101.3.4.1.22` | opens |
+| AES-256-CBC | `2.16.840.1.101.3.4.1.42` | opens |
+| PBMAC1, the PKCS#12 MAC of RFC 9579 | `1.2.840.113549.1.5.14` | opens |
+| `pbeWithSHAAnd128BitRC4` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.1` | refuses |
+| `pbeWithSHAAnd40BitRC4` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.2` | refuses |
+| `pbeWithSHAAnd3-KeyTripleDES-CBC` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.3` | refuses |
+| `pbeWithSHAAnd2-KeyTripleDES-CBC` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.4` | refuses |
+| `pbeWithSHAAnd128BitRC2-CBC` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.5` | refuses |
+| `pbeWithSHAAnd40BitRC2-CBC` (RFC 7292 Appendix C) | `1.2.840.113549.1.12.1.6` | refuses |
+| `pbeWithMD2AndDES-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.1` | refuses |
+| `pbeWithMD5AndDES-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.3` | refuses |
+| `pbeWithMD2AndRC2-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.4` | refuses |
+| `pbeWithMD5AndRC2-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.6` | refuses |
+| `pbeWithSHA1AndDES-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.10` | refuses |
+| `pbeWithSHA1AndRC2-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.11` | refuses |
+| RFC 7292 Appendix B MAC | — | refuses |
+
+The refusals are a consequence of the scope above, not a backlog. The RFC 7292 Appendix B key derivation, behind both the Appendix C ciphers and the legacy PKCS#12 MAC, is iterated hashing with byte arithmetic over the password — secret-dependent code that Web Crypto does not offer and that pkinative would have to write in TypeScript; PBES1 adds DES, RC2 and MD2 besides. A legacy file converts in two commands, verified against OpenSSL 4.0.0: `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12`.
+
 ### Parser Safety
 
 - DER is strict by default (X.690 §10–11); BER is an explicit option.

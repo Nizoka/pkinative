@@ -97,7 +97,7 @@ npm run agents:rules       # regenerate .claude/rules/ from .github/instructions
 - Structural failures THROW; conformance concerns DIAGNOSE; never both for one condition
 - Every thrown value is a `PkiError` subclass with a stable `code` (`PKI_<SUBJECT>_<CONDITION>`) and a message that starts with `pkinative: ` and names the remedy
 - Every code is registered in `docs/data/errors.json` with `since`, `raisedWhen`, `remedy`, `standard` and `cwe`
-- Codes are frozen from 0.9.0: removal or renaming is semver-major, addition is semver-minor
+- Codes are frozen from 0.8.0: removal, renaming or a class move is semver-major, addition is semver-minor (`docs/data/errors.frozen.json`, rule `error-codes-frozen`)
 
 ### Security
 - Every loop over input consults a named limit (`PkiLimits`) with a CWE tag, a default, a fuzzing test and a SECURITY.md row

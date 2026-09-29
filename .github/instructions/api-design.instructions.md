@@ -10,12 +10,12 @@ applyTo: "src/index.ts,src/types/**"
 - Type exports use `export type { ... }` — zero runtime cost
 - Never export internal helpers — if it's not in `src/index.ts`, it's private
 - **Every option object type a public option refers to is exported** — check `docs/assets/api.json` (`npm run docs:api`) lists the type before the feature is called done
-- **Every new error code** goes in the code union of its class (`src/types/pki-errors.ts`) AND in `docs/data/errors.json` with `since`, `raisedWhen`, `remedy`, `standard` and `cwe` — the `error-parity` rule of `verify:docs` fails on either side missing
+- **Every new error code** goes in the code union of its class (`src/types/pki-errors.ts`) AND in `docs/data/errors.json` with `since`, `raisedWhen`, `remedy`, `standard` and `cwe` — the `error-parity` rule of `verify:docs` fails on either side missing, and on a throw site whose code is not a literal of its class's union (or a parameter typed with that union, whose every caller passes one)
 - **Every new diagnostic code** goes in the `PkiDiagnosticCode` union AND in `docs/data/diagnostics.json` — the union is additions-only by contract
 
 ## Backward Compatibility
 - Pre-1.0: a minor release may change the API, and the release note says how under Downstream integration notes
-- From 0.9 the error-code vocabulary is frozen: removing or renaming a code is semver-major, adding one is semver-minor
+- From 0.8.0 the error-code vocabulary is frozen: removing or renaming a code, or moving it to another class, is semver-major; adding one is semver-minor. `docs/data/errors.frozen.json` is the snapshot (`scripts/build-errors-frozen.ts` writes it, and refuses to once 0.8.0 is released); the `error-codes-frozen` rule of `verify:docs` fails on a frozen code that leaves the registry or its union, and on an addition whose `since` is not newer than `frozenAt`. Diagnostic codes are not frozen
 - Adding new optional parameters: always at the end, with sensible defaults
 - New features: new functions > new parameters on existing functions
 - Deprecation: mark with `@deprecated` TSDoc, keep for at least one minor version

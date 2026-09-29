@@ -35,7 +35,7 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 52 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 58 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
@@ -47,6 +47,7 @@ is swallowed before `npm run gate` sees it.
 | `build-playground.ts` | `docs:playground`, `docs:playground-fresh` | yes (`--check`) | Copies `dist/index.js` into the playground byte for byte and records its hashes in the manifest; `--check` re-derives and compares | 0/1/2 |
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
+| `build-errors-frozen.ts` | — | — | `docs/data/errors.frozen.json`, the error-code snapshot `error-codes-frozen` holds the registry to; refuses to change it once `frozenAt` is released | 0/1/2 |
 | `verify-issue.mjs` | `verify:issue` | — | The policy check on an agent's issue draft: refuses a proposed runtime dependency or a missing reproduction block | 0/1/2 |
 | `install-git-hooks.mjs` | `hooks:install`, `hooks:uninstall` | — | Opt-in `core.hooksPath`; refuses to overwrite an existing value | 0/1 |
 
