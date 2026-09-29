@@ -27,7 +27,7 @@
  *
  * The rule this library runs on is *primitives return and throw, compositions
  * report, and exactly one layer converts.* This is that layer, and it is the
- * only module of `src/` allowed to catch a `PkiError`. A malformed CRL comes
+ * only one of `src/` that turns a `PkiError` into a reason. A malformed CRL comes
  * back as `PKI_REASON_INPUT_MALFORMED` carrying the `PkiErrorCode` that would
  * have been thrown — which is how the promise *"a report never throws for bad
  * input"* is kept without copying the encoding vocabulary into the reason
@@ -59,6 +59,7 @@ import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
 import { assertBytes } from '../core/bytes.js';
+import { _pkiError } from '../core/pki-error-guard.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PathBuildReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
@@ -174,23 +175,12 @@ export interface VerifyChainReport extends PathBuildReport {
 }
 
 /**
- * The `PkiError` a layer below threw, or a rethrow.
- *
- * `verify/` is the only layer allowed to catch, and catching in JavaScript catches
- * *everything* — so the one thing it must not do is turn a programming error
- * into a verdict. A `PkiReason` built from a `TypeError` would carry
- * `errorCode: undefined` and read like a statement about the certificate.
- *
- * Shared by every composition in `verify/`, so that the invariant — and the
- * one coverage exemption it needs — is stated once.
+ * The `PkiError` a layer below threw, or a rethrow — the core guard, re-exported
+ * under the name every composition in `verify/` already uses.
  *
  * @internal
  */
-export function _pkiError(error: unknown): PkiError {
-    /* v8 ignore next -- unreachable: every layer below promises that only a PkiError subclass escapes for an input reason, and tests/tools/architecture.test.ts holds the shape that makes that true. The rethrow exists so that a breach of that promise reaches the caller as the bug it is instead of being reported as a fact about their certificate; no input can reach it. */
-    if (!(error instanceof PkiError)) throw error;
-    return error;
-}
+export { _pkiError };
 
 /**
  * Refuse, before anything is read, what is not a certificate `parseCertificate`

@@ -27,6 +27,8 @@ import { _readTime } from '../asn1/asn1-time.js';
 import { readInteger } from '../asn1/asn1-read.js';
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { assertBytes, toHex } from '../core/bytes.js';
+import { crlExtensionMalformedDiagnostic } from '../core/pki-diagnostics.js';
+import { _pkiError } from '../core/pki-error-guard.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, PkiTime } from '../types/asn1-types.js';
 import type { CertificateList, CrlReason, RevokedCertificate } from '../types/crl-types.js';
@@ -249,10 +251,10 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
     let isDelta = false;
     let baseCrlNumber: bigint | undefined;
     for (const extension of extensions) {
-        if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx);
+        if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx, 'tbsCertList.crlExtensions.cRLNumber', 'cRLNumber');
         if (extension.oid === OID_DELTA_CRL_INDICATOR) {
             isDelta = true;
-            baseCrlNumber = readIntegerValue(extension, ctx);
+            baseCrlNumber = readIntegerValue(extension, ctx, 'tbsCertList.crlExtensions.deltaCRLIndicator', 'deltaCRLIndicator');
         }
     }
 
@@ -326,13 +328,22 @@ function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1
     return Object.freeze(out);
 }
 
-/** The INTEGER inside an extension whose value is one, e.g. `cRLNumber`. */
-function readIntegerValue(extension: Extension, ctx: Asn1Context): bigint | undefined {
+/**
+ * The INTEGER inside an extension whose value is one, e.g. `cRLNumber`.
+ *
+ * A malformed one is a conformance problem, not a reason to refuse the whole
+ * list: the revocation answers do not depend on it, and a delta whose base
+ * number cannot be read is never paired (`_deltaApplies` fails closed on
+ * `undefined`). So it is **diagnosed** and dropped — never silently: a value
+ * that vanishes without a word is a validator that cannot say why it did not
+ * pair two lists. Anything that is not a `PkiError` is a programming error and
+ * goes on.
+ */
+function readIntegerValue(extension: Extension, ctx: Asn1Context, path: string, name: string): bigint | undefined {
     try {
         return readInteger(decodeValueAt(extension.valueDer, 0, ctx));
-    } catch {
-        // A malformed cRLNumber is a conformance problem, not a reason to
-        // refuse the whole list: the revocation answers do not depend on it.
+    } catch (error) {
+        ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, name, `not a DER INTEGER (${_pkiError(error).code})`));
         return undefined;
     }
 }
@@ -433,8 +444,8 @@ export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: Fi
             serialNumber: Object.freeze({ bytes: content, hex: toHex(content), value: readInteger(decodeAt(der, serialField, ctx)) }) as SerialNumber,
             revocationDate,
             extensions,
-            reason: readReason(extensions, ctx),
-            invalidityDate: readInvalidityDate(extensions, ctx),
+            reason: readReason(extensions, ctx, `${path}.crlEntryExtensions.reasonCode`),
+            invalidityDate: readInvalidityDate(extensions, ctx, `${path}.crlEntryExtensions.invalidityDate`),
         });
     }
     return undefined;
@@ -447,31 +458,37 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /** `cRLReason`, or undefined when absent or not a value RFC 5280 assigns. */
-function readReason(extensions: readonly Extension[], ctx: Asn1Context): CrlReason | undefined {
+function readReason(extensions: readonly Extension[], ctx: Asn1Context, path: string): CrlReason | undefined {
     const extension = extensions.find((e) => e.oid === OID_CRL_REASON);
     if (extension === undefined) return undefined;
+    let node: Asn1Node;
     try {
-        const node = decodeValueAt(extension.valueDer, 0, ctx);
-        // ENUMERATED is tag 10, and `readInteger` accepts only tag 2 — so the
-        // content is read here rather than through it. An INTEGER in this
-        // field is a common encoder bug and is read anyway: refusing would
-        // hide the revocation, and a hidden revocation is the worse failure.
-        if (node.tagClass !== 'universal' || (node.tagNumber !== 10 && node.tagNumber !== 2)) return undefined;
-        if (node.content.length !== 1) return undefined;
-        return REASONS[node.content[0] as number];
-    } catch {
+        node = decodeValueAt(extension.valueDer, 0, ctx);
+    } catch (error) {
+        ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, 'reasonCode', `not valid DER (${_pkiError(error).code})`));
         return undefined;
     }
+    // ENUMERATED is tag 10, and `readInteger` accepts only tag 2 — so the
+    // content is read here rather than through it. An INTEGER in this field is
+    // a common encoder bug and is read anyway: refusing would hide the
+    // revocation, and a hidden revocation is the worse failure. Whatever is
+    // dropped is diagnosed; the entry is revoked either way.
+    const reason = node.tagClass === 'universal' && (node.tagNumber === 10 || node.tagNumber === 2) && node.content.length === 1
+        ? REASONS[node.content[0] as number]
+        : undefined;
+    if (reason === undefined) ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, 'reasonCode', 'not one of the CRLReason values RFC 5280 §5.3.1 assigns'));
+    return reason;
 }
 
 /** `invalidityDate` in epoch milliseconds, or undefined. */
-function readInvalidityDate(extensions: readonly Extension[], ctx: Asn1Context): number | undefined {
+function readInvalidityDate(extensions: readonly Extension[], ctx: Asn1Context, path: string): number | undefined {
     const extension = extensions.find((e) => e.oid === OID_INVALIDITY_DATE);
     if (extension === undefined) return undefined;
     try {
         const time: PkiTime = _readTime(decodeValueAt(extension.valueDer, 0, ctx), ctx, undefined);
         return time.epochMilliseconds;
-    } catch {
+    } catch (error) {
+        ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, 'invalidityDate', `not a GeneralizedTime (${_pkiError(error).code})`));
         return undefined;
     }
 }

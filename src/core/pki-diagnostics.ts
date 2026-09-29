@@ -227,6 +227,20 @@ export function keyKdfIterationsLowDiagnostic(path: string, iterations: number, 
         path, offset);
 }
 
+/**
+ * A CRL extension whose value pkinative drops rather than reads.
+ *
+ * `cRLNumber`, `deltaCRLIndicator`, and an entry's `reasonCode` and
+ * `invalidityDate`: none decides whether a serial is revoked, so a malformed
+ * one does not refuse the list — but it is never dropped silently. A delta whose
+ * base number is unreadable is simply never paired.
+ */
+export function crlExtensionMalformedDiagnostic(path: string, name: string, detail: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CRL_EXTENSION_MALFORMED', 'warning', 'RFC 5280 §5.2',
+        `the ${name} extension is ${detail}, so its value is ignored; the revocation answer does not depend on it, but a strict validator may refuse the list`,
+        path, offset);
+}
+
 export function printableStringCharsetDiagnostic(path: string, character: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_PRINTABLE_STRING_CHARSET', 'warning', 'ITU-T X.680 §41.4',
         `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,

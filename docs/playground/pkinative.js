@@ -471,6 +471,16 @@ function keyKdfIterationsLowDiagnostic(path, iterations, offset) {
     offset
   );
 }
+function crlExtensionMalformedDiagnostic(path, name, detail, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CRL_EXTENSION_MALFORMED",
+    "warning",
+    "RFC 5280 \xA75.2",
+    `the ${name} extension is ${detail}, so its value is ignored; the revocation answer does not depend on it, but a strict validator may refuse the list`,
+    path,
+    offset
+  );
+}
 function printableStringCharsetDiagnostic(path, character, offset) {
   return _diagnostic(
     "PKI_DIAG_PRINTABLE_STRING_CHARSET",
@@ -1747,6 +1757,12 @@ function encodeOid(oid) {
   return Uint8Array.from(out);
 }
 
+// src/core/pki-error-guard.ts
+function _pkiError(error) {
+  if (!(error instanceof PkiError)) throw error;
+  return error;
+}
+
 // src/x509/x509-fields.ts
 var REMEDIES = /* @__PURE__ */ Object.freeze({
   PKI_X509_STRUCTURE_INVALID: "check that the input is a certificate, not a CSR, a CRL or a key",
@@ -2733,10 +2749,10 @@ function parseCertificateList(der, options) {
   let isDelta = false;
   let baseCrlNumber;
   for (const extension of extensions) {
-    if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx);
+    if (extension.oid === OID_CRL_NUMBER) crlNumber = readIntegerValue(extension, ctx, "tbsCertList.crlExtensions.cRLNumber", "cRLNumber");
     if (extension.oid === OID_DELTA_CRL_INDICATOR) {
       isDelta = true;
-      baseCrlNumber = readIntegerValue(extension, ctx);
+      baseCrlNumber = readIntegerValue(extension, ctx, "tbsCertList.crlExtensions.deltaCRLIndicator", "deltaCRLIndicator");
     }
   }
   return Object.freeze({
@@ -2795,10 +2811,11 @@ function readExtensions(der, field, ctx, path) {
   }
   return Object.freeze(out);
 }
-function readIntegerValue(extension, ctx) {
+function readIntegerValue(extension, ctx, path, name) {
   try {
     return readInteger(decodeValueAt(extension.valueDer, 0, ctx));
-  } catch {
+  } catch (error) {
+    ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, name, `not a DER INTEGER (${_pkiError(error).code})`));
     return void 0;
   }
 }
@@ -2837,8 +2854,8 @@ function findRevocation(der, serial, options) {
       serialNumber: Object.freeze({ bytes: content, hex: toHex(content), value: readInteger(decodeAt(der, serialField, ctx)) }),
       revocationDate,
       extensions,
-      reason: readReason(extensions, ctx),
-      invalidityDate: readInvalidityDate(extensions, ctx)
+      reason: readReason(extensions, ctx, `${path}.crlEntryExtensions.reasonCode`),
+      invalidityDate: readInvalidityDate(extensions, ctx, `${path}.crlEntryExtensions.invalidityDate`)
     });
   }
   return void 0;
@@ -2848,25 +2865,28 @@ function sameBytes(a, b) {
   for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
   return true;
 }
-function readReason(extensions, ctx) {
+function readReason(extensions, ctx, path) {
   const extension = extensions.find((e) => e.oid === OID_CRL_REASON);
   if (extension === void 0) return void 0;
+  let node;
   try {
-    const node = decodeValueAt(extension.valueDer, 0, ctx);
-    if (node.tagClass !== "universal" || node.tagNumber !== 10 && node.tagNumber !== 2) return void 0;
-    if (node.content.length !== 1) return void 0;
-    return REASONS[node.content[0]];
-  } catch {
+    node = decodeValueAt(extension.valueDer, 0, ctx);
+  } catch (error) {
+    ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, "reasonCode", `not valid DER (${_pkiError(error).code})`));
     return void 0;
   }
+  const reason = node.tagClass === "universal" && (node.tagNumber === 10 || node.tagNumber === 2) && node.content.length === 1 ? REASONS[node.content[0]] : void 0;
+  if (reason === void 0) ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, "reasonCode", "not one of the CRLReason values RFC 5280 \xA75.3.1 assigns"));
+  return reason;
 }
-function readInvalidityDate(extensions, ctx) {
+function readInvalidityDate(extensions, ctx, path) {
   const extension = extensions.find((e) => e.oid === OID_INVALIDITY_DATE);
   if (extension === void 0) return void 0;
   try {
     const time = _readTime(decodeValueAt(extension.valueDer, 0, ctx), ctx, void 0);
     return time.epochMilliseconds;
-  } catch {
+  } catch (error) {
+    ctx.emitter.emit(crlExtensionMalformedDiagnostic(path, "invalidityDate", `not a GeneralizedTime (${_pkiError(error).code})`));
     return void 0;
   }
 }
@@ -5928,10 +5948,6 @@ function parseCertificate(der, options) {
 }
 
 // src/verify/verify-chain.ts
-function _pkiError(error) {
-  if (!(error instanceof PkiError)) throw error;
-  return error;
-}
 function _assertCertificates(values, what) {
   for (const [index, value] of values.entries()) {
     const candidate = value;

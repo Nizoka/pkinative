@@ -276,6 +276,25 @@ describe('findRevocation', () => {
         expect(found?.reason).toBeUndefined();
     });
 
+    it.each([
+        { name: 'a cRLNumber that is not an INTEGER', list: (): Uint8Array => crl({ crlExtensions: [extension([0x55, 0x1d, 0x14], universal(12, ascii('x')))] }), path: 'tbsCertList.crlExtensions.cRLNumber', serial: null },
+        { name: 'a deltaCRLIndicator that is not an INTEGER', list: (): Uint8Array => crl({ crlExtensions: [extension([0x55, 0x1d, 0x1b], universal(12, ascii('x')), true)] }), path: 'tbsCertList.crlExtensions.deltaCRLIndicator', serial: null },
+        { name: 'a reasonCode of the unassigned value 7', list: (): Uint8Array => crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x15], universal(10, [0x07])))] }), path: '.crlEntryExtensions.reasonCode', serial: 0x05 },
+        { name: 'a reasonCode that is not DER at all', list: (): Uint8Array => crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x15], new Uint8Array(0)))] }), path: '.crlEntryExtensions.reasonCode', serial: 0x05 },
+        { name: 'an invalidityDate that is not a time', list: (): Uint8Array => crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x18], int(5)))] }), path: '.crlEntryExtensions.invalidityDate', serial: 0x05 },
+    ])('should diagnose $name, never drop it silently', ({ list, path, serial }) => {
+        // The value is ignored — none of these decides whether a serial is
+        // revoked — but a value that vanished without a word is a validator
+        // that cannot say why it did not pair two lists.
+        const seen: { code: string; path: string }[] = [];
+        const onDiagnostic = (d: { code: string; path: string }): undefined => { seen.push(d); };
+        if (serial === null) parseCertificateList(list(), { onDiagnostic });
+        else expect(findRevocation(list(), Uint8Array.of(serial), { onDiagnostic })).toBeDefined();
+        const malformed = seen.filter((d) => d.code === 'PKI_DIAG_CRL_EXTENSION_MALFORMED');
+        expect(malformed).toHaveLength(1);
+        expect(malformed[0]?.path.endsWith(path)).toBe(true);
+    });
+
     it('should read invalidityDate, and survive a malformed one', () => {
         const dated = crl({ entries: [entry([0x06], '260601000000Z', extension([0x55, 0x1d, 0x18], universal(24, ascii('20260401000000Z'))))] });
         expect(findRevocation(dated, Uint8Array.of(0x06), quiet)?.invalidityDate).toBe(Date.UTC(2026, 3, 1));
