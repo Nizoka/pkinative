@@ -59,4 +59,4 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 - Do not write RSA, ECDSA or other secret-dependent cryptography in TypeScript around it; use Web Crypto. pkinative generates and exports no key: `createCertificate` takes a SubjectPublicKeyInfo in DER and a private `CryptoKey` it only hands to `subtle.sign`, so the one `crypto.subtle.exportKey('spki', …)` call is yours to write.
 - Do not raise a limit (`options.limits`) for untrusted input.
 - Do not report `verifySignerInfoSignature`'s `true` as the verdict on a message: it checks one key against the signed attributes, and reads no content digest, no signer identifier and no chain. `verifySignedData` is the verdict.
-- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.7 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.7.0/pkinative-0.7.0.tgz`.
+- Do not install pkinative from npm or from a git URL (a git install carries no `dist/`): 0.8 is the release tarball, `npm install https://github.com/Nizoka/pkinative/releases/download/v0.8.0/pkinative-0.8.0.tgz`.
