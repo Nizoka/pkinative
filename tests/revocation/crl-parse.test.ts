@@ -71,6 +71,14 @@ function crl(parts: CrlParts = {}): Uint8Array {
 const quiet = { onDiagnostic: (): undefined => undefined };
 
 describe('parseCertificateList', () => {
+
+    it('should refuse an argument that is not bytes as PKI_INVALID_INPUT, never as a TypeError', () => {
+        // A caller's type error, not a fact about any encoding: it used to
+        // escape as a TypeError, or as a length error about bytes nobody passed.
+        for (const value of ['30 03 02 01 01', undefined, null, [0x30, 0x00]]) {
+            expect(() => parseCertificateList(value as unknown as Uint8Array)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+        }
+    });
     it('should read the envelope of a v2 CRL', () => {
         const list = parseCertificateList(crl(), quiet);
         expect(list.version).toBe(2);

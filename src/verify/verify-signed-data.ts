@@ -156,7 +156,7 @@ export interface VerifySignedDataReport {
  * @returns The verdict, one verdict per signer, and every reason.
  * @throws {PkiError} `PKI_API_MISUSE` when both `content` and `contentDigest`
  *   are given, or either is given for a message that carries its own content;
- *   `PKI_INVALID_OPTION` for an unknown key in `limits`; `PKI_INVALID_INPUT`
+ *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`; `PKI_INVALID_INPUT`
  *   when a certificate is not one `parseCertificate` made.
  */
 export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport> {

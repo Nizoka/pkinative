@@ -26,7 +26,7 @@ import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { _readTime } from '../asn1/asn1-time.js';
 import { readInteger } from '../asn1/asn1-read.js';
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
-import { toHex } from '../core/bytes.js';
+import { assertBytes, toHex } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, PkiTime } from '../types/asn1-types.js';
 import type { CertificateList, CrlReason, RevokedCertificate } from '../types/crl-types.js';
@@ -213,6 +213,7 @@ function countEntries(der: Uint8Array, revoked: TlvHeader | undefined, ctx: Asn1
  * @param options Encoding rules, limits, diagnostics — the same options every
  *   other entry point takes.
  * @returns The parsed CRL, with zero-copy views of `der`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` when the bytes are
  *   not an RFC 5280 CertificateList, or `PKI_X509_EXTENSION_MALFORMED` when
  *   `issuingDistributionPoint` is not one.
@@ -220,6 +221,7 @@ function countEntries(der: Uint8Array, revoked: TlvHeader | undefined, ctx: Asn1
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
  */
 export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions): CertificateList {
+    der = assertBytes(der, 'parseCertificateList input');
     const ctx = createAsn1Context(options);
     const outer = readTlvHeader(der, 0, 'CertificateList');
     if (!outer.constructed || outer.tagClass !== 'universal' || outer.tagNumber !== 16) {

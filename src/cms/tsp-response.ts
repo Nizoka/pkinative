@@ -17,6 +17,7 @@
  * @module cms/tsp-response
  */
 
+import { assertBytes } from '../core/bytes.js';
 import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { _readBitString, _readInteger, _readString } from '../asn1/asn1-read.js';
@@ -101,6 +102,7 @@ export function parseTimeStampToken(der: Uint8Array, options?: PkiParseOptions):
  * @param der     The response, as the TSA sent it.
  * @param options Encoding rules, limits and diagnostics.
  * @returns The parsed response, with zero-copy views of `der`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
  * @throws {PkiCmsError} `PKI_CMS_STRUCTURE_INVALID` when the response is
  *   malformed, carries a status or failure code RFC 3161 does not define, or
  *   has a token where its status forbids one or none where it requires one;
@@ -109,8 +111,9 @@ export function parseTimeStampToken(der: Uint8Array, options?: PkiParseOptions):
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past any limit.
  */
 export function parseTimeStampResponse(der: Uint8Array, options?: PkiParseOptions): TimeStampResponse {
+    const bytes = assertBytes(der, 'parseTimeStampResponse input');
     const ctx = createAsn1Context(options);
-    const root = decodeWithContext(der, ctx, false);
+    const root = decodeWithContext(bytes, ctx, false);
     const path = 'TimeStampResp';
     if (root.tagClass !== 'universal' || root.tagNumber !== 16 || root.children.length < 1 || root.children.length > 2) {
         throw _tspError(path, root.offset, 'is not a SEQUENCE of a status and, optionally, a token');

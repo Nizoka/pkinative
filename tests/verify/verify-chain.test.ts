@@ -393,6 +393,20 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.valid).toBe(false);
     });
 
+    it('should name a list by where the caller put it, even after one before it could not be read', async () => {
+        // The path used to be the list's position among those that parsed, so
+        // an unreadable first list shifted every later reason onto its neighbour.
+        const { root, ica, leaf } = await hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            crls: [Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x01), emptyCrl(ica, { oddExtension: true })],
+        });
+        const paths = report.reasons.map((r) => `${r.code}@${r.path}`);
+        expect(paths).toContain('PKI_REASON_INPUT_MALFORMED@crl[0]');
+        expect(paths.some((p) => p.startsWith('PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION@crl[1]'))).toBe(true);
+    });
+
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
         // Signed over SHA-1, whose collisions have been practical since 2017.
         // Neither boolean is honest, so verifyCertificateSignature throws — and

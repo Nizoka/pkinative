@@ -83,6 +83,14 @@ describe('createTimeStampRequest', () => {
 });
 
 describe('_parseTimeStampRequest', () => {
+
+    it('should refuse an argument that is not bytes as PKI_INVALID_INPUT, never as a TypeError', () => {
+        // A caller's type error, not a fact about any encoding: it used to
+        // escape as a TypeError, or as a length error about bytes nobody passed.
+        for (const value of ['30 03 02 01 01', undefined, null, [0x30, 0x00]]) {
+            expect(() => _parseTimeStampRequest(value as unknown as Uint8Array)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+        }
+    });
     it('should read back everything a response must echo', () => {
         const request = _parseTimeStampRequest(createTimeStampRequest(HASH, { policy: '1.2.3.4', nonce: 99n }), quiet);
         expect(request.messageImprint.hashedMessage).toEqual(HASH);

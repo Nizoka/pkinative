@@ -283,7 +283,7 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  * @param input See {@link VerifyChainInput}.
  * @returns The verdict, every reason behind it, the path judged, how many
  *   candidate paths were explored and how many signatures were verified.
- * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`,
+ * @throws {PkiError} `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`,
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate`
  *   produced.
  */
@@ -547,6 +547,8 @@ function _coversEveryReason(reasons: ReadonlySet<ReasonFlag>): boolean {
 interface ParsedCrl {
     readonly der: Uint8Array;
     readonly crl: CertificateList;
+    /** Where the caller put it in `crls` — what every reason about it names, whatever came before it. */
+    readonly index: number;
 }
 
 /**
@@ -566,7 +568,7 @@ async function _deltaFor(
     base: CertificateList,
     signed: Map<number, boolean | undefined>,
 ): Promise<DeltaCrlInput | undefined> {
-    for (const [index, { der, crl }] of ctx.lists.entries()) {
+    for (const { der, crl, index } of ctx.lists) {
         if (!_deltaApplies(base, crl)) continue;
         if (_crlScopeProblem({ certificate: subject, crl, asDelta: true }) !== null) continue;
         if (!signed.has(index)) signed.set(index, await _crlSigner(ctx, crl, _hex(crl.issuer.der)));
@@ -628,7 +630,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     const parsed: ParsedCrl[] = [];
     for (const [index, der] of _firstOfEach(lists)) {
         try {
-            parsed.push({ der, crl: parseCertificateList(der, reading) });
+            parsed.push({ der, crl: parseCertificateList(der, reading), index });
         } catch (error) {
             // **The one catch this library allows**, and the reason the reason
             // registry wraps the error registry instead of copying it: the code
@@ -651,7 +653,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
         const mine: PkiReason[] = [];
         const reasons = new Set<ReasonFlag>();
         let complete = false;
-        for (const [index, { der, crl }] of parsed.entries()) {
+        for (const { der, crl, index } of parsed) {
             // **Selection, not judgement.** Which of the caller's lists covers
             // which certificate is decided here by the same §5.2.5 and §6.3.3
             // (b) rules `checkRevocation` applies — but a list that does not

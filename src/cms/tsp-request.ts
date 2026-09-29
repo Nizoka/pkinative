@@ -12,6 +12,7 @@
  * @module cms/tsp-request
  */
 
+import { assertBytes } from '../core/bytes.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { encodeBoolean, encodeInteger, encodeObjectIdentifier, encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
@@ -147,8 +148,9 @@ export interface _TimeStampRequestDetails {
  * @internal
  */
 export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): _TimeStampRequestDetails {
+    const bytes = assertBytes(der, 'TimeStampReq input');
     const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
-    const root = decodeWithContext(der, ctx, false);
+    const root = decodeWithContext(bytes, ctx, false);
     const path = 'TimeStampReq';
     if (root.tagClass !== 'universal' || root.tagNumber !== 16) throw _tspError(path, root.offset, 'is not a SEQUENCE');
     const [versionNode, imprintNode, ...rest] = root.children;

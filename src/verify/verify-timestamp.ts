@@ -152,7 +152,7 @@ interface _Expectation {
  * @param input See {@link VerifyTimeStampInput}.
  * @returns The verdict and what it established.
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
- *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_INVALID_OPTION` for an unknown key in `limits`;
+ *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
