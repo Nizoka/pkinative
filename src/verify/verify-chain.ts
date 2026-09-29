@@ -52,7 +52,7 @@ import { computeKeyIdentifier } from '../hash/key-identifier.js';
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { checkRevocation } from '../revocation/crl-check.js';
-import type { DeltaCrlInput } from '../revocation/crl-check.js';
+import type { DeltaCrlInput, RevocationCheckInput } from '../revocation/crl-check.js';
 import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
@@ -430,8 +430,10 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     for (const { der, crl } of ctx.lists) {
         if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
         if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
-        const reasons = checkRevocation({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading });
-        if (reasons.some((reason) => reason.code === 'PKI_REASON_REVOKED')) return false;
+        const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading }, 'crl');
+        // A list its CA signed and nobody can walk has not said the delegate
+        // is unrevoked, so the delegate is not believed — fail closed.
+        if (reasons.some((reason) => reason.code === 'PKI_REASON_REVOKED' || reason.code === 'PKI_REASON_INPUT_MALFORMED')) return false;
     }
     return true;
 }
@@ -640,7 +642,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
             // means — the caller never merges two answers, because there is
             // only ever one.
             const delta = await _deltaFor(signing, subject, crl, signed);
-            mine.push(...checkRevocation({
+            mine.push(..._judged({
                 certificate: subject,
                 crl,
                 crlDer: der,
@@ -648,7 +650,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
                 ...(signatureVerified === undefined ? {} : { signatureVerified }),
                 ...(delta === undefined ? {} : { delta }),
                 options: reading,
-            }));
+            }, `crl[${String(index)}]`));
         }
         // §6.3.3's `reasons_mask`, which only the composition can see: a CA that
         // publishes a keyCompromise list and a second list for everything else
@@ -716,6 +718,27 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
         out.push(revocationUnknownReason('path[0]', 'nothing supplied answers about this certificate'));
     }
     return out;
+}
+
+/**
+ * `checkRevocation`, with a malformed entry reported rather than thrown.
+ *
+ * `parseCertificateList` reads the envelope and counts the entries, but an
+ * entry's fields are read only when `findRevocation` walks them — so a list
+ * whose envelope is sound and whose entry is not (a single field, a matching
+ * serial with an unreadable date, entry extensions that are not Extensions)
+ * throws here, after the parse this composition already caught. The code that
+ * would have been thrown travels in `errorCode`, as it does for a list that
+ * does not parse at all. When a delta is paired with the base, the walk that
+ * failed may be the delta's; the thrown message names the field either way.
+ */
+function _judged(check: RevocationCheckInput, where: string): readonly PkiReason[] {
+    try {
+        return checkRevocation(check);
+    } catch (error) {
+        const refused = _pkiError(error);
+        return [inputMalformedReason(refused.code, refused.message, where)];
+    }
 }
 
 /** The three values RFC 6960 §4.1.1 binds an answer to, under one digest. */

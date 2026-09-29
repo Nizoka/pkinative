@@ -1002,6 +1002,36 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual([]);
     });
 
+    it('should report a signed list whose entry is malformed as INPUT_MALFORMED, never an exception', async () => {
+        // The envelope parses, so the parse this composition catches does not
+        // trip; the entry is read only by the walk that looks for the serial,
+        // and that walk used to throw out of a call that promises not to.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, icaKey, { malformedEntry: true })],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crl[0]' });
+    });
+
+    it('should stop believing a delegated signer when the list that would clear it cannot be walked', async () => {
+        // The canary above with one change: the CA's own list about the
+        // delegate carries a malformed entry. It has not said the delegate is
+        // unrevoked, so the delegate's list is not believed — fail closed —
+        // and the unreadable list is reported where it stands.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const delegate = await crlDelegate(ica, icaKey);
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, delegate.certificate], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, delegate.key), await signedCrl(ica, icaKey, { malformedEntry: true })],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[1]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crl[1]' });
+    });
+
     it('should stop believing a delegated signer whose certificate has expired', async () => {
         const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
         const delegate = await crlDelegate(ica, icaKey, { notAfter: AT - DAY / 2 });
@@ -1288,18 +1318,26 @@ interface SignedCrlOptions {
     readonly number?: number;
     /** `deltaCRLIndicator`, which also makes the list a delta over that base. */
     readonly over?: number;
+    /**
+     * An entry holding a serial and no revocationDate, after any other: the
+     * envelope parses, and only the walk that looks for a serial trips on it.
+     */
+    readonly malformedEntry?: boolean;
 }
 
 async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: SignedCrlOptions = {}): Promise<Uint8Array> {
     const { revoked, reasons, aki } = options;
-    const entries = revoked === undefined ? [] : [encodeSequence([
-        encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
-        encodeTime(AT - 30 * DAY, 'UTCTime'),
-        ...(options.entryReason === undefined ? [] : [encodeSequence([encodeSequence([
-            encodeObjectIdentifier('2.5.29.21'),
-            encodeOctetString(encodeEnumerated(BigInt(options.entryReason))),
-        ])])]),
-    ])];
+    const entries = [
+        ...(revoked === undefined ? [] : [encodeSequence([
+            encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
+            encodeTime(AT - 30 * DAY, 'UTCTime'),
+            ...(options.entryReason === undefined ? [] : [encodeSequence([encodeSequence([
+                encodeObjectIdentifier('2.5.29.21'),
+                encodeOctetString(encodeEnumerated(BigInt(options.entryReason))),
+            ])])]),
+        ])]),
+        ...(options.malformedEntry === true ? [encodeSequence([encodeInteger(0x7777n)])] : []),
+    ];
     // issuingDistributionPoint { onlySomeReasons [3] ReasonFlags }, when asked:
     // the bytes are the BIT STRING content, unused-bit count first.
     // authorityKeyIdentifier { keyIdentifier [0] }, when asked: the CA naming
