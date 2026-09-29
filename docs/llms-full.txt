@@ -1,6 +1,6 @@
 # pkinative
 
-> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo and Wycheproof. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Versions below 1.0 are git tags, not npm releases. Beyond reading, it verifies and creates signatures through Web Crypto, validates RFC 5280 §6 paths with CRL and OCSP revocation, and reads, builds and verifies CMS SignedData and RFC 3161 timestamps.
+> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo and Wycheproof. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Versions below 1.0 are git tags, not npm releases. Beyond reading, it verifies and creates signatures through Web Crypto, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys.
 
 pkinative never implements secret-dependent cryptography in TypeScript; signing and verification are one call to Web Crypto with the caller's key. Every failure is a PkiError subclass with a stable `code`; profile concerns are diagnostics (`onDiagnostic`, `strict: true`, `certificate.diagnostics`). There is no PEM-to-certificate shortcut: compose `decodePem` and `parseCertificate`.
 
@@ -12,7 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 
 ## Guides
 
-- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) and RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`)
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`readPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-one limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
@@ -126,8 +126,9 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint` |
 | Errors and limits | `PkiError`, `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `DEFAULT_PKI_LIMITS` |
 | CMS and timestamps (0.7) | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
+| Private keys and PKCS#12 (0.8) | `readPkcs12` (one call: MAC, SafeContents, certificates, keys), `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`; PKCS#8 `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey` — keys unwrapped into non-extractable Web Crypto handles, PBES2 only; `canDecrypt`, `PkiKeyError` ([use cases](docs/guides/use-cases.md#private-keys-and-pkcs12)) |
 
-pkinative has 253 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 281 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -328,8 +329,8 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 19 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps.
-- [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature.
+- [recipes/](../../recipes/) — 21 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
+- [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
 - [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
 
@@ -338,7 +339,7 @@ Error code unions are in the [errors guide](errors.md).
 
 # Use cases
 
-> **The jobs pkinative does today, with the code that does them and the guarantee behind each.** Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, and sign, verify and timestamp CMS messages.
+> **The jobs pkinative does today, with the code that does them and the guarantee behind each.** Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, sign, verify and timestamp CMS messages, and open the PKCS#8 keys and PKCS#12 files that sign them.
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
@@ -537,7 +538,7 @@ Verification runs in [Web Crypto](https://www.w3.org/TR/WebCryptoAPI/), never in
 
 ## Issue a certificate, without ever holding the key
 
-The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages.
+The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages. A key that arrives as a PEM file or a `.p12` becomes a `SigningKey` through `importPrivateKey`, `decryptPrivateKey` or `readPkcs12` — see [Private keys and PKCS#12](#private-keys-and-pkcs12).
 
 ```ts
 import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from 'pkinative';
@@ -851,7 +852,7 @@ The rest of [`VerifySignedDataInput`](../assets/api.json) is the chain's vocabul
 
 **Two requirements RFC 5652 does not make, and profiles do.** `requireSigningCertificate` refuses a signer that does not name its certificate in a signing-certificate attribute, as CAdES and PAdES require: without it, anyone holding a second certificate for the same key — a rollover, a cross-signature — can present the signature under that one. `requireAlgorithmProtection` refuses a signer without `CMSAlgorithmProtection`, whose absence leaves `digestAlgorithm` and `signatureAlgorithm` outside the signature. Both are off by default, both come back as `PKI_REASON_CMS_ATTRIBUTE_INVALID` naming the attribute, and when the attributes *are* present they are always checked: a committed certificate that is not the one whose key verified is `PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH`, disagreeing algorithms are `PKI_REASON_CMS_ALGORITHM_MISMATCH`.
 
-**Keys held elsewhere.** A `Signer` is a `SigningKey` — a `CryptoKey` pkinative hands to `crypto.subtle.sign` and nothing else — or an `ExternalSigner`, a function for a key in an HSM, a smart card, a cloud KMS or a remote service. `produceSignature` receives the exact bytes to sign, not a digest, and must return what `crypto.subtle.sign` would: **raw `r ‖ s` for ECDSA**, the plain octets otherwise. A DER ECDSA signature is refused with `PKI_API_MISUSE` rather than guessed at — guessing which form arrived is how a signature gets encoded twice.
+**Keys held elsewhere.** A `Signer` is a `SigningKey` — a `CryptoKey` pkinative hands to `crypto.subtle.sign` and nothing else — or an `ExternalSigner`, a function for a key in an HSM, a smart card, a cloud KMS or a remote service. `produceSignature` receives the exact bytes to sign, not a digest, and must return what `crypto.subtle.sign` would: **raw `r ‖ s` for ECDSA**, the plain octets otherwise. A DER ECDSA signature is refused with `PKI_API_MISUSE` rather than guessed at — guessing which form arrived is how a signature gets encoded twice. A key you were given as a file — PKCS#8 or a `.p12` — is turned into a non-extractable `SigningKey` as [Private keys and PKCS#12](#private-keys-and-pkcs12) describes.
 
 **Reading without judging.** `parseSignedData` returns a [`SignedData`](../assets/api.json): `content` (`undefined` when detached), the `certificates`, `crls` and `ocspResponses` bags **as DER** — a bag is a claim by whoever assembled the message, and parsing all of it up front would refuse a whole message over one unrelated certificate — and each [`SignerInfo`](../assets/api.json). `signedAttributesDer` is **the exact bytes the signature covers**: the transmitted `[0]` with its tag replaced by the `SET OF` tag RFC 5652 §5.4 signs under; nothing downstream re-derives them. The conveniences — `contentType`, `messageDigest`, `signingTime`, `signingCertificate`, `algorithmProtection` — are set only when their attribute appears exactly once with one value, because "the first one" would hide a second `messageDigest`, which is the shape of an attack. `timeStampTokens` lists every RFC 3161 token among the unsigned attributes. [`ParseSignedDataOptions`](../assets/api.json) adds `allowTrailingData` to the ordinary parse options.
 
@@ -907,13 +908,70 @@ A timestamp present on a signer **and invalid** makes the signer invalid, not me
 
 `recipes/timestamp.ts` runs the whole loop without a network — it plays the TSA with `createSignedData` over a `TSTInfo` built from the public encoders — including the replayed answer, the signer judged at the proved time, and the TSA judged after its own expiry.
 
+## Private keys and PKCS#12
+
+The job: somebody handed you the key to sign with — a `PRIVATE KEY` or `ENCRYPTED PRIVATE KEY` PEM file, or a `.p12`/`.pfx` and its password — and `createCertificate`, `createCertificationRequest` or `createSignedData` needs a `SigningKey`.
+
+```ts
+import { createSignedData, readPkcs12 } from 'pkinative';
+
+const report = await readPkcs12(p12Bytes, { password });
+if (!report.valid) throw new Error(report.reasons.map((r) => `${r.code} at ${r.path}`).join('; '));
+const [{ signingKey, certificate }] = report.keys;
+const p7s = await createSignedData({ content: message, certificate: certificate! }, signingKey!);
+```
+
+**The key never becomes bytes pkinative holds.** Every call in this section returns a `SigningKey` whose `CryptoKey` is `extractable: false` with the single usage `sign`: it signs, and it cannot give its bits back to anyone. An unencrypted PKCS#8 is your own buffer and goes to the host exactly as it came. An encrypted one — a PKCS#8 under PBES2, or a PKCS#12 `pkcs8ShroudedKeyBag`, which is how OpenSSL and Windows store the key — is decrypted *by the host*, with `unwrapKey`, straight into that handle: the decrypted PKCS#8 is never a JavaScript value, so no code of pkinative's, and none of yours, can log it, copy it or leave it in a buffer. `exportKey` is refused inside `src/` in every version, so nothing here can turn the handle back into bytes either. The one case outside this is a writer that puts a plain `keyBag` inside an encrypted SafeContents: that SafeContents is opened with `decrypt`, and the key it holds is then as much in the clear as an unencrypted PKCS#8 you read from disk.
+
+**That is why the algorithm must be known before decrypting.** A key's type is inside the ciphertext, and the host has to be told what it is unwrapping *before* it unwraps it — pkinative never looks inside first. So:
+
+- `decryptPrivateKey(der, { password, algorithm })` requires `algorithm` ([`DecryptPrivateKeyOptions`](../assets/api.json)). Name the wrong one and the host refuses to unwrap, which surfaces as `PKI_CRYPTO_DECRYPTION_FAILED` — AES-CBC carries no authentication tag, so a wrong password, altered bytes and a key that is not the algorithm named are one error, not three.
+- `readPkcs12` takes the algorithm from **the certificate that shares the key's `localKeyId`**: ECDSA on the certificate's curve with that curve's customary digest (P-256 with SHA-256, P-384 with SHA-384, P-521 with SHA-512), Ed25519, Ed448. A certificate says "RSA" and not how the key will sign, and a Web Crypto key is bound to one scheme and one hash, so `rsaAlgorithm` decides: `{ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }` by default — the scheme of nearly every RSA signing certificate in use — or `RSA-PSS`, over SHA-1, SHA-256, SHA-384 or SHA-512; anything else is `PKI_INVALID_OPTION` before the file is read. A key with no certificate sharing its `localKeyId` is not guessed at: it is `PKI_REASON_PKCS12_KEY_UNMATCHED`, and `decryptPrivateKey` with a named algorithm opens it.
+- `importPrivateKey(der, options?)` reads an **unencrypted** key, so it can look at the algorithm OID first ([`ImportPrivateKeyOptions`](../assets/api.json)). An EC key decides for itself as above, and so does an Ed25519 or Ed448 key. An RSA key does not — PKCS#1 v1.5 or PSS, over any digest — and neither does an `id-RSASSA-PSS` key's digest, so both throw `PKI_API_MISUSE` until you name it: `{ algorithm: { name: 'RSA-PSS', hash: 'SHA-256' } }`. An algorithm you name must fit the key, family and curve, or it is `PKI_API_MISUSE` too.
+
+**Describe before you decrypt.** `parsePrivateKeyInfo` returns a [`PrivateKeyInfo`](../assets/api.json) — `version`, the `algorithm`, `keyType` (`rsa`, `rsa-pss`, `ec`, `ed25519`, `ed448` or `unknown`), `namedCurve`, the `attributes` and, for a version 1 key, `publicKey` — and **no field holding the private key**: the octets are checked for shape and never copied out, because a second convenient name for a secret is how it ends up in a log. (`der` is still your whole input, key included.) `parseEncryptedPrivateKeyInfo` returns an [`EncryptedPrivateKeyInfo`](../assets/api.json) whose `encryption.scheme` says in words what protects the key — `PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)` — and whose `encryption.pbes2` carries the salt, iteration count, PRF, AES size and IV, or is `undefined` for a scheme pkinative refuses. A refused scheme still parses, so a tool can say what a file is protected with, and why it will not open it, before anyone types a password.
+
+**PBES2 only, by policy.** pkinative opens PBES2 with PBKDF2 (HMAC-SHA-1, -256, -384 or -512) and AES-128, -192 or -256 in CBC mode — what OpenSSL 1.1 and later write by default — and refuses every other scheme by name with `PKI_KEY_ENCRYPTION_UNSUPPORTED`: the RFC 7292 Appendix C schemes (`pbeWithSHAAnd3-KeyTripleDES-CBC`, `pbeWithSHAAnd40BitRC2-CBC` and the rest), PBES1, and PBES2 with another cipher. The PKCS#12 schemes derive their key with the RFC 7292 Appendix B KDF, iterated hashing with byte arithmetic over the password, and protect it with 3DES or 40-bit RC2; implementing them would put secret-dependent code in TypeScript, which is the one thing this library exists without. It is a refusal, not a backlog — the full table of OIDs is in [SECURITY.md](../../SECURITY.md). A legacy file converts once, with OpenSSL 3.4 or later, in two commands verified against OpenSSL 4.0.0:
+
+```sh
+openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem
+openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
+```
+
+The key in `bundle.pem` stays encrypted under the passphrase you give, PBES2 with AES-256-CBC is already the default, and `bundle.pem` is yours to delete afterwards. A key alone converts with `openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256`.
+
+**Why most MACs cannot be verified, and what `allowUnverifiedIntegrity` trades.** A PKCS#12 MAC is how a reader knows the file was not altered by someone without the password. Every MAC OpenSSL wrote before 3.4, and most it still writes, is keyed with the same Appendix B KDF — so pkinative can verify only an RFC 9579 PBMAC1 MAC, which is what `-pbmac1_pbkdf2` writes. `readPkcs12` **fails closed**: a file whose integrity cannot be checked — an Appendix B MAC, no MAC at all, a PBMAC1 the host cannot run, or public-key integrity mode — is still read and its contents reported, but `valid` is `false` with `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED`. [`ReadPkcs12Options`](../assets/api.json)'s `allowUnverifiedIntegrity: true` accepts it, and it is a decision about the file's origin: without a MAC, any bag that is not encrypted — a certificate, a CRL, a plain key — can be replaced by anyone who can write the file, and the certificate you would then sign under is theirs. Pass it only for a file you trust by other means. The [`ReadPkcs12Report`](../assets/api.json)'s `integrity` says what was established either way: `verified`, `unverified`, or `mismatch` — a PBMAC1 that does not match, a wrong password most likely, after which nothing is decrypted and the only reason is `PKI_REASON_PKCS12_MAC_MISMATCH`.
+
+**The password is UTF-8.** A string is encoded as UTF-8, which is what OpenSSL and RFC 9579 use under PBES2 and PBMAC1. A file written with another encoding opens with the exact octets as a `Uint8Array`, which is used as given and never modified — it is yours to wipe. A string with a lone surrogate has no UTF-8 form and is refused with `PKI_API_MISUSE` rather than silently replaced. An empty string is a password; `undefined` is not, and `readPkcs12` throws `PKI_INVALID_OPTION` for it.
+
+**Windows writes BER.** A `.pfx` exported by Windows uses indefinite lengths and segmented OCTET STRINGs; pass `encodingRules: 'ber'` to `readPkcs12` or `parsePkcs12` for it. Without it, the strict DER reader refuses the file, and `readPkcs12` reports that as `PKI_REASON_INPUT_MALFORMED` carrying the encoding code.
+
+**The report, and what it never does.** `readPkcs12` resolves with the MAC checked where it can be, every SafeContents opened, every certificate parsed (`certificates`, the keys' own and any chain), every CRL bag's DER (`crls`), and `keys` — one [`Pkcs12Key`](../assets/api.json) per private key, in encoded order, with its `path`, `localKeyId`, `friendlyName`, matching `certificate` and `signingKey`, which is `undefined` when that key could not be opened. **It never rejects for a problem with the file**: one malformed certificate or one key under a refused scheme is a reason, and the rest is still read. It throws only for a call that could never succeed — no Web Crypto (`PKI_CRYPTO_UNAVAILABLE`), a missing password or a bad option, an unknown `limits` key, an input that is not a `Uint8Array`. Guard with `canDecrypt()`, which says whether `globalThis.crypto.subtle` offers every operation PBES2 and RFC 9579 need — not which ciphers: several browsers that answer `true` lack AES-192, and a file using it comes back as `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED`. It reads quietly: nothing is printed, and the container's diagnostics are on `report.pkcs12.diagnostics`.
+
+**The primitives underneath.** `parsePkcs12` needs no password: it returns a [`Pkcs12`](../assets/api.json) whose `contents` are [`SafeContentsInfo`](../assets/api.json) entries — `encrypted`, the `encryption` scheme and ciphertext, or the `bags` already read when the SafeContents is plain — and whose `mac` says `kind: 'pbmac1'` or `kind: 'pkcs12-kdf'`, or is `undefined`. `verifyPkcs12Mac(pkcs12, password)` checks a PBMAC1 and returns `true` or `false`, the two failures being indistinguishable; it throws `PKI_KEY_MAC_UNSUPPORTED` for an Appendix B MAC and `PKI_API_MISUSE` for a file with none, so check `pkcs12.mac` first. `openSafeContents(contents, password)` returns the [`SafeBag`](../assets/api.json)s of one entry, decrypting it when it is PBES2-encrypted; each bag has its `kind`, `friendlyName`, `localKeyId`, and `certificateDer`, `crlDer`, `encryptedKey` or `privateKey` by kind, and a `path` such as `authSafe[1].bags[0]`. Nested `safeContentsBag`s are flattened, and every bag counts against `maxPkcs12Bags`. The layer never parses a certificate for you — `certificateDer` goes to `parseCertificate` — and `decryptPrivateKey(bag.encryptedKey.der, { password, algorithm })` opens a key. Public-key privacy mode (`envelopedData`) is reported as encrypted with no password scheme and refused by `openSafeContents`; public-key integrity mode is refused by `parsePkcs12` with `PKI_KEY_MAC_UNSUPPORTED`.
+
+**The file declares its own cost.** The PBKDF2 iteration count is the file's to declare and the host's to run, inside Web Crypto where no JavaScript bound reaches, so `maxKdfIterations` (10 000 000, about ten seconds of SHA-256) is checked before the host is asked for anything: a file declaring 2³¹ iterations is `PKI_LIMIT_EXCEEDED` — thrown by the primitives, reported by `readPkcs12` as `PKI_REASON_INPUT_MALFORMED` carrying that code — and not a frozen process. A count below the 1 000 RFC 8018 recommends still opens, with `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: the count is what a stolen copy costs to brute-force.
+
+**The three vocabularies, applied to keys.**
+
+| Vocabulary | Codes | Raised by | Means |
+|---|---|---|---|
+| Thrown `PkiKeyError` | `PKI_KEY_STRUCTURE_INVALID`, `PKI_KEY_VERSION_UNSUPPORTED`, `PKI_KEY_ENCRYPTION_UNSUPPORTED`, `PKI_KEY_MAC_UNSUPPORTED` | the parsers, `importPrivateKey`, `decryptPrivateKey`, `verifyPkcs12Mac`, `openSafeContents` | The structure is not RFC 5958 or RFC 7292, or it is protected by something pkinative refuses; `path` and `offset` say where, and the message names the conversion |
+| Thrown `PkiCryptoError` | `PKI_CRYPTO_DECRYPTION_FAILED` | `decryptPrivateKey`, `openSafeContents` | The file was readable and the host could not decrypt it: the password, the data, or the algorithm named |
+| Emitted diagnostic | `PKI_DIAG_KEY_KDF_ITERATIONS_LOW` | the parsers, through `onDiagnostic` and `diagnostics` | A PBKDF2 count below 1 000; the file still opens |
+| Returned reasons | `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED`, `PKI_REASON_PKCS12_MAC_MISMATCH`, `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED`, `PKI_REASON_PKCS12_DECRYPTION_FAILED`, `PKI_REASON_PKCS12_KEY_UNMATCHED`, `PKI_REASON_PKCS12_KEY_UNSUPPORTED` | `readPkcs12` | The file is readable, and something in it could not be opened or trusted |
+
+**A `PkiKeyError` never means a wrong password** — only the host can find that out, and it says so as a `PkiCryptoError`. `PkiKeyErrorCode` is the union a `PkiKeyError` narrows `code` to.
+
+`recipes/private-key.ts` reads, imports and decrypts PKCS#8 keys written by `node:crypto`, names the RSA algorithm, and refuses a 3DES and an Appendix C key by name; `recipes/pkcs12.ts` writes a PBMAC1 `.p12`, opens it in one call and with the primitives, signs with the key, and reads the unverifiable, the wrong-password and the legacy cases apart.
+
 ## What none of these do yet
 
 Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
 
 | You need | pkinative | Until then |
 |---|---|---|
-| Read a PKCS#8 or PKCS#12 container | 0.8, and **PBES2 only** — the RFC 7292 appendix B KDF is SHA-1 iterated over a password and will never be implemented here | `openssl pkcs12` to convert, then pkinative |
+| Open a legacy PKCS#12 or PKCS#8 — RFC 7292 Appendix C ciphers, PBES1, an Appendix B MAC checked | never, by design: the Appendix B KDF is iterated hashing with byte arithmetic over the password, secret-dependent code this library will not write | `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12`, once |
 | Decide that a key is too small or a curve unacceptable | never, by design | one comparison on the parsed `subjectPublicKeyInfo`; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library |
 | A public suffix list, so that `*.co.uk` is refused | never, by design | a maintained PSL package; a parsing library carrying a stale copy is worse than one that says it does not know |
 
@@ -1127,16 +1185,19 @@ Unlike `PkiErrorCode`, which freezes at 0.8, the reason vocabulary is **not froz
 | `PkiLimitError` | A configured limit exceeded, or an invalid limits override | `code`, `limit`, `configured`, `observed` |
 | `PkiCryptoError` | A verification **could not be performed** — never one that failed | `code`, `algorithm` |
 | `PkiCmsError` | Well-formed DER that is not the RFC 5652 CMS or RFC 3161 timestamp structure it was read as | `code`, `path`, `offset` |
+| `PkiKeyError` | A PKCS#8 or PKCS#12 structure pkinative cannot read, or a password scheme or MAC it refuses by policy — **never** a wrong password | `code`, `path`, `offset` |
 
 Every subclass extends `PkiError`, so `error instanceof PkiError` catches them all, and every message starts with `pkinative: `. Before 0.8 an error code may still be renamed or removed in a minor release, and the release note lists every such change under Downstream integration notes; from 0.8 the vocabulary is frozen under semantic versioning. PKCS#12 is the last subsystem that introduces codes, so 0.8 is the first version at which the vocabulary is complete — and 0.9 exists to prove that nothing needed renaming after all. Diagnostic codes are additions-only already: none is ever renamed or removed.
 
-Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, and `PkiEncodingErrorCode`, `PkiCertificateErrorCode`, `PkiLimitErrorCode`, `PkiCryptoErrorCode` and `PkiCmsErrorCode` on the five subclasses. `PkiErrorCode` is the union of all six — the type to write when you store or pass a code without caring which class raised it.
+Each class types its own `code`, so narrowing the error narrows the codes: `PkiBaseErrorCode` on `PkiError`, and `PkiEncodingErrorCode`, `PkiCertificateErrorCode`, `PkiLimitErrorCode`, `PkiCryptoErrorCode`, `PkiCmsErrorCode` and `PkiKeyErrorCode` on the six subclasses. `PkiErrorCode` is the union of all seven — the type to write when you store or pass a code without caring which class raised it.
 
 ### The line `PkiCryptoError` draws
 
 `verifyCertificateSignature` returns a boolean, and **throws only when the question could not be put**. A signature that does not check out is `false`. So is one whose bytes are malformed, one whose issuer key is of the wrong family entirely, and one whose two `signatureAlgorithm` fields disagree — every case where the answer is knowably "no". Failing closed is deliberate: a caller who forgets a `catch` gets "not verified", which is the safe reading, instead of an exception some layer above may swallow into a success path.
 
 A `PkiCryptoError` means something else, and it is worth reacting to differently: pkinative did not decide. Retrying elsewhere may give a different answer, and treating it as a rejection would blame a certificate for the runtime's limits.
+
+One code of that class is the exception, and it is on the decrypting side, where there is no boolean to return: `PKI_CRYPTO_DECRYPTION_FAILED` says the host tried to decrypt a key or a SafeContents and could not. It stays a `PkiCryptoError` rather than a `PkiKeyError` because only the host can find it out: the file was readable, and AES-CBC, which carries no authentication tag, cannot say whether the password was wrong, the bytes altered, or the key not of the algorithm it was unwrapped as.
 
 ## Error codes
 
@@ -1182,7 +1243,7 @@ A `PkiCryptoError` means something else, and it is worth reacting to differently
 
 ### Verification that could not run
 
-- `PKI_CRYPTO_UNAVAILABLE` — this runtime exposes no `crypto.subtle` with `importKey` and `verify`. Call `canVerify()` first; a page on plain HTTP has none (CWE-693).
+- `PKI_CRYPTO_UNAVAILABLE` — this runtime exposes no `crypto.subtle` with `importKey` and `verify`, or, to open a password-protected key, with `deriveKey`, `unwrapKey` and `decrypt` too. Call `canVerify()`, `canSign()` or `canDecrypt()` first; a page on plain HTTP has none (CWE-693).
 - `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` — the signature algorithm is outside the set pkinative verifies, or its RSASSA-PSS parameters name something Web Crypto cannot express. MD2 and MD5 are here on purpose: Web Crypto implements neither, so the honest answer names the algorithm instead of a verification that did not happen (CWE-757).
 - `PKI_CRYPTO_KEY_UNSUPPORTED` — the issuer's key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent (CWE-757).
 
@@ -1194,6 +1255,16 @@ A `PkiCryptoError` means something else, and it is worth reacting to differently
 - `PKI_CMS_CONTENT_NOT_OCTET_STRING` — PKCS #7 content that is not an OCTET STRING, such as Authenticode, whose digest rule differs from RFC 5652's (CWE-843).
 
 `verifySignedData` and `verifyTimeStampToken` throw none of these for the message or token they judge: there, they are `PKI_REASON_INPUT_MALFORMED` with the code in `errorCode`. The one exception is `verifyTimeStampToken`'s `request`, which is your own bytes, so a malformed one is thrown.
+
+### Private keys and PKCS#12
+
+- `PKI_KEY_STRUCTURE_INVALID` — well-formed DER that does not match the RFC 5958 PKCS#8 or RFC 7292 PKCS#12 module: a field missing or out of order, PBES2 parameters that contradict each other, an initialisation vector that is not 16 octets. The usual cause is a PEM block decoded from the wrong label — `PRIVATE KEY` for PKCS#8, `ENCRYPTED PRIVATE KEY` for its encrypted form — or a `.p12` read as text (CWE-1286).
+- `PKI_KEY_VERSION_UNSUPPORTED` — a `PrivateKeyInfo` version other than 0 or 1, or a PFX version other than 3; re-export the file from the tool that owns the key (CWE-1286).
+- `PKI_KEY_ENCRYPTION_UNSUPPORTED` — a key or a SafeContents protected by anything but PBES2 with PBKDF2 and AES-CBC: an RFC 7292 Appendix C scheme such as `pbeWithSHAAnd3-KeyTripleDES-CBC`, PBES1, PBES2 with another cipher, or public-key privacy mode. **A policy, not a gap**, and the message names the scheme and the conversion: `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12` (OpenSSL 3.4 or later), or `openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256` for a key alone (CWE-327).
+- `PKI_KEY_MAC_UNSUPPORTED` — `verifyPkcs12Mac` asked to check a MAC keyed with the RFC 7292 Appendix B KDF, which is every MAC OpenSSL wrote before 3.4, or `parsePkcs12` given public-key integrity mode. Re-export with `openssl pkcs12 -export -pbmac1_pbkdf2`; `readPkcs12` reports such a file as `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` and takes `allowUnverifiedIntegrity` for the decision (CWE-327).
+- `PKI_CRYPTO_DECRYPTION_FAILED` — a `PkiCryptoError`: Web Crypto could not decrypt a PBES2 payload or unwrap a key with the key derived from the password. Check the password first — a string is encoded as UTF-8; pass the exact octets as a `Uint8Array` for a file written with another encoding — then that the algorithm named fits the key. A file that fails with both right has been altered (CWE-354).
+
+`readPkcs12` throws none of these for the file it opens: they are its `PKI_REASON_PKCS12_*` reasons, or `PKI_REASON_INPUT_MALFORMED` for a file it cannot read at all.
 
 ## Diagnostics
 
@@ -1207,6 +1278,7 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 
   The six added in 0.5.0 share one shape: each is a sentence RFC 5280 or the CA/Browser Forum addresses to the **issuing CA**, and none of them refuses a chain. pkinative reads and enforces the extension whatever the profile says about its criticality, so refusing would make it stricter than the standards ask of a verifier while accepting exactly the same set of chains; `strict: true` is where that choice belongs. Each answers a case of the x509-limbo corpus that expects a refusal, and the reason it stays a diagnostic is written beside that case in `scripts/data/limbo-score.json`. `PKI_DIAG_COMMON_NAME_NOT_IN_SAN` is the first to cite CA/Browser Forum Baseline Requirements rather than an RFC, because no RFC says it — and it fires only for a `commonName` that could be matched **as a host**, since reporting `CN=Example Issuing CA` would be reporting the ordinary shape of every organisational subject.
 - **CMS** — `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED`, on `SignedData.diagnostics`. None of them touches a signed octet — the signed attributes are verified over the bytes as they were signed, never over a re-sorted set — so none changes a verdict; they tell you which other verifiers may refuse the message.
+- **Keys** — `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: a PBKDF2 iteration count, for a key, a SafeContents or a PBMAC1 MAC, below the 1 000 RFC 8018 recommends. The file still opens; the count is what a stolen copy costs to brute-force. A count above `maxKdfIterations` is not a diagnostic but `PKI_LIMIT_EXCEEDED`, because the host would run it where nothing can interrupt it.
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
@@ -1224,6 +1296,7 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 - **The questions §6 does not ask** — `PKI_REASON_NAME_MISMATCH` (from `checkServerName`: the chain is sound and the certificate is for somebody else) and `PKI_REASON_PURPOSE_NOT_PERMITTED` (from `checkExtendedKeyUsage`: the chain is sound and the certificate is for something else).
 - **A signed message** (from `verifySignedData`) — `PKI_REASON_CMS_NO_SIGNERS` (a certificate bundle is not a signature), `PKI_REASON_CMS_SIGNER_NOT_FOUND`, `PKI_REASON_CMS_CONTENT_MISSING` (absent content is never empty content), `PKI_REASON_CMS_DIGEST_MISMATCH`, `PKI_REASON_CMS_ATTRIBUTE_INVALID`, `PKI_REASON_CMS_ALGORITHM_MISMATCH` (the shape of an algorithm substitution), `PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH` (the signature presented under another certificate for the same key).
 - **A timestamp** (from `verifyTimeStampToken`, and under `unsignedAttrs.timeStampToken[i]` from `verifySignedData`) — `PKI_REASON_TSP_IMPRINT_MISMATCH` (the token stamps something else), `PKI_REASON_TSP_REQUEST_MISMATCH` (a nonce or policy the request did not ask for — what a replay looks like; send a new request rather than retrying), `PKI_REASON_TSP_TOKEN_INVALID`.
+- **A PKCS#12** (from `readPkcs12`) — `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` (the MAC cannot be checked here, or there is none: the contents are reported and `valid` is false unless you pass `allowUnverifiedIntegrity`), `PKI_REASON_PKCS12_MAC_MISMATCH` (a PBMAC1 that does not match — most likely the password — after which nothing is decrypted), `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED` (a scheme pkinative refuses, or one this runtime's Web Crypto lacks, such as AES-192 in several browsers), `PKI_REASON_PKCS12_DECRYPTION_FAILED`, `PKI_REASON_PKCS12_KEY_UNMATCHED` (no certificate shares the key's `localKeyId`, so its algorithm is unknown — `decryptPrivateKey` with a named algorithm opens it) and `PKI_REASON_PKCS12_KEY_UNSUPPORTED` (a key Web Crypto does not sign with, such as DSA or X25519).
 - **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
 
 **`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448, says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.

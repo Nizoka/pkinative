@@ -1,6 +1,6 @@
 # pkinative
 
-> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo and Wycheproof. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Versions below 1.0 are git tags, not npm releases. Beyond reading, it verifies and creates signatures through Web Crypto, validates RFC 5280 §6 paths with CRL and OCSP revocation, and reads, builds and verifies CMS SignedData and RFC 3161 timestamps.
+> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo and Wycheproof. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. Versions below 1.0 are git tags, not npm releases. Beyond reading, it verifies and creates signatures through Web Crypto, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys.
 
 pkinative never implements secret-dependent cryptography in TypeScript; signing and verification are one call to Web Crypto with the caller's key. Every failure is a PkiError subclass with a stable `code`; profile concerns are diagnostics (`onDiagnostic`, `strict: true`, `certificate.diagnostics`). There is no PEM-to-certificate shortcut: compose `decodePem` and `parseCertificate`.
 
@@ -12,7 +12,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 
 ## Guides
 
-- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) and RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`)
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`readPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-one limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy

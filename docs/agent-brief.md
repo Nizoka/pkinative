@@ -1,6 +1,6 @@
 # pkinative — brief for AI coding agents
 
-Paste this into a coding agent's context before it writes code that reads, builds or verifies certificates, paths, CMS messages or timestamps with pkinative.
+Paste this into a coding agent's context before it writes code that reads, builds or verifies certificates, paths, CMS messages or timestamps, or opens private keys and PKCS#12 files, with pkinative.
 
 ## Import
 
@@ -46,6 +46,12 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 - Timestamp a signature: hash the `SignerInfo`'s `signature` value (not the document), `createTimeStampRequest(hash, { nonce })` with a random nonce you generate, `parseTimeStampResponse`, then `addTimeStampToken(p7s, 0, response.tokenDer)`. Check a token alone with `verifyTimeStampToken({ token, request, trustAnchors })`.
 - `atTimeStamp: true` judges each signer's chain at the time its verified timestamp proves; the TSA's own chain is still judged at `at`. Never use `signingTime` as proof of time: only the signer vouches for it.
 - `parseSignedData` throws `PkiCmsError` (codes `PKI_CMS_*`, with `path`); the verifiers return `PKI_REASON_CMS_*` and `PKI_REASON_TSP_*` reasons instead.
+
+## Private keys and PKCS#12 (0.8)
+
+- Open a `.p12`/`.pfx` with `readPkcs12(bytes, { password })`; sign with `report.keys[i].signingKey`, a non-extractable `CryptoKey` whose algorithm comes from the certificate sharing the key's `localKeyId` (`rsaAlgorithm` picks the RSA scheme; PKCS#1 v1.5 with SHA-256 by default). It returns a report and never throws for the file. `valid` is false with `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` for the common RFC 7292 Appendix B MAC, which pkinative never computes; pass `allowUnverifiedIntegrity: true` only for a file whose origin you trust.
+- A PKCS#8 key: `importPrivateKey(der)` for `PRIVATE KEY` (an RSA key needs `{ algorithm }`), `decryptPrivateKey(der, { password, algorithm })` for `ENCRYPTED PRIVATE KEY` — `algorithm` is always required there, because the host unwraps the key without pkinative ever seeing its plaintext. `parsePrivateKeyInfo` and `parseEncryptedPrivateKeyInfo` describe a key file (type, curve, `encryption.scheme`) before any password.
+- Only PBES2 with PBKDF2 and AES-CBC opens. Anything else throws `PkiKeyError` `PKI_KEY_ENCRYPTION_UNSUPPORTED` naming the scheme and the `openssl` conversion; do not write a 3DES, RC2 or Appendix B fallback. A wrong password is `PkiCryptoError` `PKI_CRYPTO_DECRYPTION_FAILED`, never a `PkiKeyError`. A string password is UTF-8; pass a `Uint8Array` for another encoding. Check `canDecrypt()` first.
 
 ## Do not
 
