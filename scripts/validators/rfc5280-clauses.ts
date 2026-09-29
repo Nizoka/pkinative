@@ -149,6 +149,18 @@ function ascending(a: Uint8Array, b: Uint8Array): number {
 
 const ext = (tbs: Tbs, oid: string): Extension | undefined => tbs.extensions.find((e) => e.oid === oid);
 
+/**
+ * True when basicConstraints is present and asserts cA — RFC 5280's own
+ * definition of a CA certificate (§4.2.1.2: "all certificates including the
+ * basic constraints extension … where the value of cA is TRUE").
+ */
+function assertsCa(tbs: Tbs): boolean {
+    const bc = ext(tbs, '2.5.29.19');
+    if (bc?.value === undefined || bc.value === null) return false;
+    const first = childrenOf(bc.valueBytes, bc.value)[0];
+    return first !== undefined && first.tagClass === 0 && first.tagNumber === 1 && bc.valueBytes[first.offset + first.headerLength] !== 0x00;
+}
+
 // ── The clauses ──────────────────────────────────────────────────────
 
 type Evaluator = (der: Uint8Array, tbs: Tbs) => Verdict;
@@ -312,6 +324,51 @@ const EVALUATORS: Readonly<Record<string, Evaluator>> = {
         if (childrenOf(der, tbs.subject).length !== 0) return NA;
         const san = ext(tbs, '2.5.29.17');
         return san !== undefined && san.critical ? 'pass' : 'fail';
+    },
+
+    '4.2.1.9-basic-constraints-critical-in-ca': (_der, tbs) => {
+        if (!assertsCa(tbs)) return NA;
+        return ext(tbs, '2.5.29.19')?.critical === true ? 'pass' : 'fail';
+    },
+
+    '4.2.1.11-policy-constraints-critical': (_der, tbs) => {
+        const pc = ext(tbs, '2.5.29.36');
+        if (pc === undefined) return NA;
+        return pc.critical ? 'pass' : 'fail';
+    },
+
+    '4.2.1.3-key-cert-sign-requires-ca': (_der, tbs) => {
+        const ku = ext(tbs, '2.5.29.15');
+        if (ku?.value === undefined || ku.value === null || ku.value.tagNumber !== 3) return NA;
+        const bits = content(ku.valueBytes, ku.value);
+        // keyCertSign is named bit 5: the sixth bit of the first content
+        // octet after the unused-bits count.
+        if (bits.length < 2 || (((bits[1] as number) >> 2) & 1) === 0) return NA;
+        return assertsCa(tbs) ? 'pass' : 'fail';
+    },
+
+    '4.2.1.10-name-constraints-only-in-ca': (_der, tbs) => {
+        if (ext(tbs, '2.5.29.30') === undefined) return NA;
+        return assertsCa(tbs) ? 'pass' : 'fail';
+    },
+
+    '4.2.1.1-aki-key-identifier-present': (der, tbs) => {
+        // A certificate with no extensions field at all has nowhere to put
+        // the identifier; only a v3 certificate is asked for it here.
+        if (tbs.version !== 2) return NA;
+        // The self-signed exemption, seen the way a reader without a key
+        // operation can see it: the issuer names the subject, byte for byte.
+        if (sameBytes(slice(der, tbs.issuer), slice(der, tbs.subject))) return NA;
+        const aki = ext(tbs, '2.5.29.35');
+        if (aki === undefined) return 'fail';
+        if (aki.value === null) return NA;
+        const fields = childrenOf(aki.valueBytes, aki.value);
+        return fields.some((f) => f.tagClass === 2 && f.tagNumber === 0) ? 'pass' : 'fail';
+    },
+
+    '4.2.1.2-ski-present-in-ca': (_der, tbs) => {
+        if (tbs.version !== 2 || !assertsCa(tbs)) return NA;
+        return ext(tbs, '2.5.29.14') === undefined ? 'fail' : 'pass';
     },
 };
 

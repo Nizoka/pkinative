@@ -18,6 +18,14 @@ x509-limbo is a project of the C2SP (Community Cryptography Specification Projec
 
 PKITS is distributed as a ZIP archive and nothing else, so it is pinned twice: by the SHA-256 of the archive, which fixes every byte in it, and by a per-file list in `.github/checksums/` that holds this project's own ZIP reader to the bytes reviewed. The archive also carries PKCS#12 bundles, S/MIME messages, cross-certificate pairs and an LDIF export; none is extracted.
 
+## Standards text (downloaded, never committed)
+
+| Document | Source | Pinned SHA-256 | Files | Licence |
+|---|---|---|---|---|
+| RFC 5280, Internet X.509 PKI Certificate and CRL Profile (plain text) | https://www.rfc-editor.org/rfc/rfc5280 | `a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d` (SHA-256 of `rfc5280.txt`; an RFC has no version but its number) | `rfc5280.txt`, from https://www.rfc-editor.org/rfc/rfc5280.txt | Copyright (C) The IETF Trust (2008), BCP 78 |
+
+RFC 5280 is fetched and pinned like the corpora above, by `npm run conformance:fetch`, and read by conformance level L5 to check that every clause of `scripts/lib/clauses.ts` quotes it verbatim and that every requirement sentence of its §4.1 and §4.2 is accounted for. The document is not redistributed. Individual sentences of it are quoted, each with its section, in `scripts/lib/clauses.ts` and `scripts/data/rfc5280-requirements.json`, as the subject of that review; the RFC's copyright notice is *"Copyright (C) The IETF Trust (2008). This document is subject to the rights, licenses and restrictions contained in BCP 78, and except as set forth therein, the authors retain all their rights"*, and the IETF Trust Legal Provisions (https://trustee.ietf.org/license-info) govern its use. The ITU-T X.690 sentences quoted by three clauses are not pinned and not checked this way.
+
 ## Committed test fixtures
 
 `tests/fixtures/certs/` holds six public certificates of foreign provenance — the ISRG roots, two Let's Encrypt intermediates, one Let's Encrypt end-entity certificate and the RFC 8410 §10.2 example. [tests/fixtures/PROVENANCE.md](tests/fixtures/PROVENANCE.md) lists the source, retrieval date, SHA-256 and terms of each; `tests/docs/fixture-budget.test.ts` holds the files to those hashes. Certificates are public data published for distribution; none carries a private key.

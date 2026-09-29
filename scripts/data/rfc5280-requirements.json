@@ -1,0 +1,1280 @@
+{
+  "$comment": "Every requirement sentence of RFC 5280 §4.1 and §4.2 (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `clause` names the L5 clause of scripts/lib/clauses.ts that quotes it; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. RFC 5280 is also updated by RFC 6818, 8398, 8399, 9549, 9598, 9608, 9618 and others; the inventory is of RFC 5280 as published, and an update that changes a §4 requirement is a new corpus, not an edit here.",
+  "rfc": "RFC 5280",
+  "sha256": "a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d",
+  "errata": [
+    {
+      "id": 3579,
+      "section": "4.2.1.4",
+      "type": "Editorial",
+      "decision": "Verified. Capitalises the ASN.1 type reference certificatePolicies in the §4.2.1.4 module fragment. ASN.1 is not extracted, and no requirement sentence changes; not pinned."
+    },
+    {
+      "id": 5802,
+      "section": "4.2.1.12",
+      "type": "Technical",
+      "decision": "Verified. Drops \"WWW\" from the comments on id-kp-serverAuth and id-kp-clientAuth. ASN.1 comments, with no RFC 2119 keyword; no requirement sentence changes; not pinned."
+    },
+    {
+      "id": 6414,
+      "section": "4.2.1.12",
+      "type": "Technical",
+      "decision": "Verified. Rewrites the \"Key usage bits that may be consistent\" comment of id-kp-serverAuth as digitalSignature and/or (keyEncipherment or keyAgreement). An ASN.1 comment in lower case \"may\"; no requirement sentence changes, and pkinative diagnoses no key-usage and purpose consistency; not pinned."
+    }
+  ],
+  "requirements": {
+    "4.1.1.2-1-0ee96a4b": {
+      "section": "4.1.1.2",
+      "text": "This field MUST contain the same algorithm identifier as the signature field in the sequence tbsCertificate (Section 4.1.2.3).",
+      "status": "clause",
+      "clause": "4.1.1.2-signature-algorithm-matches-tbs"
+    },
+    "4.1.2.1-1-d727a501": {
+      "section": "4.1.2.1",
+      "text": "When extensions are used, as expected in this profile, version MUST be 3 (value is 2).",
+      "status": "clause",
+      "clause": "4.1.2.1-extensions-require-v3"
+    },
+    "4.1.2.1-2-33b8abeb": {
+      "section": "4.1.2.1",
+      "text": "If no extensions are present, but a UniqueIdentifier is present, the version SHOULD be 2 (value is 1); however, the version MAY be 3.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The only violable reading — a unique identifier in a v1 certificate — is the clause 4.1.2.8-unique-id-requires-v2; the same sentence's MAY admits version 3."
+    },
+    "4.1.2.1-3-62f76b66": {
+      "section": "4.1.2.1",
+      "text": "If only basic fields are present, the version SHOULD be 1 (the value is omitted from the certificate as the default value); however, the version MAY be 2 or 3.",
+      "status": "excluded",
+      "reason": "nothing-to-violate",
+      "why": "The SHOULD is followed by \"the version MAY be 2 or 3\", so every version is admitted for a certificate of basic fields only."
+    },
+    "4.1.2.1-4-681297b1": {
+      "section": "4.1.2.1",
+      "text": "Implementations SHOULD be prepared to accept any version certificate.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations; pkinative reads v1, v2 and v3 and refuses any other value with PKI_X509_VERSION_INVALID, since no fourth version exists."
+    },
+    "4.1.2.1-5-5ca66b4f": {
+      "section": "4.1.2.1",
+      "text": "At a minimum, conforming implementations MUST recognize version 3 certificates.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations; pkinative recognises version 3 certificates, which is what every other level of the gate reads."
+    },
+    "4.1.2.2-1-67ea9b6d": {
+      "section": "4.1.2.2",
+      "text": "The serial number MUST be a positive integer assigned by the CA to each certificate.",
+      "status": "clause",
+      "clause": "4.1.2.2-serial-positive"
+    },
+    "4.1.2.2-2-5ae3c1e2": {
+      "section": "4.1.2.2",
+      "text": "It MUST be unique for each certificate issued by a given CA (i.e., the issuer name and serial number identify a unique certificate).",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Uniqueness of a serial number across everything one CA issued is a property of the CA's issuance, invisible in any single certificate."
+    },
+    "4.1.2.2-3-2615302d": {
+      "section": "4.1.2.2",
+      "text": "CAs MUST force the serialNumber to be a non-negative integer.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The clause 4.1.2.2-serial-positive asks for more — a positive serial — so every certificate that violates this sentence fails that clause and PKI_DIAG_SERIAL_NOT_POSITIVE fires."
+    },
+    "4.1.2.2-4-7e446399": {
+      "section": "4.1.2.2",
+      "text": "Certificate users MUST be able to handle serialNumber values up to 20 octets.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to certificate users; pkinative reads a serial of any length as a bigint, and reports one longer than 20 octets through the clause 4.1.2.2-serial-at-most-20-octets."
+    },
+    "4.1.2.2-5-30dd7449": {
+      "section": "4.1.2.2",
+      "text": "Conforming CAs MUST NOT use serialNumber values longer than 20 octets.",
+      "status": "clause",
+      "clause": "4.1.2.2-serial-at-most-20-octets"
+    },
+    "4.1.2.2-6-35a3a7f8": {
+      "section": "4.1.2.2",
+      "text": "Certificate users SHOULD be prepared to gracefully handle such certificates.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to certificate users, about negative or zero serials: pkinative parses them and reports PKI_DIAG_SERIAL_NOT_POSITIVE instead of refusing the certificate."
+    },
+    "4.1.2.3-1-f58aa155": {
+      "section": "4.1.2.3",
+      "text": "This field MUST contain the same algorithm identifier as the signatureAlgorithm field in the sequence Certificate (Section 4.1.1.2).",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The same equality as §4.1.1.2 seen from the other field; the clause 4.1.1.2-signature-algorithm-matches-tbs compares the two encodings byte for byte."
+    },
+    "4.1.2.4-1-f7f6701e": {
+      "section": "4.1.2.4",
+      "text": "The issuer field MUST contain a non-empty distinguished name (DN).",
+      "status": "clause",
+      "clause": "4.1.2.4-issuer-not-empty"
+    },
+    "4.1.2.4-2-30bff631": {
+      "section": "4.1.2.4",
+      "text": "CAs conforming to this profile MUST use either the PrintableString or UTF8String encoding of DirectoryString, with two exceptions.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Both exceptions turn on history outside the certificate: whether the CA, or the CAs of its domain, previously issued names with TeletexString, BMPString or UniversalString."
+    },
+    "4.1.2.4-3-4e7f3a7c": {
+      "section": "4.1.2.4",
+      "text": "However, conforming implementations MUST be prepared to receive certificates with issuer names containing the set of attribute types defined below.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations; pkinative decodes every attribute type as an OID and value without a closed list, so no attribute type is refused."
+    },
+    "4.1.2.4-4-296f0449": {
+      "section": "4.1.2.4",
+      "text": "Implementations of this specification MUST be prepared to receive the following standard attribute types in issuer and subject (Section 4.1.2.6) names:",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations, about the attribute types they must receive; pkinative reads names without restricting the attribute types."
+    },
+    "4.1.2.4-5-615c4187": {
+      "section": "4.1.2.4",
+      "text": "In addition, implementations of this specification SHOULD be prepared to receive the following standard attribute types in issuer and subject names:",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations, about the recommended attribute types; pkinative reads names without restricting the attribute types."
+    },
+    "4.1.2.4-6-371d2c72": {
+      "section": "4.1.2.4",
+      "text": "In addition, implementations of this specification MUST be prepared to receive the domainComponent attribute, as defined in [RFC4519].",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations, about domainComponent; pkinative reads it like any other attribute of a name."
+    },
+    "4.1.2.4-7-ec7ec1d7": {
+      "section": "4.1.2.4",
+      "text": "Certificate users MUST be prepared to process the issuer distinguished name and subject distinguished name (Section 4.1.2.6) fields to perform name chaining for certification path validation (Section 6).",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Name chaining is §6.1.3 (a)(4); pkinative chains by encoded name in buildCertificatePath and validateCertificatePath, scored at L6 and L7."
+    },
+    "4.1.2.5-1-80c1b0af": {
+      "section": "4.1.2.5",
+      "text": "CAs conforming to this profile MUST always encode certificate validity dates through the year 2049 as UTCTime; certificate validity dates in 2050 or later MUST be encoded as GeneralizedTime.",
+      "status": "clause",
+      "clause": "4.1.2.5-generalized-time-only-from-2050"
+    },
+    "4.1.2.5-2-90ae8eb4": {
+      "section": "4.1.2.5",
+      "text": "Conforming applications MUST be able to process validity dates that are encoded in either UTCTime or GeneralizedTime.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications; pkinative decodes both time types into epochMilliseconds, and the whole corpus at L3 agrees with node:crypto on validity."
+    },
+    "4.1.2.5-3-626a8feb": {
+      "section": "4.1.2.5",
+      "text": "To indicate that a certificate has no well-defined expiration date, the notAfter SHOULD be assigned the GeneralizedTime value of 99991231235959Z.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether a certificate is meant to have no well-defined expiration is the issuer's intent; a notAfter before 9999 is not evidence of anything."
+    },
+    "4.1.2.5-4-1e1e55ae": {
+      "section": "4.1.2.5",
+      "text": "When the issuer will not be able to maintain status information until the notAfter date (including when the notAfter date is 99991231235959Z), the issuer MUST ensure that no valid certification path exists for the certificate after maintenance of status information is terminated.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "About the CA's ability to keep status information and its duty to end valid paths when it stops; nothing in the certificate records either."
+    },
+    "4.1.2.5.1-1-9f71d2d2": {
+      "section": "4.1.2.5.1",
+      "text": "For the purposes of this profile, UTCTime values MUST be expressed in Greenwich Mean Time (Zulu) and MUST include seconds (i.e., times are YYMMDDHHMMSSZ), even where the number of seconds is zero.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: a UTCTime without the Z or without seconds is not DER and parseCertificate throws PKI_ASN1_TIME_INVALID."
+    },
+    "4.1.2.5.1-2-0878973b": {
+      "section": "4.1.2.5.1",
+      "text": "Conforming systems MUST interpret the year field (YY) as follows:",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to conforming systems, and introduces the two-digit year rule that follows; see the two sentences after it."
+    },
+    "4.1.2.5.1-3-175e38cd": {
+      "section": "4.1.2.5.1",
+      "text": "Where YY is greater than or equal to 50, the year SHALL be interpreted as 19YY; and",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "How a reader interprets YY of 50 or more; pkinative's time decoder maps it to 19YY, pinned by tests/asn1/asn1-time.test.ts."
+    },
+    "4.1.2.5.1-4-4f5b892b": {
+      "section": "4.1.2.5.1",
+      "text": "Where YY is less than 50, the year SHALL be interpreted as 20YY.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "How a reader interprets YY below 50; pkinative's time decoder maps it to 20YY, pinned by tests/asn1/asn1-time.test.ts."
+    },
+    "4.1.2.5.2-1-8413af70": {
+      "section": "4.1.2.5.2",
+      "text": "For the purposes of this profile, GeneralizedTime values MUST be expressed in Greenwich Mean Time (Zulu) and MUST include seconds (i.e., times are YYYYMMDDHHMMSSZ), even where the number of seconds is zero.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: a GeneralizedTime without the Z or without seconds is not DER and parseCertificate throws PKI_ASN1_TIME_INVALID."
+    },
+    "4.1.2.5.2-2-4548f473": {
+      "section": "4.1.2.5.2",
+      "text": "GeneralizedTime values MUST NOT include fractional seconds.",
+      "status": "clause",
+      "clause": "4.1.2.5.2-generalized-time-no-fraction"
+    },
+    "4.1.2.6-1-3a87acdb": {
+      "section": "4.1.2.6",
+      "text": "If the subject is a CA (e.g., the basic constraints extension, as discussed in Section 4.2.1.9, is present and the value of cA is TRUE), then the subject field MUST be populated with a non-empty distinguished name matching the contents of the issuer field (Section 4.1.2.4) in all certificates issued by the subject CA.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "That a CA's subject matches the issuer of everything it issues is a relation between certificates; §6 chains by that equality, scored at L6 and L7."
+    },
+    "4.1.2.6-2-a102a87e": {
+      "section": "4.1.2.6",
+      "text": "If the subject is a CRL issuer (e.g., the key usage extension, as discussed in Section 4.2.1.3, is present and the value of cRLSign is TRUE), then the subject field MUST be populated with a non-empty distinguished name matching the contents of the issuer field (Section 5.1.2.3) in all CRLs issued by the subject CRL issuer.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Relates a CRL issuer's certificate to every CRL it issues; no single certificate shows the CRLs, and the revocation layer matches issuers when a CRL is consulted."
+    },
+    "4.1.2.6-3-c25b8cc8": {
+      "section": "4.1.2.6",
+      "text": "If subject naming information is present only in the subjectAltName extension (e.g., a key bound only to an email address or URI), then the subject name MUST be an empty sequence and the subjectAltName extension MUST be critical.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether subject naming information is present only in subjectAltName is a fact about the subject; the decidable consequence — an empty subject with a non-critical SAN — is the clause 4.1.2.6-empty-subject-requires-critical-san."
+    },
+    "4.1.2.6-4-d653ae6a": {
+      "section": "4.1.2.6",
+      "text": "Where it is non-empty, the subject field MUST contain an X.500 distinguished name (DN).",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "A subject that is not a Name is not a certificate: parseCertificate throws PKI_X509_NAME_INVALID or PKI_X509_STRUCTURE_INVALID."
+    },
+    "4.1.2.6-5-5374eafb": {
+      "section": "4.1.2.6",
+      "text": "The DN MUST be unique for each subject entity certified by the one CA as defined by the issuer field.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Uniqueness of a subject DN across everything one CA certified is a property of the CA, invisible in any single certificate."
+    },
+    "4.1.2.6-6-b1e2d335": {
+      "section": "4.1.2.6",
+      "text": "Implementations of this specification MUST be prepared to receive subject names containing the attribute types required for the issuer field.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations, about the attribute types required for issuer names; pkinative reads a subject with the same unrestricted attribute set."
+    },
+    "4.1.2.6-7-6e93f4d0": {
+      "section": "4.1.2.6",
+      "text": "Implementations of this specification SHOULD be prepared to receive subject names containing the recommended attribute types for the issuer field.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations, about the recommended attribute types; pkinative restricts none, in the subject or anywhere else."
+    },
+    "4.1.2.6-8-8af26c77": {
+      "section": "4.1.2.6",
+      "text": "When encoding attribute values of type DirectoryString, conforming CAs MUST use PrintableString or UTF8String encoding, with the following exceptions:",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "The exceptions that follow turn on how the subject CA encodes the names it issues, which this certificate cannot show; see 4.1.2.4-2 for the same rule on the issuer."
+    },
+    "4.1.2.6-9-0e7de515": {
+      "section": "4.1.2.6",
+      "text": "(a) When the subject of the certificate is a CA, the subject field MUST be encoded in the same way as it is encoded in the issuer field (Section 4.1.2.4) in all certificates issued by the subject CA.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Compares this CA certificate's subject with the issuer field of the certificates it issues, which §6 name chaining compares byte for byte (L6, L7)."
+    },
+    "4.1.2.6-10-588e02cc": {
+      "section": "4.1.2.6",
+      "text": "Thus, if the subject CA encodes attributes in the issuer fields of certificates that it issues using the TeletexString, BMPString, or UniversalString encodings, then the subject field of certificates issued to that CA MUST use the same encoding.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "The legacy-string case of the rule before it: the subject must repeat the Teletex, BMP or Universal encoding its CA uses as issuer — a comparison across certificates, made by §6 name chaining."
+    },
+    "4.1.2.6-11-e77ea16e": {
+      "section": "4.1.2.6",
+      "text": "(b) When the subject of the certificate is a CRL issuer, the subject field MUST be encoded in the same way as it is encoded in the issuer field (Section 5.1.2.3) in all CRLs issued by the subject CRL issuer.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Compares a CRL issuer's certificate with the CRLs it issues, which no single certificate contains."
+    },
+    "4.1.2.6-12-39c5b8b0": {
+      "section": "4.1.2.6",
+      "text": "(c) TeletexString, BMPString, and UniversalString are included for backward compatibility, and SHOULD NOT be used for certificates for new subjects.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether a subject is new, and so may not use the legacy string types, is a fact about the subject's history, not about these bytes."
+    },
+    "4.1.2.6-13-56c159b0": {
+      "section": "4.1.2.6",
+      "text": "Certificate users SHOULD be prepared to receive certificates with these types.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to certificate users; pkinative decodes TeletexString, BMPString and UniversalString values, reporting PKI_DIAG_TELETEX_AS_LATIN1 when a TeletexString is decoded as ISO 8859-1."
+    },
+    "4.1.2.6-14-51d4e0f8": {
+      "section": "4.1.2.6",
+      "text": "Conforming implementations generating new certificates with electronic mail addresses MUST use the rfc822Name in the subject alternative name extension (Section 4.2.1.6) to describe such identities.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether a subject attribute describes an electronic mail identity is a judgement about intent; an emailAddress attribute is still permitted by §4.1.2.6 for legacy use."
+    },
+    "4.1.2.8-1-c8e95f2a": {
+      "section": "4.1.2.8",
+      "text": "These fields MUST only appear if the version is 2 or 3 (Section 4.1.2.1).",
+      "status": "clause",
+      "clause": "4.1.2.8-unique-id-requires-v2"
+    },
+    "4.1.2.8-2-e7bd76c6": {
+      "section": "4.1.2.8",
+      "text": "These fields MUST NOT appear if the version is 1.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The contrapositive of the sentence before it; the clause 4.1.2.8-unique-id-requires-v2 fails exactly the version 1 certificates this forbids."
+    },
+    "4.1.2.8-3-2b9ae9c8": {
+      "section": "4.1.2.8",
+      "text": "CAs conforming to this profile MUST NOT generate certificates with unique identifiers.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "Any unique identifier in a certificate violates it, and pkinative is silent unless the version is 1; PKI_DIAG_UNIQUE_ID_REQUIRES_V2 covers only that case."
+    },
+    "4.1.2.8-4-e29cd3e1": {
+      "section": "4.1.2.8",
+      "text": "Applications conforming to this profile SHOULD be capable of parsing certificates that include unique identifiers, but there are no processing requirements associated with the unique identifiers.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications; pkinative parses both unique identifiers as BIT STRINGs and exposes them, with no processing attached."
+    },
+    "4.1.2.9-1-7fff1703": {
+      "section": "4.1.2.9",
+      "text": "This field MUST only appear if the version is 3 (Section 4.1.2.1).",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The same requirement as §4.1.2.1 stated from the extensions field; the clause 4.1.2.1-extensions-require-v3 fails every certificate that carries the field below version 3."
+    },
+    "4.2-1-18011552": {
+      "section": "4.2",
+      "text": "A certificate-using system MUST reject the certificate if it encounters a critical extension it does not recognize or a critical extension that contains information that it cannot process.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to certificate-using systems; parseCertificate reports PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION and validateCertificatePath refuses with PKI_REASON_UNRECOGNISED_CRITICAL_EXTENSION."
+    },
+    "4.2-2-2fde32c5": {
+      "section": "4.2",
+      "text": "A non-critical extension MAY be ignored if it is not recognized, but MUST be processed if it is recognized.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to processing systems; pkinative decodes every extension it recognises whether or not it is marked critical."
+    },
+    "4.2-3-5860d20f": {
+      "section": "4.2",
+      "text": "A certificate MUST NOT include more than one instance of a particular extension.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: parseCertificate throws PKI_X509_EXTENSION_DUPLICATE, so a violating certificate never parses and x509-limbo's instance is in the L1 refusal baseline."
+    },
+    "4.2-4-f3f5a642": {
+      "section": "4.2",
+      "text": "Conforming CAs MUST support key identifiers (Sections 4.2.1.1 and 4.2.1.2), basic constraints (Section 4.2.1.9), key usage (Section 4.2.1.3), and certificate policies (Section 4.2.1.4) extensions.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "What a conforming CA must be able to issue is a capability of the CA, not a property of any one certificate."
+    },
+    "4.2-5-8e334208": {
+      "section": "4.2",
+      "text": "If the CA issues certificates with an empty sequence for the subject field, the CA MUST support the subject alternative name extension (Section 4.2.1.6).",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "A capability of the CA; the per-certificate consequence is the clause 4.1.2.6-empty-subject-requires-critical-san."
+    },
+    "4.2-6-7c3cd7b7": {
+      "section": "4.2",
+      "text": "At a minimum, applications conforming to this profile MUST recognize the following extensions: key usage (Section 4.2.1.3), certificate policies (Section 4.2.1.4), subject alternative name (Section 4.2.1.6), basic constraints (Section 4.2.1.9), name constraints (Section 4.2.1.10), policy constraints (Section 4.2.1.11), extended key usage (Section 4.2.1.12), and inhibit anyPolicy (Section 4.2.1.14).",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications; pkinative decodes all eight of these extensions, and validateCertificatePath processes them."
+    },
+    "4.2-7-b98364be": {
+      "section": "4.2",
+      "text": "In addition, applications conforming to this profile SHOULD recognize the authority and subject key identifier (Sections 4.2.1.1 and 4.2.1.2) and policy mappings (Section 4.2.1.5) extensions.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications; pkinative decodes both key identifiers and policy mappings."
+    },
+    "4.2.1.1-1-424f0151": {
+      "section": "4.2.1.1",
+      "text": "The keyIdentifier field of the authorityKeyIdentifier extension MUST be included in all certificates generated by conforming CAs to facilitate certification path construction.",
+      "status": "clause",
+      "clause": "4.2.1.1-aki-key-identifier-present"
+    },
+    "4.2.1.1-2-29fecc5e": {
+      "section": "4.2.1.1",
+      "text": "The value of the keyIdentifier field SHOULD be derived from the public key used to verify the certificate's signature or a method that generates unique values.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "The derivation method is the CA's choice and \"a method that generates unique values\" satisfies it, so no value of the field can be shown to violate it."
+    },
+    "4.2.1.1-3-6efbf64b": {
+      "section": "4.2.1.1",
+      "text": "Where a key identifier has been previously established, the CA SHOULD use the previously established identifier.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Whether an identifier was previously established is the CA's history, invisible in the certificate."
+    },
+    "4.2.1.1-4-e6136f60": {
+      "section": "4.2.1.1",
+      "text": "Conforming CAs MUST mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical authorityKeyIdentifier is visible in the bytes; pkinative reads it either way and reports nothing."
+    },
+    "4.2.1.2-1-c3a9018b": {
+      "section": "4.2.1.2",
+      "text": "To facilitate certification path construction, this extension MUST appear in all conforming CA certificates, that is, all certificates including the basic constraints extension (Section 4.2.1.9) where the value of cA is TRUE.",
+      "status": "clause",
+      "clause": "4.2.1.2-ski-present-in-ca"
+    },
+    "4.2.1.2-2-29ee1608": {
+      "section": "4.2.1.2",
+      "text": "In conforming CA certificates, the value of the subject key identifier MUST be the value placed in the key identifier field of the authority key identifier extension (Section 4.2.1.1) of certificates issued by the subject of this certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Relates this certificate to the certificates its subject issues; the path builder uses the pair to order candidates, and a mismatch costs exploration, not correctness (L6, L7)."
+    },
+    "4.2.1.2-3-e87b739a": {
+      "section": "4.2.1.2",
+      "text": "For CA certificates, subject key identifiers SHOULD be derived from the public key or a method that generates unique values.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Any value can come from \"a method that generates unique values\", so no subject key identifier can be shown to violate it."
+    },
+    "4.2.1.2-4-7da2f617": {
+      "section": "4.2.1.2",
+      "text": "To assist applications in identifying the appropriate end entity certificate, this extension SHOULD be included in all end entity certificates.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A missing subjectKeyIdentifier in an end-entity certificate is visible; pkinative reports the CA case only, because this SHOULD on the commonest certificate shape would be noise."
+    },
+    "4.2.1.2-5-c07c989c": {
+      "section": "4.2.1.2",
+      "text": "For end entity certificates, subject key identifiers SHOULD be derived from the public key.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Deriving from the public key admits several methods, including ones not in the RFC, so no value can be shown not to be derived."
+    },
+    "4.2.1.2-6-6efbf64b": {
+      "section": "4.2.1.2",
+      "text": "Where a key identifier has been previously established, the CA SHOULD use the previously established identifier.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Whether an identifier was previously established is the CA's history, invisible in the certificate."
+    },
+    "4.2.1.2-7-e6136f60": {
+      "section": "4.2.1.2",
+      "text": "Conforming CAs MUST mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical subjectKeyIdentifier is visible in the bytes; pkinative reads it either way and reports nothing."
+    },
+    "4.2.1.3-1-93081bca": {
+      "section": "4.2.1.3",
+      "text": "Conforming CAs MUST include this extension in certificates that contain public keys that are used to validate digital signatures on other public key certificates or CRLs.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "What a key \"is used to\" validate is known only when it validates something; §6.1.4 (n) refuses a CA certificate whose keyUsage lacks keyCertSign, scored at L6 and L7."
+    },
+    "4.2.1.3-2-4e5b7a4e": {
+      "section": "4.2.1.3",
+      "text": "When present, conforming CAs SHOULD mark this extension as critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A non-critical keyUsage is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.3-3-fcef9967": {
+      "section": "4.2.1.3",
+      "text": "If the keyCertSign bit is asserted, then the cA bit in the basic constraints extension (Section 4.2.1.9) MUST also be asserted.",
+      "status": "clause",
+      "clause": "4.2.1.3-key-cert-sign-requires-ca"
+    },
+    "4.2.1.3-4-bc7407ce": {
+      "section": "4.2.1.3",
+      "text": "If the keyUsage extension is present, then the subject public key MUST NOT be used to verify signatures on certificates or CRLs unless the corresponding keyCertSign or cRLSign bit is set.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the verifier: an issuer key without keyCertSign must not verify certificates, which validateCertificatePath refuses with PKI_REASON_NOT_A_CA (§6.1.4 (n))."
+    },
+    "4.2.1.3-5-61a93023": {
+      "section": "4.2.1.3",
+      "text": "If the subject public key is only to be used for verifying signatures on certificates and/or CRLs, then the digitalSignature and nonRepudiation bits SHOULD NOT be set.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the key is only to be used for certificate and CRL signatures is the subject's intent; the key usage bits say what is permitted, not what is planned."
+    },
+    "4.2.1.3-6-1e24fa76": {
+      "section": "4.2.1.3",
+      "text": "When the keyUsage extension appears in a certificate, at least one of the bits MUST be set to 1.",
+      "status": "clause",
+      "clause": "4.2.1.3-key-usage-not-empty"
+    },
+    "4.2.1.4-1-50ee9cd8": {
+      "section": "4.2.1.4",
+      "text": "A certificate policy OID MUST NOT appear more than once in a certificate policies extension.",
+      "status": "clause",
+      "clause": "4.2.1.4-policies-not-duplicated"
+    },
+    "4.2.1.4-2-07867486": {
+      "section": "4.2.1.4",
+      "text": "If this extension is critical, the path validation software MUST be able to interpret this extension (including the optional qualifier), or MUST reject the certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to path validation software; pkinative decodes certificatePolicies, qualifiers included, and processes its policies in the §6.1.3 policy tree, scored against PKITS at L7."
+    },
+    "4.2.1.4-3-d6629888": {
+      "section": "4.2.1.4",
+      "text": "When qualifiers are used with the special policy anyPolicy, they MUST be limited to the qualifiers identified in this section.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A qualifier other than CPS pointer or user notice on anyPolicy is visible in the bytes; pkinative decodes the qualifiers and reports nothing."
+    },
+    "4.2.1.4-4-9c534ecc": {
+      "section": "4.2.1.4",
+      "text": "To prevent such duplication, this qualifier SHOULD only be present in end entity certificates and CA certificates issued to other organizations.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Where a CPS pointer is redundant depends on which organisations the CA issues to, which the certificate does not record."
+    },
+    "4.2.1.4-5-a03b7601": {
+      "section": "4.2.1.4",
+      "text": "Conforming CAs SHOULD NOT use the noticeRef option.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A noticeRef in a user notice is visible in the bytes; pkinative decodes it and reports nothing for this SHOULD NOT."
+    },
+    "4.2.1.4-6-821d7251": {
+      "section": "4.2.1.4",
+      "text": "Conforming CAs SHOULD use the UTF8String encoding for explicitText, but MAY use IA5String.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An explicitText in a string type other than UTF8String is visible; pkinative reports nothing for this SHOULD (IA5String is its own MAY)."
+    },
+    "4.2.1.4-7-3e082db0": {
+      "section": "4.2.1.4",
+      "text": "Conforming CAs MUST NOT encode explicitText as VisibleString or BMPString.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An explicitText in VisibleString or BMPString is visible in the bytes; pkinative decodes both, since DisplayText permits them, and reports nothing."
+    },
+    "4.2.1.4-8-b83b92de": {
+      "section": "4.2.1.4",
+      "text": "The explicitText string SHOULD NOT include any control characters (e.g., U+0000 to U+001F and U+007F to U+009F).",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A control character in an explicitText is visible in the decoded string; pkinative reports nothing for this SHOULD NOT."
+    },
+    "4.2.1.4-9-3b349fce": {
+      "section": "4.2.1.4",
+      "text": "When the UTF8String encoding is used, all character sequences SHOULD be normalized according to Unicode normalization form C (NFC) [NFC].",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "Whether a UTF8String explicitText is in NFC is decidable by normalising it; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.4-10-f5beb392": {
+      "section": "4.2.1.4",
+      "text": "If both the noticeRef and explicitText options are included in the one qualifier and if the application software can locate the notice text indicated by the noticeRef option, then that text SHOULD be displayed; otherwise, the explicitText string SHOULD be displayed.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to software displaying user notices; pkinative displays nothing and exposes both options as decoded."
+    },
+    "4.2.1.4-11-6e66f06d": {
+      "section": "4.2.1.4",
+      "text": "Therefore, certificate users SHOULD gracefully handle explicitText with more than 200 characters.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to certificate users; pkinative reads an explicitText of any length that its string limits allow."
+    },
+    "4.2.1.5-1-6cd21090": {
+      "section": "4.2.1.5",
+      "text": "Each issuerDomainPolicy named in the policy mappings extension SHOULD also be asserted in a certificate policies extension in the same certificate.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An issuerDomainPolicy absent from the same certificate's certificatePolicies is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.5-2-3f3f4605": {
+      "section": "4.2.1.5",
+      "text": "Policies MUST NOT be mapped either to or from the special value anyPolicy (Section 4.2.1.4).",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "A mapping to or from anyPolicy is ignored and reported by §6.1.4 (a) processing as PKI_REASON_POLICY_MAPPING_INVALID, scored against PKITS at L7."
+    },
+    "4.2.1.5-3-d91cb4c3": {
+      "section": "4.2.1.5",
+      "text": "Conforming CAs SHOULD mark this extension as critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A non-critical policyMappings is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.6-1-78a478ac": {
+      "section": "4.2.1.6",
+      "text": "Whenever such identities are to be bound into a certificate, the subject alternative name (or issuer alternative name) extension MUST be used; however, a DNS name MAY also be represented in the subject field using the domainComponent attribute as described in Section 4.1.2.4.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether an identity \"is to be bound\" into the certificate is the issuer's intent; a name written only in the subject is permitted where it is a distinguished name."
+    },
+    "4.2.1.6-2-edb2206f": {
+      "section": "4.2.1.6",
+      "text": "Because the subject alternative name is considered to be definitively bound to the public key, all parts of the subject alternative name MUST be verified by the CA.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Verification of the names by the CA happens before issuance and leaves no trace in the certificate."
+    },
+    "4.2.1.6-3-dc52d1d0": {
+      "section": "4.2.1.6",
+      "text": "Further, if the only subject identity included in the certificate is an alternative name form (e.g., an electronic mail address), then the subject distinguished name MUST be empty (an empty sequence), and the subjectAltName extension MUST be present.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the only subject identity is an alternative name is a fact about the subject; the decidable consequence is the clause 4.1.2.6-empty-subject-requires-critical-san."
+    },
+    "4.2.1.6-4-434a5d04": {
+      "section": "4.2.1.6",
+      "text": "If the subject field contains an empty sequence, then the issuing CA MUST include a subjectAltName extension that is marked as critical.",
+      "status": "clause",
+      "clause": "4.1.2.6-empty-subject-requires-critical-san"
+    },
+    "4.2.1.6-5-277dc3dd": {
+      "section": "4.2.1.6",
+      "text": "When including the subjectAltName extension in a certificate that has a non-empty subject distinguished name, conforming CAs SHOULD mark the subjectAltName extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical subjectAltName beside a non-empty subject is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.6-6-fe517748": {
+      "section": "4.2.1.6",
+      "text": "When the subjectAltName extension contains an Internet mail address, the address MUST be stored in the rfc822Name.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "That a mail address was put in some other form than rfc822Name can only be judged by reading intent into a string of another type."
+    },
+    "4.2.1.6-7-6b918fe5": {
+      "section": "4.2.1.6",
+      "text": "When the subjectAltName extension contains an iPAddress, the address MUST be stored in the octet string in \"network byte order\", as specified in [RFC791].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Byte order cannot be read back from four or sixteen octets: every octet string of that length is some address in network byte order."
+    },
+    "4.2.1.6-8-da02c58c": {
+      "section": "4.2.1.6",
+      "text": "For IP version 4, as specified in [RFC791], the octet string MUST contain exactly four octets.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: an iPAddress general name of any length but four or sixteen octets throws PKI_X509_GENERAL_NAME_INVALID, so a three- or five-octet IPv4 address never parses."
+    },
+    "4.2.1.6-9-80747338": {
+      "section": "4.2.1.6",
+      "text": "For IP version 6, as specified in [RFC2460], the octet string MUST contain exactly sixteen octets.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: an iPAddress general name of any length but four or sixteen octets throws PKI_X509_GENERAL_NAME_INVALID, so no IPv6 address of another length parses."
+    },
+    "4.2.1.6-10-42672d47": {
+      "section": "4.2.1.6",
+      "text": "When the subjectAltName extension contains a domain name system label, the domain name MUST be stored in the dNSName (an IA5String).",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "That a domain name was put in some other form than dNSName can only be judged by reading intent into a string of another type."
+    },
+    "4.2.1.6-11-251add9b": {
+      "section": "4.2.1.6",
+      "text": "The name MUST be in the \"preferred name syntax\", as specified by Section 3.5 of [RFC1034] and as modified by Section 2.1 of [RFC1123].",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Reported by PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX. Not a clause: pkinative admits a leading \"*\" label, which RFC 1034 does not, so an independent strict reading would disagree on every wildcard."
+    },
+    "4.2.1.6-12-af5c1066": {
+      "section": "4.2.1.6",
+      "text": "In addition, while the string \" \" is a legal domain name, subjectAltName extensions with a dNSName of \" \" MUST NOT be used.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "A space is outside the preferred name syntax, so a dNSName of \" \" is reported by PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX."
+    },
+    "4.2.1.6-13-97d5065b": {
+      "section": "4.2.1.6",
+      "text": "Finally, the use of the DNS representation for Internet mail addresses (subscriber.example.com instead of subscriber@example.com) MUST NOT be used; such identities are to be encoded as rfc822Name.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "subscriber.example.com is also a valid host name; which dNSNames were meant as mail addresses is intent, not syntax."
+    },
+    "4.2.1.6-14-0d69b6d2": {
+      "section": "4.2.1.6",
+      "text": "When the subjectAltName extension contains a URI, the name MUST be stored in the uniformResourceIdentifier (an IA5String).",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "That a URI was put in some other form than uniformResourceIdentifier can only be judged by reading intent into a string of another type."
+    },
+    "4.2.1.6-15-c5f09438": {
+      "section": "4.2.1.6",
+      "text": "The name MUST NOT be a relative URI, and it MUST follow the URI syntax and encoding rules specified in [RFC3986].",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A relative or ill-formed URI in a uniformResourceIdentifier is decidable by RFC 3986 syntax; pkinative reads the IA5String and checks no URI syntax."
+    },
+    "4.2.1.6-16-67d8c41c": {
+      "section": "4.2.1.6",
+      "text": "The name MUST include both a scheme (e.g., \"http\" or \"ftp\") and a scheme-specific-part.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A URI without a scheme is visible in the string; pkinative checks no URI syntax."
+    },
+    "4.2.1.6-17-6a9fe9bc": {
+      "section": "4.2.1.6",
+      "text": "URIs that include an authority ([RFC3986], Section 3.2) MUST include a fully qualified domain name or IP address as the host.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A URI authority whose host is neither a fully qualified name nor an IP address is decidable by syntax; pkinative checks no URI syntax."
+    },
+    "4.2.1.6-18-5374eafb": {
+      "section": "4.2.1.6",
+      "text": "The DN MUST be unique for each subject entity certified by the one CA as defined by the issuer field.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Uniqueness of a DN across everything one CA certified is a property of the CA; the same sentence appears in §4.1.2.6."
+    },
+    "4.2.1.6-19-9ed05b63": {
+      "section": "4.2.1.6",
+      "text": "If the subjectAltName extension is present, the sequence MUST contain at least one entry.",
+      "status": "clause",
+      "clause": "4.2.1.6-alt-name-not-empty"
+    },
+    "4.2.1.6-20-cfb1143a": {
+      "section": "4.2.1.6",
+      "text": "Unlike the subject field, conforming CAs MUST NOT issue certificates with subjectAltNames containing empty GeneralName fields.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An empty GeneralName is visible; pkinative reports an empty dNSName through PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX and is silent on an empty rfc822Name or uniformResourceIdentifier."
+    },
+    "4.2.1.7-1-0a3bde30": {
+      "section": "4.2.1.7",
+      "text": "Issuer alternative name MUST be encoded as in 4.2.1.6.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "pkinative decodes issuerAltName with the same GeneralNames reader as subjectAltName, and the clause 4.2.1.6-alt-name-not-empty judges both extensions."
+    },
+    "4.2.1.7-2-0a2ba467": {
+      "section": "4.2.1.7",
+      "text": "Where present, conforming CAs SHOULD mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical issuerAltName is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.8-1-e6136f60": {
+      "section": "4.2.1.8",
+      "text": "Conforming CAs MUST mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical subjectDirectoryAttributes is visible in the bytes; pkinative does not decode the extension and reports nothing."
+    },
+    "4.2.1.9-1-8594a6be": {
+      "section": "4.2.1.9",
+      "text": "If the cA boolean is not asserted, then the keyCertSign bit in the key usage extension MUST NOT be asserted.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The converse statement of §4.2.1.3's; the clause 4.2.1.3-key-cert-sign-requires-ca fails exactly the certificates this forbids."
+    },
+    "4.2.1.9-2-45123b42": {
+      "section": "4.2.1.9",
+      "text": "If the basic constraints extension is not present in a version 3 certificate, or the extension is present but the cA boolean is not asserted, then the certified public key MUST NOT be used to verify certificate signatures.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the verifier: a key without cA asserted must not verify certificate signatures, which validateCertificatePath refuses with PKI_REASON_NOT_A_CA (§6.1.4 (k))."
+    },
+    "4.2.1.9-3-4bc4af34": {
+      "section": "4.2.1.9",
+      "text": "Where it appears, the pathLenConstraint field MUST be greater than or equal to zero.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: a negative pathLenConstraint throws PKI_X509_EXTENSION_MALFORMED."
+    },
+    "4.2.1.9-4-ef4d3c1a": {
+      "section": "4.2.1.9",
+      "text": "Conforming CAs MUST include this extension in all CA certificates that contain public keys used to validate digital signatures on certificates and MUST mark the extension as critical in such certificates.",
+      "status": "clause",
+      "clause": "4.2.1.9-basic-constraints-critical-in-ca"
+    },
+    "4.2.1.9-5-3c1679da": {
+      "section": "4.2.1.9",
+      "text": "CAs MUST NOT include the pathLenConstraint field unless the cA boolean is asserted and the key usage extension asserts the keyCertSign bit.",
+      "status": "clause",
+      "clause": "4.2.1.9-path-len-requires-ca"
+    },
+    "4.2.1.10-1-d46a674b": {
+      "section": "4.2.1.10",
+      "text": "The name constraints extension, which MUST be used only in a CA certificate, indicates a name space within which all subject names in subsequent certificates in a certification path MUST be located.",
+      "status": "clause",
+      "clause": "4.2.1.10-name-constraints-only-in-ca"
+    },
+    "4.2.1.10-2-eae623fb": {
+      "section": "4.2.1.10",
+      "text": "Conforming CAs MUST mark this extension as critical and SHOULD NOT impose name constraints on the x400Address, ediPartyName, or registeredID name forms.",
+      "status": "clause",
+      "clause": "4.2.1.10-name-constraints-critical"
+    },
+    "4.2.1.10-3-c1f6cbef": {
+      "section": "4.2.1.10",
+      "text": "Conforming CAs MUST NOT issue certificates where name constraints is an empty sequence.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: a nameConstraints with neither subtree list throws PKI_X509_EXTENSION_MALFORMED, and x509-limbo's instance is in the L1 refusal baseline."
+    },
+    "4.2.1.10-4-2c7ded4d": {
+      "section": "4.2.1.10",
+      "text": "That is, either the permittedSubtrees field or the excludedSubtrees MUST be present.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The same requirement as the sentence before it, stated positively; PKI_X509_EXTENSION_MALFORMED is thrown when neither field is present."
+    },
+    "4.2.1.10-5-f44d457b": {
+      "section": "4.2.1.10",
+      "text": "Applications conforming to this profile MUST be able to process name constraints that are imposed on the directoryName name form and SHOULD be able to process name constraints that are imposed on the rfc822Name, uniformResourceIdentifier, dNSName, and iPAddress name forms.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications; pkinative processes name constraints on all five of these forms in validateCertificatePath, scored at L6 and L7."
+    },
+    "4.2.1.10-6-02ea86bd": {
+      "section": "4.2.1.10",
+      "text": "If a name constraints extension that is marked as critical imposes constraints on a particular name form, and an instance of that name form appears in the subject field or subjectAltName extension of a subsequent certificate, then the application MUST either process the constraint or reject the certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications; §6.1.3 (b) and (c) processing in validateCertificatePath, refusing with PKI_REASON_NAME_NOT_PERMITTED or PKI_REASON_NAME_EXCLUDED."
+    },
+    "4.2.1.10-7-18606ab7": {
+      "section": "4.2.1.10",
+      "text": "Within this profile, the minimum and maximum fields are not used with any name forms, thus, the minimum MUST be zero, and maximum MUST be absent.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A non-zero minimum or a present maximum is visible in the bytes; pkinative reports only an explicit minimum of 0 (PKI_DIAG_DEFAULT_ENCODED) and is silent on either."
+    },
+    "4.2.1.10-8-cb9aae8b": {
+      "section": "4.2.1.10",
+      "text": "However, if an application encounters a critical name constraints extension that specifies other values for minimum or maximum for a name form that appears in a subsequent certificate, the application MUST either process these fields or reject the certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications meeting a minimum or maximum during name-constraint processing in §6; decided by validateCertificatePath, not by the certificate."
+    },
+    "4.2.1.10-9-a693ebbd": {
+      "section": "4.2.1.10",
+      "text": "The constraint MUST be specified as a fully qualified domain name and MAY specify a host or a domain.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A uniformResourceIdentifier constraint that is not a fully qualified domain name is decidable by syntax; pkinative reads it and reports nothing."
+    },
+    "4.2.1.10-10-d84bd0a8": {
+      "section": "4.2.1.10",
+      "text": "If a constraint is applied to the uniformResourceIdentifier name form and a subsequent certificate includes a subjectAltName extension with a uniformResourceIdentifier that does not include an authority component with a host name specified as a fully qualified domain name (e.g., if the URI either does not include an authority component or includes an authority component in which the host name is specified as an IP address), then the application MUST reject the certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the application applying a URI constraint to a subsequent certificate; §6 name-constraint processing."
+    },
+    "4.2.1.10-11-695c7458": {
+      "section": "4.2.1.10",
+      "text": "When constraints are imposed on the rfc822Name name form, but the certificate does not include a subject alternative name, the rfc822Name constraint MUST be applied to the attribute of type emailAddress in the subject distinguished name.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "How an rfc822Name constraint applies to the emailAddress attribute of a subsequent certificate; §6 name-constraint processing."
+    },
+    "4.2.1.10-12-14f00378": {
+      "section": "4.2.1.10",
+      "text": "Restrictions of the form directoryName MUST be applied to the subject field in the certificate (when the certificate includes a non-empty subject field) and to any names of type directoryName in the subjectAltName extension.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Where directoryName restrictions apply in a subsequent certificate; §6 name-constraint processing."
+    },
+    "4.2.1.10-13-2f74bd5f": {
+      "section": "4.2.1.10",
+      "text": "Restrictions of the form x400Address MUST be applied to any names of type x400Address in the subjectAltName extension.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Where x400Address restrictions apply in a subsequent certificate; §6 name-constraint processing."
+    },
+    "4.2.1.10-14-7ecd80c3": {
+      "section": "4.2.1.10",
+      "text": "When applying restrictions of the form directoryName, an implementation MUST compare DN attributes.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "How a directoryName restriction is compared; §6 name-constraint processing, which compares encoded attributes."
+    },
+    "4.2.1.10-15-cf1b3784": {
+      "section": "4.2.1.10",
+      "text": "At a minimum, implementations MUST perform the DN comparison rules specified in Section 7.1.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "The §7.1 comparison rules; pkinative compares encoded names byte for byte, the departure the conformance guide records against six PKITS tests at L7."
+    },
+    "4.2.1.10-16-20231adc": {
+      "section": "4.2.1.10",
+      "text": "CAs issuing certificates with a restriction of the form directoryName SHOULD NOT rely on implementation of the full ISO DN name comparison algorithm.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Advice to CAs about what verifiers can be relied upon to implement; nothing in the certificate records the reliance."
+    },
+    "4.2.1.10-17-dfd55728": {
+      "section": "4.2.1.10",
+      "text": "This implies name restrictions MUST be stated identically to the encoding used in the subject field or subjectAltName extension.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Relates the encoding of a restriction to the encoding of names in subsequent certificates, which is a comparison across the path."
+    },
+    "4.2.1.10-18-05873c87": {
+      "section": "4.2.1.10",
+      "text": "The syntax of iPAddress MUST be as described in Section 4.2.1.6 with the following additions specifically for name constraints.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: an iPAddress constraint of another length throws PKI_X509_GENERAL_NAME_INVALID (see the two sentences that follow)."
+    },
+    "4.2.1.10-19-7b6ae645": {
+      "section": "4.2.1.10",
+      "text": "For IPv4 addresses, the iPAddress field of GeneralName MUST contain eight (8) octets, encoded in the style of RFC 4632 (CIDR) to represent an address range [RFC4632].",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: an IPv4 constraint that is not eight octets throws PKI_X509_GENERAL_NAME_INVALID."
+    },
+    "4.2.1.10-20-7e80e88f": {
+      "section": "4.2.1.10",
+      "text": "For IPv6 addresses, the iPAddress field MUST contain 32 octets similarly encoded.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "Structural in pkinative: an IPv6 constraint that is not 32 octets throws PKI_X509_GENERAL_NAME_INVALID."
+    },
+    "4.2.1.11-1-5f6a9ef0": {
+      "section": "4.2.1.11",
+      "text": "Conforming applications MUST be able to process the requireExplicitPolicy field and SHOULD be able to process the inhibitPolicyMapping field.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications; §6.1.4 (i) and §6.1.5 (b) processing in validateCertificatePath, scored against PKITS at L7."
+    },
+    "4.2.1.11-2-b9ce0a2e": {
+      "section": "4.2.1.11",
+      "text": "Applications that support the inhibitPolicyMapping field MUST also implement support for the policyMappings extension.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications; pkinative implements both policyMappings and inhibitPolicyMapping in its §6 policy processing."
+    },
+    "4.2.1.11-3-1bf5467d": {
+      "section": "4.2.1.11",
+      "text": "If the policyConstraints extension is marked as critical and the inhibitPolicyMapping field is present, applications that do not implement support for the inhibitPolicyMapping field MUST reject the certificate.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to applications lacking inhibitPolicyMapping support; pkinative supports it, so it never reaches the refusal."
+    },
+    "4.2.1.11-4-79f049cb": {
+      "section": "4.2.1.11",
+      "text": "Conforming CAs MUST NOT issue certificates where policy constraints is an empty sequence.",
+      "status": "clause",
+      "clause": "4.2.1.11-policy-constraints-not-empty"
+    },
+    "4.2.1.11-5-3d5aeea4": {
+      "section": "4.2.1.11",
+      "text": "That is, either the inhibitPolicyMapping field or the requireExplicitPolicy field MUST be present.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The same requirement as the sentence before it, stated positively; the clause 4.2.1.11-policy-constraints-not-empty fails when neither field is present."
+    },
+    "4.2.1.11-6-a991ab89": {
+      "section": "4.2.1.11",
+      "text": "Conforming CAs MUST mark this extension as critical.",
+      "status": "clause",
+      "clause": "4.2.1.11-policy-constraints-critical"
+    },
+    "4.2.1.12-1-ac86d3cd": {
+      "section": "4.2.1.12",
+      "text": "Object identifiers used to identify key purposes MUST be assigned in accordance with IANA or ITU-T Recommendation X.660 [X.660].",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Who assigned an object identifier is a fact about the registry, not about the encoding of the arc."
+    },
+    "4.2.1.12-2-fb802f30": {
+      "section": "4.2.1.12",
+      "text": "If the extension is present, then the certificate MUST only be used for one of the purposes indicated.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the relying application; validateCertificatePath checks the purpose asked for and refuses with PKI_REASON_PURPOSE_NOT_PERMITTED."
+    },
+    "4.2.1.12-3-3cdd015c": {
+      "section": "4.2.1.12",
+      "text": "Conforming CAs SHOULD NOT mark this extension as critical if the anyExtendedKeyUsage KeyPurposeId is present.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical extendedKeyUsage holding anyExtendedKeyUsage is visible in the bytes; pkinative reports nothing for this SHOULD NOT."
+    },
+    "4.2.1.12-4-6cd1de1f": {
+      "section": "4.2.1.12",
+      "text": "If a certificate contains both a key usage extension and an extended key usage extension, then both extensions MUST be processed independently and the certificate MUST only be used for a purpose consistent with both extensions.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the relying application; the purpose check of validateCertificatePath reads both extensions, refusing with PKI_REASON_PURPOSE_NOT_PERMITTED."
+    },
+    "4.2.1.12-5-a79c52ba": {
+      "section": "4.2.1.12",
+      "text": "If there is no purpose consistent with both extensions, then the certificate MUST NOT be used for any purpose.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Addressed to the relying application; with no consistent purpose, the purpose check refuses with PKI_REASON_PURPOSE_NOT_PERMITTED."
+    },
+    "4.2.1.13-1-2fb3d2df": {
+      "section": "4.2.1.13",
+      "text": "The extension SHOULD be non-critical, but this profile RECOMMENDS support for this extension by CAs and applications.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical cRLDistributionPoints is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.13-2-70adaa71": {
+      "section": "4.2.1.13",
+      "text": "While each of these fields is optional, a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or cRLIssuer MUST be present.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A DistributionPoint holding only reasons is visible in the bytes; pkinative decodes it and reports nothing."
+    },
+    "4.2.1.13-3-2ea487c3": {
+      "section": "4.2.1.13",
+      "text": "If the certificate issuer is not the CRL issuer, then the cRLIssuer field MUST be present and contain the Name of the CRL issuer.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Whether the certificate issuer is the CRL issuer is known when a CRL is consulted; the revocation layer refuses a CRL from the wrong issuer with PKI_REASON_REVOCATION_WRONG_ISSUER (§6.3)."
+    },
+    "4.2.1.13-4-41f9ae11": {
+      "section": "4.2.1.13",
+      "text": "If the certificate issuer is also the CRL issuer, then conforming CAs MUST omit the cRLIssuer field and MUST include the distributionPoint field.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Depends on which entity signs the CA's CRLs, which the certificate cannot show; a point with neither field is the separate sentence 4.2.1.13-2."
+    },
+    "4.2.1.13-5-705c3d42": {
+      "section": "4.2.1.13",
+      "text": "If the DistributionPointName contains a general name of type URI, the following semantics MUST be assumed: the URI is a pointer to the current CRL for the associated reasons and will be issued by the associated cRLIssuer.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Defines what a URI distribution point means for the reader fetching it; pkinative performs no I/O and leaves the fetch to the caller."
+    },
+    "4.2.1.13-6-32b29a7d": {
+      "section": "4.2.1.13",
+      "text": "When the HTTP or FTP URI scheme is used, the URI MUST point to a single DER encoded CRL as specified in [RFC2585].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About what the server at the URI returns, which is outside the certificate and outside pkinative, which does no I/O."
+    },
+    "4.2.1.13-7-ea6b1cb7": {
+      "section": "4.2.1.13",
+      "text": "HTTP server implementations accessed via the URI SHOULD specify the media type application/pkix-crl in the content-type header field of the response.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About the content-type an HTTP server sends with a CRL; nothing in the certificate records a server's headers."
+    },
+    "4.2.1.13-8-3001716d": {
+      "section": "4.2.1.13",
+      "text": "When the LDAP URI scheme [RFC4516] is used, the URI MUST include a <dn> field containing the distinguished name of the entry holding the CRL, MUST include a single <attrdesc> that contains an appropriate attribute description for the attribute that holds the CRL [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=example%20CA,dc=example,dc=com? certificateRevocationList;binary>).",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "The <dn> and <attrdesc> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+    },
+    "4.2.1.13-9-89461a05": {
+      "section": "4.2.1.13",
+      "text": "When present, DistributionPointName SHOULD include at least one LDAP or HTTP URI.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A DistributionPointName with no LDAP or HTTP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.1.13-10-72ca55d5": {
+      "section": "4.2.1.13",
+      "text": "Conforming CAs SHOULD NOT use nameRelativeToCRLIssuer to specify distribution point names.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A nameRelativeToCRLIssuer is visible in the bytes; pkinative decodes it and reports nothing for this SHOULD NOT."
+    },
+    "4.2.1.13-11-4ebd3832": {
+      "section": "4.2.1.13",
+      "text": "The DistributionPointName MUST NOT use the nameRelativeToCRLIssuer alternative when cRLIssuer contains more than one distinguished name.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A nameRelativeToCRLIssuer beside a cRLIssuer holding several names is visible in the bytes; pkinative decodes both and reports nothing."
+    },
+    "4.2.1.13-12-ca876525": {
+      "section": "4.2.1.13",
+      "text": "If the DistributionPoint omits the reasons field, the CRL MUST include revocation information for all reasons.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "About the CRL, not the certificate; the revocation layer checks a CRL's scope against the point and reports PKI_REASON_REVOCATION_PARTIAL or PKI_REASON_REVOCATION_OUT_OF_SCOPE."
+    },
+    "4.2.1.13-13-5e621f68": {
+      "section": "4.2.1.13",
+      "text": "When a conforming CA includes a cRLDistributionPoints extension in a certificate, it MUST include at least one DistributionPoint that points to a CRL that covers the certificate for all reasons.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Which CRLs a point leads to, and what they cover, depends on the CA's CRL issuance, not on these bytes."
+    },
+    "4.2.1.13-14-ae315f89": {
+      "section": "4.2.1.13",
+      "text": "If present, the cRLIssuer MUST only contain the distinguished name (DN) from the issuer field of the CRL to which the DistributionPoint is pointing.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Relates cRLIssuer to the issuer field of a CRL; matched by the revocation layer when the CRL is consulted (§6.3)."
+    },
+    "4.2.1.13-15-6e13e23e": {
+      "section": "4.2.1.13",
+      "text": "The encoding of the name in the cRLIssuer field MUST be exactly the same as the encoding in issuer field of the CRL.",
+      "status": "excluded",
+      "reason": "path-validation",
+      "why": "Relates the encoding of cRLIssuer to the encoding of a CRL's issuer; the revocation layer compares encoded names byte for byte."
+    },
+    "4.2.1.13-16-57062f85": {
+      "section": "4.2.1.13",
+      "text": "If the cRLIssuer field is included and the DN in that field does not correspond to an X.500 or LDAP directory entry where CRL is located, then conforming CAs MUST include the distributionPoint field.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether a DN corresponds to a directory entry where the CRL is located is a fact about a directory, outside the certificate."
+    },
+    "4.2.1.14-1-a991ab89": {
+      "section": "4.2.1.14",
+      "text": "Conforming CAs MUST mark this extension as critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A non-critical inhibitAnyPolicy is visible in the bytes; pkinative enforces it either way and reports nothing."
+    },
+    "4.2.1.15-1-2aa81ece": {
+      "section": "4.2.1.15",
+      "text": "The extension MUST be marked as non-critical by conforming CAs.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical freshestCRL is visible in the bytes; pkinative decodes it and reports nothing."
+    },
+    "4.2.2.1-1-e6136f60": {
+      "section": "4.2.2.1",
+      "text": "Conforming CAs MUST mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical authorityInfoAccess is visible in the bytes; pkinative decodes it and reports nothing."
+    },
+    "4.2.2.1-2-66b3e129": {
+      "section": "4.2.2.1",
+      "text": "Where the information is available via LDAP, the accessLocation SHOULD be a uniformResourceIdentifier.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the information is available via LDAP is a fact about the CA's directory, not the certificate."
+    },
+    "4.2.2.1-3-652dc15d": {
+      "section": "4.2.2.1",
+      "text": "The LDAP URI [RFC4516] MUST include a <dn> field containing the distinguished name of the entry holding the certificates, MUST include an <attributes> field that lists appropriate attribute descriptions for the attributes that hold the DER encoded certificates or cross-certificate pairs [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=CA, dc=example,dc=com?cACertificate;binary,crossCertificatePair;binary>).",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "The <dn> and <attributes> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+    },
+    "4.2.2.1-4-2f77e249": {
+      "section": "4.2.2.1",
+      "text": "Where the information is available via HTTP or FTP, accessLocation MUST be a uniformResourceIdentifier and the URI MUST point to either a single DER encoded certificate as specified in [RFC2585] or a collection of certificates in a BER or DER encoded \"certs-only\" CMS message as specified in [RFC2797].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "The URI half is syntax, but what it must point to — a DER certificate or a certs-only CMS message — is the content of a server, outside the certificate."
+    },
+    "4.2.2.1-5-4b0ddd69": {
+      "section": "4.2.2.1",
+      "text": "Conforming applications that support HTTP or FTP for accessing certificates MUST be able to accept individual DER encoded certificates and SHOULD be able to accept \"certs-only\" CMS messages.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications fetching certificates; pkinative does no I/O, and reads a DER certificate and a CMS SignedData when the caller hands it one."
+    },
+    "4.2.2.1-6-8a044690": {
+      "section": "4.2.2.1",
+      "text": "HTTP server implementations accessed via the URI SHOULD specify the media type application/pkix-cert [RFC2585] in the content-type header field of the response for a single DER encoded certificate and SHOULD specify the media type application/pkcs7-mime [RFC2797] in the content-type header field of the response for \"certs-only\" CMS messages.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About the content-type an HTTP server sends with a certificate or a certs-only message; nothing in the certificate records a server's headers."
+    },
+    "4.2.2.1-7-69812324": {
+      "section": "4.2.2.1",
+      "text": "For FTP, the name of a file that contains a single DER encoded certificate SHOULD have a suffix of \".cer\" [RFC2585] and the name of a file that contains a \"certs-only\" CMS message SHOULD have a suffix of \".p7c\" [RFC2797].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About the names of files on an FTP server; the certificate records only the URI, whose suffix is advice about the server."
+    },
+    "4.2.2.1-8-775acbe2": {
+      "section": "4.2.2.1",
+      "text": "When the id-ad-caIssuers accessMethod is used, at least one instance SHOULD specify an accessLocation that is an HTTP [RFC2616] or LDAP [RFC4516] URI.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An id-ad-caIssuers set with no HTTP or LDAP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.2.2-1-e6136f60": {
+      "section": "4.2.2.2",
+      "text": "Conforming CAs MUST mark this extension as non-critical.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A critical subjectInfoAccess is visible in the bytes; pkinative decodes it and reports nothing."
+    },
+    "4.2.2.2-2-66b3e129": {
+      "section": "4.2.2.2",
+      "text": "Where the information is available via LDAP, the accessLocation SHOULD be a uniformResourceIdentifier.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the information is available via LDAP is a fact about the subject's directory, not the certificate."
+    },
+    "4.2.2.2-3-652dc15d": {
+      "section": "4.2.2.2",
+      "text": "The LDAP URI [RFC4516] MUST include a <dn> field containing the distinguished name of the entry holding the certificates, MUST include an <attributes> field that lists appropriate attribute descriptions for the attributes that hold the DER encoded certificates or cross-certificate pairs [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=CA, dc=example,dc=com?cACertificate;binary,crossCertificatePair;binary>).",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "The <dn> and <attributes> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+    },
+    "4.2.2.2-4-2f77e249": {
+      "section": "4.2.2.2",
+      "text": "Where the information is available via HTTP or FTP, accessLocation MUST be a uniformResourceIdentifier and the URI MUST point to either a single DER encoded certificate as specified in [RFC2585] or a collection of certificates in a BER or DER encoded \"certs-only\" CMS message as specified in [RFC2797].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "The URI half is syntax, but what it must point to — a DER certificate or a certs-only CMS message — is the content of a server, outside the certificate."
+    },
+    "4.2.2.2-5-4b0ddd69": {
+      "section": "4.2.2.2",
+      "text": "Conforming applications that support HTTP or FTP for accessing certificates MUST be able to accept individual DER encoded certificates and SHOULD be able to accept \"certs-only\" CMS messages.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to applications fetching certificates; pkinative does no I/O, and reads a DER certificate and a CMS SignedData when the caller hands it one."
+    },
+    "4.2.2.2-6-8a044690": {
+      "section": "4.2.2.2",
+      "text": "HTTP server implementations accessed via the URI SHOULD specify the media type application/pkix-cert [RFC2585] in the content-type header field of the response for a single DER encoded certificate and SHOULD specify the media type application/pkcs7-mime [RFC2797] in the content-type header field of the response for \"certs-only\" CMS messages.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About the content-type an HTTP server sends with a certificate or a certs-only message; nothing in the certificate records a server's headers."
+    },
+    "4.2.2.2-7-69812324": {
+      "section": "4.2.2.2",
+      "text": "For FTP, the name of a file that contains a single DER encoded certificate SHOULD have a suffix of \".cer\" [RFC2585] and the name of a file that contains a \"certs-only\" CMS message SHOULD have a suffix of \".p7c\" [RFC2797].",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "About the names of files on an FTP server; the certificate records only the URI, whose suffix is advice about the server."
+    },
+    "4.2.2.2-8-4cfb8e87": {
+      "section": "4.2.2.2",
+      "text": "When the id-ad-caRepository accessMethod is used, at least one instance SHOULD specify an accessLocation that is an HTTP [RFC2616] or LDAP [RFC4516] URI.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An id-ad-caRepository set with no HTTP or LDAP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+    },
+    "4.2.2.2-9-87c0d75e": {
+      "section": "4.2.2.2",
+      "text": "Where the timestamping services are available via HTTP or FTP, accessLocation MUST be a uniformResourceIdentifier.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the timestamping service is available via HTTP or FTP is a fact about the service; a location of another form may mean another transport."
+    },
+    "4.2.2.2-10-0c850224": {
+      "section": "4.2.2.2",
+      "text": "Where the timestamping services are available via electronic mail, accessLocation MUST be an rfc822Name.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the timestamping service is available via electronic mail is a fact about the service; a location of another form may mean another transport."
+    }
+  }
+}

@@ -22,6 +22,7 @@ const CLAUSE_TABLE = 'scripts/lib/clauses.ts';
 const INTEROP = 'scripts/lib/interop.ts';
 const ROADMAP = 'ROADMAP.md';
 const CONFORMANCE_WORKFLOW = '.github/workflows/conformance.yml';
+const REQUIREMENTS = 'scripts/data/rfc5280-requirements.json';
 
 const corpusPinParity: Rule = {
     id: 'corpus-pin-parity',
@@ -129,7 +130,7 @@ const validatorRecordParity: Rule = {
  */
 const clauseTableComplete: Rule = {
     id: 'clause-table-complete',
-    summary: 'Every L5 clause cites a real section, quotes a normative sentence, and names either a diagnostic code that exists in docs/data/diagnostics.json or a written waiver; the conformance guide documents L5.',
+    summary: 'Every L5 clause cites a real section, quotes a normative sentence, and names either a diagnostic code that exists in docs/data/diagnostics.json or a written waiver; the conformance guide documents L5; the counts of scripts/data/rfc5280-requirements.json match declared.rfc5280 in ecosystem.json and the guide.',
     check(ctx) {
         const out: Finding[] = [];
         const registry = readJson<{ diagnostics: Array<{ code: string }> }>(ctx, DIAGNOSTICS);
@@ -156,6 +157,28 @@ const clauseTableComplete: Rule = {
         // or the conformance claim lives only in a script nobody reads.
         const guide = ctx.read(GUIDE) ?? '';
         if (!guide.includes('L5')) out.push(error(GUIDE, 'does not describe conformance level L5 — the clause checker is the difference between a regression detector and an authority, and it is not documented'));
+
+        // The requirement inventory: its counts are ecosystem.json canaries,
+        // and the guide quotes them, so the three must say the same thing.
+        const inventory = readJson<{ requirements?: Record<string, { status?: string }> }>(ctx, REQUIREMENTS);
+        if ('finding' in inventory) return [...out, inventory.finding];
+        const ecosystem = readJson<{ declared?: { rfc5280?: { requirements?: number; clauses?: number; excluded?: number } } }>(ctx, ECOSYSTEM);
+        if ('finding' in ecosystem) return [...out, ecosystem.finding];
+        const entries = Object.values(inventory.value.requirements ?? {});
+        const counts = {
+            requirements: entries.length,
+            clauses: entries.filter((e) => e.status === 'clause').length,
+            excluded: entries.filter((e) => e.status === 'excluded').length,
+        };
+        const declared = ecosystem.value.declared?.rfc5280;
+        for (const [key, value] of Object.entries(counts)) {
+            if (declared?.[key as keyof typeof counts] !== value) {
+                out.push(error(ECOSYSTEM, `declared.rfc5280.${key} is ${String(declared?.[key as keyof typeof counts])}; ${REQUIREMENTS} holds ${String(value)}`));
+            }
+        }
+        for (const phrase of [`**${String(counts.requirements)} sentences**`, `**${String(counts.clauses)} are held by a clause**`, `**${String(counts.excluded)} are excluded**`]) {
+            if (!guide.includes(phrase)) out.push(error(GUIDE, `does not say ${phrase} — the L5 completeness counts in the guide drifted from ${REQUIREMENTS}`));
+        }
         return out;
     },
 };

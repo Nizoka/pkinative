@@ -25,7 +25,14 @@
  *      product instead of leaving it a parallel implementation that drifts.
  *
  * Every entry quotes the normative sentence it enforces. A clause whose
- * `quote` cannot be found in the RFC is a clause someone invented.
+ * `quote` cannot be found in the RFC is a clause someone invented — and since
+ * 0.9 that is checked: RFC 5280 is a pinned corpus (scripts/lib/corpora.ts),
+ * every quote citing it must be found verbatim, after whitespace
+ * normalisation, in the section it cites, and every requirement sentence of
+ * §4.1 and §4.2 is accounted for in scripts/data/rfc5280-requirements.json —
+ * as one of these clauses, or as an exclusion with its reason
+ * (scripts/lib/rfc-requirements.ts). The X.690 clauses are quoted from a
+ * document that is not pinned, and are not checked that way.
  *
  * @module scripts/lib/clauses
  */
@@ -86,14 +93,14 @@ export interface Clause {
 
 /**
  * RFC 5280 §4.1 and §4.2, as far as a **reading** library can check without
- * path validation. §6 is judged by the scored corpora L6 to L8 instead of by
- * clauses here (docs/adr/0008-section-6-judged-by-scored-corpora.md).
+ * path validation. §6 is not in this table: it is judged over chains, by the
+ * scored corpora of L6, L7 and L8 (docs/adr/0008-section-6-judged-by-scored-corpora.md).
  *
  * Deliberately absent, and why:
  *
  * - *"A certificate MUST NOT include more than one instance of a particular
  *   extension"* (§4.2) is **structural** here, not a profile concern:
- *   `parseCertificate` throws `PKI_X509_DUPLICATE_EXTENSION`. A clause whose
+ *   `parseCertificate` throws `PKI_X509_EXTENSION_DUPLICATE`. A clause whose
  *   violation cannot produce a parsed certificate has nothing to diagnose.
  * - Everything requiring an issuer, a trust anchor or a clock — key usage
  *   consistency across a chain, name constraints, policy trees — is §6.
@@ -110,28 +117,28 @@ export const CLAUSES: readonly Clause[] = Object.freeze([
     {
         id: '4.1.2.2-serial-at-most-20-octets',
         section: 'RFC 5280 §4.1.2.2',
-        quote: 'Certificate users MUST be able to handle serialNumber values up to 20 octets.',
+        quote: 'Conforming CAs MUST NOT use serialNumber values longer than 20 octets.',
         diagnostic: 'PKI_DIAG_SERIAL_TOO_LONG',
         exhaustive: true,
     },
     {
         id: '4.1.1.2-signature-algorithm-matches-tbs',
         section: 'RFC 5280 §4.1.1.2',
-        quote: 'This field MUST contain the same algorithm identifier as the signature field in the sequence tbsCertificate.',
+        quote: 'This field MUST contain the same algorithm identifier as the signature field in the sequence tbsCertificate (Section 4.1.2.3).',
         diagnostic: 'PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH',
         exhaustive: true,
     },
     {
         id: '4.1.2.1-extensions-require-v3',
         section: 'RFC 5280 §4.1.2.1',
-        quote: 'If the certificate contains an issuerUniqueID or a subjectUniqueID then the version MUST be 2 or 3. If the certificate contains extensions, the version MUST be 3.',
+        quote: 'When extensions are used, as expected in this profile, version MUST be 3 (value is 2).',
         diagnostic: 'PKI_DIAG_EXTENSIONS_REQUIRE_V3',
         exhaustive: true,
     },
     {
         id: '4.1.2.8-unique-id-requires-v2',
         section: 'RFC 5280 §4.1.2.8',
-        quote: 'These fields MUST only appear if the version is 2 or 3.',
+        quote: 'These fields MUST only appear if the version is 2 or 3 (Section 4.1.2.1).',
         diagnostic: 'PKI_DIAG_UNIQUE_ID_REQUIRES_V2',
         exhaustive: true,
         unexercisedBy: {
@@ -194,7 +201,7 @@ export const CLAUSES: readonly Clause[] = Object.freeze([
     {
         id: '4.2.1.10-name-constraints-critical',
         section: 'RFC 5280 §4.2.1.10',
-        quote: 'Conforming CAs MUST mark this extension as critical.',
+        quote: 'Conforming CAs MUST mark this extension as critical and SHOULD NOT impose name constraints on the x400Address, ediPartyName, or registeredID name forms.',
         diagnostic: 'PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL',
         exhaustive: true,
     },
@@ -245,6 +252,66 @@ export const CLAUSES: readonly Clause[] = Object.freeze([
         section: 'RFC 5280 §4.2.1.6',
         quote: 'If the subject field contains an empty sequence, then the issuing CA MUST include a subjectAltName extension that is marked as critical.',
         diagnostic: 'PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL',
+        exhaustive: true,
+    },
+
+    // ── Since 0.9: requirements the RFC inventory found diagnosed and unrecorded ──
+    // scripts/data/rfc5280-requirements.json accounts for every requirement
+    // sentence of §4.1 and §4.2. Reading them against the diagnostics registry
+    // found six that pkinative already reported and this table did not hold to
+    // an independent reading; each is now a clause like the others.
+    {
+        id: '4.2.1.9-basic-constraints-critical-in-ca',
+        section: 'RFC 5280 §4.2.1.9',
+        quote: 'Conforming CAs MUST include this extension in all CA certificates that contain public keys used to validate digital signatures on certificates and MUST mark the extension as critical in such certificates.',
+        // The second half is decidable from the bytes — a basicConstraints
+        // that asserts cA is the certificate saying it is a CA certificate.
+        // The first half is not: a certificate without the extension does not
+        // say what its key will be used for.
+        diagnostic: 'PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL',
+        exhaustive: true,
+    },
+    {
+        id: '4.2.1.11-policy-constraints-critical',
+        section: 'RFC 5280 §4.2.1.11',
+        quote: 'Conforming CAs MUST mark this extension as critical.',
+        diagnostic: 'PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL',
+        exhaustive: true,
+    },
+    {
+        id: '4.2.1.3-key-cert-sign-requires-ca',
+        section: 'RFC 5280 §4.2.1.3',
+        quote: 'If the keyCertSign bit is asserted, then the cA bit in the basic constraints extension (Section 4.2.1.9) MUST also be asserted.',
+        diagnostic: 'PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA',
+        exhaustive: true,
+    },
+    {
+        id: '4.2.1.10-name-constraints-only-in-ca',
+        section: 'RFC 5280 §4.2.1.10',
+        quote: 'The name constraints extension, which MUST be used only in a CA certificate, indicates a name space within which all subject names in subsequent certificates in a certification path MUST be located.',
+        diagnostic: 'PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY',
+        exhaustive: true,
+    },
+    {
+        id: '4.2.1.1-aki-key-identifier-present',
+        section: 'RFC 5280 §4.2.1.1',
+        quote: 'The keyIdentifier field of the authorityKeyIdentifier extension MUST be included in all certificates generated by conforming CAs to facilitate certification path construction.',
+        // §4.2.1.1 exempts a self-signed certificate, and equal encoded
+        // issuer and subject is how both readings see one without a key
+        // operation. A v1 or v2 certificate has no field to carry it in, and
+        // is judged by 4.1.2.1 instead. The evaluator reads the sentence — the
+        // keyIdentifier *field* — while the diagnostic fires on a missing
+        // *extension*; no pinned certificate tells the two apart, and one
+        // carrying an authorityKeyIdentifier without a keyIdentifier would
+        // turn L5 red as a silent miss, which is what it would be.
+        diagnostic: 'PKI_DIAG_AKI_MISSING',
+        exhaustive: true,
+    },
+    {
+        id: '4.2.1.2-ski-present-in-ca',
+        section: 'RFC 5280 §4.2.1.2',
+        quote: 'To facilitate certification path construction, this extension MUST appear in all conforming CA certificates, that is, all certificates including the basic constraints extension (Section 4.2.1.9) where the value of cA is TRUE.',
+        diagnostic: 'PKI_DIAG_SKI_MISSING',
         exhaustive: true,
     },
 ]);

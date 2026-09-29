@@ -27,6 +27,12 @@
  *       that accepts anything, and a footer one that stopped halfway. A real
  *       difference is recorded in scripts/data/validator-disagreements.json
  *       with its reason. See scripts/lib/validators.ts;
+ *   L5  RFC 5280 clause by clause: an independent reading of every clause of
+ *       scripts/lib/clauses.ts must agree with pkinative's diagnostics, and —
+ *       against the pinned text of the RFC — every clause quote is found
+ *       verbatim and every requirement sentence of §4.1 and §4.2 is accounted
+ *       for in scripts/data/rfc5280-requirements.json. See
+ *       scripts/lib/rfc-requirements.ts;
  *   L6  every x509-limbo case is **scored**: pkinative builds a path, matches
  *       the host name and consults the CRL the way a caller would, and its
  *       verdict must match the one the corpus writes down. A disagreement is
@@ -66,6 +72,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type * as Pki from '../src/index.js';
 import { CLAUSES } from './lib/clauses.js';
+import { checkInventoryAgainstRfc, checkInventoryShape, EXCLUSION_REASONS, type RequirementsInventory } from './lib/rfc-requirements.js';
 import { newScoreCache, scoreCase, type LimboScoreCase } from './lib/limbo-score.js';
 import { corpusWindowProblem, expectationOfName, PKITS_AT, readPkits } from './lib/pkits.js';
 import { reasonLayer, reasonsBeyondPath, splitPkitsMessage, testsOfSigner, type PkitsSignedMessage } from './lib/pkits-smime.js';
@@ -87,6 +94,7 @@ const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
 const SCORE_BASELINE = join(ROOT, 'scripts', 'data', 'limbo-score.json');
 const PKITS_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-score.json');
 const PKITS_SMIME_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-smime-score.json');
+const REQUIREMENTS = join(ROOT, 'scripts', 'data', 'rfc5280-requirements.json');
 const REPORT_DIR = join(ROOT, 'test-output', 'conformance');
 const OPENSSL_SAMPLE = 200;
 /** How many certificates each cross-implementation validator is given (L4). */
@@ -125,6 +133,7 @@ interface WycheproofFile {
 interface Declared {
     readonly 'x509-limbo'?: { readonly commit?: string; readonly testcases?: number; readonly certificates?: number; readonly refused?: number; readonly agree?: number };
     readonly wycheproof?: { readonly commit?: string; readonly tests?: number };
+    readonly rfc5280?: { readonly commit?: string; readonly requirements?: number; readonly clauses?: number; readonly excluded?: number };
     readonly pkits?: {
         readonly commit?: string;
         readonly certificates?: number;
@@ -358,7 +367,10 @@ async function main(): Promise<number> {
 
     if (level >= 4) runCrossValidators(pki, certificates, parsed);
 
-    if (level >= 5) runClauseChecker(certificates, parsed);
+    if (level >= 5) {
+        runClauseChecker(certificates, parsed);
+        runRequirementInventory(declared);
+    }
 
     if (level >= 6) await runPathScorer(pki, limbo.testcases as unknown as readonly LimboScoreCase[], declared);
 
@@ -474,7 +486,62 @@ function runClauseChecker(certificates: ReadonlyMap<string, Uint8Array>, parsed:
     const total = [...failed.values()].reduce((a, b) => a + b, 0);
     const waived = CLAUSES.filter((c) => c.unexercisedBy !== undefined).length;
     const corpusExercised = CLAUSES.length - waived;
-    record('L5', `${CLAUSES.length} RFC 5280 clauses: ${corpusExercised} exercised by the corpus (${waived} waived to tests/conformance/clauses.test.ts), ${violated} violated by ${total} certificate readings, every violation attributed to its diagnostic`);
+    const ofRfc = CLAUSES.filter((c) => c.section.startsWith('RFC 5280 ')).length;
+    record('L5', `${CLAUSES.length} clauses (${ofRfc} of RFC 5280, ${CLAUSES.length - ofRfc} of ITU-T X.690): ${corpusExercised} exercised by the corpus (${waived} waived to tests/conformance/clauses.test.ts), ${violated} violated by ${total} certificate readings, every violation attributed to its diagnostic`);
+}
+
+/**
+ * The other half of L5: **completeness against the RFC itself.**
+ *
+ * `runClauseChecker` proves each clause is exercised and attributed; nothing
+ * there can say the table is missing a sentence, or that a clause quotes one
+ * the RFC does not contain. This reads the pinned text of RFC 5280, extracts
+ * every requirement sentence of §4.1 and §4.2 (scripts/lib/rfc-requirements.ts)
+ * and fails on:
+ *
+ *   - a clause citing RFC 5280 whose quote is not found verbatim, after
+ *     whitespace normalisation, in the section it cites — an invented quote;
+ *   - an extracted sentence the reviewed inventory
+ *     `scripts/data/rfc5280-requirements.json` does not account for, and an
+ *     inventory entry no extracted sentence matches any more (stale);
+ *   - an entry of the wrong shape: a reason outside the vocabulary, an
+ *     exclusion with no sentence, a `clause` entry whose clause quotes
+ *     another sentence;
+ *   - counts that drift from `declared.rfc5280` in ecosystem.json;
+ *   - a `todo` entry under `--require-all`, which is what the conformance
+ *     workflow and the release gate run — without it, a `todo` is a SKIP.
+ */
+function runRequirementInventory(declared: Declared): void {
+    const rfc = corpus('rfc5280');
+    const text = readFileSync(join(corpusDir(ROOT, rfc), 'rfc5280.txt'), 'utf8');
+    const inventory = JSON.parse(readFileSync(REQUIREMENTS, 'utf8')) as RequirementsInventory;
+    if (inventory.sha256 !== rfc.commit) {
+        fail(`L5 scripts/data/rfc5280-requirements.json was reviewed against ${inventory.sha256.slice(0, 12)}; the pinned RFC is ${rfc.commit.slice(0, 12)} — review the inventory against the new text`);
+    }
+    for (const problem of checkInventoryShape(inventory, CLAUSES)) fail(`L5 inventory ${problem}`);
+    const check = checkInventoryAgainstRfc(text, inventory, CLAUSES);
+    for (const problem of check.problems) fail(`L5 RFC 5280 ${problem}`);
+    for (const id of check.todo) {
+        const message = `L5 RFC 5280 ${id}: still todo in scripts/data/rfc5280-requirements.json — every requirement is a clause or an exclusion with its reason before a release`;
+        if (requireAll) fail(message);
+        else skips.push(message);
+    }
+
+    const entries = Object.values(inventory.requirements);
+    const clauses = entries.filter((e) => e.status === 'clause').length;
+    const excluded = entries.filter((e) => e.status === 'excluded');
+    const d = declared.rfc5280;
+    if (check.extracted.length !== d?.requirements) fail(`L5 RFC 5280 §4.1–§4.2 hold ${String(check.extracted.length)} requirement sentences; ecosystem.json declares ${String(d?.requirements)} (canary)`);
+    if (clauses !== d?.clauses) fail(`L5 the inventory maps ${String(clauses)} sentences to clauses; ecosystem.json declares ${String(d?.clauses)}`);
+    if (excluded.length !== d?.excluded) fail(`L5 the inventory excludes ${String(excluded.length)} sentences; ecosystem.json declares ${String(d?.excluded)}`);
+
+    const byReason = Object.keys(EXCLUSION_REASONS)
+        .map((reason) => [reason, excluded.filter((e) => e.status === 'excluded' && e.reason === reason).length] as const)
+        .filter(([, n]) => n > 0)
+        .map(([reason, n]) => `${String(n)} ${reason}`)
+        .join(', ');
+    const quoted = CLAUSES.filter((c) => c.section.startsWith('RFC 5280 ')).length;
+    record('L5', `rfc5280@${rfc.commit.slice(0, 12)}: ${String(check.extracted.length)} requirement sentences of §4.1–§4.2, ${String(clauses)} held by a clause, ${String(excluded.length)} excluded (${byReason}), ${String(check.todo.length)} todo; ${String(quoted)} RFC 5280 quotes found verbatim`);
 }
 
 // ── L6 — path validation, scored against the corpus ─────────────────

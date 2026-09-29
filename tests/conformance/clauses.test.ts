@@ -82,6 +82,12 @@ const NAME_CONSTRAINTS = [0x55, 0x1d, 0x1e];
 const CERTIFICATE_POLICIES = [0x55, 0x1d, 0x20];
 const POLICY_CONSTRAINTS = [0x55, 0x1d, 0x24];
 const AKI = [0x55, 0x1d, 0x23];
+const SKI = [0x55, 0x1d, 0x0e];
+
+/** BasicConstraints { cA TRUE }. */
+const CA_TRUE = sequence(universal(1, [0xff]));
+/** NameConstraints { permittedSubtrees [0] { GeneralSubtree { dNSName "example.com" } } }. */
+const PERMIT_EXAMPLE = sequence(tlv(2, true, 0, sequence(tlv(2, false, 2, ascii('example.com')))));
 
 const verdict = (der: Uint8Array, id: string): string => evaluateClauses(der).get(id) ?? 'missing';
 
@@ -194,6 +200,40 @@ const CASES: readonly Case[] = [
         id: '4.1.2.6-empty-subject-requires-critical-san',
         fails: certificate({ subject: sequence(), extensions: [extension(SAN, sequence(tlv(2, false, 2, ascii('a.example'))))] }),
         passes: certificate({ subject: sequence(), extensions: [extension(SAN, sequence(tlv(2, false, 2, ascii('a.example'))), true)] }),
+    },
+    {
+        id: '4.2.1.9-basic-constraints-critical-in-ca',
+        fails: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE)] }),
+        passes: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true)] }),
+    },
+    {
+        id: '4.2.1.11-policy-constraints-critical',
+        fails: certificate({ extensions: [extension(POLICY_CONSTRAINTS, sequence(tlv(2, false, 0, [0x00])))] }),
+        passes: certificate({ extensions: [extension(POLICY_CONSTRAINTS, sequence(tlv(2, false, 0, [0x00])), true)] }),
+    },
+    {
+        id: '4.2.1.3-key-cert-sign-requires-ca',
+        // 03 02 02 04: keyCertSign (bit 5) alone, two unused bits.
+        fails: certificate({ extensions: [extension(KEY_USAGE, universal(3, [0x02, 0x04]), true)] }),
+        passes: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true), extension(KEY_USAGE, universal(3, [0x02, 0x04]), true)] }),
+    },
+    {
+        id: '4.2.1.10-name-constraints-only-in-ca',
+        fails: certificate({ extensions: [extension(NAME_CONSTRAINTS, PERMIT_EXAMPLE, true)] }),
+        passes: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true), extension(NAME_CONSTRAINTS, PERMIT_EXAMPLE, true)] }),
+    },
+    {
+        id: '4.2.1.1-aki-key-identifier-present',
+        // The issuer and subject differ, so the self-signed exemption does
+        // not apply; an authorityKeyIdentifier naming only issuer and serial
+        // fails the sentence as surely as no extension at all.
+        fails: certificate({ extensions: [extension(AKI, sequence(tlv(2, true, 1, sequence()), tlv(2, false, 2, [0x01])))] }),
+        passes: certificate({ extensions: [extension(AKI, sequence(tlv(2, false, 0, [0x01, 0x02, 0x03])))] }),
+    },
+    {
+        id: '4.2.1.2-ski-present-in-ca',
+        fails: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true)] }),
+        passes: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true), extension(SKI, universal(4, [0x01, 0x02, 0x03]))] }),
     },
 ];
 

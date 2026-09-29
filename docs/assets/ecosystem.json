@@ -112,6 +112,12 @@
       "messages": 224,
       "messagesIntact": 221,
       "messagesAgree": 195
+    },
+    "rfc5280": {
+      "commit": "a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d",
+      "requirements": 182,
+      "clauses": 21,
+      "excluded": 161
     }
   }
 }

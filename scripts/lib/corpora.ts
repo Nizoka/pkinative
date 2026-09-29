@@ -22,6 +22,12 @@ export interface CorpusFile {
     readonly name: string;
     /** The path inside the upstream repository. */
     readonly path: string;
+    /**
+     * The download URL, for a corpus that is not a git repository. A document
+     * has no commit to put in a raw URL; its own SHA-256 is its identity, and
+     * the checksum file refuses any other bytes from this address.
+     */
+    readonly url?: string | undefined;
 }
 
 /**
@@ -40,7 +46,7 @@ export interface CorpusArchive {
 }
 
 export interface Corpus {
-    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits';
+    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits' | 'rfc5280';
     readonly title: string;
     readonly repository: string;
     /**
@@ -100,10 +106,29 @@ export const CORPORA: readonly Corpus[] = [
             include: ['certs/', 'crls/', 'smime/'],
         },
     },
+    {
+        // The text L5 is held to. Conformance level L5 quotes RFC 5280 clause
+        // by clause; without the RFC in the pin table, "a quote the RFC does
+        // not contain" was a sentence in a comment rather than a check.
+        // scripts/lib/rfc-requirements.ts extracts every requirement of §4.1
+        // and §4.2 from exactly these bytes, and
+        // scripts/data/rfc5280-requirements.json accounts for each one.
+        id: 'rfc5280',
+        title: 'RFC 5280, Internet X.509 PKI Certificate and CRL Profile (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc5280',
+        // The file's own SHA-256. An RFC is never revised in place — errata
+        // and updating RFCs are separate documents — but a proxy, a mirror or
+        // a change of line endings would serve other bytes from the same URL,
+        // and the digest is what makes "the text reviewed" a fixed thing.
+        commit: 'a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d',
+        licence: 'Copyright (C) The IETF Trust (2008), BCP 78',
+        files: [{ name: 'rfc5280.txt', path: 'rfc5280.txt', url: 'https://www.rfc-editor.org/rfc/rfc5280.txt' }],
+    },
 ];
 
 /** The immutable download URL of one file at the pinned commit. */
 export function rawUrl(corpus: Corpus, file: CorpusFile): string {
+    if (file.url !== undefined) return file.url;
     return `${corpus.repository.replace('https://github.com/', 'https://raw.githubusercontent.com/')}/${corpus.commit}/${file.path}`;
 }
 
