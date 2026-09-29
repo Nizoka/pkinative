@@ -1,8 +1,10 @@
 #!/usr/bin/env tsx
 /**
- * pkinative — the interoperability matrix (the WRITE direction)
- * =============================================================
- * Foreign tools reading what pkinative writes.
+ * pkinative — the interoperability matrix
+ * =======================================
+ * Foreign tools reading what pkinative writes — and, for key containers,
+ * which pkinative reads and never writes, pkinative reading what they write
+ * (`scripts/lib/interop-keys.ts`, the `KEYS` lines).
  *
  * The conformance gate's L1–L5 all point one way: bytes someone else produced,
  * read by pkinative. From 0.3 the arrow also points outward, and that
@@ -43,6 +45,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { argv, exit, stdout } from 'node:process';
 import { PENDING_TOOLS } from './lib/interop.js';
+import { readKeyContainers } from './lib/interop-keys.js';
 import { EXPECTED, samples } from './lib/samples.js';
 
 /**
@@ -168,6 +171,7 @@ const TOOLS: readonly Tool[] = [OPENSSL, WINDOWS_CRYPTOAPI];
 const failures: string[] = [];
 const skips: string[] = [];
 const lines: string[] = [];
+let toolsRun = 0;
 
 /**
  * Compare only the fields the tool declared it supplies, and count them: a
@@ -252,6 +256,17 @@ async function main(): Promise<number> {
                 if (ok !== null) checks += 1;
             }
             lines.push(`OK    ${tool.id} (${version}): ${checks} check(s) agree — ${tool.provenance}`);
+            toolsRun += 1;
+
+            // The read direction: key containers the tool writes, read by
+            // pkinative, which never writes one (scripts/lib/interop-keys.ts).
+            const keys = await readKeyContainers(tool.id, join(work, `keys-${tool.id}`));
+            if (keys !== null) {
+                lines.push(`KEYS  ${tool.id} → pkinative: ${String(keys.checks)} check(s) over ${String(keys.containers)} key container(s) it wrote`);
+                for (const line of keys.lines) lines.push(`      ${line}`);
+                failures.push(...keys.failures);
+                skips.push(...keys.skips);
+            }
         }
 
         for (const pending of PENDING_TOOLS) {
@@ -272,14 +287,14 @@ async function main(): Promise<number> {
     }
 
     if (failures.length > 0) {
-        stdout.write(`run-interop: ${String(failures.length)} disagreement(s). A foreign tool that cannot read what pkinative writes is pkinative's problem, not the tool's.\n`);
+        stdout.write(`run-interop: ${String(failures.length)} disagreement(s). A foreign tool that cannot read what pkinative writes, or a key container a foreign tool writes that pkinative misreads, is pkinative's problem, not the tool's.\n`);
         return 1;
     }
     if (requireAll && skips.length > 0) {
         stdout.write(`run-interop: ${String(skips.length)} tool(s) unavailable and --require-all was given — on the reference platform every declared tool must run.\n`);
         return 1;
     }
-    stdout.write(`run-interop: ${String(lines.length)} tool(s) agree on every artefact${skips.length > 0 ? `, ${String(skips.length)} skipped` : ''}.\n`);
+    stdout.write(`run-interop: ${String(toolsRun)} tool(s) agree on every artefact, in both directions${skips.length > 0 ? `, ${String(skips.length)} skipped` : ''}.\n`);
     return 0;
 }
 

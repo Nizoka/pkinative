@@ -138,6 +138,68 @@
       <li><strong>Each tool declares which fields it can supply</strong>, exactly as the L4 validators do, and a tool that compares nothing fails as vacuous. Windows CryptoAPI supplies the serial and the subject — both API values, identical in every locale — and does not supply DNS names, because reaching them from Windows PowerShell 5.1 means <code>X509Extension.Format()</code>, whose output is translated.</li>
       </ul>
       <p>Today <code>openssl</code> and Windows CryptoAPI run, on all three platforms, blocking: the matrix runs inside the <code>conformance</code> job, whose three contexts the ruleset already requires. GnuTLS <code>certtool</code>, Windows <code>certutil</code>, <code>keytool</code>, macOS <code>security</code> and Python <code>cryptography</code> are declared in <code>scripts/lib/interop.ts</code> with the reason each is pending, and <code>interop-matrix-declared</code> holds that list to ROADMAP.md in both directions so a gap cannot quietly disappear. <code>--require-all</code>, which turns a missing tool into a failure, goes on in the commit that lands the last of them.</p>
+      <h3 id="key-containers-the-arrow-turned-back">Key containers: the arrow turned back <a class="heading-anchor" href="#key-containers-the-arrow-turned-back" aria-label="Link to this section">#</a></h3>
+      <p>pkinative reads PKCS#8 and PKCS#12 and never writes either — it may not encrypt or wrap a key, by policy — so for key containers the same runner points the other way: each implemented tool writes, pkinative reads (<code>scripts/lib/interop-keys.ts</code>, the <code>KEYS</code> lines of <code>npm run interop</code>). Every case is declared in <code>KEY_CONTAINER_CASES</code> of <code>scripts/lib/interop.ts</code>, the runner refuses to evaluate one that is not, and <code>interop-matrix-declared</code> holds that list to this page in both directions. Three things are compared on every file, none of them decided by pkinative alone:</p>
+      <ul>
+      <li><strong>What was written.</strong> The tool says what it wrote — OpenSSL through <code>pkcs12 -info</code>, a PKCS#8 command through the scheme it was asked for, Windows through facts observed once and written beside its writer — and <code>parsePkcs12</code> or <code>parseEncryptedPrivateKeyInfo</code> must read the same MAC construction and the same encryption schemes.</li>
+      <li><strong>What pkinative makes of it.</strong> A file it can open, <code>readPkcs12</code> opens with the integrity the case promises, the certificate byte-identical to the tool&#39;s, and a key that signs data the certificate&#39;s public key verifies — checked by <code>openssl dgst</code> or <code>pkeyutl</code> where OpenSSL wrote the file, by node:crypto otherwise, never by pkinative. A file it refuses is reported and never thrown for, with the exact reason codes and every refused scheme named.</li>
+      <li><strong>What the tool could not write is a skip, never a pass.</strong> OpenSSL before 3.4 has no PBMAC1, LibreSSL has no <code>-legacy</code>, and the legacy provider is looked for where installers put it (the compiled-in <code>MODULESDIR</code>, beside the executable, <code>lib/ossl-modules</code>) and proved by loading it.</li>
+      </ul>
+      <table>
+      <thead>
+      <tr>
+      <th>Case</th>
+      <th>Written by</th>
+      <th>pkinative reads</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>openssl:pkcs12-pbmac1</code></td>
+      <td><code>openssl pkcs12 -export -pbmac1_pbkdf2</code>, EC P-256, RSA 2048 and Ed25519: PBES2 with PBKDF2/HMAC-SHA-256 and AES-256-CBC on the key and the certificates, an RFC 9579 PBMAC1 MAC</td>
+      <td>valid, integrity <code>verified</code>, the key signs</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs12-default</code></td>
+      <td><code>openssl pkcs12 -export</code>, the same three keys: the same PBES2 encryption under an HMAC-SHA-256 MAC keyed with RFC 7292 Appendix B (OpenSSL 3.0 and later; the tool&#39;s own <code>-info</code> decides, so an older default is held to the legacy expectation)</td>
+      <td><code>PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</code> alone; valid with <code>allowUnverifiedIntegrity</code>, the key signs</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs12-legacy</code></td>
+      <td><code>openssl pkcs12 -export -legacy</code>: the certificates under <code>pbeWithSHAAnd40BitRC2-CBC</code>, the key under <code>pbeWithSHAAnd3-KeyTripleDES-CBC</code>, an HMAC-SHA-1 Appendix B MAC</td>
+      <td>reported, never thrown: the integrity reason and <code>PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED</code> naming each scheme</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs12-wrong-password</code></td>
+      <td>the PBMAC1 file, read under another password</td>
+      <td><code>PKI_REASON_PKCS12_MAC_MISMATCH</code>, nothing decrypted</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs12-converted</code></td>
+      <td>the conversion SECURITY.md documents: <code>openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
+      <td>valid, integrity <code>verified</code>, the key signs</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs8-pbes2</code></td>
+      <td><code>openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256</code>, the three keys</td>
+      <td><code>decryptPrivateKey</code> returns a key that signs</td>
+      </tr>
+      <tr>
+      <td><code>openssl:pkcs8-pbes1</code></td>
+      <td><code>openssl pkcs8 -topk8 -v1 PBE-SHA1-3DES</code></td>
+      <td><code>decryptPrivateKey</code> throws <code>PKI_KEY_ENCRYPTION_UNSUPPORTED</code> naming the scheme</td>
+      </tr>
+      <tr>
+      <td><code>windows-cryptoapi:pfx-export</code></td>
+      <td><code>X509Certificate2.Export(X509ContentType.Pkcs12, password)</code> from Windows PowerShell, on a certificate made in memory by <code>CertificateRequest.CreateSelfSigned</code> (no store touched), EC P-256 and RSA 2048: the key shrouded and the certificates encrypted, both under <code>pbeWithSHAAnd3-KeyTripleDES-CBC</code>, an HMAC-SHA-1 Appendix B MAC, 2000 iterations, DER throughout</td>
+      <td>reported, never thrown: the integrity reason and 3DES named twice</td>
+      </tr>
+      <tr>
+      <td><code>windows-cryptoapi:pfx-pbes2</code></td>
+      <td><code>X509Certificate2.ExportPkcs12(Pkcs12ExportPbeParameters.Pbes2Aes256Sha256, password)</code> from PowerShell 7 on .NET 9 or later: PBES2 with PBKDF2/HMAC-SHA-256 and AES-256-CBC, an HMAC-SHA-256 Appendix B MAC — .NET writes no PBMAC1 — 2000 iterations, DER throughout</td>
+      <td><code>PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</code> alone; valid with <code>allowUnverifiedIntegrity</code>, the key signs</td>
+      </tr>
+      </tbody></table>
+      <p>The first run found one defect, in the report rather than the reading: a key shrouded under a PKCS#12 scheme, in a file whose certificates sit in contents the same refusal keeps shut — exactly what <code>-legacy</code> and a default Windows export write — was reported as <code>PKI_REASON_PKCS12_KEY_UNMATCHED</code>, whose remedy sends the caller after a certificate that could not have helped. It is now reported under its own scheme. Windows wrote DER at every level <code>parsePkcs12</code> reads; <code>encodingRules: &#39;ber&#39;</code> was not needed for any of it.</p>
       <h2 id="what-is-not-claimed-yet">What is not claimed yet <a class="heading-anchor" href="#what-is-not-claimed-yet" aria-label="Link to this section">#</a></h2>
       <p>The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 20 messages their end entities signed — at L8, and they are the only tests of either corpus that are. Their expected result depends on the <code>user-initial-policy-set</code> a validator is given; PKITS answers per setting in its prose, the archive states none of them, and a runner that guessed would be scoring its own guess. A reviewed transcription belongs in <code>scripts/data/pkits-score.json</code>, where the 9 deviations already live.</p>
       <p><strong>And the score is a measurement, not a promise.</strong> It moves when the corpus is re-pinned, which is why the 1.0 freeze will not name it: what gets frozen is the <em>decision surface</em> — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else&#39;s test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said <code>createCertificate</code> had to be able to emit <code>subjectKeyIdentifier</code> and <code>authorityKeyIdentifier</code> before their absence could be diagnosed, or everything this library builds would trip its own reader; <code>computeKeyIdentifier</code> closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.</p>

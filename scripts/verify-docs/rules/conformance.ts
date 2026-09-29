@@ -12,7 +12,7 @@
 
 import { CLAUSES } from '../../lib/clauses.js';
 import { CORPORA, checksumPath, parseChecksums } from '../../lib/corpora.js';
-import { IMPLEMENTED_TOOLS, PENDING_TOOLS } from '../../lib/interop.js';
+import { IMPLEMENTED_TOOLS, KEY_CONTAINER_CASES, PENDING_TOOLS } from '../../lib/interop.js';
 import { error, readJson, type Finding, type Rule } from '../context.js';
 
 const NOTICES = 'THIRD-PARTY-NOTICES.md';
@@ -169,11 +169,13 @@ const clauseTableComplete: Rule = {
  * is either implemented or listed as pending with a reason, and every pending
  * tool carries one long enough to act on. It also refuses a pending list that
  * has emptied without `--require-all` being turned on in the workflow, which
- * is the one moment the matrix stops being partly aspirational.
+ * is the one moment the matrix stops being partly aspirational. And it holds
+ * the key-container cases — the read direction — to the conformance guide in
+ * both directions.
  */
 const interopMatrixDeclared: Rule = {
     id: 'interop-matrix-declared',
-    summary: 'Every interoperability tool is implemented or listed as pending with a reason; ROADMAP.md names them all; and when nothing is pending the conformance workflow runs the matrix with --require-all.',
+    summary: 'Every interoperability tool is implemented or listed as pending with a reason; ROADMAP.md names them all; every key-container case belongs to an implemented tool and is described in the conformance guide, which describes no other; and when nothing is pending the conformance workflow runs the matrix with --require-all.',
     check(ctx) {
         const out: Finding[] = [];
         const declared = new Set([...IMPLEMENTED_TOOLS, ...PENDING_TOOLS.map((t) => t.id)]);
@@ -199,6 +201,23 @@ const interopMatrixDeclared: Rule = {
                     out.push(error(ROADMAP, `the interop-matrix line does not mention ${id} (looked for "${word}") — the roadmap and scripts/lib/interop.ts must promise the same matrix`));
                 }
             }
+        }
+
+        // The read direction for key containers: every case the runner may
+        // evaluate belongs to an implemented tool and is described in the
+        // conformance guide, and the guide describes no case the runner does
+        // not run — a case documented and never run is a claim nobody checks.
+        const guide = ctx.read(GUIDE) ?? '';
+        const cases = new Set(KEY_CONTAINER_CASES.map((c) => c.id));
+        if (cases.size !== KEY_CONTAINER_CASES.length) out.push(error(INTEROP, 'declares a key-container case twice'));
+        for (const c of KEY_CONTAINER_CASES) {
+            if (!IMPLEMENTED_TOOLS.includes(c.tool) || !c.id.startsWith(`${c.tool}:`)) {
+                out.push(error(INTEROP, `the key-container case ${c.id} names ${c.tool}, which is not an implemented tool or not its prefix`));
+            }
+            if (!guide.includes(`\`${c.id}\``)) out.push(error(GUIDE, `does not describe the key-container case \`${c.id}\`, which npm run interop runs`));
+        }
+        for (const m of guide.matchAll(/`([a-z0-9-]+:(?:pkcs8|pkcs12|pfx)-[a-z0-9-]+)`/g)) {
+            if (!cases.has(m[1] ?? '')) out.push(error(GUIDE, `describes the key-container case \`${m[1] ?? ''}\`, which scripts/lib/interop.ts does not declare`));
         }
 
         const workflow = ctx.read(CONFORMANCE_WORKFLOW) ?? '';

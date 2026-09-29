@@ -154,6 +154,16 @@ describe('verify-docs rule table', () => {
         expect(problems.filter((p) => p.severity === 'error').length, id).toBeGreaterThan(0);
     });
 
+    it.each([
+        ['a declared key-container case the guide does not describe', '`openssl:pkcs12-legacy`', '`openssl -legacy`', 'does not describe the key-container case `openssl:pkcs12-legacy`'],
+        ['a key-container case the guide describes and nobody declares', '`openssl:pkcs8-pbes1`', '`openssl:pkcs8-pbes1` and `openssl:pkcs8-scrypt`', 'describes the key-container case `openssl:pkcs8-scrypt`'],
+    ])('should fire interop-matrix-declared on %s', async (_what, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/conformance.md', from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'interop-matrix-declared');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/guides/conformance.md', message: expect.stringContaining(message) })]);
+    });
+
     it('should fire error-parity on a throw site whose message lacks the pkinative prefix', async () => {
         const files = { ...TREE };
         edit(files, 'src/core/pki-limits.ts', "'pkinative: options.limits must be", "'options.limits must be");
