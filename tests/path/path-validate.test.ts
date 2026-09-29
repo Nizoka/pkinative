@@ -763,6 +763,59 @@ describe('validateCertificatePath', () => {
         expect(reason).toBeDefined();
     });
 
+    it('should name the last certificate walked when no anchor is reached', () => {
+        const report = validateCertificatePath({ certificates: [LEAF, R12], trustAnchors: [], at: AT, signatures: valid(LEAF, R12) });
+        expect(report.reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_NO_TRUST_ANCHOR', 'path[1]']]);
+    });
+
+    it('should judge a lone leaf by the verdict naming the anchor whose subject it names, not another anchor', async () => {
+        // The chain stops at the leaf, so the issuer is looked up among the
+        // anchors by subject. An unrelated anchor listed first must not be
+        // taken for it: the only verdict supplied names the real issuer.
+        const other = await syntheticCa({ subject: 'Unrelated CA' });
+        const real = await syntheticCa({ subject: 'Real CA' });
+        const leaf = await syntheticUnder(real.subject.der, 'leaf.example', 'leaf.example');
+        const report = validateCertificatePath({ certificates: [leaf], trustAnchors: [other, real], at: AT, signatures: [{ certificate: leaf, issuer: real, verdict: 'valid' }] });
+        expect(codes(report)).toEqual([]);
+    });
+
+    // §6.1.4 (h)–(j), end to end: the unit tests of path-policies pin each
+    // step; these pin that validateCertificatePath wires the counters, the
+    // self-issued test and the caller's three switches into them.
+    const withExtensions = (certificate: Certificate, replace: readonly string[], extra: readonly unknown[]): Certificate =>
+        ({ ...certificate, extensions: [...certificate.extensions.filter((e) => !replace.includes(e.kind)), ...extra] }) as unknown as Certificate;
+    const policiesOf = (...ids: string[]): unknown => ({ oid: '2.5.29.32', critical: false, valueDer: new Uint8Array(0), kind: 'certificatePolicies',
+        policies: ids.map((policyIdentifier) => ({ policyIdentifier, qualifiers: [] })) });
+    const P1 = '1.3.6.1.4.1.99999.1';
+    const P2 = '1.3.6.1.4.1.99999.2';
+
+    it.each([[1, ['PKI_REASON_NO_VALID_POLICY']], [2, []]])('should spend requireExplicitPolicy %i on the non-self-issued leaf below it (§6.1.4 (h))', (skipCerts, expected) => {
+        // R12 asserts a policy, the leaf asserts none, so the tree dies at the
+        // leaf. requireExplicitPolicy: 1 makes a policy mandatory from the leaf
+        // on — which only happens if the leaf, not being self-issued, spends it.
+        const constrained = withExtensions(R12, [], [{ oid: '2.5.29.36', critical: true, valueDer: new Uint8Array(0), kind: 'policyConstraints',
+            requireExplicitPolicy: skipCerts, inhibitPolicyMapping: undefined }]);
+        const report = validateCertificatePath({ certificates: [LEAF, constrained, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, constrained) });
+        expect(codes(report)).toEqual(expected);
+    });
+
+    it('should honour a policy mapping unless the caller inhibits mapping (§6.1.4 (b))', () => {
+        const mapper = withExtensions(R12, ['certificatePolicies'], [policiesOf(P1), { oid: '2.5.29.33', critical: true, valueDer: new Uint8Array(0), kind: 'policyMappings',
+            mappings: [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }] }]);
+        const leaf = withExtensions(LEAF, [], [policiesOf(P2)]);
+        const input = { certificates: [leaf, mapper, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(leaf, mapper), requireExplicitPolicy: true };
+        expect(codes(validateCertificatePath(input))).toEqual([]);
+        expect(codes(validateCertificatePath({ ...input, inhibitPolicyMapping: true }))).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+    });
+
+    it('should let a leaf policy descend from an asserted anyPolicy unless the caller inhibits anyPolicy (§6.1.3 (d)(2))', () => {
+        const wildcard = withExtensions(R12, ['certificatePolicies'], [policiesOf('2.5.29.32.0')]);
+        const leaf = withExtensions(LEAF, [], [policiesOf(P1)]);
+        const input = { certificates: [leaf, wildcard, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(leaf, wildcard), requireExplicitPolicy: true };
+        expect(codes(validateCertificatePath(input))).toEqual([]);
+        expect(codes(validateCertificatePath({ ...input, inhibitAnyPolicy: true }))).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+    });
+
     it('should be true only when there is no reason at all', () => {
         const report = validateCertificatePath({ certificates: [LEAF, R12, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, R12) });
         expect(report.valid).toBe(report.reasons.length === 0);

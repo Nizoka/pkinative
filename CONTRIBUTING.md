@@ -68,6 +68,8 @@ npm run gate           # Everything a pull request is held to, in one command
 
 All new code must include tests. Coverage thresholds (vitest.config.ts): 100% of statements, branches, functions and lines, with no per-path override — a glob threshold replaces the global one, so an exception would only ever lower the bar. A branch no input can reach is removed by construction; where that is impossible it carries a `/* v8 ignore next -- why */` comment, counted by `declared.coverageIgnores` and checked by the `coverage-ignore-budget` rule of `npm run verify:docs`.
 
+Coverage proves a line ran, not that a test would notice it being wrong. `npm run mutate` (`scripts/mutate.ts`, zero dependencies) applies one syntax-tree mutant at a time to a sandbox copy of the tree and runs the suites that import the file; it takes minutes per file, so it is not a gate step. Run it on the files you touched when you change a security decision — key decryption, the Web Crypto boundary, a path, revocation or CMS verdict, the decoder — with `npx tsx scripts/mutate.ts --files <file>` (`=N` samples a large file, `--seed` keeps the sample reproducible). Every survivor gets a test that kills it, or an entry in `scripts/data/mutation-equivalents.json` whose `reason` argues why no input can observe it; `tests/tools/mutation.test.ts` fails on an entry whose mutant no longer exists.
+
 `npm run verify:docs` lists its rules with `npx tsx scripts/verify-docs.ts --list`. Each rule has a perturbation in `tests/docs/verify-docs.test.ts` that proves it fires; a new rule without one fails the suite.
 
 ## Lint & Type Check

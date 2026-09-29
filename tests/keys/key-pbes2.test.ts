@@ -90,6 +90,12 @@ describe('_readPasswordEncryption — what pkinative opens', () => {
         expect(read(pbes2(alg(PBKDF2, pbkdf2Params({ keyLength: 32 })))).encryption.pbes2?.keyBits).toBe(256);
     });
 
+    it.each([[999, ['PKI_DIAG_KEY_KDF_ITERATIONS_LOW']], [1000, []]])('should hold the RFC 8018 §4.2 recommendation at exactly 1 000: %i iterations diagnose %j', (iterations, codes) => {
+        const { encryption, diagnostics } = read(pbes2(alg(PBKDF2, pbkdf2Params({ iterations }))));
+        expect(encryption.pbes2?.iterations).toBe(iterations);
+        expect(diagnostics.map((d) => d.code)).toEqual(codes);
+    });
+
     it('should diagnose an iteration count below the 1 000 RFC 8018 §4.2 recommends, and still read it', () => {
         const { encryption, diagnostics } = read(pbes2(alg(PBKDF2, pbkdf2Params({ iterations: 1 }))));
         expect(encryption.pbes2?.iterations).toBe(1);
@@ -106,6 +112,8 @@ describe('_readPasswordEncryption — what pkinative describes and refuses', () 
         ['PBES2 with a salt from otherSource', pbes2(alg(PBKDF2, pbkdf2Params({ salt: alg('1.2.3.4') }))), 'PBES2 with PBKDF2 with a salt from otherSource, which RFC 8018 reserves for future use'],
         ['PBES2 over HMAC-SHA-224, which Web Crypto lacks', pbes2(alg(PBKDF2, pbkdf2Params({ prf: alg(HMAC['SHA-224']) }))), 'PBES2 with PBKDF2 with a PRF Web Crypto does not implement (1.2.840.113549.2.8)'],
         ['PBES2 over an HMAC with parameters', pbes2(alg(PBKDF2, pbkdf2Params({ prf: alg(HMAC['SHA-256'], int(1)) }))), 'PBES2 with PBKDF2 with a PRF Web Crypto does not implement (1.2.840.113549.2.9)'],
+        // Empty is not NULL: parameters must be absent or exactly NULL (RFC 8018 §B.1.2).
+        ['PBES2 over an HMAC with empty SEQUENCE parameters', pbes2(alg(PBKDF2, pbkdf2Params({ prf: alg(HMAC['SHA-256'], sequence()) }))), 'PBES2 with PBKDF2 with a PRF Web Crypto does not implement (1.2.840.113549.2.9)'],
         ['PBES2 with 3DES', pbes2(undefined, alg('1.2.840.113549.3.7', octets(IV.subarray(0, 8)))), 'PBES2 with a cipher other than AES-CBC (1.2.840.113549.3.7)'],
     ])('should describe %s, with no PBES2 parameters', (_what, der, scheme) => {
         const { encryption } = read(der);
@@ -162,6 +170,36 @@ describe('_readPasswordEncryption — structures that break the grammar', () => 
         expect(error).toBeInstanceOf(PkiKeyError);
         expect(error).toMatchObject({ code: 'PKI_KEY_STRUCTURE_INVALID', path });
         expect((error as PkiKeyError).message).toMatch(/^pkinative: /);
+    });
+
+    // The range check and the cipher cross-check both refuse a keyLength at
+    // the same path; the offset tells which rule fired — the range check
+    // points at the INTEGER itself, the contradiction at PBES2-params.
+    const offsetOf = (haystack: Uint8Array, needle: Uint8Array): number => {
+        const hits: number[] = [];
+        for (let i = 0; i + needle.length <= haystack.length; i++) {
+            if (needle.every((b, j) => haystack[i + j] === b)) hits.push(i);
+        }
+        if (hits.length !== 1) throw new Error(`expected one occurrence, found ${String(hits.length)}`);
+        return hits[0] as number;
+    };
+    const keyLengthCase = (keyLength: number): { der: Uint8Array; integerAt: number; paramsAt: number } => {
+        const kdfParams = pbkdf2Params({ keyLength });
+        const params = sequence(alg(PBKDF2, kdfParams), alg(AES[256], octets(IV)));
+        const der = alg(PBES2, params);
+        const kdfAt = offsetOf(der, kdfParams);
+        return { der, integerAt: kdfAt + offsetOf(kdfParams, int(keyLength)), paramsAt: offsetOf(der, params) };
+    };
+
+    it.each([0, 65])('should refuse a keyLength of %i by the RFC 8018 range, at the INTEGER', (keyLength) => {
+        const { der, integerAt, paramsAt } = keyLengthCase(keyLength);
+        expect(integerAt).not.toBe(paramsAt);
+        expect(refusal(der)).toMatchObject({ code: 'PKI_KEY_STRUCTURE_INVALID', path: 'encryptionAlgorithm.parameters.keyDerivationFunc.parameters.keyLength', offset: integerAt });
+    });
+
+    it.each([1, 64])('should let a keyLength of %i through the range, and refuse it only because AES-256 needs 32, at PBES2-params', (keyLength) => {
+        const { der, paramsAt } = keyLengthCase(keyLength);
+        expect(refusal(der)).toMatchObject({ code: 'PKI_KEY_STRUCTURE_INVALID', path: 'encryptionAlgorithm.parameters.keyDerivationFunc.parameters.keyLength', offset: paramsAt });
     });
 
     it('should let an ASN.1 value error surface as itself, not as a key error', () => {

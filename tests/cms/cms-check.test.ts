@@ -124,6 +124,12 @@ describe('_signerCandidates', () => {
         expect(_describeSid(signer().sid)).toContain('serial 07');
         expect(_describeSid({ kind: 'subjectKeyIdentifier', keyIdentifier: Uint8Array.of(0xab) })).toBe('subjectKeyIdentifier ab');
     });
+
+    it('should abbreviate the issuer to its first 16 octets, from the first one', () => {
+        const issuerHex = Buffer.from(SIGNER_CERT.issuer.der).toString('hex');
+        expect(issuerHex.length).toBeGreaterThan(32);
+        expect(_describeSid(signer().sid)).toBe(`issuer ${issuerHex.slice(0, 32)}…, serial 07`);
+    });
 });
 
 describe('_signerAttributeReasons', () => {

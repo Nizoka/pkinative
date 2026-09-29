@@ -119,6 +119,14 @@ describe('decodeAsn1 — indefinite length and end-of-contents', () => {
         expect(failure(() => decodeAsn1(hex(input), { encodingRules: 'ber', onDiagnostic: () => undefined })).code).toBe(code);
     });
 
+    it.each([
+        ['the outer value', '30 80 02 01 05', 0],
+        ['the innermost open value', '30 80 30 80 02 01 05', 2],
+    ])('should point a missing end-of-contents marker at %s, not at the end of the input', (_label, input, offset) => {
+        const error = failure(() => decodeAsn1(hex(input), { encodingRules: 'ber', onDiagnostic: () => undefined }));
+        expect(error).toMatchObject({ code: 'PKI_ASN1_TRUNCATED', offset });
+    });
+
     it('should explain which end-of-contents rule was broken', () => {
         expect(failure(() => decodeAsn1(hex('00 00'))).message).toContain('outside an indefinite-length value');
         expect(failure(() => decodeAsn1(hex('30 80 00 01 00 00 00'), { encodingRules: 'ber', onDiagnostic: () => undefined })).message).toContain('not the two octets');

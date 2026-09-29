@@ -203,6 +203,11 @@ describe('readPkcs12 — a file it can vouch for', () => {
         const has = (needle: Uint8Array): boolean => plaintext.some((_, i) => needle.every((b, j) => plaintext[i + j] === b));
         expect(has(pkcs8)).toBe(false);
         expect(has(holder.certificate.der)).toBe(true);
+        // Wiped means zeroed, not merely changed: the decrypted plaintext has
+        // the layout of `inner`, so the key's octets sit where they sat there.
+        const at = inner.findIndex((_, i) => pkcs8.every((b, j) => inner[i + j] === b));
+        expect(at).toBeGreaterThan(0);
+        expect([...plaintext.subarray(at, at + pkcs8.length)].every((b) => b === 0)).toBe(true);
     });
 
     it('should leave a plain key in an unencrypted SafeContents alone: those are the caller\'s bytes', async () => {
@@ -232,13 +237,15 @@ describe('readPkcs12 — integrity, failing closed', () => {
     });
 
     it.each([
-        ['an RFC 7292 Appendix B MAC', 'legacy'],
-        ['no MAC at all', 'none'],
-    ] as const)('should read a file with %s, and call it invalid unless the caller waives integrity', async (_what, mac) => {
+        ['an RFC 7292 Appendix B MAC', 'legacy', 'Appendix B KDF'],
+        ['no MAC at all', 'none', 'carries no MAC'],
+    ] as const)('should read a file with %s, and call it invalid unless the caller waives integrity', async (_what, mac, why) => {
         const holder = await issue(await makeRoot());
         const der = await file({ holder, mac });
         const strict = await read(der);
         expect(codes(strict)).toEqual(['PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED']);
+        // The reason says which of the unverifiable kinds it is, as the PBMAC1 case below does.
+        expect(strict.reasons[0]?.message).toContain(why);
         expect(strict.valid).toBe(false);
         expect(strict.integrity).toBe('unverified');
         expect(strict.keys[0]?.signingKey).toBeDefined();

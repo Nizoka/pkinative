@@ -406,6 +406,12 @@ describe('parsePkcs12 — MacData', () => {
         expect(encoded.diagnostics.map((d) => [d.code, d.path])).toEqual([['PKI_DIAG_DEFAULT_ENCODED', 'macData.iterations']]);
     });
 
+    it('should not call an encoded iteration count other than 1 an encoded DEFAULT', () => {
+        const explicit = parse(pfx({ authSafe: authenticatedSafe(), macData: macData(alg(P12.sha1), new Uint8Array(20), Uint8Array.of(1), 2) }));
+        expect(explicit.p12.mac?.iterations).toBe(2);
+        expect(explicit.diagnostics).toEqual([]);
+    });
+
     it('should describe a PBMAC1 MAC (RFC 9579)', async () => {
         const safe = authenticatedSafe();
         const mac = parse(pfx({ authSafe: safe, macData: await pbmac1MacData(safe, PASSWORD, { prf: 'SHA-512', hmac: 'SHA-384', keyLength: 48 }) })).p12.mac;

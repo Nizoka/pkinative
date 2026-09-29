@@ -67,6 +67,7 @@
     "conformance:fetch": "npx tsx scripts/fetch-corpora.ts",
     "conformance": "npx tsx scripts/validate-certs.ts --require-all",
     "interop": "npx tsx scripts/run-interop.ts",
+    "mutate": "npx tsx scripts/mutate.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

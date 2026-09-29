@@ -1,0 +1,54 @@
+{
+  "$comment": "Reviewed equivalent mutants of scripts/mutate.ts: changes no test can distinguish, so no test is written for them. Each entry names the mutant by id (<file>:<line>:<column>:<operator>, as the runner prints it) and repeats its original and replacement text, so an entry whose source moved is reported STALE rather than silently matching something else; reason is the argument for equivalence, never the word TODO. An entry a test kills is reported REFUTED. Two kinds are admitted. Semantic: no input yields a different result, error or reason. Message-only: the mutant changes nothing but the wording of a thrown error's message, which the testing contract (.github/instructions/testing.instructions.md: assert the error code, never the message text) deliberately leaves unasserted — code, class, path and offset are all unchanged. Empty is the goal; every entry is a claim a reviewer can check.",
+  "schema": 1,
+  "equivalents": [
+    {
+      "id": "src/asn1/asn1-decode.ts:117:64:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: `at - 1` is the offset quoted in the PKI_ASN1_LENGTH_INVALID message text; the error's offset field is `offset`, which the mutant does not touch."
+    },
+    {
+      "id": "src/asn1/asn1-decode.ts:183:59:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra case is pos + 1 === data.length, where data[pos + 1] reads past the Uint8Array and is undefined, so `data[pos + 1] === 0` is false and the branch is not taken either way."
+    },
+    {
+      "id": "src/keys/key-pbes2.ts:201:97:number+1",
+      "original": "8",
+      "replacement": "9",
+      "reason": "Message-only: `keyBits / 8` only renders the octet count the cipher needs in the PKI_KEY_STRUCTURE_INVALID message; the comparison that throws is on line 199 and is pinned by the keyLength range and contradiction tests (code, path and offset)."
+    },
+    {
+      "id": "src/keys/key-pbes2.ts:201:97:number-1",
+      "original": "8",
+      "replacement": "7",
+      "reason": "Message-only: as number+1 at the same position — the divisor only formats the message text."
+    },
+    {
+      "id": "src/keys/key-pbes2.ts:242:118:conditional",
+      "original": "password === null ? 'null' : typeof password",
+      "replacement": "(password === null ? typeof password : 'null')",
+      "reason": "Message-only: the expression names the wrong type in the PKI_INVALID_INPUT message ('got null' / 'got number'); the refusal itself, its class and its code are decided by the enclosing instanceof test."
+    },
+    {
+      "id": "src/keys/key-pbes2.ts:242:127:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 242:118."
+    },
+    {
+      "id": "src/path/path-validate.ts:258:48:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra case is constraint === state.maxPathLength, where the mutant assigns maxPathLength the value it already holds."
+    },
+    {
+      "id": "src/verify/verify-pkcs12.ts:175:14:if-false",
+      "original": "mac.pbmac1 === undefined",
+      "replacement": "false",
+      "reason": "Semantic: with the early test gone, a PBMAC1 MacData without runnable parameters reaches verifyPkcs12Mac, which throws PKI_KEY_MAC_UNSUPPORTED before touching the password or Web Crypto; the catch below sets the same unverified = 'pbmac1-unsupported', so the report is identical. The early test is there to say so without a throw, not to change the answer."
+    }
+  ]
+}

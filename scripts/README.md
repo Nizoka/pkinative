@@ -48,8 +48,9 @@ is swallowed before `npm run gate` sees it.
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
 | `build-errors-frozen.ts` | — | — | `docs/data/errors.frozen.json`, the error-code snapshot `error-codes-frozen` holds the registry to; refuses to change it once `frozenAt` is released | 0/1/2 |
-| `build-api-frozen.ts` | — | — | `docs/assets/api.frozen.json`, the public-surface snapshot `api-surface-frozen` holds the sources to. Refuses to change it once `asOf` is released, except `--major X.0.0` (a new major's release commit; at 1.0.0 only if the rehearsal held) and `--ratchet` (a 1.x release's compatible additions) — both run by `release-prepare.ts` | 0/1/2 |
+| `build-api-frozen.ts` | — | — | `docs/assets/api.frozen.json`, the public-surface snapshot `api-surface-frozen` holds the sources to. Refuses to change it once `asOf` is released, except `--rebaseline docs/adr/NNNN-slug.md` (the rehearsal only, on an accepted ADR, logged in the snapshot), `--major X.0.0` (a new major's release commit; at 1.0.0 only if the rehearsal held) and `--ratchet` (a 1.x release's compatible additions) — both run by `release-prepare.ts` | 0/1/2 |
 | `check-npm-drift.ts` | `check:npm-drift` | — | Online, so never a gate step: the registry's `latest` for `pkinative` against the manifest — below 1.0.0 the `0.0.1` name reservation and no other version at all, from 1.0.0 the manifest's version. Run weekly by the `npm-drift` job of `docs.yml`. `--json` | 0/1/2 |
+| `mutate.ts` | `mutate` | — | Deterministic mutation testing: mutants enumerated on the syntax tree, type-checked, applied one at a time to a sandbox copy under `test-output/mutation/` and run against the suites that import the file; survivors re-run against every reaching suite. Reviewed equivalents in `data/mutation-equivalents.json`. `--files a,b=N`, `--sample N`, `--seed S`, `--concurrency K`, `--list` | 0/1/2 |
 | `verify-issue.mjs` | `verify:issue` | — | The policy check on an agent's issue draft: refuses a proposed runtime dependency or a missing reproduction block | 0/1/2 |
 | `install-git-hooks.mjs` | `hooks:install`, `hooks:uninstall` | — | Opt-in `core.hooksPath`; refuses to overwrite an existing value | 0/1 |
 
@@ -66,6 +67,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `bundle-probe.ts` | What `dist/` must and must not contain, decided on the artefact |
 | `corpora.ts` | The corpus pins, their checksum paths and their local directories |
 | `raw-der.ts` | An engine-independent DER walker: the conformance gate's second opinion, which never imports `src/` |
+| `mutation.ts` | `mutate.ts` and `tests/tools/mutation.test.ts`: the mutation operators, the seeded sampler, the import graph that selects suites, the equivalents table and the score |
 | `validators.ts` | The cross-implementation confrontation of level L4, its blob format and its canaries |
 | `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |

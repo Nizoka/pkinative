@@ -125,6 +125,18 @@ describe('checkRevocation', () => {
         expect(codes(check(NOT_LISTED, expired))).toEqual(['PKI_REASON_REVOCATION_STALE']);
     });
 
+    it('should hold a list current up to and including its nextUpdate instant, and stale one millisecond after', () => {
+        // RFC 5280 §5.1.2.5: nextUpdate is the date by which the next list will
+        // be issued — the list is still the current one at that instant.
+        const crl = buildCrl({ nextUpdate: utc('260701000000Z') });
+        const nextUpdate = Date.UTC(2026, 6, 1);
+        expect(check(NOT_LISTED, crl, { at: nextUpdate })).toEqual([]);
+        expect(codes(check(NOT_LISTED, crl, { at: nextUpdate + 1 }))).toEqual(['PKI_REASON_REVOCATION_STALE']);
+        // …and the tolerance moves that boundary by exactly its own length.
+        expect(check(NOT_LISTED, crl, { at: nextUpdate + DAY, staleTolerance: DAY })).toEqual([]);
+        expect(codes(check(NOT_LISTED, crl, { at: nextUpdate + DAY + 1, staleTolerance: DAY }))).toEqual(['PKI_REASON_REVOCATION_STALE']);
+    });
+
     it('should accept a lapsed list within an explicit tolerance', () => {
         // Soft-fail as an explicit choice, with a number the caller wrote.
         const expired = buildCrl({ nextUpdate: utc('260215000000Z') });
