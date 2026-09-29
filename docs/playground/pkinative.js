@@ -8670,9 +8670,9 @@ function _under(prefix, reason) {
 
 // src/verify/verify-timestamp.ts
 async function verifyTimeStampToken(input) {
-  const expectation = _expectation(input);
-  const reasons = [];
   const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
+  const expectation = _expectation(input, reading);
+  const reasons = [];
   let token;
   try {
     if (input.response === void 0) {
@@ -8772,7 +8772,7 @@ function _report(reasons, token, tsa, chain, verified) {
     verified
   });
 }
-function _expectation(input) {
+function _expectation(input, reading) {
   if (input.token === void 0 === (input.response === void 0)) {
     throw new PkiError(
       "PKI_API_MISUSE",
@@ -8785,7 +8785,7 @@ function _expectation(input) {
       "pkinative: say what was stamped \u2014 pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued"
     );
   }
-  const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, { limits: input.limits ?? {}, onDiagnostic: () => void 0 });
+  const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, reading);
   return {
     imprint: input.imprint,
     data: input.data,

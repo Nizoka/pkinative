@@ -41,7 +41,7 @@ import { computeFingerprintAsync } from '../hash/fingerprint.js';
 import type { PkiTime } from '../types/asn1-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { PkiLimits } from '../types/pki-types.js';
+import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { MessageImprint, TimeStampToken } from '../types/tsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
@@ -157,9 +157,11 @@ interface _Expectation {
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
 export async function verifyTimeStampToken(input: VerifyTimeStampInput): Promise<VerifyTimeStampReport> {
-    const expectation = _expectation(input);
-    const reasons: PkiReason[] = [];
+    // Silent for everything this call reads — the request, the token and the
+    // bag: a verdict call reports in its report.
     const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
+    const expectation = _expectation(input, reading);
+    const reasons: PkiReason[] = [];
 
     let token: TimeStampToken;
     try {
@@ -277,7 +279,7 @@ function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefine
 }
 
 /** What the caller said was stamped, resolved once and refused if they said nothing. */
-function _expectation(input: VerifyTimeStampInput): _Expectation {
+function _expectation(input: VerifyTimeStampInput, reading: PkiParseOptions): _Expectation {
     if ((input.token === undefined) === (input.response === undefined)) {
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: pass the timestamp as exactly one of token (the token alone) or response (the whole TimeStampResp the TSA sent)');
@@ -286,9 +288,7 @@ function _expectation(input: VerifyTimeStampInput): _Expectation {
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: say what was stamped — pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued');
     }
-    // Silent, as the token and the bag are: a verdict call reports in its
-    // report, and a request that strays from a profile is the caller's own.
-    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined });
+    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, reading);
     return {
         imprint: input.imprint,
         data: input.data,
