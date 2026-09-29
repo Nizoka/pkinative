@@ -11,7 +11,7 @@
 
 // ── 1. Errors, limits and diagnostics ────────────────────────────────
 
-export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError, PkiCmsError } from './types/pki-errors.js';
+export { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError, PkiCmsError, PkiKeyError } from './types/pki-errors.js';
 export type {
     PkiErrorCode,
     PkiBaseErrorCode,
@@ -20,6 +20,7 @@ export type {
     PkiLimitErrorCode,
     PkiCryptoErrorCode,
     PkiCmsErrorCode,
+    PkiKeyErrorCode,
 } from './types/pki-errors.js';
 export { DEFAULT_PKI_LIMITS } from './core/pki-limits.js';
 export type {
@@ -263,3 +264,31 @@ export { verifySignedData } from './verify/verify-signed-data.js';
 export type { SignerVerification, VerifySignedDataInput, VerifySignedDataReport } from './verify/verify-signed-data.js';
 export { verifyTimeStampToken } from './verify/verify-timestamp.js';
 export type { VerifyTimeStampInput, VerifyTimeStampReport } from './verify/verify-timestamp.js';
+
+// ── 10. Private keys — PKCS#8 and PKCS#12, under PBES2 only ──────────
+// Reading in keys/, the password operations at the Web Crypto door, and the
+// one call that opens a whole .p12 in verify/. No type here holds a private
+// key's bits: a key comes out as a non-extractable SigningKey.
+
+export { parseEncryptedPrivateKeyInfo, parsePrivateKeyInfo } from './keys/key-pkcs8.js';
+export { decryptPrivateKey, importPrivateKey } from './keys/key-import.js';
+export { openSafeContents, parsePkcs12, verifyPkcs12Mac } from './keys/key-pkcs12.js';
+export { canDecrypt } from './crypto/webcrypto.js';
+export type {
+    DecryptPrivateKeyOptions,
+    EncryptedPrivateKeyInfo,
+    ImportPrivateKeyOptions,
+    PasswordEncryption,
+    Pbes2Parameters,
+    Pbkdf2Prf,
+    Pkcs12,
+    Pkcs12Mac,
+    Pkcs12MacKind,
+    PrivateKeyInfo,
+    PrivateKeyType,
+    SafeBag,
+    SafeBagKind,
+    SafeContentsInfo,
+} from './types/key-types.js';
+export { readPkcs12 } from './verify/verify-pkcs12.js';
+export type { Pkcs12Key, ReadPkcs12Options, ReadPkcs12Report } from './verify/verify-pkcs12.js';

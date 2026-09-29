@@ -114,12 +114,20 @@ describe('validation reasons', () => {
         expect(ALL.map((r) => r.code).sort()).toEqual(REGISTRY.reasons.map((r) => r.code).sort());
     });
 
+    it('should tell a scheme pkinative refuses from one this runtime lacks', () => {
+        const policy = pkcs12EncryptionUnsupportedReason('authSafe[0]', 'pbeWithSHAAnd40BitRC2-CBC').message;
+        const runtime = pkcs12EncryptionUnsupportedReason('authSafe[0]', 'PBES2 (PBKDF2 with HMAC-SHA-256, AES-192-CBC)', true).message;
+        expect(policy).toContain('Appendix B');
+        expect(runtime).toContain('another runtime');
+        expect(runtime).not.toContain('Appendix B');
+    });
+
     it('should say why a PKCS#12 could not be vouched for, and say it differently for each cause', () => {
-        // Three causes, three remedies: re-export with PBMAC1, add a MAC at
-        // all, or leave public-key mode. One sentence for all three would send
-        // the caller to the wrong one.
-        const messages = (['pkcs12-kdf', 'absent', 'public-key'] as const).map((why) => pkcs12IntegrityUnverifiedReason('macData', why).message);
-        expect(new Set(messages).size).toBe(3);
+        // Four causes, four remedies: re-export with PBMAC1, add a MAC at all,
+        // leave public-key mode, or use a runtime with the HMAC. One sentence
+        // for all four would send the caller to the wrong one.
+        const messages = (['pkcs12-kdf', 'absent', 'public-key', 'pbmac1-unsupported'] as const).map((why) => pkcs12IntegrityUnverifiedReason('macData', why).message);
+        expect(new Set(messages).size).toBe(4);
         expect(messages[0]).toContain('Appendix B');
     });
 

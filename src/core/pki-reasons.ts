@@ -402,11 +402,15 @@ export function tspImprintMismatchReason(path: string): PkiReason {
  * A key or a bag of certificates is encrypted with a scheme pkinative refuses.
  *
  * The policy of `PKI_KEY_ENCRYPTION_UNSUPPORTED`, reported instead of thrown:
- * the rest of the container may still be read.
+ * the rest of the container may still be read. `byRuntime` is the other
+ * cause, and a different remedy: a PBES2 scheme pkinative opens, whose cipher
+ * or PRF this host's Web Crypto does not implement — AES-192 on several
+ * browsers.
  */
-export function pkcs12EncryptionUnsupportedReason(path: string, scheme: string): PkiReason {
-    return _reason('PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED', 'RFC 8018 §6.2',
-        `encrypted with ${scheme}, which pkinative does not open: only PBES2 with PBKDF2 and AES-CBC is, because the PKCS#12 schemes derive their key with RFC 7292 Appendix B`,
+export function pkcs12EncryptionUnsupportedReason(path: string, scheme: string, byRuntime = false): PkiReason {
+    return _reason('PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED', 'RFC 8018 §6.2', byRuntime
+        ? `encrypted with ${scheme}, which pkinative opens and this runtime's Web Crypto does not implement; try another runtime before concluding the file is at fault`
+        : `encrypted with ${scheme}, which pkinative does not open: only PBES2 with PBKDF2 and AES-CBC is, because the PKCS#12 schemes derive their key with RFC 7292 Appendix B`,
         path);
 }
 
@@ -417,12 +421,14 @@ export function pkcs12EncryptionUnsupportedReason(path: string, scheme: string):
  * written before OpenSSL 3.4 — and when there is no MAC at all, unless the
  * caller said with `allowUnverifiedIntegrity` that they accept that.
  */
-export function pkcs12IntegrityUnverifiedReason(path: string, why: 'pkcs12-kdf' | 'absent' | 'public-key'): PkiReason {
+export function pkcs12IntegrityUnverifiedReason(path: string, why: 'pkcs12-kdf' | 'absent' | 'public-key' | 'pbmac1-unsupported'): PkiReason {
     const detail = why === 'absent'
         ? 'the container carries no MAC, so nothing vouches that its contents are what was written'
         : why === 'public-key'
             ? 'the container uses public-key integrity mode, which pkinative does not verify'
-            : 'its MAC is keyed with the RFC 7292 Appendix B KDF, which pkinative does not implement; only an RFC 9579 PBMAC1 MAC can be checked';
+            : why === 'pbmac1-unsupported'
+                ? 'its RFC 9579 PBMAC1 MAC uses a key derivation or an HMAC that Web Crypto does not run, so it cannot be checked here'
+                : 'its MAC is keyed with the RFC 7292 Appendix B KDF, which pkinative does not implement; only an RFC 9579 PBMAC1 MAC can be checked';
     return _reason('PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED', 'RFC 9579 §3', detail, path);
 }
 

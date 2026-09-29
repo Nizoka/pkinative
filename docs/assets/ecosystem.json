@@ -53,24 +53,24 @@
       "src/types/**"
     ],
     "bundle": {
-      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for revocation and OCSP, measured 247184/249342/157003/157003/736695/736698 at +12 %. The declaration files are the fastest-growing artefact and declared.typeSurface is what makes that visible: 197 exports now, 115 of them types. Raised once more at 0.5.0 for the purpose check and the verify layer, measured 270984/273327/182552/182552/841166/841169 at +10 %. dist/index.d.ts is now 182552 bytes: the 1.0 trigger written down in the plan is 200000, past which subpath exports get reconsidered as a whole rather than one at a time. Raised at 0.7.0 for CMS and RFC 3161, measured 389073/391794/258879/258879/1241462/1241465 at +43 %: the largest rise so far, for a whole subsystem with its parser, builder and two verdicts. dist/index.d.ts has now passed that 200000 trigger. The decision stays where the plan put it, at 1.0 and for the whole partition at once: a subpath added now would freeze a module split before keys/ exists.",
+      "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for revocation and OCSP, measured 247184/249342/157003/157003/736695/736698 at +12 %. The declaration files are the fastest-growing artefact and declared.typeSurface is what makes that visible: 197 exports now, 115 of them types. Raised once more at 0.5.0 for the purpose check and the verify layer, measured 270984/273327/182552/182552/841166/841169 at +10 %. dist/index.d.ts is now 182552 bytes: the 1.0 trigger written down in the plan is 200000, past which subpath exports get reconsidered as a whole rather than one at a time. Raised at 0.7.0 for CMS and RFC 3161, measured 389073/391794/258879/258879/1241462/1241465 at +43 %: the largest rise so far, for a whole subsystem with its parser, builder and two verdicts. dist/index.d.ts has now passed that 200000 trigger. The decision stays where the plan put it, at 1.0 and for the whole partition at once: a subpath added now would freeze a module split before keys/ exists. Raised at 0.8.0 for PKCS#8 and PKCS#12, measured 445030/448014/294325/294325/1407559/1407562 at +14 %: keys/ now exists, so the partition the 1.0 decision will weigh is complete.",
       "dist/index.js": {
-        "maxBytes": 420000
+        "maxBytes": 470000
       },
       "dist/index.cjs": {
-        "maxBytes": 423000
+        "maxBytes": 473000
       },
       "dist/index.d.ts": {
-        "maxBytes": 280000
+        "maxBytes": 310000
       },
       "dist/index.d.cts": {
-        "maxBytes": 280000
+        "maxBytes": 310000
       },
       "dist/index.js.map": {
-        "maxBytes": 1340000
+        "maxBytes": 1480000
       },
       "dist/index.cjs.map": {
-        "maxBytes": 1340000
+        "maxBytes": 1480000
       }
     },
     "typeSurface": {
@@ -79,13 +79,13 @@
       "exportedValues": 101
     },
     "playgroundBundle": {
-      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own.",
+      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "61788234cb3b8f3a2cb45fb35c2e44b0b8949655843f0435779925acdd018ac3",
-      "bundleSha256": "1118f93268523689f548782e0ac17b3107edd0cbd157fc3f8ff8656abd3017a6",
-      "bytes": 390900,
-      "maxBytes": 400000
+      "sourceSha256": "dd1b078d3b7a403ee3a20f5807df5ee9b5d835212f95117cf8a08219e413b55c",
+      "bundleSha256": "f9b2ccb81a56e37c712a30ddc41a64595c530e25359e34295c4bef3c153c73a2",
+      "bytes": 445205,
+      "maxBytes": 470000
     },
     "socialImages": [
       {

@@ -34,13 +34,13 @@ const CUSTOMARY_HASH: Readonly<Record<'P-256' | 'P-384' | 'P-521', SignatureHash
 });
 
 /** An algorithm in words, for an error message. */
-function _describe(algorithm: SignatureAlgorithm): string {
+function _algorithmName(algorithm: SignatureAlgorithm): string {
     return algorithm.name === 'ECDSA' ? `ECDSA on ${String(algorithm.namedCurve)}` : String(algorithm.name);
 }
 
 function _mismatch(key: string, algorithm: SignatureAlgorithm): PkiError {
     return new PkiError('PKI_API_MISUSE',
-        `pkinative: the private key is ${key}, and the algorithm named is ${_describe(algorithm)} — name an algorithm the key can sign with, or omit it where the key decides`);
+        `pkinative: the private key is ${key}, and the algorithm named is ${_algorithmName(algorithm)} — name an algorithm the key can sign with, or omit it where the key decides`);
 }
 
 function _ambiguous(key: string, choice: string): PkiError {

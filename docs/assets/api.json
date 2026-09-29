@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 253,
+  "exportCount": 281,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -1212,6 +1212,54 @@
       "members": null
     },
     {
+      "name": "DecryptPrivateKeyOptions",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface DecryptPrivateKeyOptions extends PkiParseOptions",
+      "summary": "Options of `decryptPrivateKey`: the parse options, the password, and the algorithm the key inside will sign with.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "password",
+          "type": "Uint8Array | string",
+          "optional": false,
+          "summary": "The password."
+        },
+        {
+          "name": "algorithm",
+          "type": "SignatureAlgorithm",
+          "optional": false,
+          "summary": "The algorithm the key inside signs with."
+        }
+      ]
+    },
+    {
       "name": "DeltaCrlInput",
       "kind": "type",
       "module": "src/revocation/crl-check.ts",
@@ -1412,6 +1460,42 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "EncryptedPrivateKeyInfo",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface EncryptedPrivateKeyInfo",
+      "summary": "RFC 5958 §3 `EncryptedPrivateKeyInfo`: a scheme and ciphertext.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole structure, as a zero-copy view of the input."
+        },
+        {
+          "name": "encryption",
+          "type": "PasswordEncryption",
+          "optional": false,
+          "summary": "How the key was encrypted."
+        },
+        {
+          "name": "encryptedData",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The ciphertext, as a zero-copy view."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
     },
     {
       "name": "EssCertId",
@@ -1748,6 +1832,48 @@
           "type": "number | undefined",
           "optional": false,
           "summary": "The maximum depth; `undefined` when absent, which RFC 5280 requires."
+        }
+      ]
+    },
+    {
+      "name": "ImportPrivateKeyOptions",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface ImportPrivateKeyOptions extends PkiParseOptions",
+      "summary": "Options of `importPrivateKey`: the parse options, and the algorithm the key will sign with when the key alone does not say.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "algorithm",
+          "type": "SignatureAlgorithm | undefined",
+          "optional": true,
+          "summary": "The algorithm the key signs with."
         }
       ]
     },
@@ -2720,6 +2846,36 @@
       ]
     },
     {
+      "name": "PasswordEncryption",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface PasswordEncryption",
+      "summary": "A password-based encryption scheme as found, whether or not pkinative will open it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The scheme, as encoded — PBES2's OID, or a PKCS#12 / PKCS#5 v1.5 scheme's."
+        },
+        {
+          "name": "pbes2",
+          "type": "Pbes2Parameters | undefined",
+          "optional": false,
+          "summary": "The PBES2 parameters, or `undefined` when the scheme is one pkinative refuses."
+        },
+        {
+          "name": "scheme",
+          "type": "string",
+          "optional": false,
+          "summary": "The scheme in words — `PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)`, or the name of a refused one such as `pbeWithSHAAnd3-KeyTripleDES-CBC` — so a tool can say what a file is protected with before anyone types a password."
+        }
+      ]
+    },
+    {
       "name": "PathBuildInput",
       "kind": "type",
       "module": "src/path/path-build.ts",
@@ -2882,6 +3038,65 @@
       ]
     },
     {
+      "name": "Pbes2Parameters",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface Pbes2Parameters",
+      "summary": "PBES2 (RFC 8018 §6.2) with PBKDF2 and AES-CBC — the one password-based scheme pkinative opens.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "salt",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "PBKDF2's salt, as a zero-copy view."
+        },
+        {
+          "name": "iterations",
+          "type": "number",
+          "optional": false,
+          "summary": "PBKDF2's iteration count, already checked against `maxKdfIterations`."
+        },
+        {
+          "name": "prf",
+          "type": "Pbkdf2Prf",
+          "optional": false,
+          "summary": "PBKDF2's PRF; `SHA-1` when the parameters omit it, as RFC 8018 §A.2 defaults."
+        },
+        {
+          "name": "keyBits",
+          "type": "128 | 192 | 256",
+          "optional": false,
+          "summary": "The AES key size, in bits, from the cipher OID (and equal to PBKDF2's `keyLength` when that is present)."
+        },
+        {
+          "name": "iv",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "AES-CBC's initialisation vector, 16 octets."
+        },
+        {
+          "name": "cipherOid",
+          "type": "string",
+          "optional": false,
+          "summary": "The cipher OID — `aes128-CBC-PAD`, `aes192-CBC-PAD` or `aes256-CBC-PAD`."
+        }
+      ]
+    },
+    {
+      "name": "Pbkdf2Prf",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export type Pbkdf2Prf = SignatureHash",
+      "summary": "The PBKDF2 pseudo-random functions pkinative derives with — the HMACs Web Crypto implements.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "PemBlock",
       "kind": "type",
       "module": "src/types/pem-types.ts",
@@ -2916,6 +3131,155 @@
           "summary": "Character offset of the `-----BEGIN` line in the text."
         }
       ]
+    },
+    {
+      "name": "Pkcs12",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface Pkcs12",
+      "summary": "RFC 7292 §4 `PFX`, read but not opened.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole structure, as a zero-copy view of the input."
+        },
+        {
+          "name": "version",
+          "type": "3",
+          "optional": false,
+          "summary": "Always 3; any other version is refused."
+        },
+        {
+          "name": "authenticatedSafe",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The bytes the MAC covers: the content of the `authSafe` data's OCTET STRING."
+        },
+        {
+          "name": "contents",
+          "type": "readonly SafeContentsInfo[]",
+          "optional": false,
+          "summary": "The AuthenticatedSafe's entries, in encoded order."
+        },
+        {
+          "name": "mac",
+          "type": "Pkcs12Mac | undefined",
+          "optional": false,
+          "summary": "The `macData`, or `undefined` when the file carries none."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "Pkcs12Key",
+      "kind": "type",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export interface Pkcs12Key",
+      "summary": "One private key the container holds, and what became of it.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "summary": "Where it was, e.g. `authSafe[1].bags[0]`."
+        },
+        {
+          "name": "localKeyId",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "Its `localKeyId`, when it has one."
+        },
+        {
+          "name": "friendlyName",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "Its `friendlyName`, when it has one."
+        },
+        {
+          "name": "certificate",
+          "type": "Certificate | undefined",
+          "optional": false,
+          "summary": "The certificate sharing its `localKeyId`, when there is one."
+        },
+        {
+          "name": "signingKey",
+          "type": "SigningKey | undefined",
+          "optional": false,
+          "summary": "The key, non-extractable, ready for `createCertificate` or `createSignedData`; `undefined` when it could not be opened — the reasons say why."
+        }
+      ]
+    },
+    {
+      "name": "Pkcs12Mac",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface Pkcs12Mac",
+      "summary": "A PKCS#12 `MacData`, described.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "kind",
+          "type": "Pkcs12MacKind",
+          "optional": false,
+          "summary": "Which construction."
+        },
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The `digestAlgorithm` of the `DigestInfo`, as encoded — `id-PBMAC1` under RFC 9579."
+        },
+        {
+          "name": "mac",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The MAC octets."
+        },
+        {
+          "name": "salt",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "`macSalt`."
+        },
+        {
+          "name": "iterations",
+          "type": "number",
+          "optional": false,
+          "summary": "`iterations`, defaulting to 1."
+        },
+        {
+          "name": "pbmac1",
+          "type": "{",
+          "optional": false,
+          "summary": "Under PBMAC1, what the MAC key is derived with and which HMAC it keys; otherwise `undefined`."
+        }
+      ]
+    },
+    {
+      "name": "Pkcs12MacKind",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export type Pkcs12MacKind = /** RFC 9579 PBMAC1: HMAC under a PBKDF2 key. Verifiable. */ | 'pbmac1' /** RFC 7292 §5.1 with the Appendix B KDF — iterated hashing with byte arithmetic over the password. Not verifiable here, in any version. */ | 'pkcs12-kdf'",
+      "summary": "The two ways RFC 7292 and RFC 9579 compute a PKCS#12 MAC — one of which pkinative cannot check.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "PkiBaseErrorCode",
@@ -3114,6 +3478,28 @@
       "module": "src/types/pki-errors.ts",
       "signature": "export type PkiErrorCode = | PkiBaseErrorCode | PkiEncodingErrorCode | PkiCertificateErrorCode | PkiLimitErrorCode | PkiCryptoErrorCode | PkiCmsErrorCode | PkiKeyErrorCode",
       "summary": "Every stable error code pkinative can throw.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "PkiKeyError",
+      "kind": "class",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export class PkiKeyError extends PkiError<PkiKeyErrorCode>",
+      "summary": "A PKCS#8 or PKCS#12 structure pkinative cannot or will not open.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "PkiKeyErrorCode",
+      "kind": "type",
+      "module": "src/types/pki-errors.ts",
+      "signature": "export type PkiKeyErrorCode = | 'PKI_KEY_STRUCTURE_INVALID' // the value does not match the RFC 5958 or RFC 7292 ASN.1 module (CWE-1286) | 'PKI_KEY_VERSION_UNSUPPORTED' // a PrivateKeyInfo or PFX version the syntax does not define (CWE-1286) | 'PKI_KEY_ENCRYPTION_UNSUPPORTED' // a password scheme other than PBES2 + PBKDF2 + AES-CBC, e.g. RFC 7292 Appendix B, RC2, 3DES (CWE-327) | 'PKI_KEY_MAC_UNSUPPORTED'",
+      "summary": "Codes carried by PkiKeyError: a PKCS#8 or PKCS#12 structure that is well-formed DER but not what pkinative will open.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -3554,6 +3940,77 @@
       "members": null
     },
     {
+      "name": "PrivateKeyInfo",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface PrivateKeyInfo",
+      "summary": "RFC 5958 `OneAsymmetricKey` (PKCS#8 `PrivateKeyInfo` when version 0) — described, never exposed: the `privateKey` octets are not a field.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole structure, as a zero-copy view of the input."
+        },
+        {
+          "name": "version",
+          "type": "0 | 1",
+          "optional": false,
+          "summary": "0 (`v1`, RFC 5208) or 1 (`v2`, RFC 5958, which may carry the public key)."
+        },
+        {
+          "name": "algorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The private key algorithm, as encoded."
+        },
+        {
+          "name": "keyType",
+          "type": "PrivateKeyType",
+          "optional": false,
+          "summary": "What the algorithm OID names."
+        },
+        {
+          "name": "namedCurve",
+          "type": "'P-256' | 'P-384' | 'P-521' | undefined",
+          "optional": false,
+          "summary": "For an EC key, the curve named in the algorithm parameters, when Web Crypto implements it; otherwise `undefined`."
+        },
+        {
+          "name": "attributes",
+          "type": "readonly CmsAttribute[]",
+          "optional": false,
+          "summary": "The `[0]` attributes, in encoded order; empty when absent."
+        },
+        {
+          "name": "publicKey",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": "The `[1]` public key of a version 1 structure, or `undefined`."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "PrivateKeyType",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export type PrivateKeyType = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown'",
+      "summary": "The kinds of private key a PrivateKeyInfo can name that pkinative recognises.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "RawExtension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -3586,6 +4043,114 @@
           "type": "'raw'",
           "optional": false,
           "summary": "Discriminant."
+        }
+      ]
+    },
+    {
+      "name": "ReadPkcs12Options",
+      "kind": "type",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export interface ReadPkcs12Options extends PkiParseOptions",
+      "summary": "What `readPkcs12` takes.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "password",
+          "type": "Uint8Array | string",
+          "optional": false,
+          "summary": "The password."
+        },
+        {
+          "name": "allowUnverifiedIntegrity",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Accept a container whose integrity cannot be checked — a MAC keyed with RFC 7292 Appendix B, which is most files written before OpenSSL 3.4, or no MAC at all — and report it `valid`."
+        },
+        {
+          "name": "rsaAlgorithm",
+          "type": "Extract<SignatureAlgorithm, { readonly name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS' }> | undefined",
+          "optional": true,
+          "summary": "What an RSA key will sign with."
+        }
+      ]
+    },
+    {
+      "name": "ReadPkcs12Report",
+      "kind": "type",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export interface ReadPkcs12Report",
+      "summary": "What `readPkcs12` found.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether everything was opened, and its integrity verified or explicitly waived."
+        },
+        {
+          "name": "integrity",
+          "type": "'verified' | 'unverified' | 'mismatch'",
+          "optional": false,
+          "summary": "`verified` for a matching RFC 9579 MAC; `unverified` when it could not be checked; `mismatch` when it did not match, in which case nothing was decrypted."
+        },
+        {
+          "name": "pkcs12",
+          "type": "Pkcs12 | undefined",
+          "optional": false,
+          "summary": "The container as parsed, or `undefined` when it could not be."
+        },
+        {
+          "name": "keys",
+          "type": "readonly Pkcs12Key[]",
+          "optional": false,
+          "summary": "Every private key, in encoded order."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Certificate[]",
+          "optional": false,
+          "summary": "Every certificate that parsed, in encoded order — the keys' own and any chain the file carries."
+        },
+        {
+          "name": "crls",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Every CRL bag's DER, in encoded order."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Why `valid` is false; empty when it is true."
         }
       ]
     },
@@ -3878,6 +4443,137 @@
           "type": "bigint",
           "optional": false,
           "summary": "The public exponent, usually 65537."
+        }
+      ]
+    },
+    {
+      "name": "SafeBag",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface SafeBag",
+      "summary": "One RFC 7292 §4.2 SafeBag, read but not opened.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "kind",
+          "type": "SafeBagKind",
+          "optional": false,
+          "summary": "What the bag holds."
+        },
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The `bagId`, as encoded."
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `bagValue`, the content of its `[0]` EXPLICIT tag, as exact DER."
+        },
+        {
+          "name": "friendlyName",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "`friendlyName` (PKCS#9), when present once with one value."
+        },
+        {
+          "name": "localKeyId",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "`localKeyId` (PKCS#9), when present once with one value — what ties a key to its certificate."
+        },
+        {
+          "name": "attributes",
+          "type": "readonly CmsAttribute[]",
+          "optional": false,
+          "summary": "Every `bagAttributes` entry, in encoded order."
+        },
+        {
+          "name": "certificateDer",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "For a certBag holding an X.509 certificate, its DER; otherwise `undefined`."
+        },
+        {
+          "name": "crlDer",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "For a crlBag holding an X.509 CRL, its DER; otherwise `undefined`."
+        },
+        {
+          "name": "encryptedKey",
+          "type": "EncryptedPrivateKeyInfo | undefined",
+          "optional": false,
+          "summary": "For a pkcs8ShroudedKeyBag, the encrypted key; otherwise `undefined`."
+        },
+        {
+          "name": "privateKey",
+          "type": "PrivateKeyInfo | undefined",
+          "optional": false,
+          "summary": "For a keyBag, the unencrypted key's description; otherwise `undefined`."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "summary": "The path of this bag, e.g. `authSafe[1].bags[0]`, for reports and errors."
+        }
+      ]
+    },
+    {
+      "name": "SafeBagKind",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export type SafeBagKind = 'keyBag' | 'pkcs8ShroudedKeyBag' | 'certBag' | 'crlBag' | 'secretBag' | 'safeContentsBag' | 'unknown'",
+      "summary": "The six SafeBag types of RFC 7292 §4.2, and anything else.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "SafeContentsInfo",
+      "kind": "type",
+      "module": "src/types/key-types.ts",
+      "signature": "export interface SafeContentsInfo",
+      "summary": "One ContentInfo of the AuthenticatedSafe: either plain `data` whose bags are read, or password-encrypted `encryptedData` whose bags wait for a password.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encrypted",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the SafeContents is encrypted."
+        },
+        {
+          "name": "encryption",
+          "type": "PasswordEncryption | undefined",
+          "optional": false,
+          "summary": "How it is encrypted, when it is."
+        },
+        {
+          "name": "encryptedContent",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The ciphertext, when it is encrypted."
+        },
+        {
+          "name": "bags",
+          "type": "readonly SafeBag[]",
+          "optional": false,
+          "summary": "The bags, when it is not encrypted; empty until opened otherwise."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "optional": false,
+          "summary": "The path, e.g. `authSafe[0]`."
         }
       ]
     },
@@ -5517,6 +6213,17 @@
       "members": null
     },
     {
+      "name": "canDecrypt",
+      "kind": "function",
+      "module": "src/crypto/webcrypto.ts",
+      "signature": "export function canDecrypt(): boolean",
+      "summary": "Whether this runtime can open a password-protected key or container at all.",
+      "throws": [],
+      "params": [],
+      "returns": "Whether `globalThis.crypto.subtle` offers every operation PBES2 and RFC 9579 need. It does not say which ciphers the host implements — AES-192 is missing from several browsers that answer `true`.",
+      "members": null
+    },
+    {
       "name": "canSign",
       "kind": "function",
       "module": "src/crypto/webcrypto.ts",
@@ -5943,6 +6650,32 @@
         }
       ],
       "returns": "The blocks in text order, with their labels, payloads, headers and offsets.",
+      "members": null
+    },
+    {
+      "name": "decryptPrivateKey",
+      "kind": "function",
+      "module": "src/keys/key-import.ts",
+      "signature": "export async function decryptPrivateKey(der: Uint8Array, options: DecryptPrivateKeyOptions): Promise<SigningKey>",
+      "summary": "Decrypt a password-protected PKCS#8 private key — the DER of an `ENCRYPTED PRIVATE KEY` PEM block — into a non-extractable signing key.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of a RFC 5958 §3 `EncryptedPrivateKeyInfo`."
+        },
+        {
+          "name": "options",
+          "description": "The password, the algorithm the key signs with, and the encoding rules, limits and diagnostics of the parse."
+        }
+      ],
+      "returns": "The key and the algorithm it signs with.",
       "members": null
     },
     {
@@ -6773,6 +7506,32 @@
       "members": null
     },
     {
+      "name": "importPrivateKey",
+      "kind": "function",
+      "module": "src/keys/key-import.ts",
+      "signature": "export async function importPrivateKey(der: Uint8Array, options?: ImportPrivateKeyOptions): Promise<SigningKey>",
+      "summary": "Import an unencrypted PKCS#8 private key — the DER of a `PRIVATE KEY` PEM block — as a non-extractable signing key.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of a RFC 5958 `OneAsymmetricKey` (version 0 is RFC 5208 PKCS#8)."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics, and the algorithm — required for an RSA key, inferred for an EC, Ed25519 or Ed448 key."
+        }
+      ],
+      "returns": "The key and the algorithm it signs with.",
+      "members": null
+    },
+    {
       "name": "isValidOid",
       "kind": "function",
       "module": "src/asn1/asn1-oid.ts",
@@ -6786,6 +7545,36 @@
         }
       ],
       "returns": "True when `encodeOid` accepts it; false for anything else, a non-string included.",
+      "members": null
+    },
+    {
+      "name": "openSafeContents",
+      "kind": "function",
+      "module": "src/keys/key-pkcs12.ts",
+      "signature": "export async function openSafeContents(contents: SafeContentsInfo, password: Uint8Array | string, options?: PkiParseOptions): Promise<readonly SafeBag[]>",
+      "summary": "The bags of one SafeContents: those already read when it is plain, or, when it is PBES2-encrypted, the plaintext decrypted through Web Crypto and read with the same bag reader, with paths under `contents.path`.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "contents",
+          "description": "An entry of `parsePkcs12(…).contents`."
+        },
+        {
+          "name": "password",
+          "description": "The password, as a string (UTF-8) or as exact octets; unused for a plain SafeContents."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics for the decrypted SafeContents."
+        }
+      ],
+      "returns": "The bags, in encoded order, nested safeContentsBags flattened.",
       "members": null
     },
     {
@@ -6822,6 +7611,7 @@
       "throws": [
         "PkiCertificateError",
         "PkiEncodingError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [
@@ -6835,6 +7625,31 @@
         }
       ],
       "returns": "The parsed CRL, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
+      "name": "parseEncryptedPrivateKeyInfo",
+      "kind": "function",
+      "module": "src/keys/key-pkcs8.ts",
+      "signature": "export function parseEncryptedPrivateKeyInfo(der: Uint8Array, options?: PkiParseOptions): EncryptedPrivateKeyInfo",
+      "summary": "Read an encrypted PKCS#8 private key — the DER of an `ENCRYPTED PRIVATE KEY` PEM block — and say how it is protected, before anyone types a password.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of a RFC 5958 §3 `EncryptedPrivateKeyInfo`."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits and diagnostics."
+        }
+      ],
+      "returns": "The scheme and the ciphertext.",
       "members": null
     },
     {
@@ -6859,6 +7674,56 @@
         }
       ],
       "returns": "The parsed response, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
+      "name": "parsePkcs12",
+      "kind": "function",
+      "module": "src/keys/key-pkcs12.ts",
+      "signature": "export function parsePkcs12(der: Uint8Array, options?: PkiParseOptions): Pkcs12",
+      "summary": "Read a PKCS#12 file (`.p12`, `.pfx`) and describe it, without a password.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER (or, with `encodingRules: 'ber'`, the BER) of an RFC 7292 `PFX`."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics."
+        }
+      ],
+      "returns": "The container, read but not opened.",
+      "members": null
+    },
+    {
+      "name": "parsePrivateKeyInfo",
+      "kind": "function",
+      "module": "src/keys/key-pkcs8.ts",
+      "signature": "export function parsePrivateKeyInfo(der: Uint8Array, options?: PkiParseOptions): PrivateKeyInfo",
+      "summary": "Read an unencrypted PKCS#8 private key — the DER of a `PRIVATE KEY` PEM block — and describe it without exposing its secret.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError",
+        "PkiKeyError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of a RFC 5958 `OneAsymmetricKey` (version 0 is RFC 5208 PKCS#8)."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits and diagnostics."
+        }
+      ],
+      "returns": "The key's description. The `privateKey` octets are not a field.",
       "members": null
     },
     {
@@ -6895,6 +7760,7 @@
       "throws": [
         "PkiCmsError",
         "PkiEncodingError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [
@@ -7085,6 +7951,29 @@
         }
       ],
       "returns": "The octets: a zero-copy view when primitive, a joined copy when segmented.",
+      "members": null
+    },
+    {
+      "name": "readPkcs12",
+      "kind": "function",
+      "module": "src/verify/verify-pkcs12.ts",
+      "signature": "export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): Promise<ReadPkcs12Report>",
+      "summary": "Open a PKCS#12 in one call: its MAC, its SafeContents, its certificates and its keys.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The PFX, as DER — or BER with `encodingRules: 'ber'`, which Windows writes."
+        },
+        {
+          "name": "options",
+          "description": "The password, and what to accept."
+        }
+      ],
+      "returns": "What was opened and why anything was not. Never rejects for a problem with the file.",
       "members": null
     },
     {
@@ -7281,6 +8170,30 @@
         }
       ],
       "returns": "Whether the responder's key signed `basicResponse.tbsDer`.",
+      "members": null
+    },
+    {
+      "name": "verifyPkcs12Mac",
+      "kind": "function",
+      "module": "src/keys/key-pkcs12.ts",
+      "signature": "export async function verifyPkcs12Mac(pkcs12: Pkcs12, password: Uint8Array | string): Promise<boolean>",
+      "summary": "Check a PKCS#12 MAC under RFC 9579 PBMAC1: derive the HMAC key with PBKDF2 from the password, and verify the HMAC over `authenticatedSafe`.",
+      "throws": [
+        "PkiCryptoError",
+        "PkiError",
+        "PkiKeyError"
+      ],
+      "params": [
+        {
+          "name": "pkcs12",
+          "description": "A container returned by {@link parsePkcs12}."
+        },
+        {
+          "name": "password",
+          "description": "The password, as a string (UTF-8) or as exact octets."
+        }
+      ],
+      "returns": "`true` when the MAC matches; `false` for a wrong password or altered content — the two are indistinguishable.",
       "members": null
     },
     {

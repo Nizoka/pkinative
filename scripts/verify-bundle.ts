@@ -172,12 +172,28 @@ export const PROBES: readonly Probe[] = [
     // The two CMS verdicts are `verifyCertificateChain` plus the CMS layer,
     // which is exactly what they are: 121.7 + ~45 KB.
     { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 176 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // The 0.8 band, weighed from three sides — measured 2026-09-29 at 39.8,
+    // 44.3 and 94.4 KB.
+    //
+    // "keys never imports x509", and more: describing a key file or a PKCS#12
+    // ships neither the certificate parser nor the Web Crypto bridge. What a
+    // file is protected with can be read before anyone types a password, on a
+    // runtime with no crypto.subtle at all.
+    { exports: ['parsePrivateKeyInfo', 'parseEncryptedPrivateKeyInfo', 'parsePkcs12'], maxBytes: 44 * 1024, mustNotContain: [MARKERS.x509, MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // Opening them reaches the door and still no certificate parser: a key's
+    // algorithm is named by the caller or, in readPkcs12, by its certificate.
+    { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 50 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // The one call parses every certificate the file carries, to match each
+    // key to the one naming its algorithm: the certificate parser is the price.
+    { exports: ['readPkcs12'], maxBytes: 104 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
     // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules;
     // 172 KB → 236 KB, measured at 225.3 KB with CMS and RFC 3161 — the largest
     // single rise so far, and the roadmap's ~320 KB projection for 1.0 still
     // holds with PKCS#8/#12 to come.
-    { exports: ['*'], maxBytes: 236 * 1024, mustNotContain: [] },
+    // 236 KB → 272 KB, measured at 259.3 KB with PKCS#8, PKCS#12 and readPkcs12:
+    // the last subsystem before 1.0, and within the ~320 KB projection.
+    { exports: ['*'], maxBytes: 272 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

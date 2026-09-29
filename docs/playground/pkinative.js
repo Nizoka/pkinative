@@ -45,6 +45,14 @@ var PkiCmsError = class extends PkiError {
     this.offset = offset;
   }
 };
+var PkiKeyError = class extends PkiError {
+  constructor(code, message, path, offset) {
+    super(code, message);
+    this.name = "PkiKeyError";
+    this.path = path;
+    this.offset = offset;
+  }
+};
 
 // src/core/pki-limits.ts
 var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
@@ -449,6 +457,16 @@ function cmsDigestAlgorithmNotListedDiagnostic(path, oid, offset) {
     "warning",
     "RFC 5652 \xA75.1",
     `the signer's digest algorithm ${oid} is not listed in digestAlgorithms, which exists so that a one-pass verifier can start hashing before it reaches the signers; RFC 5652 lets such a verifier fail`,
+    path,
+    offset
+  );
+}
+function keyKdfIterationsLowDiagnostic(path, iterations, offset) {
+  return _diagnostic(
+    "PKI_DIAG_KEY_KDF_ITERATIONS_LOW",
+    "warning",
+    "RFC 8018 \xA74.2",
+    `PBKDF2 runs ${String(iterations)} iterations, below the minimum of 1 000 RFC 8018 recommends; a stolen copy of this file is cheap to brute-force`,
     path,
     offset
   );
@@ -2690,6 +2708,7 @@ function countEntries(der, revoked, ctx) {
   return count;
 }
 function parseCertificateList(der, options) {
+  der = assertBytes(der, "parseCertificateList input");
   const ctx = createAsn1Context(options);
   const outer = readTlvHeader(der, 0, "CertificateList");
   if (!outer.constructed || outer.tagClass !== "universal" || outer.tagNumber !== 16) {
@@ -3093,6 +3112,45 @@ function tspImprintMismatchReason(path) {
     "the token stamps a different hash from the one expected; it may be a perfectly good timestamp, of something else",
     path
   );
+}
+function pkcs12EncryptionUnsupportedReason(path, scheme, byRuntime = false) {
+  return _reason(
+    "PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED",
+    "RFC 8018 \xA76.2",
+    byRuntime ? `encrypted with ${scheme}, which pkinative opens and this runtime's Web Crypto does not implement; try another runtime before concluding the file is at fault` : `encrypted with ${scheme}, which pkinative does not open: only PBES2 with PBKDF2 and AES-CBC is, because the PKCS#12 schemes derive their key with RFC 7292 Appendix B`,
+    path
+  );
+}
+function pkcs12IntegrityUnverifiedReason(path, why) {
+  const detail = why === "absent" ? "the container carries no MAC, so nothing vouches that its contents are what was written" : why === "public-key" ? "the container uses public-key integrity mode, which pkinative does not verify" : why === "pbmac1-unsupported" ? "its RFC 9579 PBMAC1 MAC uses a key derivation or an HMAC that Web Crypto does not run, so it cannot be checked here" : "its MAC is keyed with the RFC 7292 Appendix B KDF, which pkinative does not implement; only an RFC 9579 PBMAC1 MAC can be checked";
+  return _reason("PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED", "RFC 9579 \xA73", detail, path);
+}
+function pkcs12MacMismatchReason(path) {
+  return _reason(
+    "PKI_REASON_PKCS12_MAC_MISMATCH",
+    "RFC 9579 \xA73",
+    "the MAC does not match: the password is wrong, or the container was altered after it was written",
+    path
+  );
+}
+function pkcs12DecryptionFailedReason(path) {
+  return _reason(
+    "PKI_REASON_PKCS12_DECRYPTION_FAILED",
+    "RFC 8018 \xA76.2",
+    "it would not decrypt under the password: the password is wrong, or the data was altered \u2014 AES-CBC cannot tell the two apart",
+    path
+  );
+}
+function pkcs12KeyUnmatchedReason(path) {
+  return _reason(
+    "PKI_REASON_PKCS12_KEY_UNMATCHED",
+    "RFC 7292 \xA74.2",
+    "no certificate in the container shares this key's localKeyId, so its algorithm is unknown until it is decrypted, and pkinative never decrypts a key into the clear",
+    path
+  );
+}
+function pkcs12KeyUnsupportedReason(path, detail) {
+  return _reason("PKI_REASON_PKCS12_KEY_UNSUPPORTED", "W3C WebCryptoAPI", detail, path);
 }
 function tspRequestMismatchReason(path, what) {
   return _reason(
@@ -5385,6 +5443,85 @@ async function signData(key, params, data) {
     );
   }
 }
+function passwordSubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.deriveKey !== "function" || typeof subtle.unwrapKey !== "function" || typeof subtle.decrypt !== "function" || typeof subtle.verify !== "function") {
+    return null;
+  }
+  return subtle;
+}
+function requirePasswordSubtle(oid) {
+  const subtle = passwordSubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle with importKey, deriveKey, unwrapKey, decrypt and verify, so no password-protected key can be opened \u2014 call canDecrypt() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      oid
+    );
+  }
+  return subtle;
+}
+function canDecrypt() {
+  return passwordSubtle() !== null;
+}
+async function derivePasswordKey(password, kdf, target, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    const base = await subtle.importKey("raw", password, "PBKDF2", false, ["deriveKey"]);
+    const usages = target.name === "HMAC" ? ["verify"] : ["decrypt", "unwrapKey"];
+    return await subtle.deriveKey(kdf, base, target, false, usages);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
+      `pkinative: this runtime refused to derive a ${target.name} key with PBKDF2 over ${kdf.hash.name} (${String(cause)}) \u2014 the PRF or the key length is not implemented here; try another runtime before concluding the file is at fault`,
+      oid
+    );
+  }
+}
+async function unwrapPrivateKey(wrapped, key, iv, params, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return await subtle.unwrapKey("pkcs8", wrapped, key, { name: "AES-CBC", iv }, params, false, ["sign"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_DECRYPTION_FAILED",
+      `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) \u2014 the password is wrong, the data was altered, or the key is not a ${params.name} key; AES-CBC cannot tell these apart`,
+      oid
+    );
+  }
+}
+async function importPkcs8Key(pkcs8, params, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return await subtle.importKey("pkcs8", pkcs8, params, false, ["sign"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to import the ${params.name} private key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key is not a ${params.name} key`,
+      oid
+    );
+  }
+}
+async function decryptContent(key, iv, data, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return new Uint8Array(await subtle.decrypt({ name: "AES-CBC", iv }, key, data));
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_DECRYPTION_FAILED",
+      `pkinative: the encrypted content could not be decrypted (${String(cause)}) \u2014 the password is wrong or the data was altered; AES-CBC cannot tell the two apart`,
+      oid
+    );
+  }
+}
+async function verifyMac(key, mac, data) {
+  const subtle = requirePasswordSubtle("HMAC");
+  try {
+    return await subtle.verify({ name: "HMAC" }, key, mac, data);
+  } catch {
+    return false;
+  }
+}
 
 // src/crypto/x509-verify.ts
 async function verifyCertificateSignature(certificate, issuer, options) {
@@ -5795,6 +5932,18 @@ function _pkiError(error) {
   if (!(error instanceof PkiError)) throw error;
   return error;
 }
+function _assertCertificates(values, what) {
+  for (const [index, value] of values.entries()) {
+    const candidate = value;
+    if (typeof value !== "object" || candidate === null || !(candidate.der instanceof Uint8Array) || !(candidate.subject?.der instanceof Uint8Array) || !(candidate.issuer?.der instanceof Uint8Array) || !Array.isArray(candidate.extensions)) {
+      throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what}[${String(index)}] must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
+    }
+  }
+}
+function _assertArguments(bytes, reading) {
+  for (const [what, value] of bytes) if (value !== void 0) assertBytes(value, what);
+  createAsn1Context(reading);
+}
 var OCSP_SIGNING = "1.3.6.1.5.5.7.3.9";
 var _hex2 = (bytes) => {
   let out = "";
@@ -5813,6 +5962,14 @@ function _firstOfEach(ders) {
   return out;
 }
 async function verifyCertificateChain(input) {
+  _assertCertificates([input.leaf], "leaf");
+  _assertCertificates(input.candidates ?? [], "candidates");
+  _assertCertificates(input.trustAnchors, "trustAnchors");
+  _assertArguments([
+    ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der]),
+    ...(input.ocsp ?? []).map((der, index) => [`ocsp[${String(index)}]`, der]),
+    ["ocspNonce", input.ocspNonce]
+  ], { limits: input.limits ?? {} });
   const at = input.at ?? Date.now();
   const candidates = input.candidates ?? [];
   const all = [input.leaf, ...candidates, ...input.trustAnchors];
@@ -5905,8 +6062,8 @@ async function _signerStillGood(ctx, candidate) {
   for (const { der, crl } of ctx.lists) {
     if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
     if (await _crlSigner(ctx, crl, _hex2(crl.issuer.der), true) !== true) continue;
-    const reasons = checkRevocation({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading });
-    if (reasons.some((reason) => reason.code === "PKI_REASON_REVOKED")) return false;
+    const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, options: ctx.reading }, "crl");
+    if (reasons.some((reason) => reason.code === "PKI_REASON_REVOKED" || reason.code === "PKI_REASON_INPUT_MALFORMED")) return false;
   }
   return true;
 }
@@ -5935,7 +6092,7 @@ function _coversEveryReason(reasons) {
   return EVERY_REASON.every((reason) => reasons.has(reason));
 }
 async function _deltaFor(ctx, subject, base, signed) {
-  for (const [index, { der, crl }] of ctx.lists.entries()) {
+  for (const { der, crl, index } of ctx.lists) {
     if (!_deltaApplies(base, crl)) continue;
     if (_crlScopeProblem({ certificate: subject, crl, asDelta: true }) !== null) continue;
     if (!signed.has(index)) signed.set(index, await _crlSigner(ctx, crl, _hex2(crl.issuer.der)));
@@ -5960,7 +6117,7 @@ async function _checkRevocation(input, path, at) {
   const parsed = [];
   for (const [index, der] of _firstOfEach(lists)) {
     try {
-      parsed.push({ der, crl: parseCertificateList(der, reading) });
+      parsed.push({ der, crl: parseCertificateList(der, reading), index });
     } catch (error) {
       const refused = _pkiError(error);
       out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
@@ -5973,7 +6130,7 @@ async function _checkRevocation(input, path, at) {
     const mine = [];
     const reasons = /* @__PURE__ */ new Set();
     let complete = false;
-    for (const [index, { der, crl }] of parsed.entries()) {
+    for (const { der, crl, index } of parsed) {
       const problem = _crlScopeProblem({ certificate: subject, crl });
       if (problem !== null && problem.kind !== "unusable") continue;
       if (problem !== null) {
@@ -5987,7 +6144,7 @@ async function _checkRevocation(input, path, at) {
       if (only === void 0) complete = true;
       else for (const reason of only) reasons.add(reason);
       const delta = await _deltaFor(signing, subject, crl, signed);
-      mine.push(...checkRevocation({
+      mine.push(..._judged({
         certificate: subject,
         crl,
         crlDer: der,
@@ -5995,7 +6152,7 @@ async function _checkRevocation(input, path, at) {
         ...signatureVerified === void 0 ? {} : { signatureVerified },
         ...delta === void 0 ? {} : { delta },
         options: reading
-      }));
+      }, `crl[${String(index)}]`));
     }
     out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
@@ -6030,6 +6187,14 @@ async function _checkRevocation(input, path, at) {
     out.push(revocationUnknownReason("path[0]", "nothing supplied answers about this certificate"));
   }
   return out;
+}
+function _judged(check, where2) {
+  try {
+    return checkRevocation(check);
+  } catch (error) {
+    const refused = _pkiError(error);
+    return [inputMalformedReason(refused.code, refused.message, where2)];
+  }
 }
 function _certId(certificate, issuer, algorithm) {
   const digest = algorithm === "SHA-256" ? sha256 : sha1;
@@ -8324,8 +8489,9 @@ function parseTimeStampToken(der, options) {
   return Object.freeze({ signedData, tstInfo: parseTstInfo(content, options) });
 }
 function parseTimeStampResponse(der, options) {
+  const bytes = assertBytes(der, "parseTimeStampResponse input");
   const ctx = createAsn1Context(options);
-  const root = decodeWithContext(der, ctx, false);
+  const root = decodeWithContext(bytes, ctx, false);
   const path = "TimeStampResp";
   if (root.tagClass !== "universal" || root.tagNumber !== 16 || root.children.length < 1 || root.children.length > 2) {
     throw _tspError(path, root.offset, "is not a SEQUENCE of a status and, optionally, a token");
@@ -8431,8 +8597,9 @@ function createTimeStampRequest(hash, options) {
   return encodeSequence(fields);
 }
 function _parseTimeStampRequest(der, options) {
+  const bytes = assertBytes(der, "TimeStampReq input");
   const ctx = createAsn1Context({ ...options, encodingRules: "der" });
-  const root = decodeWithContext(der, ctx, false);
+  const root = decodeWithContext(bytes, ctx, false);
   const path = "TimeStampReq";
   if (root.tagClass !== "universal" || root.tagNumber !== 16) throw _tspError(path, root.offset, "is not a SEQUENCE");
   const [versionNode, imprintNode, ...rest] = root.children;
@@ -8801,6 +8968,15 @@ function _expectation(input, reading) {
       "pkinative: say what was stamped \u2014 pass the request you sent, the data, or the expected imprint. A token verified without it proves that some hash existed at some time, which is true of every token ever issued"
     );
   }
+  _assertCertificates(input.certificates ?? [], "certificates");
+  _assertCertificates(input.trustAnchors, "trustAnchors");
+  _assertArguments([
+    ["token", input.token],
+    ["response", input.response],
+    ["request", input.request],
+    ["data", input.data],
+    ["imprint", input.imprint]
+  ], reading);
   const request = input.request === void 0 ? void 0 : _parseTimeStampRequest(input.request, reading);
   return {
     imprint: input.imprint,
@@ -8861,6 +9037,15 @@ function _parseBag(ders, extra, reading) {
 async function verifySignedData(input) {
   if (input.content !== void 0 && input.contentDigest !== void 0) {
     throw new PkiError("PKI_API_MISUSE", "pkinative: pass the detached content or its digest, not both \u2014 there would be two answers to which bytes were signed");
+  }
+  _assertCertificates(input.certificates ?? [], "certificates");
+  _assertCertificates(input.trustAnchors, "trustAnchors");
+  _assertArguments([["signedData", input.signedData], ["content", input.content], ["contentDigest", input.contentDigest]], {
+    limits: input.limits ?? {},
+    ...input.encodingRules === void 0 ? {} : { encodingRules: input.encodingRules }
+  });
+  if (input.allowTrailingData !== void 0 && typeof input.allowTrailingData !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: allowTrailingData must be a boolean, got ${typeof input.allowTrailingData}`);
   }
   const quiet = { onDiagnostic: () => void 0 };
   let signedData;
@@ -8961,6 +9146,846 @@ function _instant(input, stamps) {
   return input.at ?? Date.now();
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, isValidOid, parseCertificate, parseCertificateList, parseOcspResponse, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
+// src/core/key-oids.ts
+var OID_PBES2 = "1.2.840.113549.1.5.13";
+var OID_PBKDF2 = "1.2.840.113549.1.5.12";
+var OID_PBMAC1 = "1.2.840.113549.1.5.14";
+var HMAC_OIDS = /* @__PURE__ */ new Map([
+  ["1.2.840.113549.2.7", "SHA-1"],
+  ["1.2.840.113549.2.9", "SHA-256"],
+  ["1.2.840.113549.2.10", "SHA-384"],
+  ["1.2.840.113549.2.11", "SHA-512"]
+]);
+var AES_CBC_OIDS = /* @__PURE__ */ new Map([
+  ["2.16.840.1.101.3.4.1.2", 128],
+  ["2.16.840.1.101.3.4.1.22", 192],
+  ["2.16.840.1.101.3.4.1.42", 256]
+]);
+var REFUSED_PBE_SCHEMES = /* @__PURE__ */ new Map([
+  ["1.2.840.113549.1.12.1.1", "pbeWithSHAAnd128BitRC4"],
+  ["1.2.840.113549.1.12.1.2", "pbeWithSHAAnd40BitRC4"],
+  ["1.2.840.113549.1.12.1.3", "pbeWithSHAAnd3-KeyTripleDES-CBC"],
+  ["1.2.840.113549.1.12.1.4", "pbeWithSHAAnd2-KeyTripleDES-CBC"],
+  ["1.2.840.113549.1.12.1.5", "pbeWithSHAAnd128BitRC2-CBC"],
+  ["1.2.840.113549.1.12.1.6", "pbeWithSHAAnd40BitRC2-CBC"],
+  ["1.2.840.113549.1.5.1", "pbeWithMD2AndDES-CBC"],
+  ["1.2.840.113549.1.5.3", "pbeWithMD5AndDES-CBC"],
+  ["1.2.840.113549.1.5.4", "pbeWithMD2AndRC2-CBC"],
+  ["1.2.840.113549.1.5.6", "pbeWithMD5AndRC2-CBC"],
+  ["1.2.840.113549.1.5.10", "pbeWithSHA1AndDES-CBC"],
+  ["1.2.840.113549.1.5.11", "pbeWithSHA1AndRC2-CBC"]
+]);
+var OID_KEY_BAG = "1.2.840.113549.1.12.10.1.1";
+var OID_PKCS8_SHROUDED_KEY_BAG = "1.2.840.113549.1.12.10.1.2";
+var OID_CERT_BAG = "1.2.840.113549.1.12.10.1.3";
+var OID_CRL_BAG = "1.2.840.113549.1.12.10.1.4";
+var OID_SECRET_BAG = "1.2.840.113549.1.12.10.1.5";
+var OID_SAFE_CONTENTS_BAG = "1.2.840.113549.1.12.10.1.6";
+var OID_CERT_TYPE_X509 = "1.2.840.113549.1.9.22.1";
+var OID_CRL_TYPE_X509 = "1.2.840.113549.1.9.23.1";
+var OID_ATTR_FRIENDLY_NAME = "1.2.840.113549.1.9.20";
+var OID_ATTR_LOCAL_KEY_ID = "1.2.840.113549.1.9.21";
+var OID_RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
+var OID_RSASSA_PSS = "1.2.840.113549.1.1.10";
+var OID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
+var OID_ED25519 = "1.3.101.112";
+var OID_ED448 = "1.3.101.113";
+var EC_CURVE_OIDS = /* @__PURE__ */ new Map([
+  ["1.2.840.10045.3.1.7", "P-256"],
+  ["1.3.132.0.34", "P-384"],
+  ["1.3.132.0.35", "P-521"]
+]);
+
+// src/keys/key-pbes2.ts
+var REMEDIES3 = /* @__PURE__ */ Object.freeze({
+  PKI_KEY_STRUCTURE_INVALID: "the input is not the RFC 5958 or RFC 7292 structure it was read as; check that it is DER and not its PEM or base64 text, and that the PEM label matched",
+  PKI_KEY_VERSION_UNSUPPORTED: "the syntax defines no such version, so what follows cannot be read; re-export the file from the tool that owns the key",
+  PKI_KEY_ENCRYPTION_UNSUPPORTED: "pkinative opens PBES2 with PBKDF2 and AES-CBC only, by policy; convert the file with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 \u2014 or, for a key alone, openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256",
+  PKI_KEY_MAC_UNSUPPORTED: "pkinative verifies RFC 9579 PBMAC1 only; re-export with openssl pkcs12 -export -pbmac1_pbkdf2 (OpenSSL 3.4 or later)"
+});
+function _keyError(code, path, offset, why) {
+  const where2 = offset === void 0 ? path : `${path} at offset ${String(offset)}`;
+  return new PkiKeyError(code, `pkinative: ${where2} ${why} \u2014 ${REMEDIES3[code]}`, path, offset);
+}
+function _expectField(node, tagNumber, path, parentOffset, what) {
+  if (node === void 0) throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, parentOffset, `is missing; expected ${what}`);
+  if (node.tagClass !== "universal" || node.tagNumber !== tagNumber) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, node.offset, `is not ${what}`);
+  }
+  return node;
+}
+function _readKeyAlgorithm(node, ctx, path, parentOffset) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "an AlgorithmIdentifier SEQUENCE");
+  if (seq.children.length > 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values; an AlgorithmIdentifier is an OID and optional parameters`);
+  }
+  const oidNode = _expectField(seq.children[0], TAG_OID, `${path}.algorithm`, seq.offset, "an OBJECT IDENTIFIER");
+  const oid = _readObjectIdentifier(oidNode, ctx);
+  return Object.freeze({ oid, parameters: seq.children[1], der: seq.bytes });
+}
+function _absentOrNull(parameters) {
+  return parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
+}
+function _readPbkdf2(kdf, ctx, path, offset) {
+  if (kdf.oid !== OID_PBKDF2) return { ok: false, scheme: `a key derivation function other than PBKDF2 (${kdf.oid})` };
+  const params = _expectField(kdf.parameters, TAG_SEQUENCE, `${path}.parameters`, offset, "PBKDF2-params");
+  const [saltNode, countNode, third, fourth, ...extra] = params.children;
+  if (extra.length > 0) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters`, params.offset, "holds more than salt, iterationCount, keyLength and prf");
+  }
+  if (saltNode !== void 0 && saltNode.tagClass === "universal" && saltNode.tagNumber === TAG_SEQUENCE) {
+    return { ok: false, scheme: "PBKDF2 with a salt from otherSource, which RFC 8018 reserves for future use" };
+  }
+  const saltField = _expectField(saltNode, TAG_OCTET_STRING, `${path}.parameters.salt`, params.offset, "an OCTET STRING salt");
+  const salt = _readOctetString(saltField, ctx);
+  const countField = _expectField(countNode, TAG_INTEGER, `${path}.parameters.iterationCount`, params.offset, "an INTEGER iteration count");
+  const count = _readInteger(countField, ctx);
+  if (count < 1n) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters.iterationCount`, countField.offset, `is ${String(count)}; RFC 8018 requires at least 1`);
+  }
+  enforceLimit(ctx.limits, "maxKdfIterations", Number(count), `${path}.parameters.iterationCount`);
+  const iterations = Number(count);
+  if (iterations < 1e3) ctx.emitter.emit(keyKdfIterationsLowDiagnostic(`${path}.parameters.iterationCount`, iterations, countField.offset));
+  let keyLength;
+  let prfNode;
+  if (third !== void 0 && third.tagClass === "universal" && third.tagNumber === TAG_INTEGER) {
+    const length = _readInteger(third, ctx);
+    if (length < 1n || length > 64n) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters.keyLength`, third.offset, `is ${String(length)} octets; no key this scheme derives is shorter than 1 or longer than 64`);
+    }
+    keyLength = Number(length);
+    prfNode = fourth;
+  } else {
+    if (fourth !== void 0) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters`, params.offset, "holds a fourth value after something that is not a keyLength");
+    }
+    prfNode = third;
+  }
+  let prf = "SHA-1";
+  if (prfNode !== void 0) {
+    const prfAlgorithm = _readKeyAlgorithm(prfNode, ctx, `${path}.parameters.prf`, params.offset);
+    const named = HMAC_OIDS.get(prfAlgorithm.oid);
+    if (named === void 0 || !_absentOrNull(prfAlgorithm.parameters)) {
+      return { ok: false, scheme: `PBKDF2 with a PRF Web Crypto does not implement (${prfAlgorithm.oid})` };
+    }
+    if (named === "SHA-1") ctx.emitter.emit(defaultEncodedDiagnostic(`${path}.parameters.prf`, "hmacWithSHA1", prfNode.offset));
+    prf = named;
+  }
+  return { ok: true, salt, iterations, keyLength, prf };
+}
+function _readPasswordEncryption(node, ctx, path, parentOffset) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "an AlgorithmIdentifier SEQUENCE");
+  const algorithm = _readKeyAlgorithm(seq, ctx, path, parentOffset);
+  const refused = REFUSED_PBE_SCHEMES.get(algorithm.oid);
+  if (refused !== void 0) return Object.freeze({ algorithm, pbes2: void 0, scheme: refused });
+  if (algorithm.oid !== OID_PBES2) return Object.freeze({ algorithm, pbes2: void 0, scheme: `an unrecognised scheme (${algorithm.oid})` });
+  const params = _expectField(algorithm.parameters, TAG_SEQUENCE, `${path}.parameters`, seq.offset, "PBES2-params");
+  if (params.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters`, params.offset, `holds ${String(params.children.length)} values; PBES2-params is a keyDerivationFunc and an encryptionScheme`);
+  }
+  const kdf = _readKeyAlgorithm(params.children[0], ctx, `${path}.parameters.keyDerivationFunc`, params.offset);
+  const cipher = _readKeyAlgorithm(params.children[1], ctx, `${path}.parameters.encryptionScheme`, params.offset);
+  const derivation = _readPbkdf2(kdf, ctx, `${path}.parameters.keyDerivationFunc`, params.offset);
+  if (!derivation.ok) return Object.freeze({ algorithm, pbes2: void 0, scheme: `PBES2 with ${derivation.scheme}` });
+  const keyBits = AES_CBC_OIDS.get(cipher.oid);
+  if (keyBits === void 0) return Object.freeze({ algorithm, pbes2: void 0, scheme: `PBES2 with a cipher other than AES-CBC (${cipher.oid})` });
+  const ivField = _expectField(cipher.parameters, TAG_OCTET_STRING, `${path}.parameters.encryptionScheme.parameters`, params.offset, "an OCTET STRING initialisation vector");
+  const iv = _readOctetString(ivField, ctx);
+  if (iv.length !== 16) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters.encryptionScheme.parameters`, ivField.offset, `is ${String(iv.length)} octets; AES-CBC's initialisation vector is 16`);
+  }
+  if (derivation.keyLength !== void 0 && derivation.keyLength * 8 !== keyBits) {
+    throw _keyError(
+      "PKI_KEY_STRUCTURE_INVALID",
+      `${path}.parameters.keyDerivationFunc.parameters.keyLength`,
+      params.offset,
+      `is ${String(derivation.keyLength)} octets, and the cipher needs ${String(keyBits / 8)}; the two halves of the scheme contradict each other`
+    );
+  }
+  const pbes2 = Object.freeze({
+    salt: derivation.salt,
+    iterations: derivation.iterations,
+    prf: derivation.prf,
+    keyBits,
+    iv,
+    cipherOid: cipher.oid
+  });
+  return Object.freeze({ algorithm, pbes2, scheme: `PBES2 (PBKDF2 with HMAC-${derivation.prf}, AES-${String(keyBits)}-CBC)` });
+}
+function _requirePbes2(encryption, path, offset) {
+  if (encryption.pbes2 === void 0) {
+    throw _keyError("PKI_KEY_ENCRYPTION_UNSUPPORTED", path, offset, `is encrypted with ${encryption.scheme}`);
+  }
+  return encryption.pbes2;
+}
+function _passwordOctets(password) {
+  if (typeof password !== "string") {
+    if (!(password instanceof Uint8Array)) {
+      throw new PkiError("PKI_INVALID_INPUT", `pkinative: the password must be a string or a Uint8Array, got ${password === null ? "null" : typeof password}`);
+    }
+    return { octets: password, wipe: () => void 0 };
+  }
+  const octets = encodeUtf8(password);
+  if (octets === null) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: the password string contains a lone surrogate, so it has no UTF-8 encoding \u2014 pass the exact octets as a Uint8Array");
+  }
+  return { octets, wipe: () => {
+    octets.fill(0);
+  } };
+}
+async function _derivePbes2Key(password, pbes2, oid) {
+  const { octets, wipe } = _passwordOctets(password);
+  const target = { name: "AES-CBC", length: pbes2.keyBits };
+  try {
+    return await derivePasswordKey(octets, { name: "PBKDF2", salt: pbes2.salt, iterations: pbes2.iterations, hash: { name: pbes2.prf } }, target, oid);
+  } finally {
+    wipe();
+  }
+}
+
+// src/keys/key-pkcs8.ts
+var KEY_TYPES = /* @__PURE__ */ new Map([
+  [OID_RSA_ENCRYPTION, "rsa"],
+  [OID_RSASSA_PSS, "rsa-pss"],
+  [OID_EC_PUBLIC_KEY, "ec"],
+  [OID_ED25519, "ed25519"],
+  [OID_ED448, "ed448"]
+]);
+function _readAttributes2(set, ctx, path) {
+  const out = [];
+  for (const [i, attribute] of set.children.entries()) {
+    enforceLimit(ctx.limits, "maxCmsAttributes", i + 1, path);
+    const at = `${path}[${String(i)}]`;
+    const seq = _expectField(attribute, TAG_SEQUENCE, at, set.offset, "an Attribute SEQUENCE");
+    if (seq.children.length !== 2) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", at, seq.offset, `holds ${String(seq.children.length)} values; an Attribute is a type and a SET of values`);
+    }
+    const oid = _readObjectIdentifier(_expectField(seq.children[0], TAG_OID, `${at}.type`, seq.offset, "an OBJECT IDENTIFIER"), ctx);
+    const values = _expectField(seq.children[1], TAG_SET, `${at}.values`, seq.offset, "a SET of attribute values");
+    if (values.children.length === 0) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${at}.values`, values.offset, "is empty; an attribute carries at least one value");
+    }
+    out.push(Object.freeze({ oid, values: Object.freeze(values.children.map((v) => v.bytes)), der: seq.bytes }));
+  }
+  return out;
+}
+function _readPrivateKeyInfo(node, ctx, path, parentOffset) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "a PrivateKeyInfo SEQUENCE");
+  const [versionNode, algorithmNode, keyNode, ...optional] = seq.children;
+  const version = _readSmallInteger(_expectField(versionNode, TAG_INTEGER, `${path}.version`, seq.offset, "an INTEGER version"), ctx);
+  if (version !== 0 && version !== 1) {
+    throw _keyError("PKI_KEY_VERSION_UNSUPPORTED", `${path}.version`, seq.offset, `is ${String(version)}; RFC 5958 defines v1 (0) and v2 (1)`);
+  }
+  const algorithm = _readKeyAlgorithm(algorithmNode, ctx, `${path}.privateKeyAlgorithm`, seq.offset);
+  _readOctetString(_expectField(keyNode, TAG_OCTET_STRING, `${path}.privateKey`, seq.offset, "an OCTET STRING private key"), ctx);
+  let attributes = [];
+  let publicKey;
+  let rank = -1;
+  for (const field of optional) {
+    const tag = field.tagClass === "context" ? field.tagNumber : -1;
+    if (tag !== 0 && tag !== 1 || tag <= rank) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, field.offset, "holds a value after the private key other than attributes [0] followed by publicKey [1]");
+    }
+    rank = tag;
+    if (tag === 0) {
+      if (!field.constructed) throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.attributes`, field.offset, "is primitive; attributes [0] is an IMPLICIT SET OF");
+      attributes = Object.freeze(_readAttributes2(field, ctx, `${path}.attributes`));
+    } else {
+      if (version === 0) {
+        throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.publicKey`, field.offset, "is present in a version 0 structure; only v2 (1) may carry the public key");
+      }
+      publicKey = _readBitString(field, ctx);
+    }
+  }
+  const keyType = KEY_TYPES.get(algorithm.oid) ?? "unknown";
+  const parameters = algorithm.parameters;
+  const namedCurve = keyType === "ec" && parameters !== void 0 && parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? EC_CURVE_OIDS.get(_readObjectIdentifier(parameters, ctx)) : void 0;
+  return Object.freeze({ der: seq.bytes, version, algorithm, keyType, namedCurve, attributes, publicKey });
+}
+function _readEncryptedPrivateKeyInfo(node, ctx, path, parentOffset) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "an EncryptedPrivateKeyInfo SEQUENCE");
+  if (seq.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values; an EncryptedPrivateKeyInfo is a scheme and ciphertext`);
+  }
+  const encryption = _readPasswordEncryption(seq.children[0], ctx, `${path}.encryptionAlgorithm`, seq.offset);
+  const dataNode = _expectField(seq.children[1], TAG_OCTET_STRING, `${path}.encryptedData`, seq.offset, "an OCTET STRING of ciphertext");
+  const encryptedData = _readOctetString(dataNode, ctx);
+  return Object.freeze({ der: seq.bytes, encryption, encryptedData });
+}
+function parsePrivateKeyInfo(der, options) {
+  const bytes = assertBytes(der, "parsePrivateKeyInfo input");
+  const ctx = createAsn1Context(options);
+  const info = _readPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, "privateKeyInfo", 0);
+  return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+}
+function parseEncryptedPrivateKeyInfo(der, options) {
+  const bytes = assertBytes(der, "parseEncryptedPrivateKeyInfo input");
+  const ctx = createAsn1Context(options);
+  const info = _readEncryptedPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, "encryptedPrivateKeyInfo", 0);
+  return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+}
+
+// src/keys/key-import.ts
+var CUSTOMARY_HASH = /* @__PURE__ */ Object.freeze({
+  "P-256": "SHA-256",
+  "P-384": "SHA-384",
+  "P-521": "SHA-512"
+});
+function _algorithmName(algorithm) {
+  return algorithm.name === "ECDSA" ? `ECDSA on ${String(algorithm.namedCurve)}` : String(algorithm.name);
+}
+function _mismatch(key, algorithm) {
+  return new PkiError(
+    "PKI_API_MISUSE",
+    `pkinative: the private key is ${key}, and the algorithm named is ${_algorithmName(algorithm)} \u2014 name an algorithm the key can sign with, or omit it where the key decides`
+  );
+}
+function _ambiguous(key, choice) {
+  return new PkiError(
+    "PKI_API_MISUSE",
+    `pkinative: the private key is ${key}, which does not say how it signs \u2014 pass options.algorithm: ${choice}`
+  );
+}
+function _unsupported(why, oid) {
+  return new PkiCryptoError(
+    "PKI_CRYPTO_KEY_UNSUPPORTED",
+    `pkinative: the private key ${why}, and Web Crypto signs only with RSA, ECDSA on P-256, P-384 and P-521, Ed25519 and Ed448 \u2014 sign with a library or a device that implements it`,
+    oid
+  );
+}
+function _signingAlgorithm(info, requested) {
+  const oid = info.algorithm.oid;
+  switch (info.keyType) {
+    case "ec": {
+      const curve = info.namedCurve;
+      if (curve === void 0) throw _unsupported("is an EC key on a curve that is not P-256, P-384 or P-521, or not named", oid);
+      if (requested === void 0) return { name: "ECDSA", hash: CUSTOMARY_HASH[curve], namedCurve: curve };
+      if (requested.name !== "ECDSA" || requested.namedCurve !== curve) throw _mismatch(`an EC key on ${curve}`, requested);
+      return requested;
+    }
+    case "ed25519":
+    case "ed448": {
+      const name = info.keyType === "ed25519" ? "Ed25519" : "Ed448";
+      if (requested === void 0) return { name };
+      if (requested.name !== name) throw _mismatch(`an ${name} key`, requested);
+      return requested;
+    }
+    case "rsa":
+      if (requested === void 0) {
+        throw _ambiguous("an RSA key (rsaEncryption)", "{ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } or { name: 'RSA-PSS', hash: 'SHA-256' }, with the digest the relying party expects");
+      }
+      if (requested.name !== "RSASSA-PKCS1-v1_5" && requested.name !== "RSA-PSS") throw _mismatch("an RSA key", requested);
+      return requested;
+    case "rsa-pss":
+      if (requested === void 0) {
+        throw _ambiguous("an RSA key restricted to PSS (id-RSASSA-PSS)", "{ name: 'RSA-PSS', hash: 'SHA-256' }, with the digest its parameters allow");
+      }
+      if (requested.name !== "RSA-PSS") throw _mismatch("an RSA key restricted to PSS (id-RSASSA-PSS)", requested);
+      return requested;
+    case "unknown":
+      throw _unsupported(`is of a type pkinative does not sign with (${oid})`, oid);
+  }
+}
+function _checkAlgorithmOption(algorithm, required) {
+  if (algorithm === void 0 && !required) return;
+  if (typeof algorithm !== "object" || algorithm === null) {
+    throw new PkiError(
+      "PKI_INVALID_OPTION",
+      `pkinative: options.algorithm must be a SignatureAlgorithm object such as { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' }, got ${algorithm === null ? "null" : typeof algorithm}`
+    );
+  }
+}
+async function importPrivateKey(der, options) {
+  const info = parsePrivateKeyInfo(der, options);
+  _checkAlgorithmOption(options?.algorithm, false);
+  const algorithm = _signingAlgorithm(info, options?.algorithm);
+  const { importParams } = resolveSigner(algorithm);
+  const key = await importPkcs8Key(info.der, importParams, info.algorithm.oid);
+  return Object.freeze({ key, algorithm });
+}
+async function decryptPrivateKey(der, options) {
+  if (typeof options !== "object" || options === null) {
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: decryptPrivateKey needs options \u2014 pass { password, algorithm }");
+  }
+  const password = options.password;
+  if (typeof password !== "string" && !(ArrayBuffer.isView(password) && Object.prototype.toString.call(password) === "[object Uint8Array]")) {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: options.password must be a string or a Uint8Array, got ${password === null ? "null" : typeof password}`);
+  }
+  _checkAlgorithmOption(options.algorithm, true);
+  const info = parseEncryptedPrivateKeyInfo(der, options);
+  const path = "encryptedPrivateKeyInfo.encryptionAlgorithm";
+  const pbes2 = _requirePbes2(info.encryption, path, info.encryption.algorithm.der.byteOffset - info.der.byteOffset);
+  const { importParams } = resolveSigner(options.algorithm);
+  const oid = info.encryption.algorithm.oid;
+  const wrappingKey = await _derivePbes2Key(options.password, pbes2, oid);
+  const key = await unwrapPrivateKey(info.encryptedData, wrappingKey, pbes2.iv, importParams, oid);
+  return Object.freeze({ key, algorithm: options.algorithm });
+}
+
+// src/keys/key-pkcs12.ts
+var BAG_KINDS = /* @__PURE__ */ new Map([
+  [OID_KEY_BAG, "keyBag"],
+  [OID_PKCS8_SHROUDED_KEY_BAG, "pkcs8ShroudedKeyBag"],
+  [OID_CERT_BAG, "certBag"],
+  [OID_CRL_BAG, "crlBag"],
+  [OID_SECRET_BAG, "secretBag"],
+  [OID_SAFE_CONTENTS_BAG, "safeContentsBag"]
+]);
+function _explicit(node, tagNumber, path, parentOffset, what) {
+  if (node === void 0) throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, parentOffset, `is missing; expected ${what}`);
+  if (node.tagClass !== "context" || node.tagNumber !== tagNumber || !node.constructed || node.children.length !== 1) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, node.offset, `is not ${what} around exactly one value`);
+  }
+  return node.children[0];
+}
+function _readContentInfo(node, ctx, path, parentOffset) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, "a ContentInfo SEQUENCE");
+  if (seq.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values; a ContentInfo here is a content type and its content`);
+  }
+  const contentType = _readObjectIdentifier(_expectField(seq.children[0], TAG_OID, `${path}.contentType`, seq.offset, "an OBJECT IDENTIFIER"), ctx);
+  const content = _explicit(seq.children[1], 0, `${path}.content`, seq.offset, "content [0] EXPLICIT");
+  return { contentType, content, offset: seq.offset };
+}
+function _readTypedValue(node, ctx, path, parentOffset, what) {
+  const seq = _expectField(node, TAG_SEQUENCE, path, parentOffset, `a ${what} SEQUENCE`);
+  if (seq.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, `holds ${String(seq.children.length)} values; a ${what} is a type and a value`);
+  }
+  const typeId = _readObjectIdentifier(_expectField(seq.children[0], TAG_OID, `${path}.typeId`, seq.offset, "an OBJECT IDENTIFIER"), ctx);
+  return { typeId, value: _explicit(seq.children[1], 0, `${path}.value`, seq.offset, "value [0] EXPLICIT") };
+}
+function _wrappedDer(node, ctx, path, parentOffset, what, x509Type) {
+  const typed = _readTypedValue(node, ctx, path, parentOffset, what);
+  if (typed.typeId !== x509Type) return void 0;
+  return _readOctetString(_expectField(typed.value, TAG_OCTET_STRING, `${path}.value`, node.offset, "an OCTET STRING"), ctx);
+}
+function _singleValue(set, attributes, oid) {
+  let found;
+  for (const [i, attribute] of attributes.entries()) {
+    if (attribute.oid !== oid) continue;
+    if (found !== void 0) return void 0;
+    found = i;
+  }
+  if (found === void 0 || attributes[found].values.length !== 1) return void 0;
+  return set.children[found].children[1].children[0];
+}
+function _schedule(node, ctx, path, parentOffset, stack, budget) {
+  const contents = _expectField(node, TAG_SEQUENCE, path, parentOffset, "a SafeContents SEQUENCE OF SafeBag");
+  budget.scheduled += contents.children.length;
+  enforceLimit(ctx.limits, "maxPkcs12Bags", budget.scheduled, `the SafeBags of the PKCS#12 up to ${path}`);
+  for (let i = contents.children.length - 1; i >= 0; i--) {
+    stack.push({ node: contents.children[i], path: `${path}.bags[${String(i)}]`, parentOffset: contents.offset });
+  }
+}
+function _readBag(pending, ctx) {
+  const { path } = pending;
+  const seq = _expectField(pending.node, TAG_SEQUENCE, path, pending.parentOffset, "a SafeBag SEQUENCE");
+  const [idNode, valueNode, attributesNode, ...extra] = seq.children;
+  if (extra.length > 0) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, "holds more than bagId, bagValue and bagAttributes");
+  }
+  const oid = _readObjectIdentifier(_expectField(idNode, TAG_OID, `${path}.bagId`, seq.offset, "an OBJECT IDENTIFIER"), ctx);
+  const value = _explicit(valueNode, 0, `${path}.bagValue`, seq.offset, "bagValue [0] EXPLICIT");
+  let attributes = [];
+  let friendlyName;
+  let localKeyId;
+  if (attributesNode !== void 0) {
+    const at = `${path}.bagAttributes`;
+    const set = _expectField(attributesNode, TAG_SET, at, seq.offset, "a SET OF attributes");
+    attributes = Object.freeze(_readAttributes2(set, ctx, at));
+    const name = _singleValue(set, attributes, OID_ATTR_FRIENDLY_NAME);
+    if (name !== void 0) {
+      friendlyName = _readString(_expectField(name, TAG_BMP_STRING, `${at}.friendlyName`, set.offset, "a BMPString"), ctx, void 0, `${at}.friendlyName`).value;
+    }
+    const keyId = _singleValue(set, attributes, OID_ATTR_LOCAL_KEY_ID);
+    if (keyId !== void 0) {
+      localKeyId = _readOctetString(_expectField(keyId, TAG_OCTET_STRING, `${at}.localKeyId`, set.offset, "an OCTET STRING"), ctx);
+    }
+  }
+  const kind = BAG_KINDS.get(oid) ?? "unknown";
+  const valuePath = `${path}.bagValue`;
+  let certificateDer;
+  let crlDer;
+  let encryptedKey;
+  let privateKey;
+  let nested;
+  const before = ctx.emitter.diagnostics.length;
+  switch (kind) {
+    case "keyBag": {
+      const info = _readPrivateKeyInfo(value, ctx, valuePath, seq.offset);
+      privateKey = Object.freeze({ ...info, diagnostics: Object.freeze(ctx.emitter.diagnostics.slice(before)) });
+      break;
+    }
+    case "pkcs8ShroudedKeyBag": {
+      const info = _readEncryptedPrivateKeyInfo(value, ctx, valuePath, seq.offset);
+      encryptedKey = Object.freeze({ ...info, diagnostics: Object.freeze(ctx.emitter.diagnostics.slice(before)) });
+      break;
+    }
+    case "certBag":
+      certificateDer = _wrappedDer(value, ctx, valuePath, seq.offset, "CertBag", OID_CERT_TYPE_X509);
+      break;
+    case "crlBag":
+      crlDer = _wrappedDer(value, ctx, valuePath, seq.offset, "CRLBag", OID_CRL_TYPE_X509);
+      break;
+    case "secretBag":
+      _readTypedValue(value, ctx, valuePath, seq.offset, "SecretBag");
+      break;
+    case "safeContentsBag":
+      nested = value;
+      break;
+  }
+  const bag = Object.freeze({
+    kind,
+    oid,
+    valueDer: value.bytes,
+    friendlyName,
+    localKeyId,
+    attributes,
+    certificateDer,
+    crlDer,
+    encryptedKey,
+    privateKey,
+    path
+  });
+  return { bag, nested };
+}
+function _readSafeContents(node, ctx, path, budget) {
+  const out = [];
+  const stack = [];
+  _schedule(node, ctx, path, node.offset, stack, budget);
+  while (stack.length > 0) {
+    const pending = stack.pop();
+    const { bag, nested } = _readBag(pending, ctx);
+    out.push(bag);
+    if (nested !== void 0) _schedule(nested, ctx, pending.path, pending.parentOffset, stack, budget);
+  }
+  return Object.freeze(out);
+}
+function _readSafeContentsInfo(node, ctx, path, parentOffset, budget) {
+  const { contentType, content, offset } = _readContentInfo(node, ctx, path, parentOffset);
+  if (contentType === OID_DATA) {
+    const octets = _readOctetString(_expectField(content, TAG_OCTET_STRING, `${path}.content`, offset, "an OCTET STRING"), ctx);
+    const bags = _readSafeContents(decodeWithContext(octets, ctx, false), ctx, path, budget);
+    return Object.freeze({ encrypted: false, encryption: void 0, encryptedContent: void 0, bags, path });
+  }
+  if (contentType === OID_ENVELOPED_DATA) {
+    return Object.freeze({ encrypted: true, encryption: void 0, encryptedContent: void 0, bags: Object.freeze([]), path });
+  }
+  if (contentType !== OID_ENCRYPTED_DATA) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.contentType`, offset, `is ${contentType}; an AuthenticatedSafe entry is data, encryptedData or envelopedData`);
+  }
+  const at = `${path}.content`;
+  const encryptedData = _expectField(content, TAG_SEQUENCE, at, offset, "an EncryptedData SEQUENCE");
+  const [versionNode, infoNode, unprotected, ...extra] = encryptedData.children;
+  const version = _readSmallInteger(_expectField(versionNode, TAG_INTEGER, `${at}.version`, encryptedData.offset, "an INTEGER version"), ctx);
+  if (version !== 0 && version !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${at}.version`, encryptedData.offset, `is ${String(version)}; RFC 5652 \xA78 gives EncryptedData version 0, or 2 with unprotected attributes`);
+  }
+  if (extra.length > 0 || unprotected !== void 0 && (unprotected.tagClass !== "context" || unprotected.tagNumber !== 1 || !unprotected.constructed)) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", at, encryptedData.offset, "holds a value after encryptedContentInfo other than unprotectedAttrs [1]");
+  }
+  const infoPath = `${at}.encryptedContentInfo`;
+  const info = _expectField(infoNode, TAG_SEQUENCE, infoPath, encryptedData.offset, "an EncryptedContentInfo SEQUENCE");
+  const [typeNode, algorithmNode, ciphertextNode, ...more] = info.children;
+  if (more.length > 0) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", infoPath, info.offset, "holds more than contentType, contentEncryptionAlgorithm and encryptedContent");
+  }
+  const innerType = _readObjectIdentifier(_expectField(typeNode, TAG_OID, `${infoPath}.contentType`, info.offset, "an OBJECT IDENTIFIER"), ctx);
+  if (innerType !== OID_DATA) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${infoPath}.contentType`, info.offset, `is ${innerType}; an encrypted SafeContents is data`);
+  }
+  const encryption = _readPasswordEncryption(algorithmNode, ctx, `${infoPath}.contentEncryptionAlgorithm`, info.offset);
+  if (ciphertextNode === void 0 || ciphertextNode.tagClass !== "context" || ciphertextNode.tagNumber !== 0) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${infoPath}.encryptedContent`, info.offset, "is not encryptedContent [0]; PKCS#12 never detaches the ciphertext");
+  }
+  const encryptedContent = _readOctetString(ciphertextNode, ctx);
+  return Object.freeze({ encrypted: true, encryption, encryptedContent, bags: Object.freeze([]), path });
+}
+function _absentOrNull2(parameters) {
+  return parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
+}
+function _readPbmac1(algorithm, ctx, path, offset) {
+  const params = _expectField(algorithm.parameters, TAG_SEQUENCE, `${path}.parameters`, offset, "PBMAC1-params");
+  if (params.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.parameters`, params.offset, `holds ${String(params.children.length)} values; PBMAC1-params is a keyDerivationFunc and a messageAuthScheme`);
+  }
+  const kdfPath = `${path}.parameters.keyDerivationFunc`;
+  const kdf = _readKeyAlgorithm(params.children[0], ctx, kdfPath, params.offset);
+  const scheme = _readKeyAlgorithm(params.children[1], ctx, `${path}.parameters.messageAuthScheme`, params.offset);
+  const derivation = _readPbkdf2(kdf, ctx, kdfPath, params.offset);
+  if (!derivation.ok) return void 0;
+  if (derivation.keyLength === void 0) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${kdfPath}.parameters.keyLength`, params.offset, "is missing; RFC 9579 \xA73 requires it under PBMAC1");
+  }
+  const hmac = HMAC_OIDS.get(scheme.oid);
+  if (hmac === void 0 || !_absentOrNull2(scheme.parameters)) return void 0;
+  return Object.freeze({ salt: derivation.salt, iterations: derivation.iterations, prf: derivation.prf, keyLength: derivation.keyLength, hmac });
+}
+function _readMacData(node, ctx) {
+  const path = "macData";
+  const seq = _expectField(node, TAG_SEQUENCE, path, node.offset, "a MacData SEQUENCE");
+  const [digestInfoNode, saltNode, iterationsNode, ...extra] = seq.children;
+  if (extra.length > 0) throw _keyError("PKI_KEY_STRUCTURE_INVALID", path, seq.offset, "holds more than mac, macSalt and iterations");
+  const digestInfo = _expectField(digestInfoNode, TAG_SEQUENCE, `${path}.mac`, seq.offset, "a DigestInfo SEQUENCE");
+  if (digestInfo.children.length !== 2) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.mac`, digestInfo.offset, `holds ${String(digestInfo.children.length)} values; a DigestInfo is an algorithm and a digest`);
+  }
+  const algorithmPath = `${path}.mac.digestAlgorithm`;
+  const algorithm = _readKeyAlgorithm(digestInfo.children[0], ctx, algorithmPath, digestInfo.offset);
+  const mac = _readOctetString(_expectField(digestInfo.children[1], TAG_OCTET_STRING, `${path}.mac.digest`, digestInfo.offset, "an OCTET STRING"), ctx);
+  const salt = _readOctetString(_expectField(saltNode, TAG_OCTET_STRING, `${path}.macSalt`, seq.offset, "an OCTET STRING salt"), ctx);
+  let iterations = 1;
+  if (iterationsNode !== void 0) {
+    const countField = _expectField(iterationsNode, TAG_INTEGER, `${path}.iterations`, seq.offset, "an INTEGER iteration count");
+    const count = _readInteger(countField, ctx);
+    if (count < 1n) {
+      throw _keyError("PKI_KEY_STRUCTURE_INVALID", `${path}.iterations`, countField.offset, `is ${String(count)}; an iteration count is at least 1`);
+    }
+    iterations = _readSmallInteger(countField, ctx);
+    if (iterations === 1) ctx.emitter.emit(defaultEncodedDiagnostic(`${path}.iterations`, "1", countField.offset));
+  }
+  if (algorithm.oid === OID_PBMAC1) {
+    const pbmac1 = _readPbmac1(algorithm, ctx, algorithmPath, digestInfo.offset);
+    return Object.freeze({ kind: "pbmac1", algorithm, mac, salt, iterations, pbmac1 });
+  }
+  return Object.freeze({ kind: "pkcs12-kdf", algorithm, mac, salt, iterations, pbmac1: void 0 });
+}
+function parsePkcs12(der, options) {
+  const bytes = assertBytes(der, "parsePkcs12 input");
+  const ctx = createAsn1Context(options);
+  const pfx = _expectField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "pfx", 0, "a PFX SEQUENCE");
+  const [versionNode, authSafeNode, macDataNode, ...extra] = pfx.children;
+  const version = _readSmallInteger(_expectField(versionNode, TAG_INTEGER, "pfx.version", pfx.offset, "an INTEGER version"), ctx);
+  if (version !== 3) {
+    throw _keyError("PKI_KEY_VERSION_UNSUPPORTED", "pfx.version", pfx.offset, `is ${String(version)}; RFC 7292 \xA74 defines v3 only`);
+  }
+  if (extra.length > 0) throw _keyError("PKI_KEY_STRUCTURE_INVALID", "pfx", pfx.offset, "holds more than version, authSafe and macData");
+  const { contentType, content, offset } = _readContentInfo(authSafeNode, ctx, "authSafe", pfx.offset);
+  if (contentType === OID_SIGNED_DATA) {
+    throw _keyError("PKI_KEY_MAC_UNSUPPORTED", "authSafe.contentType", offset, "is signedData, public-key integrity mode, which pkinative does not verify");
+  }
+  if (contentType !== OID_DATA) {
+    throw _keyError("PKI_KEY_STRUCTURE_INVALID", "authSafe.contentType", offset, `is ${contentType}; RFC 7292 \xA74 puts the AuthenticatedSafe in data or signedData`);
+  }
+  const authenticatedSafe = _readOctetString(_expectField(content, TAG_OCTET_STRING, "authSafe.content", offset, "an OCTET STRING"), ctx);
+  const safe = _expectField(decodeWithContext(authenticatedSafe, ctx, false), TAG_SEQUENCE, "authSafe", 0, "an AuthenticatedSafe SEQUENCE OF ContentInfo");
+  enforceLimit(ctx.limits, "maxPkcs12Bags", safe.children.length, "the entries of the AuthenticatedSafe");
+  const budget = { scheduled: 0 };
+  const contents = Object.freeze(safe.children.map((entry, i) => _readSafeContentsInfo(entry, ctx, `authSafe[${String(i)}]`, safe.offset, budget)));
+  const mac = macDataNode === void 0 ? void 0 : _readMacData(macDataNode, ctx);
+  return Object.freeze({ der: pfx.bytes, version, authenticatedSafe, contents, mac, diagnostics: ctx.emitter.diagnostics });
+}
+async function verifyPkcs12Mac(pkcs12, password) {
+  if (typeof pkcs12 !== "object" || pkcs12 === null) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: verifyPkcs12Mac expects the result of parsePkcs12");
+  }
+  const mac = pkcs12.mac;
+  if (mac === void 0) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: this PKCS#12 carries no MacData, so there is no MAC to verify \u2014 check pkcs12.mac before calling verifyPkcs12Mac");
+  }
+  const path = "macData.mac.digestAlgorithm";
+  if (mac.kind !== "pbmac1") {
+    throw _keyError("PKI_KEY_MAC_UNSUPPORTED", path, void 0, `is ${mac.algorithm.oid}, a MAC keyed by the RFC 7292 Appendix B KDF, which pkinative never implements`);
+  }
+  const params = mac.pbmac1;
+  if (params === void 0) {
+    throw _keyError("PKI_KEY_MAC_UNSUPPORTED", path, void 0, "is PBMAC1 with a key derivation function or an HMAC that Web Crypto does not run");
+  }
+  const { octets, wipe } = _passwordOctets(password);
+  try {
+    const key = await derivePasswordKey(
+      octets,
+      { name: "PBKDF2", salt: params.salt, iterations: params.iterations, hash: { name: params.prf } },
+      { name: "HMAC", hash: { name: params.hmac }, length: params.keyLength * 8 },
+      OID_PBMAC1
+    );
+    return await verifyMac(key, mac.mac, pkcs12.authenticatedSafe);
+  } finally {
+    wipe();
+  }
+}
+async function openSafeContents(contents, password, options) {
+  if (typeof contents !== "object" || contents === null) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: openSafeContents expects an entry of parsePkcs12(\u2026).contents");
+  }
+  const ctx = createAsn1Context(options);
+  if (!contents.encrypted) return contents.bags;
+  const { encryption, encryptedContent, path } = contents;
+  if (encryption === void 0) {
+    throw _keyError("PKI_KEY_ENCRYPTION_UNSUPPORTED", path, void 0, "is envelopedData, public-key privacy mode, which pkinative does not open");
+  }
+  const pbes2 = _requirePbes2(encryption, `${path}.content.encryptedContentInfo.contentEncryptionAlgorithm`, void 0);
+  if (encryptedContent === void 0) {
+    throw new PkiError("PKI_API_MISUSE", `pkinative: ${path} is marked encrypted but carries no ciphertext \u2014 pass an entry of parsePkcs12(\u2026).contents unchanged`);
+  }
+  enforceLimit(ctx.limits, "maxKdfIterations", pbes2.iterations, `${path} PBKDF2 iteration count`);
+  const key = await _derivePbes2Key(password, pbes2, encryption.algorithm.oid);
+  const plaintext = await decryptContent(key, pbes2.iv, encryptedContent, encryption.algorithm.oid);
+  return _readSafeContents(decodeWithContext(plaintext, ctx, false), ctx, path, { scheduled: 0 });
+}
+
+// src/verify/verify-pkcs12.ts
+var CURVE_HASH = { "P-256": "SHA-256", "P-384": "SHA-384", "P-521": "SHA-512" };
+async function readPkcs12(der, options) {
+  const password = _password(options);
+  const rsaAlgorithm = _rsaAlgorithm(options.rsaAlgorithm);
+  assertBytes(der, "readPkcs12 input");
+  const reading = {
+    limits: options.limits ?? {},
+    onDiagnostic: () => void 0,
+    ...options.encodingRules === void 0 ? {} : { encodingRules: options.encodingRules }
+  };
+  _assertArguments([], reading);
+  if (!canDecrypt()) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle with the operations PBES2 needs, so no PKCS#12 can be opened \u2014 call canDecrypt() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      "PBES2"
+    );
+  }
+  const reasons = [];
+  let pkcs12;
+  try {
+    pkcs12 = parsePkcs12(der, reading);
+  } catch (error) {
+    const refused = _pkiError(error);
+    reasons.push(refused.code === "PKI_KEY_MAC_UNSUPPORTED" ? pkcs12IntegrityUnverifiedReason("authSafe", "public-key") : inputMalformedReason(refused.code, refused.message, "pkcs12"));
+    return _report2(reasons, "unverified", void 0, [], [], []);
+  }
+  let integrity = "unverified";
+  const mac = pkcs12.mac;
+  let unverified;
+  if (mac === void 0) unverified = "absent";
+  else if (mac.kind === "pkcs12-kdf") unverified = "pkcs12-kdf";
+  else if (mac.pbmac1 === void 0) unverified = "pbmac1-unsupported";
+  else {
+    try {
+      integrity = await verifyPkcs12Mac(pkcs12, password) ? "verified" : "mismatch";
+    } catch (error) {
+      _pkiError(error);
+      unverified = "pbmac1-unsupported";
+    }
+    if (integrity === "mismatch") {
+      reasons.push(pkcs12MacMismatchReason("macData"));
+      return _report2(reasons, integrity, pkcs12, [], [], []);
+    }
+  }
+  if (unverified !== void 0 && options.allowUnverifiedIntegrity !== true) {
+    reasons.push(pkcs12IntegrityUnverifiedReason("macData", unverified));
+  }
+  const bags = [];
+  for (const contents of pkcs12.contents) {
+    try {
+      bags.push(...await openSafeContents(contents, password, reading));
+    } catch (error) {
+      reasons.push(_openingReason(_pkiError(error), contents.path, contents.encryption?.scheme ?? "envelopedData, public-key privacy mode"));
+    }
+  }
+  const certificates = [];
+  const crls = [];
+  for (const bag of bags) {
+    if (bag.certificateDer !== void 0) {
+      try {
+        certificates.push({ certificate: parseCertificate(bag.certificateDer, reading), localKeyId: bag.localKeyId });
+      } catch (error) {
+        const refused = _pkiError(error);
+        reasons.push(inputMalformedReason(refused.code, refused.message, bag.path));
+      }
+    } else if (bag.crlDer !== void 0) {
+      crls.push(bag.crlDer);
+    }
+  }
+  const keys = [];
+  for (const bag of bags) {
+    const held = bag.encryptedKey ?? bag.privateKey;
+    if (held === void 0) continue;
+    const localKeyId = bag.localKeyId;
+    const certificate = localKeyId === void 0 ? void 0 : certificates.find((c) => c.localKeyId !== void 0 && bytesEqual(c.localKeyId, localKeyId))?.certificate;
+    const entry = { path: bag.path, localKeyId, friendlyName: bag.friendlyName, certificate };
+    if (certificate === void 0) {
+      reasons.push(pkcs12KeyUnmatchedReason(bag.path));
+      keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
+      continue;
+    }
+    const algorithm = _algorithmOf(certificate, rsaAlgorithm);
+    if (algorithm === void 0) {
+      reasons.push(pkcs12KeyUnsupportedReason(
+        bag.path,
+        `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${certificate.subjectPublicKeyInfo.kind === "ec" ? " on a curve Web Crypto does not sign with" : ""}, which Web Crypto cannot import as a signing key`
+      ));
+      keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
+      continue;
+    }
+    let signingKey;
+    try {
+      signingKey = "encryption" in held ? await decryptPrivateKey(held.der, { ...reading, password, algorithm }) : await importPrivateKey(held.der, { ...reading, algorithm });
+    } catch (error) {
+      reasons.push(_openingReason(_pkiError(error), bag.path, "encryption" in held ? held.encryption.scheme : "no encryption"));
+    }
+    keys.push(Object.freeze({ ...entry, signingKey }));
+  }
+  return _report2(reasons, integrity === "verified" ? "verified" : "unverified", pkcs12, keys, certificates.map((c) => c.certificate), crls);
+}
+function _password(options) {
+  const password = options?.password;
+  if (typeof password !== "string" && !(password instanceof Uint8Array)) {
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: readPkcs12 needs options.password, as a string or a Uint8Array \u2014 an empty string is a password, undefined is not");
+  }
+  return password;
+}
+function _rsaAlgorithm(chosen) {
+  if (chosen === void 0) return void 0;
+  const candidate = chosen;
+  if (typeof chosen !== "object" || candidate === null || candidate.name !== "RSASSA-PKCS1-v1_5" && candidate.name !== "RSA-PSS" || !RSA_HASHES.has(candidate.hash)) {
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: readPkcs12 options.rsaAlgorithm must be { name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS', hash: 'SHA-256' | 'SHA-384' | 'SHA-512' | 'SHA-1' } \u2014 it says what an RSA key will sign with");
+  }
+  return chosen;
+}
+var RSA_HASHES = /* @__PURE__ */ new Set(["SHA-1", "SHA-256", "SHA-384", "SHA-512"]);
+function _openingReason(refused, path, scheme) {
+  switch (refused.code) {
+    case "PKI_KEY_ENCRYPTION_UNSUPPORTED":
+      return pkcs12EncryptionUnsupportedReason(path, scheme);
+    case "PKI_CRYPTO_DECRYPTION_FAILED":
+      return pkcs12DecryptionFailedReason(path);
+    case "PKI_CRYPTO_ALGORITHM_UNSUPPORTED":
+      return pkcs12EncryptionUnsupportedReason(path, scheme, true);
+    case "PKI_CRYPTO_KEY_UNSUPPORTED":
+      return pkcs12KeyUnsupportedReason(path, refused.message.slice("pkinative: ".length));
+    case "PKI_API_MISUSE":
+      return pkcs12KeyUnsupportedReason(path, "the key is not of the algorithm its certificate names, so the two do not belong together");
+    default:
+      return inputMalformedReason(refused.code, refused.message, path);
+  }
+}
+function _algorithmOf(certificate, rsa) {
+  const spki = certificate.subjectPublicKeyInfo;
+  switch (spki.kind) {
+    case "rsa":
+      return rsa ?? { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+    case "ec":
+      return spki.curve === void 0 ? void 0 : { name: "ECDSA", namedCurve: spki.curve, hash: CURVE_HASH[spki.curve] };
+    case "ed25519":
+      return { name: "Ed25519" };
+    case "ed448":
+      return { name: "Ed448" };
+    default:
+      return void 0;
+  }
+}
+function _report2(reasons, integrity, pkcs12, keys, certificates, crls) {
+  return Object.freeze({
+    valid: reasons.length === 0,
+    integrity,
+    pkcs12,
+    keys: Object.freeze([...keys]),
+    certificates: Object.freeze([...certificates]),
+    crls: Object.freeze([...crls]),
+    reasons: Object.freeze([...reasons])
+  });
+}
+
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, dnsMatches2 as dnsMatches, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeCertId, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readPkcs12, readSmallInteger, readString, readTime, signatureAlgorithmDer, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
