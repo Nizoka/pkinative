@@ -406,6 +406,11 @@ export interface ResolvedSigner {
     readonly oid: string;
     /** The Web Crypto `sign` parameters. */
     readonly signParams: VerifyParams;
+    /**
+     * The Web Crypto import parameters of a private key that signs this way —
+     * what `keys` tells the host a PKCS#8 is before importing or unwrapping it.
+     */
+    readonly importParams: ImportParams;
     /** The curve, for ECDSA only — its raw signature must become DER. */
     readonly curve: 'P-256' | 'P-384' | 'P-521' | undefined;
     /** The digest OID and salt length of RSASSA-PSS, which the structure must carry. */
@@ -422,15 +427,16 @@ export interface ResolvedSigner {
  * this library produces and refuses.
  *
  * @param algorithm The algorithm the caller named.
- * @returns The OID, the Web Crypto parameters, and the extra facts the
- *   structure needs for ECDSA and RSASSA-PSS.
+ * @returns The OID, the Web Crypto sign and private-key import parameters,
+ *   and the extra facts the structure needs for ECDSA and RSASSA-PSS.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
  *   combination has no RFC 5280 OID — every ECDSA and PKCS#1 v1.5 digest
  *   pairing does, so this is reachable only through an unchecked cast.
  */
 export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     if (algorithm.name === 'Ed25519' || algorithm.name === 'Ed448') {
-        return { oid: EDWARDS_OID[algorithm.name], signParams: { name: algorithm.name }, curve: undefined, pss: undefined };
+        const name = algorithm.name;
+        return { oid: EDWARDS_OID[name], signParams: { name }, importParams: { name }, curve: undefined, pss: undefined };
     }
 
     if (algorithm.name === 'RSA-PSS') {
@@ -444,6 +450,7 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
         return {
             oid: '1.2.840.113549.1.1.10',
             signParams: { name: 'RSA-PSS', saltLength },
+            importParams: { name: 'RSA-PSS', hash: { name: algorithm.hash } },
             curve: undefined,
             pss: { hashOid, saltLength },
         };
@@ -452,7 +459,19 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
     if (oid === undefined) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, '');
     if (algorithm.name === 'ECDSA') {
-        return { oid, signParams: { name: 'ECDSA', hash: { name: algorithm.hash } }, curve: algorithm.namedCurve, pss: undefined };
+        return {
+            oid,
+            signParams: { name: 'ECDSA', hash: { name: algorithm.hash } },
+            importParams: { name: 'ECDSA', namedCurve: algorithm.namedCurve },
+            curve: algorithm.namedCurve,
+            pss: undefined,
+        };
     }
-    return { oid, signParams: { name: 'RSASSA-PKCS1-v1_5' }, curve: undefined, pss: undefined };
+    return {
+        oid,
+        signParams: { name: 'RSASSA-PKCS1-v1_5' },
+        importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: algorithm.hash } },
+        curve: undefined,
+        pss: undefined,
+    };
 }

@@ -18,8 +18,8 @@
 
 import type { BitString } from './asn1-types.js';
 import type { CmsAttribute } from './cms-types.js';
-import type { SignatureHash } from './crypto-types.js';
-import type { PkiDiagnostic } from './pki-types.js';
+import type { SignatureAlgorithm, SignatureHash } from './crypto-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
 import type { AlgorithmIdentifier } from './x509-types.js';
 
 /** The PBKDF2 pseudo-random functions pkinative derives with — the HMACs Web Crypto implements. */
@@ -94,6 +94,44 @@ export interface EncryptedPrivateKeyInfo {
     readonly encryptedData: Uint8Array;
     /** Profile concerns found while reading, in encoded order. */
     readonly diagnostics: readonly PkiDiagnostic[];
+}
+
+/**
+ * Options of `importPrivateKey`: the parse options, and the algorithm the key
+ * will sign with when the key alone does not say.
+ */
+export interface ImportPrivateKeyOptions extends PkiParseOptions {
+    /**
+     * The algorithm the key signs with. Optional when the key names it
+     * unambiguously — an EC key signs ECDSA on its own curve with that curve's
+     * customary digest (P-256 with SHA-256, P-384 with SHA-384, P-521 with
+     * SHA-512), an Ed25519 or Ed448 key signs Ed25519 or Ed448. Required for
+     * an RSA key, which may sign PKCS#1 v1.5 or PSS over any digest, and for
+     * an `id-RSASSA-PSS` key, which signs PSS only but over a digest pkinative
+     * does not guess. When given, it must fit the key: its family, and the
+     * curve for ECDSA.
+     */
+    readonly algorithm?: SignatureAlgorithm | undefined;
+}
+
+/**
+ * Options of `decryptPrivateKey`: the parse options, the password, and the
+ * algorithm the key inside will sign with.
+ */
+export interface DecryptPrivateKeyOptions extends PkiParseOptions {
+    /**
+     * The password. A string is encoded as UTF-8, which is what OpenSSL and
+     * RFC 9579 use under PBES2; a `Uint8Array` is used as given, for a file
+     * written with another encoding, and is never modified or kept.
+     */
+    readonly password: Uint8Array | string;
+    /**
+     * The algorithm the key inside signs with. Required: the key's type is
+     * inside the ciphertext, and the key is decrypted by the host straight into
+     * a non-extractable handle, never into bytes pkinative could read first —
+     * so the host must be told what it is before it decrypts.
+     */
+    readonly algorithm: SignatureAlgorithm;
 }
 
 /** The six SafeBag types of RFC 7292 §4.2, and anything else. */

@@ -5203,7 +5203,8 @@ var HASH_BYTES = /* @__PURE__ */ new Map([
 ]);
 function resolveSigner(algorithm) {
   if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
-    return { oid: EDWARDS_OID[algorithm.name], signParams: { name: algorithm.name }, curve: void 0, pss: void 0 };
+    const name = algorithm.name;
+    return { oid: EDWARDS_OID[name], signParams: { name }, importParams: { name }, curve: void 0, pss: void 0 };
   }
   if (algorithm.name === "RSA-PSS") {
     const hashOid = OID_BY_HASH.get(algorithm.hash);
@@ -5216,6 +5217,7 @@ function resolveSigner(algorithm) {
     return {
       oid: "1.2.840.113549.1.1.10",
       signParams: { name: "RSA-PSS", saltLength },
+      importParams: { name: "RSA-PSS", hash: { name: algorithm.hash } },
       curve: void 0,
       pss: { hashOid, saltLength }
     };
@@ -5223,9 +5225,21 @@ function resolveSigner(algorithm) {
   const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
   if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
   if (algorithm.name === "ECDSA") {
-    return { oid, signParams: { name: "ECDSA", hash: { name: algorithm.hash } }, curve: algorithm.namedCurve, pss: void 0 };
+    return {
+      oid,
+      signParams: { name: "ECDSA", hash: { name: algorithm.hash } },
+      importParams: { name: "ECDSA", namedCurve: algorithm.namedCurve },
+      curve: algorithm.namedCurve,
+      pss: void 0
+    };
   }
-  return { oid, signParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, pss: void 0 };
+  return {
+    oid,
+    signParams: { name: "RSASSA-PKCS1-v1_5" },
+    importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: algorithm.hash } },
+    curve: void 0,
+    pss: void 0
+  };
 }
 
 // src/crypto/crypto-signature.ts

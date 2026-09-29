@@ -60,10 +60,13 @@ describe('derivePasswordKey and unwrapPrivateKey', () => {
         const wrapped = new Uint8Array(await subtle.wrapKey('pkcs8', pair.privateKey, await writerKey(), { name: 'AES-CBC', iv: IV }));
         const wrong = await derivePasswordKey(new TextEncoder().encode('Tr0ub4dor&3'), KDF, { name: 'AES-CBC', length: 256 }, OID_AES256);
         const right = await derivePasswordKey(PASSWORD, KDF, { name: 'AES-CBC', length: 256 }, OID_AES256);
-        for (const attempt of [
-            unwrapPrivateKey(wrapped, wrong, IV, EC, OID_AES256),
-            unwrapPrivateKey(wrapped, right, IV, { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } }, OID_AES256),
+        // Started one at a time: a second promise created up front rejects
+        // while the first is awaited, and Vitest reports it as unhandled.
+        for (const start of [
+            () => unwrapPrivateKey(wrapped, wrong, IV, EC, OID_AES256),
+            () => unwrapPrivateKey(wrapped, right, IV, { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } }, OID_AES256),
         ]) {
+            const attempt = start();
             await expect(attempt).rejects.toBeInstanceOf(PkiCryptoError);
             await expect(attempt).rejects.toMatchObject({ code: 'PKI_CRYPTO_DECRYPTION_FAILED', algorithm: OID_AES256 });
         }
