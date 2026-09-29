@@ -135,13 +135,16 @@ export const KEY_OPERATION_POLICY: Readonly<Record<string, readonly string[]>> =
     encrypt: [],
     wrapKey: [],
 
-    // ── 0.8, for PKCS#8 and PKCS#12 under PBES2 only ─────────────────
-    // Listed here with an empty allowlist so the table states the whole
-    // vocabulary rather than half of it: a reader must be able to see that
-    // `decrypt` is refused today and why it will not always be.
-    deriveKey: [],
-    unwrapKey: [],
-    decrypt: [],
+    // ── PKCS#8 and PKCS#12 under PBES2 only (0.8) ────────────────────
+    // Each returns a handle or public bytes, never key material. deriveKey
+    //   turns a password into a non-extractable AES or HMAC key; unwrapKey
+    //   turns an encrypted PKCS#8 into a non-extractable signing key without
+    //   its plaintext ever reaching the heap; decrypt opens certificate bags,
+    //   which hold no key. RFC 7292 Appendix B is not among them in any form:
+    //   its KDF is iterated SHA-1 with byte arithmetic over the password.
+    deriveKey: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
+    unwrapKey: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
+    decrypt: ['src/types/webcrypto.ts', 'src/crypto/webcrypto.ts'],
 });
 
 /**

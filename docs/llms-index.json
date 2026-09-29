@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 255158,
-      "approxTokens": 63790
+      "bytes": 255275,
+      "approxTokens": 63819
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 22244,
-      "approxTokens": 5561
+      "bytes": 23308,
+      "approxTokens": 5827
     },
     {
       "url": "data/diagnostics.json",

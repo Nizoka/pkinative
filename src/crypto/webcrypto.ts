@@ -12,17 +12,29 @@
  * library is careful with keys, but that a reviewer can confirm it in one
  * sitting.
  *
- * What it asks for is narrow by construction. Keys are imported from `spki`
- * — the public half, the bytes a certificate already publishes — with
- * `extractable: false` and the single usage `['verify']`. There is no path
- * from here to key material: `exportKey` is refused by the architecture
- * test, in this file as in every other.
+ * What it asks for is narrow by construction. Public keys are imported from
+ * `spki` — the bytes a certificate already publishes — with
+ * `extractable: false` and the single usage `['verify']`. Since 0.8, private
+ * keys arrive here from a PKCS#8 the caller holds or one a password unwraps,
+ * always `extractable: false` with the single usage `['sign']`. There is no
+ * path from here back to key material: `exportKey`, `deriveBits` and
+ * `wrapKey` are refused by the architecture test, in this file as in every
+ * other.
  *
  * @module crypto/webcrypto
  */
 
 import { PkiCryptoError } from '../types/pki-errors.js';
-import type { CryptoKeyHandle, ImportParams, SubtlePublicKey, VerifyParams, WebCryptoHost } from '../types/webcrypto.js';
+import type {
+    CryptoKeyHandle,
+    DerivedKeyParams,
+    ImportParams,
+    Pbkdf2Params,
+    SubtlePassword,
+    SubtlePublicKey,
+    VerifyParams,
+    WebCryptoHost,
+} from '../types/webcrypto.js';
 
 /** The host's `crypto.subtle`, or null when it cannot verify. */
 function publicKeySubtle(): SubtlePublicKey | null {
@@ -161,5 +173,153 @@ export async function signData(key: CryptoKeyHandle, params: VerifyParams, data:
     } catch (cause) {
         throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
             `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) — check that the key is private, carries the "sign" usage, and matches the algorithm named`, params.name);
+    }
+}
+
+// ── Passwords: PKCS#8 and PKCS#12 under PBES2 (0.8) ──────────────────
+//
+// Five calls, and each returns a handle or public bytes. The password is
+// imported as a PBKDF2 base key and never used again; `deriveKey` turns it
+// into a non-extractable AES or HMAC key; `unwrapKey` turns an encrypted
+// PKCS#8 into a non-extractable signing key without its plaintext passing
+// through here; `decrypt` opens only certificate bags, which hold no key; and
+// the MAC is checked by the host. There is no call here that could hand
+// pkinative a private key's bits, which is what lets SECURITY.md say so.
+
+/** The host's `crypto.subtle`, or null when it lacks any of the password operations. */
+function passwordSubtle(): SubtlePassword | null {
+    const subtle = (globalThis as WebCryptoHost).crypto?.subtle;
+    if (subtle === undefined
+        || typeof subtle.importKey !== 'function' || typeof subtle.deriveKey !== 'function'
+        || typeof subtle.unwrapKey !== 'function' || typeof subtle.decrypt !== 'function' || typeof subtle.verify !== 'function') {
+        return null;
+    }
+    return subtle as SubtlePassword;
+}
+
+function requirePasswordSubtle(oid: string): SubtlePassword {
+    const subtle = passwordSubtle();
+    if (subtle === null) {
+        throw new PkiCryptoError('PKI_CRYPTO_UNAVAILABLE',
+            'pkinative: this runtime exposes no crypto.subtle with importKey, deriveKey, unwrapKey, decrypt and verify, so no password-protected key can be opened — call canDecrypt() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)', oid);
+    }
+    return subtle;
+}
+
+/**
+ * Whether this runtime can open a password-protected key or container at all.
+ *
+ * @returns Whether `globalThis.crypto.subtle` offers every operation PBES2
+ *   and RFC 9579 need. It does not say which ciphers the host implements —
+ *   AES-192 is missing from several browsers that answer `true`.
+ * @throws Never — a missing host is the answer, not an error.
+ */
+export function canDecrypt(): boolean {
+    return passwordSubtle() !== null;
+}
+
+/**
+ * Derive a non-extractable key from a password with PBKDF2.
+ *
+ * @param password The password octets. The host copies them into the base
+ *   key; this function does not keep them.
+ * @param kdf      Salt, iteration count and PRF, already bounded by the caller.
+ * @param target   What the key is for — AES-CBC to decrypt, HMAC to verify a MAC.
+ * @param oid      The scheme OID, carried into any error.
+ * @returns An opaque handle usable for `decrypt` and `unwrapKey` (AES) or `verify` (HMAC) only.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the host cannot;
+ *   `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when it refuses the PRF or the key size.
+ */
+export async function derivePasswordKey(password: Uint8Array, kdf: Pbkdf2Params, target: DerivedKeyParams, oid: string): Promise<CryptoKeyHandle> {
+    const subtle = requirePasswordSubtle(oid);
+    try {
+        const base = await subtle.importKey('raw', password, 'PBKDF2', false, ['deriveKey']);
+        const usages = target.name === 'HMAC' ? ['verify'] : ['decrypt', 'unwrapKey'];
+        return await subtle.deriveKey(kdf, base, target, false, usages);
+    } catch (cause) {
+        throw new PkiCryptoError('PKI_CRYPTO_ALGORITHM_UNSUPPORTED',
+            `pkinative: this runtime refused to derive a ${target.name} key with PBKDF2 over ${kdf.hash.name} (${String(cause)}) — the PRF or the key length is not implemented here; try another runtime before concluding the file is at fault`, oid);
+    }
+}
+
+/**
+ * Decrypt an encrypted PKCS#8 straight into a non-extractable signing key.
+ *
+ * @param wrapped The `encryptedData` of an EncryptedPrivateKeyInfo.
+ * @param key     A handle from {@link derivePasswordKey}.
+ * @param iv      The AES-CBC initialisation vector from the PBES2 parameters.
+ * @param params  What the key inside is; Web Crypto must be told before it decrypts.
+ * @param oid     The encryption scheme OID, carried into any error.
+ * @returns A private key with the single usage `sign`, whose bits never left the host.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE`; `PKI_CRYPTO_DECRYPTION_FAILED`
+ *   for a wrong password, altered data, or a key that is not what `params` says.
+ */
+export async function unwrapPrivateKey(wrapped: Uint8Array, key: CryptoKeyHandle, iv: Uint8Array, params: ImportParams, oid: string): Promise<CryptoKeyHandle> {
+    const subtle = requirePasswordSubtle(oid);
+    try {
+        return await subtle.unwrapKey('pkcs8', wrapped, key, { name: 'AES-CBC', iv }, params, false, ['sign']);
+    } catch (cause) {
+        throw new PkiCryptoError('PKI_CRYPTO_DECRYPTION_FAILED',
+            `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) — the password is wrong, the data was altered, or the key is not a ${params.name} key; AES-CBC cannot tell these apart`, oid);
+    }
+}
+
+/**
+ * Import an unencrypted PKCS#8 as a non-extractable signing key.
+ *
+ * @param pkcs8  The PrivateKeyInfo DER, which the caller already holds in the clear.
+ * @param params What the key is.
+ * @param oid    The key algorithm OID, carried into any error.
+ * @returns A private key with the single usage `sign`.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE`; `PKI_CRYPTO_KEY_UNSUPPORTED`
+ *   when the host refuses the key.
+ */
+export async function importPkcs8Key(pkcs8: Uint8Array, params: ImportParams, oid: string): Promise<CryptoKeyHandle> {
+    const subtle = requirePasswordSubtle(oid);
+    try {
+        return await subtle.importKey('pkcs8', pkcs8, params, false, ['sign']);
+    } catch (cause) {
+        throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
+            `pkinative: this runtime refused to import the ${params.name} private key (${String(cause)}) — the algorithm may not be implemented here, or the key is not a ${params.name} key`, oid);
+    }
+}
+
+/**
+ * Decrypt a PBES2 payload that holds no key — a PKCS#12 bag of certificates.
+ *
+ * @param key  A handle from {@link derivePasswordKey}.
+ * @param iv   The AES-CBC initialisation vector.
+ * @param data The ciphertext.
+ * @param oid  The encryption scheme OID, carried into any error.
+ * @returns The plaintext, which is public data: certificates and CRLs.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE`; `PKI_CRYPTO_DECRYPTION_FAILED`.
+ */
+export async function decryptContent(key: CryptoKeyHandle, iv: Uint8Array, data: Uint8Array, oid: string): Promise<Uint8Array> {
+    const subtle = requirePasswordSubtle(oid);
+    try {
+        return new Uint8Array(await subtle.decrypt({ name: 'AES-CBC', iv }, key, data));
+    } catch (cause) {
+        throw new PkiCryptoError('PKI_CRYPTO_DECRYPTION_FAILED',
+            `pkinative: the encrypted content could not be decrypted (${String(cause)}) — the password is wrong or the data was altered; AES-CBC cannot tell the two apart`, oid);
+    }
+}
+
+/**
+ * Check an HMAC — RFC 9579 PBMAC1, the one PKCS#12 MAC pkinative can verify.
+ *
+ * Fails closed like {@link verifySignature}: a host that throws is a `false`.
+ *
+ * @param key  A handle from {@link derivePasswordKey} with an HMAC target.
+ * @param mac  The MAC octets from MacData.
+ * @param data The bytes it covers — the authenticated safe's content.
+ * @returns Whether the MAC checks out.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE`.
+ */
+export async function verifyMac(key: CryptoKeyHandle, mac: Uint8Array, data: Uint8Array): Promise<boolean> {
+    const subtle = requirePasswordSubtle('HMAC');
+    try {
+        return await subtle.verify({ name: 'HMAC' }, key, mac, data);
+    } catch {
+        return false;
     }
 }

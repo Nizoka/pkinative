@@ -88,12 +88,22 @@ describe('checkArchitecture', () => {
         ['raw bit derivation', declares('deriveBits')],
         ['encryption', calls('encrypt')],
         ['key wrapping', calls('wrapKey')],
-        ['decryption, which 0.8 will need and does not have yet', calls('decrypt')],
     ])('should refuse %s everywhere, including inside the boundary itself', (_, source) => {
         // Inside the boundary is the case that matters: the permanent tier
         // must not become reachable by moving code into the allowed file.
         const files = { ...base, 'src/crypto/webcrypto.ts': source };
         expect(messages(files)).toEqual([expect.stringContaining('is never allowed in src/')]);
+    });
+
+    it.each([
+        ['a password derivation', calls('deriveKey')],
+        ['a key unwrap', calls('unwrapKey')],
+        ['a decryption', calls('decrypt')],
+    ])('should refuse %s outside the Web Crypto boundary, where 0.8 opened it', (_, source) => {
+        // The keys layer that uses them must go through the door like
+        // everyone else: opening an operation is per module, not per layer.
+        const files = { ...base, 'src/keys/pkcs12.ts': source, 'src/core/keys.ts': source };
+        expect(messages(files).filter((m) => m.startsWith('src/core/keys.ts'))).toEqual([expect.stringContaining('src/crypto/webcrypto.ts may name it')]);
     });
 
     it('should refuse a key operation in a sibling of the boundary — the policy is per module, not per layer', () => {
@@ -104,8 +114,8 @@ describe('checkArchitecture', () => {
     it('should allow the boundary to call and declare what it is allowed to', () => {
         const files = {
             ...base,
-            'src/types/webcrypto.ts': 'export interface Subtle { importKey(): void; verify(): void; sign(): void }\n',
-            'src/crypto/webcrypto.ts': "import type { Subtle } from '../types/webcrypto.js';\nexport const v = (s: Subtle): void => { s.importKey(); s.verify(); s.sign(); };\n",
+            'src/types/webcrypto.ts': 'export interface Subtle { importKey(): void; verify(): void; sign(): void; deriveKey(): void; unwrapKey(): void; decrypt(): void }\n',
+            'src/crypto/webcrypto.ts': "import type { Subtle } from '../types/webcrypto.js';\nexport const v = (s: Subtle): void => { s.importKey(); s.verify(); s.sign(); s.deriveKey(); s.unwrapKey(); s.decrypt(); };\n",
         };
         expect(checkArchitecture(files)).toEqual([]);
     });

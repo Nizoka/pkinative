@@ -15,7 +15,10 @@
  *
  * What is **absent** here is the contract. There is no `generateKey`, no
  * `exportKey`, no `deriveBits`, no `encrypt` and no `wrapKey`, in any
- * version: pkinative never creates, extracts or wraps key material. That is
+ * version: pkinative never creates, extracts or wraps key material. What 0.8
+ * added — `deriveKey`, `unwrapKey`, `decrypt` — each returns a handle or
+ * public bytes, and {@link SubtlePassword} says why each was chosen over the
+ * sibling that would have returned key material. That is
  * why a caller hands `createCertificate` a SubjectPublicKeyInfo in DER
  * rather than a `CryptoKey` — one line in their code, in exchange for a
  * promise a test can check.
@@ -101,9 +104,48 @@ export interface SubtlePublicKey {
     sign(algorithm: VerifyParams, key: CryptoKeyHandle, data: Uint8Array): Promise<ArrayBuffer>;
 }
 
+/** PBKDF2 (RFC 8018 §5.2), the only password-based derivation pkinative asks for. */
+export interface Pbkdf2Params {
+    readonly name: 'PBKDF2';
+    readonly salt: Uint8Array;
+    readonly iterations: number;
+    readonly hash: HashAlgorithmIdentifier;
+}
+
+/** What a password-derived key is for: AES-CBC to decrypt a PBES2 payload, or HMAC to check an RFC 9579 PBMAC1 MAC. */
+export type DerivedKeyParams =
+    | { readonly name: 'AES-CBC'; readonly length: 128 | 192 | 256 }
+    | { readonly name: 'HMAC'; readonly hash: HashAlgorithmIdentifier; readonly length: number };
+
+/** AES-CBC with its initialisation vector, the PBES2 encryption scheme (RFC 8018 §B.2.5). */
+export interface AesCbcParams {
+    readonly name: 'AES-CBC';
+    readonly iv: Uint8Array;
+}
+
+/**
+ * The password half of `crypto.subtle`, opened in 0.8 for PKCS#8 and PKCS#12
+ * under PBES2 and nothing else.
+ *
+ * Every member returns a **handle** or public bytes, never key material:
+ * `deriveKey` rather than `deriveBits`, so the derived key is a
+ * non-extractable object whose bits never reach the JavaScript heap; and
+ * `unwrapKey` rather than `decrypt` for a private key, so an encrypted PKCS#8
+ * becomes a `CryptoKey` without its plaintext ever existing here. `decrypt` is
+ * for the one payload that has no key in it — a PKCS#12 bag of certificates.
+ */
+export interface SubtlePassword {
+    importKey(format: 'raw', keyData: Uint8Array, algorithm: 'PBKDF2', extractable: false, keyUsages: readonly ['deriveKey']): Promise<CryptoKeyHandle>;
+    importKey(format: 'pkcs8', keyData: Uint8Array, algorithm: ImportParams, extractable: false, keyUsages: readonly ['sign']): Promise<CryptoKeyHandle>;
+    deriveKey(algorithm: Pbkdf2Params, baseKey: CryptoKeyHandle, derivedKeyType: DerivedKeyParams, extractable: false, keyUsages: readonly string[]): Promise<CryptoKeyHandle>;
+    unwrapKey(format: 'pkcs8', wrappedKey: Uint8Array, unwrappingKey: CryptoKeyHandle, unwrapAlgorithm: AesCbcParams, unwrappedKeyAlgorithm: ImportParams, extractable: false, keyUsages: readonly ['sign']): Promise<CryptoKeyHandle>;
+    decrypt(algorithm: AesCbcParams, key: CryptoKeyHandle, data: Uint8Array): Promise<ArrayBuffer>;
+    verify(algorithm: { readonly name: 'HMAC' }, key: CryptoKeyHandle, signature: Uint8Array, data: Uint8Array): Promise<boolean>;
+}
+
 /** The shape of `globalThis` as far as Web Crypto is concerned. */
 export interface WebCryptoHost {
     readonly crypto?: {
-        readonly subtle?: Partial<SubtleDigest & SubtlePublicKey> | undefined;
+        readonly subtle?: Partial<SubtleDigest & SubtlePublicKey & SubtlePassword> | undefined;
     } | undefined;
 }

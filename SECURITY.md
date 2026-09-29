@@ -35,11 +35,11 @@ pkinative **never implements secret-dependent cryptography in TypeScript**. Ther
 | `deriveBits` | nowhere | never |
 | `encrypt` | nowhere | never |
 | `wrapKey` | nowhere | never |
-| `deriveKey` | nowhere | 0.8.0 |
-| `unwrapKey` | nowhere | 0.8.0 |
-| `decrypt` | nowhere | 0.8.0 |
+| `deriveKey` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.8.0 |
+| `unwrapKey` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.8.0 |
+| `decrypt` | `src/types/webcrypto.ts`, `src/crypto/webcrypto.ts` | 0.8.0 |
 
-**"Nowhere / never" is a promise, not a backlog.** pkinative creates, exports, wraps and derives no raw key material in any version. `exportKey` being refused is why the certificate builder takes a SubjectPublicKeyInfo in DER rather than a `CryptoKey`: one line in the caller's code, in exchange for a guarantee a test can check. `deriveBits` stays refused even when 0.8 opens `deriveKey`, because the first hands back an `ArrayBuffer` nothing can zeroise and the second returns a non-extractable handle.
+**"Nowhere / never" is a promise, not a backlog.** pkinative creates, exports, wraps and derives no raw key material in any version. `exportKey` being refused is why the certificate builder takes a SubjectPublicKeyInfo in DER rather than a `CryptoKey`: one line in the caller's code, in exchange for a guarantee a test can check. `deriveBits` stays refused although 0.8 opens `deriveKey`, because the first hands back an `ArrayBuffer` nothing can zeroise and the second returns a non-extractable handle; for the same reason an encrypted private key is opened with `unwrapKey`, which yields a signing key, and never with `decrypt`, which would yield its plaintext.
 
 `globalThis.crypto` has one door too: only `src/crypto/webcrypto.ts` and `src/hash/fingerprint.ts` may reach it, so everything pkinative asks of a host is readable in two files.
 
