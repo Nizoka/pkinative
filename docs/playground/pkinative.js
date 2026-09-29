@@ -5485,7 +5485,7 @@ async function unwrapPrivateKey(wrapped, key, iv, params, oid) {
   } catch (cause) {
     throw new PkiCryptoError(
       "PKI_CRYPTO_DECRYPTION_FAILED",
-      `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) \u2014 the password is wrong, the data was altered, or the key is not a ${params.name} key; AES-CBC cannot tell these apart`,
+      `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) \u2014 the password is wrong, the data was altered, or the key is not an ${params.name} key; AES-CBC cannot tell these apart`,
       oid
     );
   }
@@ -9875,9 +9875,12 @@ async function readPkcs12(der, options) {
     reasons.push(pkcs12IntegrityUnverifiedReason("macData", unverified));
   }
   const bags = [];
+  const decrypted = /* @__PURE__ */ new Set();
   for (const contents of pkcs12.contents) {
     try {
-      bags.push(...await openSafeContents(contents, password, reading));
+      const opened = await openSafeContents(contents, password, reading);
+      bags.push(...opened);
+      if (contents.encrypted) for (const bag of opened) decrypted.add(bag);
     } catch (error) {
       reasons.push(_openingReason(_pkiError(error), contents.path, contents.encryption?.scheme ?? "envelopedData, public-key privacy mode"));
     }
@@ -9927,6 +9930,8 @@ async function readPkcs12(der, options) {
       signingKey = "encryption" in held ? await decryptPrivateKey(held.der, { ...reading, password, algorithm }) : await importPrivateKey(held.der, { ...reading, algorithm });
     } catch (error) {
       reasons.push(_openingReason(_pkiError(error), bag.path, "encryption" in held ? held.encryption.scheme : "no encryption"));
+    } finally {
+      if (!("encryption" in held) && decrypted.has(bag)) held.der.fill(0);
     }
     keys.push(Object.freeze({ ...entry, signingKey }));
   }

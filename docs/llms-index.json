@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 157004,
-      "approxTokens": 39251
+      "bytes": 161895,
+      "approxTokens": 40474
     },
     {
       "url": "llms-recipes.txt",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 77119,
-      "approxTokens": 19280
+      "bytes": 77251,
+      "approxTokens": 19313
     },
     {
       "title": "Security model",
@@ -141,12 +141,13 @@
         "the-corpora",
         "the-levels",
         "the-write-direction",
+        "key-containers-the-arrow-turned-back",
         "what-is-not-claimed-yet",
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 21997,
-      "approxTokens": 5499
+      "bytes": 26756,
+      "approxTokens": 6689
     },
     {
       "title": "Errors, diagnostics and reasons",

@@ -681,7 +681,7 @@
         "refused=PKI_KEY_ENCRYPTION_UNSUPPORTED",
         "refusedNames=true",
         "macRefused=PKI_KEY_MAC_UNSUPPORTED",
-        "legacyReport=valid=false PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED@authSafe[0] PKI_REASON_PKCS12_KEY_UNMATCHED@authSafe[1].bags[0]"
+        "legacyReport=valid=false PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED@authSafe[0] PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED@authSafe[1].bags[0]"
       ]
     }
   ]
