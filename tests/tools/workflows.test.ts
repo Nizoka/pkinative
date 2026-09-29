@@ -286,9 +286,42 @@ describe('publish.yml', () => {
         expect(publish).not.toMatch(/secrets\.NPM_TOKEN/);
     });
 
-    it('should publish from the npm-publish environment, one release at a time', () => {
-        expect(publish).toMatch(/^\s*environment:\s*npm-publish\s*$/m);
+    /** The text of one job, from its head to the next job head. */
+    const jobBody = (job: string): string =>
+        new RegExp(`^  ${job}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(publish)?.[1] ?? '';
+
+    it('should run exactly three jobs: guard, then publish, then attest', () => {
+        expect([...jobs.keys()]).toEqual(['guard', 'publish', 'attest']);
+        expect(jobBody('guard')).not.toMatch(/^\s*needs:/m);
+        expect(jobBody('publish')).toMatch(/^ {4}needs:\s*guard\s*$/m);
+        expect(jobBody('attest')).toMatch(/^ {4}needs:\s*publish\s*$/m);
+    });
+
+    it('should publish from the npm-publish environment, and only the publishing job, one release at a time', () => {
+        expect([...publish.matchAll(/^\s*environment:/gm)]).toHaveLength(1);
+        expect(jobBody('publish')).toMatch(/^ {4}environment:\s*npm-publish\s*$/m);
         expect(publish).toMatch(/concurrency:\s*\n\s*group:\s*publish\s*\n\s*cancel-in-progress:\s*false/);
+    });
+
+    it('should refuse a pre-1.0 version in a guard job that no approval stands in front of', () => {
+        // The defect this shape removes: a job carrying `environment:` asks
+        // for an approval before its first step, so a refusal placed inside
+        // it trained the maintainer to approve eight runs designed to fail.
+        const guard = jobBody('guard');
+        expect(guard).not.toMatch(/^\s*environment:/m);
+        const perms = /^ {4}permissions:\s*\n((?: {6}[a-z-]+:\s*\w+\s*\n)+)/m.exec(guard);
+        expect(perms?.[1]?.trim().split('\n').map((l) => l.trim())).toEqual(['contents: read']);
+        // Nothing to install and nothing to publish with: the guard reads a file.
+        expect(guard).not.toMatch(/npm (ci|install|publish)|secrets\.|id-token/);
+        const steps = jobs.get('guard') ?? [];
+        const index = (needle: string): number => steps.findIndex((s) => s.includes(needle));
+        const tag = index('does not match package.json version');
+        const pre1 = index('Refuse a pre-1.0 publication');
+        expect(steps).toHaveLength(4);
+        expect([tag, pre1]).toEqual([2, 3]);
+        expect(steps[pre1]).toMatch(/\[ "\$\{MAJOR\}" = "0" \][\s\S]*exit 1/);
+        expect(steps[pre1]).toContain('pre-1.0 versions are git tags, never npm releases');
+        expect(guard).toMatch(/^ {6}version:\s*\$\{\{ steps\.version\.outputs\.version \}\}\s*$/m);
     });
 
     it('should pin the npm client to one exact 11.x release, at least 11.5.1, before publishing', () => {
@@ -307,17 +340,20 @@ describe('publish.yml', () => {
         expect(publish).toMatch(/run: npm pack --dry-run/);
     });
 
-    it('should verify the tag against package.json, then refuse a pre-1.0 version before anything else runs', () => {
+    it('should confirm, before anything is installed, that the version it publishes is the one the guard passed', () => {
         const steps = jobs.get('publish') ?? [];
-        const index = (needle: string | RegExp): number => steps.findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
-        const tag = index('does not match package.json version');
-        const pre1 = index('Refuse a pre-1.0 publication');
+        const index = (needle: string): number => steps.findIndex((s) => s.includes(needle));
+        const confirm = index('Confirm the guarded version');
         const npmPin = index('npm install -g npm@');
         const gate = index('run: npx tsx scripts/gate.ts --publish --require-all');
-        expect([tag, pre1, npmPin, gate].every((i) => i >= 0)).toBe(true);
-        expect(tag).toBeLessThan(pre1);
-        expect(pre1).toBeLessThan(npmPin);
-        expect(steps[pre1]).toMatch(/\[ "\$\{MAJOR\}" = "0" \][\s\S]*exit 1/);
+        expect([confirm, npmPin, gate].every((i) => i >= 0)).toBe(true);
+        expect(confirm).toBeLessThan(npmPin);
+        expect(steps[confirm]).toContain('GUARDED: ${{ needs.guard.outputs.version }}');
+        expect(steps[confirm]).toMatch(/\[ "\$\{VERSION\}" != "\$\{GUARDED\}" \] \|\| \[ "\$\{VERSION%%\.\*\}" = "0" \][\s\S]*exit 1/);
+        // The refusal itself lives in the guard alone; the publishing job
+        // re-asserts it, it does not carry a second copy to drift.
+        expect(steps.some((s) => s.includes('Refuse a pre-1.0 publication'))).toBe(false);
+        expect(jobBody('publish')).toMatch(/^ {6}version:\s*\$\{\{ needs\.guard\.outputs\.version \}\}\s*$/m);
     });
 
     it('should run the publish gate with --require-all before packing and publishing, and list no gate step by hand', () => {

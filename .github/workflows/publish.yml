@@ -18,7 +18,14 @@ on:
 # Pre-1.0 policy: versions below 1.0.0 are git tags, never npm releases
 # (ROADMAP.md); release-assets.yml attests and attaches their tarball. This
 # workflow is complete so it is exercised and audited from day one, and its
-# first step after the tag check refuses such a version.
+# guard job refuses such a version.
+#
+# Job graph: guard → publish → attest. The guard needs no secret and no
+# environment, so every check that can end the run without one — the tag
+# against package.json, the pre-1.0 refusal — runs there, BEFORE the
+# `npm-publish` environment asks for an approval. A 0.x release therefore
+# ends red without ever prompting the maintainer: approving a run designed to
+# fail, eight times over, is how an approval becomes a reflex by 1.0.
 #
 # Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
 # and approves the `npm-publish` environment; nothing here opens or edits a
@@ -32,17 +39,61 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # No `environment:` on purpose: the refusal must run before the approval
+  # prompt, never behind it. Read-only, no token minted, nothing installed.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # The runner image's own Node reads one JSON field; nothing is built here.
+      - name: Read the version and check it against the tag
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
+            exit 1
+          fi
+          echo "Guarding pkinative ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+
+      - name: Refuse a pre-1.0 publication
+        run: |
+          set -euo pipefail
+          MAJOR=$(node -p "require('./package.json').version.split('.')[0]")
+          if [ "${MAJOR}" = "0" ]; then
+            echo "::error::pre-1.0 versions are git tags, never npm releases (ROADMAP.md); the first npm publication is 1.0.0"
+            exit 1
+          fi
+
   publish:
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # A protected environment (required reviewer) gates the OIDC token: the
-    # job cannot mint one before the maintainer approves the run.
+    # job cannot mint one before the maintainer approves the run — and it is
+    # only reached once the guard has passed.
     environment: npm-publish
     permissions:
       contents: read
       id-token: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ needs.guard.outputs.version }}
 
     steps:
       # Audit mode for the first two weeks, then switch to `egress-policy: block`
@@ -73,26 +124,20 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
-      - name: Read the version and check it against the tag
-        id: version
+      # Same commit as the guard, so the same package.json: this re-reads it
+      # so that the version published is provably the version guarded, and a
+      # 0.x still stops here should the `needs:` edge ever be lost.
+      - name: Confirm the guarded version
+        env:
+          GUARDED: ${{ needs.guard.outputs.version }}
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./package.json').version")
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
+          if [ "${VERSION}" != "${GUARDED}" ] || [ "${VERSION%%.*}" = "0" ]; then
+            echo "::error::package.json version ${VERSION} is not the guarded ${GUARDED:-nothing}, or is below 1.0.0"
             exit 1
           fi
           echo "Publishing pkinative ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
-
-      - name: Refuse a pre-1.0 publication
-        run: |
-          set -euo pipefail
-          MAJOR=$(node -p "require('./package.json').version.split('.')[0]")
-          if [ "${MAJOR}" = "0" ]; then
-            echo "::error::pre-1.0 versions are git tags, never npm releases (ROADMAP.md); the first npm publication is 1.0.0"
-            exit 1
-          fi
 
       # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
       # npm ≥ 11.5.1. The client is pinned to one exact release so the bytes
