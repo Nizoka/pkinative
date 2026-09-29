@@ -67,7 +67,7 @@
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.8 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.9 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
