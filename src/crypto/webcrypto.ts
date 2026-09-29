@@ -182,8 +182,10 @@ export async function signData(key: CryptoKeyHandle, params: VerifyParams, data:
 // imported as a PBKDF2 base key and never used again; `deriveKey` turns it
 // into a non-extractable AES or HMAC key; `unwrapKey` turns an encrypted
 // PKCS#8 into a non-extractable signing key without its plaintext passing
-// through here; `decrypt` opens only certificate bags, which hold no key; and
-// the MAC is checked by the host. There is no call here that could hand
+// through here; `decrypt` opens a SafeContents, which holds certificates and,
+// when its writer put one there, an unencrypted keyBag — plaintext by
+// definition, which readPkcs12 wipes once imported; and the MAC is checked by
+// the host. There is no call here that could hand
 // pkinative a private key's bits, which is what lets SECURITY.md say so.
 
 /** The host's `crypto.subtle`, or null when it lacks any of the password operations. */
@@ -260,7 +262,7 @@ export async function unwrapPrivateKey(wrapped: Uint8Array, key: CryptoKeyHandle
         return await subtle.unwrapKey('pkcs8', wrapped, key, { name: 'AES-CBC', iv }, params, false, ['sign']);
     } catch (cause) {
         throw new PkiCryptoError('PKI_CRYPTO_DECRYPTION_FAILED',
-            `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) — the password is wrong, the data was altered, or the key is not a ${params.name} key; AES-CBC cannot tell these apart`, oid);
+            `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) — the password is wrong, the data was altered, or the key is not an ${params.name} key; AES-CBC cannot tell these apart`, oid);
     }
 }
 
@@ -285,13 +287,15 @@ export async function importPkcs8Key(pkcs8: Uint8Array, params: ImportParams, oi
 }
 
 /**
- * Decrypt a PBES2 payload that holds no key — a PKCS#12 bag of certificates.
+ * Decrypt a PBES2 payload — a PKCS#12 SafeContents, which holds certificates
+ * and, when its writer put one there, an unencrypted keyBag. An encrypted
+ * private key is never passed here: {@link unwrapPrivateKey} opens it.
  *
  * @param key  A handle from {@link derivePasswordKey}.
  * @param iv   The AES-CBC initialisation vector.
  * @param data The ciphertext.
  * @param oid  The encryption scheme OID, carried into any error.
- * @returns The plaintext, which is public data: certificates and CRLs.
+ * @returns The plaintext: certificates and CRLs, and any unencrypted keyBag the writer nested inside.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE`; `PKI_CRYPTO_DECRYPTION_FAILED`.
  */
 export async function decryptContent(key: CryptoKeyHandle, iv: Uint8Array, data: Uint8Array, oid: string): Promise<Uint8Array> {

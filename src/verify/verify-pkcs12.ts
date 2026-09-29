@@ -121,7 +121,7 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  * const report = await readPkcs12(p12Bytes, { password });
  * if (!report.valid) throw new Error(report.reasons.map((r) => r.message).join('; '));
  * const [{ signingKey, certificate }] = report.keys;
- * const signed = await createSignedData({ content, certificate: certificate!.der }, signingKey!);
+ * const signed = await createSignedData({ content, certificate: certificate! }, signingKey!);
  * ```
  *
  * @param der     The PFX, as DER — or BER with `encodingRules: 'ber'`, which Windows writes.
@@ -196,9 +196,14 @@ export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): P
 
     // ── Contents ──
     const bags: SafeBag[] = [];
+    // Bags this call decrypted, as opposed to views into the caller's input:
+    // the only memory it may wipe.
+    const decrypted = new Set<SafeBag>();
     for (const contents of pkcs12.contents) {
         try {
-            bags.push(...await openSafeContents(contents, password, reading));
+            const opened = await openSafeContents(contents, password, reading);
+            bags.push(...opened);
+            if (contents.encrypted) for (const bag of opened) decrypted.add(bag);
         } catch (error) {
             reasons.push(_openingReason(_pkiError(error), contents.path, contents.encryption?.scheme ?? 'envelopedData, public-key privacy mode'));
         }
@@ -248,6 +253,15 @@ export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): P
                 : await importPrivateKey(held.der, { ...reading, algorithm });
         } catch (error) {
             reasons.push(_openingReason(_pkiError(error), bag.path, 'encryption' in held ? held.encryption.scheme : 'no encryption'));
+        } finally {
+            // A plain keyBag is plaintext by definition. Inside an encrypted
+            // SafeContents it is plaintext only because this call decrypted it,
+            // so once Web Crypto has taken its copy the bytes are wiped — a best
+            // effort, since the engine may have copied them already. A keyBag in
+            // an unencrypted SafeContents is the caller's own input and is left
+            // alone. A shrouded key never needs this: it is unwrapped, never
+            // decrypted into memory at all.
+            if (!('encryption' in held) && decrypted.has(bag)) held.der.fill(0);
         }
         keys.push(Object.freeze({ ...entry, signingKey }));
     }

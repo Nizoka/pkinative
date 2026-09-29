@@ -265,7 +265,11 @@ export class PkiCmsError extends PkiError<PkiCmsErrorCode> {
 export class PkiKeyError extends PkiError<PkiKeyErrorCode> {
     /** Where in the structure, e.g. `authSafe[1].bags[0]`, when known. */
     readonly path: string | undefined;
-    /** Absolute byte offset of the offending value, when known. */
+    /**
+     * Byte offset of the offending value, when known — from the start of the
+     * bytes the reader decoded: the input, or, below a PKCS#12
+     * AuthenticatedSafe entry, that entry's content. `path` always says where.
+     */
     readonly offset: number | undefined;
 
     constructor(code: PkiKeyErrorCode, message: string, path?: string, offset?: number) {

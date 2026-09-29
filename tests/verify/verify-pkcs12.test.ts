@@ -177,6 +177,42 @@ describe('readPkcs12 — a file it can vouch for', () => {
         expect(await signsLikeItsCertificate(report, holder)).toBe(true);
     });
 
+    it('should wipe a plain key it decrypted out of an encrypted SafeContents, once imported', async () => {
+        // A keyBag nested in an encrypted SafeContents is plaintext by
+        // definition once that SafeContents is opened. The bytes this call
+        // decrypted are the only ones it may wipe, and it does.
+        const holder = await issue(await makeRoot());
+        const pkcs8 = await pkcs8Of(holder);
+        const inner = safeContents(certBag(holder.certificate.der, [localKeyId(ID)]), keyBag(pkcs8, [localKeyId(ID)]));
+        const auth = authenticatedSafe(await encryptedSafeContents(inner, PASSWORD));
+        const der = pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) });
+        const opened: Uint8Array[] = [];
+        const decrypt = globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle);
+        await withHost({
+            decrypt: async (...args: unknown[]): Promise<ArrayBuffer> => {
+                const plain = await (decrypt as (...a: unknown[]) => Promise<ArrayBuffer>)(...args);
+                opened.push(new Uint8Array(plain));
+                return plain;
+            },
+        }, async () => {
+            const report = await read(der);
+            expect(codes(report)).toEqual([]);
+            expect(await signsLikeItsCertificate(report, holder)).toBe(true);
+        });
+        const plaintext = opened[0] ?? new Uint8Array(0);
+        const has = (needle: Uint8Array): boolean => plaintext.some((_, i) => needle.every((b, j) => plaintext[i + j] === b));
+        expect(has(pkcs8)).toBe(false);
+        expect(has(holder.certificate.der)).toBe(true);
+    });
+
+    it('should leave a plain key in an unencrypted SafeContents alone: those are the caller\'s bytes', async () => {
+        const holder = await issue(await makeRoot());
+        const der = await file({ holder, plainKey: true });
+        const before = der.slice();
+        expect(codes(await read(der))).toEqual([]);
+        expect(der).toEqual(before);
+    });
+
     it('should collect CRL bags as DER', async () => {
         const holder = await issue(await makeRoot());
         const crl = sequence(int(1));
