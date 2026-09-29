@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
 
-## [Unreleased]
+## [0.7.0] – 2026-09-29
 
 ### Added
 
@@ -17,6 +17,14 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
   **Judging.** `verifySignedData` checks every signer — attributes, algorithm agreement (RFC 8933, 4056, 5753, 8419), digest, signature, ESS binding — then its chain, and reports `intact` apart from `valid`: *the message is what its signer signed* against *and somebody you trust signed it*. `verifyTimeStampToken` checks a token against the request, the data or the imprint, and holds the TSA to RFC 3161 §2.3's critical, exclusive `timeStamping` purpose. With `atTimeStamp`, a signer is judged at the earliest instant a verified timestamp proves — which is how a signature outlives its certificate — while the TSA's own chain is always judged at `at`, **never at the `genTime` it wrote itself**. Eleven `PKI_REASON_CMS_*` / `PKI_REASON_TSP_*` reasons say why a verdict is no.
 
   **Architecture.** Two layer edges change in their own reviewed commit: `cms → types, core, asn1, hash, x509, build`, and `verify` gains `cms`. `cms` never imports `crypto`, for the reason `path` does not: verdicts arrive precomputed, so parsing and judging stay synchronous.
+
+- **feat(conformance): L8, the 224 NIST PKITS S/MIME messages verified whole** — each message linked to its test through its own `SignerIdentifier` rather than a table of names, and verified by `verifySignedData` with L7's anchor, lists and instant and only the certificates it carries. Two claims, scored apart: **221 of 224 are intact at the CMS layer** (the three that are not are DSA, which Web Crypto does not implement), and **every one of 204 scored verdicts equals the L7 verdict on its signer's own path**. 195 of 204 agree with NIST (95.59 %) — L7's nine deviations, and no others.
+
+### Fixed
+
+- **fix(verify): a revocation list passed twice was read twice** — a signed message carries the CRL its signer relied on, the caller passes the one they downloaded, and `verifyCertificateChain` reported every revocation once per copy. Lists and stapled OCSP responses are now read once per distinct encoding. Found by L8, whose 20 pins on the doubled codes were re-reviewed.
+- **fix(verify): `requireRevocation` reaches the timestamps** — `verifySignedData` passed the caller's CRLs and OCSP responses to each timestamp but not the requirement, so a TSA nobody could check for revocation still counted as evidence for `atTimeStamp`.
+- **fix(revocation): an OCSP response carrying a recognised extension was refused** — the defect the CRL parser shipped in 0.5, in the OCSP reader, hidden because the nonce a response usually carries is an extension the certificate reader never decodes. Found while writing the TSTInfo reader.
 
 ## [0.5.0] – 2026-09-28
 
