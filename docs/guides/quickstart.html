@@ -59,9 +59,9 @@
       </blockquote>
       <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
       <p>pkinative 0.3 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:</p>
-      <pre><code class="language-bash">npm install https://github.com/Nizoka/pkinative/releases/download/v0.5.0/pkinative-0.5.0.tgz
+      <pre><code class="language-bash">npm install https://github.com/Nizoka/pkinative/releases/download/v0.7.0/pkinative-0.7.0.tgz
       </code></pre>
-      <p><code>gh attestation verify pkinative-0.5.0.tgz --repo Nizoka/pkinative</code> checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
+      <p><code>gh attestation verify pkinative-0.7.0.tgz --repo Nizoka/pkinative</code> checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
       <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
       <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
       <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
