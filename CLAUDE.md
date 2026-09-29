@@ -18,7 +18,7 @@ Everything in AGENTS.md applies. This file adds only what is specific to Claude 
 
 ## Gate
 
-- `npm run gate:fast` — typecheck:all, lint, test, verify:docs. Run before proposing a commit.
+- `npm run gate:fast` — typecheck:all, lint, test, verify:samples, verify:docs. Run before proposing a commit.
 - `npm run gate` — the CI profile (default).
 - `npx tsx scripts/gate.ts --publish --require-all` — everything. Release branches only.
 - `--only <step>` for one step, `--json` for machine output; logs in `test-output/.gate/<step>.log` — open only the failing step's log.

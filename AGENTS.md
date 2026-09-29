@@ -25,7 +25,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 
 | Profile | Command | Runs |
 |---|---|---|
-| Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:docs |
+| Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:samples, verify:docs |
 | CI — the default | `npm run gate` | the CI profile |
 | Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | everything |
 

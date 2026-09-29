@@ -18,9 +18,9 @@ lines of that log and stops.
 
 | Profile | Command | Steps |
 |---|---|---|
-| Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:docs |
-| CI — the default | `npm run gate` | 11: adds build, dist-check, bundle-check, test:coverage, check:package (attw, publint, the tarball file by file), verify:bundle, smoke:install, docs:playground-fresh |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 12: adds conformance |
+| Fast — before every commit | `npm run gate:fast` | 5: typecheck:all, lint, test, verify:samples, verify:docs |
+| CI — the default | `npm run gate` | 12: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-fresh, verify:docs |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 14: adds conformance and interop |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
 step's position in the full table; `--json` emits `{ ok, profile, steps }`.
