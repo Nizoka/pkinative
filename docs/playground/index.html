@@ -52,7 +52,7 @@
     <p class="guide-breadcrumb"><a href="../">Home</a> › Playground</p>
     <h1>Playground</h1>
     <p>Everything below runs <strong>in your tab</strong>, on <code>pkinative.js</code> — a byte-for-byte copy of what <code>npm run build</code> produces, held to the build by the <code>playground-freshness</code> rule. There is no server, no upload and no telemetry: a certificate you paste never leaves the browser, which matters because the interesting ones are usually not public.</p>
-    <p>The siblings load their engine from a CDN. pkinative cannot — it is not on npm before 1.0.0 — so the copy is committed instead. That is the one place these playgrounds diverge from the family, and it is why they carry a freshness rule the siblings do not need.</p>
+    <p>The siblings load their engine from a CDN. pkinative commits its copy instead, so the playground runs the build of the tree this site is published from, not the last npm release. That is the one place these playgrounds diverge from the family, and it is why they carry a freshness rule the siblings do not need.</p>
 
     <div class="pg-grid">
       <a class="pg-card" href="certificate.html">

@@ -76,11 +76,11 @@
         font-size="92" font-weight="800" fill="url(#accent)" letter-spacing="-2">for TypeScript</text>
 
   <!-- Subtitles carry the honesty, where the siblings carry theirs: what the
-       library refuses, and which milestone verifies. -->
+       library refuses, and that every signature goes through Web Crypto. -->
   <text x="80" y="436" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
         font-size="27" font-weight="500" fill="#e2e8f0">Strict by default · complete by RFC 5280 · honest about what it refuses</text>
   <text x="80" y="472" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="22" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · 0.1 reads, 0.3 verifies</text>
+        font-size="22" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · every signature through Web Crypto</text>
 
   <!-- The two highlighted pills take the slot zipnative gives CLI and MCP.
        They are the only claims here a stranger can check without trusting us. -->
@@ -101,5 +101,5 @@
   </g>
 
   <text x="1120" y="596" text-anchor="end" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">library · MIT · open source · pre-1.0 is a git tag, not an npm release</text>
+        font-size="20" fill="#475569">library · MIT · open source · npm install pkinative</text>
 </svg>

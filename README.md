@@ -9,7 +9,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API across Node.js ≥ 22, browsers, Deno, Bun and Workers. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 0.9 — pre-1.0, not on npm.** Versions below 1.0.0 are git tags with an attested release tarball, and the first npm publication is 1.0.0 ([ROADMAP.md](ROADMAP.md)). It reads, builds and validates — certificates, paths with revocation, CMS signatures and timestamps, PKCS#8 and PKCS#12 — with Web Crypto doing every signature.
+> **Status: 1.0 — stable, on npm.** From 1.0.0 the public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md)). Versions below 1.0.0 are git tags only — source snapshots of each milestone, never released on GitHub or npm.
 
 ## Why pkinative?
 
@@ -29,7 +29,7 @@ Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](
 
 | Library | Latest | Runtime dependencies | Types bundled | ES modules | Scope |
 |---|---|---|---|---|---|
-| **pkinative** | pre-1.0 (git tag) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
+| **pkinative** | 1.0 (npm) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
 | node-forge | 1.4.0 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
 | asn1js | 3.0.10 | 3 | yes | yes | ASN.1 BER/DER codec |
 | @peculiar/x509 | 2.1.0 | 11 | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
@@ -41,11 +41,18 @@ Choose pkinative for strict, dependency-free PKI with every refusal explained by
 
 ## Installation
 
-pkinative 0.9 is not on npm. Install the tarball attached to the GitHub release — built from the tag, run through the full gate, installed as a test and attested with Sigstore build provenance by [release-assets.yml](.github/workflows/release-assets.yml):
+pkinative is on npm, published by [publish.yml](.github/workflows/publish.yml) from the tagged commit, after the full gate, with npm provenance:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v0.9.0/pkinative-0.9.0.tgz
-gh attestation verify pkinative-0.9.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
+npm install pkinative
+npm audit signatures   # optional: verify the registry signatures and provenance of what you installed
+```
+
+Every GitHub release also carries that same tarball, fetched back from the registry, and a CycloneDX SBOM, both attested with Sigstore build provenance:
+
+```bash
+npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz
+gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
 A plain git install (`github:Nizoka/pkinative#v0.1.0`) does not work: `dist/` is not committed. Node.js ≥ 22, current browsers, Deno, Bun and Cloudflare Workers run the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.

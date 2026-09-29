@@ -6,20 +6,20 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3253,
-      "approxTokens": 813
+      "bytes": 3249,
+      "approxTokens": 812
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7033,
-      "approxTokens": 1758
+      "bytes": 7014,
+      "approxTokens": 1754
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 170491,
-      "approxTokens": 42623
+      "bytes": 170828,
+      "approxTokens": 42707
     },
     {
       "url": "llms-recipes.txt",
@@ -60,14 +60,14 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 9241,
-      "approxTokens": 2310
+      "bytes": 9250,
+      "approxTokens": 2313
     }
   ],
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 0.9 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13167,
-      "approxTokens": 3292
+      "bytes": 13318,
+      "approxTokens": 3330
     },
     {
       "title": "Use cases",

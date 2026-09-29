@@ -14,8 +14,10 @@ What counts as a vulnerability here: an input that makes pkinative accept an enc
 
 | Version | Supported |
 |---------|-----------|
-| 0.x (latest tag and its release tarball) | ✅ (pre-1.0: fixes land in the next tag) |
-| npm `0.0.1` (name reservation, when published) | ❌ contains no code |
+| the latest 1.x minor on npm | ✅ fixes land in its next patch or in the next minor |
+| any older 1.x minor | ❌ upgrade to the latest minor: under the compatibility promise below it breaks nothing |
+| 0.x (git tags only, never on npm) | ❌ |
+| npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |
 
 ## Compatibility promise
 

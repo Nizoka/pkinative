@@ -74,7 +74,7 @@
         font-size="30" font-weight="500" fill="#e2e8f0">Strict by default · complete by RFC 5280 · honest about what it refuses</text>
   <text x="640" y="458" text-anchor="middle"
         font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="23" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · 0.1 reads, 0.3 verifies</text>
+        font-size="23" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · every signature through Web Crypto</text>
 
   <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
      font-size="22" fill="#cbd5e1" text-anchor="middle">
@@ -94,5 +94,5 @@
 
   <text x="640" y="600" text-anchor="middle"
         font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">pkinative.dev · library · MIT · open source · pre-1.0 is a git tag, not an npm release</text>
+        font-size="20" fill="#475569">pkinative.dev · library · MIT · open source · npm install pkinative</text>
 </svg>

@@ -1,16 +1,16 @@
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 0.9 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 1.0 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
-pkinative 0.9 is not on npm: install the tarball attached to the GitHub release, which a workflow builds, gates, installs as a test and attests:
+pkinative is on npm, published with provenance from the tagged commit after the full gate:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v0.9.0/pkinative-0.9.0.tgz
+npm install pkinative
 ```
 
-`gh attestation verify pkinative-0.9.0.tgz --repo Nizoka/pkinative` checks where the tarball was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
 
 ## Read a certificate
 

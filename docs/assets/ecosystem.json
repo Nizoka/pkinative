@@ -3,14 +3,14 @@
   "verifiedOn": "2026-09-29",
   "packages": {
     "pkinative": {
-      "version": "0.9.0",
+      "version": "1.0.0",
       "repo": "https://github.com/Nizoka/pkinative",
       "status": "active",
       "engine": {
         "node": ">=22"
       },
       "site": "https://pkinative.dev",
-      "npm": "not published; pre-1.0 versions are git tags with an attested release tarball, the first npm publication is 1.0.0"
+      "npm": "published from 1.0.0 by publish.yml, with npm provenance; versions below 1.0.0 are git tags only, never released"
     }
   },
   "family": {
@@ -113,7 +113,7 @@
       "exportedValues": 111
     },
     "playgroundBundle": {
-      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, because pkinative is not on npm before 1.0.0 and there is no CDN to load it from. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030.",
+      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, so that it runs the build of the tree the site is published from, not the last npm release. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
       "sourceSha256": "c908fe1ada15987f8f41ecca6aebcd3244928d9683fd3a841dc1b5f08003a258",
@@ -128,14 +128,14 @@
         "png": "docs/assets/og-image.png",
         "width": 1200,
         "height": 630,
-        "svgSha256": "135682e5bdac859d4a2a9111f2fa4c3b9888c818e9ab2470b07dc58b7b527635"
+        "svgSha256": "6532486d0c253ec8a4c7efa6b49d31b9eb07f98780bee5812688fe373bea4e17"
       },
       {
         "svg": "docs/assets/social-preview.svg",
         "png": "docs/assets/social-preview.png",
         "width": 1280,
         "height": 640,
-        "svgSha256": "4759c3235a653cc187da1d0baf2c156f29a916179665233299a1f0c3f142e172"
+        "svgSha256": "29f1788aba8c306ddd9a97ab89bd0762c4feed73df99bcfc895b8f6a533e7a27"
       }
     ],
     "pkits": {
