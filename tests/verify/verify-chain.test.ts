@@ -852,6 +852,21 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
     });
 
+    it('should read a list passed twice once, and a stapled response passed twice once', async () => {
+        // A signed message carries the CRL its signer relied on and the caller
+        // passes the one they downloaded: the same bytes, one piece of
+        // evidence. Each copy used to report the revocation again.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const crl = await signedCrl(ica, icaKey, { number: 4, revoked: leaf });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT, crls: [crl, crl.slice()], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
+        const junk = Uint8Array.of(0x30, 0x00);
+        const twice = await verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT, ocsp: [junk, junk.slice()] });
+        expect(codes(twice)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+    });
+
     it('should let a delta withdraw a revocation the base still records', async () => {
         // `removeFromCRL`, the entry reason that exists only on a delta. A
         // verifier that ignored deltas would keep refusing this certificate

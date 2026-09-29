@@ -200,6 +200,28 @@ const _hex = (bytes: Uint8Array): string => {
 };
 
 /**
+ * Each distinct DER once, with the position the caller first gave it.
+ *
+ * The same list arrives twice more often than not — a signed message carries
+ * the CRL its signer relied on, and the caller passes the one they downloaded
+ * — and a list is one piece of evidence however many copies of it there are.
+ * Reading every copy reported every revocation once per copy. Identity is the
+ * encoding, not the parsed content: two lists that differ in a byte are two
+ * statements, and both are judged.
+ */
+function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> {
+    const seen = new Set<string>();
+    const out: Array<[number, Uint8Array]> = [];
+    for (const [index, der] of ders.entries()) {
+        const key = _hex(der);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push([index, der]);
+    }
+    return out;
+}
+
+/**
  * Verify a certificate the whole way: chain, name, purpose and revocation.
  *
  * ```ts
@@ -555,7 +577,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // certificate**, and the reason mask of §6.3.3 is a fact about one
     // certificate and every list that covers it.
     const parsed: ParsedCrl[] = [];
-    for (const [index, der] of lists.entries()) {
+    for (const [index, der] of _firstOfEach(lists)) {
         try {
             parsed.push({ der, crl: parseCertificateList(der, reading) });
         } catch (error) {
@@ -642,7 +664,7 @@ async function _checkRevocation(input: VerifyChainInput, path: readonly Certific
     // stapled response is for, and RFC 6960 has no notion of asking about a
     // chain. The issuer is path[1], the CA whose CertID the answer binds to.
     const issuer = path[1];
-    for (const [index, der] of stapled.entries()) {
+    for (const [index, der] of _firstOfEach(stapled)) {
         const where = `ocsp[${String(index)}]`;
         try {
             const response = parseOcspResponse(der, reading);
