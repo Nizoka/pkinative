@@ -18,7 +18,10 @@ describe('planErrorsFrozen', () => {
     it('should be in sync with the committed snapshot', () => {
         const committed = readFileSync('docs/data/errors.frozen.json', 'utf8');
         const live = readFileSync('docs/data/errors.json', 'utf8');
-        expect(planErrorsFrozen(live, committed, '0.8.0', 'default').action).toBe('unchanged');
+        // Frozen at 0.8.0 and ratcheted by the 1.0.0 release: running that
+        // ratchet again records nothing new.
+        expect(JSON.parse(committed)).toMatchObject({ frozenAt: '0.8.0', asOf: '1.0.0' });
+        expect(planErrorsFrozen(live, committed, '1.0.0', 'ratchet').action).toBe('unchanged');
     });
 
     it('should rewrite the snapshot while its freeze is unreleased, and refuse once it is', () => {

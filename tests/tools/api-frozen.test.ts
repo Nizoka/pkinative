@@ -109,17 +109,23 @@ describe('classify and diffSurface', () => {
 });
 
 describe('build-api-frozen', () => {
-    const snapshot = parseApiFrozen(TREE['docs/assets/api.frozen.json'] ?? '');
+    // The committed snapshot is the stable 1.0 promise. The rehearsal cases run
+    // on the tree it was rebased from, rebuilt here from it: the same surface,
+    // reasons and rebaseline log, in the 0.8.0 rehearsal phase.
+    const live = parseApiFrozen(TREE['docs/assets/api.frozen.json'] ?? '') as ApiFrozen;
+    const snapshot: ApiFrozen = { ...live, frozenAt: '0.8.0', phase: 'rehearsal', asOf: '0.8.0' };
+    const REHEARSAL: Record<string, string> = { ...TREE, 'docs/assets/api.frozen.json': renderApiFrozen(snapshot) };
 
-    it('should be in sync with the committed snapshot, which is the 0.8.0 rehearsal', () => {
-        expect(snapshot).toMatchObject({ frozenAt: '0.8.0', phase: 'rehearsal', asOf: '0.8.0' });
-        expect(planApiFrozen(readerOf(TREE), '0.8.0', { kind: 'default' }).action).toBe('unchanged');
-        expect(renderApiFrozen(snapshot as ApiFrozen)).toBe(TREE['docs/assets/api.frozen.json']);
+    it('should be in sync with the committed snapshot, which is the 1.0.0 stable promise', () => {
+        expect(live).toMatchObject({ frozenAt: '1.0.0', phase: 'stable', asOf: '1.0.0' });
+        expect(planApiFrozen(readerOf(TREE), '1.0.0', { kind: 'default' }).action).toBe('unchanged');
+        expect(renderApiFrozen(live)).toBe(TREE['docs/assets/api.frozen.json']);
+        expect(planApiFrozen(readerOf(REHEARSAL), '0.8.0', { kind: 'default' }).action).toBe('unchanged');
     });
 
     const changed = (): Record<string, string> => ({
-        ...TREE,
-        'src/asn1/asn1-oid.ts': (TREE['src/asn1/asn1-oid.ts'] ?? '').replace('export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict?: boolean): boolean {'),
+        ...REHEARSAL,
+        'src/asn1/asn1-oid.ts': (REHEARSAL['src/asn1/asn1-oid.ts'] ?? '').replace('export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict?: boolean): boolean {'),
     });
 
     it('should refuse to rewrite a released rehearsal, and rewrite an unreleased one', () => {
@@ -134,34 +140,34 @@ describe('build-api-frozen', () => {
         expect(planApiFrozen(readerOf(changed()), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse', message: expect.stringContaining('does not exist or is not "status: accepted"') });
         expect(planApiFrozen(readerOf(proposed), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse' });
         expect(planApiFrozen(readerOf(accepted), '0.8.0', { kind: 'rebaseline', adr: 'docs/0014.md' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('docs/adr/NNNN-slug.md') });
-        expect(planApiFrozen(readerOf({ ...TREE, [adr]: accepted[adr] ?? '' }), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse', message: expect.stringContaining('nothing to rebaseline') });
+        expect(planApiFrozen(readerOf({ ...REHEARSAL, [adr]: accepted[adr] ?? '' }), '0.8.0', { kind: 'rebaseline', adr })).toMatchObject({ action: 'refuse', message: expect.stringContaining('nothing to rebaseline') });
         const moved = planApiFrozen(readerOf(accepted), '0.8.0', { kind: 'rebaseline', adr });
         expect(moved.action).toBe('write');
         // Appended to the log, never replacing a move already recorded (ADR 0013 was the first).
-        const before = parseApiFrozen(TREE['docs/assets/api.frozen.json'] ?? '')?.rebaselines ?? [];
+        const before = parseApiFrozen(REHEARSAL['docs/assets/api.frozen.json'] ?? '')?.rebaselines ?? [];
         expect(parseApiFrozen(moved.text ?? '')?.rebaselines).toEqual([...before, { adr, asOf: '0.8.0' }]);
     });
 
     it('should refuse --rebaseline once the surface is stable', () => {
-        const stable = { ...TREE, 'docs/assets/api.frozen.json': (TREE['docs/assets/api.frozen.json'] ?? '').replace('"phase": "rehearsal"', '"phase": "stable"') };
+        const stable = { ...REHEARSAL, 'docs/assets/api.frozen.json': (REHEARSAL['docs/assets/api.frozen.json'] ?? '').replace('"phase": "rehearsal"', '"phase": "stable"') };
         expect(planApiFrozen(readerOf(stable), '0.8.0', { kind: 'rebaseline', adr: 'docs/adr/0001-no-secret-dependent-cryptography.md' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('rehearsal phase only') });
     });
 
     it('should refuse --ratchet during the rehearsal', () => {
-        expect(planApiFrozen(readerOf(TREE), '0.9.0', { kind: 'ratchet' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('stable phase only') });
+        expect(planApiFrozen(readerOf(REHEARSAL), '0.9.0', { kind: 'ratchet' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('stable phase only') });
     });
 
     it('should rebase at 1.0.0 only when the rehearsal held, and only on the 1.0.0 release commit', () => {
-        const rebased = planApiFrozen(readerOf(TREE), '1.0.0', { kind: 'major', version: '1.0.0' });
+        const rebased = planApiFrozen(readerOf(REHEARSAL), '1.0.0', { kind: 'major', version: '1.0.0' });
         expect(rebased.action).toBe('write');
         expect(parseApiFrozen(rebased.text ?? '')).toMatchObject({ frozenAt: '1.0.0', phase: 'stable', asOf: '1.0.0' });
         expect(planApiFrozen(readerOf(changed()), '1.0.0', { kind: 'major', version: '1.0.0' })).toMatchObject({ action: 'refuse', message: expect.stringContaining('the rehearsal did not hold') });
-        expect(planApiFrozen(readerOf(TREE), '0.9.0', { kind: 'major', version: '1.0.0' })).toMatchObject({ action: 'refuse' });
-        expect(planApiFrozen(readerOf(TREE), '0.9.0', { kind: 'major', version: '0.9.0' })).toMatchObject({ action: 'refuse' });
+        expect(planApiFrozen(readerOf(REHEARSAL), '0.9.0', { kind: 'major', version: '1.0.0' })).toMatchObject({ action: 'refuse' });
+        expect(planApiFrozen(readerOf(REHEARSAL), '0.9.0', { kind: 'major', version: '0.9.0' })).toMatchObject({ action: 'refuse' });
     });
 
     it('should ratchet a stable snapshot over compatible changes and refuse over a removal', () => {
-        const stable = planApiFrozen(readerOf(TREE), '1.0.0', { kind: 'major', version: '1.0.0' }).text ?? '';
+        const stable = planApiFrozen(readerOf(REHEARSAL), '1.0.0', { kind: 'major', version: '1.0.0' }).text ?? '';
         const files: Record<string, string> = { ...changed(), 'docs/assets/api.frozen.json': stable };
         const ratcheted = planApiFrozen(readerOf(files), '1.1.0', { kind: 'ratchet' });
         expect(ratcheted.action).toBe('write');

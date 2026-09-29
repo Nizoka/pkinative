@@ -65,16 +65,18 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The failure to catch is a budget raised for a surface that grew
     // without anyone restating how much it grew.
     'type-surface-parity': (f) => edit(f, 'docs/assets/ecosystem.json', /"exportedTypes": \d+/, '"exportedTypes": 1'),
-    // The change a rehearsal exists to refuse: a compatible one. An optional
-    // parameter breaks nobody, and 0.9 still admits no new behaviour.
-    'api-surface-frozen': (f) => edit(f, 'src/asn1/asn1-oid.ts', 'export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict?: boolean): boolean {'),
+    // The change the stable promise exists to refuse: a new required
+    // parameter breaks every existing call. (The rehearsal's own case, a
+    // compatible change refused, is proven below on the 0.9 tree.)
+    'api-surface-frozen': (f) => edit(f, 'src/asn1/asn1-oid.ts', 'export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict: boolean): boolean {'),
     // What a regenerated baseline shows when a new check pre-empts an old
     // one: the same certificate, refused with another code.
     'refusal-baseline-frozen': (f) => edit(f, 'scripts/data/limbo-refusals.json', /("0014e18b[0-9a-f]{56}": )"PKI_X509_GENERAL_NAME_INVALID"/, '$1"PKI_X509_EXTENSION_MALFORMED"'),
     // A leg held by a rule that does not exist is a promise held by nothing.
     'contracts-shape': (f) => edit(f, 'docs/assets/ecosystem.json', '"rules": ["refusal-baseline-frozen"]', '"rules": ["refusal-baseline-held"]'),
-    // Below 1.0.0 the sentence must be there; the 1.0 direction is proven below.
-    'release-era-prose': (f) => edit(f, 'llms.txt', 'Versions below 1.0 are git tags, not npm releases. ', ''),
+    // From 1.0.0 a "not on npm" sentence must be gone; one that comes back
+    // (a stale paragraph pasted from an old branch) is a false statement.
+    'release-era-prose': (f) => edit(f, 'llms.txt', /\n$/, '\nVersions below 1.0 are git tags, not npm releases.\n'),
     'tsdoc-complete': (f) => edit(f, 'src/asn1/asn1-oid.ts', ' * @throws Never.\n */\nexport function isValidOid', ' */\nexport function isValidOid'),
     'guide-render-sync': (f) => edit(f, 'docs/guides/errors.html', '<h1 id=', '<h1 class="stale" id='),
     'llms-sync': (f) => edit(f, 'docs/llms-full.txt', /\n$/, '\nstale\n'),
@@ -92,7 +94,7 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'timeType', 'timeTypeXX'),
     'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
     'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
-    'install-url-version': (f) => edit(f, 'docs/agent-brief.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
+    'install-url-version': (f) => edit(f, 'README.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
     // One edit, both halves: the comment states no reason, and the count is now 2 against a declared 1.
     'coverage-ignore-budget': (f) => edit(f, 'src/core/bytes.ts', /^const HEX_DIGITS/m, '/* v8 ignore next */\nconst HEX_DIGITS'),
     // A field L4 compares, dropped from the guide that documents the contract.
@@ -335,10 +337,17 @@ describe('verify-docs rule table', () => {
     const surfaceProblems = async (files: Record<string, string>): Promise<string[]> =>
         (await runRules(createMemoryContext(files), RULES, 'api-surface-frozen')).map((p) => p.message);
 
-    /** The tree as it will be at the 1.0 release commit: package.json bumped, the snapshot rebased. */
-    const atStable = (files: Record<string, string>): void => {
-        edit(files, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');
-        edit(files, 'docs/assets/api.frozen.json', /"frozenAt": "[^"]+",\n {2}"phase": "rehearsal",\n {2}"asOf": "[^"]+"/, '"frozenAt": "1.0.0",\n  "phase": "stable",\n  "asOf": "1.0.0"');
+    const PHASE = /"frozenAt": "[^"]+",\n {2}"phase": "[a-z]+",\n {2}"asOf": "[^"]+"/;
+    /**
+     * The tree as it stood through 0.9: package.json below 1.0.0 and both
+     * snapshots in their rehearsal phase. The live tree is the 1.0 release,
+     * which changed only these three headers, so the rehearsal is exact.
+     */
+    const atRehearsal = (files: Record<string, string>): Record<string, string> => {
+        edit(files, 'package.json', /"version": "[^"]+"/, '"version": "0.9.0"');
+        edit(files, 'docs/assets/api.frozen.json', PHASE, '"frozenAt": "0.8.0",\n  "phase": "rehearsal",\n  "asOf": "0.8.0"');
+        edit(files, 'docs/data/refusals.frozen.json', PHASE, '"frozenAt": "0.9.0",\n  "phase": "rehearsal",\n  "asOf": "0.9.0"');
+        return files;
     };
 
     it('should pass api-surface-frozen on a parameter renamed and a TSDoc rewritten — neither is surface', async () => {
@@ -351,7 +360,7 @@ describe('verify-docs rule table', () => {
     it('should fire api-surface-frozen in the rehearsal on a new error code, whatever its since, while error-codes-frozen accepts it', async () => {
         const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
         const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', since: '0.9.0', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
-        const files = { ...TREE, 'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, added] }, null, 2) };
+        const files = { ...atRehearsal({ ...TREE }), 'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, added] }, null, 2) };
         expect(await runRules(createMemoryContext(files), RULES, 'error-codes-frozen')).toEqual([]);
         expect(await surfaceProblems(files)).toEqual([expect.stringMatching(/^PKI_KEY_ADDED \(since 0\.9\.0\) is a new error code.*rehearsal admits no change/)]);
     });
@@ -360,7 +369,7 @@ describe('verify-docs rule table', () => {
         const registry = JSON.parse(TREE['docs/data/reasons.json'] ?? '{}') as { reasons: Array<Record<string, unknown>> };
         const [first, ...rest] = registry.reasons;
         const added = { code: 'PKI_REASON_ADDED', since: '0.9.0', returnedWhen: 'x', remedy: 'x', standard: 'x' };
-        const files = { ...TREE, 'docs/data/reasons.json': JSON.stringify({ ...registry, reasons: [...rest, added] }, null, 2) };
+        const files = { ...atRehearsal({ ...TREE }), 'docs/data/reasons.json': JSON.stringify({ ...registry, reasons: [...rest, added] }, null, 2) };
         expect((await surfaceProblems(files)).sort()).toEqual([
             expect.stringMatching(/^PKI_REASON_ADDED \(since 0\.9\.0\) is a new reason code/),
             expect.stringContaining(`${String(first?.code)} was frozen at 0.8.0 and is gone from the reason registry`),
@@ -369,11 +378,10 @@ describe('verify-docs rule table', () => {
 
     it('should never freeze a diagnostic code, in either phase', async () => {
         const add = (files: Record<string, string>): void => edit(files, 'src/types/pki-types.ts', "export type PkiDiagnosticCode =\n    | 'PKI_DIAG_SERIAL_TOO_LONG'", "export type PkiDiagnosticCode =\n    | 'PKI_DIAG_ADDED'\n    | 'PKI_DIAG_SERIAL_TOO_LONG'");
-        const rehearsal = { ...TREE };
+        const rehearsal = atRehearsal({ ...TREE });
         add(rehearsal);
         expect(await surfaceProblems(rehearsal)).toEqual([]);
         const stable = { ...TREE };
-        atStable(stable);
         add(stable);
         expect(await surfaceProblems(stable)).toEqual([]);
     });
@@ -386,14 +394,13 @@ describe('verify-docs rule table', () => {
     });
 
     it('should hold api-surface-frozen to package.json: a rehearsal snapshot at 1.0.0 must be rebased', async () => {
-        const files = { ...TREE };
+        const files = atRehearsal({ ...TREE });
         edit(files, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');
         expect(await surfaceProblems(files)).toEqual([expect.stringContaining('build-api-frozen.ts --major 1.0.0')]);
     });
 
     it('should pass api-surface-frozen in the stable phase on additions: an optional parameter, an optional member, a new export', async () => {
         const files = { ...TREE };
-        atStable(files);
         expect(await surfaceProblems(files)).toEqual([]);
         edit(files, 'src/asn1/asn1-oid.ts', 'export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict?: boolean): boolean {\n    void strict;');
         edit(files, 'src/types/pki-types.ts', /export interface PkiParseOptions \{/, 'export interface PkiParseOptions {\n    readonly addedLater?: boolean | undefined;');
@@ -404,7 +411,6 @@ describe('verify-docs rule table', () => {
 
     it('should fire api-surface-frozen in the stable phase on a required parameter, a removal and a narrowed union, as semver-major', async () => {
         const files = { ...TREE };
-        atStable(files);
         edit(files, 'src/asn1/asn1-oid.ts', 'export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict: boolean): boolean {\n    void strict;');
         edit(files, 'docs/assets/api.json', /\{\s*"name": "ANY_EXTENDED_KEY_USAGE",[\s\S]*?"members": null\s*\},/, '');
         edit(files, 'src/types/pki-types.ts', "export type EncodingRules = 'der' | 'ber'", "export type EncodingRules = 'der'");
@@ -417,14 +423,16 @@ describe('verify-docs rule table', () => {
     });
 
     it('should fire release-era-prose from 1.0.0 on every sentence that says pkinative is not on npm, and keep the policy statements', async () => {
-        const files = { ...TREE };
-        edit(files, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');
-        const problems = await runRules(createMemoryContext(files), RULES, 'release-era-prose');
+        expect(await runRules(createMemoryContext(TREE), RULES, 'release-era-prose')).toEqual([]);
         const absent = PRE_1_0_PROSE.filter((row) => row.at1 === 'absent');
+        const files = { ...TREE };
+        for (const row of absent) files[row.file] = `${files[row.file] ?? ''}\n${row.phrase}\n`;
+        const problems = await runRules(createMemoryContext(files), RULES, 'release-era-prose');
         expect(problems.map((p) => p.file).sort()).toEqual(absent.map((row) => row.file).sort());
         expect(problems.every((p) => p.message.includes('from 1.0.0 pkinative is on npm'))).toBe(true);
-        edit(files, 'AGENTS.md', 'Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.', 'Releases go to npm.');
-        const kept = await runRules(createMemoryContext(files), RULES, 'release-era-prose');
+        const policy = { ...TREE };
+        edit(policy, 'AGENTS.md', 'Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.', 'Releases go to npm.');
+        const kept = await runRules(createMemoryContext(policy), RULES, 'release-era-prose');
         expect(kept.filter((p) => p.file === 'AGENTS.md').map((p) => p.message)).toEqual([expect.stringContaining('states the pre-1.0 policy')]);
     });
 
@@ -442,11 +450,11 @@ describe('verify-docs rule table', () => {
     /** The refusal snapshot as the 1.x release commit leaves it, with package.json at `version`. */
     const refusalsStable = (files: Record<string, string>, version: string, asOf = '1.0.0'): void => {
         edit(files, 'package.json', /"version": "[^"]+"/, `"version": "${version}"`);
-        edit(files, SNAPSHOT, /"frozenAt": "[^"]+",\n {2}"phase": "rehearsal",\n {2}"asOf": "[^"]+"/, `"frozenAt": "1.0.0",\n  "phase": "stable",\n  "asOf": "${asOf}"`);
+        edit(files, SNAPSHOT, PHASE, `"frozenAt": "1.0.0",\n  "phase": "stable",\n  "asOf": "${asOf}"`);
     };
 
     it('should fire refusal-baseline-frozen in the rehearsal on a new refusal and on a lifted one', async () => {
-        const files = { ...TREE };
+        const files = atRehearsal({ ...TREE });
         addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
         liftFirst(files);
         const problems = await refusalProblems(files);
@@ -459,7 +467,6 @@ describe('verify-docs rule table', () => {
 
     it('should pass refusal-baseline-frozen in the stable phase on a new refusal, and fire on a lifted one as semver-major', async () => {
         const files = { ...TREE };
-        refusalsStable(files, '1.0.0');
         addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
         expect(await refusalProblems(files)).toEqual([]);
         liftFirst(files);
@@ -485,7 +492,7 @@ describe('verify-docs rule table', () => {
         const retired = { ...TREE };
         edit(retired, SNAPSHOT, /\n {2}\]\n\}\n$/, `\n  ],\n  "retired": [\n    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "commit": "${'2'.repeat(40)}", "adr": "docs/adr/0099-never-written.md" }\n  ]\n}\n`);
         expect(await refusalProblems(retired)).toEqual([expect.stringContaining('not an accepted ADR')]);
-        const bumped = { ...TREE };
+        const bumped = atRehearsal({ ...TREE });
         edit(bumped, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');
         expect(await refusalProblems(bumped)).toEqual([expect.stringContaining('--major 1.0.0')]);
     });
