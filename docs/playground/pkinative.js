@@ -3172,6 +3172,14 @@ function pkcs12KeyUnmatchedReason(path) {
 function pkcs12KeyUnsupportedReason(path, detail) {
   return _reason("PKI_REASON_PKCS12_KEY_UNSUPPORTED", "W3C WebCryptoAPI", detail, path);
 }
+function pkcs12RsaSchemeUnspecifiedReason(path) {
+  return _reason(
+    "PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED",
+    "RFC 8017 \xA78",
+    "the key is RSA, and its certificate does not say whether it signs with PKCS#1 v1.5 or PSS, nor with which hash; name it in options.rsaAlgorithm \u2014 { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } for nearly every certificate in use",
+    path
+  );
+}
 function tspRequestMismatchReason(path, what) {
   return _reason(
     "PKI_REASON_TSP_REQUEST_MISMATCH",
@@ -9971,6 +9979,11 @@ async function openPkcs12(der, options) {
       continue;
     }
     const algorithm = _algorithmOf(certificate, rsaAlgorithm);
+    if (algorithm === "unspecified") {
+      reasons.push(pkcs12RsaSchemeUnspecifiedReason(bag.path));
+      keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
+      continue;
+    }
     if (algorithm === void 0) {
       reasons.push(pkcs12KeyUnsupportedReason(
         bag.path,
@@ -10027,7 +10040,7 @@ function _algorithmOf(certificate, rsa) {
   const spki = certificate.subjectPublicKeyInfo;
   switch (spki.kind) {
     case "rsa":
-      return rsa ?? { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+      return rsa ?? "unspecified";
     case "ec":
       return spki.curve === void 0 ? void 0 : { name: "ECDSA", namedCurve: spki.curve, hash: CURVE_HASH[spki.curve] };
     case "ed25519":

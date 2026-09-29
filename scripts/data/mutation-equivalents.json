@@ -45,7 +45,7 @@
       "reason": "Semantic: the extra case is constraint === state.maxPathLength, where the mutant assigns maxPathLength the value it already holds."
     },
     {
-      "id": "src/verify/verify-pkcs12.ts:175:14:if-false",
+      "id": "src/verify/verify-pkcs12.ts:181:14:if-false",
       "original": "mac.pbmac1 === undefined",
       "replacement": "false",
       "reason": "Semantic: with the early test gone, a PBMAC1 MacData without runnable parameters reaches verifyPkcs12Mac, which throws PKI_KEY_MAC_UNSUPPORTED before touching the password or Web Crypto; the catch below sets the same unverified = 'pbmac1-unsupported', so the report is identical. The early test is there to say so without a throw, not to change the answer."

@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 6967,
-      "approxTokens": 1742
+      "bytes": 7033,
+      "approxTokens": 1758
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 169759,
-      "approxTokens": 42440
+      "bytes": 170491,
+      "approxTokens": 42623
     },
     {
       "url": "llms-recipes.txt",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 77663,
-      "approxTokens": 19416
+      "bytes": 78224,
+      "approxTokens": 19556
     },
     {
       "title": "Security model",
@@ -170,8 +170,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 20977,
-      "approxTokens": 5244
+      "bytes": 21148,
+      "approxTokens": 5287
     },
     {
       "title": "Choosing a PKI library",

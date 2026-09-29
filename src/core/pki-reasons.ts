@@ -465,6 +465,20 @@ export function pkcs12KeyUnsupportedReason(path: string, detail: string): PkiRea
 }
 
 /**
+ * An RSA key whose scheme nobody named.
+ *
+ * A certificate with an `rsaEncryption` key does not say whether the key signs
+ * with PKCS#1 v1.5 or PSS, nor with which hash, and a Web Crypto key is bound
+ * to one scheme and one hash when it is unwrapped. pkinative does not guess:
+ * the caller says, in `rsaAlgorithm`, and the key is opened on the next call.
+ */
+export function pkcs12RsaSchemeUnspecifiedReason(path: string): PkiReason {
+    return _reason('PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED', 'RFC 8017 §8',
+        'the key is RSA, and its certificate does not say whether it signs with PKCS#1 v1.5 or PSS, nor with which hash; name it in options.rsaAlgorithm — { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' } for nearly every certificate in use',
+        path);
+}
+
+/**
  * The token does not answer the request that was sent.
  *
  * Its own code rather than a flavour of `IMPRINT_MISMATCH`, for the reason

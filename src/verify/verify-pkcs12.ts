@@ -24,8 +24,10 @@
  * plaintext ever existing here, so Web Crypto must be told what it is before
  * decrypting it; the certificate sharing its `localKeyId` says so. An RSA
  * certificate says "RSA" and not which scheme the key will sign with, so
- * `rsaAlgorithm` decides, defaulting to the scheme of nearly every RSA signing
- * certificate in use.
+ * `rsaAlgorithm` decides, and without it the key stays shut with
+ * `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`. There is no default: a guess
+ * would bind a non-extractable key to a scheme it cannot be moved off, and a
+ * default, once promised, could never be changed within a major.
  *
  * @module verify/verify-pkcs12
  */
@@ -39,6 +41,7 @@ import {
     pkcs12KeyUnmatchedReason,
     pkcs12KeyUnsupportedReason,
     pkcs12MacMismatchReason,
+    pkcs12RsaSchemeUnspecifiedReason,
 } from '../core/pki-reasons.js';
 import { canDecrypt } from '../crypto/webcrypto.js';
 import { decryptPrivateKey, importPrivateKey } from '../keys/key-import.js';
@@ -70,8 +73,11 @@ export interface OpenPkcs12Options extends PkiParseOptions {
     readonly allowUnverifiedIntegrity?: boolean | undefined;
     /**
      * What an RSA key will sign with. The certificate names the key, not the
-     * scheme, and a Web Crypto key is bound to one scheme and one hash.
-     * Defaults to `{ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }`.
+     * scheme, and a Web Crypto key is bound to one scheme and one hash when it
+     * is opened. No default: without it an RSA key is not opened, and the
+     * report says so with `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`.
+     * `{ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }` is what nearly every
+     * RSA certificate in use signs with. Keys of every other kind ignore it.
      */
     readonly rsaAlgorithm?: Extract<SignatureAlgorithm, { readonly name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS' }> | undefined;
 }
@@ -118,7 +124,7 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  * ```ts
  * import { openPkcs12, createSignedData } from 'pkinative';
  *
- * const report = await openPkcs12(p12Bytes, { password });
+ * const report = await openPkcs12(p12Bytes, { password, rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } });
  * if (!report.valid) throw new Error(report.reasons.map((r) => r.message).join('; '));
  * const [{ signingKey, certificate }] = report.keys;
  * const signed = await createSignedData({ content, certificate: certificate! }, signingKey!);
@@ -251,6 +257,11 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
             continue;
         }
         const algorithm = _algorithmOf(certificate, rsaAlgorithm);
+        if (algorithm === 'unspecified') {
+            reasons.push(pkcs12RsaSchemeUnspecifiedReason(bag.path));
+            keys.push(Object.freeze({ ...entry, signingKey: undefined }));
+            continue;
+        }
         if (algorithm === undefined) {
             reasons.push(pkcs12KeyUnsupportedReason(bag.path,
                 `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${certificate.subjectPublicKeyInfo.kind === 'ec' ? ' on a curve Web Crypto does not sign with' : ''}, which Web Crypto cannot import as a signing key`));
@@ -331,14 +342,14 @@ function _openingReason(refused: PkiError, path: string, scheme: string): PkiRea
 
 /**
  * What a key signs with, read from its certificate: the curve for ECDSA, the
- * name for EdDSA, and the caller's choice for RSA. `undefined` for a key Web
- * Crypto cannot sign with.
+ * name for EdDSA, and the caller's choice for RSA — `'unspecified'` when the
+ * caller made none. `undefined` for a key Web Crypto cannot sign with.
  */
-function _algorithmOf(certificate: Certificate, rsa: OpenPkcs12Options['rsaAlgorithm']): SignatureAlgorithm | undefined {
+function _algorithmOf(certificate: Certificate, rsa: OpenPkcs12Options['rsaAlgorithm']): SignatureAlgorithm | 'unspecified' | undefined {
     const spki = certificate.subjectPublicKeyInfo;
     switch (spki.kind) {
         case 'rsa':
-            return rsa ?? { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+            return rsa ?? 'unspecified';
         case 'ec':
             return spki.curve === undefined ? undefined : { name: 'ECDSA', namedCurve: spki.curve, hash: CURVE_HASH[spki.curve] };
         case 'ed25519':

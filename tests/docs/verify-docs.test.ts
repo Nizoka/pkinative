@@ -303,14 +303,17 @@ describe('verify-docs rule table', () => {
 
     it('should fire adr-index on a record with no row, a row with no record, and a status the record does not carry', async () => {
         const files = { ...TREE };
-        files['docs/adr/0015-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
+        // The next free numbers, so the case outlives the next real record.
+        const next = Object.keys(TREE).filter((f) => /^docs\/adr\/\d{4}-/.test(f)).length + 1;
+        const [added, gone] = [next, next + 1].map((n) => String(n).padStart(4, '0'));
+        files[`docs/adr/${added}-a-new-decision.md`] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
         edit(files, 'docs/adr/README.md', '| No external security audit at 1.0 | accepted |', '| No external security audit at 1.0 | proposed |');
-        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0016](0016-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
+        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, `\n| [${gone}](${gone}-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record`);
         const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
         expect(problems.map((p) => p.message).sort()).toEqual([
-            expect.stringContaining('does not list 0015-a-new-decision.md'),
+            expect.stringContaining(`does not list ${added}-a-new-decision.md`),
             expect.stringContaining('gives 0010-no-external-security-audit-at-1-0.md the status "proposed"'),
-            expect.stringContaining('lists 0016-gone.md, which is not a record'),
+            expect.stringContaining(`lists ${gone}-gone.md, which is not a record`),
         ]);
     });
 

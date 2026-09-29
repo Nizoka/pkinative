@@ -52,12 +52,15 @@ import { KEY_CONTAINER_CASES } from './interop.js';
 
 type KeyKind = 'ec-p256' | 'rsa-2048' | 'ed25519';
 
-/** What each kind of key signs with — the algorithm `decryptPrivateKey` is told, and the one `openPkcs12` derives from the certificate. */
+/** What each kind of key signs with — the algorithm `decryptPrivateKey` is told, and the one `openPkcs12` derives from the certificate (for RSA, from `OPEN`'s `rsaAlgorithm`). */
 const SIGNING: Readonly<Record<KeyKind, SignatureAlgorithm>> = {
     'ec-p256': { name: 'ECDSA', namedCurve: 'P-256', hash: 'SHA-256' },
     'rsa-2048': { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     ed25519: { name: 'Ed25519' },
 };
+
+/** What every `openPkcs12` call here adds to the password: the RSA scheme, which a certificate does not name and pkinative does not guess. */
+const OPEN = { rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } } as const;
 
 /**
  * What a container is protected with, in one spelling for every tool: `mac`
@@ -587,26 +590,26 @@ export async function readKeyContainers(toolId: string, dir: string): Promise<Ke
             const e = c.expect;
             switch (e.kind) {
                 case 'opens': {
-                    const r = await openPkcs12(c.bytes, { password: c.password });
+                    const r = await openPkcs12(c.bytes, { ...OPEN, password: c.password });
                     checks += 1;
                     if (!r.valid || r.integrity !== 'verified') failures.push(`${label}: openPkcs12 says valid=${String(r.valid)}, integrity=${r.integrity} (${codesOf(r) || 'no reason'}); expected valid and verified`);
                     read = `valid, integrity verified, ${await holdsKey(c, r)}`;
                     break;
                 }
                 case 'opens-unverified': {
-                    const strict = await openPkcs12(c.bytes, { password: c.password });
+                    const strict = await openPkcs12(c.bytes, { ...OPEN, password: c.password });
                     checks += 1;
                     if (strict.valid || strict.integrity !== 'unverified' || codesOf(strict) !== PKCS12_INTEGRITY) {
                         failures.push(`${label}: openPkcs12 says valid=${String(strict.valid)}, integrity=${strict.integrity}, reasons ${codesOf(strict) || 'none'}; expected ${PKCS12_INTEGRITY} alone`);
                     }
-                    const waived = await openPkcs12(c.bytes, { password: c.password, allowUnverifiedIntegrity: true });
+                    const waived = await openPkcs12(c.bytes, { ...OPEN, password: c.password, allowUnverifiedIntegrity: true });
                     checks += 1;
                     if (!waived.valid) failures.push(`${label}: with allowUnverifiedIntegrity openPkcs12 is still not valid (${codesOf(waived)})`);
                     read = `${PKCS12_INTEGRITY}; with allowUnverifiedIntegrity valid, ${await holdsKey(c, waived)}`;
                     break;
                 }
                 case 'reports': {
-                    const r = await openPkcs12(c.bytes, { password: c.password });
+                    const r = await openPkcs12(c.bytes, { ...OPEN, password: c.password });
                     checks += 1;
                     const want = [...e.codes].sort().join(',');
                     if (r.valid || codesOf(r) !== want || r.integrity !== e.integrity) {

@@ -143,6 +143,8 @@ export type PkiReasonCode =
     | 'PKI_REASON_PKCS12_KEY_UNMATCHED'
     /** A key is of a kind this runtime or pkinative cannot import. */
     | 'PKI_REASON_PKCS12_KEY_UNSUPPORTED'
+    /** An RSA key's certificate names the key, not the scheme it signs with, and the caller did not name one in `rsaAlgorithm`. */
+    | 'PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED'
 
     // ── The caller's limits, reached while judging ──
     /** A named `PkiLimits` bound stopped the search. `limit` names it. */

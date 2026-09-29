@@ -4,7 +4,8 @@
   "phase": "rehearsal",
   "asOf": "0.8.0",
   "rebaselines": [
-    { "adr": "docs/adr/0013-renames-before-the-freeze.md", "asOf": "0.8.0" }
+    { "adr": "docs/adr/0013-renames-before-the-freeze.md", "asOf": "0.8.0" },
+    { "adr": "docs/adr/0015-no-default-rsa-scheme.md", "asOf": "0.9.0" }
   ],
   "reasons": [
     "PKI_REASON_INPUT_MALFORMED",
@@ -48,6 +49,7 @@
     "PKI_REASON_PKCS12_DECRYPTION_FAILED",
     "PKI_REASON_PKCS12_KEY_UNMATCHED",
     "PKI_REASON_PKCS12_KEY_UNSUPPORTED",
+    "PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED",
     "PKI_REASON_LIMIT_EXCEEDED"
   ],
   "exports": [

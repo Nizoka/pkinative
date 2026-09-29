@@ -50,7 +50,7 @@ async function withHost(overrides: Record<string, unknown> | undefined, run: () 
         if (original !== undefined) Object.defineProperty(globalThis, 'crypto', original);
     }
 }
-import { AT, DAY, codes, issue, keyPair, makeRoot, type Authority, type Family, type Holder } from './_cms-pki.js';
+import { AT, DAY, codes, issue, keyPair, makeRoot, type Authority, type Holder } from './_cms-pki.js';
 
 /**
  * `openPkcs12`: RFC 7292 opened the whole way in one call, and reported
@@ -152,21 +152,34 @@ describe('openPkcs12 — a file it can vouch for', () => {
         expect(await signsLikeItsCertificate(report, holder)).toBe(true);
     });
 
-    it.each<[Family, object]>([
-        ['RSA', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }],
-        ['Ed25519', { name: 'Ed25519' }],
-    ])('should take a %s key\'s algorithm from its certificate', async (family, expected) => {
-        const holder = await issue(await makeRoot(), { family });
+    it('should take an Ed25519 key\'s algorithm from its certificate', async () => {
+        const holder = await issue(await makeRoot(), { family: 'Ed25519' });
         const report = await read(await file({ holder }));
         expect(codes(report)).toEqual([]);
-        expect(report.keys[0]?.signingKey?.algorithm).toEqual(expected);
+        expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'Ed25519' });
         expect(await signsLikeItsCertificate(report, holder)).toBe(true);
     });
 
-    it('should bind an RSA key to the scheme the caller chooses', async () => {
+    it('should not guess an RSA key\'s scheme: the key stays shut and the report names the option', async () => {
+        // An rsaEncryption certificate names the key, not the scheme, and the
+        // unwrapped key is non-extractable: a wrong guess could not be undone.
         const holder = await issue(await makeRoot(), { family: 'RSA' });
-        const report = await read(await file({ holder }), { rsaAlgorithm: { name: 'RSA-PSS', hash: 'SHA-256' } });
-        expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'RSA-PSS', hash: 'SHA-256' });
+        const report = await read(await file({ holder }));
+        expect(codes(report)).toEqual(['PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED']);
+        expect(report.valid).toBe(false);
+        expect(report.reasons[0]).toMatchObject({ path: 'authSafe[1].bags[0]', standard: 'RFC 8017 §8', message: expect.stringContaining('options.rsaAlgorithm') });
+        expect(report.keys[0]).toMatchObject({ certificate: { der: holder.certificate.der }, signingKey: undefined });
+        expect(report.certificates.map((c) => c.der)).toEqual([holder.certificate.der]);
+    });
+
+    it.each<[string, { readonly name: 'RSASSA-PKCS1-v1_5' | 'RSA-PSS'; readonly hash: 'SHA-256' }]>([
+        ['PKCS#1 v1.5', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }],
+        ['PSS', { name: 'RSA-PSS', hash: 'SHA-256' }],
+    ])('should bind an RSA key to the scheme the caller names (%s)', async (_label, rsaAlgorithm) => {
+        const holder = await issue(await makeRoot(), { family: 'RSA' });
+        const report = await read(await file({ holder }), { rsaAlgorithm });
+        expect(codes(report)).toEqual([]);
+        expect(report.keys[0]?.signingKey?.algorithm).toEqual(rsaAlgorithm);
         expect(await signsLikeItsCertificate(report, holder)).toBe(true);
     });
 
@@ -361,7 +374,7 @@ describe('openPkcs12 — what it reports instead of throwing', () => {
         const ec = await issue(root);
         const rsa = await issue(root, { family: 'RSA', serial: 3n });
         const auth = authenticatedSafe(dataInfo(safeContents(certBag(rsa.certificate.der, [localKeyId(ID)]), keyBag(await pkcs8Of(ec), [localKeyId(ID)]))));
-        const report = await read(pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) }));
+        const report = await read(pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) }), { rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } });
         expect(codes(report)).toEqual(['PKI_REASON_PKCS12_KEY_UNSUPPORTED']);
         expect(report.reasons[0]?.message).toContain('do not belong together');
     });

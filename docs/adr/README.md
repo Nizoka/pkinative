@@ -20,6 +20,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0012](0012-frozen-error-vocabulary.md) | The error vocabulary is frozen at 0.8.0; diagnostic codes are additions-only; limit names freeze at 1.0 | accepted | 0.8.0 |
 | [0013](0013-renames-before-the-freeze.md) | The rename set before the freeze, landed once in the band that exists for it | accepted | 0.9.0 |
 | [0014](0014-the-decision-surface-contract.md) | The decision surface: a frozen refusal keeps its code, a new refusal is a recorded fix, and DER re-encodes byte for byte | accepted | 1.0.0 |
+| [0015](0015-no-default-rsa-scheme.md) | No default RSA scheme: openPkcs12 opens an RSA key only with the scheme the caller names | accepted | 1.0.0 |
 
 ## Adding a record
 
