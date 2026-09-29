@@ -4,7 +4,7 @@ date: 2026-09-29
 since: 0.8.0
 ---
 
-# The error vocabulary is frozen at 0.8.0; diagnostics are not frozen; limit names freeze at 1.0
+# The error vocabulary is frozen at 0.8.0; diagnostic codes are additions-only; limit names freeze at 1.0
 
 ## Context and Problem Statement
 
@@ -30,16 +30,16 @@ Chosen option: 2, decided in the 0.2.0 roadmap change and taken at 0.8.0.
 | Vocabulary | Status |
 |---|---|
 | `PkiErrorCode` | **Frozen at 0.8.0.** `docs/data/errors.frozen.json` holds the 57 codes. Removing or renaming one, or moving it to another class, is semver-major; adding one is semver-minor and must carry a `since` newer than `frozenAt`. |
-| `PkiDiagnosticCode` | **Not frozen**: a diagnostic is advice, and its severity may change in a minor ([release-notes/v0.8.0.md](../../release-notes/v0.8.0.md)). The union is additions-only by contract — a code is never renamed or removed ([docs/data/diagnostics.json](../data/diagnostics.json)). |
+| `PkiDiagnosticCode` | **Additions-only**: a code is never renamed or removed ([docs/data/diagnostics.json](../data/diagnostics.json)), while a diagnostic's severity and wording may change in a minor, because a diagnostic is advice ([release-notes/v0.8.0.md](../../release-notes/v0.8.0.md)). No snapshot holds the codes: the contract is on the names, not on what they say. |
 | `PkiReasonCode` | **Not frozen at 0.8**: the set grows with the standards; adding a reason is semver-minor, removing or renaming one is semver-major ([docs/data/reasons.json](../data/reasons.json)). |
-| `PkiLimits` names | **Freeze at 1.0.** |
+| `PkiLimits` names | **Freeze at 1.0.** Three were renamed at 0.9.0, inside the band that exists for it ([ADR 0013](0013-renames-before-the-freeze.md)). |
 
 ### Consequences
 
 - Good, because from 0.8.0 a caller can branch on an error code without fearing a minor release, and a whole band exists to find any rename before the promise becomes permanent.
 - Good, because diagnostics stay free to become more or less severe as profiles evolve, without a major version.
 - Bad, because a code named badly at 0.8.0 is now named badly until 2.0 — which is why ROADMAP.md §0.9.x asks for every wanted rename to be proposed in that band.
-- Bad, because "not frozen" does not mean "free" for diagnostics or reasons: removals and renames are still ruled out or semver-major, and a reader has to learn four different contracts.
+- Bad, because a reader has to learn four different contracts — frozen, additions-only, grow-only with semver-major removals, and frozen later — and "not frozen" was once used for the second, which read as "free" when a diagnostic code has never been free to be renamed. The wording was corrected at 0.9.0 ([ADR 0013](0013-renames-before-the-freeze.md)); the decision is unchanged.
 
 ### Confirmation
 
