@@ -234,6 +234,17 @@ export async function readPkcs12(der: Uint8Array, options: ReadPkcs12Options): P
             ? undefined
             : certificates.find((c) => c.localKeyId !== undefined && bytesEqual(c.localKeyId, localKeyId))?.certificate;
         const entry = { path: bag.path, localKeyId, friendlyName: bag.friendlyName, certificate };
+        if ('encryption' in held && held.encryption.pbes2 === undefined) {
+            // A key shrouded with a scheme pkinative refuses stays shut whatever
+            // its certificate says, so the scheme is the reason — decided before
+            // the certificate is looked for. Otherwise a legacy file, whose
+            // certificates sit in contents the same refusal keeps shut, would
+            // report its key as unmatched and send the caller after a
+            // certificate that could not have helped.
+            reasons.push(pkcs12EncryptionUnsupportedReason(bag.path, held.encryption.scheme));
+            keys.push(Object.freeze({ ...entry, signingKey: undefined }));
+            continue;
+        }
         if (certificate === undefined) {
             reasons.push(pkcs12KeyUnmatchedReason(bag.path));
             keys.push(Object.freeze({ ...entry, signingKey: undefined }));

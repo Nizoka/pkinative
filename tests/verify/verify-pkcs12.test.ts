@@ -287,6 +287,25 @@ describe('readPkcs12 — what it reports instead of throwing', () => {
         expect(report.certificates).toHaveLength(1);
     });
 
+    it('should name the refused scheme of a shrouded key whose certificate the same refusal keeps shut', async () => {
+        // The shape of `openssl pkcs12 -export -legacy` and of what Windows
+        // CryptoAPI exports by default: certificates in RC2- or 3DES-encrypted
+        // contents, the key shrouded with pbeWithSHAAnd3-KeyTripleDES-CBC. The
+        // key's own scheme is the reason, not a certificate that is missing
+        // only because it could not be opened.
+        const pbe = (oid: string): Uint8Array => alg(oid, sequence(octets(new Uint8Array(8)), int(2048)));
+        const auth = authenticatedSafe(
+            encryptedDataInfo(new Uint8Array(32), { algorithm: pbe('1.2.840.113549.1.12.1.6') }),
+            dataInfo(safeContents(shroudedKeyBag(sequence(pbe('1.2.840.113549.1.12.1.3'), octets(new Uint8Array(48))), [localKeyId(ID)]))),
+        );
+        const report = await read(pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) }));
+        expect(codes(report)).toEqual(['PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED', 'PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED']);
+        expect(report.reasons.map((r) => r.path)).toEqual(['authSafe[0]', 'authSafe[1].bags[0]']);
+        expect(report.reasons[0]?.message).toContain('pbeWithSHAAnd40BitRC2-CBC');
+        expect(report.reasons[1]?.message).toContain('pbeWithSHAAnd3-KeyTripleDES-CBC');
+        expect(report.keys[0]).toMatchObject({ certificate: undefined, signingKey: undefined });
+    });
+
     it('should name public-key privacy mode', async () => {
         const auth = authenticatedSafe(contentInfo(P12.envelopedData, sequence(int(0))));
         const report = await read(pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) }));

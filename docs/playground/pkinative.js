@@ -9903,6 +9903,11 @@ async function readPkcs12(der, options) {
     const localKeyId = bag.localKeyId;
     const certificate = localKeyId === void 0 ? void 0 : certificates.find((c) => c.localKeyId !== void 0 && bytesEqual(c.localKeyId, localKeyId))?.certificate;
     const entry = { path: bag.path, localKeyId, friendlyName: bag.friendlyName, certificate };
+    if ("encryption" in held && held.encryption.pbes2 === void 0) {
+      reasons.push(pkcs12EncryptionUnsupportedReason(bag.path, held.encryption.scheme));
+      keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
+      continue;
+    }
     if (certificate === void 0) {
       reasons.push(pkcs12KeyUnmatchedReason(bag.path));
       keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
