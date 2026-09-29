@@ -19,6 +19,13 @@
  *      previous version's command to anyone who clicked Copy)
  *   7. release-notes/vX.Y.Z.md scaffolded from release-notes/TEMPLATE.md
  *      when it does not exist yet
+ *   8. docs/assets/api.frozen.json, through scripts/build-api-frozen.ts:
+ *      rebased (`--major`) when X.Y.Z is a new major — at 1.0.0 that turns
+ *      the rehearsal into the stable promise, and is refused unless the
+ *      rehearsal held — or ratcheted (`--ratchet`) on a stable-phase
+ *      release, so the surface it ships becomes the promise. A rehearsal
+ *      release writes nothing: `api-surface-frozen` is what refuses a
+ *      change there.
  *
  * An old release note keeps its old URL: release-notes/ is deliberately not
  * touched, and `install-url-version` skips it for the same reason.
@@ -41,6 +48,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseApiFrozen, planApiFrozen, releaseModeFor } from './build-api-frozen.js';
+import { API_FROZEN } from './lib/api-surface.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -164,6 +173,21 @@ function main(): number {
         }
         texts.set(target, `${body.replace(/X\.Y\.Z/g, args.version).replace(/YYYY-MM-DD/g, args.date).replace(/\\`\\`\\`/g, '```')}\n`);
         console.log(`new   ${target} (${what}, from the template — fill it in)`);
+    }
+    // The frozen surface moves only here, and only in the two ways a release
+    // may move it: a new major rebases it, a stable-phase release ratchets it.
+    const read = (path: string): string | null => texts.get(path) ?? (existsSync(join(ROOT, path)) ? readFileSync(join(ROOT, path), 'utf8') : null);
+    const snapshotText = read(API_FROZEN);
+    const mode = releaseModeFor(args.version, snapshotText === null ? null : parseApiFrozen(snapshotText));
+    if (mode !== null) {
+        const plan = planApiFrozen(read, args.version, mode);
+        if (plan.action === 'refuse') {
+            console.error(`FAIL  ${API_FROZEN}: ${plan.message}`);
+            failures++;
+        } else if (plan.action === 'write' && plan.text !== null) {
+            texts.set(API_FROZEN, plan.text);
+            console.log(`edit  ${API_FROZEN}: ${plan.message}`);
+        }
     }
     if (failures > 0) return 1;
     if (!args.dryRun) for (const [file, text] of texts) writeFileSync(join(ROOT, file), text);

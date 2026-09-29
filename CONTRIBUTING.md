@@ -173,7 +173,7 @@ docs: document the BER option
 The version bump is mechanical; the judgement goes into the release note.
 
 1. Branch from `main`: `chore/release-vX.Y.Z`.
-2. Bump `package.json` (and the lockfile with `npm install --package-lock-only`), `docs/assets/ecosystem.json` (`packages.pkinative.version`, `verifiedOn`) and `CITATION.cff` (`version`, `date-released`); `npm run verify:docs` names every file that still disagrees.
+2. Bump `package.json` (and the lockfile with `npm install --package-lock-only`), `docs/assets/ecosystem.json` (`packages.pkinative.version`, `verifiedOn`) and `CITATION.cff` (`version`, `date-released`); `npm run verify:docs` names every file that still disagrees. `scripts/release-prepare.ts` also moves `docs/assets/api.frozen.json`, the only way it moves once released: a new major rebases it (`build-api-frozen.ts --major X.0.0` — at 1.0.0 it turns the 0.9 rehearsal into the stable promise, and refuses unless the rehearsal held), and a 1.x release ratchets it (`--ratchet`) so the surface it ships becomes part of the promise. At 1.0.0, rewrite by hand every sentence `release-era-prose` names: they say pkinative is not on npm.
 3. `git diff --stat` — the diff must read as the bump and nothing else.
 4. Write `release-notes/vX.Y.Z.md` from [release-notes/TEMPLATE.md](release-notes/TEMPLATE.md) and the matching `CHANGELOG.md` entry (`## [X.Y.Z] – YYYY-MM-DD`).
 5. Run the pre-release audit (two independent auditors, an adversarial verifier, a docs-autonomy pass, a GO/NO-GO ledger under `test-output/.audit/`). Fix what survives, in batches by owner.
@@ -181,7 +181,7 @@ The version bump is mechanical; the judgement goes into the release note.
 7. Fill `release-notes/draft/PR-vX.Y.Z.md`, which step 2 scaffolded from [release-notes/PR_TEMPLATE.md](release-notes/PR_TEMPLATE.md). **These bodies are committed.** They are the auditable record of what each release claimed and what was actually run — the one place a reader can check, a year later, whether a figure came from a command or from somebody's memory. Paste the numbers the gate printed into the Verification table, and mark anything not run as `not run`, never as a guess.
 8. Squash-merge with the title `release: vX.Y.Z — <headline>`, where the headline is the release note's GitHub Release title.
 9. The maintainer tags `vX.Y.Z` on the merge commit and publishes the GitHub Release (title `vX.Y.Z — <headline>`, body = the release note). Below 1.0.0, `release-assets.yml` builds the tag, runs the publish gate, proves the tarball installs, and attaches it with its SBOM and build provenance to the release, while `publish.yml` refuses to publish to npm by design; from 1.0.0 it waits for the `npm-publish` environment's reviewer, runs the publish gate, publishes with provenance and attests the tarball and SBOM.
-10. After a 1.x publication: `npm view pkinative version`.
+10. After a 1.x publication: `npm run check:npm-drift` — the registry's `latest` against the manifest (below 1.0.0 it expects the `0.0.1` name reservation and nothing else; the Docs workflow runs it weekly).
 
 ### Branch protection
 

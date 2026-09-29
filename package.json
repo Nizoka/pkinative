@@ -42,6 +42,7 @@
     "gate:fast": "npx tsx scripts/gate.ts --fast",
     "verify:docs": "npx tsx scripts/verify-docs.ts",
     "verify:issue": "node scripts/verify-issue.mjs",
+    "check:npm-drift": "npx tsx scripts/check-npm-drift.ts",
     "agents:rules": "npx tsx scripts/build-claude-rules.ts",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "hooks:uninstall": "node scripts/install-git-hooks.mjs --uninstall",

@@ -35,7 +35,7 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 58 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 60 named rules over the docs, the registries, the manifest and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
@@ -48,6 +48,8 @@ is swallowed before `npm run gate` sees it.
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
 | `build-errors-frozen.ts` | — | — | `docs/data/errors.frozen.json`, the error-code snapshot `error-codes-frozen` holds the registry to; refuses to change it once `frozenAt` is released | 0/1/2 |
+| `build-api-frozen.ts` | — | — | `docs/assets/api.frozen.json`, the public-surface snapshot `api-surface-frozen` holds the sources to. Refuses to change it once `asOf` is released, except `--major X.0.0` (a new major's release commit; at 1.0.0 only if the rehearsal held) and `--ratchet` (a 1.x release's compatible additions) — both run by `release-prepare.ts` | 0/1/2 |
+| `check-npm-drift.ts` | `check:npm-drift` | — | Online, so never a gate step: the registry's `latest` for `pkinative` against the manifest — below 1.0.0 the `0.0.1` name reservation and no other version at all, from 1.0.0 the manifest's version. Run weekly by the `npm-drift` job of `docs.yml`. `--json` | 0/1/2 |
 | `verify-issue.mjs` | `verify:issue` | — | The policy check on an agent's issue draft: refuses a proposed runtime dependency or a missing reproduction block | 0/1/2 |
 | `install-git-hooks.mjs` | `hooks:install`, `hooks:uninstall` | — | Opt-in `core.hooksPath`; refuses to overwrite an existing value | 0/1 |
 
@@ -67,12 +69,13 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `validators.ts` | The cross-implementation confrontation of level L4, its blob format and its canaries |
 | `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |
+| `api-surface.ts` | The public surface fingerprinted from the syntax tree, and the semver classification of a change — `build-api-frozen.ts` and the `api-surface-frozen` rule |
 
 ## Conventions
 
 - **Pure functions over file contents where possible.** A rule that takes
   `path → text` can be perturbation-tested in memory, which is what
-  `tests/docs/verify-docs.test.ts` does for all 52 of them: every rule must
+  `tests/docs/verify-docs.test.ts` does for every one of them: every rule must
   fail on one deliberate edit, or it is a rule that matches nothing.
 - **Never reserialise JSON, YAML or XML.** `release-prepare.ts` rewrites one
   targeted regex per field, so formatting and key order survive a bump.
