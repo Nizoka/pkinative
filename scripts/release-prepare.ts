@@ -59,6 +59,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseApiFrozen, planApiFrozen, releaseModeFor } from './build-api-frozen.js';
 import { planErrorsFrozen } from './build-errors-frozen.js';
+import { planRefusalsFrozen, releaseRefusalsMode } from './build-refusals-frozen.js';
+import { parseRefusalsFrozen, REFUSALS_FROZEN } from './lib/refusals-frozen.js';
 import { ERRORS_REGISTRY, FROZEN_REGISTRY } from './verify-docs/rules/registries.js';
 import { PRE_1_0_PROSE, stableSwap } from './verify-docs/rules/freeze.js';
 import { API_FROZEN } from './lib/api-surface.js';
@@ -257,6 +259,21 @@ export function planRelease(read: TreeReader, args: ReleaseArgs): ReleasePlan {
         } else if (errorsPlan.action === 'write' && errorsPlan.text !== null) {
             texts.set(FROZEN_REGISTRY, errorsPlan.text);
             lines.push({ level: 'edit', text: `${FROZEN_REGISTRY}: ${errorsPlan.message}` });
+        }
+    }
+    // And the decision surface (ADR 0014) the same two ways: a new major
+    // rebases it, refused at 1.0.0 unless the rehearsal held; a stable-phase
+    // release records the refusals it ships, refused over a lifted or recoded one.
+    const refusalsText = current(REFUSALS_FROZEN);
+    const refusalsParsed = refusalsText === null ? null : parseRefusalsFrozen(refusalsText);
+    const refusalsMode = releaseRefusalsMode(args.version, refusalsParsed !== null && 'snapshot' in refusalsParsed ? refusalsParsed.snapshot : null);
+    if (refusalsMode !== null) {
+        const refusalsPlan = planRefusalsFrozen(current, args.version, refusalsMode);
+        if (refusalsPlan.action === 'refuse') {
+            fail(`${REFUSALS_FROZEN}: ${refusalsPlan.message}`);
+        } else if (refusalsPlan.action === 'write' && refusalsPlan.text !== null) {
+            texts.set(REFUSALS_FROZEN, refusalsPlan.text);
+            lines.push({ level: 'edit', text: `${REFUSALS_FROZEN}: ${refusalsPlan.message}` });
         }
     }
     return { texts, lines, failures };

@@ -18,10 +18,44 @@
     "zipnative": "https://github.com/Nizoka/zipnative"
   },
   "contracts": {
+    "$comment": "What pkinative promises, for a program to read. compatibility is the three-part promise of SECURITY.md §Compatibility promise (ADR 0014): each leg names its snapshot, the verify-docs rules that hold it, the conformance levels that verify it against a corpus, and the records that decide it. The contracts-shape rule holds the block to those files, rules and records and to SECURITY.md, both ways; it also holds runtime_dependencies to package.json and error_codes_frozen_since to docs/data/errors.frozen.json. The snapshots, not this block, carry the promised names, codes and refusals.",
     "runtime_dependencies": 0,
     "secret_dependent_primitives": "never implemented; Web Crypto only",
     "error_codes_frozen_since": "0.8.0",
-    "der_strict_by_default": true
+    "der_strict_by_default": true,
+    "compatibility": {
+      "document": "SECURITY.md",
+      "section": "Compatibility promise",
+      "legs": {
+        "export-surface": {
+          "promise": "Every export of src/index.ts keeps its name, its kind and a compatible signature, and every PkiReasonCode stays, for the whole major line; an addition is semver-minor.",
+          "snapshot": "docs/assets/api.frozen.json",
+          "rules": ["api-surface-frozen"],
+          "adrs": ["docs/adr/0012-frozen-error-vocabulary.md", "docs/adr/0013-renames-before-the-freeze.md"]
+        },
+        "error-vocabulary": {
+          "promise": "Every PkiErrorCode keeps its name and its PkiError class for the whole major line; an addition is semver-minor and carries a newer since.",
+          "snapshot": "docs/data/errors.frozen.json",
+          "rules": ["error-codes-frozen"],
+          "adrs": ["docs/adr/0012-frozen-error-vocabulary.md"]
+        },
+        "decision-surface": {
+          "promise": "Under the default options, every refused corpus certificate stays refused with the same code for the whole major line; a new refusal is a recorded fix listed in its release note; and every corpus certificate re-encodes byte for byte from its decoded tree.",
+          "snapshot": "docs/data/refusals.frozen.json",
+          "rules": ["refusal-baseline-frozen"],
+          "gate": ["L1", "L2"],
+          "adrs": ["docs/adr/0014-the-decision-surface-contract.md"]
+        }
+      },
+      "notPromised": [
+        "diagnostic severity and wording",
+        "error message wording",
+        "limit default values, which may be lowered in a minor",
+        "path, revocation and CMS verdicts, which are recorded but not frozen",
+        "conformance scores",
+        "bundle sizes and performance"
+      ]
+    }
   },
   "milestones": {
     "M1-read-only-foundation": "0.1.0",

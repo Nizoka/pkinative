@@ -11,7 +11,10 @@
  *       PkiError. A refusal must (a) touch only test cases that expect
  *       FAILURE and (b) match the reviewed baseline
  *       scripts/data/limbo-refusals.json, code included; a baseline entry
- *       that now parses is an UNEXPECTED-PASS. Any other exception fails;
+ *       that now parses is an UNEXPECTED-PASS. Any other exception fails.
+ *       Every promised refusal of docs/data/refusals.frozen.json (ADR 0014)
+ *       whose certificate the corpus holds must be refused with its promised
+ *       code, read from the snapshot rather than the baseline;
  *   L2  every certificate re-encodes byte for byte from its decoded tree, and
  *       the TBS and signature boundaries agree with scripts/lib/raw-der.ts,
  *       a walker that never imports src/;
@@ -78,6 +81,7 @@ import { corpusWindowProblem, expectationOfName, PKITS_AT, readPkits } from './l
 import { reasonLayer, reasonsBeyondPath, splitPkitsMessage, testsOfSigner, type PkitsSignedMessage } from './lib/pkits-smime.js';
 import { CORPORA, checkCorpus, corpusDir, sha256Hex, type Corpus } from './lib/corpora.js';
 import { certificateBounds } from './lib/raw-der.js';
+import { parseRefusalsFrozen, REFUSALS_FROZEN } from './lib/refusals-frozen.js';
 import { evaluateClauses } from './validators/rfc5280-clauses.js';
 import {
     VALIDATORS,
@@ -91,6 +95,7 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'data', 'limbo-refusals.json');
+const REFUSALS_SNAPSHOT = join(ROOT, ...REFUSALS_FROZEN.split('/'));
 const SCORE_BASELINE = join(ROOT, 'scripts', 'data', 'limbo-score.json');
 const PKITS_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-score.json');
 const PKITS_SMIME_BASELINE = join(ROOT, 'scripts', 'data', 'pkits-smime-score.json');
@@ -285,6 +290,24 @@ async function main(): Promise<number> {
             if (parsed.has(hash)) fail(`L1 UNEXPECTED-PASS ${hash}: the baseline expects a refusal, the certificate now parses`);
             else if (!certificates.has(hash)) fail(`L1 stale baseline entry ${hash}: no such certificate in the corpus`);
         }
+    }
+    // The decision surface (ADR 0014), read directly: every promised refusal
+    // whose certificate this corpus holds must be refused with its promised
+    // code, whatever the baseline says — so --update-baseline cannot drop one
+    // silently, and a retired refusal cannot hide a lifted one.
+    const frozenParsed = existsSync(REFUSALS_SNAPSHOT) ? parseRefusalsFrozen(readFileSync(REFUSALS_SNAPSHOT, 'utf8')) : null;
+    if (frozenParsed === null) fail(`L1 ${REFUSALS_FROZEN} is missing — the decision surface is written by npx tsx scripts/build-refusals-frozen.ts`);
+    else if ('problems' in frozenParsed) fail(`L1 ${REFUSALS_FROZEN} is malformed: ${frozenParsed.problems.join('; ')}`);
+    else {
+        let held = 0;
+        for (const row of [...frozenParsed.snapshot.refusals, ...(frozenParsed.snapshot.retired ?? [])]) {
+            if (!certificates.has(row.sha256)) continue;
+            const code = refused.get(row.sha256);
+            if (code === undefined) fail(`L1 FROZEN-REFUSAL-LIFTED ${row.sha256}: promised refused with ${row.code} (${REFUSALS_FROZEN}), and the certificate now parses — semver-major (ADR 0014)`);
+            else if (code !== row.code) fail(`L1 FROZEN-REFUSAL-RECODED ${row.sha256}: promised refused with ${row.code}, refused with ${code} — semver-major (ADR 0014)`);
+            else held++;
+        }
+        record('L1', `${held} promised refusals of ${REFUSALS_FROZEN} held, code for code`);
     }
     if (refused.size !== declared['x509-limbo']?.refused) {
         fail(`L1 ${refused.size} certificates refused; ecosystem.json declares ${String(declared['x509-limbo']?.refused)} (canary)`);

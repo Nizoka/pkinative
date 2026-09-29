@@ -68,6 +68,11 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The change a rehearsal exists to refuse: a compatible one. An optional
     // parameter breaks nobody, and 0.9 still admits no new behaviour.
     'api-surface-frozen': (f) => edit(f, 'src/asn1/asn1-oid.ts', 'export function isValidOid(oid: string): boolean {', 'export function isValidOid(oid: string, strict?: boolean): boolean {'),
+    // What a regenerated baseline shows when a new check pre-empts an old
+    // one: the same certificate, refused with another code.
+    'refusal-baseline-frozen': (f) => edit(f, 'scripts/data/limbo-refusals.json', /("0014e18b[0-9a-f]{56}": )"PKI_X509_GENERAL_NAME_INVALID"/, '$1"PKI_X509_EXTENSION_MALFORMED"'),
+    // A leg held by a rule that does not exist is a promise held by nothing.
+    'contracts-shape': (f) => edit(f, 'docs/assets/ecosystem.json', '"rules": ["refusal-baseline-frozen"]', '"rules": ["refusal-baseline-held"]'),
     // Below 1.0.0 the sentence must be there; the 1.0 direction is proven below.
     'release-era-prose': (f) => edit(f, 'llms.txt', 'Versions below 1.0 are git tags, not npm releases. ', ''),
     'tsdoc-complete': (f) => edit(f, 'src/asn1/asn1-oid.ts', ' * @throws Never.\n */\nexport function isValidOid', ' */\nexport function isValidOid'),
@@ -298,14 +303,14 @@ describe('verify-docs rule table', () => {
 
     it('should fire adr-index on a record with no row, a row with no record, and a status the record does not carry', async () => {
         const files = { ...TREE };
-        files['docs/adr/0014-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
+        files['docs/adr/0015-a-new-decision.md'] = (TREE['docs/adr/0003-no-pkcs8-or-pkcs12-writer.md'] ?? '').replace('# No PKCS#8 or PKCS#12 writer', '# A new decision');
         edit(files, 'docs/adr/README.md', '| No external security audit at 1.0 | accepted |', '| No external security audit at 1.0 | proposed |');
-        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0015](0015-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
+        edit(files, 'docs/adr/README.md', /\n\n## Adding a record/, '\n| [0016](0016-gone.md) | Gone | accepted | 0.9.0 |\n\n## Adding a record');
         const problems = await runRules(createMemoryContext(files), RULES, 'adr-index');
         expect(problems.map((p) => p.message).sort()).toEqual([
-            expect.stringContaining('does not list 0014-a-new-decision.md'),
+            expect.stringContaining('does not list 0015-a-new-decision.md'),
             expect.stringContaining('gives 0010-no-external-security-audit-at-1-0.md the status "proposed"'),
-            expect.stringContaining('lists 0015-gone.md, which is not a record'),
+            expect.stringContaining('lists 0016-gone.md, which is not a record'),
         ]);
     });
 
@@ -418,6 +423,83 @@ describe('verify-docs rule table', () => {
         edit(files, 'AGENTS.md', 'Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.', 'Releases go to npm.');
         const kept = await runRules(createMemoryContext(files), RULES, 'release-era-prose');
         expect(kept.filter((p) => p.file === 'AGENTS.md').map((p) => p.message)).toEqual([expect.stringContaining('states the pre-1.0 policy')]);
+    });
+
+    // ── The decision surface and the contracts block (ADR 0014) ──────
+
+    const BASELINE = 'scripts/data/limbo-refusals.json';
+    const SNAPSHOT = 'docs/data/refusals.frozen.json';
+    const NEW_HASH = 'f'.repeat(64);
+    const refusalProblems = async (files: Record<string, string>): Promise<string[]> =>
+        (await runRules(createMemoryContext(files), RULES, 'refusal-baseline-frozen')).map((p) => p.message);
+    const contractProblems = async (files: Record<string, string>): Promise<string[]> =>
+        (await runRules(createMemoryContext(files), RULES, 'contracts-shape')).map((p) => p.message);
+    const addRefusal = (files: Record<string, string>, path: string, row: string): void => edit(files, path, /("refusals": [[{]\n)/, `$1${row}\n`);
+    const liftFirst = (files: Record<string, string>): void => edit(files, BASELINE, /\n {4}"0014e18b[0-9a-f]{56}": "[A-Z0-9_]+",/, '');
+    /** The refusal snapshot as the 1.x release commit leaves it, with package.json at `version`. */
+    const refusalsStable = (files: Record<string, string>, version: string, asOf = '1.0.0'): void => {
+        edit(files, 'package.json', /"version": "[^"]+"/, `"version": "${version}"`);
+        edit(files, SNAPSHOT, /"frozenAt": "[^"]+",\n {2}"phase": "rehearsal",\n {2}"asOf": "[^"]+"/, `"frozenAt": "1.0.0",\n  "phase": "stable",\n  "asOf": "${asOf}"`);
+    };
+
+    it('should fire refusal-baseline-frozen in the rehearsal on a new refusal and on a lifted one', async () => {
+        const files = { ...TREE };
+        addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
+        liftFirst(files);
+        const problems = await refusalProblems(files);
+        expect(problems).toEqual(expect.arrayContaining([
+            expect.stringMatching(/^0014e18b[0-9a-f]+ was promised refused with PKI_X509_GENERAL_NAME_INVALID and the baseline no longer lists it/),
+            expect.stringMatching(new RegExp(`^${NEW_HASH} is a new refusal .*the rehearsal admits no new engine behaviour`)),
+        ]));
+        expect(problems).toHaveLength(2);
+    });
+
+    it('should pass refusal-baseline-frozen in the stable phase on a new refusal, and fire on a lifted one as semver-major', async () => {
+        const files = { ...TREE };
+        refusalsStable(files, '1.0.0');
+        addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
+        expect(await refusalProblems(files)).toEqual([]);
+        liftFirst(files);
+        expect(await refusalProblems(files)).toEqual([expect.stringContaining('that is semver-major (ADR 0014)')]);
+    });
+
+    it('should hold a refusal a 1.x release added to that release\'s note, under its fixed heading', async () => {
+        const files = { ...TREE };
+        refusalsStable(files, '1.1.0', '1.1.0');
+        addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
+        addRefusal(files, SNAPSHOT, `    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "since": "1.1.0" },`);
+        expect(await refusalProblems(files)).toEqual([expect.stringMatching(/^is missing — 1 refusal\(s\) of docs\/data\/refusals\.frozen\.json were added by 1\.1\.0/)]);
+        files['release-notes/v1.1.0.md'] = '# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- nothing listed\n';
+        expect(await refusalProblems(files)).toEqual([expect.stringContaining(`does not list ${NEW_HASH.slice(0, 16)}`)]);
+        files['release-notes/v1.1.0.md'] = `# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- \`${NEW_HASH.slice(0, 16)}\` — now refused with \`PKI_X509_GENERAL_NAME_INVALID\`.\n`;
+        expect(await refusalProblems(files)).toEqual([]);
+    });
+
+    it('should fire refusal-baseline-frozen on a re-pinned baseline, on a retirement no accepted ADR records, and on the rehearsal at 1.0.0', async () => {
+        const repinned = { ...TREE };
+        edit(repinned, BASELINE, /"commit": "[0-9a-f]{40}"/, `"commit": "${'2'.repeat(40)}"`);
+        expect(await refusalProblems(repinned)).toEqual([expect.stringContaining('--repin')]);
+        const retired = { ...TREE };
+        edit(retired, SNAPSHOT, /\n {2}\]\n\}\n$/, `\n  ],\n  "retired": [\n    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "commit": "${'2'.repeat(40)}", "adr": "docs/adr/0099-never-written.md" }\n  ]\n}\n`);
+        expect(await refusalProblems(retired)).toEqual([expect.stringContaining('not an accepted ADR')]);
+        const bumped = { ...TREE };
+        edit(bumped, 'package.json', /"version": "[^"]+"/, '"version": "1.0.0"');
+        expect(await refusalProblems(bumped)).toEqual([expect.stringContaining('--major 1.0.0')]);
+    });
+
+    it('should fire contracts-shape on a snapshot no leg names, on a leg SECURITY.md does not name, on a missing leg, and on a scalar contract that disagrees', async () => {
+        const stray = { ...TREE };
+        stray['docs/data/reasons.frozen.json'] = '{ "frozenAt": "1.0.0" }\n';
+        expect(await contractProblems(stray)).toEqual([expect.stringContaining('docs/data/reasons.frozen.json is a frozen snapshot no leg')]);
+        const prose = { ...TREE };
+        edit(prose, 'SECURITY.md', /`refusal-baseline-frozen`/g, '`the refusal rule`');
+        expect(await contractProblems(prose)).toEqual([expect.stringContaining('does not name the rule `refusal-baseline-frozen`')]);
+        const legless = { ...TREE };
+        edit(legless, 'docs/assets/ecosystem.json', '"error-vocabulary": {', '"error-codes": {');
+        expect(await contractProblems(legless)).toEqual(expect.arrayContaining([expect.stringContaining('lacks "error-vocabulary"'), expect.stringContaining('names "error-codes"')]));
+        const scalar = { ...TREE };
+        edit(scalar, 'docs/assets/ecosystem.json', '"runtime_dependencies": 0', '"runtime_dependencies": 1');
+        expect(await contractProblems(scalar)).toEqual([expect.stringContaining('package.json declares 0')]);
     });
 
     it('should honour a verify-docs:allow suppression on the reported line or the line above', async () => {

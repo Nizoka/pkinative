@@ -17,6 +17,44 @@ What counts as a vulnerability here: an input that makes pkinative accept an enc
 | 0.x (latest tag and its release tarball) | ✅ (pre-1.0: fixes land in the next tag) |
 | npm `0.0.1` (name reservation, when published) | ❌ contains no code |
 
+## Compatibility promise
+
+From 1.0.0, pkinative promises three things for the whole major line. Each is recorded in a committed snapshot, held by a rule of `npm run verify:docs` that fails the build, and decided in an architecture decision record; the promise is made for the default options (DER, `strict: false`, the default limits).
+
+| Leg | What is promised | Snapshot | Held by | Decided in |
+|---|---|---|---|---|
+| The export surface | Every export of the package keeps its name, its kind and a compatible signature, and every `PkiReasonCode` stays. | `docs/assets/api.frozen.json` | `api-surface-frozen` | [ADR 0012](docs/adr/0012-frozen-error-vocabulary.md), [ADR 0013](docs/adr/0013-renames-before-the-freeze.md) |
+| The error vocabulary | Every `PkiErrorCode` keeps its name and its `PkiError` class — frozen since 0.8.0. | `docs/data/errors.frozen.json` | `error-codes-frozen` | [ADR 0012](docs/adr/0012-frozen-error-vocabulary.md) |
+| The decision surface | A corpus certificate pkinative refuses stays refused, with the same code; a new refusal is a recorded fix; and every corpus certificate decoded with `decodeAsn1` and re-encoded with `encodeAsn1Node` comes back byte for byte. | `docs/data/refusals.frozen.json` | `refusal-baseline-frozen`, and conformance L1 and L2 | [ADR 0014](docs/adr/0014-the-decision-surface-contract.md) |
+
+The corpus is x509-limbo, pinned by commit and SHA-256: the snapshot lists every certificate of it that `parseCertificate` refuses, by the SHA-256 of its DER, with the code it is refused with. Conformance L1 ([docs/guides/conformance.md](docs/guides/conformance.md#the-levels)) holds the engine to that list on every run, and L2 re-encodes every certificate of the corpus, the refused ones included.
+
+### What a 1.x release may change
+
+| Change | Semver |
+|---|---|
+| An export removed, renamed or given an incompatible signature; a reason code removed or renamed | major |
+| An error code removed, renamed or moved to another class | major |
+| A refused corpus certificate lifted (it now parses), or refused with another code | major |
+| A corpus certificate that parsed now refused — only as a security or conformance fix, listed by SHA-256 under `### Decision surface` in the release note | minor |
+| A path, revocation or CMS verdict, or the reasons returned with it, changed — never silently: the reviewed conformance baselines of L6, L7 and L8 move in the same change, and the release note says so | minor |
+| A new export, optional parameter or member, error code, reason code or diagnostic code | minor |
+| A decoded certificate that no longer re-encodes byte for byte | never — a defect, fixed in a patch |
+
+Security fixes stay possible within 1.x because every one found so far made pkinative refuse more: 0.9.0 closed two paths it accepted and RFC 5280 rejects. A fix that would change the code of an existing refusal waits for 2.0, and so does a refusal later found to be wrong: a caller can rely on a refused certificate staying refused.
+
+### What is not promised
+
+- **Diagnostics.** A diagnostic code is never renamed or removed, but its severity and wording may change in a minor — so under `strict: true`, which turns diagnostics into `PKI_STRICT_DIAGNOSTIC`, a certificate may become refused in a minor.
+- **Error message wording.** The code and the class are the contract; the sentence after `pkinative: ` is for a human.
+- **Limit default values.** A default may be lowered in a minor when an attack makes it dangerous; that is a new refusal like any other, recorded the same way. Raising a limit is the caller's act, for trusted input. The limit names are frozen.
+- **Path, revocation and CMS verdicts**, beyond what the table above says: they are recorded, not frozen.
+- **Conformance scores, bundle sizes and performance.** They are measurements, and they move when a corpus is re-pinned or a budget is reviewed.
+
+### Machine-readable form
+
+`docs/assets/ecosystem.json` → `contracts.compatibility` names each leg with its snapshot, its rules, its conformance levels and its records, and lists what is not promised. The `contracts-shape` rule holds that block to the files, the rules, the records and this section, both ways: a snapshot or a frozen-surface rule that no leg names fails too. The snapshots move only through their generators — `scripts/build-api-frozen.ts`, `scripts/build-errors-frozen.ts` and `scripts/build-refusals-frozen.ts` — which `scripts/release-prepare.ts` runs at every release from 1.0.0, so that what a 1.x release adds becomes part of the promise.
+
 ## Security Model
 
 pkinative is a pure TypeScript library with **zero runtime dependencies**. Every certificate, PEM file and DER blob it reads is treated as attacker-controlled.
@@ -89,7 +127,7 @@ The refusals are a consequence of the scope above, not a backlog. The RFC 7292 A
 
 ### Resource Limits
 
-Every loop over untrusted input consults one of these named bounds (`PkiLimits`). Each is configurable per call through `options.limits`; exceeding one throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` fields. Raise a limit only for trusted input. The table is held to `src/core/pki-limits.ts` and `docs/data/limits.json` by `npm run verify:docs`.
+Every loop over untrusted input consults one of these named bounds (`PkiLimits`). Each is configurable per call through `options.limits`; exceeding one throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` fields. Raise a limit only for trusted input. The table is held to `src/core/pki-limits.ts` and `docs/data/limits.json` by `npm run verify:docs`. The names are frozen at 1.0; the defaults are not, and may be lowered in a minor release (see [Compatibility promise](#compatibility-promise)).
 
 | Limit | Default | CWE | Guards |
 |---|---|---|---|
@@ -130,7 +168,38 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 - No filesystem, network or process access in the engine
 - Tree-shakeable (`sideEffects: false`) — no module-level side effects
 - Hardened workflows — every action pinned to a commit SHA, `persist-credentials: false` on every checkout, `step-security/harden-runner` on every job, `npm ci --ignore-scripts` (also `ignore-scripts=true` in `.npmrc`), CodeQL, OpenSSF Scorecard, Dependency Review and a weekly `npm audit`
-- Release path — `.github/workflows/publish.yml` publishes only from the protected `npm-publish` environment with npm Trusted Publishing (OIDC, no long-lived token), an exactly pinned npm client, `npm publish --provenance` and an attested CycloneDX SBOM; it refuses any pre-1.0 version
+- Release path — see [Release integrity](#release-integrity)
+
+## In place of an external audit
+
+There is no external security audit at 1.0 ([ADR 0010](docs/adr/0010-no-external-security-audit-at-1-0.md)). What stands in its place runs on every release or every change, where an audit is a snapshot of one moment — and none of it is independent of the project the way an audit is:
+
+- **An adversarial release audit** before every release: two independent auditors (claims against code; docs and machine surfaces), an adversarial verifier that re-derives every finding, a docs-autonomy pass and a GO/NO-GO ledger — [CONTRIBUTING.md §Release](CONTRIBUTING.md#release), step 5, and `.claude/skills/release-audit/`. It is run by agents under the maintainer's direction.
+- **The conformance gate, L0 to L8**, over third-party corpora pinned by commit and SHA-256 — x509-limbo, Wycheproof and NIST PKITS — plus an interoperability matrix against implementations written by other people ([docs/guides/conformance.md](docs/guides/conformance.md)). It runs on every change and in the publish gate of every release. The corpora judge conformance, not the absence of vulnerabilities.
+- **100 % coverage on all four axes** (`vitest.config.ts`), every unreachable branch a counted, justified exception held by `coverage-ignore-budget`; and **mutation testing** (`npm run mutate`), run by hand on the files a change touches when it changes a security decision — not a gate step, because it takes minutes per file; every survivor is killed by a test or argued equivalent in `scripts/data/mutation-equivalents.json`.
+- **Seeded adversarial suites** and coverage-guided fuzzing — see [Verification of the Parser](#verification-of-the-parser).
+- **CodeQL** on every push and pull request to `main` that touches code, and weekly; **OpenSSF Scorecard** on every push to `main`, and weekly; **Dependency Review** on every pull request.
+
+If you need an audit for procurement, open an issue: it will be scoped, and ROADMAP.md will say when it happens.
+
+## Release integrity
+
+**Every release is built from its tag by a workflow, never on a maintainer's machine.** The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting, moving or updating a `v*` tag, with no bypass — the repository owner included — so a version names one commit forever. Both release workflows fail when the tag they run on and the version in `package.json` disagree.
+
+**Below 1.0.0** a version is a git tag with a GitHub release, never an npm release. When the maintainer publishes the GitHub release, `.github/workflows/release-assets.yml` checks out the tag, installs with `npm ci --ignore-scripts`, fetches the pinned corpora and runs the full publish gate (`npx tsx scripts/gate.ts --publish --require-all`, conformance included). It then writes a CycloneDX SBOM of the runtime dependencies (`npm sbom --omit dev`), packs the tarball and proves it installs and loads as ESM and CJS (`scripts/smoke-install.ts`), attests both files with Sigstore build provenance (`actions/attest-build-provenance`), and attaches `pkinative-X.Y.Z.tgz` and `pkinative-X.Y.Z.cdx.json` to the release.
+
+**From 1.0.0** `.github/workflows/publish.yml` publishes to npm. It refuses any version below 1.0.0; waits for the protected `npm-publish` environment, whose approval gates the OIDC token; publishes through npm Trusted Publishing (OIDC, no long-lived token) with an exactly pinned npm client, after the same publish gate — which runs the install smoke test on its own build; and runs `npm publish --provenance`, so the registry carries a signed provenance statement tying the tarball to this repository, the workflow and the commit. A second job builds the same commit again, writes the SBOM, packs, attests both files with Sigstore build provenance and attaches them to the GitHub release. That attested tarball is a second build of the commit, not the byte stream npm received: the npm tarball is covered by npm's provenance, the release assets by the GitHub attestation.
+
+To verify:
+
+```sh
+# A release tarball and its SBOM, downloaded from the GitHub release
+gh attestation verify pkinative-X.Y.Z.tgz --repo Nizoka/pkinative
+gh attestation verify pkinative-X.Y.Z.cdx.json --repo Nizoka/pkinative
+
+# From 1.0.0: the registry signatures and provenance of what npm installed
+npm audit signatures
+```
 
 ## Disclosure Policy
 
