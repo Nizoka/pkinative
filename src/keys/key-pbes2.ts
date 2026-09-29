@@ -51,8 +51,9 @@ const REMEDIES: Readonly<Record<PkiKeyErrorCode, string>> = /*#__PURE__*/ Object
  *
  * @internal
  */
-export function _keyError(code: PkiKeyErrorCode, path: string, offset: number, why: string): PkiKeyError {
-    return new PkiKeyError(code, `pkinative: ${path} at offset ${String(offset)} ${why} — ${REMEDIES[code]}`, path, offset);
+export function _keyError(code: PkiKeyErrorCode, path: string, offset: number | undefined, why: string): PkiKeyError {
+    const where = offset === undefined ? path : `${path} at offset ${String(offset)}`;
+    return new PkiKeyError(code, `pkinative: ${where} ${why} — ${REMEDIES[code]}`, path, offset);
 }
 
 /**
@@ -215,7 +216,7 @@ export function _readPasswordEncryption(node: Asn1Node | undefined, ctx: Asn1Con
  *
  * @internal
  */
-export function _requirePbes2(encryption: PasswordEncryption, path: string, offset: number): Pbes2Parameters {
+export function _requirePbes2(encryption: PasswordEncryption, path: string, offset: number | undefined): Pbes2Parameters {
     if (encryption.pbes2 === undefined) {
         throw _keyError('PKI_KEY_ENCRYPTION_UNSUPPORTED', path, offset, `is encrypted with ${encryption.scheme}`);
     }
@@ -236,7 +237,12 @@ export function _requirePbes2(encryption: PasswordEncryption, path: string, offs
  * @internal
  */
 export function _passwordOctets(password: Uint8Array | string): { readonly octets: Uint8Array; readonly wipe: () => void } {
-    if (typeof password !== 'string') return { octets: password, wipe: (): void => undefined };
+    if (typeof password !== 'string') {
+        if (!(password instanceof Uint8Array)) {
+            throw new PkiError('PKI_INVALID_INPUT', `pkinative: the password must be a string or a Uint8Array, got ${password === null ? 'null' : typeof password}`);
+        }
+        return { octets: password, wipe: (): void => undefined };
+    }
     const octets = encodeUtf8(password);
     if (octets === null) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: the password string contains a lone surrogate, so it has no UTF-8 encoding — pass the exact octets as a Uint8Array');
