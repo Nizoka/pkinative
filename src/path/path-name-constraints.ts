@@ -6,7 +6,7 @@
  * noticing. §6.1.4 (g) accumulates the constraints walking down the path,
  * §6.1.3 (b) and (c) test each certificate against what has accumulated.
  *
- * Three things about the shape, each of which matters more than it looks:
+ * Four things about the shape, each of which matters more than it looks:
  *
  * **The state is per name form, not one list.** RFC 5280 §6.1.4 (g)(1)
  * intersects permitted subtrees *within each form* and leaves the others
@@ -26,6 +26,12 @@
  * that normalised through URL parsing would inherit whatever that parser
  * thinks about trailing dots, IDNA and userinfo — which is how name
  * constraint bypasses get written.
+ *
+ * **Exclusion is tested at least as broadly as permission.** A directoryName
+ * is compared by encoded bytes (ADR 0005), and for a permitted subtree a miss
+ * is a refusal. For an excluded one a miss is an acceptance, so an exclusion
+ * also matches after RFC 5280 §7.1 preparation: re-spelling a name in another
+ * case or string type does not escape it.
  *
  * ## Three ways a name escapes a constraint, and none of them is a match
  *
@@ -54,7 +60,9 @@
  * @module path/path-name-constraints
  */
 
-import type { DistinguishedName, GeneralName, GeneralSubtree, RelativeDistinguishedName } from '../types/x509-types.js';
+import { toHex } from '../core/bytes.js';
+import type { Asn1StringType } from '../types/asn1-types.js';
+import type { AttributeTypeAndValue, DistinguishedName, GeneralName, GeneralSubtree, RelativeDistinguishedName } from '../types/x509-types.js';
 
 /** The name forms this module constrains. Every other form is opaque here. */
 export type ConstrainedForm = 'dNSName' | 'rfc822Name' | 'uniformResourceIdentifier' | 'iPAddress' | 'directoryName';
@@ -217,7 +225,10 @@ export function ipMatches(constraintBytes: Uint8Array, nameBytes: Uint8Array): b
  * Encoded bytes rather than rendered text, for the reason every name
  * comparison in this library uses them: two names that print the same and
  * encode differently are two names, and a constraint checker that could not
- * tell them apart would be the place to attack.
+ * tell them apart would be the place to attack. That is the whole rule for a
+ * **permitted** subtree, where a miss is a refusal; an **excluded** subtree is
+ * also tested after §7.1 preparation (`directoryMatchesPrepared`), because
+ * there a miss is an acceptance (ADR 0005).
  */
 export function directoryMatches(constraint: DistinguishedName, name: DistinguishedName): boolean {
     if (constraint.rdns.length > name.rdns.length) return false;
@@ -234,6 +245,112 @@ function _sameRdn(a: RelativeDistinguishedName, b: RelativeDistinguishedName): b
         const y = b[i] as RelativeDistinguishedName[number];
         return x.type === y.type && x.valueDer.length === y.valueDer.length && x.valueDer.every((byte, k) => byte === y.valueDer[k]);
     });
+}
+
+// ── Excluded directoryName subtrees: §7.1 preparation, fail-closed ───
+
+/**
+ * The string types whose decoded text is compared after preparation: the five
+ * DirectoryString choices of RFC 5280 Appendix A, and IA5String, which carries
+ * `domainComponent` and `emailAddress`. A value of any other type — or one the
+ * name reader kept undecoded — is compared by its encoding only.
+ */
+const PREPARED_STRING_TYPES: ReadonlySet<Asn1StringType> = /*#__PURE__*/ new Set<Asn1StringType>(['printable', 'utf8', 'teletex', 'bmp', 'universal', 'ia5']);
+
+/**
+ * RFC 4518 §2.2 maps these to SPACE before §2.6.1 decides which spaces are
+ * insignificant: the C0 whitespace controls, NEXT LINE, and every separator.
+ */
+const MAPPED_TO_SPACE = /[\t\n\v\f\r\u0085\p{Zs}\u2028\u2029]+/gu;
+
+/**
+ * A character string prepared for an equality test after RFC 4518, as RFC 5280
+ * §7.1 asks: compatibility-normalised (NFKC), case folded, and with
+ * insignificant spaces removed (§2.6.1 — leading and trailing spaces dropped,
+ * every internal run of them one space).
+ *
+ * The fold is `toUpperCase().toLowerCase()`, re-normalised: locale-independent
+ * in JavaScript, and the round trip reaches one form from both cases of the
+ * characters that do not fold one-to-one (`ß` and `SS` both become `ss`). It
+ * is not RFC 3454 table B.2 to the letter, and the rest is not RFC 4518 to the
+ * letter either: no character is prohibited, and none is mapped to nothing.
+ * Where that makes two strings equal that a strict §7.1 validator keeps apart,
+ * the result is one more exclusion; where it keeps apart two strings §7.1
+ * would equate, the result is what byte comparison already answered, which the
+ * caller tests first. This function is only ever consulted to **add** an
+ * exclusion, so any imprecision here errs toward refusal.
+ */
+function _prepareString(text: string): string {
+    const folded = text.normalize('NFKC').toUpperCase().toLowerCase().normalize('NFKC');
+    return folded.replace(MAPPED_TO_SPACE, ' ').replace(/^ | $/g, '');
+}
+
+/**
+ * One attribute as a comparison key: its type and its prepared value, or its
+ * type and its encoding when the value is not a string this module prepares.
+ * The two prefixes differ, so a prepared value never equals an encoding.
+ */
+function _attributeKey(attribute: AttributeTypeAndValue): string {
+    const value = attribute.value;
+    return value !== undefined && PREPARED_STRING_TYPES.has(value.stringType)
+        ? `p:${attribute.type}:${_prepareString(value.value)}`
+        : `b:${attribute.type}:${toHex(attribute.valueDer)}`;
+}
+
+/**
+ * Two RDNs equal after preparation: the same attribute types, each value equal
+ * after `_prepareString`, and a multi-valued RDN compared **as the set** X.501
+ * makes it, so an issuer that emitted its SET OF out of DER order still
+ * matches. Sorting the keys compares the two multisets in n log n.
+ */
+function _samePreparedRdn(a: RelativeDistinguishedName, b: RelativeDistinguishedName): boolean {
+    if (a.length !== b.length) return false;
+    const left = a.map(_attributeKey).sort();
+    const right = b.map(_attributeKey).sort();
+    return left.every((key, i) => key === right[i]);
+}
+
+/**
+ * §4.2.1.10 directoryName under the RFC 5280 §7.1 comparison: the constraint
+ * is a prefix of the name's RDN sequence, RDN by RDN, after preparation.
+ *
+ * **For excluded subtrees only, and only in addition to `directoryMatches`.**
+ * Byte comparison (ADR 0005) errs toward refusal everywhere except in an
+ * exclusion: a name that does not byte-match an excluded subtree is a name
+ * *not excluded*, so `CN=Excluded` would escape an exclusion of `CN=excluded`,
+ * and a UTF8String subject would escape the same name excluded as a
+ * PrintableString. Testing both comparisons can only add exclusions, which
+ * is the fail-closed direction; permitted subtrees stay byte-exact, where a
+ * miss is a refusal.
+ *
+ * Every array walked here came out of the name reader, which bounds the
+ * attributes of each name by `maxNameAttributes`; every string is bounded by
+ * the input it was decoded from.
+ *
+ * @param constraint The excluded subtree's name.
+ * @param name       The name under test.
+ * @returns Whether the constraint is a prefix of the name after preparation.
+ */
+export function directoryMatchesPrepared(constraint: DistinguishedName, name: DistinguishedName): boolean {
+    if (constraint.rdns.length > name.rdns.length) return false;
+    return constraint.rdns.every((rdn, i) => _samePreparedRdn(rdn, name.rdns[i] as RelativeDistinguishedName));
+}
+
+/**
+ * Whether an **excluded** subtree covers a name: `subtreeCovers`, and for a
+ * directoryName the prepared comparison as well. Never used for a permitted
+ * subtree, nor for the intersection of permitted subtrees.
+ *
+ * @param subtree The excluded subtree.
+ * @param name    The name under test.
+ * @returns Whether the exclusion applies to the name.
+ */
+export function excludedCovers(subtree: GeneralSubtree, name: GeneralName): boolean {
+    if (subtreeCovers(subtree, name)) return true;
+    const base = subtree.base;
+    // The same refusal of a minimum or a maximum as `subtreeCovers` makes.
+    if (subtree.minimum !== 0 || subtree.maximum !== undefined) return false;
+    return base.kind === 'directoryName' && name.kind === 'directoryName' && directoryMatchesPrepared(base.name, name.name);
 }
 
 // ── Well-formedness: a name that cannot be located is not inside ─────
@@ -495,8 +612,10 @@ export function checkName(state: NameConstraintState, name: GeneralName): NameVe
     // name nobody constrained is a profile concern the parser already diagnosed.
     if (constrained && !wellFormedName(name)) return { form, text, why: 'not-permitted' };
 
+    // Exclusion alone also compares directoryNames after §7.1 preparation:
+    // `excludedCovers` says why that asymmetry is the fail-closed one.
     for (const subtree of state.excluded[form]) {
-        if (subtreeCovers(subtree, name)) return { form, text, why: 'excluded' };
+        if (excludedCovers(subtree, name)) return { form, text, why: 'excluded' };
     }
     const permitted = state.permitted[form];
     if (permitted === null) return null;

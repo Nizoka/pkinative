@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     checkCriticalExtensions,
     checkIssuingCapability,
+    checkNamesAgainstConstraints,
     checkSignature,
     checkValidity,
     PROCESSED_CRITICAL_EXTENSIONS,
@@ -10,12 +11,15 @@ import {
     type PathContext,
     type PathState,
 } from '../../src/path/path-validate.js';
+import { accumulateNameConstraints, initialNameConstraints, type NameConstraintState } from '../../src/path/path-name-constraints.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { encodeImplicit, encodeSequence, encodeString } from '../../src/asn1/asn1-encode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import type { SignatureResult, SignatureVerdict } from '../../src/types/path-types.js';
+import * as raw from '../helpers/cert-builder.js';
+import { sequence } from '../helpers/raw-der-builder.js';
 
 /**
  * RFC 5280 §6, clause by clause.
@@ -711,6 +715,36 @@ describe('validateCertificatePath', () => {
         expect(report.reasons.filter((r) => r.path === 'path[0].subject')).toEqual([]);
     });
 
+    it('should exclude a subject that matches an excluded directoryName only after §7.1 preparation', async () => {
+        // The subtree is `CN=host.example.com` as a PrintableString; the leaf's
+        // subject is `CN=HOST.Example.com` as a UTF8String. Byte comparison
+        // alone accepted this path (PKITS InvalidDNandRFC822nameConstraintsTest29).
+        const excludedName = parseCertificate(raw.certificate({ subject: raw.name([['2.5.4.3', raw.printable('host.example.com')]]) }), quiet).subject;
+        const excluding = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: undefined,
+                excludedSubtrees: [{ base: { kind: 'directoryName', name: excludedName, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }] },
+        ] } as unknown as Certificate;
+        const leaf = await syntheticLeafWithDns('HOST.Example.com');
+        const report = validateCertificatePath({ certificates: [leaf, excluding, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(leaf, excluding) });
+        expect(report.valid).toBe(false);
+        expect(report.reasons.filter((r) => r.code === 'PKI_REASON_NAME_EXCLUDED').map((r) => r.path)).toEqual(['path[0].subject']);
+    });
+
+    it('should keep a directoryName permitted subtree byte-exact: a case difference is not permitted', async () => {
+        const permittedName = parseCertificate(raw.certificate({ subject: raw.name([['2.5.4.3', raw.printable('host.example.com')]]) }), quiet).subject;
+        const constrained = { ...R12, extensions: [
+            ...R12.extensions,
+            { oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), kind: 'nameConstraints',
+                permittedSubtrees: [{ base: { kind: 'directoryName', name: permittedName, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }],
+                excludedSubtrees: undefined },
+        ] } as unknown as Certificate;
+        const leaf = await syntheticLeafWithDns('HOST.Example.com');
+        const report = validateCertificatePath({ certificates: [leaf, constrained, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(leaf, constrained) });
+        expect(report.reasons.find((r) => r.path === 'path[0].subject')?.code).toBe('PKI_REASON_NAME_NOT_PERMITTED');
+    });
+
     it('should accept a chain with no certificate policies when nobody required one', () => {
         // §6.1.5 (a). An empty policy tree means the question was never asked.
         const report = validateCertificatePath({ certificates: [LEAF, R12, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, R12) });
@@ -819,5 +853,30 @@ describe('validateCertificatePath', () => {
     it('should be true only when there is no reason at all', () => {
         const report = validateCertificatePath({ certificates: [LEAF, R12, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, R12) });
         expect(report.valid).toBe(report.reasons.length === 0);
+    });
+});
+
+describe('checkNamesAgainstConstraints — a directoryName in the subjectAltName', () => {
+    /** An excluded `C=US, O=Example Org`, both PrintableStrings, read back by the parser. */
+    const excludedState = (): NameConstraintState => {
+        const dn = parseCertificate(raw.certificate({ subject: raw.name([['2.5.4.6', raw.printable('US')]], [['2.5.4.10', raw.printable('Example Org')]]) }), quiet).subject;
+        const names = initialNameConstraints();
+        accumulateNameConstraints(names, undefined, [{ base: { kind: 'directoryName', name: dn, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }]);
+        return names;
+    };
+    /** A certificate whose subject is `C=FR, CN=leaf` and whose SAN holds one directoryName. */
+    const withSanDirectory = (organization: Uint8Array): Certificate => parseCertificate(raw.certificate({
+        subject: raw.name([['2.5.4.6', raw.printable('FR')]], [['2.5.4.3', raw.utf8('leaf')]]),
+        trailing: [raw.explicit(3, sequence(raw.SUBJECT_KEY_ID, raw.AUTHORITY_KEY_ID,
+            raw.extension('2.5.29.17', sequence(raw.explicit(4, raw.name([['2.5.4.6', raw.printable('US')]], [['2.5.4.10', organization]], [['2.5.4.3', raw.utf8('x')]]))))))],
+    }), quiet);
+
+    it('should exclude a SAN directoryName that differs from the subtree by case, spaces and string type', () => {
+        const reasons = checkNamesAgainstConstraints(withSanDirectory(raw.utf8('  EXAMPLE   org')), excludedState(), 'path[0]');
+        expect(reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_NAME_EXCLUDED', 'path[0].subjectAltName']]);
+    });
+
+    it('should not exclude a SAN directoryName whose value differs', () => {
+        expect(checkNamesAgainstConstraints(withSanDirectory(raw.utf8('Example Organisation')), excludedState(), 'path[0]')).toEqual([]);
     });
 });

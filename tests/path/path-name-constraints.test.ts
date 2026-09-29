@@ -3,8 +3,10 @@ import {
     accumulateNameConstraints,
     checkName,
     directoryMatches,
+    directoryMatchesPrepared,
     dnsMatches,
     emailMatches,
+    excludedCovers,
     initialNameConstraints,
     ipMatches,
     nameText,
@@ -17,6 +19,9 @@ import {
     type NameConstraintState,
 } from '../../src/path/path-name-constraints.js';
 import type { DistinguishedName, GeneralName, GeneralSubtree } from '../../src/types/x509-types.js';
+import { parseCertificate } from '../../src/x509/x509-certificate.js';
+import * as der from '../helpers/cert-builder.js';
+import { ascii, universal } from '../helpers/raw-der-builder.js';
 
 /**
  * RFC 5280 §4.2.1.10 matching, and §6.1.4 (g) accumulation.
@@ -499,6 +504,145 @@ describe('wellFormedName', () => {
         // produced a name or threw.
         expect(wellFormedName(directory(name(['2.5.4.3', 'x'])))).toBe(true);
         expect(wellFormedName({ kind: 'registeredID', oid: '1.2.3', der: new Uint8Array(0) })).toBe(true);
+    });
+});
+
+// ── Excluded directoryName subtrees under RFC 5280 §7.1 ──────────────
+
+/**
+ * Names here are real encodings: built with the independent DER helpers,
+ * carried as the subject of a certificate and read back by the parser, so each
+ * attribute carries the string type and decoded text the check really sees.
+ */
+type Rdn = ReadonlyArray<readonly [string, Uint8Array]>;
+const parsedName = (...rdns: readonly Rdn[]): DistinguishedName =>
+    parseCertificate(der.certificate({ subject: der.name(...rdns) }), { onDiagnostic: (): undefined => undefined }).subject;
+const codeUnits = (text: string, width: 2 | 4): number[] => Array.from(text).flatMap((c) => {
+    const unit = c.charCodeAt(0);
+    return width === 2 ? [unit >> 8, unit & 0xff] : [0, 0, unit >> 8, unit & 0xff];
+});
+const teletex = (text: string): Uint8Array => universal(20, ascii(text));
+const visible = (text: string): Uint8Array => universal(26, ascii(text));
+const universalString = (text: string): Uint8Array => universal(28, codeUnits(text, 4));
+const bmp = (text: string): Uint8Array => universal(30, codeUnits(text, 2));
+
+const C = '2.5.4.6';
+const O = '2.5.4.10';
+const OU = '2.5.4.11';
+const CN = '2.5.4.3';
+const DC = '0.9.2342.19200300.100.1.25';
+
+/** A subject below `C=US, O=<organization>`, the organization spelled by the caller. */
+const subjectWith = (organization: Uint8Array): DistinguishedName =>
+    parsedName([[C, der.printable('US')]], [[O, organization]], [[CN, der.utf8('leaf')]]);
+const excluding = (dn: DistinguishedName): NameConstraintState => {
+    const state = initialNameConstraints();
+    accumulateNameConstraints(state, undefined, [subtree(directory(dn))]);
+    return state;
+};
+const permitting = (dn: DistinguishedName): NameConstraintState => {
+    const state = initialNameConstraints();
+    accumulateNameConstraints(state, [subtree(directory(dn))], undefined);
+    return state;
+};
+const EXCLUDED = parsedName([[C, der.printable('US')]], [[O, der.printable('Example Org')]]);
+
+describe('excludedCovers — RFC 5280 §7.1 preparation for excluded directoryName subtrees', () => {
+    it.each([
+        { what: 'case', organization: der.printable('EXAMPLE org') },
+        { what: 'internal space runs', organization: der.printable('Example    Org') },
+        { what: 'leading and trailing spaces', organization: der.printable('  Example Org ') },
+        { what: 'UTF8String rather than PrintableString', organization: der.utf8('Example Org') },
+        { what: 'UTF8String, case and spaces together', organization: der.utf8(' example  ORG') },
+        { what: 'NFKC: a fullwidth letter', organization: der.utf8(`${String.fromCodePoint(0xff25)}xample Org`) },
+        { what: 'NFKC: a no-break space', organization: der.utf8(`Example${String.fromCodePoint(0xa0)}Org`) },
+        { what: 'a tab, mapped to a space (RFC 4518 §2.2)', organization: der.utf8('Example\tOrg') },
+        { what: 'TeletexString', organization: teletex('example org') },
+        { what: 'BMPString', organization: bmp('Example ORG') },
+        { what: 'UniversalString', organization: universalString('EXAMPLE ORG') },
+    ])('should exclude a subject that differs from the subtree only by $what', ({ organization }) => {
+        const subject = subjectWith(organization);
+        // The premise: byte comparison alone lets this name through.
+        expect(directoryMatches(EXCLUDED, subject)).toBe(false);
+        expect(checkName(excluding(EXCLUDED), directory(subject))?.why).toBe('excluded');
+    });
+
+    it('should fold ß and SS to one form, and an NFKC ligature to its letters', () => {
+        const organization = (text: Uint8Array): DistinguishedName => parsedName([[O, text]]);
+        const strasse = der.utf8(`Stra${String.fromCodePoint(0xdf)}e`);
+        const firm = der.utf8(`${String.fromCodePoint(0xfb01)}rm`);
+        expect(checkName(excluding(organization(strasse)), directory(organization(der.utf8('STRASSE'))))?.why).toBe('excluded');
+        expect(checkName(excluding(organization(firm)), directory(organization(der.printable('FIRM'))))?.why).toBe('excluded');
+    });
+
+    it('should prepare IA5String values, which domainComponent uses', () => {
+        const dc = (label: string): DistinguishedName => parsedName([[DC, der.ia5(label)]]);
+        expect(checkName(excluding(dc('Example')), directory(dc('example')))?.why).toBe('excluded');
+    });
+
+    it('should not exclude a subject whose value differs after preparation', () => {
+        expect(checkName(excluding(EXCLUDED), directory(subjectWith(der.utf8('Example Orgs'))))).toBeNull();
+        expect(checkName(excluding(EXCLUDED), directory(subjectWith(der.utf8('ExampleOrg'))))).toBeNull();
+    });
+
+    it('should not exclude a subject whose attribute type differs', () => {
+        const unit = parsedName([[C, der.printable('US')]], [[OU, der.printable('Example Org')]]);
+        expect(checkName(excluding(EXCLUDED), directory(unit))).toBeNull();
+    });
+
+    it('should not exclude a name shorter than the subtree', () => {
+        expect(checkName(excluding(EXCLUDED), directory(parsedName([[C, der.printable('us')]])))).toBeNull();
+    });
+
+    it('should compare a multi-valued RDN as a set, in any order', () => {
+        const constraint = parsedName([[C, der.printable('US')], [O, der.printable('Example')]]);
+        const reordered = parsedName([[O, der.utf8('example')], [C, der.printable('US')]], [[CN, der.utf8('leaf')]]);
+        expect(checkName(excluding(constraint), directory(reordered))?.why).toBe('excluded');
+    });
+
+    it('should not exclude a multi-valued RDN holding another set of attributes', () => {
+        const constraint = parsedName([[C, der.printable('US')], [O, der.printable('Example')]]);
+        const other = parsedName([[OU, der.utf8('example')], [C, der.printable('US')]]);
+        const larger = parsedName([[O, der.utf8('example')], [C, der.printable('US')], [CN, der.utf8('x')]]);
+        expect(checkName(excluding(constraint), directory(other))).toBeNull();
+        expect(checkName(excluding(constraint), directory(larger))).toBeNull();
+    });
+
+    it('should compare a VisibleString by its encoding only: it is not a DirectoryString', () => {
+        const constraint = parsedName([[O, visible('Example')]]);
+        expect(checkName(excluding(constraint), directory(parsedName([[O, visible('example')]])))).toBeNull();
+        expect(checkName(excluding(constraint), directory(parsedName([[O, visible('Example')]])))?.why).toBe('excluded');
+    });
+
+    it('should compare a value that is not a character string by its encoding only', () => {
+        const octets = parsedName([[O, der.octetString([0x45])]]);
+        expect(checkName(excluding(octets), directory(parsedName([[O, der.octetString([0x45])]])))?.why).toBe('excluded');
+        expect(checkName(excluding(octets), directory(parsedName([[O, der.octetString([0x65])]])))).toBeNull();
+    });
+
+    it('should never let a prepared value equal a raw encoding', () => {
+        // A PrintableString `E` and an OCTET STRING whose content is `E`.
+        expect(directoryMatchesPrepared(parsedName([[O, der.printable('E')]]), parsedName([[O, der.octetString([0x45])]]))).toBe(false);
+    });
+
+    it('should refuse a subtree carrying a minimum or a maximum, as subtreeCovers does', () => {
+        const subject = directory(subjectWith(der.printable('EXAMPLE ORG')));
+        expect(excludedCovers({ base: directory(EXCLUDED), minimum: 1, maximum: undefined }, subject)).toBe(false);
+        expect(excludedCovers({ base: directory(EXCLUDED), minimum: 0, maximum: 2 }, subject)).toBe(false);
+        expect(excludedCovers(subtree(directory(EXCLUDED)), subject)).toBe(true);
+    });
+
+    it('should leave every other form to subtreeCovers', () => {
+        expect(excludedCovers(subtree(dns('example.com')), dns('EXAMPLE.com'))).toBe(true);
+        expect(excludedCovers(subtree(dns('example.com')), dns('example.org'))).toBe(false);
+        expect(excludedCovers(subtree(directory(EXCLUDED)), dns('example.org'))).toBe(false);
+        expect(excludedCovers(subtree(dns('example.com')), directory(EXCLUDED))).toBe(false);
+    });
+
+    it('should keep permitted subtrees byte-exact: a case difference is still not permitted', () => {
+        expect(checkName(permitting(EXCLUDED), directory(subjectWith(der.printable('EXAMPLE ORG'))))?.why).toBe('not-permitted');
+        expect(checkName(permitting(EXCLUDED), directory(subjectWith(der.utf8('Example Org'))))?.why).toBe('not-permitted');
+        expect(checkName(permitting(EXCLUDED), directory(subjectWith(der.printable('Example Org'))))).toBeNull();
     });
 });
 
