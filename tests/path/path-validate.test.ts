@@ -880,3 +880,46 @@ describe('checkNamesAgainstConstraints — a directoryName in the subjectAltName
         expect(checkNamesAgainstConstraints(withSanDirectory(raw.utf8('Example Organisation')), excludedState(), 'path[0]')).toEqual([]);
     });
 });
+
+describe('checkNamesAgainstConstraints — a subject emailAddress under rfc822Name constraints (§4.2.1.10)', () => {
+    const EMAIL_ADDRESS = '1.2.840.113549.1.9.1';
+    const mailSubtree = (value: string) => [{ base: { kind: 'rfc822Name' as const, value, der: new Uint8Array(0) }, minimum: 0, maximum: undefined }];
+    const constrained = (permitted: string | undefined, excluded: string | undefined): NameConstraintState => {
+        const names = initialNameConstraints();
+        accumulateNameConstraints(names, permitted === undefined ? undefined : mailSubtree(permitted), excluded === undefined ? undefined : mailSubtree(excluded));
+        return names;
+    };
+    /** `C=US, CN=leaf, emailAddress=<value>`; `san` adds a subjectAltName holding one dNSName. */
+    const withEmail = (value: Uint8Array, san = false): Certificate => parseCertificate(raw.certificate({
+        subject: raw.name([['2.5.4.6', raw.printable('US')]], [['2.5.4.3', raw.utf8('leaf')]], [[EMAIL_ADDRESS, value]]),
+        trailing: [raw.explicit(3, sequence(raw.SUBJECT_KEY_ID, raw.AUTHORITY_KEY_ID,
+            ...(san ? [raw.extension('2.5.29.17', sequence(raw.context(2, false, [0x61, 0x2e, 0x74])))] : [])))],
+    }), quiet);
+    const verdicts = (certificate: Certificate, names: NameConstraintState): string[][] =>
+        checkNamesAgainstConstraints(certificate, names, 'path[0]').map((r) => [r.code, r.path]);
+
+    it('should refuse a subject mailbox outside the permitted rfc822Name subtree when there is no SAN', () => {
+        // PKITS InvalidDNandRFC822nameConstraintsTest29, in miniature.
+        expect(verdicts(withEmail(raw.ia5('a@evil.test')), constrained('example.com', undefined))).toEqual([['PKI_REASON_NAME_NOT_PERMITTED', 'path[0].subject']]);
+    });
+
+    it('should accept a subject mailbox inside the permitted rfc822Name subtree', () => {
+        expect(verdicts(withEmail(raw.ia5('a@example.com')), constrained('example.com', undefined))).toEqual([]);
+    });
+
+    it('should refuse a subject mailbox inside an excluded rfc822Name subtree', () => {
+        expect(verdicts(withEmail(raw.ia5('a@example.com')), constrained(undefined, 'example.com'))).toEqual([['PKI_REASON_NAME_EXCLUDED', 'path[0].subject']]);
+    });
+
+    it('should refuse an emailAddress that is not a character string, when rfc822Name is constrained', () => {
+        expect(verdicts(withEmail(raw.octetString([0x61])), constrained('example.com', undefined))).toEqual([['PKI_REASON_NAME_NOT_PERMITTED', 'path[0].subject']]);
+    });
+
+    it('should leave the subject mailbox alone when rfc822Name is not constrained', () => {
+        expect(verdicts(withEmail(raw.ia5('a@evil.test')), initialNameConstraints())).toEqual([]);
+    });
+
+    it('should leave the subject mailbox alone when the certificate has a SAN, as §4.2.1.10 scopes the rule', () => {
+        expect(verdicts(withEmail(raw.ia5('a@evil.test'), true), constrained('example.com', undefined))).toEqual([]);
+    });
+});

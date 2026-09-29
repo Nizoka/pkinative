@@ -72,6 +72,9 @@ import type { Certificate, DistinguishedName, GeneralName } from '../types/x509-
 import { getExtension } from '../x509/x509-extensions.js';
 import { formatDistinguishedName } from '../x509/x509-name-format.js';
 
+/** PKCS #9 emailAddress, the subject attribute §4.2.1.10 puts under rfc822Name constraints. */
+const EMAIL_ADDRESS = '1.2.840.113549.1.9.1';
+
 /**
  * The critical extensions this validator processes. RFC 5280 §6.1.3 (f)
  * requires refusing any other critical extension, so this set is the exact
@@ -266,7 +269,8 @@ export function checkIssuingCapability(issuer: Certificate, state: PathState, pa
  * Both the `subject` distinguished name and every `subjectAltName` entry are
  * tested. Testing only the SAN is the mistake that lets a constrained CA
  * issue for a CN nobody checked, and testing only the subject misses every
- * modern certificate, where the identity lives in the SAN.
+ * modern certificate, where the identity lives in the SAN. A certificate with
+ * no SAN also has each subject `emailAddress` tested as an rfc822Name.
  *
  * @param certificate The certificate under test.
  * @param names       The accumulated constraints.
@@ -287,7 +291,28 @@ export function checkNamesAgainstConstraints(certificate: Certificate, names: Na
                 : nameNotPermittedReason(`${path}.subject`, 'subject', formatDistinguishedName(certificate.subject)));
         }
     }
-    for (const entry of getExtension(certificate, 'subjectAltName')?.names ?? []) {
+    const subjectAltName = getExtension(certificate, 'subjectAltName');
+    // §4.2.1.10: "When constraints are imposed on the rfc822Name name form,
+    // but the certificate does not include a subject alternative name, the
+    // rfc822Name constraint MUST be applied to the attribute of type
+    // emailAddress in the subject distinguished name." Skipping it lets a CA
+    // constrained to one mail domain put any mailbox in the subject
+    // (PKITS InvalidDNandRFC822nameConstraintsTest29). The attributes walked
+    // came out of the name reader, bounded by `maxNameAttributes`.
+    if (subjectAltName === undefined) {
+        for (const attribute of certificate.subject.rdns.flat()) {
+            if (attribute.type !== EMAIL_ADDRESS) continue;
+            // A value that is not a character string is no mailbox: the empty
+            // one is malformed, so a constrained form refuses it.
+            const mailbox: GeneralName = { kind: 'rfc822Name', value: attribute.value?.value ?? '', der: attribute.valueDer };
+            const verdict = checkName(names, mailbox);
+            if (verdict === null) continue;
+            out.push(verdict.why === 'excluded'
+                ? nameExcludedReason(`${path}.subject`, verdict.form, verdict.text)
+                : nameNotPermittedReason(`${path}.subject`, verdict.form, verdict.text));
+        }
+    }
+    for (const entry of subjectAltName?.names ?? []) {
         const verdict = checkName(names, entry);
         if (verdict === null) continue;
         out.push(verdict.why === 'excluded'
