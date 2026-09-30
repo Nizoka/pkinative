@@ -15,9 +15,9 @@ import { TAG_NULL, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../a
 import { toHex } from '../core/bytes.js';
 import { akiIssuerSerialUnpairedDiagnostic, sanEmptyDiagnostic, subjectDirectoryAttributesCriticalDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
-import type { Attribute } from '../types/cms-types.js';
 import type {
     AuthorityKeyIdentifierExtension,
+    DirectoryAttribute,
     IssuerAltNameExtension,
     OcspNoCheckExtension,
     SerialNumber,
@@ -107,7 +107,7 @@ export function decodeSubjectDirectoryAttributes(input: ExtensionInput): Subject
     const seq = expectSequence(node, path, node.offset);
     expectNonEmpty(seq, path, 'attribute');
     enforceLimit(ctx.limits, 'maxAttributes', seq.children.length, `the attributes of ${path}`);
-    const attributes: Attribute[] = [];
+    const attributes: DirectoryAttribute[] = [];
     for (let i = 0; i < seq.children.length; i++) {
         const at = `${path}[${String(i)}]`;
         const attribute = expectUniversalField(seq.children[i], TAG_SEQUENCE, at, MALFORMED, seq.offset);

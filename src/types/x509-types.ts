@@ -9,7 +9,6 @@
  * @module types/x509-types
  */
 
-import type { Attribute } from './cms-types.js';
 import type { Asn1Node, Asn1String, BitString, PkiTime } from './asn1-types.js';
 import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
 
@@ -489,6 +488,20 @@ export interface OcspNoCheckExtension extends ExtensionBase {
 }
 
 /**
+ * One X.501 `Attribute` of subjectDirectoryAttributes: a type and its
+ * values. The same shape as the CMS `Attribute`, declared here because
+ * `cms-types` already imports this module.
+ */
+export interface DirectoryAttribute {
+    /** The attribute type, e.g. `1.3.6.1.5.5.7.9.1` (dateOfBirth). */
+    readonly oid: string;
+    /** Each `AttributeValue`, as its exact DER, in encoded order — at least one. */
+    readonly values: readonly Uint8Array[];
+    /** The whole `Attribute` SEQUENCE, exactly as encoded. */
+    readonly der: Uint8Array;
+}
+
+/**
  * subjectDirectoryAttributes (RFC 5280 §4.2.1.8): identification attributes
  * of the subject — nationality, date and place of birth, gender (RFC 3739
  * §3.2.2). RFC 5280 requires it non-critical.
@@ -502,7 +515,7 @@ export interface SubjectDirectoryAttributesExtension extends ExtensionBase {
      * `decodeAsn1` reads it (a dateOfBirth is a GeneralizedTime, a
      * countryOfCitizenship a PrintableString).
      */
-    readonly attributes: readonly Attribute[];
+    readonly attributes: readonly DirectoryAttribute[];
 }
 
 /** A certificate extension, discriminated by `kind`. */
