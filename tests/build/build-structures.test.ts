@@ -184,6 +184,24 @@ describe('the extension values', () => {
         expect(hex(encodeKeyUsage(['keyCertSign', 'cRLSign']))).toBe('03020106');
     });
 
+    it('should keep KEY_USAGE_BITS read-only at runtime, and the encoder out of its reach', () => {
+        expect(KEY_USAGE_BITS).toBeInstanceOf(Map);
+        expect(Object.isFrozen(KEY_USAGE_BITS)).toBe(true);
+        const mutable = KEY_USAGE_BITS as Map<string, number>;
+        expect(() => mutable.set('evilUsage', 3)).toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('read-only') }));
+        expect(() => mutable.delete('digitalSignature')).toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+        expect(() => { mutable.clear(); }).toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+        expect(KEY_USAGE_BITS.size).toBe(9);
+        // Map.prototype.set.call reaches the internal slot of the public copy;
+        // the encoder reads its own table, so the injection changes nothing.
+        Map.prototype.set.call(KEY_USAGE_BITS, 'evilUsage', 3);
+        try {
+            expect(() => encodeKeyUsage(['evilUsage'])).toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION' }));
+        } finally {
+            Map.prototype.delete.call(KEY_USAGE_BITS, 'evilUsage');
+        }
+    });
+
     it('should refuse a usage RFC 5280 does not define', () => {
         expect(() => encodeKeyUsage(['signCertificates']))
             .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION', message: expect.stringContaining('digitalSignature') }));

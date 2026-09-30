@@ -248,11 +248,41 @@ export function encodeBasicConstraints(options: { readonly cA: boolean; readonly
     return encodeSequence(fields);
 }
 
-/** The `KeyUsage` bit positions of RFC 5280 §4.2.1.3, in their defined order. */
-export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map([
+const KEY_USAGE_ENTRIES: ReadonlyArray<readonly [string, number]> = [
     ['digitalSignature', 0], ['nonRepudiation', 1], ['keyEncipherment', 2], ['dataEncipherment', 3],
     ['keyAgreement', 4], ['keyCertSign', 5], ['cRLSign', 6], ['encipherOnly', 7], ['decipherOnly', 8],
-]);
+];
+
+/**
+ * The table `encodeKeyUsage` reads. Never exported, so what the encoder
+ * accepts cannot be changed by anything else running in the process — not
+ * even through `Map.prototype.set.call` on the public copy.
+ */
+const KEY_USAGE_TABLE: ReadonlyMap<string, number> = /*#__PURE__*/ new Map(KEY_USAGE_ENTRIES);
+
+/**
+ * A `Map` whose mutators throw, frozen. `Object.freeze` alone leaves a Map's
+ * entries writable — they live in an internal slot, not in properties — so
+ * `set`, `delete` and `clear` are shadowed on the instance, where freezing
+ * keeps them.
+ */
+function readOnlyMap(name: string, entries: ReadonlyArray<readonly [string, number]>): ReadonlyMap<string, number> {
+    const map = new Map(entries);
+    const refuse = (): never => {
+        throw new PkiError('PKI_API_MISUSE', `pkinative: ${name} is read-only — every caller in the process shares it; copy it with new Map(${name}) to extend it`);
+    };
+    Object.defineProperties(map, { set: { value: refuse }, delete: { value: refuse }, clear: { value: refuse } });
+    return Object.freeze(map);
+}
+
+/**
+ * The `KeyUsage` bit positions of RFC 5280 §4.2.1.3, in their defined order.
+ *
+ * Read-only at runtime as well as in its type: `set`, `delete` and `clear`
+ * throw `PKI_API_MISUSE`, and `encodeKeyUsage` reads a private table, so no
+ * caller can change what it accepts for every other caller.
+ */
+export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ readOnlyMap('KEY_USAGE_BITS', KEY_USAGE_ENTRIES);
 
 /**
  * `keyUsage` (RFC 5280 §4.2.1.3). Mark the extension critical.
@@ -264,9 +294,9 @@ export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map
 export function encodeKeyUsage(usages: Iterable<string>): Uint8Array {
     const bits: number[] = [];
     for (const usage of usages) {
-        const bit = KEY_USAGE_BITS.get(usage);
+        const bit = KEY_USAGE_TABLE.get(usage);
         if (bit === undefined) {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${usage} is not a KeyUsage of RFC 5280 §4.2.1.3 — one of ${[...KEY_USAGE_BITS.keys()].join(', ')}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${usage} is not a KeyUsage of RFC 5280 §4.2.1.3 — one of ${[...KEY_USAGE_TABLE.keys()].join(', ')}`);
         }
         bits.push(bit);
     }
