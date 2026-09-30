@@ -123,6 +123,13 @@ export interface CreateSignedDataInput {
      * (default) gives a version 1 SignerInfo; `subjectKeyIdentifier` reads
      * the certificate's decoded subjectKeyIdentifier extension, and gives
      * version 3.
+     *
+     * Keep the default unless the reader is known: `issuerAndSerialNumber` is
+     * what every CMS reader parses, while some deployed ones cannot parse a
+     * `subjectKeyIdentifier` signer at all — libksba 1.6.7 (gpgsm 2.4.9)
+     * fails with "TLV length too large" and pyca/cryptography's
+     * `pkcs7.load_der_pkcs7_certificates` with "Unable to parse PKCS7 data",
+     * on OpenSSL's output exactly as on pkinative's.
      */
     readonly sid?: 'issuerAndSerialNumber' | 'subjectKeyIdentifier' | undefined;
     /**
@@ -319,6 +326,11 @@ async function resolveContent(input: CreateSignedDataInput, digest: SignatureHas
  * For a PDF signature, pass `contentDigest` — the `/ByteRange` hashed with
  * the signer's digest — and embed the result in `/Contents`; add a signature
  * timestamp afterwards with {@link addUnsignedAttribute}.
+ *
+ * Where the reader is unknown, sign with ECDSA or RSA: an Ed25519 SignerInfo
+ * is correct RFC 8419, and not every deployed reader verifies it — gpgsm
+ * 2.4.9 refuses one ("DSA requires the hash length to be a multiple of 8
+ * bits") whether OpenSSL or pkinative wrote it.
  *
  * @param input   What is signed and what is written around it; see {@link CreateSignedDataInput}.
  * @param signer  The key that signs: a `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
