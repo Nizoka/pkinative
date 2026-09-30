@@ -3,8 +3,9 @@
  * ================================
  * RFC 5280 §4.1.2.7, with the key of each recognised algorithm checked
  * against its definition: RSA (RFC 3279 §2.3.1) and RSASSA-PSS (RFC 4055),
- * elliptic curves (RFC 5480), EdDSA and XDH (RFC 8410 §4) and ML-DSA
- * (FIPS 204). Any other algorithm is kept as `kind: 'unknown'`.
+ * elliptic curves (RFC 5480), EdDSA and XDH (RFC 8410 §3 and §4) and ML-DSA
+ * (RFC 9881 §2, with the key sizes of FIPS 204). Any other algorithm is kept
+ * as `kind: 'unknown'`.
  *
  * This reads public keys; it performs no arithmetic on them.
  *
@@ -44,14 +45,21 @@ const CURVES: ReadonlyMap<string, { readonly curve: EcCurve; readonly size: numb
 ]);
 
 /** Algorithms whose subjectPublicKey is the raw key, with the key length. */
-const OCTET_KEYS: ReadonlyMap<string, { readonly kind: OctetPublicKeyInfo['kind']; readonly length: number }> = /*#__PURE__*/ new Map([
-    ['1.3.101.110', { kind: 'x25519', length: 32 }],
-    ['1.3.101.111', { kind: 'x448', length: 56 }],
-    ['1.3.101.112', { kind: 'ed25519', length: 32 }],
-    ['1.3.101.113', { kind: 'ed448', length: 57 }],
-    ['2.16.840.1.101.3.4.3.17', { kind: 'ml-dsa-44', length: 1312 }],
-    ['2.16.840.1.101.3.4.3.18', { kind: 'ml-dsa-65', length: 1952 }],
-    ['2.16.840.1.101.3.4.3.19', { kind: 'ml-dsa-87', length: 2592 }],
+/** A key held as a fixed-length octet string, and the clause that requires its parameters absent. */
+interface OctetKeySpec {
+    readonly kind: OctetPublicKeyInfo['kind'];
+    readonly length: number;
+    readonly standard: 'RFC 8410 §3' | 'RFC 9881 §2';
+}
+
+const OCTET_KEYS: ReadonlyMap<string, OctetKeySpec> = /*#__PURE__*/ new Map<string, OctetKeySpec>([
+    ['1.3.101.110', { kind: 'x25519', length: 32, standard: 'RFC 8410 §3' }],
+    ['1.3.101.111', { kind: 'x448', length: 56, standard: 'RFC 8410 §3' }],
+    ['1.3.101.112', { kind: 'ed25519', length: 32, standard: 'RFC 8410 §3' }],
+    ['1.3.101.113', { kind: 'ed448', length: 57, standard: 'RFC 8410 §3' }],
+    ['2.16.840.1.101.3.4.3.17', { kind: 'ml-dsa-44', length: 1312, standard: 'RFC 9881 §2' }],
+    ['2.16.840.1.101.3.4.3.18', { kind: 'ml-dsa-65', length: 1952, standard: 'RFC 9881 §2' }],
+    ['2.16.840.1.101.3.4.3.19', { kind: 'ml-dsa-87', length: 2592, standard: 'RFC 9881 §2' }],
 ]);
 
 interface KeyParts {
@@ -138,9 +146,9 @@ function readEc(parts: KeyParts, ctx: Asn1Context): EcPublicKeyInfo {
     return Object.freeze(info);
 }
 
-function readOctetKey(parts: KeyParts, spec: { readonly kind: OctetPublicKeyInfo['kind']; readonly length: number }): OctetPublicKeyInfo {
+function readOctetKey(parts: KeyParts, spec: OctetKeySpec): OctetPublicKeyInfo {
     if (parts.algorithm.parameters !== undefined) {
-        throw certificateError(CODE, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (RFC 8410 §3)`);
+        throw certificateError(CODE, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (${spec.standard})`);
     }
     requireWholeOctets(parts, `an ${spec.kind}`);
     if (parts.publicKey.bytes.length !== spec.length) {

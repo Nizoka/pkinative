@@ -142,6 +142,18 @@ describe('_readSubjectPublicKeyInfo', () => {
         ])('should refuse %s', (_, bytes) => {
             expect(codeOf(() => readSpki(bytes))).toBe('PKI_X509_SPKI_INVALID');
         });
+
+        it.each<[string, string]>([
+            [ED25519, 'RFC 8410 §3'],
+            ['1.3.101.110', 'RFC 8410 §3'],
+            ['2.16.840.1.101.3.4.3.17', 'RFC 9881 §2'],
+            ['2.16.840.1.101.3.4.3.19', 'RFC 9881 §2'],
+        ])('should cite the clause that governs %s when its parameters are present', (algorithmOid, clause) => {
+            // RFC 8410 covers the Edwards and Montgomery curves only; the
+            // ML-DSA rule is RFC 9881 §2: "MUST be absent".
+            expect(() => readSpki(spki(algorithm(algorithmOid, nullValue()), bitString([7]))))
+                .toThrow(expect.objectContaining({ code: 'PKI_X509_SPKI_INVALID', message: expect.stringContaining(`(${clause})`) }));
+        });
     });
 
     it('should keep the key of an algorithm it does not decode', () => {

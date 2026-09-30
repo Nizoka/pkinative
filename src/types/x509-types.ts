@@ -159,7 +159,7 @@ export interface EcPublicKeyInfo extends PublicKeyInfoBase {
     readonly point: Uint8Array;
 }
 
-/** A key whose subjectPublicKey is the raw key octets (RFC 8410, FIPS 204). */
+/** A key whose subjectPublicKey is the raw key octets (RFC 8410; ML-DSA: RFC 9881, key sizes of FIPS 204). */
 export interface OctetPublicKeyInfo extends PublicKeyInfoBase {
     /** Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`. */
     readonly kind: 'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87';
