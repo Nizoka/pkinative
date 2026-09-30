@@ -111,7 +111,8 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE'
     | 'PKI_DIAG_COUNTRY_NAME_SIZE'
     | 'PKI_DIAG_STRING_SIGNATURE'
-    | 'PKI_DIAG_STRING_ESCAPE_SEQUENCE';
+    | 'PKI_DIAG_STRING_ESCAPE_SEQUENCE'
+    | 'PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';

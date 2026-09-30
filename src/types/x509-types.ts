@@ -9,6 +9,7 @@
  * @module types/x509-types
  */
 
+import type { Attribute } from './cms-types.js';
 import type { Asn1Node, Asn1String, BitString, PkiTime } from './asn1-types.js';
 import type { PkiDiagnostic, PkiParseOptions } from './pki-types.js';
 
@@ -487,6 +488,23 @@ export interface OcspNoCheckExtension extends ExtensionBase {
     readonly kind: 'ocspNoCheck';
 }
 
+/**
+ * subjectDirectoryAttributes (RFC 5280 §4.2.1.8): identification attributes
+ * of the subject — nationality, date and place of birth, gender (RFC 3739
+ * §3.2.2). RFC 5280 requires it non-critical.
+ */
+export interface SubjectDirectoryAttributesExtension extends ExtensionBase {
+    /** Discriminant; `getExtension(cert, 'subjectDirectoryAttributes')` returns this type. */
+    readonly kind: 'subjectDirectoryAttributes';
+    /**
+     * The attributes, in encoded order, each with its type OID and every value
+     * as its exact DER — the value syntax depends on the attribute, and
+     * `decodeAsn1` reads it (a dateOfBirth is a GeneralizedTime, a
+     * countryOfCitizenship a PrintableString).
+     */
+    readonly attributes: readonly Attribute[];
+}
+
 /** A certificate extension, discriminated by `kind`. */
 export type Extension =
     | BasicConstraintsExtension
@@ -507,6 +525,7 @@ export type Extension =
     | FreshestCrlExtension
     | SignedCertificateTimestampListExtension
     | OcspNoCheckExtension
+    | SubjectDirectoryAttributesExtension
     | UnknownExtension
     | RawExtension;
 

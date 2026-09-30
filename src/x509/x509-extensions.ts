@@ -37,6 +37,7 @@ import {
     decodeOcspNoCheck,
     decodeSignedCertificateTimestampList,
     decodeSubjectAltName,
+    decodeSubjectDirectoryAttributes,
     decodeSubjectKeyIdentifier,
 } from './x509-ext-identifiers.js';
 import { decodeCertificatePolicies, decodePolicyMappings } from './x509-ext-policies.js';
@@ -45,6 +46,7 @@ import { malformed, type ExtensionInput } from './x509-ext-shared.js';
 type Decoder = (input: ExtensionInput) => Extension;
 
 const DECODERS: ReadonlyMap<string, Decoder> = /*#__PURE__*/ new Map<string, Decoder>([
+    ['2.5.29.9', decodeSubjectDirectoryAttributes],
     ['2.5.29.14', decodeSubjectKeyIdentifier],
     ['2.5.29.15', decodeKeyUsage],
     ['2.5.29.17', decodeSubjectAltName],

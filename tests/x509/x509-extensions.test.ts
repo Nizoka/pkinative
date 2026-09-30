@@ -18,6 +18,7 @@ import {
     octetString,
     oid,
     printable,
+    set,
     utf8,
 } from '../helpers/cert-builder.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
@@ -445,6 +446,52 @@ describe('decodeExtensionValue', () => {
             ['an ocspNoCheck that is not NULL', OID.ocspNoCheck, integer([1])],
         ])('should refuse %s', (_, extensionOid, value) => {
             expect(malformedCode(extensionOid, value)).toBe('PKI_X509_EXTENSION_MALFORMED');
+        });
+    });
+
+    describe('subjectDirectoryAttributes (RFC 5280 §4.2.1.8)', () => {
+        const SDA = '2.5.29.9';
+        const DATE_OF_BIRTH = '1.3.6.1.5.5.7.9.1';
+        const CITIZENSHIP = '1.3.6.1.5.5.7.9.4';
+        const born = universal(24, ascii('19700101120000Z'));
+        const attribute = (type: string, ...values: Uint8Array[]): Uint8Array => sequence(oid(type), set(...values));
+
+        it('should read each attribute with its type and every value as DER, in encoded order', () => {
+            const value = sequence(attribute(DATE_OF_BIRTH, born), attribute(CITIZENSHIP, printable('FR'), printable('DE')));
+            const decoded = decode(SDA, value);
+            expect(decoded.kind).toBe('subjectDirectoryAttributes');
+            const attributes = decoded.kind === 'subjectDirectoryAttributes' ? decoded.attributes : [];
+            expect(attributes.map((a) => a.oid)).toEqual([DATE_OF_BIRTH, CITIZENSHIP]);
+            expect(attributes[0]?.values).toEqual([born]);
+            expect(attributes[1]?.values).toEqual([printable('FR'), printable('DE')]);
+            expect(attributes[1]?.der).toEqual(attribute(CITIZENSHIP, printable('FR'), printable('DE')));
+            expect(Object.isFrozen(attributes) && Object.isFrozen(attributes[0]) && Object.isFrozen(attributes[0]?.values)).toBe(true);
+            expect(diagnosticsOf(SDA, value)).toEqual([]);
+        });
+
+        it('should report a critical subjectDirectoryAttributes, which RFC 5280 forbids — no longer as an unknown extension', () => {
+            expect(diagnosticsOf(SDA, sequence(attribute(DATE_OF_BIRTH, born)), true)).toEqual(['PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL']);
+        });
+
+        it.each<[string, Uint8Array]>([
+            ['an empty sequence — SIZE (1..MAX)', sequence()],
+            ['a value that is not a SEQUENCE', set(attribute(DATE_OF_BIRTH, born))],
+            ['an attribute that is not a SEQUENCE', sequence(set(oid(DATE_OF_BIRTH), set(born)))],
+            ['an attribute of one field', sequence(sequence(oid(DATE_OF_BIRTH)))],
+            ['an attribute of three fields', sequence(sequence(oid(DATE_OF_BIRTH), set(born), set(born)))],
+            ['an attribute type that is not an OID', sequence(sequence(integer([1]), set(born)))],
+            ['values that are not a SET', sequence(sequence(oid(DATE_OF_BIRTH), sequence(born)))],
+            ['an attribute with no value — "at least one value is required"', sequence(attribute(DATE_OF_BIRTH))],
+        ])('should refuse %s', (_, value) => {
+            expect(malformedCode(SDA, value)).toBe('PKI_X509_EXTENSION_MALFORMED');
+        });
+
+        it('should bound the attributes and the values of each by maxAttributes', () => {
+            const three = sequence(attribute(DATE_OF_BIRTH, born), attribute(CITIZENSHIP, printable('FR')), attribute(CITIZENSHIP, printable('DE')));
+            expect(thrown(() => decode(SDA, three, { ...QUIET, limits: { maxAttributes: 2 } }))).toBeInstanceOf(PkiLimitError);
+            const manyValues = sequence(attribute(CITIZENSHIP, printable('FR'), printable('DE'), printable('IT')));
+            expect(thrown(() => decode(SDA, manyValues, { ...QUIET, limits: { maxAttributes: 2 } }))).toMatchObject({ limit: 'maxAttributes' });
+            expect(() => decode(SDA, three, { ...QUIET, limits: { maxAttributes: 3 } })).not.toThrow();
         });
     });
 

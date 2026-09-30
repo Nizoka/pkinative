@@ -95,6 +95,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY', diagnostics.nameConstraintsInEndEntityDiagnostic()],
         ['PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL', diagnostics.basicConstraintsNotCriticalDiagnostic()],
         ['PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL', diagnostics.policyConstraintsNotCriticalDiagnostic()],
+        ['PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL', diagnostics.subjectDirectoryAttributesCriticalDiagnostic()],
         ['PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA', diagnostics.keyCertSignWithoutCaDiagnostic()],
         ['PKI_DIAG_AKI_MISSING', diagnostics.akiMissingDiagnostic()],
         ['PKI_DIAG_SKI_MISSING', diagnostics.skiMissingDiagnostic()],

@@ -339,6 +339,12 @@ export function policyConstraintsNotCriticalDiagnostic(): PkiDiagnostic {
         'tbsCertificate.extensions.policyConstraints', undefined);
 }
 
+export function subjectDirectoryAttributesCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL', 'warning', 'RFC 5280 §4.2.1.8',
+        'subjectDirectoryAttributes is marked critical; RFC 5280 requires conforming CAs to mark it non-critical, and a relying party that does not process it must then refuse the certificate',
+        'tbsCertificate.extensions.subjectDirectoryAttributes', undefined);
+}
+
 export function keyCertSignWithoutCaDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA', 'warning', 'RFC 5280 §4.2.1.3',
         'keyUsage asserts keyCertSign while basicConstraints does not assert cA; that bit "is for use in CA certificates only", and §6.1.4 (k) refuses to let this key issue anything regardless',
