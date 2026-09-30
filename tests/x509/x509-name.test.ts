@@ -98,6 +98,57 @@ describe('_readName', () => {
     it('should refuse a character string that is not valid for its type', () => {
         expect(codeOf(() => readName(sequence(set(sequence(oid('2.5.4.3'), Uint8Array.of(0x0c, 0x01, 0xff))))))).toBe('PKI_ASN1_STRING_INVALID');
     });
+
+    describe('the syntax RFC 5280 Appendix A.1 gives each attribute', () => {
+        it.each<[string, string, Uint8Array, string]>([
+            ['a UTF8String countryName', '2.5.4.6', utf8('US'), 'UTF8String'],
+            ['a UTF8String serialNumber', '2.5.4.5', utf8('42'), 'UTF8String'],
+            ['a UTF8String dnQualifier', '2.5.4.46', utf8('q'), 'UTF8String'],
+            ['a UTF8String domainComponent', '0.9.2342.19200300.100.1.25', utf8('com'), 'UTF8String'],
+            ['a PrintableString emailAddress', '1.2.840.113549.1.9.1', printable('a'), 'PrintableString'],
+            ['an IA5String commonName', '2.5.4.3', ia5('a'), 'IA5String'],
+            ['an INTEGER organizationName', '2.5.4.10', integer([1]), 'INTEGER'],
+        ])('should report %s, and still read it', (_what, type, value, found) => {
+            const seen = diagnosticsOf(name([[type, value]]));
+            expect(seen).toEqual([expect.objectContaining({ code: 'PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', path: 'name.rdns[0][0].value', standard: 'RFC 5280 Appendix A.1' })]);
+            expect(seen[0]?.message).toContain(found);
+            expect(readName(name([[type, value]])).rdns[0]?.[0]?.valueDer).toEqual(value);
+        });
+
+        it.each<[string, string, Uint8Array]>([
+            ['a PrintableString countryName of two letters', '2.5.4.6', printable('US')],
+            ['an IA5String emailAddress', '1.2.840.113549.1.9.1', ia5('a@b')],
+            ['an IA5String domainComponent', '0.9.2342.19200300.100.1.25', ia5('com')],
+            ['a PrintableString commonName', '2.5.4.3', printable('a')],
+            ['a UTF8String commonName', '2.5.4.3', utf8('a')],
+            ['a BMPString commonName', '2.5.4.3', Uint8Array.of(0x1e, 0x02, 0x00, 0x61)],
+            ['a UniversalString commonName', '2.5.4.3', Uint8Array.of(0x1c, 0x04, 0x00, 0x00, 0x00, 0x61)],
+            ['an IA5String under an attribute Appendix A does not define', '2.5.4.9', ia5('street')],
+        ])('should accept %s silently', (_what, type, value) => {
+            expect(diagnosticsOf(name([[type, value]]))).toEqual([]);
+        });
+
+        it.each<[string, Uint8Array, number]>([
+            ['three letters', printable('USA'), 3],
+            ['none', printable(''), 0],
+        ])('should report a countryName of %s', (_what, value, characters) => {
+            expect(diagnosticsOf(name([['2.5.4.6', value]])))
+                .toEqual([expect.objectContaining({ code: 'PKI_DIAG_COUNTRY_NAME_SIZE', message: expect.stringContaining(`is ${String(characters)} characters long`) })]);
+        });
+
+        it('should report both concerns of a UTF8String countryName of three letters', () => {
+            expect(diagnosticsOf(name([['2.5.4.6', utf8('USA')]])).map((d) => d.code))
+                .toEqual(['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', 'PKI_DIAG_COUNTRY_NAME_SIZE']);
+        });
+
+        it('should not measure a countryName that is not a character string', () => {
+            expect(diagnosticsOf(name([['2.5.4.6', integer([1])]])).map((d) => d.code)).toEqual(['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE']);
+        });
+
+        it('should refuse under strict, as every diagnostic does', () => {
+            expect(codeOf(() => readName(name([['2.5.4.6', utf8('US')]]), { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        });
+    });
 });
 
 describe('formatDistinguishedName', () => {

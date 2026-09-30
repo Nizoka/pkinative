@@ -5,7 +5,10 @@
  * non-empty SET OF AttributeTypeAndValue. Character string values are
  * decoded; values of any other type are kept as their encoding. A
  * multi-valued RDN out of DER SET OF order is a diagnostic: real issuers
- * emit it, and byte-wise name comparison is what it breaks.
+ * emit it, and byte-wise name comparison is what it breaks. So is an
+ * attribute RFC 5280 Appendix A.1 defines, encoded outside its syntax — a
+ * UTF8String `countryName`, a `countryName` of other than two characters:
+ * the value is read all the same, and a strict reader refuses the name.
  *
  * @module x509/x509-name
  */
@@ -13,11 +16,12 @@
 import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readString } from '../asn1/asn1-read.js';
-import { TAG_OID, TAG_SEQUENCE, TAG_SET, stringTypeOfTag } from '../asn1/asn1-tags.js';
-import { rdnSetNotSortedDiagnostic } from '../core/pki-diagnostics.js';
+import { TAG_BMP_STRING, TAG_IA5_STRING, TAG_OID, TAG_PRINTABLE_STRING, TAG_SEQUENCE, TAG_SET, TAG_TELETEX_STRING, TAG_UNIVERSAL_STRING, TAG_UTF8_STRING, stringTypeOfTag, tagLabel } from '../asn1/asn1-tags.js';
+import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
+import { countryNameSizeDiagnostic, nameAttributeStringTypeDiagnostic, rdnSetNotSortedDiagnostic } from '../core/pki-diagnostics.js';
 import { compareOctets } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
-import type { Asn1Node } from '../types/asn1-types.js';
+import type { Asn1Node, Asn1String } from '../types/asn1-types.js';
 import type { AttributeTypeAndValue, DistinguishedName, RelativeDistinguishedName } from '../types/x509-types.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 
@@ -35,6 +39,32 @@ function inDerSetOrder(elements: readonly Asn1Node[]): boolean {
         if (compareOctets((elements[k - 1] as Asn1Node).bytes, (elements[k] as Asn1Node).bytes) > 0) return false;
     }
     return true;
+}
+
+/** The universal tags each Appendix A.1 syntax admits. */
+const SYNTAX_TAGS: Readonly<Record<'directory' | 'printable' | 'ia5', readonly number[]>> = {
+    directory: [TAG_TELETEX_STRING, TAG_PRINTABLE_STRING, TAG_UNIVERSAL_STRING, TAG_UTF8_STRING, TAG_BMP_STRING],
+    printable: [TAG_PRINTABLE_STRING],
+    ia5: [TAG_IA5_STRING],
+};
+
+const SYNTAX_LABELS: Readonly<Record<'directory' | 'printable' | 'ia5', string>> = {
+    directory: 'a DirectoryString (TeletexString, PrintableString, UniversalString, UTF8String or BMPString)',
+    printable: 'a PrintableString',
+    ia5: 'an IA5String',
+};
+
+/** Diagnose a value RFC 5280 Appendix A.1 defines another way; never refuse it. */
+function checkAttributeSyntax(type: string, valueNode: Asn1Node, value: Asn1String | undefined, ctx: Asn1Context, path: string): void {
+    const spec = NAME_ATTRIBUTE_SYNTAX.get(type);
+    if (spec === undefined) return;
+    if (valueNode.tagClass !== 'universal' || !SYNTAX_TAGS[spec.syntax].includes(valueNode.tagNumber)) {
+        ctx.emitter.emit(nameAttributeStringTypeDiagnostic(path, spec.name, tagLabel(valueNode.tagClass, valueNode.tagNumber), SYNTAX_LABELS[spec.syntax], valueNode.offset));
+    }
+    if (type === OID_COUNTRY_NAME && value !== undefined) {
+        const characters = [...value.value].length;
+        if (characters !== 2) ctx.emitter.emit(countryNameSizeDiagnostic(path, characters, valueNode.offset));
+    }
 }
 
 /** The attribute count of one name, against `maxNameAttributes`. */
@@ -62,6 +92,7 @@ function readRdn(set: Asn1Node, ctx: Asn1Context, rdnPath: string, budget: Attri
         const value = valueNode.tagClass === 'universal' && stringTypeOfTag(valueNode.tagNumber) !== undefined
             ? _readString(valueNode, ctx, undefined, `${atvPath}.value`)
             : undefined;
+        checkAttributeSyntax(type, valueNode, value, ctx, `${atvPath}.value`);
         const attribute: AttributeTypeAndValue = { type, value, valueDer: valueNode.bytes };
         atvs.push(Object.freeze(attribute));
     }

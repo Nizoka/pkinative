@@ -257,6 +257,39 @@ describe('encodeSignatureAlgorithm', () => {
     });
 });
 
+describe('the documented name, written with every default', () => {
+    // The NameDescription TSDoc example, with no stringType anywhere: what a
+    // caller who reads the documentation and nothing else will write.
+    // RFC 5280 Appendix A.1 makes countryName a PrintableString (SIZE (2));
+    // written as a UTF8String, pkilint refuses the name outright.
+    const EXAMPLE = [[{ type: '2.5.4.6', value: 'US' }], [{ type: '2.5.4.3', value: 'Example CA' }]];
+    const tags = (nameNode: ReturnType<typeof decodeAsn1> | undefined): number[] =>
+        (nameNode?.children ?? []).map((rdn) => rdn.children[0]?.children[1]?.tagNumber ?? -1);
+
+    it('should write countryName as PrintableString and commonName as UTF8String in a certificate, and read back with no diagnostic', async () => {
+        const m = await P256();
+        const seen: string[] = [];
+        const cert = parseCertificate(await createCertificate(root(m, { subject: EXAMPLE }), m.signer), { onDiagnostic: (d) => { seen.push(d.code); } });
+        expect(tags(decodeAsn1(cert.subject.der))).toEqual([0x13, 0x0c]);
+        expect(tags(decodeAsn1(cert.issuer.der))).toEqual([0x13, 0x0c]);
+        expect(seen.filter((code) => code === 'PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE' || code === 'PKI_DIAG_COUNTRY_NAME_SIZE')).toEqual([]);
+    });
+
+    it('should write the same name the same way in a certification request', async () => {
+        const m = await P256();
+        const info = decodeAsn1(await createCertificationRequest({ subject: EXAMPLE, subjectPublicKey: m.spki }, m.signer)).children[0];
+        expect(tags(info?.children[1])).toEqual([0x13, 0x0c]);
+    });
+
+    it('should refuse a countryName of three letters before signing anything', async () => {
+        const m = await P256();
+        await expect(createCertificate(root(m, { subject: [[{ type: '2.5.4.6', value: 'USA' }]] }), m.signer))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('ISO 3166') }));
+        await expect(createCertificationRequest({ subject: [[{ type: '2.5.4.6', value: 'USA' }]], subjectPublicKey: m.spki }, m.signer))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+    });
+});
+
 describe('createCertificationRequest', () => {
     it('should write a request whose signature verifies against the key it carries', async () => {
         const m = await P256();

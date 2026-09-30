@@ -241,6 +241,28 @@ export function crlExtensionMalformedDiagnostic(path: string, name: string, deta
         path, offset);
 }
 
+/**
+ * A naming attribute whose value is not of the syntax RFC 5280 Appendix A.1
+ * gives it: a `countryName`, `serialNumber` or `dnQualifier` that is not a
+ * PrintableString, a `domainComponent` or `emailAddress` that is not an
+ * IA5String, or a DirectoryString attribute written as none of the five
+ * DirectoryString types. The value is still decoded and compared by its
+ * bytes; the concern is a strict reader, which refuses the name (pkilint:
+ * a fatal ASN.1 decoding failure).
+ */
+export function nameAttributeStringTypeDiagnostic(path: string, attribute: string, found: string, expected: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', 'warning', 'RFC 5280 Appendix A.1',
+        `the ${attribute} attribute is encoded as ${found}, where RFC 5280 Appendix A.1 defines it as ${expected}; the value is still read, but a strict reader refuses the name`,
+        path, offset);
+}
+
+/** A `countryName` that is not two characters — X520countryName is PrintableString (SIZE (2)). */
+export function countryNameSizeDiagnostic(path: string, characters: number, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_COUNTRY_NAME_SIZE', 'warning', 'RFC 5280 Appendix A.1',
+        `the countryName is ${String(characters)} characters long; RFC 5280 Appendix A.1 defines it as exactly two, an ISO 3166 alpha-2 code`,
+        path, offset);
+}
+
 export function printableStringCharsetDiagnostic(path: string, character: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_PRINTABLE_STRING_CHARSET', 'warning', 'ITU-T X.680 §41.4',
         `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,

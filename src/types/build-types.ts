@@ -40,9 +40,20 @@ export interface NameAttribute {
      */
     readonly value: string | Uint8Array;
     /**
-     * How a string value is encoded. Defaults to `'utf8'`, which RFC 5280
-     * §4.1.2.4 requires for names issued after 2003. Use `'printable'` only
-     * to reproduce an existing name.
+     * How a string value is encoded. Leave it out: the default is the type
+     * RFC 5280 Appendix A.1 defines for the attribute — `'printable'` for
+     * `countryName`, `serialNumber` and `dnQualifier`, `'ia5'` for
+     * `domainComponent` and `emailAddress`, and `'utf8'` for a
+     * DirectoryString attribute (`commonName`, `organizationName`, …) and for
+     * any attribute the appendix does not define.
+     *
+     * For a DirectoryString, RFC 5280 §4.1.2.4 lets a conforming CA write
+     * either `'printable'` or `'utf8'` (the rule that new names be UTF8String
+     * was RFC 3280's, and RFC 5280 dropped it), so both are accepted; a type
+     * the attribute's syntax excludes — `'utf8'` for `countryName`, `'ia5'`
+     * for `commonName` — is refused with `PKI_API_MISUSE`. To reproduce an
+     * existing name byte for byte, pass its value's DER as `value`, or the
+     * whole name's DER as `issuerDer` or `subjectDer`.
      */
     readonly stringType?: 'utf8' | 'printable' | 'ia5' | 'numeric' | undefined;
 }
@@ -50,7 +61,8 @@ export interface NameAttribute {
 /**
  * A distinguished name to build: one array per RDN, most significant first
  * — `[[{ type: '2.5.4.6', value: 'US' }], [{ type: '2.5.4.3', value: 'Example CA' }]]`
- * is `C=US, CN=Example CA`.
+ * is `C=US, CN=Example CA`, with `US` a PrintableString and `Example CA` a
+ * UTF8String, as RFC 5280 Appendix A.1 defines them.
  *
  * Multi-valued RDNs are the inner array with more than one entry; their
  * SET OF is sorted canonically, as DER requires.

@@ -29,6 +29,7 @@ import {
     encodeTime,
 } from '../asn1/asn1-encode.js';
 import { assertBytes } from '../core/bytes.js';
+import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import type { ExtensionDescription, NameAttribute, NameDescription, PkiBuildOptions } from '../types/build-types.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -64,12 +65,55 @@ export function encodeAlgorithmIdentifier(oid: string, parameters?: Uint8Array):
     return encodeSequence(fields);
 }
 
+/** The string types RFC 5280 §4.1.2.4 lets a conforming CA write for a DirectoryString. */
+const DIRECTORY_STRING_TYPES: ReadonlySet<string> = /*#__PURE__*/ new Set(['utf8', 'printable']);
+
+/**
+ * The string type of one attribute value: the caller's, or the one RFC 5280
+ * Appendix A.1 gives the attribute — PrintableString for `countryName`,
+ * `serialNumber` and `dnQualifier`, IA5String for `domainComponent` and
+ * `emailAddress`, UTF8String for a DirectoryString and for any attribute the
+ * appendix does not define. Refuses a type the attribute's syntax excludes,
+ * and a value outside its SIZE bounds.
+ */
+function nameStringType(type: string, value: string, requested: NameAttribute['stringType']): NonNullable<NameAttribute['stringType']> {
+    const spec = NAME_ATTRIBUTE_SYNTAX.get(type);
+    if (spec === undefined) return requested ?? 'utf8';
+    const fixed = spec.syntax === 'directory' ? undefined : spec.syntax;
+    const chosen = requested ?? fixed ?? 'utf8';
+    const allowed = fixed === undefined ? DIRECTORY_STRING_TYPES.has(chosen) : chosen === fixed;
+    if (!allowed) {
+        const expected = fixed === undefined ? 'a DirectoryString, which a conforming CA writes as UTF8String or PrintableString (RFC 5280 §4.1.2.4)' : `${fixed === 'printable' ? 'a PrintableString' : 'an IA5String'} (RFC 5280 Appendix A.1)`;
+        throw new PkiError('PKI_API_MISUSE', `pkinative: ${spec.name} (${type}) is ${expected}, not stringType '${chosen}' — omit stringType to get the right one, or pass the value's DER as a Uint8Array to reproduce an existing name byte for byte`);
+    }
+    // SIZE counts characters: code points, not UTF-16 units or octets.
+    const size = [...value].length;
+    if (size < spec.min || (spec.max !== undefined && size > spec.max)) {
+        const bounds = spec.max === spec.min ? `exactly ${String(spec.min)}` : `${String(spec.min)} to ${String(spec.max)}`;
+        const hint = type === OID_COUNTRY_NAME ? ' — an ISO 3166 alpha-2 code such as \'US\'' : '';
+        throw new PkiError('PKI_API_MISUSE', `pkinative: ${spec.name} (${type}) is ${String(size)} characters long; RFC 5280 Appendix A bounds it to ${bounds}${hint}`);
+    }
+    return chosen;
+}
+
 /**
  * Encode one `AttributeTypeAndValue`.
  *
+ * A string value takes the string type RFC 5280 Appendix A.1 defines for the
+ * attribute unless `stringType` says otherwise: PrintableString for
+ * `countryName` (2.5.4.6), `serialNumber` (2.5.4.5) and `dnQualifier`
+ * (2.5.4.46), IA5String for `domainComponent` and `emailAddress`, UTF8String
+ * for every DirectoryString attribute (`commonName`, `organizationName`, …)
+ * and for any attribute the appendix does not define. A string value is also
+ * held to the attribute's SIZE bounds — `countryName` is exactly two
+ * characters, `commonName` at most 64.
+ *
  * @param attribute The type OID and its value.
  * @returns The `AttributeTypeAndValue` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when the value is neither a string nor a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the value is neither a string
+ *   nor a Uint8Array; `PKI_API_MISUSE` when `stringType` is one the
+ *   attribute's syntax excludes (`'utf8'` for `countryName`, `'ia5'` for
+ *   `commonName`), or the value is outside the attribute's SIZE bounds.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed type OID; `PKI_ASN1_VALUE_OUT_OF_RANGE` for a character the chosen string type cannot carry.
  */
 export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
@@ -77,7 +121,7 @@ export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
     const encoded = value instanceof Uint8Array
         ? value
         : typeof value === 'string'
-            ? encodeString(stringType ?? 'utf8', value)
+            ? encodeString(nameStringType(type, value, stringType), value)
             : null;
     if (encoded === null) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);

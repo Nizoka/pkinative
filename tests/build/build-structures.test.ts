@@ -57,13 +57,74 @@ describe('encodeAlgorithmIdentifier', () => {
 });
 
 describe('encodeNameAttribute and encodeDistinguishedName', () => {
-    it('should default a string value to UTF8String, as RFC 5280 §4.1.2.4 requires', () => {
+    it('should default a DirectoryString attribute to UTF8String', () => {
         expect(hex(encodeNameAttribute({ type: CN, value: 'a' }))).toBe('300806035504030c0161');
     });
 
-    it('should honour a named string type, for reproducing an existing name', () => {
-        expect(hex(encodeNameAttribute({ type: '2.5.4.6', value: 'US', stringType: 'printable' })))
-            .toBe('3009060355040613025553');
+    it('should default an attribute RFC 5280 Appendix A does not define to UTF8String', () => {
+        expect(hex(encodeNameAttribute({ type: '1.2.3.4', value: 'a' }))).toBe('300806032a03040c0161');
+    });
+
+    it.each([
+        // RFC 5280 Appendix A.1: X520countryName, X520SerialNumber and
+        // X520dnQualifier are PrintableString (tag 0x13); DomainComponent and
+        // EmailAddress are IA5String (tag 0x16).
+        ['countryName', '2.5.4.6', 'US', '3009060355040613025553'],
+        ['serialNumber', '2.5.4.5', '42', '3009060355040513023432'],
+        ['dnQualifier', '2.5.4.46', 'q', '3008060355042e130171'],
+        ['domainComponent', '0.9.2342.19200300.100.1.25', 'com', '3011060a0992268993f22c6401191603636f6d'],
+        ['emailAddress', '1.2.840.113549.1.9.1', 'a@b', '301006092a864886f70d0109011603614062'],
+    ])('should default %s to the string type Appendix A gives it', (_name, type, value, expected) => {
+        expect(hex(encodeNameAttribute({ type, value }))).toBe(expected);
+    });
+
+    it('should accept PrintableString for a DirectoryString, which RFC 5280 §4.1.2.4 allows', () => {
+        expect(hex(encodeNameAttribute({ type: CN, value: 'a', stringType: 'printable' }))).toBe('30080603550403130161');
+        expect(hex(encodeNameAttribute({ type: '2.5.4.6', value: 'US', stringType: 'printable' }))).toBe('3009060355040613025553');
+    });
+
+    it.each([
+        ['UTF8String for countryName', { type: '2.5.4.6', value: 'US', stringType: 'utf8' }, 'PrintableString'],
+        ['UTF8String for serialNumber', { type: '2.5.4.5', value: '1', stringType: 'utf8' }, 'PrintableString'],
+        ['PrintableString for emailAddress', { type: '1.2.840.113549.1.9.1', value: 'a', stringType: 'printable' }, 'IA5String'],
+        ['IA5String for commonName', { type: CN, value: 'a', stringType: 'ia5' }, 'DirectoryString'],
+        ['NumericString for organizationName', { type: '2.5.4.10', value: '1', stringType: 'numeric' }, 'DirectoryString'],
+    ] as const)('should refuse %s, which the syntax of the attribute excludes', (_what, attribute, expected) => {
+        expect(() => encodeNameAttribute(attribute))
+            .toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining(expected) }));
+    });
+
+    it.each([
+        ['a three-letter countryName', { type: '2.5.4.6', value: 'USA' }, 'exactly 2'],
+        ['an empty countryName', { type: '2.5.4.6', value: '' }, 'exactly 2'],
+        ['a 65-character commonName', { type: CN, value: 'x'.repeat(65) }, '1 to 64'],
+        ['an empty commonName', { type: CN, value: '' }, '1 to 64'],
+        ['a 65-character serialNumber', { type: '2.5.4.5', value: '1'.repeat(65) }, '1 to 64'],
+        ['a 256-character emailAddress', { type: '1.2.840.113549.1.9.1', value: 'a'.repeat(256) }, '1 to 255'],
+    ] as const)('should refuse %s, outside the ub-* bounds of Appendix A', (_what, attribute, bounds) => {
+        expect(() => encodeNameAttribute(attribute))
+            .toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining(bounds) }));
+    });
+
+    it('should name an ISO 3166 code in the countryName refusal', () => {
+        expect(() => encodeNameAttribute({ type: '2.5.4.6', value: 'USA' })).toThrow(expect.objectContaining({ message: expect.stringContaining('ISO 3166') }));
+        expect(() => encodeNameAttribute({ type: CN, value: '' })).toThrow(expect.objectContaining({ message: expect.not.stringContaining('ISO 3166') }));
+    });
+
+    it('should count a bound in characters, not in UTF-16 units or octets', () => {
+        // 64 astral characters: 128 UTF-16 units, 256 octets, and a legal commonName.
+        expect(() => encodeNameAttribute({ type: CN, value: '😀'.repeat(64) })).not.toThrow();
+        expect(() => encodeNameAttribute({ type: CN, value: '😀'.repeat(65) })).toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+    });
+
+    it('should accept an empty domainComponent and dnQualifier, which Appendix A leaves unbounded', () => {
+        expect(hex(encodeNameAttribute({ type: '2.5.4.46', value: '' }))).toBe('3007060355042e1300');
+        expect(() => encodeNameAttribute({ type: '0.9.2342.19200300.100.1.25', value: '' })).not.toThrow();
+    });
+
+    it('should leave a value given as DER alone, whatever its type — the way to reproduce an existing name', () => {
+        // A UTF8String countryName, as a legacy issuer wrote it.
+        expect(hex(encodeNameAttribute({ type: '2.5.4.6', value: Uint8Array.of(0x0c, 0x02, 0x55, 0x53) }))).toBe('300906035504060c025553');
     });
 
     it('should take a value already encoded', () => {
@@ -71,8 +132,8 @@ describe('encodeNameAttribute and encodeDistinguishedName', () => {
     });
 
     it('should sort a multi-valued RDN canonically, whatever order it was given in', () => {
-        const a = encodeDistinguishedName([[{ type: CN, value: 'b' }, { type: '2.5.4.6', value: 'a', stringType: 'printable' }]]);
-        const b = encodeDistinguishedName([[{ type: '2.5.4.6', value: 'a', stringType: 'printable' }, { type: CN, value: 'b' }]]);
+        const a = encodeDistinguishedName([[{ type: CN, value: 'b' }, { type: '2.5.4.6', value: 'US' }]]);
+        const b = encodeDistinguishedName([[{ type: '2.5.4.6', value: 'US' }, { type: CN, value: 'b' }]]);
         expect(hex(a)).toBe(hex(b));
     });
 
