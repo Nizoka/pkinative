@@ -8,7 +8,11 @@
  * the fraction). Under BER, seconds may be omitted, a comma may mark the
  * fraction, the fraction may keep trailing zeros, and a `±hhmm` offset may
  * replace `Z`; a local time without a zone is refused in every mode, because
- * it names no instant. Out-of-range fields — month 13, 31 April, 29 February
+ * it names no instant. That BER reading is a subset of what ITU-T X.680
+ * allows a GeneralizedTime to be: an hours-only time, a fraction of a minute
+ * or of an hour, and an offset in whole hours (`-05`) are refused rather than
+ * guessed at, and the refusal says so instead of claiming the standard
+ * forbids them. Out-of-range fields — month 13, 31 April, 29 February
  * of a common year, hour 24, second 60 — are refused, never rolled over.
  *
  * Dates are built with `setUTCFullYear`, because `Date.UTC` maps the years 0
@@ -57,9 +61,19 @@ interface Fields {
     readonly zone: string;
 }
 
-function invalidTime(node: Asn1Node, type: TimeType, text: string, why: string): PkiEncodingError {
+/** The default tail: the value breaks a rule every form of the type obeys. */
+const NO_LENIENT_READING = 'RFC 5280 and X.690 leave no lenient interpretation';
+
+/**
+ * The tail of a GeneralizedTime refused under BER for its grammar: X.680
+ * allows more forms than pkinative reads, so the refusal names pkinative's
+ * subset instead of blaming the standard.
+ */
+const BER_GENERALIZED_TIME_SUBSET = 'under BER pkinative reads YYYYMMDDHHMM[SS[(.|,)f]] with Z or a ±hhmm offset — the other ITU-T X.680 forms (hours only, a fraction of a minute or of an hour, an offset in whole hours) are refused rather than guessed at';
+
+function invalidTime(node: Asn1Node, type: TimeType, text: string, why: string, tail: string = NO_LENIENT_READING): PkiEncodingError {
     return new PkiEncodingError('PKI_ASN1_TIME_INVALID',
-        `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} — RFC 5280 and X.690 leave no lenient interpretation`, node.offset);
+        `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} — ${tail}`, node.offset);
 }
 
 /** The instant the fields name, or throws for an impossible field. */
@@ -128,10 +142,11 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
     }
 
     const m = GENERALIZED_TIME.exec(text);
-    if (m === null) throw invalidTime(node, type, text, 'is not YYYYMMDDHHMM[SS[.f]](Z|±hhmm)');
+    const tail = ctx.rules === 'der' ? NO_LENIENT_READING : BER_GENERALIZED_TIME_SUBSET;
+    if (m === null) throw invalidTime(node, type, text, 'is not YYYYMMDDHHMM[SS[.f]](Z|±hhmm)', tail);
     const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
     const zone = zoneOf(text);
-    if (fraction !== undefined && ss === undefined) throw invalidTime(node, type, text, 'has a fraction without seconds');
+    if (fraction !== undefined && ss === undefined) throw invalidTime(node, type, text, 'has a fraction without seconds', tail);
     const nonCanonical = ss === undefined || zone !== 'Z' || separator === ',' || (fraction !== undefined && fraction.endsWith('0'));
     if (nonCanonical) {
         if (ctx.rules === 'der') {
@@ -148,6 +163,14 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
 
 /**
  * Read a UTCTime or a GeneralizedTime.
+ *
+ * @param node    A time node, or an implicitly tagged one together with `timeType`.
+ * Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds
+ * may be omitted, the fraction may use a comma or keep trailing zeros, and a
+ * `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime
+ * forms — hours only, a fraction of a minute or of an hour, an offset in
+ * whole hours — are refused with `PKI_ASN1_TIME_INVALID` in every mode, and a
+ * fraction finer than a millisecond is truncated to one.
  *
  * @param node    A time node, or an implicitly tagged one together with `timeType`.
  * @param options Encoding rules (DER requires the restricted forms), diagnostics, and the type of an implicit tag.

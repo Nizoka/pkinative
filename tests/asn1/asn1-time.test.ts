@@ -21,6 +21,16 @@ function codeOf(fn: () => unknown): string {
     return 'no error';
 }
 
+function thrownMessage(fn: () => unknown): string {
+    try {
+        fn();
+    } catch (err) {
+        if (err instanceof PkiError) return err.message;
+        throw err;
+    }
+    return 'no error';
+}
+
 describe('readTime — UTCTime', () => {
     it('should decode the DER form to the exact instant and keep the text', () => {
         expect(read(utc('250101000000Z'))).toEqual({ type: 'UTCTime', epochMilliseconds: Date.parse('2025-01-01T00:00:00Z'), text: '250101000000Z' });
@@ -80,6 +90,19 @@ describe('readTime — GeneralizedTime', () => {
         ['a fraction without seconds', '202401010000.5Z'],
     ])('should refuse %s in every mode', (_label, text) => {
         expect(codeOf(() => read(generalized(text), BER))).toBe('PKI_ASN1_TIME_INVALID');
+    });
+
+    it.each([
+        ['hours only', '1985110621Z'],
+        ['a fraction of a minute', '198511062106.456Z'],
+        ['a fraction of an hour', '1985110621.14159Z'],
+        ['an offset in whole hours', '19851106210627-05'],
+    ])('should refuse the X.680 form with %s under BER, naming its own subset rather than blaming the standard', (_label, text) => {
+        const ber = thrownMessage(() => read(generalized(text), BER));
+        expect(ber).toContain('under BER pkinative reads YYYYMMDDHHMM[SS[(.|,)f]]');
+        expect(ber).not.toContain('leave no lenient interpretation');
+        // Under DER the restricted form is the only one, so the rule stands.
+        expect(thrownMessage(() => read(generalized(text)))).toContain('leave no lenient interpretation');
     });
 });
 
