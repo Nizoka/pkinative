@@ -85,6 +85,8 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_TELETEX_AS_LATIN1', diagnostics.teletexAsLatin1Diagnostic('tbsCertificate.issuer[1]')],
         ['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', diagnostics.nameAttributeStringTypeDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'countryName', 'UTF8String', 'a PrintableString', 70)],
         ['PKI_DIAG_COUNTRY_NAME_SIZE', diagnostics.countryNameSizeDiagnostic('tbsCertificate.subject.rdns[0][0].value', 3, 70)],
+        ['PKI_DIAG_STRING_SIGNATURE', diagnostics.stringSignatureDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'BMPString', 70)],
+        ['PKI_DIAG_STRING_ESCAPE_SEQUENCE', diagnostics.stringEscapeSequenceDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'UTF8String', 'ESC', 70)],
         ['PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION', diagnostics.unknownCriticalExtensionDiagnostic('1.3.6.1.4.1.99999.1', 'tbsCertificate.extensions[4]')],
         ['PKI_DIAG_PATHLEN_WITHOUT_CA', diagnostics.pathLenWithoutCaDiagnostic()],
         ['PKI_DIAG_KEY_USAGE_EMPTY', diagnostics.keyUsageEmptyDiagnostic()],

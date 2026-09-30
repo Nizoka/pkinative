@@ -109,7 +109,9 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_KEY_KDF_ITERATIONS_LOW'
     | 'PKI_DIAG_CRL_EXTENSION_MALFORMED'
     | 'PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE'
-    | 'PKI_DIAG_COUNTRY_NAME_SIZE';
+    | 'PKI_DIAG_COUNTRY_NAME_SIZE'
+    | 'PKI_DIAG_STRING_SIGNATURE'
+    | 'PKI_DIAG_STRING_ESCAPE_SEQUENCE';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';

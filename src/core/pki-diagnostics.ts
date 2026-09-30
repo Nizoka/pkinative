@@ -269,6 +269,20 @@ export function printableStringCharsetDiagnostic(path: string, character: string
         path, offset);
 }
 
+/** A BMPString or UniversalString that starts with the byte-order signature U+FEFF, which X.690 forbids. */
+export function stringSignatureDiagnostic(path: string, type: 'BMPString' | 'UniversalString', offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_STRING_SIGNATURE', 'warning', 'ITU-T X.690 §8.23.7, §8.23.8',
+        `a ${type} starts with the byte-order signature U+FEFF, which X.690 forbids ("Signatures shall not be used"); the value was decoded with the U+FEFF kept, so it compares unequal to the same text without it`,
+        path, offset);
+}
+
+/** A UTF8String, BMPString or UniversalString that carries an ISO/IEC 2022 code-extension control. */
+export function stringEscapeSequenceDiagnostic(path: string, type: 'UTF8String' | 'BMPString' | 'UniversalString', control: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_STRING_ESCAPE_SEQUENCE', 'warning', 'ITU-T X.690 §8.23.9, §8.23.10',
+        `a ${type} contains the ISO/IEC 2022 control ${control}, which X.690 forbids in the ISO/IEC 10646 string types; the value was decoded as ISO/IEC 10646 regardless, but a reader that honours the escape shows other characters`,
+        path, offset);
+}
+
 export function teletexAsLatin1Diagnostic(path: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_TELETEX_AS_LATIN1', 'info', 'RFC 5280 §4.1.2.4',
         'a TeletexString was decoded as ISO 8859-1, the interpretation of real-world issuers; the original bytes are in the raw field',

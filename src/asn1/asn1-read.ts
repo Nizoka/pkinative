@@ -18,7 +18,7 @@
  */
 
 import { byteView, concatBytes } from '../core/bytes.js';
-import { printableStringCharsetDiagnostic, teletexAsLatin1Diagnostic } from '../core/pki-diagnostics.js';
+import { printableStringCharsetDiagnostic, stringEscapeSequenceDiagnostic, stringSignatureDiagnostic, teletexAsLatin1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import {
     decodeAsciiSubset,
@@ -332,6 +332,37 @@ function invalidString(node: Asn1Node, type: Asn1StringType, why: string): PkiEn
         `pkinative: the ${tagLabel('universal', STRING_TAGS[type])} at offset ${node.offset} ${why} — the issuer encoded it wrongly`, node.offset);
 }
 
+/**
+ * The ISO/IEC 2022 code-extension controls: ESC, which opens every announcer,
+ * designating and invoking escape sequence, the locking shifts SO and SI, and
+ * the single shifts SS2 and SS3. X.690 §8.23.9 b)–c) forbids them in a
+ * BMPString and a UniversalString, §8.23.10 in a UTF8String: those three
+ * types stay in ISO/IEC 10646, and a switch to another code would change what
+ * the characters that follow mean to a reader that honours it.
+ */
+const CODE_EXTENSION_CONTROLS: ReadonlyMap<number, string> = /*#__PURE__*/ new Map([
+    [0x1b, 'ESC'], [0x0e, 'SO'], [0x0f, 'SI'], [0x8e, 'SS2'], [0x8f, 'SS3'],
+]);
+
+/**
+ * Diagnose what X.690 §8.23.7–8.23.10 forbid in the three ISO/IEC 10646
+ * types and a decoder cannot see: a leading byte-order signature in a
+ * BMPString or UniversalString, and a code-extension control in any of the
+ * three. The value is returned as decoded, signature included.
+ */
+function checkIso10646(type: 'utf8' | 'bmp' | 'universal', value: string, path: string, offset: number, ctx: Asn1Context): void {
+    if (type !== 'utf8' && value.charCodeAt(0) === 0xfeff) {
+        ctx.emitter.emit(stringSignatureDiagnostic(path, type === 'bmp' ? 'BMPString' : 'UniversalString', offset));
+    }
+    for (let i = 0; i < value.length; i++) {
+        const control = CODE_EXTENSION_CONTROLS.get(value.charCodeAt(i));
+        if (control !== undefined) {
+            ctx.emitter.emit(stringEscapeSequenceDiagnostic(path, type === 'utf8' ? 'UTF8String' : type === 'bmp' ? 'BMPString' : 'UniversalString', control, offset));
+            return;
+        }
+    }
+}
+
 /** @internal */
 export function _readString(node: Asn1Node, ctx: Asn1Context, implicitType: Asn1StringType | undefined, path: string): Asn1String {
     let type: Asn1StringType | undefined;
@@ -354,14 +385,17 @@ export function _readString(node: Asn1Node, ctx: Asn1Context, implicitType: Asn1
         case 'utf8':
             value = decodeUtf8(raw);
             if (value === null) throw invalidString(node, type, 'is not well-formed UTF-8 (RFC 3629)');
+            checkIso10646(type, value, path, node.offset, ctx);
             break;
         case 'bmp':
             value = decodeUcs2Be(raw);
             if (value === null) throw invalidString(node, type, 'has an odd length or a surrogate code unit, which UCS-2 does not allow');
+            checkIso10646(type, value, path, node.offset, ctx);
             break;
         case 'universal':
             value = decodeUcs4Be(raw);
             if (value === null) throw invalidString(node, type, 'has a length that is not a multiple of four or a value outside the Unicode scalar range');
+            checkIso10646(type, value, path, node.offset, ctx);
             break;
         case 'teletex':
             value = decodeLatin1(raw);
@@ -394,6 +428,13 @@ export function _readString(node: Asn1Node, ctx: Asn1Context, implicitType: Asn1
  * Read a character string: UTF8String, NumericString, PrintableString,
  * TeletexString (as ISO 8859-1, with a diagnostic), IA5String, VisibleString,
  * UniversalString or BMPString.
+ *
+ * What X.690 §8.23 forbids but a decoder can still read is decoded and
+ * reported, never dropped silently: a PrintableString character outside its
+ * alphabet, a byte-order signature (U+FEFF) leading a BMPString or
+ * UniversalString (§8.23.7–8.23.8), and an ISO/IEC 2022 code-extension
+ * control — ESC, SO, SI, SS2, SS3 — in a UTF8String, BMPString or
+ * UniversalString (§8.23.9–8.23.10). `strict: true` refuses them.
  *
  * @param node    A string node, or an implicitly tagged one together with `stringType`.
  * @param options Encoding rules, limits, diagnostics, and the type of an implicit tag.
