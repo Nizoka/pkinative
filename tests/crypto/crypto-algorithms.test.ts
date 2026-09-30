@@ -22,6 +22,9 @@ function identifier(dotted: string, parameters?: Uint8Array): AlgorithmIdentifie
 const RSA_KEY = { kind: 'rsa', der: new Uint8Array(0) } as unknown as SubjectPublicKeyInfo;
 const EC_KEY = (curve: string | undefined) => ({ kind: 'ec', curve, der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
 const ED_KEY = (kind: string) => ({ kind, der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
+/** An `id-RSASSA-PSS` key, whose parameters — when present — restrict what it may verify (RFC 4055 §3.3). */
+const PSS_KEY = (parameters?: Uint8Array) =>
+    ({ kind: 'rsa-pss', algorithm: identifier(PSS, parameters), der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
 
 /** `[0] EXPLICIT AlgorithmIdentifier` and friends, as RFC 4055 §3.1 writes them. */
 const tagged = (tag: number, ...children: Uint8Array[]): Uint8Array =>
@@ -76,11 +79,51 @@ describe('resolveAlgorithm', () => {
         expect(resolveAlgorithm(identifier(dotted, nullValue()), key)).toBeNull();
     });
 
-    it('should accept either RSA key OID under either RSA signature family (RFC 4055 §1.2)', () => {
-        const pssKey = ED_KEY('rsa-pss');
-        expect(resolveAlgorithm(identifier(PSS), pssKey)?.family).toBe('rsa-pss');
-        expect(resolveAlgorithm(identifier('1.2.840.113549.1.1.11', nullValue()), pssKey)?.family).toBe('rsa-pkcs1');
+    it('should hold an id-RSASSA-PSS key to RSASSA-PSS, and let an rsaEncryption key sign either way (RFC 4055 §1.2)', () => {
+        // "the certificate user MUST only use the certified RSA public key
+        // for RSASSA-PSS operations" — a PKCS#1 v1.5 signature under such a
+        // key is a decided no, which OpenSSL also refuses to make or check.
+        expect(resolveAlgorithm(identifier(PSS), PSS_KEY())?.family).toBe('rsa-pss');
+        expect(resolveAlgorithm(identifier('1.2.840.113549.1.1.11', nullValue()), PSS_KEY())).toBeNull();
         expect(resolveAlgorithm(identifier(PSS), RSA_KEY)?.family).toBe('rsa-pss');
+        expect(resolveAlgorithm(identifier('1.2.840.113549.1.1.11', nullValue()), RSA_KEY)?.family).toBe('rsa-pkcs1');
+    });
+
+    describe('an id-RSASSA-PSS key with parameters (RFC 4055 §3.3, RFC 4056 §3)', () => {
+        const SHA384_OID = '2.16.840.1.101.3.4.2.2';
+        const full = (hash: string, salt: number): Uint8Array =>
+            sequence(tagged(0, algorithm(hash)), tagged(1, algorithm('1.2.840.113549.1.1.8', algorithm(hash))), tagged(2, universal(2, [salt])));
+        const KEY = PSS_KEY(full(SHA256, 32));
+
+        it('should admit the same hash with an equal or longer salt', () => {
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 32)), KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 32 });
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 48)), KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 48 });
+        });
+
+        it('should return null for another hash or a shorter salt', () => {
+            expect(resolveAlgorithm(identifier(PSS, full(SHA384_OID, 48)), KEY)).toBeNull();
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 31)), KEY)).toBeNull();
+        });
+
+        it('should compare DEFAULTs as the values they stand for', () => {
+            // An empty SEQUENCE is SHA-1, MGF1-SHA-1, salt 20: the absent
+            // signature parameters mean exactly that, and match.
+            expect(resolveAlgorithm(identifier(PSS), PSS_KEY(sequence()))?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 20 });
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 32)), PSS_KEY(sequence()))).toBeNull();
+            // The key's salt DEFAULT of 20 is a floor a SHA-256 signature may exceed.
+            const keyWithoutSalt = PSS_KEY(sequence(tagged(0, algorithm(SHA256)), tagged(1, algorithm('1.2.840.113549.1.1.8', algorithm(SHA256)))));
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 32)), keyWithoutSalt)?.family).toBe('rsa-pss');
+            expect(resolveAlgorithm(identifier(PSS, full(SHA256, 19)), keyWithoutSalt)).toBeNull();
+        });
+
+        it('should restrict nothing when the key carries no parameters (RFC 4055 §3.1)', () => {
+            expect(resolveAlgorithm(identifier(PSS, full(SHA384_OID, 0)), PSS_KEY())?.hash).toBe('SHA-384');
+        });
+
+        it('should refuse key parameters Web Crypto cannot express, as it refuses a signature\'s', () => {
+            expect(() => resolveAlgorithm(identifier(PSS, full(SHA256, 32)), PSS_KEY(sequence(tagged(0, algorithm(SHA256))))))
+                .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+        });
     });
 
     it('should refuse an algorithm outside the table by name', () => {
@@ -265,6 +308,16 @@ describe('resolveCmsAlgorithm', () => {
 
     it('should return null for rsaEncryption against a key that is not RSA', () => {
         expect(resolveCmsAlgorithm(identifier(SHA256), identifier(RSA_ENCRYPTION, nullValue()), EC_KEY('P-256'))).toBeNull();
+    });
+
+    it('should return null for rsaEncryption — PKCS#1 v1.5 — against an id-RSASSA-PSS key (RFC 4055 §1.2)', () => {
+        expect(resolveCmsAlgorithm(identifier(SHA256), identifier(RSA_ENCRYPTION, nullValue()), PSS_KEY())).toBeNull();
+    });
+
+    it('should hold an RSASSA-PSS signer to its certificate\'s key parameters (RFC 4056 §3)', () => {
+        const key = PSS_KEY(pssParams(SHA256, 32));
+        expect(resolveCmsAlgorithm(identifier(SHA256), identifier(PSS, pssParams(SHA256, 32)), key)?.family).toBe('rsa-pss');
+        expect(resolveCmsAlgorithm(identifier(SHA256), identifier(PSS, pssParams(SHA256, 20)), key)).toBeNull();
     });
 
     it('should refuse rsaEncryption over a digest Web Crypto does not compute', () => {

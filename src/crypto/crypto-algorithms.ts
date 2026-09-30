@@ -177,12 +177,42 @@ function mgf1HashOf(algorithm: Asn1Node, oid: string): string {
 }
 
 /**
- * Whether an RSA signature may be checked against this key. Both OIDs are
- * accepted for both signature families: a key carrying `id-RSASSA-PSS`
- * still verifies a PKCS#1 v1.5 signature, and RFC 4055 §1.2 allows the
- * plain `rsaEncryption` OID under a PSS signature.
+ * Whether an RSASSA-PSS signature may be checked against this key: an
+ * `rsaEncryption` key places no restriction on how it is used (RFC 4055
+ * §1.2), and an `id-RSASSA-PSS` key is certified for exactly this.
  */
 const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || key.kind === 'rsa-pss';
+
+/**
+ * Whether a PKCS#1 v1.5 signature may be checked against this key. Only an
+ * `rsaEncryption` key: RFC 4055 §1.2 — "When a certificate conveys an RSA
+ * public key with the id-RSASSA-PSS object identifier, the certificate user
+ * MUST only use the certified RSA public key for RSASSA-PSS operations."
+ */
+const isPkcs1Key = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa';
+
+/**
+ * Whether the RSASSA-PSS parameters of a signature are ones this key admits.
+ *
+ * An `id-RSASSA-PSS` key whose AlgorithmIdentifier carries parameters
+ * restricts the signatures it may verify, RFC 4055 §3.3: "All parameters in
+ * the signature structure algorithm identifier MUST match the parameters in
+ * the key structure algorithm identifier except the saltLength field. The
+ * saltLength field in the signature parameters MUST be greater or equal to
+ * that in the key parameters field." Absent key parameters restrict nothing
+ * (§3.1). RFC 4056 §3 repeats the four comparisons for a CMS signer, and
+ * `resolveCmsAlgorithm` reaches this function for every RSASSA-PSS signer.
+ * Both sides are read to their DEFAULTs first — "default values are
+ * considered to be the same as extant values" — so an explicit SHA-1
+ * matches an omitted one; the MGF1 digest and the trailer field are held to
+ * the hash and to 1 by {@link readPssParams} on both sides already, which
+ * leaves the hash and the salt length to compare.
+ */
+function pssKeyAdmits(key: SubjectPublicKeyInfo, signature: { readonly hash: string; readonly saltLength: number }, oid: string): boolean {
+    if (key.kind !== 'rsa-pss' || key.algorithm.parameters === undefined) return true;
+    const restriction = readPssParams(key.algorithm.parameters, oid);
+    return signature.hash === restriction.hash && signature.saltLength >= restriction.saltLength;
+}
 
 /**
  * Resolve a signature algorithm and the key it will be checked against into
@@ -190,7 +220,9 @@ const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || k
  *
  * Returns **`null`** when the key simply cannot have produced this kind of
  * signature — an RSA key under an ECDSA signature, an X25519 key under any
- * signature at all. That is a decided "no", not an inability to decide, and
+ * signature at all, an `id-RSASSA-PSS` key under a PKCS#1 v1.5 signature
+ * (RFC 4055 §1.2), or under RSASSA-PSS parameters its own parameters exclude
+ * (RFC 4055 §3.3: another hash, or a shorter salt). That is a decided "no", not an inability to decide, and
  * a caller building a path must be able to try the next candidate issuer
  * without writing a `try`. Throwing is reserved for the questions that
  * genuinely cannot be put.
@@ -200,9 +232,10 @@ const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || k
  * @returns The import and verify parameters, or `null` when this key cannot
  *   have signed under this algorithm.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the OID is
- *   not in the table or its parameters name something Web Crypto cannot do;
- *   `PKI_CRYPTO_KEY_UNSUPPORTED` when the key is of the right family but on
- *   a curve Web Crypto does not verify.
+ *   not in the table or its parameters — or those of an `id-RSASSA-PSS`
+ *   key — name something Web Crypto cannot do; `PKI_CRYPTO_KEY_UNSUPPORTED`
+ *   when the key is of the right family but on a curve Web Crypto does not
+ *   verify.
  * @throws {PkiEncodingError} When the algorithm's parameters are malformed
  *   DER. `parseCertificate` leaves them undecoded, so this is the first
  *   reader to look inside them.
@@ -218,12 +251,13 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
     if (shape.family === 'rsa-pss') {
         if (!isRsaKey(key)) return null;
         const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
+        if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
         const verifyParams: RsaPssVerifyParams = { name: 'RSA-PSS', saltLength };
         return { family: shape.family, importParams: { name: 'RSA-PSS', hash: { name: hash } }, verifyParams, curve: undefined, hash };
     }
 
     if (shape.family === 'rsa-pkcs1') {
-        if (!isRsaKey(key)) return null;
+        if (!isPkcs1Key(key)) return null;
         const verifyParams: NamedVerifyParams = { name: 'RSASSA-PKCS1-v1_5' };
         return { family: shape.family, importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: shape.hash } }, verifyParams, curve: undefined, hash: shape.hash };
     }
@@ -242,6 +276,27 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
     if (key.kind !== shape.family) return null;
     const name = shape.family === 'ed25519' ? 'Ed25519' : 'Ed448';
     return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined };
+}
+
+/**
+ * Why the host will refuse to import this key, when that is known before
+ * asking — today, one case.
+ *
+ * The W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only
+ * when its algorithm is `rsaEncryption`, and throws a DataError otherwise
+ * (RSA-PSS "import key", format "spki"). An `id-RSASSA-PSS` key — what
+ * `openssl genpkey -algorithm RSA-PSS`, GnuTLS `certtool --key-type=rsa-pss`
+ * and `keytool -keyalg RSASSA-PSS` write — is therefore refused by every
+ * conforming runtime, Node.js 22 included ("DataError: Invalid key type"), and
+ * no signature it made can be checked here. The certificate is not at fault,
+ * and trying another runtime will not help; saying so is the point.
+ *
+ * @internal
+ */
+export function _importRefusal(key: SubjectPublicKeyInfo): string | undefined {
+    return key.kind === 'rsa-pss'
+        ? 'the key is id-RSASSA-PSS (RFC 4055 §1.2), and the W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only as rsaEncryption, so no conforming runtime checks a signature this key made; the certificate is not at fault — check it with a library that implements id-RSASSA-PSS keys (OpenSSL, for one)'
+        : undefined;
 }
 
 // ── The same table, under CMS (0.7) ──────────────────────────────────
@@ -355,7 +410,7 @@ export function resolveCmsAlgorithm(digestAlgorithm: AlgorithmIdentifier, signat
 
     const hash = HASH_BY_OID.get(digestAlgorithm.oid);
     if (hash === undefined) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
-    if (!isRsaKey(key)) return null;
+    if (!isPkcs1Key(key)) return null;
     return { family: 'rsa-pkcs1', importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: hash } }, verifyParams: { name: 'RSASSA-PKCS1-v1_5' }, curve: undefined, hash };
 }
 
