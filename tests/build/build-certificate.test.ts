@@ -225,6 +225,18 @@ describe('encodeSignatureAlgorithm', () => {
         expect(await verifySelfSignature(cert)).toBe(true);
     }, 30_000);
 
+    it.each<['SHA-256' | 'SHA-384' | 'SHA-512', string]>([
+        // CA/Browser Forum BR v2.3.0 §7.1.3.2.1: "the AlgorithmIdentifier
+        // MUST be byte-for-byte identical with the specified hex-encoded
+        // bytes" — the digest and MGF1 digest each with an explicit NULL.
+        ['SHA-256', '304106092a864886f70d01010a3034a00f300d06096086480165030402010500a11c301a06092a864886f70d010108300d06096086480165030402010500a203020120'],
+        ['SHA-384', '304106092a864886f70d01010a3034a00f300d06096086480165030402020500a11c301a06092a864886f70d010108300d06096086480165030402020500a203020130'],
+        ['SHA-512', '304106092a864886f70d01010a3034a00f300d06096086480165030402030500a11c301a06092a864886f70d010108300d06096086480165030402030500a203020140'],
+    ])('should write the RSASSA-PSS / %s identifier byte for byte as the CA/Browser Forum requires', (hash, expected) => {
+        const der = encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash } });
+        expect(Array.from(der, (b) => b.toString(16).padStart(2, '0')).join('')).toBe(expected);
+    });
+
     it('should honour an explicit salt length', async () => {
         const der = encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 48 } });
         const params = decodeAsn1(der).children[1];

@@ -16,7 +16,7 @@
  * @module build/build-certificate
  */
 
-import { encodeBitString, encodeExplicit, encodeInteger, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
+import { encodeBitString, encodeExplicit, encodeInteger, encodeNull, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { assertBytes } from '../core/bytes.js';
 import { coordinateBytes, resolveSigner } from '../crypto/crypto-algorithms.js';
 import { ecdsaRawToDer } from '../crypto/crypto-signature.js';
@@ -51,7 +51,14 @@ export function encodeSignatureAlgorithm(signer: Signer): Uint8Array {
     // RFC 4055 §3.1. hashAlgorithm [0], maskGenAlgorithm [1] as MGF1 over
     // the same digest, saltLength [2]. trailerField [3] keeps its DEFAULT,
     // which DER requires to be absent.
-    const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid);
+    //
+    // The digest AlgorithmIdentifier carries an explicit NULL. RFC 4055 §2.1
+    // makes readers accept NULL and absent alike, but its own ASN.1 module
+    // writes `sha256Identifier ::= { id-sha256, NULL }`, and CA/Browser Forum
+    // BR §7.1.3.2.1 requires these bytes exactly: a verifier that enforces
+    // that profile (pyca's WebPKI verifier, zlint, pkilint) refuses the
+    // parameter-less form.
+    const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid, encodeNull());
     return encodeAlgorithmIdentifier(resolved.oid, encodeSequence([
         encodeExplicit(0, hash),
         encodeExplicit(1, encodeAlgorithmIdentifier('1.2.840.113549.1.1.8', hash)),
