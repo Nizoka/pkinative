@@ -1,58 +1,101 @@
 // src/types/pki-errors.ts
-var PkiError = class extends Error {
+var BRAND = /* @__PURE__ */ Symbol.for("pkinative.PkiError");
+function brand(error, family) {
+  Object.defineProperty(error, BRAND, { value: family, enumerable: false, writable: false, configurable: true });
+}
+function isBranded(klass, own, value, family) {
+  if (typeof value !== "object" || value === null) return false;
+  if (Object.prototype.isPrototypeOf.call(klass.prototype, value)) return true;
+  if (klass !== own) return false;
+  if (Object.prototype.toString.call(value) !== "[object Error]") return false;
+  const mark = value[BRAND];
+  return typeof mark === "string" && (family === null || mark === family);
+}
+function answerInstanceof(klass, family) {
+  Object.defineProperty(klass, Symbol.hasInstance, {
+    value(value) {
+      return isBranded(this, klass, value, family);
+    },
+    enumerable: false,
+    writable: false,
+    configurable: true
+  });
+}
+var _PkiError = class _PkiError extends Error {
   constructor(code, message) {
     super(message);
     this.name = "PkiError";
     this.code = code;
+    brand(this, "PkiError");
   }
 };
-var PkiEncodingError = class extends PkiError {
+answerInstanceof(_PkiError, null);
+var PkiError = _PkiError;
+var _PkiEncodingError = class _PkiEncodingError extends PkiError {
   constructor(code, message, offset) {
     super(code, message);
     this.name = "PkiEncodingError";
     this.offset = offset;
+    brand(this, "PkiEncodingError");
   }
 };
-var PkiCertificateError = class extends PkiError {
+answerInstanceof(_PkiEncodingError, "PkiEncodingError");
+var PkiEncodingError = _PkiEncodingError;
+var _PkiCertificateError = class _PkiCertificateError extends PkiError {
   constructor(code, message, path, offset) {
     super(code, message);
     this.name = "PkiCertificateError";
     this.path = path;
     this.offset = offset;
+    brand(this, "PkiCertificateError");
   }
 };
-var PkiLimitError = class extends PkiError {
+answerInstanceof(_PkiCertificateError, "PkiCertificateError");
+var PkiCertificateError = _PkiCertificateError;
+var _PkiLimitError = class _PkiLimitError extends PkiError {
   constructor(code, message, limit, configured, observed) {
     super(code, message);
     this.name = "PkiLimitError";
     this.limit = limit;
     this.configured = configured;
     this.observed = observed;
+    brand(this, "PkiLimitError");
   }
 };
-var PkiCryptoError = class extends PkiError {
+answerInstanceof(_PkiLimitError, "PkiLimitError");
+var PkiLimitError = _PkiLimitError;
+var _PkiCryptoError = class _PkiCryptoError extends PkiError {
   constructor(code, message, algorithm) {
     super(code, message);
     this.name = "PkiCryptoError";
     this.algorithm = algorithm;
+    brand(this, "PkiCryptoError");
   }
 };
-var PkiCmsError = class extends PkiError {
+answerInstanceof(_PkiCryptoError, "PkiCryptoError");
+var PkiCryptoError = _PkiCryptoError;
+var _PkiCmsError = class _PkiCmsError extends PkiError {
   constructor(code, message, path, offset) {
     super(code, message);
     this.name = "PkiCmsError";
     this.path = path;
     this.offset = offset;
+    brand(this, "PkiCmsError");
   }
 };
-var PkiKeyError = class extends PkiError {
+answerInstanceof(_PkiCmsError, "PkiCmsError");
+var PkiCmsError = _PkiCmsError;
+var _PkiKeyError = class _PkiKeyError extends PkiError {
   constructor(code, message, path, offset) {
     super(code, message);
     this.name = "PkiKeyError";
     this.path = path;
     this.offset = offset;
+    brand(this, "PkiKeyError");
   }
 };
+answerInstanceof(_PkiKeyError, "PkiKeyError");
+var PkiKeyError = _PkiKeyError;
 
 // src/core/pki-limits.ts
 var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
@@ -481,12 +524,52 @@ function crlExtensionMalformedDiagnostic(path, name, detail, offset) {
     offset
   );
 }
+function nameAttributeStringTypeDiagnostic(path, attribute, found, expected, offset) {
+  return _diagnostic(
+    "PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE",
+    "warning",
+    "RFC 5280 Appendix A.1",
+    `the ${attribute} attribute is encoded as ${found}, where RFC 5280 Appendix A.1 defines it as ${expected}; the value is still read, but a strict reader refuses the name`,
+    path,
+    offset
+  );
+}
+function countryNameSizeDiagnostic(path, characters, offset) {
+  return _diagnostic(
+    "PKI_DIAG_COUNTRY_NAME_SIZE",
+    "warning",
+    "RFC 5280 Appendix A.1",
+    `the countryName is ${String(characters)} characters long; RFC 5280 Appendix A.1 defines it as exactly two, an ISO 3166 alpha-2 code`,
+    path,
+    offset
+  );
+}
 function printableStringCharsetDiagnostic(path, character, offset) {
   return _diagnostic(
     "PKI_DIAG_PRINTABLE_STRING_CHARSET",
     "warning",
     "ITU-T X.680 \xA741.4",
     `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,
+    path,
+    offset
+  );
+}
+function stringSignatureDiagnostic(path, type, offset) {
+  return _diagnostic(
+    "PKI_DIAG_STRING_SIGNATURE",
+    "warning",
+    "ITU-T X.690 \xA78.23.7, \xA78.23.8",
+    `a ${type} starts with the byte-order signature U+FEFF, which X.690 forbids ("Signatures shall not be used"); the value was decoded with the U+FEFF kept, so it compares unequal to the same text without it`,
+    path,
+    offset
+  );
+}
+function stringEscapeSequenceDiagnostic(path, type, control, offset) {
+  return _diagnostic(
+    "PKI_DIAG_STRING_ESCAPE_SEQUENCE",
+    "warning",
+    "ITU-T X.690 \xA78.23.9, \xA78.23.10",
+    `a ${type} contains the ISO/IEC 2022 control ${control}, which X.690 forbids in the ISO/IEC 10646 string types; the value was decoded as ISO/IEC 10646 regardless, but a reader that honours the escape shows other characters`,
     path,
     offset
   );
@@ -578,6 +661,16 @@ function policyConstraintsNotCriticalDiagnostic() {
     "RFC 5280 \xA74.2.1.11",
     "policyConstraints is not marked critical; RFC 5280 requires conforming CAs to mark it critical, and a verifier that ignored it would grant a path the policy the CA withheld",
     "tbsCertificate.extensions.policyConstraints",
+    void 0
+  );
+}
+function subjectDirectoryAttributesCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.8",
+    "subjectDirectoryAttributes is marked critical; RFC 5280 requires conforming CAs to mark it non-critical, and a relying party that does not process it must then refuse the certificate",
+    "tbsCertificate.extensions.subjectDirectoryAttributes",
     void 0
   );
 }
@@ -1454,6 +1547,25 @@ function invalidString(node, type, why) {
     node.offset
   );
 }
+var CODE_EXTENSION_CONTROLS = /* @__PURE__ */ new Map([
+  [27, "ESC"],
+  [14, "SO"],
+  [15, "SI"],
+  [142, "SS2"],
+  [143, "SS3"]
+]);
+function checkIso10646(type, value, path, offset, ctx) {
+  if (type !== "utf8" && value.charCodeAt(0) === 65279) {
+    ctx.emitter.emit(stringSignatureDiagnostic(path, type === "bmp" ? "BMPString" : "UniversalString", offset));
+  }
+  for (let i = 0; i < value.length; i++) {
+    const control = CODE_EXTENSION_CONTROLS.get(value.charCodeAt(i));
+    if (control !== void 0) {
+      ctx.emitter.emit(stringEscapeSequenceDiagnostic(path, type === "utf8" ? "UTF8String" : type === "bmp" ? "BMPString" : "UniversalString", control, offset));
+      return;
+    }
+  }
+}
 function _readString(node, ctx, implicitType, path) {
   let type;
   if (node.tagClass === "universal") {
@@ -1480,14 +1592,17 @@ function _readString(node, ctx, implicitType, path) {
     case "utf8":
       value = decodeUtf8(raw);
       if (value === null) throw invalidString(node, type, "is not well-formed UTF-8 (RFC 3629)");
+      checkIso10646(type, value, path, node.offset, ctx);
       break;
     case "bmp":
       value = decodeUcs2Be(raw);
       if (value === null) throw invalidString(node, type, "has an odd length or a surrogate code unit, which UCS-2 does not allow");
+      checkIso10646(type, value, path, node.offset, ctx);
       break;
     case "universal":
       value = decodeUcs4Be(raw);
       if (value === null) throw invalidString(node, type, "has a length that is not a multiple of four or a value outside the Unicode scalar range");
+      checkIso10646(type, value, path, node.offset, ctx);
       break;
     case "teletex":
       value = decodeLatin1(raw);
@@ -1538,10 +1653,12 @@ function isLeapYear(year) {
 function daysInMonth(year, month) {
   return month === 2 ? isLeapYear(year) ? 29 : 28 : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
 }
-function invalidTime(node, type, text, why) {
+var NO_LENIENT_READING = "RFC 5280 and X.690 leave no lenient interpretation";
+var BER_GENERALIZED_TIME_SUBSET = "under BER pkinative reads YYYYMMDDHHMM[SS[(.|,)f]] with Z or a \xB1hhmm offset \u2014 the other ITU-T X.680 forms (hours only, a fraction of a minute or of an hour, an offset in whole hours) are refused rather than guessed at";
+function invalidTime(node, type, text, why, tail = NO_LENIENT_READING) {
   return new PkiEncodingError(
     "PKI_ASN1_TIME_INVALID",
-    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 RFC 5280 and X.690 leave no lenient interpretation`,
+    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 ${tail}`,
     node.offset
   );
 }
@@ -1616,10 +1733,11 @@ function _readTime(node, ctx, implicitType) {
     return Object.freeze({ type, epochMilliseconds: epochMilliseconds2, text });
   }
   const m = GENERALIZED_TIME.exec(text);
-  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)");
+  const tail = ctx.rules === "der" ? NO_LENIENT_READING : BER_GENERALIZED_TIME_SUBSET;
+  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)", tail);
   const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
   const zone = zoneOf(text);
-  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds");
+  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds", tail);
   const nonCanonical = ss === void 0 || zone !== "Z" || separator === "," || fraction !== void 0 && fraction.endsWith("0");
   if (nonCanonical) {
     if (ctx.rules === "der") {
@@ -1865,6 +1983,29 @@ function readNamedBits(bits, names, ctx, path, offset) {
   return set;
 }
 
+// src/core/name-oids.ts
+var UB_NAME = 32768;
+var NAME_ATTRIBUTE_SYNTAX = /* @__PURE__ */ new Map([
+  ["2.5.4.41", { name: "name", syntax: "directory", min: 1, max: UB_NAME }],
+  ["2.5.4.4", { name: "surname", syntax: "directory", min: 1, max: UB_NAME }],
+  ["2.5.4.42", { name: "givenName", syntax: "directory", min: 1, max: UB_NAME }],
+  ["2.5.4.43", { name: "initials", syntax: "directory", min: 1, max: UB_NAME }],
+  ["2.5.4.44", { name: "generationQualifier", syntax: "directory", min: 1, max: UB_NAME }],
+  ["2.5.4.3", { name: "commonName", syntax: "directory", min: 1, max: 64 }],
+  ["2.5.4.7", { name: "localityName", syntax: "directory", min: 1, max: 128 }],
+  ["2.5.4.8", { name: "stateOrProvinceName", syntax: "directory", min: 1, max: 128 }],
+  ["2.5.4.10", { name: "organizationName", syntax: "directory", min: 1, max: 64 }],
+  ["2.5.4.11", { name: "organizationalUnitName", syntax: "directory", min: 1, max: 64 }],
+  ["2.5.4.12", { name: "title", syntax: "directory", min: 1, max: 64 }],
+  ["2.5.4.65", { name: "pseudonym", syntax: "directory", min: 1, max: 128 }],
+  ["2.5.4.46", { name: "dnQualifier", syntax: "printable", min: 0, max: void 0 }],
+  ["2.5.4.6", { name: "countryName", syntax: "printable", min: 2, max: 2 }],
+  ["2.5.4.5", { name: "serialNumber", syntax: "printable", min: 1, max: 64 }],
+  ["0.9.2342.19200300.100.1.25", { name: "domainComponent", syntax: "ia5", min: 0, max: void 0 }],
+  ["1.2.840.113549.1.9.1", { name: "emailAddress", syntax: "ia5", min: 1, max: 255 }]
+]);
+var OID_COUNTRY_NAME = "2.5.4.6";
+
 // src/x509/x509-name.ts
 var CODE = "PKI_X509_NAME_INVALID";
 function inDerSetOrder(elements) {
@@ -1872,6 +2013,27 @@ function inDerSetOrder(elements) {
     if (compareOctets(elements[k - 1].bytes, elements[k].bytes) > 0) return false;
   }
   return true;
+}
+var SYNTAX_TAGS = {
+  directory: [TAG_TELETEX_STRING, TAG_PRINTABLE_STRING, TAG_UNIVERSAL_STRING, TAG_UTF8_STRING, TAG_BMP_STRING],
+  printable: [TAG_PRINTABLE_STRING],
+  ia5: [TAG_IA5_STRING]
+};
+var SYNTAX_LABELS = {
+  directory: "a DirectoryString (TeletexString, PrintableString, UniversalString, UTF8String or BMPString)",
+  printable: "a PrintableString",
+  ia5: "an IA5String"
+};
+function checkAttributeSyntax(type, valueNode, value, ctx, path) {
+  const spec = NAME_ATTRIBUTE_SYNTAX.get(type);
+  if (spec === void 0) return;
+  if (valueNode.tagClass !== "universal" || !SYNTAX_TAGS[spec.syntax].includes(valueNode.tagNumber)) {
+    ctx.emitter.emit(nameAttributeStringTypeDiagnostic(path, spec.name, tagLabel(valueNode.tagClass, valueNode.tagNumber), SYNTAX_LABELS[spec.syntax], valueNode.offset));
+  }
+  if (type === OID_COUNTRY_NAME && value !== void 0) {
+    const characters = [...value.value].length;
+    if (characters !== 2) ctx.emitter.emit(countryNameSizeDiagnostic(path, characters, valueNode.offset));
+  }
 }
 function readRdn(set, ctx, rdnPath, budget) {
   if (!set.constructed || set.children.length === 0) {
@@ -1889,6 +2051,7 @@ function readRdn(set, ctx, rdnPath, budget) {
     const type = _readObjectIdentifier(expectUniversalField(atv.children[0], TAG_OID, `${atvPath}.type`, CODE, atv.offset), ctx);
     const valueNode = atv.children[1];
     const value = valueNode.tagClass === "universal" && stringTypeOfTag(valueNode.tagNumber) !== void 0 ? _readString(valueNode, ctx, void 0, `${atvPath}.value`) : void 0;
+    checkAttributeSyntax(type, valueNode, value, ctx, `${atvPath}.value`);
     const attribute = { type, value, valueDer: valueNode.bytes };
     atvs.push(Object.freeze(attribute));
   }
@@ -2287,6 +2450,28 @@ function decodeOcspNoCheck(input) {
   const extension = { ...baseOf(input), kind: "ocspNoCheck" };
   return Object.freeze(extension);
 }
+function decodeSubjectDirectoryAttributes(input) {
+  const { node, ctx, path } = input;
+  const seq = expectSequence(node, path, node.offset);
+  expectNonEmpty(seq, path, "attribute");
+  enforceLimit(ctx.limits, "maxAttributes", seq.children.length, `the attributes of ${path}`);
+  const attributes = [];
+  for (let i = 0; i < seq.children.length; i++) {
+    const at = `${path}[${String(i)}]`;
+    const attribute = expectUniversalField(seq.children[i], TAG_SEQUENCE, at, MALFORMED, seq.offset);
+    if (attribute.children.length !== 2) {
+      throw malformed(at, attribute.offset, `holds ${String(attribute.children.length)} values; an Attribute is a type and a SET of values`);
+    }
+    const oid = _readObjectIdentifier(expectUniversalField(attribute.children[0], TAG_OID, `${at}.type`, MALFORMED, attribute.offset), ctx);
+    const values = expectUniversalField(attribute.children[1], TAG_SET, `${at}.values`, MALFORMED, attribute.offset);
+    if (values.children.length === 0) throw malformed(`${at}.values`, values.offset, "is empty; an attribute carries at least one value");
+    enforceLimit(ctx.limits, "maxAttributes", values.children.length, `the values of ${at}`);
+    attributes.push(Object.freeze({ oid, values: Object.freeze(values.children.map((v) => v.bytes)), der: attribute.bytes }));
+  }
+  if (input.critical) ctx.emitter.emit(subjectDirectoryAttributesCriticalDiagnostic());
+  const extension = { ...baseOf(input), kind: "subjectDirectoryAttributes", attributes: Object.freeze(attributes) };
+  return Object.freeze(extension);
+}
 
 // src/x509/x509-ext-policies.ts
 var OID_CPS = "1.3.6.1.5.5.7.2.1";
@@ -2399,6 +2584,7 @@ function decodePolicyMappings(input) {
 
 // src/x509/x509-extensions.ts
 var DECODERS = /* @__PURE__ */ new Map([
+  ["2.5.29.9", decodeSubjectDirectoryAttributes],
   ["2.5.29.14", decodeSubjectKeyIdentifier],
   ["2.5.29.15", decodeKeyUsage],
   ["2.5.29.17", decodeSubjectAltName],
@@ -3604,9 +3790,28 @@ function encodeAlgorithmIdentifier(oid, parameters) {
   else if (PARAMETERS_NULL.has(oid)) fields.push(encodeNull());
   return encodeSequence(fields);
 }
+var DIRECTORY_STRING_TYPES = /* @__PURE__ */ new Set(["utf8", "printable"]);
+function nameStringType(type, value, requested) {
+  const spec = NAME_ATTRIBUTE_SYNTAX.get(type);
+  if (spec === void 0) return requested ?? "utf8";
+  const fixed = spec.syntax === "directory" ? void 0 : spec.syntax;
+  const chosen = requested ?? fixed ?? "utf8";
+  const allowed = fixed === void 0 ? DIRECTORY_STRING_TYPES.has(chosen) : chosen === fixed;
+  if (!allowed) {
+    const expected = fixed === void 0 ? "a DirectoryString, which a conforming CA writes as UTF8String or PrintableString (RFC 5280 \xA74.1.2.4)" : `${fixed === "printable" ? "a PrintableString" : "an IA5String"} (RFC 5280 Appendix A.1)`;
+    throw new PkiError("PKI_API_MISUSE", `pkinative: ${spec.name} (${type}) is ${expected}, not stringType '${chosen}' \u2014 omit stringType to get the right one, or pass the value's DER as a Uint8Array to reproduce an existing name byte for byte`);
+  }
+  const size = [...value].length;
+  if (size < spec.min || spec.max !== void 0 && size > spec.max) {
+    const bounds = spec.max === spec.min ? `exactly ${String(spec.min)}` : `${String(spec.min)} to ${String(spec.max)}`;
+    const hint = type === OID_COUNTRY_NAME ? " \u2014 an ISO 3166 alpha-2 code such as 'US'" : "";
+    throw new PkiError("PKI_API_MISUSE", `pkinative: ${spec.name} (${type}) is ${String(size)} characters long; RFC 5280 Appendix A bounds it to ${bounds}${hint}`);
+  }
+  return chosen;
+}
 function encodeNameAttribute(attribute) {
   const { type, value, stringType } = attribute;
-  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(stringType ?? "utf8", value) : null;
+  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(nameStringType(type, value, stringType), value) : null;
   if (encoded === null) {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
   }
@@ -3683,7 +3888,7 @@ function encodeBasicConstraints(options) {
   }
   return encodeSequence(fields);
 }
-var KEY_USAGE_BITS = /* @__PURE__ */ new Map([
+var KEY_USAGE_ENTRIES = [
   ["digitalSignature", 0],
   ["nonRepudiation", 1],
   ["keyEncipherment", 2],
@@ -3693,13 +3898,23 @@ var KEY_USAGE_BITS = /* @__PURE__ */ new Map([
   ["cRLSign", 6],
   ["encipherOnly", 7],
   ["decipherOnly", 8]
-]);
+];
+var KEY_USAGE_TABLE = /* @__PURE__ */ new Map(KEY_USAGE_ENTRIES);
+function readOnlyMap(name, entries) {
+  const map = new Map(entries);
+  const refuse = () => {
+    throw new PkiError("PKI_API_MISUSE", `pkinative: ${name} is read-only \u2014 every caller in the process shares it; copy it with new Map(${name}) to extend it`);
+  };
+  Object.defineProperties(map, { set: { value: refuse }, delete: { value: refuse }, clear: { value: refuse } });
+  return Object.freeze(map);
+}
+var KEY_USAGE_BITS = /* @__PURE__ */ readOnlyMap("KEY_USAGE_BITS", KEY_USAGE_ENTRIES);
 function encodeKeyUsage(usages) {
   const bits = [];
   for (const usage of usages) {
-    const bit = KEY_USAGE_BITS.get(usage);
+    const bit = KEY_USAGE_TABLE.get(usage);
     if (bit === void 0) {
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${usage} is not a KeyUsage of RFC 5280 \xA74.2.1.3 \u2014 one of ${[...KEY_USAGE_BITS.keys()].join(", ")}`);
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${usage} is not a KeyUsage of RFC 5280 \xA74.2.1.3 \u2014 one of ${[...KEY_USAGE_TABLE.keys()].join(", ")}`);
     }
     bits.push(bit);
   }
@@ -5216,17 +5431,24 @@ function mgf1HashOf(algorithm, oid) {
   return inner === void 0 ? "SHA-1" : hashNameOf(inner, oid);
 }
 var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
+var isPkcs1Key = (key) => key.kind === "rsa";
+function pssKeyAdmits(key, signature, oid) {
+  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return true;
+  const restriction = readPssParams(key.algorithm.parameters, oid);
+  return signature.hash === restriction.hash && signature.saltLength >= restriction.saltLength;
+}
 function resolveAlgorithm(algorithm, key) {
   const shape = SIGNATURE_BY_OID.get(algorithm.oid);
   if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
   if (shape.family === "rsa-pss") {
     if (!isRsaKey(key)) return null;
     const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
+    if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
     const verifyParams = { name: "RSA-PSS", saltLength };
     return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
   }
   if (shape.family === "rsa-pkcs1") {
-    if (!isRsaKey(key)) return null;
+    if (!isPkcs1Key(key)) return null;
     const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
     return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
   }
@@ -5246,6 +5468,9 @@ function resolveAlgorithm(algorithm, key) {
   if (key.kind !== shape.family) return null;
   const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
   return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
+}
+function _importRefusal(key) {
+  return key.kind === "rsa-pss" ? "the key is id-RSASSA-PSS (RFC 4055 \xA71.2), and the W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only as rsaEncryption, so no conforming runtime checks a signature this key made; the certificate is not at fault \u2014 check it with a library that implements id-RSASSA-PSS keys (OpenSSL, for one)" : void 0;
 }
 var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
 var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
@@ -5292,7 +5517,7 @@ function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
   if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
   const hash = HASH_BY_OID.get(digestAlgorithm.oid);
   if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
-  if (!isRsaKey(key)) return null;
+  if (!isPkcs1Key(key)) return null;
   return { family: "rsa-pkcs1", importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: hash } }, verifyParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, hash };
 }
 function coordinateBytes(curve) {
@@ -5466,14 +5691,14 @@ function requireSubtle(oid) {
   }
   return subtle;
 }
-async function importPublicKey(spkiDer, params, oid) {
+async function importPublicKey(spkiDer, params, oid, refusal) {
   const subtle = requireSubtle(oid);
   try {
     return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
   } catch (cause) {
     throw new PkiCryptoError(
       "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
+      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 ${refusal ?? "the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault"}`,
       oid
     );
   }
@@ -5618,7 +5843,7 @@ async function verifySignedStructure(signed, signer, options) {
     if (raw === null) return false;
     signature = raw;
   }
-  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid);
+  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid, _importRefusal(signer.subjectPublicKeyInfo));
   return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
 }
 async function verifyCrlSignature(crl, issuer, options) {
@@ -5659,13 +5884,13 @@ var CURVES = /* @__PURE__ */ new Map([
   ["1.3.132.0.35", { curve: "P-521", size: 66 }]
 ]);
 var OCTET_KEYS = /* @__PURE__ */ new Map([
-  ["1.3.101.110", { kind: "x25519", length: 32 }],
-  ["1.3.101.111", { kind: "x448", length: 56 }],
-  ["1.3.101.112", { kind: "ed25519", length: 32 }],
-  ["1.3.101.113", { kind: "ed448", length: 57 }],
-  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312 }],
-  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952 }],
-  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592 }]
+  ["1.3.101.110", { kind: "x25519", length: 32, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.111", { kind: "x448", length: 56, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.112", { kind: "ed25519", length: 32, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.113", { kind: "ed448", length: 57, standard: "RFC 8410 \xA73" }],
+  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312, standard: "RFC 9881 \xA72" }],
+  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952, standard: "RFC 9881 \xA72" }],
+  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592, standard: "RFC 9881 \xA72" }]
 ]);
 function requireWholeOctets(parts, what) {
   if (parts.publicKey.unusedBits !== 0) {
@@ -5740,7 +5965,7 @@ function readEc(parts, ctx) {
 }
 function readOctetKey(parts, spec) {
   if (parts.algorithm.parameters !== void 0) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (RFC 8410 \xA73)`);
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (${spec.standard})`);
   }
   requireWholeOctets(parts, `an ${spec.kind}`);
   if (parts.publicKey.bytes.length !== spec.length) {
@@ -7391,7 +7616,7 @@ function formatFingerprint(digest, options) {
 function encodeSignatureAlgorithm(signer) {
   const resolved = resolveSigner(signer.algorithm);
   if (resolved.pss === void 0) return encodeAlgorithmIdentifier(resolved.oid);
-  const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid);
+  const hash = encodeAlgorithmIdentifier(resolved.pss.hashOid, encodeNull());
   return encodeAlgorithmIdentifier(resolved.oid, encodeSequence([
     encodeExplicit(0, hash),
     encodeExplicit(1, encodeAlgorithmIdentifier("1.2.840.113549.1.1.8", hash)),
@@ -8013,7 +8238,7 @@ async function verifySignerInfoSignature(signerInfo, signer, options) {
     if (raw === null) return false;
     signature = raw;
   }
-  const key = await importPublicKey(certificate.subjectPublicKeyInfo.der, resolved.importParams, info.signatureAlgorithm.oid);
+  const key = await importPublicKey(certificate.subjectPublicKeyInfo.der, resolved.importParams, info.signatureAlgorithm.oid, _importRefusal(certificate.subjectPublicKeyInfo));
   return verifySignature(key, resolved.verifyParams, signature, covered);
 }
 function assertSignerInfo(value) {

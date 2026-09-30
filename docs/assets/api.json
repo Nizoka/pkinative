@@ -1753,7 +1753,7 @@
       "name": "Extension",
       "kind": "type",
       "module": "src/types/x509-types.ts",
-      "signature": "export type Extension = | BasicConstraintsExtension | KeyUsageExtension | ExtendedKeyUsageExtension | SubjectAltNameExtension | IssuerAltNameExtension | SubjectKeyIdentifierExtension | AuthorityKeyIdentifierExtension | NameConstraintsExtension | CertificatePoliciesExtension | PolicyMappingsExtension | PolicyConstraintsExtension | InhibitAnyPolicyExtension | AuthorityInfoAccessExtension | SubjectInfoAccessExtension | CrlDistributionPointsExtension | FreshestCrlExtension | SignedCertificateTimestampListExtension | OcspNoCheckExtension | UnknownExtension | RawExtension",
+      "signature": "export type Extension = | BasicConstraintsExtension | KeyUsageExtension | ExtendedKeyUsageExtension | SubjectAltNameExtension | IssuerAltNameExtension | SubjectKeyIdentifierExtension | AuthorityKeyIdentifierExtension | NameConstraintsExtension | CertificatePoliciesExtension | PolicyMappingsExtension | PolicyConstraintsExtension | InhibitAnyPolicyExtension | AuthorityInfoAccessExtension | SubjectInfoAccessExtension | CrlDistributionPointsExtension | FreshestCrlExtension | SignedCertificateTimestampListExtension | OcspNoCheckExtension | SubjectDirectoryAttributesExtension | UnknownExtension | RawExtension",
       "summary": "A certificate extension, discriminated by `kind`.",
       "throws": null,
       "params": null,
@@ -2258,7 +2258,7 @@
       "name": "KEY_USAGE_BITS",
       "kind": "constant",
       "module": "src/build/build-structures.ts",
-      "signature": "export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map([ ['digitalSignature', 0], ['nonRepudiation', 1], ['keyEncipherment', 2], ['dataEncipherment', 3], ['keyAgreement', 4], ['keyCertSign', 5], ['cRLSign', 6], ['encipherOnly', 7], ['decipherOnly', 8], ])",
+      "signature": "export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ readOnlyMap('KEY_USAGE_BITS', KEY_USAGE_ENTRIES)",
       "summary": "The `KeyUsage` bit positions of RFC 5280 §4.2.1.3, in their defined order.",
       "throws": null,
       "params": null,
@@ -2449,7 +2449,7 @@
       "kind": "type",
       "module": "src/types/build-types.ts",
       "signature": "export type NameDescription = ReadonlyArray<readonly NameAttribute[]>",
-      "summary": "A distinguished name to build: one array per RDN, most significant first — `[[{ type: '2.5.4.6', value: 'US' }], [{ type: '2.5.4.3', value: 'Example CA' }]]` is `C=US, CN=Example CA`.",
+      "summary": "A distinguished name to build: one array per RDN, most significant first — `[[{ type: '2.5.4.6', value: 'US' }], [{ type: '2.5.4.3', value: 'Example CA' }]]` is `C=US, CN=Example CA`, with `US` a PrintableString and `Example CA` a UTF8String, as RFC 5280 Appendix A.1 defines them.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -2760,7 +2760,7 @@
       "kind": "type",
       "module": "src/types/x509-types.ts",
       "signature": "export interface OctetPublicKeyInfo extends PublicKeyInfoBase",
-      "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410, FIPS 204).",
+      "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410; ML-DSA: RFC 9881, key sizes of FIPS 204).",
       "throws": null,
       "params": null,
       "returns": null,
@@ -8070,6 +8070,10 @@
         "PkiError"
       ],
       "params": [
+        {
+          "name": "node",
+          "description": "A time node, or an implicitly tagged one together with `timeType`. Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds may be omitted, the fraction may use a comma or keep trailing zeros, and a `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime forms — hours only, a fraction of a minute or of an hour, an offset in whole hours — are refused with `PKI_ASN1_TIME_INVALID` in every mode, and a fraction finer than a millisecond is truncated to one."
+        },
         {
           "name": "node",
           "description": "A time node, or an implicitly tagged one together with `timeType`."
