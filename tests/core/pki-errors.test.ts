@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { PkiCertificateError, PkiEncodingError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
+import { describe, it, expect, vi } from 'vitest';
+import { PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError } from '../../src/types/pki-errors.js';
 
 describe('PkiError', () => {
     it('should carry the code, the name and the message, and be an Error', () => {
@@ -42,5 +42,75 @@ describe('PkiLimitError', () => {
         expect(err).toBeInstanceOf(PkiError);
         expect(err.name).toBe('PkiLimitError');
         expect(err).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxDepth', configured: 64, observed: 65 });
+    });
+});
+
+describe('instanceof across copies of pkinative', () => {
+    // A second, independent instance of the module: what an application gets
+    // when one dependency imports the ES module build and another requires
+    // the CommonJS one. Its classes are distinct objects from ours.
+    const other = async (): Promise<typeof import('../../src/types/pki-errors.js')> => {
+        vi.resetModules();
+        return import('../../src/types/pki-errors.js');
+    };
+
+    it('should load a copy whose classes really are different', async () => {
+        const copy = await other();
+        expect(copy.PkiError).not.toBe(PkiError);
+        expect(Function.prototype[Symbol.hasInstance].call(PkiError, new copy.PkiError('PKI_INTERNAL', 'pkinative: x'))).toBe(false);
+    });
+
+    it('should recognise an error of the other copy, in both directions, keeping subclass precision', async () => {
+        const copy = await other();
+        const foreign = new copy.PkiEncodingError('PKI_ASN1_TRUNCATED', 'pkinative: truncated', 3);
+        expect(foreign instanceof PkiError).toBe(true);
+        expect(foreign instanceof PkiEncodingError).toBe(true);
+        expect(foreign instanceof PkiCertificateError).toBe(false);
+        expect(foreign instanceof PkiLimitError).toBe(false);
+        const ours = new PkiCertificateError('PKI_X509_NAME_INVALID', 'pkinative: name');
+        expect(ours instanceof copy.PkiError).toBe(true);
+        expect(ours instanceof copy.PkiCertificateError).toBe(true);
+        expect(ours instanceof copy.PkiEncodingError).toBe(false);
+        expect(new copy.PkiError('PKI_INTERNAL', 'pkinative: x') instanceof PkiEncodingError).toBe(false);
+    });
+
+    it.each([
+        'PkiError', 'PkiEncodingError', 'PkiCertificateError', 'PkiLimitError', 'PkiCryptoError', 'PkiCmsError', 'PkiKeyError',
+    ] as const)('should brand a %s with its family, under the shared Symbol.for key', async (family) => {
+        const copy = await other();
+        const Klass = copy[family] as unknown as new (...args: unknown[]) => Error;
+        const error = new Klass('PKI_INTERNAL', 'pkinative: x', 'limit', 1, 2);
+        expect((error as unknown as Record<symbol, unknown>)[Symbol.for('pkinative.PkiError')]).toBe(family);
+        const Ours = { PkiError, PkiEncodingError, PkiCertificateError, PkiLimitError, PkiCryptoError, PkiCmsError, PkiKeyError }[family];
+        expect(error instanceof Ours).toBe(true);
+        expect(error instanceof PkiError).toBe(true);
+        // Not enumerable, so JSON.stringify and spreading an error do not show it.
+        expect(Object.getOwnPropertyDescriptor(error, Symbol.for('pkinative.PkiError'))?.enumerable).toBe(false);
+    });
+
+    it('should not let a brand turn a non-error, or a caller\'s subclass, into a match', async () => {
+        const mark = Symbol.for('pkinative.PkiError');
+        expect({ [mark]: 'PkiError' } instanceof PkiError).toBe(false);
+        expect((null as unknown as object) instanceof PkiError).toBe(false);
+        expect(('PkiError' as unknown as object) instanceof PkiError).toBe(false);
+        const forged = Object.assign(new Error('x'), { [mark]: 42 });
+        expect(forged instanceof PkiError).toBe(false);
+        // A caller's own subclass keeps the ordinary prototype test: another
+        // copy's PkiEncodingError is not an instance of it.
+        class Wrapped extends PkiEncodingError {}
+        const copy = await other();
+        expect(new copy.PkiEncodingError('PKI_ASN1_TRUNCATED', 'pkinative: t') instanceof Wrapped).toBe(false);
+        expect(new Wrapped('PKI_ASN1_TRUNCATED', 'pkinative: t') instanceof Wrapped).toBe(true);
+    });
+
+    it('should recognise an error thrown in another realm', async () => {
+        const { runInNewContext } = await import('node:vm');
+        // Symbol.for is shared by every realm of the agent; an Error made in
+        // another realm fails the local `instanceof Error`, and still matches.
+        const alien = runInNewContext(`Object.defineProperty(new Error('pkinative: x'), Symbol.for('pkinative.PkiError'), { value: 'PkiCmsError' })`) as unknown;
+        expect(alien instanceof Error).toBe(false);
+        expect(alien instanceof PkiError).toBe(true);
+        expect(alien instanceof PkiCmsError).toBe(true);
+        expect(alien instanceof PkiKeyError).toBe(false);
     });
 });

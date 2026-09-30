@@ -13,6 +13,18 @@
  * `error-parity` rule of `scripts/verify-docs.ts` keeps the two in
  * bidirectional sync and checks the message prefix of every throw site.
  *
+ * **`instanceof` across copies.** The package ships an ES module and a
+ * CommonJS build, and an application can load both — one dependency
+ * `import`s pkinative while another `require`s it — or load pkinative in
+ * two realms. Each copy has its own classes, so the ordinary `instanceof`
+ * would miss an error thrown by the other. Every error therefore carries a
+ * brand under `Symbol.for('pkinative.PkiError')`, a key every copy and every
+ * realm of one agent shares, holding its family name; each class's
+ * `Symbol.hasInstance` accepts its own instances as usual and, failing that,
+ * an `Error` whose brand names its family. `PkiError` accepts every brand,
+ * so a newer copy's family is still a `PkiError` to an older one. Branching
+ * on `error.code` needs none of this and remains the most robust test.
+ *
  * @module types/pki-errors
  */
 
@@ -135,6 +147,55 @@ export type PkiErrorCode =
 // ── Classes ──────────────────────────────────────────────────────────
 
 /**
+ * The brand key. `Symbol.for` returns the same symbol to every copy of this
+ * module and in every realm of the agent, which is the whole point: a symbol
+ * made with `Symbol()` would be as private to one copy as its classes are.
+ */
+const BRAND: unique symbol = /*#__PURE__*/ Symbol.for('pkinative.PkiError') as never;
+
+/** The family names a brand may hold — one per class, stable across versions and minifiers. */
+type PkiErrorFamily = 'PkiError' | 'PkiEncodingError' | 'PkiCertificateError' | 'PkiLimitError' | 'PkiCryptoError' | 'PkiCmsError' | 'PkiKeyError';
+
+/** Mark an error with its family; a subclass constructor overwrites the base's mark. */
+function brand(error: Error, family: PkiErrorFamily): void {
+    Object.defineProperty(error, BRAND, { value: family, enumerable: false, writable: false, configurable: true });
+}
+
+/**
+ * `value instanceof klass`, as a class of this family answers it: the
+ * ordinary prototype test first, then — only when `klass` is the family's
+ * own class, never a caller's subclass of it — the brand another copy of
+ * pkinative left on an `Error`. `family` is `null` for `PkiError`, which
+ * accepts every brand.
+ */
+function isBranded(klass: object, own: object, value: unknown, family: PkiErrorFamily | null): boolean {
+    if (typeof value !== 'object' || value === null) return false;
+    // OrdinaryHasInstance, for a class: is its prototype on the value's chain?
+    if (Object.prototype.isPrototypeOf.call((klass as { readonly prototype: object }).prototype, value)) return true;
+    if (klass !== own) return false;
+    if (Object.prototype.toString.call(value) !== '[object Error]') return false;
+    const mark = (value as { readonly [BRAND]?: unknown })[BRAND];
+    return typeof mark === 'string' && (family === null || mark === family);
+}
+
+/**
+ * Install {@link isBranded} as `klass[Symbol.hasInstance]`. Called from a
+ * static block rather than declared as a static method, so the declared shape
+ * of each class — what its `.d.ts` says — is unchanged: `instanceof` keeps
+ * narrowing through the constructor type, as it always did.
+ */
+function answerInstanceof(klass: object, family: PkiErrorFamily | null): void {
+    Object.defineProperty(klass, Symbol.hasInstance, {
+        value(this: object, value: unknown): boolean {
+            return isBranded(this, klass, value, family);
+        },
+        enumerable: false,
+        writable: false,
+        configurable: true,
+    });
+}
+
+/**
  * Base class for every error thrown by pkinative. The type parameter narrows
  * `code` in subclasses, so `err instanceof PkiEncodingError` also narrows
  * `err.code` to {@link PkiEncodingErrorCode}.
@@ -147,6 +208,14 @@ export class PkiError<Code extends PkiErrorCode = PkiErrorCode> extends Error {
         super(message);
         this.name = 'PkiError';
         this.code = code;
+        brand(this, 'PkiError');
+    }
+
+    // `instanceof` also recognises a PkiError thrown by another copy of
+    // pkinative — its CommonJS build beside its ES module build, or another
+    // realm. See the module header.
+    static {
+        answerInstanceof(this, null);
     }
 }
 
@@ -159,6 +228,12 @@ export class PkiEncodingError extends PkiError<PkiEncodingErrorCode> {
         super(code, message);
         this.name = 'PkiEncodingError';
         this.offset = offset;
+        brand(this, 'PkiEncodingError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiEncodingError');
     }
 }
 
@@ -174,6 +249,12 @@ export class PkiCertificateError extends PkiError<PkiCertificateErrorCode> {
         this.name = 'PkiCertificateError';
         this.path = path;
         this.offset = offset;
+        brand(this, 'PkiCertificateError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiCertificateError');
     }
 }
 
@@ -192,6 +273,12 @@ export class PkiLimitError extends PkiError<PkiLimitErrorCode> {
         this.limit = limit;
         this.configured = configured;
         this.observed = observed;
+        brand(this, 'PkiLimitError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiLimitError');
     }
 }
 
@@ -223,6 +310,12 @@ export class PkiCryptoError extends PkiError<PkiCryptoErrorCode> {
         super(code, message);
         this.name = 'PkiCryptoError';
         this.algorithm = algorithm;
+        brand(this, 'PkiCryptoError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiCryptoError');
     }
 }
 
@@ -251,6 +344,12 @@ export class PkiCmsError extends PkiError<PkiCmsErrorCode> {
         this.name = 'PkiCmsError';
         this.path = path;
         this.offset = offset;
+        brand(this, 'PkiCmsError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiCmsError');
     }
 }
 
@@ -277,5 +376,11 @@ export class PkiKeyError extends PkiError<PkiKeyErrorCode> {
         this.name = 'PkiKeyError';
         this.path = path;
         this.offset = offset;
+        brand(this, 'PkiKeyError');
+    }
+
+    // `instanceof` across copies of pkinative, as PkiError answers it.
+    static {
+        answerInstanceof(this, 'PkiKeyError');
     }
 }
