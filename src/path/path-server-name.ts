@@ -204,7 +204,7 @@ function matches(name: GeneralName, identity: ServerIdentity, dns: MatchDnsNameO
         // class of bypass.
         return name.kind === 'dNSName' && matchDnsName(name.value, identity.value, dns);
     }
-    return name.kind === 'iPAddress' && sameBytes(name.bytes, identity.value);
+    return name.kind === 'iPAddress' && bytesEqual(name.bytes, identity.value);
 }
 
 /** Case-folded over ASCII only: a host name is not a locale. */
@@ -243,16 +243,15 @@ export function matchDnsName(presented: string, reference: string, options?: Mat
     // `*.com` is refused: the correct test is a public suffix list, which is
     // data that changes weekly and which this library will not carry stale.
     if (labels.length < 3) return false;
-    if (labels.slice(1).some((label) => label === '')) return false;
+    if (labels.includes('')) return false;
 
     const suffix = labels.slice(1).join('.');
     const hostLabels = host.split('.');
     // Exactly one label is consumed, and it must exist: `*.example.com` does
-    // not match `example.com`. The length check above has already established
-    // that `hostLabels` has at least three entries, so index 0 is present —
+    // not match `example.com`. The suffix comparison below holds the label
+    // count (equal joins have equal labels), and split always yields index 0 —
     // no `?? ''` here, because a fallback for a case that cannot happen is a
     // branch no test can ever reach.
-    if (hostLabels.length !== labels.length) return false;
     if (hostLabels[0] === '') return false;
     return hostLabels.slice(1).join('.') === suffix;
 }
@@ -260,12 +259,6 @@ export function matchDnsName(presented: string, reference: string, options?: Mat
 /** RFC 6125 §6.4.1: one trailing dot is an absolute name, not a different one. */
 function stripTrailingDot(name: string): string {
     return name.endsWith('.') ? name.slice(0, -1) : name;
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
-    return true;
 }
 
 /** Every `commonName` of the subject, in encoded order. */

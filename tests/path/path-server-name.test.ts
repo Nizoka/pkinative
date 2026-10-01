@@ -73,6 +73,11 @@ describe('matchDnsName — RFC 6125 §6.4', () => {
         { presented: '*o.example.com', reference: 'foo.example.com', expected: false },
         // Not leftmost.
         { presented: 'a.*.example.com', reference: 'a.b.example.com', expected: false },
+        // A second star is refused even against a reference that spells one.
+        { presented: '*.*.example.com', reference: 'a.*.example.com', expected: false },
+        // An empty presented name identifies nothing, even against the root,
+        // which its trailing-dot rule would otherwise make it equal to.
+        { presented: '', reference: '.', expected: false },
         { presented: 'example.*', reference: 'example.com', expected: false },
         // Two wildcards.
         { presented: '*.*.example.com', reference: 'a.b.example.com', expected: false },
@@ -154,6 +159,19 @@ describe('checkServerName — subjectAltName', () => {
         const wanted = Uint8Array.from([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
         const reasons = checkServerName(certificate({ names: [ip([192, 0, 2, 1], '192.0.2.1')] }), { kind: 'ip', value: wanted });
         expect(reasons[0]?.message).toContain('20010db8000000000000000000000001');
+    });
+
+    it('should quote an IPv4 identity as a dotted quad', () => {
+        const reasons = checkServerName(certificate({ names: [ip([192, 0, 2, 1], '192.0.2.1')] }), address(198, 51, 100, 7));
+        expect(reasons[0]?.message).toContain('the address 198.51.100.7');
+    });
+
+    it('should not match an address whose octets merely begin like the identity', () => {
+        // 192.0.2.1 against an IPv6 address starting with the same four octets.
+        const wide = ip([192, 0, 2, 1, ...Array.from({ length: 12 }, () => 0)], 'c000:201::');
+        expect(codes(checkServerName(certificate({ names: [wide] }), address(192, 0, 2, 1)))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(codes(checkServerName(certificate({ names: [ip([192, 0, 2, 1], '192.0.2.1')] }), { kind: 'ip', value: Uint8Array.from([192, 0, 2, 1, ...Array.from({ length: 12 }, () => 0)]) })))
+            .toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 
     it('should refuse a SAN of other forms without the fallback, and say which of the two cases it is', () => {
@@ -298,7 +316,13 @@ describe('checkServerName — never throws', () => {
     it('should list at most eight names and say how many more there are', () => {
         const many = Array.from({ length: 12 }, (_, i) => dns(`h${String(i)}.example`));
         const reasons = checkServerName(certificate({ names: many }), host('bank.example'));
-        expect(reasons[0]?.message).toContain('and 4 more');
+        const firstEight = many.slice(0, 8).map((n) => JSON.stringify((n as { value: string }).value)).join(', ');
+        expect(reasons[0]?.message).toContain(`it names ${firstEight}, and 4 more`);
+        const eight = checkServerName(certificate({ names: many.slice(0, 8) }), host('bank.example'));
+        expect(eight[0]?.message).toContain(`it names ${firstEight}`);
+        expect(eight[0]?.message).not.toContain('more');
+        const nine = checkServerName(certificate({ names: many.slice(0, 9) }), host('bank.example'));
+        expect(nine[0]?.message).toContain(`it names ${firstEight}, and 1 more`);
     });
 
     it('should count only the host-bearing forms in the overflow, and list neither address nor host it lacks', () => {
