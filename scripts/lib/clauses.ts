@@ -31,8 +31,12 @@
  * normalisation, in the section it cites, and every requirement sentence of
  * §4.1 and §4.2 is accounted for in scripts/data/rfc5280-requirements.json —
  * as one of these clauses, or as an exclusion with its reason
- * (scripts/lib/rfc-requirements.ts). The X.690 clauses are quoted from a
- * document that is not pinned, and are not checked that way.
+ * (scripts/lib/rfc-requirements.ts). The three X.690 clauses quote
+ * Recommendation ITU-T X.690 (02/2021), the edition the pki-core instructions
+ * cite. ITU publishes it only as a PDF, whose text extraction is not stable
+ * enough to pin, so those quotes were compared by hand with the text of
+ * §11.2.2, §11.5 and §11.6 — whole sentences, word order included — and
+ * tests/conformance/clauses.test.ts holds them to that reading.
  *
  * @module scripts/lib/clauses
  */
@@ -231,7 +235,7 @@ export const CLAUSES: readonly Clause[] = Object.freeze([
     {
         id: 'x690-11.6-rdn-set-sorted',
         section: 'ITU-T X.690 §11.6',
-        quote: 'The encodings of the component values of a set-of value shall appear in ascending order.',
+        quote: 'The encodings of the component values of a set-of value shall appear in ascending order, the encodings being compared as octet strings with the shorter components being padded at their trailing end with 0-octets.',
         diagnostic: 'PKI_DIAG_RDN_SET_NOT_SORTED',
         exhaustive: true,
         unexercisedBy: {
@@ -243,7 +247,7 @@ export const CLAUSES: readonly Clause[] = Object.freeze([
     {
         id: 'x690-11.2.2-named-bits-trimmed',
         section: 'ITU-T X.690 §11.2.2',
-        quote: 'Where ITU-T Rec. X.680 | ISO/IEC 8824-1, 22.7, applies, the bitstring shall have all trailing 0 bits removed before it is encoded.',
+        quote: 'Where Rec. ITU-T X.680 | ISO/IEC 8824-1, 22.7, applies, the bitstring shall have all trailing 0 bits removed before it is encoded.',
         diagnostic: 'PKI_DIAG_NAMED_BITS_TRAILING_ZERO',
         exhaustive: true,
     },

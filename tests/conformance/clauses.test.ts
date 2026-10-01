@@ -291,4 +291,18 @@ describe('the RFC 5280 clause checker', () => {
             if (clause.diagnostic === null) expect(clause.waiver, clause.id).toBeTruthy();
         }
     });
+
+    it('should quote ITU-T X.690 (02/2021) word for word, whole sentences, for the clauses L5 cannot check against a pinned text', () => {
+        // The RFC 5280 quotes are checked against the pinned RFC at L5. X.690
+        // is published only as a PDF, so these three were compared by hand
+        // with §11.2.2, §11.5 and §11.6 of the 02/2021 edition; a paraphrase
+        // (an older edition's word order, a sentence cut at its first comma)
+        // is what this test exists to refuse.
+        const x690 = Object.fromEntries(CLAUSES.filter((c) => c.section.startsWith('ITU-T X.690')).map((c) => [c.section, c.quote]));
+        expect(x690).toEqual({
+            'ITU-T X.690 §11.2.2': 'Where Rec. ITU-T X.680 | ISO/IEC 8824-1, 22.7, applies, the bitstring shall have all trailing 0 bits removed before it is encoded.',
+            'ITU-T X.690 §11.5': 'The encoding of a set value or sequence value shall not include an encoding for any component value which is equal to its default value.',
+            'ITU-T X.690 §11.6': 'The encodings of the component values of a set-of value shall appear in ascending order, the encodings being compared as octet strings with the shorter components being padded at their trailing end with 0-octets.',
+        });
+    });
 });
