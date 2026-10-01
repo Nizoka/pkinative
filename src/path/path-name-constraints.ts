@@ -57,11 +57,20 @@
  * constraint silently is answering "unconstrained" to a CA that said
  * "forbidden".
  *
+ * Two more were found by the 1.0 audit rather than by x509-limbo.
+ * **A mailbox has two spellings.** RFC 9598 §6 extends rfc822Name constraints
+ * to the `SmtpUTF8Mailbox` otherName, which OpenSSL enforces; without it a CA
+ * constrained to one mail domain issues another as an internationalised
+ * mailbox. A URI's host, likewise, is read by the RFC 3986 grammar, so a
+ * backslash or a percent in the authority cannot put the host a constraint is
+ * checked against somewhere other than the host a client connects to.
+ *
  * @module path/path-name-constraints
  */
 
 import { toHex } from '../core/bytes.js';
-import type { Asn1StringType } from '../types/asn1-types.js';
+import { decodeUtf8 } from '../core/text.js';
+import type { Asn1Node, Asn1StringType } from '../types/asn1-types.js';
 import type { AttributeTypeAndValue, DistinguishedName, GeneralName, GeneralSubtree, RelativeDistinguishedName } from '../types/x509-types.js';
 
 /** The name forms this module constrains. Every other form is opaque here. */
@@ -142,9 +151,9 @@ export function emailMatches(constraint: string, name: string): boolean {
     const c = fold(constraint);
     const n = fold(name);
     if (c === '') return true;
-    const at = n.lastIndexOf('@');
     if (c.includes('@')) return n === c;
-    const host = at >= 0 ? n.slice(at + 1) : n;
+    // After the last `@`; with none, lastIndexOf's -1 makes this the whole name.
+    const host = n.slice(n.lastIndexOf('@') + 1);
     if (c.startsWith('.')) return host.endsWith(c);
     return host === c;
 }
@@ -161,9 +170,10 @@ export function emailMatches(constraint: string, name: string): boolean {
  * x509-limbo scored it — lets a CA constrained to one host issue for every
  * subdomain of it.
  *
- * The host is taken by cutting the string, not by parsing a URL. A URI whose
- * authority this cannot find is refused rather than accepted: a constraint
- * that cannot be evaluated is not a constraint that is satisfied.
+ * The host is read by the RFC 3986 grammar (`uriHost`), not by a URL library
+ * that normalises. A URI whose host this cannot find is refused rather than
+ * accepted: a constraint that cannot be evaluated is not a constraint that is
+ * satisfied.
  */
 export function uriMatches(constraint: string, uri: string): boolean {
     const host = uriHost(uri);
@@ -175,30 +185,55 @@ export function uriMatches(constraint: string, uri: string): boolean {
     return h === c;
 }
 
-/** The host of a URI, or null when there is no authority to constrain. */
+/** RFC 3986 §3.1 `scheme ":"`, followed by the `"//"` that opens an authority (§3.2). */
+const URI_SCHEME_AND_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
+/** Every character RFC 3986 §2 lets a URI hold — reserved, unreserved, and `%` only as `pct-encoded`. */
+const URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+/** RFC 3986 §3.2.1 `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )` — no `@`. */
+const URI_USERINFO = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:]|%[0-9A-Fa-f]{2})*$/;
+/**
+ * RFC 3986 §3.2.2 `reg-name`, **without** `pct-encoded`: RFC 5280 §4.2.1.6 asks
+ * for a fully qualified domain name as the host, and a percent in a host is a
+ * name that each decoder reads differently.
+ */
+const URI_REG_NAME = /^[A-Za-z0-9\-._~!$&'()*+,;=]+$/;
+/** RFC 3986 §3.2.2 `IP-literal` as an IPv6 address: hex digits, colons and dots — no zone, no `IPvFuture`. */
+const URI_IP_LITERAL = /^\[[0-9A-Fa-f:.]+\]$/;
+/** RFC 3986 §3.2.3 `":" port`, or nothing. */
+const URI_PORT = /^(?::[0-9]*)?$/;
+
+/**
+ * The host of a URI, or null when there is no authority to constrain or the
+ * authority is not RFC 3986's.
+ *
+ * Read by the grammar, not cut at the last `@`: `https://evil.test\@good.example.com/`
+ * is not a URI (a backslash is no URI character), and a WHATWG parser reads its
+ * host as `evil.test` where cutting reads `good.example.com` — a constraint
+ * checked against a host the client never connects to (CWE-436). So every
+ * character must be one RFC 3986 allows, the userinfo holds no `@`, the host is
+ * a `reg-name` without percent-encoding or an IPv6 literal, and anything after
+ * the host is a port. Anything else has no host both sides agree on, and a
+ * constrained URI form refuses it.
+ */
 export function uriHost(uri: string): string | null {
-    const schemeEnd = uri.indexOf('://');
-    if (schemeEnd < 0) return null;
-    let authority = uri.slice(schemeEnd + 3);
-    for (const stop of ['/', '?', '#']) {
-        const at = authority.indexOf(stop);
-        if (at >= 0) authority = authority.slice(0, at);
+    const scheme = URI_SCHEME_AND_AUTHORITY.exec(uri);
+    if (scheme === null || !URI_CHARACTERS.test(uri)) return null;
+    // The authority runs to the first "/", "?" or "#", or to the end.
+    const authority = uri.slice(scheme[0].length).split(/[/?#]/, 1)[0] as string;
+    // Userinfo is everything before the first "@", and holds no "@" itself:
+    // a second one lands in the host, which refuses it.
+    const at = authority.indexOf('@');
+    if (!URI_USERINFO.test(authority.slice(0, Math.max(at, 0)))) return null;
+    const hostAndPort = authority.slice(at + 1);
+    if (hostAndPort.startsWith('[')) {
+        // An IPv6 literal keeps its brackets, which never match a
+        // dNSName-style constraint, and is not split on its own colons.
+        const close = hostAndPort.indexOf(']') + 1;
+        const literal = hostAndPort.slice(0, close);
+        return URI_IP_LITERAL.test(literal) && URI_PORT.test(hostAndPort.slice(close)) ? literal : null;
     }
-    // Drop userinfo, then a port. An IPv6 literal keeps its brackets, which
-    // never match a dNSName constraint and must not be split on its colons.
-    const at = authority.lastIndexOf('@');
-    if (at >= 0) authority = authority.slice(at + 1);
-    if (authority.startsWith('[')) {
-        // An IPv6 literal keeps its brackets and must not be split on its own
-        // colons — but the port after the closing bracket still goes.
-        const close = authority.indexOf(']');
-        if (close < 0) return null;
-        authority = authority.slice(0, close + 1);
-    } else {
-        const colon = authority.indexOf(':');
-        if (colon >= 0) authority = authority.slice(0, colon);
-    }
-    return authority === '' ? null : authority;
+    const host = hostAndPort.split(':', 1)[0] as string;
+    return URI_REG_NAME.test(host) && URI_PORT.test(hostAndPort.slice(host.length)) ? host : null;
 }
 
 /**
@@ -211,11 +246,10 @@ export function uriHost(uri: string): string | null {
 export function ipMatches(constraintBytes: Uint8Array, nameBytes: Uint8Array): boolean {
     const width = nameBytes.length;
     if (constraintBytes.length !== width * 2) return false;
-    for (let i = 0; i < width; i += 1) {
+    return nameBytes.every((byte, i) => {
         const mask = constraintBytes[width + i] as number;
-        if (((nameBytes[i] as number) & mask) !== ((constraintBytes[i] as number) & mask)) return false;
-    }
-    return true;
+        return (byte & mask) === ((constraintBytes[i] as number) & mask);
+    });
 }
 
 /**
@@ -377,11 +411,11 @@ export function wellFormedName(name: GeneralName): boolean {
         case 'dNSName':
             return _wellFormedHost(name.value);
         case 'rfc822Name': {
-            const at = name.value.indexOf('@');
+            const [local, host, ...more] = name.value.split('@');
             // Exactly one `@`, a non-empty local part, and a host that is a
             // host: `invalid@address@example.com` is not a mailbox, and reading
             // only the last `@` makes it look like one on `example.com`.
-            return at > 0 && name.value.indexOf('@', at + 1) < 0 && _wellFormedHost(name.value.slice(at + 1));
+            return local !== '' && more.length === 0 && host !== undefined && _wellFormedHost(host);
         }
         case 'uniformResourceIdentifier': {
             const host = uriHost(name.value);
@@ -407,7 +441,7 @@ export function wellFormedName(name: GeneralName): boolean {
  * does.
  */
 function _wellFormedHost(host: string): boolean {
-    if (host === '' || host.endsWith('.')) return false;
+    // The empty name is one empty label, and a trailing dot leaves one at the end.
     return host.split('.').every((label) => label !== '');
 }
 
@@ -446,11 +480,11 @@ function _starredSet(value: string): { readonly parent: string; readonly labels:
  */
 export function subtreeCoversWildcard(base: string, parent: string): boolean {
     const b = fold(base);
-    if (b === '') return true;
     // A leading period names what is strictly below: it covers the whole set
     // when the parent is at or below that domain, since every member sits one
     // further label down.
     if (b.startsWith('.')) return parent === b.slice(1) || parent.endsWith(b);
+    // The empty base, which covers everything, is dnsConstraintCovers' own case.
     return dnsConstraintCovers(b, parent);
 }
 
@@ -490,7 +524,6 @@ export function wildcardMeetsSubtree(base: string, parent: string, labels = 1): 
  */
 export function subtreeCovers(subtree: GeneralSubtree, name: GeneralName): boolean {
     const base = subtree.base;
-    if (base.kind !== name.kind) return false;
     // RFC 5280 §4.2.1.10 fixes minimum to 0 and forbids maximum. A subtree
     // asserting otherwise is not a subtree this code can honour, and saying
     // "covered" would be the permissive mistake.
@@ -501,6 +534,8 @@ export function subtreeCovers(subtree: GeneralSubtree, name: GeneralName): boole
         case 'uniformResourceIdentifier': return name.kind === 'uniformResourceIdentifier' && uriMatches(base.value, name.value);
         case 'iPAddress': return name.kind === 'iPAddress' && ipMatches(base.bytes, name.bytes);
         case 'directoryName': return name.kind === 'directoryName' && directoryMatches(base.name, name.name);
+        // Every other form, and a name of another form than the base: each
+        // case above checks the name's kind as well as the base's.
         default: return false;
     }
 }
@@ -557,6 +592,76 @@ export function accumulateNameConstraints(
     }
 }
 
+// ── SmtpUTF8Mailbox under rfc822Name constraints (RFC 9598 §6) ──────
+
+/** `id-on-SmtpUTF8Mailbox`, RFC 9598 §3. */
+const OID_SMTP_UTF8_MAILBOX = '1.3.6.1.5.5.7.8.9';
+
+/** UTF8String's universal tag number (X.680 §8.6): the one type RFC 9598 gives `SmtpUTF8Mailbox`. */
+const UTF8_STRING = 12;
+
+/** A domain of LDH labels (and so A-labels), none empty, no trailing dot. */
+const LDH_DOMAIN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*$/;
+
+/**
+ * The domain part of a mailbox, lowercased, or null when the mailbox is not
+ * one whose domain can be compared: not exactly one `@`, an empty local part,
+ * or a domain that is not LDH labels.
+ *
+ * RFC 9598 §5 converts every U-label of the domain to its A-label before any
+ * comparison. That conversion is IDNA2008 (RFC 5891 §5.5), which pkinative
+ * does not carry, so a domain spelt with U-labels cannot be located — and a
+ * name that cannot be located is not within the permitted subtrees, nor proven
+ * outside an excluded one. It is refused where rfc822Name is constrained; the
+ * CA can issue the same domain as its A-labels.
+ */
+function _mailboxDomain(mailbox: string): string | null {
+    const [local, domain, ...more] = mailbox.split('@');
+    if (local === '' || more.length > 0 || domain === undefined) return null;
+    return LDH_DOMAIN.test(domain) ? fold(domain) : null;
+}
+
+/**
+ * RFC 9598 §6: an rfc822Name constraint against a mailbox's domain. The local
+ * part is stripped from **both** sides — a constraint naming a full mailbox is
+ * compared on its domain — and the domain matches as §4.2.1.10 says: a leading
+ * period by suffix, anything else in full.
+ */
+function _mailboxDomainCovered(constraint: string, domain: string): boolean {
+    const c = fold(constraint);
+    if (c === '') return true;
+    const host = c.slice(c.lastIndexOf('@') + 1);
+    return host.startsWith('.') ? domain.endsWith(host) : domain === host;
+}
+
+/**
+ * An `SmtpUTF8Mailbox` otherName against the accumulated rfc822Name
+ * constraints, as RFC 9598 §6 (which updates RFC 5280 §4.2.1.10) requires:
+ * *"SmtpUTF8Mailbox-aware path validators will apply name constraint comparison
+ * to the subject distinguished name and both forms of subject alternative
+ * names, rfc822Name and SmtpUTF8Mailbox."* Without it a CA constrained to one
+ * mail domain issues any other domain by spelling the mailbox this way.
+ *
+ * Only when some CA constrained rfc822Name: otherwise the name is, as before,
+ * a form nobody constrained. A value that is not a UTF8String, or a mailbox
+ * whose domain `_mailboxDomain` cannot read, is not located and so refused.
+ */
+function _checkSmtpUtf8Mailbox(state: NameConstraintState, value: Asn1Node): NameVerdict {
+    const permitted = state.permitted.rfc822Name;
+    const excluded = state.excluded.rfc822Name;
+    if (permitted === null && excluded.length === 0) return null;
+    const mailbox = value.tagClass === 'universal' && value.tagNumber === UTF8_STRING && !value.constructed ? decodeUtf8(value.content) : null;
+    const text = mailbox === null ? 'an SmtpUTF8Mailbox that is not a UTF8String' : `SmtpUTF8Mailbox ${mailbox}`;
+    const domain = mailbox === null ? null : _mailboxDomain(mailbox);
+    if (domain === null) return { form: 'rfc822Name', text, why: 'not-permitted' };
+    // The same refusal of a minimum or a maximum as `subtreeCovers` makes.
+    const covers = (subtree: GeneralSubtree): boolean =>
+        subtree.minimum === 0 && subtree.maximum === undefined && _mailboxDomainCovered((subtree.base as { value: string }).value, domain);
+    if (excluded.some(covers)) return { form: 'rfc822Name', text, why: 'excluded' };
+    if (permitted === null || permitted.some(covers)) return null;
+    return { form: 'rfc822Name', text, why: 'not-permitted' };
+}
+
 // ── §6.1.3 (b), (c) — testing one certificate ───────────────────────
 
 /** Why a name is outside the constraints. `null` when it is inside them. */
@@ -579,9 +684,12 @@ export function checkName(state: NameConstraintState, name: GeneralName): NameVe
         // §4.2.1.10: process every constrained form or reject. A CA constrained
         // this form and this module cannot evaluate it, so the answer is no —
         // never "unconstrained", which is what skipping it would say.
-        return state.unprocessed.has(name.kind)
-            ? { form: 'directoryName', text: `${name.kind} — a constrained name form this validator does not process`, why: 'not-permitted' }
-            : null;
+        if (state.unprocessed.has(name.kind)) {
+            return { form: 'directoryName', text: `${name.kind} — a constrained name form this validator does not process`, why: 'not-permitted' };
+        }
+        // RFC 9598 §6 extends rfc822Name constraints to SmtpUTF8Mailbox: the
+        // same mailbox namespace, spelt with a UTF-8 local part.
+        return name.kind === 'otherName' && name.typeId === OID_SMTP_UTF8_MAILBOX ? _checkSmtpUtf8Mailbox(state, name.value) : null;
     }
     const text = nameText(name);
     const constrained = state.permitted[form] !== null || state.excluded[form].length > 0;

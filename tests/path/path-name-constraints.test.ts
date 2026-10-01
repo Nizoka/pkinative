@@ -18,6 +18,7 @@ import {
     wildcardMeetsSubtree,
     type NameConstraintState,
 } from '../../src/path/path-name-constraints.js';
+import type { Asn1Node } from '../../src/types/asn1-types.js';
 import type { DistinguishedName, GeneralName, GeneralSubtree } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import * as der from '../helpers/cert-builder.js';
@@ -81,6 +82,7 @@ describe('emailMatches — §4.2.1.10', () => {
         { constraint: 'example.com', name: 'a@notexample.com', expected: false },
         // The `@` in the local part must not be mistaken for the separator.
         { constraint: 'example.com', name: 'a@b@example.com', expected: true },
+        { constraint: 'example.com', name: '@example.com', expected: true },
     ])('$constraint vs $name → $expected', ({ constraint, name: n, expected }) => {
         expect(emailMatches(constraint, n)).toBe(expected);
     });
@@ -102,6 +104,33 @@ describe('uriHost and uriMatches — §4.2.1.10', () => {
         // guessing one is how a constraint gets evaluated against the wrong
         // string.
         { uri: 'https://[2001:db8::1/path', host: null },
+        // ── Read by the RFC 3986 grammar, not cut at the last @ (the 1.0 audit) ──
+        // A backslash is no URI character: WHATWG URL reads this host as
+        // evil.test, cutting at the @ read good.example.com.
+        { uri: 'https://evil.test\\@good.example.com/', host: null },
+        // A percent in a host is a name each decoder reads differently.
+        { uri: 'https://evil.test%40good.example.com/', host: null },
+        // userinfo holds no @, so a second one leaves no host anyone agrees on.
+        { uri: 'https://a@b@host.example.com/', host: null },
+        { uri: 'https://[user@host.example.com/', host: null },
+        { uri: 'https://host .example.com/', host: null },
+        { uri: 'https://host.example.com\\x/', host: null },
+        { uri: 'https://host.example.com:80x/', host: null },
+        { uri: 'https://[2001:db8::1]x/', host: null },
+        // A zone identifier (RFC 6874) and IPvFuture are not addresses a
+        // constraint can place: CVE-2024-45341 is the zone case in Go.
+        { uri: 'https://[fe80::1%25eth0]/', host: null },
+        { uri: 'https://[v1.fe80]/', host: null },
+        { uri: 'https://:443/', host: null },
+        { uri: '1https://host.example.com/', host: null },
+        { uri: 'https:\\\\host.example.com/', host: null },
+        // What the grammar does allow.
+        { uri: 'https://us%41er:p@host.example.com/', host: 'host.example.com' },
+        { uri: 'https://host.example.com', host: 'host.example.com' },
+        { uri: 'https://host.example.com:/x', host: 'host.example.com' },
+        { uri: 'HTTPS://Host.Example.COM/', host: 'Host.Example.COM' },
+        { uri: 'spiffe://trust_domain.example/ns/a', host: 'trust_domain.example' },
+        { uri: 'https://[2001:db8::1]', host: '[2001:db8::1]' },
     ])('$uri → $host', ({ uri: u, host }) => {
         expect(uriHost(u)).toBe(host);
     });
@@ -139,6 +168,21 @@ describe('uriHost and uriMatches — §4.2.1.10', () => {
 
     it('should not let an IPv6 literal be split on its colons', () => {
         expect(uriMatches('db8', 'https://[2001:db8::1]:443/')).toBe(false);
+    });
+
+    it('should refuse the URIs of the audit where the form is constrained, permitted or excluded', () => {
+        // Each passed the permitted subtree .example.com and the excluded
+        // subtree evil.test before the grammar was applied.
+        const permitted = initialNameConstraints();
+        accumulateNameConstraints(permitted, [subtree(uri('.example.com'))], undefined);
+        const excluded = initialNameConstraints();
+        accumulateNameConstraints(excluded, undefined, [subtree(uri('evil.test'))]);
+        for (const value of ['https://evil.test\\@good.example.com/', 'https://evil.test%40good.example.com/']) {
+            expect(checkName(permitted, uri(value))?.why).toBe('not-permitted');
+            expect(checkName(excluded, uri(value))?.why).toBe('not-permitted');
+        }
+        expect(checkName(permitted, uri('https://user@good.example.com/'))).toBeNull();
+        expect(checkName(excluded, uri('https://user@evil.test/'))?.why).toBe('excluded');
     });
 });
 
@@ -446,6 +490,13 @@ describe('a wildcard name denotes a set (CVE-2025-61727)', () => {
         expect(checkName(state, dns('*'))?.why).toBe('not-permitted');
     });
 
+    it('should judge a name without a star as itself, never as a set', () => {
+        // `.example.com` holds what lies below example.com, and example.com
+        // itself is not below it — read as a set it would be.
+        expect(checkName(constrained(undefined, [dns('.example.com')]), dns('example.com'))).toBeNull();
+        expect(checkName(constrained([dns('.example.com')], undefined), dns('example.com'))?.why).toBe('not-permitted');
+    });
+
     it('should fold case on both sides of the set comparison', () => {
         expect(checkName(constrained(undefined, [dns('BAR.Example.COM')]), dns('*.EXAMPLE.com'))?.why).toBe('excluded');
     });
@@ -475,6 +526,7 @@ describe('wildcardMeetsSubtree and subtreeCoversWildcard', () => {
         // single-label member of its own.
         { base: '.bar.example.com', parent: 'example.com', meets: false, covers: false },
         { base: 'notexample.com', parent: 'example.com', meets: false, covers: false },
+        { base: 'example.com', parent: 'notexample.com', meets: false, covers: false },
     ])('$base vs *.$parent → meets $meets, covers $covers', ({ base, parent, meets, covers }) => {
         expect(wildcardMeetsSubtree(base, parent)).toBe(meets);
         expect(subtreeCoversWildcard(base, parent)).toBe(covers);
@@ -483,6 +535,8 @@ describe('wildcardMeetsSubtree and subtreeCoversWildcard', () => {
     it('should count the labels the stars stand in for', () => {
         expect(wildcardMeetsSubtree('a.b.example.com', 'example.com', 2)).toBe(true);
         expect(wildcardMeetsSubtree('b.example.com', 'example.com', 2)).toBe(false);
+        // An empty label is a label: a..example.com is two below example.com.
+        expect(wildcardMeetsSubtree('a..example.com', 'example.com', 1)).toBe(false);
     });
 });
 
@@ -494,6 +548,7 @@ describe('wellFormedName', () => {
         // calling it well formed would leave it silently unconstrained.
         expect(wellFormedName(dns('a.example.com.'))).toBe(false);
         expect(wellFormedName(email('a@b.test'))).toBe(true);
+        for (const mailbox of ['b.test', '@b.test', 'a@@b.test', 'a@b@b.test', 'a@.b.test', 'a@']) expect(wellFormedName(email(mailbox))).toBe(false);
         expect(wellFormedName(uri('https://a.test/x'))).toBe(true);
         // A bracketed IPv6 authority is an address, not a host name, and the
         // host-label rules do not apply to it.
@@ -504,6 +559,86 @@ describe('wellFormedName', () => {
         // produced a name or threw.
         expect(wellFormedName(directory(name(['2.5.4.3', 'x'])))).toBe(true);
         expect(wellFormedName({ kind: 'registeredID', oid: '1.2.3', der: new Uint8Array(0) })).toBe(true);
+    });
+});
+
+// ── SmtpUTF8Mailbox under rfc822Name constraints (RFC 9598 §6) ──────
+
+const OID_SMTP_UTF8_MAILBOX = '1.3.6.1.5.5.7.8.9';
+const stringNode = (content: Uint8Array, tagNumber = 12, constructed = false): Asn1Node => ({
+    tagClass: 'universal', tagNumber, constructed, offset: 0, headerLength: 2, contentLength: content.length,
+    indefinite: false, bytes: content, content, children: [],
+});
+const smtp = (text: string, node: Asn1Node = stringNode(new TextEncoder().encode(text))): GeneralName =>
+    ({ kind: 'otherName', typeId: OID_SMTP_UTF8_MAILBOX, value: node, der: new Uint8Array(0) });
+const emails = (permitted: readonly string[] | undefined, excluded: readonly string[] | undefined): NameConstraintState => {
+    const state = initialNameConstraints();
+    accumulateNameConstraints(state, permitted?.map((b) => subtree(email(b))), excluded?.map((b) => subtree(email(b))));
+    return state;
+};
+
+describe('checkName — SmtpUTF8Mailbox under rfc822Name constraints (RFC 9598 §6)', () => {
+    it('should hold an SmtpUTF8Mailbox to a permitted mail domain, as OpenSSL does', () => {
+        // The audit's chain: permitted rfc822Name example.com, a SAN
+        // SmtpUTF8Mailbox ceo@evil.test. OpenSSL: error 47.
+        const state = emails(['example.com'], undefined);
+        expect(checkName(state, smtp('ceo@evil.test'))).toEqual({ form: 'rfc822Name', text: 'SmtpUTF8Mailbox ceo@evil.test', why: 'not-permitted' });
+        expect(checkName(state, smtp('j\u00f6rg@example.com'))).toBeNull();
+        expect(checkName(state, smtp('j\u00f6rg@EXAMPLE.com'))).toBeNull();
+        // A bare domain is that domain; a leading period is what lies below.
+        expect(checkName(state, smtp('x@sub.example.com'))?.why).toBe('not-permitted');
+        expect(checkName(emails(['.example.com'], undefined), smtp('x@sub.example.com'))).toBeNull();
+        expect(checkName(emails(['.example.com'], undefined), smtp('x@example.com'))?.why).toBe('not-permitted');
+        expect(checkName(emails([''], undefined), smtp('x@anywhere.test'))).toBeNull();
+    });
+
+    it('should refuse an SmtpUTF8Mailbox inside an excluded mail domain (OpenSSL: error 48)', () => {
+        const state = emails(undefined, ['evil.test']);
+        expect(checkName(state, smtp('ceo@evil.test'))?.why).toBe('excluded');
+        expect(checkName(state, smtp('ceo@EVIL.Test'))?.why).toBe('excluded');
+        expect(checkName(state, smtp('ceo@good.example'))).toBeNull();
+    });
+
+    it('should strip the local part of a mailbox constraint too, as RFC 9598 §6 says', () => {
+        // "Strip the Local-part and '@' separator from each rfc822Name and
+        // SmtpUTF8Mailbox": a full-mailbox constraint is compared on its domain.
+        expect(checkName(emails(['boss@example.com'], undefined), smtp('j\u00f6rg@example.com'))).toBeNull();
+        expect(checkName(emails(undefined, ['boss@example.com']), smtp('j\u00f6rg@example.com'))?.why).toBe('excluded');
+    });
+
+    it('should refuse, where rfc822Name is constrained, a mailbox whose domain cannot be located', () => {
+        // Excluded-only on purpose: a name that cannot be located is not proven
+        // outside an exclusion either.
+        const state = emails(undefined, ['evil.test']);
+        for (const text of ['no-at-sign', '@evil.test', 'a@b@good.example', 'a@good.example.', 'a@good..example', 'a@', 'a@ex\u00e4mple.com']) {
+            expect(checkName(state, smtp(text))?.why).toBe('not-permitted');
+        }
+        const ia5 = smtp('', stringNode(new TextEncoder().encode('ceo@good.example'), 22));
+        expect(checkName(state, ia5)).toEqual({ form: 'rfc822Name', text: 'an SmtpUTF8Mailbox that is not a UTF8String', why: 'not-permitted' });
+        expect(checkName(state, smtp('', stringNode(new TextEncoder().encode('ceo@good.example'), 12, true)))?.why).toBe('not-permitted');
+        expect(checkName(state, smtp('', stringNode(Uint8Array.of(0x61, 0xc3, 0x40, 0x62, 0x2e, 0x63))))?.why).toBe('not-permitted');
+    });
+
+    it('should leave an SmtpUTF8Mailbox alone when no CA constrained rfc822Name', () => {
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, [subtree(dns('example.com'))], undefined);
+        expect(checkName(state, smtp('ceo@evil.test'))).toBeNull();
+        expect(checkName(state, smtp('not a mailbox'))).toBeNull();
+    });
+
+    it('should leave every other otherName to the unprocessed-form rule', () => {
+        const upn: GeneralName = { kind: 'otherName', typeId: '1.3.6.1.4.1.311.20.2.3', value: stringNode(new TextEncoder().encode('ceo@evil.test')), der: new Uint8Array(0) };
+        expect(checkName(emails(['example.com'], undefined), upn)).toBeNull();
+        // A CA that constrained otherName itself still refuses every one.
+        const state = emails(['example.com'], undefined);
+        accumulateNameConstraints(state, [subtree(upn)], undefined);
+        expect(checkName(state, smtp('j\u00f6rg@example.com'))?.text).toContain('otherName');
+    });
+
+    it('should ignore a subtree carrying a minimum or a maximum, as subtreeCovers does', () => {
+        const state = initialNameConstraints();
+        accumulateNameConstraints(state, [{ base: email('example.com'), minimum: 1, maximum: undefined }], [{ base: email('example.com'), minimum: 0, maximum: 3 }]);
+        expect(checkName(state, smtp('x@example.com'))?.why).toBe('not-permitted');
     });
 });
 
@@ -598,6 +733,12 @@ describe('excludedCovers — RFC 5280 §7.1 preparation for excluded directoryNa
         const constraint = parsedName([[C, der.printable('US')], [O, der.printable('Example')]]);
         const reordered = parsedName([[O, der.utf8('example')], [C, der.printable('US')]], [[CN, der.utf8('leaf')]]);
         expect(checkName(excluding(constraint), directory(reordered))?.why).toBe('excluded');
+    });
+
+    it('should not exclude an RDN that holds the excluded one and more', () => {
+        // A set is equal only to a set of the same size: {O} is not {O, C}.
+        const constraint = parsedName([[O, der.printable('Example')]]);
+        expect(checkName(excluding(constraint), directory(parsedName([[O, der.utf8('example')], [C, der.printable('US')]])))).toBeNull();
     });
 
     it('should not exclude a multi-valued RDN holding another set of attributes', () => {
