@@ -176,11 +176,28 @@ export function decide(command) {
         const normalised = stripPrefixes(candidate);
         for (const rule of RULES) {
             if (!rule.re.test(normalised)) continue;
-            if (rule.allow !== undefined && rule.allow.test(normalised)) continue;
+            if (rule.allow !== undefined && (rule.allow.test(normalised) || rule.allow.test(leadingSegment(normalised)))) continue;
             return { deny: true, what: rule.what };
         }
     }
     return { deny: false };
+}
+
+/**
+ * The first shell segment of a candidate, for judging an `allow` exemption:
+ * `git tag -l; sed -n 1p f` is the list form followed by another command, and
+ * every later segment is a candidate of its own, judged by every rule. A
+ * segment with an unbalanced quote was cut inside a quoted argument
+ * (`git tag v1 -m "a; b"`), so the candidate is returned whole and earns no
+ * exemption — the guard errs towards denying.
+ *
+ * @param {string} candidate
+ * @returns {string}
+ */
+export function leadingSegment(candidate) {
+    const head = candidate.split(SPLIT)[0].trim();
+    const balanced = (head.split('"').length - 1) % 2 === 0 && (head.split("'").length - 1) % 2 === 0;
+    return balanced ? head : candidate;
 }
 
 /** The Claude Code deny payload; `reason` is shown to the agent verbatim. */

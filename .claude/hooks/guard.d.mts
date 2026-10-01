@@ -29,6 +29,9 @@ export function candidates(command: string): string[];
 /** The verdict for one Bash command. */
 export function decide(command: string): GuardVerdict;
 
+/** The first shell segment of a candidate, against which an `allow` exemption is also judged; the whole candidate when the cut falls inside a quote. */
+export function leadingSegment(candidate: string): string;
+
 export function denyPayload(reason: string): DenyPayload;
 
 export function reasonFor(what: string): string;

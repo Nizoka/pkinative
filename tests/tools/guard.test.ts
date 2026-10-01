@@ -78,6 +78,13 @@ const DENIED: ReadonlyArray<readonly [command: string, what: RegExp]> = [
     ['npx -c "npm publish"', /npm publish/],
     ['echo $(git push)', /git push/],
     ['echo `gh release create v1`', /gh release/],
+    // The list-form exemption is judged on the leading segment only (C-13):
+    // a creating form after it is a segment of its own, and a quote cut by
+    // the split earns no exemption.
+    ['git tag -l && git tag v1.0.0', /git tag/],
+    ['git tag -l; git tag -d v1.0.0', /git tag/],
+    ['git tag v1.0.0 -m "a; b"', /git tag/],
+    ["git tag v1.0.0 -m 'x && y'", /git tag/],
 ];
 
 const ALLOWED: readonly string[] = [
@@ -92,6 +99,12 @@ const ALLOWED: readonly string[] = [
     'git tag',
     "git tag -l 'v0.*'",
     'git tag --contains HEAD',
+    // C-13: the list form as the FIRST segment of a compound command was
+    // refused, although every later segment is judged on its own.
+    'git tag -l; sed -n 1p f',
+    'git tag -l | head -1',
+    'git tag --list && git log -1',
+    'npm version && npm run gate:fast',
     'npm run gate:fast',
     'npm run gate',
     'npx vitest run tests/tools/guard.test.ts',
@@ -159,6 +172,13 @@ describe('guard hook — rule table', () => {
     it('stripPrefixes() removes launch wrappers only', () => {
         expect(guard.stripPrefixes('FOO=1 BAR="a b" env -i time nohup git push')).toBe('git push');
         expect(guard.stripPrefixes('git push')).toBe('git push');
+    });
+
+    it('leadingSegment() cuts at the first separator, and not inside an unbalanced quote', () => {
+        expect(guard.leadingSegment('git tag -l; sed -n 1p f')).toBe('git tag -l');
+        expect(guard.leadingSegment('git tag -l')).toBe('git tag -l');
+        expect(guard.leadingSegment('git tag v1 -m "a; b"')).toBe('git tag v1 -m "a; b"');
+        expect(guard.leadingSegment("git tag v1 -m 'a | b'")).toBe("git tag v1 -m 'a | b'");
     });
 
     it('decide() allows a non-string command', () => {
