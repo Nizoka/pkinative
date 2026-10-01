@@ -1,34 +1,55 @@
 name: Publish
 
+# The maintainer drafts the GitHub Release, then pushes the `vX.Y.Z` tag (the
+# trigger); nothing here creates, edits or publishes a release. A tag push,
+# not `release: published`, because once the repository turns on release
+# immutability a published release accepts no new asset — so the files are
+# attached to the DRAFT, and the maintainer publishes it last (GitHub's
+# documented draft → attach → publish order).
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 # Trusted Publishing (npmjs.com OIDC):
-#   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
-#   The OIDC id-token permission mints a short-lived token that:
-#     1. Authorises the `npm publish` HTTP request
-#     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
-#   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
-#   bound to this file AND to the `npm-publish` environment below. Trusted
-#   Publishing can only be configured on a package that already exists: the
-#   maintainer publishes an empty 0.0.1 name reservation by hand first.
+#   No long-lived NPM_TOKEN secret. The OIDC id-token permission mints a
+#   short-lived token that authorises the upload and signs npm's provenance
+#   statement. That reaches SLSA Build L2 (a hosted build platform and signed
+#   provenance), not L3: docs/adr/0019-release-integrity-slsa-build-l2.md says
+#   what L3 would take. Configure at npmjs.com → package settings → "Configure
+#   Trusted Publishing", bound to this file AND to the `npm-publish`
+#   environment. Trusted Publishing can only be configured on a package that
+#   already exists: the maintainer published an empty 0.0.1 name reservation
+#   by hand first.
 #
 # Pre-1.0 policy: versions below 1.0.0 are git tags only, never released on
-# GitHub or npm (ROADMAP.md). The guard job still refuses such a version, for
-# a release someone might cut from an old tag.
+# GitHub or npm (ROADMAP.md). The guard refuses such a version, for a tag cut
+# at a commit that already carries this file.
 #
-# Job graph: guard → publish → attest. The guard needs no secret and no
-# environment, so every check that can end the run without one — the tag
-# against package.json, the pre-1.0 refusal — runs there, BEFORE the
-# `npm-publish` environment asks for an approval. A 0.x release therefore
-# ends red without ever prompting the maintainer: approving a run designed to
-# fail, eight times over, is how an approval becomes a reflex by 1.0.
+# Job graph: guard → build → publish → attest.
+#   guard    reads package.json; no token, no environment, nothing installed,
+#            so a refusal ends the run BEFORE any approval is asked.
+#   build    runs the whole publish gate over the dev toolchain, packs the
+#            tarball and hands it on with its digests. It holds no id-token:
+#            dev-dependency code never runs where a publishing token can be
+#            minted.
+#   publish  behind the `npm-publish` environment; the only job that holds
+#            id-token: write. It checks out .nvmrc and nothing else, installs
+#            nothing from the lockfile and runs no repository script: it
+#            verifies the handed-on tarball against the build job's digests
+#            and uploads exactly it.
+#   attest   fetches the published tarball back from the registry, checks it
+#            against the same digests and the registry signatures, writes the
+#            SBOMs, attests them and attaches them to the draft release.
 #
-# Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
-# and approves the `npm-publish` environment; nothing here opens or edits a
-# release, the attest job only attaches files to one that already exists.
+# No job restores a dependency cache: setup-node v6 turns the npm cache on by
+# itself whenever package.json names npm in `packageManager`, so every
+# setup-node step here says `package-manager-cache: false`
+# (tests/tools/workflows.test.ts holds it).
+#
+# No workflow of this repository had run when this file was written: the
+# first release tag is this file's first execution (SECURITY.md §Release
+# integrity).
 permissions:
   contents: read
 
@@ -41,6 +62,7 @@ jobs:
   # No `environment:` on purpose: the refusal must run before the approval
   # prompt, never behind it. Read-only, no token minted, nothing installed.
   guard:
+    name: guard
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -52,7 +74,10 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -87,35 +112,38 @@ jobs:
             exit 1
           fi
 
-  publish:
+  # The untrusted half: every dev dependency runs here, and nothing here can
+  # publish. Its only products are the tarball and its digests.
+  build:
+    name: build and pack
     needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # A protected environment (required reviewer) gates the OIDC token: the
-    # job cannot mint one before the maintainer approves the run — and it is
-    # only reached once the guard has passed.
-    environment: npm-publish
     permissions:
       contents: read
-      id-token: write
     outputs:
       version: ${{ needs.guard.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+      integrity: ${{ steps.pack.outputs.integrity }}
 
     steps:
-      # Audit mode for the first two weeks, then switch to `egress-policy: block`
-      # with the endpoints this job actually reaches:
-      #   allowed-endpoints: >
-      #     api.github.com:443
-      #     codeload.github.com:443
-      #     registry.npmjs.org:443
-      #     raw.githubusercontent.com:443
-      #     fulcio.sigstore.dev:443
-      #     rekor.sigstore.dev:443
-      #     tuf-repo-cdn.sigstore.dev:443
+      # Every endpoint this job reaches: the checkout, the registry for
+      # `npm ci`, and the corpus hosts of scripts/lib/corpora.ts (GitHub raw
+      # files, NIST PKITS, the RFC Editor). setup-node takes Node from the
+      # runner's tool cache; nodejs.org is its documented fallback.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            raw.githubusercontent.com:443
+            csrc.nist.gov:443
+            www.rfc-editor.org:443
+            nodejs.org:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -125,15 +153,17 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           # The release is built on the Node line .nvmrc names — the same one
-          # contributors develop on — not on whatever ">= floor" resolves to.
+          # contributors develop on and CI tests — not on whatever ">= floor"
+          # resolves to.
           node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
-          # No `cache: npm`: a restored cache is written by other workflows,
+          # setup-node v6 turns the npm cache on by itself because package.json
+          # declares `packageManager`; a cache is written by other workflows,
           # and a release job must not build from what they left behind.
+          package-manager-cache: false
 
       # Same commit as the guard, so the same package.json: this re-reads it
-      # so that the version published is provably the version guarded, and a
-      # 0.x still stops here should the `needs:` edge ever be lost.
+      # so that the version built is provably the version guarded, and a 0.x
+      # still stops here should the `needs:` edge ever be lost.
       - name: Confirm the guarded version
         env:
           GUARDED: ${{ needs.guard.outputs.version }}
@@ -144,17 +174,7 @@ jobs:
             echo "::error::package.json version ${VERSION} is not the guarded ${GUARDED:-nothing}, or is below 1.0.0"
             exit 1
           fi
-          echo "Publishing pkinative ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
-
-      # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
-      # npm ≥ 11.5.1. The client is pinned to one exact release so the bytes
-      # that publish are the same on every run — the engine itself is still
-      # built and tested on the .nvmrc line.
-      - name: Install the pinned npm client
-        run: |
-          set -euo pipefail
-          npm install -g npm@11.19.1
-          test "$(npm --version)" = "11.19.1"
+          echo "Building pkinative ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -173,31 +193,169 @@ jobs:
       - name: Show the package contents
         run: npm pack --dry-run
 
+      # The tarball the gate just checked, packed once. Its SHA-256 and its
+      # SHA-512 integrity travel to the next jobs as job outputs — not inside
+      # the artifact they describe — and both are checked again there.
+      - name: Pack the tarball and record its digests
+        id: pack
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/release"
+          npm pack --pack-destination "${RUNNER_TEMP}/release" --silent >/dev/null
+          TARBALL="pkinative-${VERSION}.tgz"
+          test -f "${RUNNER_TEMP}/release/${TARBALL}"
+          SHA256=$(sha256sum "${RUNNER_TEMP}/release/${TARBALL}" | cut -d' ' -f1)
+          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "${RUNNER_TEMP}/release/${TARBALL}" | base64 -w0)"
+          {
+            echo "tarball=${TARBALL}"
+            echo "sha256=${SHA256}"
+            echo "integrity=${INTEGRITY}"
+          } >> "$GITHUB_OUTPUT"
+          echo "${TARBALL} sha256 ${SHA256}"
+
+      - name: Hand the tarball to the publishing job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/release/${{ steps.pack.outputs.tarball }}
+          retention-days: 7
+          if-no-files-found: error
+
+  # The trusted half, and the only holder of id-token: write. A protected
+  # environment (required reviewer) gates the token: the job cannot mint one
+  # before the maintainer approves — and it is only reached once the guard
+  # and the whole publish gate have passed.
+  publish:
+    name: publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read # Read the one sparse file, .nvmrc.
+      id-token: write # Mint the OIDC token Trusted Publishing exchanges, and sign provenance.
+    outputs:
+      version: ${{ needs.build.outputs.version }}
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      TARBALL: ${{ needs.build.outputs.tarball }}
+      SHA256: ${{ needs.build.outputs.sha256 }}
+      INTEGRITY: ${{ needs.build.outputs.integrity }}
+      # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
+      # npm ≥ 11.5.1. The client is pinned by CONTENT, not only by name: the
+      # registry tarball must match this SHA-512 (`npm view npm@11.19.1
+      # dist.integrity`, recomputed from the downloaded file when it was
+      # pinned), and it runs from where it is unpacked — no global install.
+      NPM_CLIENT_VERSION: 11.19.1
+      NPM_CLIENT_INTEGRITY: sha512-ztsxKxt/kkIaAs+2i0GU6I+DRmUdrNasxTZKJe9TCdSjKxlhah/4r/hl5ygMD6XAg1qZ9c2TNomR4qgOydp10g==
+
+    steps:
+      # The registry (the client, the upload, the OIDC exchange) and the
+      # public-good Sigstore instance that signs npm's provenance. The OIDC
+      # token itself comes from *.actions.githubusercontent.com, which
+      # harden-runner always allows.
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            registry.npmjs.org:443
+            fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
+            nodejs.org:443
+
+      # One file of the repository: .nvmrc, so the client that uploads runs
+      # on the Node line the package was built and tested on. No source, no
+      # lockfile, no script — nothing a dev dependency could have touched.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .nvmrc
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Receive the tarball
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/release
+
+      # The bytes uploaded are the bytes the gate checked: both digests, and
+      # the version inside the tarball, against what the build job recorded.
+      - name: Verify the tarball against the build job's digests
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          test "${TARBALL}" = "pkinative-${VERSION}.tgz"
+          echo "${SHA256}  ${TARBALL}" | sha256sum --check --strict
+          test "sha512-$(openssl dgst -sha512 -binary "${TARBALL}" | base64 -w0)" = "${INTEGRITY}"
+          INNER=$(tar -xzOf "${TARBALL}" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          if [ "${INNER}" != "${VERSION}" ] || [ "${VERSION%%.*}" = "0" ]; then
+            echo "::error::the tarball holds version ${INNER}, not the guarded ${VERSION}, or is below 1.0.0"
+            exit 1
+          fi
+
+      - name: Fetch and verify the pinned npm client
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' \
+            --output npm-client.tgz "https://registry.npmjs.org/npm/-/npm-${NPM_CLIENT_VERSION}.tgz"
+          test "sha512-$(openssl dgst -sha512 -binary npm-client.tgz | base64 -w0)" = "${NPM_CLIENT_INTEGRITY}"
+          mkdir npm-client
+          tar -xzf npm-client.tgz -C npm-client
+          test "$(node npm-client/package/bin/npm-cli.js --version)" = "${NPM_CLIENT_VERSION}"
+
+      # A tarball, not a directory: no lifecycle script can run, and no file
+      # of the repository is read. npm's provenance covers this file's SHA-512.
       - name: Publish
-        run: npm publish --provenance --access public
+        working-directory: ${{ runner.temp }}/release
+        run: node "${RUNNER_TEMP}/npm-client/package/bin/npm-cli.js" publish "./${TARBALL}" --provenance --access public
 
   # Attests the tarball npm published — fetched back from the registry, so the
-  # attested bytes ARE the published ones, with no reproducible-build
-  # assumption — and a CycloneDX SBOM from the same commit's lockfile, and
-  # attaches both to the GitHub release when the maintainer has created it.
-  # Kept apart from `publish` on purpose: that job runs every dev dependency
-  # through the gate, and must not hold contents: write or attestations: write.
+  # attested bytes ARE the published ones — checks it against the build job's
+  # digests and the registry signatures, writes the SBOMs from the same
+  # commit's lockfile, and attaches everything to the draft release. Kept
+  # apart from `publish`: the release-write and attestation permissions are
+  # never held next to the npm token.
   attest:
-    needs: publish
+    name: attest and attach
+    needs: [build, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: write # Attach the files to the draft release.
+      id-token: write # Sign the attestation with the workflow identity (Sigstore).
+      attestations: write # Store the attestation with the repository.
     env:
       VERSION: ${{ needs.publish.outputs.version }}
+      SHA256: ${{ needs.build.outputs.sha256 }}
+      INTEGRITY: ${{ needs.build.outputs.integrity }}
 
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            registry.npmjs.org:443
+            fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
+            nodejs.org:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -207,17 +365,27 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
-      # The lockfile alone describes the runtime dependency set; nothing is
-      # installed or built here.
-      - name: Generate the SBOM (CycloneDX, runtime dependencies only)
-        run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pkinative-${VERSION}.cdx.json"
+      # The lockfile alone describes both dependency sets; nothing is
+      # installed or built here. The two runtime SBOMs are EMPTY by design —
+      # pkinative has no runtime dependency, and an SBOM that says so is the
+      # evidence — so the toolchain SBOM records the dev packages that built
+      # dist/ (tsup, esbuild, TypeScript …) for a reviewer who asks what
+      # produced the bytes. npm writes CycloneDX 1.5 and SPDX 2.3.
+      - name: Generate the SBOMs (runtime CycloneDX and SPDX, build toolchain)
+        run: |
+          set -euo pipefail
+          npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pkinative-${VERSION}.cdx.json"
+          npm sbom --sbom-format spdx --omit dev --package-lock-only > "pkinative-${VERSION}.spdx.json"
+          npm sbom --sbom-format cyclonedx --package-lock-only > "pkinative-${VERSION}.toolchain.cdx.json"
 
       # `npm pack <name>@<version>` downloads the published tarball and checks
       # it against the registry's integrity. Retried: a version can take a
-      # moment to be served after `npm publish` returns.
-      - name: Fetch the published tarball from the registry
+      # moment to be served after the upload returns. Then the file's SHA-256
+      # and the registry's integrity must equal the build job's handoff: what
+      # npm serves is what the gate checked.
+      - name: Fetch the published tarball and check it against the build
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
@@ -226,25 +394,57 @@ jobs:
             sleep 15
           done
           test -f "pkinative-${VERSION}.tgz"
-          npm view "pkinative@${VERSION}" dist.integrity
+          echo "${SHA256}  pkinative-${VERSION}.tgz" | sha256sum --check --strict
+          test "$(npm view "pkinative@${VERSION}" dist.integrity)" = "${INTEGRITY}"
+
+      # The registry's signature and npm's provenance attestation, checked the
+      # way a consumer checks them: installed into an empty project.
+      # The install IS the check: the package just published, by exact
+      # version, into a throwaway project — not a tool taken from outside a
+      # lockfile.
+      - name: Verify the registry signatures and provenance
+        working-directory: ${{ runner.temp }}
+        run: | # zizmor: ignore[adhoc-packages]
+          set -euo pipefail
+          mkdir signatures
+          cd signatures
+          echo '{ "name": "signatures", "private": true }' > package.json
+          npm install "pkinative@${VERSION}" --ignore-scripts --no-audit --no-fund
+          npm audit signatures
 
       - name: Attest build provenance
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             pkinative-${{ env.VERSION }}.tgz
             pkinative-${{ env.VERSION }}.cdx.json
+            pkinative-${{ env.VERSION }}.spdx.json
+            pkinative-${{ env.VERSION }}.toolchain.cdx.json
 
-      # The release is created by the maintainer (human-in-the-loop); on a
-      # workflow_dispatch without one, the artefacts stay in the attestation
-      # store and nothing is created here.
-      - name: Attach the tarball and SBOM to the GitHub release
+      # The draft release is created and, after this job, published by the
+      # maintainer (human-in-the-loop). Only a DRAFT receives the files: a
+      # published release may be immutable, and replacing an asset someone has
+      # already downloaded is what immutability exists to prevent — so nothing
+      # is ever overwritten. The Sigstore bundle goes with them, so the release
+      # carries its own verifiable signature.
+      - name: Attach the tarball, the SBOMs and the attestation to the draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           set -euo pipefail
-          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" "pkinative-${VERSION}.tgz" "pkinative-${VERSION}.cdx.json" --clobber --repo "${GITHUB_REPOSITORY}"
+          cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"
+          if ! DRAFT=$(gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null); then
+            echo "::notice::No GitHub release v${VERSION} exists; the files are attested but not attached."
+          elif [ "${DRAFT}" != "true" ]; then
+            echo "::warning::Release v${VERSION} is already published; files go to a draft only, so they stay in the attestation store."
           else
-            echo "::notice::No GitHub release v${VERSION} exists; the tarball and SBOM were attested but not attached."
+            gh release upload "v${VERSION}" \
+              "pkinative-${VERSION}.tgz" \
+              "pkinative-${VERSION}.cdx.json" \
+              "pkinative-${VERSION}.spdx.json" \
+              "pkinative-${VERSION}.toolchain.cdx.json" \
+              "pkinative-${VERSION}.sigstore.json" \
+              --repo "${GITHUB_REPOSITORY}"
           fi
