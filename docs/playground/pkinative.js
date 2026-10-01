@@ -4715,7 +4715,7 @@ function wildcardMeetsSubtree(base, parent, labels = 1) {
   if (subtreeCoversWildcard(base, parent)) return true;
   const b = fold(base);
   if (b.startsWith(".") || !b.endsWith(`.${parent}`)) return false;
-  return b.slice(0, b.length - parent.length - 1).split(".").length === labels;
+  return b.split(".").length - parent.split(".").length === labels;
 }
 function subtreeCovers(subtree, name) {
   const base = subtree.base;
@@ -5363,7 +5363,7 @@ function matches2(name, identity, dns) {
   if (identity.kind === "dns") {
     return name.kind === "dNSName" && matchDnsName(name.value, identity.value, dns);
   }
-  return name.kind === "iPAddress" && sameBytes2(name.bytes, identity.value);
+  return name.kind === "iPAddress" && bytesEqual(name.bytes, identity.value);
 }
 function fold2(text) {
   return text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
@@ -5379,20 +5379,14 @@ function matchDnsName(presented, reference, options) {
   if (first !== "*") return false;
   if (labels.slice(1).some((label) => label.includes("*"))) return false;
   if (labels.length < 3) return false;
-  if (labels.slice(1).some((label) => label === "")) return false;
+  if (labels.includes("")) return false;
   const suffix = labels.slice(1).join(".");
   const hostLabels = host.split(".");
-  if (hostLabels.length !== labels.length) return false;
   if (hostLabels[0] === "") return false;
   return hostLabels.slice(1).join(".") === suffix;
 }
 function stripTrailingDot(name) {
   return name.endsWith(".") ? name.slice(0, -1) : name;
-}
-function sameBytes2(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
-  return true;
 }
 function commonNames(certificate) {
   const out = [];
