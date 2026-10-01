@@ -8,7 +8,7 @@
 - **Builds** certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an `ExternalSigner` for a key in an HSM or a remote service.
 - **Judges**: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps. The one-call reports — `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12` — return every reason at once and never throw for a problem with the input.
 - **Proves it**: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the [conformance guide](conformance.md) carries the current figures and every reviewed deviation.
-- Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.
+- Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 and 24 on Linux, Windows and macOS, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
@@ -26,7 +26,6 @@ Each of these is a recorded decision, not a gap on a roadmap: the [decision reco
 | To fetch a CRL, an OCSP response, a missing intermediate or a timestamp | The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker's choosing ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)) | Fetch them yourself and pass the bytes |
 | ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope through 1.0; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
 | Distinguished names matched by RFC 5280 §7.1 preparation when building chains | Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal ([ADR 0005](../adr/0005-names-compared-by-encoded-bytes.md)) | Re-issue with consistent encodings |
-| An npm package before 1.0.0 | Pre-1.0 versions are git tags; `publish.yml` refuses them | Install the tarball attached to the GitHub release |
 
 ## The alternatives, by the facts
 

@@ -115,7 +115,7 @@ The detail that decides whether a pin is right: **what exactly you hash.** Hashi
 
 <svg viewBox="0 0 960 250" role="img" aria-labelledby="anatomy-title anatomy-desc" class="guide-figure">
   <title id="anatomy-title">What a parsed certificate gives you, and which slice each use case hashes</title>
-  <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; signature verification, arriving in 0.3, will read tbsDer and signatureValue.</desc>
+  <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; verifyCertificateSignature checks signatureValue over tbsDer with the issuer key.</desc>
   <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
     <rect x="8" y="8" width="944" height="234" rx="10" fill="none" stroke="var(--c-border)"/>
     <text x="24" y="32" fill="var(--c-text-dim)" font-size="12">Certificate</text>
@@ -138,7 +138,7 @@ The detail that decides whether a pin is right: **what exactly you hash.** Hashi
 
     <rect x="316" y="124" width="288" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
     <text x="460" y="145" fill="var(--c-text)" text-anchor="middle">extensions</text>
-    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">twenty decoded kinds, or raw</text>
+    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">eighteen decoded kinds, or raw</text>
 
     <rect x="664" y="44" width="272" height="60" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
     <text x="800" y="70" fill="var(--c-text)" text-anchor="middle">signatureAlgorithm</text>
@@ -146,7 +146,7 @@ The detail that decides whether a pin is right: **what exactly you hash.** Hashi
 
     <rect x="664" y="116" width="272" height="58" rx="8" fill="none" stroke="var(--c-text-muted)" stroke-dasharray="4 3"/>
     <text x="800" y="140" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">tbsDer + signatureValue</text>
-    <text x="800" y="158" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">verified in 0.3, not today</text>
+    <text x="800" y="158" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">verifyCertificateSignature checks</text>
 
     <line x1="24" y1="206" x2="936" y2="206" stroke="var(--c-border)"/>
     <text x="24" y="228" fill="var(--c-text-dim)" font-size="11.5">Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.</text>
@@ -431,7 +431,7 @@ The two are paired only when the base's `cRLNumber` is **at least** the delta's 
 
 `signatureVerified` asks whether **a key entitled to sign it** did, and entitlement is more than a name. `verifyCertificateChain` requires `cRLSign` in the signer's `keyUsage` (§4.2.1.3); it honours the `authorityKeyIdentifier` a list names, which is how a CA holding several keys under one name says which of them revokes; and for a key the CA *delegated* the job to, it requires that certificate to be in date and **not itself revoked**. That last rule is what makes withdrawing a compromised CRL-signing key mean anything — without it, whoever holds that key goes on publishing "nothing is revoked" until the certificate expires.
 
-`PKI_REASON_PARTIAL` is the one answer that **adds up**. A CA may publish a keyCompromise list it can reissue in minutes and a second list for everything else; between them they have answered completely. No single list can see that, so `checkRevocation` reports what each one ruled out and `verifyCertificateChain` — which holds them all — does the addition (§6.3.3's `reasons_mask`) and drops the reason once the union is complete.
+`PKI_REASON_REVOCATION_PARTIAL` is the one answer that **adds up**. A CA may publish a keyCompromise list it can reissue in minutes and a second list for everything else; between them they have answered completely. No single list can see that, so `checkRevocation` reports what each one ruled out and `verifyCertificateChain` — which holds them all — does the addition (§6.3.3's `reasons_mask`) and drops the reason once the union is complete.
 
 On an **indirect** list, pass `issuerDer` — the one field of [`FindRevocationOptions`](../assets/api.json) beyond the ordinary parse options — to `findRevocation`. A serial is not an identity there: the list holds entries for several CAs, each named by the running `certificateIssuer` state of §5.3.3, and two CAs issue the same serial all the time. `checkRevocation` passes it for you.
 
@@ -444,7 +444,7 @@ import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from 'pkina
 
 const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
 const bytes = new Uint8Array(await (await fetch(url, {
-    method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body,
+    method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body: body.slice(),
 })).arrayBuffer());
 
 const response = parseOcspResponse(bytes);
@@ -454,6 +454,8 @@ if (!await verifyOcspSignature(basic, responderCertificate)) return 'not from th
 
 for (const single of basic.responses) console.log(single.status.kind);   // 'good' | 'revoked' | 'unknown'
 ```
+
+**`body.slice()` is for the type checker, not the runtime.** Since TypeScript 5.7 a `Uint8Array` is generic over its buffer, and the DOM types that ship with TypeScript 5.9 accept only a `Uint8Array<ArrayBuffer>` as a `fetch` body or a `crypto.subtle` input. pkinative's outputs are typed plain `Uint8Array`, whose buffer could be a `SharedArrayBuffer` as far as the checker knows, so under `lib: ["DOM"]` passing one directly fails to compile, and `body.slice()` returns a copy typed on an `ArrayBuffer`. The timestamp loop below does the same before `crypto.subtle.digest`.
 
 **Three states, never two.** RFC 6960 §2.2 gives `good`, `revoked` and `unknown`, and `unknown` is the responder saying it does not know about this certificate. Reducing that to a boolean turns *"I have never heard of this serial"* into a clean bill of health — the OCSP form of the same mistake `PKI_REASON_REVOCATION_UNKNOWN` names for CRLs. The six non-`successful` statuses are the responder declining to answer at all, and each is a reason to look elsewhere rather than a statement about any certificate. A `parseOcspResponse` result with a non-`successful` status carries **no** `basicResponse`, because the protocol carries no body there.
 
@@ -541,11 +543,11 @@ The job: a signature has to outlive its certificate. A signing certificate lives
 import { addTimeStampToken, createTimeStampRequest, parseSignedData, parseTimeStampResponse, verifySignedData } from 'pkinative';
 
 const signature = parseSignedData(p7s).signerInfos[0]!.signature;
-const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signature));
+const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signature.slice()));
 const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);
 const body = createTimeStampRequest(hash, { nonce });
 const response = parseTimeStampResponse(new Uint8Array(await (await fetch(tsaUrl, {
-    method: 'POST', headers: { 'content-type': 'application/timestamp-query' }, body,
+    method: 'POST', headers: { 'content-type': 'application/timestamp-query' }, body: body.slice(),
 })).arrayBuffer()));
 if (response.tokenDer === undefined) return `the TSA declined: ${response.status} ${response.failInfo.join(',')}`;
 
@@ -563,7 +565,7 @@ A response that was not granted carries no token, so there is nothing to verify:
 
 **`at` or `atTimeStamp` — when is the signer judged?** Without a timestamp, `verifySignedData` judges each signer's chain at `at`, which is now by default: a signer whose certificate expired yesterday is `PKI_REASON_EXPIRED` today, however long ago it signed. `atTimeStamp: true` judges each signer's chain **at the time its own verified timestamp proves** — the earliest `latest` among its valid tokens, because the true time may be as late as `genTime` plus the accuracy, and a certificate that expired inside that window is not proved to have been valid. That is the long-term validation question: *was the certificate good when this was signed?* A signer with no valid timestamp is still judged at `at`, and the signer's own `signingTime` is **never** used: nothing vouches for it but the signer, which is why `SignerReport.signingTime` is reported as a claim.
 
-**The timestamp authority is always judged at `at`, never at the `genTime` its token asserts.** A timestamp is proof of time only while its TSA is trusted. Judging the TSA's chain at the time its own token claims would let a TSA key compromised after its certificate expired **backdate** tokens that would then be believed — the attacker picks the `genTime`. So once the TSA's certificate has expired too, the stamped signature is `PKI_REASON_EXPIRED` under `signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain`, and it is also expired under `signerInfos[0].chain`, because the only proof of time no longer counts. TSA certificates are long-lived for this reason; carrying the proof beyond one needs an archive timestamp (PAdES B-LTA), which pkinative does not implement yet. Calling `verifyTimeStampToken` directly with `at` set to the token's `genTime` is possible, and is a deliberate decision to trust the time the token itself asserts.
+**The timestamp authority is always judged at `at`, never at the `genTime` its token asserts.** A timestamp is proof of time only while its TSA is trusted. Judging the TSA's chain at the time its own token claims would let a TSA key compromised after its certificate expired **backdate** tokens that would then be believed — the attacker picks the `genTime`. So once the TSA's certificate has expired too, the stamped signature is `PKI_REASON_EXPIRED` under `signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain`, and it is also expired under `signerInfos[0].chain`, because the only proof of time no longer counts. TSA certificates are long-lived for this reason; carrying the proof beyond one needs an archive timestamp (PAdES B-LTA), which pkinative does not implement ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)). Calling `verifyTimeStampToken` directly with `at` set to the token's `genTime` is possible, and is a deliberate decision to trust the time the token itself asserts.
 
 A timestamp present on a signer **and invalid** makes the signer invalid, not merely unstamped: the message is claiming a time it cannot prove. `addTimeStampToken` attaches a token as `id-aa-signatureTimeStampToken` through `addUnsignedAttribute`, so every signed octet is unchanged; a `SignerInfo`'s `timeStampTokens` lists what is already there.
 
@@ -627,11 +629,11 @@ The key in `bundle.pem` stays encrypted under the passphrase you give, PBES2 wit
 
 `recipes/private-key.ts` reads, imports and decrypts PKCS#8 keys written by `node:crypto`, names the RSA algorithm, and refuses a 3DES and an Appendix C key by name; `recipes/pkcs12.ts` writes a PBMAC1 `.p12`, opens it in one call and with the primitives, signs with the key, and reads the unverifiable, the wrong-password and the legacy cases apart.
 
-## What none of these do yet
+## What none of these do
 
-Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use meanwhile:
+Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use instead:
 
-| You need | pkinative | Until then |
+| You need | pkinative | Instead |
 |---|---|---|
 | Open a legacy PKCS#12 or PKCS#8 — RFC 7292 Appendix C ciphers, PBES1, an Appendix B MAC checked | never, by design: the Appendix B KDF is iterated hashing with byte arithmetic over the password, secret-dependent code this library will not write | `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12`, once |
 | Decide that a key is too small or a curve unacceptable | never, by design | one comparison on the parsed `subjectPublicKeyInfo`; that floor moves by CA/Browser Forum ballot and does not belong frozen in a library |

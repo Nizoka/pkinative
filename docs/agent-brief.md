@@ -33,13 +33,13 @@ export function hostNames(pemText: string): string[] {
 
 ## Catch
 
-Every failure is a `PkiError` subclass (`PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`) with a stable `code`. Branch on `error.code`, never on the message. Codes and remedies: `docs/data/errors.json`.
+Every thrown failure is a `PkiError` or one of its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError` (a verification or decryption that could not run — never one that failed), `PkiCmsError`, `PkiKeyError` — with a stable `code`. Branch on `error.code`, never on the message. Codes and remedies: `docs/data/errors.json`. The one-call verdicts (`verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12`) do not throw for a problem with their input: they return reasons (`PKI_REASON_*`, `docs/data/reasons.json`).
 
 ## Diagnostics are not errors
 
 Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has one. By default each code is logged with `console.warn`, once per code in each call; pass `onDiagnostic` to silence or redirect that.
 
-## Signed messages and timestamps (0.7)
+## Signed messages and timestamps
 
 - Verify a CMS `SignedData` (a `.p7s`, S/MIME, a PDF `/Contents`) with `verifySignedData({ signedData, content, trustAnchors })`; pass `contentDigest` instead of `content` for a PDF `/ByteRange` digest, and neither for attached content. It returns a report and never throws for bad input. `report.valid` means unaltered **and** trusted; `report.signers[i].intact` means unaltered only.
 - Sign with `createSignedData(input, signer)`. The signer is a `SigningKey` (`{ key: CryptoKey, algorithm }`) or an `ExternalSigner`, whose `produceSignature` is given the exact bytes to sign and returns what `crypto.subtle.sign` would — raw `r ‖ s` for ECDSA, never DER.
@@ -47,7 +47,7 @@ Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constr
 - `atTimeStamp: true` judges each signer's chain at the time its verified timestamp proves; the TSA's own chain is still judged at `at`. Never use `signingTime` as proof of time: only the signer vouches for it.
 - `parseSignedData` throws `PkiCmsError` (codes `PKI_CMS_*`, with `path`); the verifiers return `PKI_REASON_CMS_*` and `PKI_REASON_TSP_*` reasons instead.
 
-## Private keys and PKCS#12 (0.8)
+## Private keys and PKCS#12
 
 - Open a `.p12`/`.pfx` with `openPkcs12(bytes, { password })`; sign with `report.keys[i].signingKey`, a non-extractable `CryptoKey` whose algorithm comes from the certificate sharing the key's `localKeyId` (an RSA key needs `rsaAlgorithm` — there is no default, and without it the key stays shut with `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`). It returns a report and never throws for the file. `valid` is false with `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` for the common RFC 7292 Appendix B MAC, which pkinative never computes; pass `allowUnverifiedIntegrity: true` only for a file whose origin you trust.
 - A PKCS#8 key: `importPrivateKey(der)` for `PRIVATE KEY` (an RSA key needs `{ algorithm }`), `decryptPrivateKey(der, { password, algorithm })` for `ENCRYPTED PRIVATE KEY` — `algorithm` is always required there, because the host unwraps the key without pkinative ever seeing its plaintext. `parsePrivateKeyInfo` and `parseEncryptedPrivateKeyInfo` describe a key file (type, curve, `encryption.scheme`) before any password.

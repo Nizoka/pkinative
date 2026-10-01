@@ -10,7 +10,7 @@ pkinative is on npm, published with provenance from the tagged commit after the 
 npm install pkinative
 ```
 
-`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 and 24 on Linux, Windows and macOS, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 ## Read a certificate
 
@@ -132,7 +132,7 @@ readInteger(integerNode);                      // 65537n
 
 A node is `{ tagClass, tagNumber, constructed, offset, headerLength, contentLength, indefinite, bytes, content, children }`: `tagClass` is `'universal'`, `'application'`, `'context'` or `'private'`, `bytes` the whole encoding and `content` the content octets, both views of the input. A reader accepts its universal tag or any implicit (non-universal) tag, which it reads as its own type; `readString` and `readTime` need the type of an implicit tag — `readString(node, { stringType: 'ia5' })`, `readTime(node, { timeType: 'GeneralizedTime' })` — and throw `PKI_API_MISUSE` without it.
 
-The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` returns blocks of `{ label, bytes, headers, offset }` — `headers` holds the RFC 1421 `[name, value]` pairs lax mode reads; it takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. `OID_REGISTRY` entries are `{ oid, name, standard }`.
+The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have no typed reader: read their `content` octets. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` returns blocks of `{ label, bytes, headers, offset }` — `headers` holds the RFC 1421 `[name, value]` pairs lax mode reads; it takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. `OID_REGISTRY` entries are `{ oid, name, standard }`.
 
 ## Types you write
 
@@ -150,5 +150,5 @@ Error code unions are in the [errors guide](errors.md).
 
 - [recipes/](../../recipes/) — 21 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
-- [Conformance](conformance.md) — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.
-- [Choosing a library](choose.md) — when pkinative is the right tool, and when it is not yet.
+- [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
+- [Choosing a library](choose.md) — when pkinative is the right tool, and when another one is.

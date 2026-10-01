@@ -6,20 +6,20 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3249,
-      "approxTokens": 812
+      "bytes": 3514,
+      "approxTokens": 879
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7014,
-      "approxTokens": 1754
+      "bytes": 7375,
+      "approxTokens": 1844
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 179872,
-      "approxTokens": 44968
+      "bytes": 179487,
+      "approxTokens": 44872
     },
     {
       "url": "llms-recipes.txt",
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13318,
-      "approxTokens": 3330
+      "bytes": 13579,
+      "approxTokens": 3395
     },
     {
       "title": "Use cases",
@@ -111,10 +111,10 @@
         "sign-a-message-and-verify-one-the-whole-way",
         "prove-when-it-was-signed",
         "private-keys-and-pkcs12",
-        "what-none-of-these-do-yet"
+        "what-none-of-these-do"
       ],
-      "bytes": 78224,
-      "approxTokens": 19556
+      "bytes": 78913,
+      "approxTokens": 19728
     },
     {
       "title": "Security model",
@@ -127,11 +127,10 @@
         "fail-in-one-way",
         "cryptography-pkinative-does-not-own",
         "no-reach-outside-the-engine",
-        "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15222,
-      "approxTokens": 3806
+      "bytes": 6178,
+      "approxTokens": 1545
     },
     {
       "title": "Conformance",
@@ -171,8 +170,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 21148,
-      "approxTokens": 5287
+      "bytes": 23315,
+      "approxTokens": 5829
     },
     {
       "title": "Choosing a PKI library",
@@ -185,8 +184,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 5689,
-      "approxTokens": 1422
+      "bytes": 5746,
+      "approxTokens": 1437
     }
   ]
 }

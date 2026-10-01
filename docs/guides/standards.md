@@ -1,0 +1,57 @@
+# Standards
+
+> **A tooled self-assessment, not a certification.** No body has audited or certified pkinative against any standard on this page. What each row records is the evidence the repository itself runs — a test file, a `verify:docs` rule or a level of the conformance gate — and the gaps that evidence leaves. Every path and rule named here is checked to exist by the `standards-evidence` rule, so the page cannot cite evidence that has gone away; whether the evidence is *sufficient* is your judgement.
+
+The claimed profile is the IETF one: RFC 5280 for certificates, and the RFCs below for everything built on them. The ISO/IEC and ITU-T standards appear because RFC 5280 is written on top of them. Most ISO/IEC standards on this page are published as common text with an ITU-T Recommendation; both numbers are given, and the editions are the ones in force when this page was written (X.680 and X.690: 02/2021; X.509 and X.520: 10/2019).
+
+How to read the status column: **applies** — pkinative implements the standard for what it claims and holds itself to it; **partial** — it implements part, and the gap column says which; **not claimed** — the standard concerns an organisation or an artefact pkinative does not produce, and nothing in the repository claims it.
+
+## ASN.1 and the directory
+
+| Standard | Scope for pkinative | Status | Evidence | Gaps |
+|---|---|---|---|---|
+| ITU-T X.690 \| ISO/IEC 8825-1 — BER, CER and DER | Decoding DER (strict, the default) and BER (on request); encoding DER | applies | `src/asn1/`; `tests/asn1/asn1-decode.test.ts`, `tests/asn1/asn1-encode.test.ts`, `tests/asn1/asn1-read.test.ts`; `tests/fuzzing/asn1-lengths-tags-nesting.test.ts`, `tests/fuzzing/asn1-values.test.ts`; `tests/property/asn1-roundtrip.test.ts`; byte identity at `L2` against `scripts/lib/raw-der.ts`, an independent walker; the §11.6 and §11.2.2 clauses `x690-11.6-rdn-set-sorted` and `x690-11.2.2-named-bits-trimmed` at `L5` | §11.2.2, §11.5 and §11.6 departures are diagnostics, refused only under `strict: true` (decided: real issuers commit them, and they read the same in every parser). CER is neither implemented nor claimed. The X.690 quotes in `scripts/lib/clauses.ts` are not machine-checked against a pinned text, as the RFC 5280 ones are. |
+| ITU-T X.680 \| ISO/IEC 8824-1 — ASN.1 notation | The universal tags and the value sets the readers accept | partial | `src/asn1/asn1-tags.ts`, `src/core/text.ts` (the PrintableString set, diagnostic `PKI_DIAG_PRINTABLE_STRING_CHARSET`); `tests/asn1/asn1-tags.test.ts`, `tests/asn1/asn1-time.test.ts` | No typed reader for ENUMERATED, REAL or RELATIVE-OID. Under BER, GeneralizedTime accepts a subset of the forms X.680 allows: hour-only times, fractions of a minute or an hour, and numeric offsets are refused. |
+| ITU-T X.509 \| ISO/IEC 9594-8 — certificate framework | Read through the RFC 5280 profile, never beyond it | partial | Everything under RFC 5280 below | Extensions X.509 defines and RFC 5280 does not are kept undecoded (`kind: 'unknown'`). Attribute certificates are not read. |
+| ITU-T X.520 \| ISO/IEC 9594-6 — attribute types | Names: every DirectoryString choice is read | partial | `src/x509/x509-name.ts`; `tests/x509/x509-name.test.ts`; the attribute names in `src/oid/` | The attribute syntaxes are not enforced when reading: a `countryName` that is not two PrintableString letters, an `emailAddress` that is not an IA5String, or a value past its `ub-*` upper bound is read as it is, with no diagnostic. |
+| ITU-T X.660 \| ISO/IEC 9834-1 — object identifier arcs | Encoding, decoding and validating OIDs | applies | `src/asn1/asn1-oid.ts`; `tests/asn1/asn1-oid.test.ts`, `tests/oid/oid-registry.test.ts`; `tests/fuzzing/asn1-values.test.ts` | — |
+
+## Character sets and data formats
+
+| Standard | Scope for pkinative | Status | Evidence | Gaps |
+|---|---|---|---|---|
+| ISO/IEC 10646 (the Unicode repertoire) | UTF8String, BMPString and UniversalString decoding | applies | `src/core/text.ts`; `tests/asn1/asn1-read.test.ts`: overlong UTF-8, surrogates, values past U+10FFFF and odd lengths are refused | A byte-order mark or an escape sequence inside a BMPString or UniversalString is accepted without a diagnostic. |
+| ITU-T T.61 (TeletexString) | Read for interoperability only | partial, by design | `PKI_DIAG_TELETEX_AS_LATIN1`, in `docs/data/diagnostics.json` | T.61 is not implemented: a TeletexString is read as Latin-1 and the diagnostic says so. |
+| ISO 3166-1 alpha-2 (country codes) | `countryName` values | not checked | — | Neither the reader nor the builder checks a country code against the list or its two-letter size. |
+| RFC 5280 §4.1.2.5 time profile (and ISO 8601 in spirit) | UTCTime and GeneralizedTime in certificates, lists and messages | applies | `src/asn1/asn1-time.ts`; `tests/asn1/asn1-time.test.ts`; the clauses `4.1.2.5-generalized-time-only-from-2050` and `4.1.2.5.2-generalized-time-no-fraction` at `L5` | — |
+
+## The RFCs pkinative claims
+
+| Standard | Scope for pkinative | Status | Evidence | Gaps |
+|---|---|---|---|---|
+| RFC 5280 — certificates and CRLs | Parsing, §6 path validation, §5 revocation | applies | `L0` to `L8` in the [conformance guide](conformance.md): x509-limbo, NIST PKITS and its S/MIME messages; the pinned text of §4.1–4.2 held clause by clause (`scripts/lib/clauses.ts`, `scripts/data/rfc5280-requirements.json`, `tests/conformance/clauses.test.ts`, `tests/conformance/rfc-requirements.test.ts`); `tests/x509/x509-certificate.test.ts`, `tests/path/path-validate.test.ts`, `tests/revocation/crl-check.test.ts`; the rules `clause-table-complete` and `refusal-baseline-frozen` | The reviewed deviations of `scripts/data/pkits-score.json` and `scripts/data/limbo-score.json`; the §4 requirements the inventory records as `not-diagnosed`; distinguished names compared by encoded bytes rather than by §7.1 preparation ([ADR 0005](../adr/0005-names-compared-by-encoded-bytes.md)). |
+| RFC 5652 — CMS SignedData | Reading, building and verifying | applies | `tests/cms/cms-signed-data.test.ts`, `tests/cms/cms-check.test.ts`, `tests/verify/verify-signed-data.test.ts`, `tests/fuzzing/cms.test.ts`; `L8`, 224 PKITS S/MIME messages verified whole | DSA and Ed448 signers are not verified ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)). |
+| RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2 | Checked on verification | applies | `tests/cms/cms-check.test.ts`, `tests/cms/cms-attributes.test.ts` | — |
+| RFC 3161 and RFC 5816 — timestamps | Requests, responses, tokens and their verification | applies | `tests/cms/tsp-request.test.ts`, `tests/cms/tsp-response.test.ts`, `tests/cms/tsp-tst-info.test.ts`, `tests/verify/verify-timestamp.test.ts`; `recipes/timestamp.ts` | One level of evidence: no ETSI long-term formats ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)). |
+| RFC 6960 — OCSP | Requests, responses and the client's §3.2 checks | applies | `tests/revocation/ocsp.test.ts`, `tests/revocation/ocsp-check.test.ts`, `tests/fuzzing/reports.test.ts` | No network I/O: the caller fetches ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)). |
+| RFC 7468 — PEM | Strict and lax decoding, encoding | applies | `tests/pem/pem.test.ts`, `tests/fuzzing/pem-malformed.test.ts` | — |
+| RFC 5958 — PKCS#8; RFC 8018 — PBES2 and PBKDF2 | Reading and opening keys | applies, read only | `tests/keys/key-pkcs8.test.ts`, `tests/keys/key-pbes2.test.ts`, `tests/keys/key-import.test.ts`; the rule `key-operation-parity` | No writer ([ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)); PBES2 with AES-CBC only. |
+| RFC 7292 — PKCS#12; RFC 9579 — PBMAC1 | Opening `.p12` files | partial, by design | `tests/keys/key-pkcs12.test.ts`, `tests/verify/verify-pkcs12.test.ts`, `tests/crypto/webcrypto-password.test.ts`, `tests/fuzzing/pkcs12.test.ts`; the rule `pkcs12-policy-parity` | PBES2 only: the Appendix B KDF and the Appendix C ciphers are refused ([ADR 0002](../adr/0002-pkcs12-pbes2-only.md)), so an Appendix B MAC is reported unverified. |
+| RFC 3279, RFC 4055, RFC 5480, RFC 8410, RFC 8017 — algorithms and keys | Reading key and algorithm identifiers; signatures through Web Crypto | applies | `tests/x509/x509-spki.test.ts`, `tests/crypto/crypto-algorithms.test.ts`, `tests/crypto/x509-verify.test.ts`, `tests/build/build-structures.test.ts` | An `id-RSASSA-PSS` public key cannot be imported by Node.js 22's Web Crypto, so what it signed is reported unchecked there. No default RSA scheme ([ADR 0015](../adr/0015-no-default-rsa-scheme.md)). |
+| FIPS 204 — ML-DSA keys | Reading the SubjectPublicKeyInfo | applies, read only | `tests/x509/x509-spki.test.ts` | ML-DSA signatures are not verified. |
+| RFC 6125 — host names | Matching a certificate to a host | applies | `tests/path/path-server-name.test.ts` | No public suffix list, by design. |
+
+## Process and supply chain
+
+| Standard | Scope for pkinative | Status | Evidence | Gaps |
+|---|---|---|---|---|
+| ECMA-424 (CycloneDX) | The SBOM attached to each GitHub release | partial | `.github/workflows/publish.yml` writes it with `npm sbom --sbom-format cyclonedx` | `npm sbom` writes CycloneDX 1.5 (measured with npm 10.9.2); the current edition of ECMA-424 (December 2025) specifies CycloneDX 1.7. The SBOM is CycloneDX, not claimed as ECMA-424. |
+| ISO/IEC 5962 (SPDX) | Licence identification | not claimed | `package.json` carries the SPDX identifier `MIT` | No SPDX document is produced. |
+| ISO/IEC 5230 and ISO/IEC 18974 (OpenChain) | Open source licence compliance and security assurance programmes | not claimed | `LICENSE`, `THIRD-PARTY-NOTICES.md` (the corpora, their licences and pins, held by the rule `corpus-pin-parity`); zero runtime dependencies | These certify an organisation's programme; a single-maintainer library has no such programme to certify. |
+| ISO/IEC 29147 (vulnerability disclosure) and ISO/IEC 30111 (vulnerability handling) | How a report reaches the maintainer and is handled | partial | `SECURITY.md`: a private reporting channel, acknowledgement and fix targets, supported versions, coordinated disclosure | Not assessed against the text of either standard. |
+| ISO/IEC 40500 (WCAG) | The documentation site | partial, not claimed | The rule `contrast` (4.5:1 text contrast in both palettes); `lang="en"` on every page | No automated accessibility audit runs in the gate. |
+| ISO/IEC 27001 | Information security management | not claimed | — | It certifies an organisation's management system; a library cannot conform to it. |
+
+## What would change a row
+
+A row moves when its evidence moves: a new test or rule is added to the evidence column in the same commit, and a gap closed by a change is removed in that change. The page claims nothing that the repository does not run; a certification, if one is ever obtained, will be named here with its certificate number and scope.
