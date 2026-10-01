@@ -1,12 +1,12 @@
 # Documentation consistency
 # =========================
-# ci.yml deliberately ignores `docs/**` and `**.md`, so a documentation-only
-# pull request would trigger no workflow at all. In pdfnative that is how the
-# site came to advertise 19 MCP tools against a server registering 24.
-#
-# This workflow closes that gap: it runs scripts/verify-docs.ts against
-# docs/assets/ecosystem.json, the single source of truth for every version,
-# count and inventory quoted anywhere in the documentation.
+# ci.yml runs the whole gate — verify:docs included — on every pull request.
+# This workflow is the fast, documentation-only answer to the same question
+# (in pdfnative, a docs-only pull request that triggered nothing is how the
+# site came to advertise 19 MCP tools against a server registering 24): it
+# runs scripts/verify-docs.ts against docs/assets/ecosystem.json, the single
+# source of truth for every version, count and inventory quoted anywhere in
+# the documentation.
 #
 # The PR job is hermetic (no network). A weekly scheduled job compares the
 # manifest against the npm registry (scripts/check-npm-drift.ts, anonymous
@@ -72,7 +72,11 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -106,7 +110,7 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: `verify-docs --online` reaches every URL the docs cite; no fixed list
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

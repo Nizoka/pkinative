@@ -1,9 +1,10 @@
 name: Dependency Review
 
-# Blocks a pull request that introduces a dependency with a known high or
+# Fails on a pull request that introduces a dependency with a known high or
 # critical vulnerability, or one under a licence outside the allow-list.
 # pkinative has zero runtime dependencies, so this covers the dev toolchain
-# (and any attempt to add a runtime one).
+# (and any attempt to add a runtime one). `dependency-review` is a required
+# check in .github/rulesets/main.json, so the failure blocks the merge.
 #
 # Needs the repository's Dependency graph enabled (Settings → Code security).
 
@@ -14,20 +15,30 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dependency-review:
+    # The required check name (.github/rulesets/main.json) — keep it equal.
+    name: dependency-review
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
-      # Needed for comment-summary-in-pr.
-      pull-requests: write
+      contents: read # Read the manifests and lockfile on both sides of the diff.
+      pull-requests: write # Needed for comment-summary-in-pr.
 
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            api.securityscorecards.dev:443
+            api.deps.dev:443
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

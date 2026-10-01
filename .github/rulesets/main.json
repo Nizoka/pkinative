@@ -38,7 +38,22 @@
           { "context": "macos", "integration_id": 15368 },
           { "context": "conformance", "integration_id": 15368 },
           { "context": "conformance-windows", "integration_id": 15368 },
-          { "context": "conformance-macos", "integration_id": 15368 }
+          { "context": "conformance-macos", "integration_id": 15368 },
+          { "context": "runtimes", "integration_id": 15368 },
+          { "context": "workflow lint", "integration_id": 15368 },
+          { "context": "dependency-review", "integration_id": 15368 }
+        ]
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors"
+          }
         ]
       }
     }

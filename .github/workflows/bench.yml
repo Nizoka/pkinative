@@ -1,7 +1,7 @@
 name: Bench
 
 # A performance TREND, archived weekly. Never a gate, and never a required
-# check — `.github/rulesets/main.json` names the seven contexts that block a
+# check — `.github/rulesets/main.json` names the contexts that block a
 # merge and this is not one of them.
 #
 # Why it cannot be a threshold: shared runners vary 2-5x run to run. A
@@ -32,6 +32,7 @@ concurrency:
 
 jobs:
   bench:
+    name: benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -39,7 +40,11 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

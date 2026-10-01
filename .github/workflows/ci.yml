@@ -1,36 +1,25 @@
 name: CI
 
-# Both jobs run `scripts/gate.ts --ci`, the single definition of "green": the
-# step list lives in that file's STEPS table and is not repeated here, so CI
-# and the contributor loop cannot drift apart. `--require-all` turns any SKIP
-# into a FAIL: a runner missing a tool goes red instead of quietly passing.
+# The `ci` jobs run `scripts/gate.ts --ci`, the single definition of "green":
+# the step list lives in that file's STEPS table and is not repeated here, so
+# CI and the contributor loop cannot drift apart. `--require-all` turns any
+# SKIP into a FAIL: a runner missing a tool goes red instead of quietly
+# passing.
 #
 # `npm audit` runs outside the gate on purpose: the gate is hermetic (no
 # network) so its verdict is the same on a laptop and on a runner.
+#
+# No path filter. Every job here reports a check the ruleset requires, and
+# GitHub leaves the checks of a path-filtered workflow pending forever, which
+# blocks the pull request: a docs-only change would need the admin bypass,
+# and a bypass used weekly stops being an exception (audit P-02; the same
+# rule conformance.yml states).
 
 on:
   push:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/*.md'
-      - '.github/FUNDING.yml'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitignore'
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/*.md'
-      - '.github/FUNDING.yml'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitignore'
 
 permissions:
   contents: read
@@ -67,16 +56,14 @@ jobs:
           - { name: macos, os: macos-latest, node-version: 22, slug: macos, audit: false }
 
     steps:
-      # Harden-Runner supports Windows runners in audit mode only, so this job
-      # can never move to `egress-policy: block`. The action also
-      # does not support macOS at all, which is why it is skipped there
-      # rather than left to fail. The step stays first on every other runner,
-      # so the workflow invariant (tests/tools/workflows.test.ts) holds.
+      # On every runner, macOS included: the vendor README at the pinned SHA
+      # lists GitHub-hosted Windows and macOS runners as supported in audit
+      # mode, and Linux with block mode as well. One step serves all four
+      # legs, so the policy is the one the Windows and macOS legs allow.
       - name: Harden the runner
-        if: runner.os != 'macOS'
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: audit only on Windows/macOS (vendor matrix), and one step serves every leg
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -111,3 +98,105 @@ jobs:
           path: test-output/.gate/
           retention-days: 7
           if-no-files-found: ignore
+
+  # README.md and the landing page say the same build runs on Node, browsers,
+  # Deno and Bun. The gate proves Node; this proves the rest, on the BUILT
+  # package: one parse, a verify per signature family, a PKCS#12 opened and
+  # its key used to sign, an Ed25519 certificate built and verified
+  # (.github/runtime-smoke/checks.mjs, the same file in all three). Chromium
+  # is the one the Ubuntu image already ships; no npm dependency is added.
+  runtimes:
+    name: runtimes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit # 2026-10-01: the Deno and Bun downloads are not baselined yet
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build the package under test
+        run: npm run build
+
+      # Exact versions, so a red run names its runtime; bumped by hand with
+      # the README's runtime list in view.
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+          no-cache: true
+
+      - name: Smoke test on Deno
+        run: deno run .github/runtime-smoke/run.mjs
+
+      - name: Smoke test on Bun
+        run: bun .github/runtime-smoke/run.mjs
+
+      - name: Smoke test on headless Chromium
+        run: |
+          google-chrome --version
+          node .github/runtime-smoke/browser.mjs
+
+  # The workflows themselves are code that holds tokens. zizmor reads them
+  # for the GitHub Actions weaknesses (cache poisoning, template injection,
+  # excessive permissions, unpinned or impostor actions — the class of audit
+  # P-01 that a plain-text test missed); actionlint checks the syntax,
+  # expressions and every `run:` script through shellcheck. Both pinned: the
+  # zizmor image by the digest the action pins for 1.30.1, actionlint by the
+  # SHA-256 of its release archive.
+  workflow-lint:
+    name: workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit # 2026-10-01: the container registry hosts behind ghcr.io are not baselined yet
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          version: 1.30.1
+          min-severity: medium
+          advanced-security: false
+          annotations: true
+
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          ARCHIVE="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' \
+            --output "${RUNNER_TEMP}/${ARCHIVE}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${ARCHIVE}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${ARCHIVE}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}" actionlint
+          shellcheck --version | head -2
+          "${RUNNER_TEMP}/actionlint" -color

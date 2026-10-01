@@ -1,7 +1,7 @@
 name: Fuzz
 
 # Coverage-guided fuzzing, through ClusterFuzzLite. It is deliberately NOT a
-# required status check: `.github/rulesets/main.json` lists the seven contexts
+# required status check: `.github/rulesets/main.json` lists the contexts
 # that block a merge and this is not among them, which is what "non-blocking"
 # means here — not a `continue-on-error:` that hides a red run.
 #
@@ -50,14 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: read
-      security-events: write
+      contents: read # Read the repository the fuzzers are built from.
+      security-events: write # Upload the SARIF of a crash to the Security tab (output-sarif).
 
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: the ClusterFuzzLite base images and its filestore are not baselined yet
 
       - name: Build the fuzzers
         id: build
@@ -91,7 +91,7 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: the ClusterFuzzLite base images and its filestore are not baselined yet
 
       - name: Build the fuzzers
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1

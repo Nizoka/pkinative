@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // ── Workflow, supply-chain and contributor invariants ─────────────────
 //
@@ -49,8 +50,8 @@ describe('every workflow', () => {
     const allFiles = workflowFiles.map((f) => ({ label: f, text: readWorkflow(f) }));
 
     it('should be exactly the expected set of workflow files', () => {
-        // ci.yml and docs.yml carry mutually exclusive `paths` filters: a tenth
-        // workflow could shadow one of them without any other test noticing.
+        // A new workflow is a new holder of tokens and a new set of checks;
+        // it must arrive with its own assertions in this file, not unseen.
         expect(workflowFiles).toEqual([
             'audit.yml',
             'bench.yml',
@@ -134,41 +135,96 @@ describe('every workflow', () => {
     });
 });
 
+/** The egress policy of a harden-runner step: `block` with its allow-list, or `audit` with the dated reason it is not blocked yet. */
+function egressOf(step: string): { policy: 'block'; endpoints: string[] } | { policy: 'audit'; reason: string } | null {
+    if (/egress-policy:\s*block\s*$/m.test(step)) {
+        const list = /allowed-endpoints:\s*>\s*\n((?:[ \t]+[a-z0-9.-]+:\d+[ \t]*(?:\n|$))+)/.exec(step)?.[1] ?? '';
+        return { policy: 'block', endpoints: list.split('\n').map((l) => l.trim()).filter((l) => l !== '') };
+    }
+    const audit = /egress-policy:\s*audit\s*#\s*(\d{4}-\d{2}-\d{2}:\s*\S.*)$/m.exec(step);
+    return audit ? { policy: 'audit', reason: audit[1] } : null;
+}
+
+/**
+ * The jobs whose egress is small and known, so they run in block mode
+ * (audit P-06). Everything else stays in audit with a dated reason in the
+ * file: the Windows and macOS legs (the vendor supports audit only there),
+ * and the jobs whose hosts are not baselined yet.
+ */
+const BLOCKING_JOBS: Readonly<Record<string, readonly string[]>> = {
+    'publish.yml': ['guard', 'build', 'publish', 'attest'],
+    'audit.yml': ['audit'],
+    'bench.yml': ['bench'],
+    'dependency-review.yml': ['dependency-review'],
+    'docs.yml': ['verify'],
+};
+
+/**
+ * Workflows still carrying the macOS carve-out that the vendor README at the
+ * pinned SHA contradicts (audit P-07). conformance.yml belongs to another
+ * change set; once it drops the `if:`, this list empties and every assertion
+ * below covers it too.
+ */
+const MACOS_CARVE_OUT_PENDING: readonly string[] = ['conformance.yml'];
+
 describe('every workflow job', () => {
-    it('should start with harden-runner in audit mode', () => {
+    it('should start with harden-runner, in block mode with an allow-list or in audit mode with a dated reason', () => {
         for (const f of workflowFiles) {
             const jobs = jobSteps(readWorkflow(f));
             expect(jobs.size, `${f}: no job with steps`).toBeGreaterThan(0);
             for (const [job, steps] of jobs) {
                 expect(steps[0], `${f} › ${job}: first step`).toContain(HARDEN_RUNNER);
-                expect(steps[0], `${f} › ${job}: egress policy`).toMatch(/egress-policy:\s*audit/);
+                if (MACOS_CARVE_OUT_PENDING.includes(f)) continue;
+                const egress = egressOf(steps[0]);
+                expect(egress, `${f} › ${job}: egress-policy must be "block" with allowed-endpoints, or "audit # YYYY-MM-DD: reason"`).not.toBeNull();
+                if (egress?.policy === 'block') {
+                    expect(egress.endpoints.length, `${f} › ${job}: block with no allowed endpoint`).toBeGreaterThan(0);
+                    for (const e of egress.endpoints) expect(e, `${f} › ${job}`).toMatch(/^[a-z0-9.-]+:443$/);
+                }
             }
         }
     });
 
-    it('should skip harden-runner on macOS, and only there, with the reason written down', () => {
-        // The action supports Windows in audit mode only and does not support
-        // macOS at all. pdfnative-mcp, whose CI actually runs, carves it out
-        // explicitly; pkinative carried a comment asserting the action
-        // "records that the platform is unsupported and continues" — an
-        // untested claim, since this repository's CI has never executed.
-        // The carve-out is the evidence-based position, and an exemption
-        // nobody can see is an exemption that spreads.
-        const withMacos = workflowFiles.filter((f) => readWorkflow(f).includes('macos-latest'));
-        expect(withMacos.sort(), 'the matrices that reach macOS').toEqual(['ci.yml', 'conformance.yml']);
-        for (const f of withMacos) {
-            const first = [...jobSteps(readWorkflow(f)).values()].flatMap((steps) => steps.slice(0, 1));
-            for (const step of first) {
-                expect(step, `${f}: the harden-runner step must name its own exemption`).toMatch(/if:\s*runner\.os != 'macOS'/);
+    it('should block egress on every job whose endpoints are known', () => {
+        for (const [f, blocking] of Object.entries(BLOCKING_JOBS)) {
+            const jobs = jobSteps(readWorkflow(f));
+            for (const job of blocking) {
+                expect(egressOf(jobs.get(job)?.[0] ?? '')?.policy, `${f} › ${job}`).toBe('block');
             }
-            expect(readWorkflow(f), `${f}: the reason must be in the file, not only in a commit message`)
-                .toContain('does not support macOS');
         }
-        // Everywhere else the step is unconditional: a blanket `if:` would
-        // turn one platform's limitation into a hole on every runner.
-        for (const f of workflowFiles.filter((x) => !withMacos.includes(x))) {
-            expect(readWorkflow(f), `${f}: no macOS runner, so no exemption`).not.toContain("runner.os != 'macOS'");
+    });
+
+    it('should allow, in the release jobs, exactly the hosts each one reaches', () => {
+        // The build job also fetches the corpora of scripts/lib/corpora.ts;
+        // the publish job only uploads and signs. A host missing here breaks
+        // the one run that cannot be repeated; a host added without a reason
+        // is an exfiltration path next to the npm token.
+        const jobs = jobSteps(readWorkflow('publish.yml'));
+        const allowed = (job: string): string[] => {
+            const egress = egressOf(jobs.get(job)?.[0] ?? '');
+            return egress?.policy === 'block' ? [...egress.endpoints].sort() : [];
+        };
+        const SIGSTORE = ['fulcio.sigstore.dev:443', 'rekor.sigstore.dev:443', 'tuf-repo-cdn.sigstore.dev:443'];
+        expect(allowed('guard')).toEqual(['api.github.com:443', 'github.com:443']);
+        expect(allowed('build')).toEqual(['api.github.com:443', 'csrc.nist.gov:443', 'github.com:443', 'nodejs.org:443', 'raw.githubusercontent.com:443', 'registry.npmjs.org:443', 'www.rfc-editor.org:443']);
+        expect(allowed('publish')).toEqual(['github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', ...SIGSTORE].sort());
+        expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', 'uploads.github.com:443', ...SIGSTORE].sort());
+        // The corpus hosts are real: a corpus moved elsewhere must move here too.
+        const corpora = readText('scripts', 'lib', 'corpora.ts');
+        for (const host of ['csrc.nist.gov', 'www.rfc-editor.org', 'github.com/C2SP']) expect(corpora, host).toContain(`https://${host}/`);
+    });
+
+    it('should run harden-runner on macOS too: no platform carve-out', () => {
+        // The vendor README at the pinned SHA lists GitHub-hosted Windows and
+        // macOS runners as supported in audit mode (audit P-07); the former
+        // "does not support macOS at all" exemption contradicted it.
+        for (const f of workflowFiles.filter((x) => !MACOS_CARVE_OUT_PENDING.includes(x))) {
+            const text = readWorkflow(f);
+            expect(text, `${f}: harden-runner must be unconditional`).not.toMatch(/runner\.os\s*!=\s*'macOS'/);
+            expect(text, f).not.toContain('does not support macOS');
+            for (const [job, steps] of jobSteps(text)) expect(steps[0], `${f} › ${job}`).not.toMatch(/^\s+if:/m);
         }
+        expect(readWorkflow('ci.yml')).toContain('macos-latest');
     });
 
     it('should install dependencies with --ignore-scripts', () => {
@@ -192,17 +248,60 @@ describe('ci.yml', () => {
     /** Every `name:` of a matrix include — the status-check names GitHub reports. */
     const checkNames = (text: string): string[] => [...text.matchAll(/^\s+- \{ name: '?([^,']+)'?,/gm)].map((m) => m[1]);
 
+    it('should run on every pull request and push, with no path filter that could leave a required check pending', () => {
+        // GitHub leaves the checks of a path-filtered workflow pending
+        // forever, which blocks a docs-only pull request (audit P-02).
+        expect(ci).not.toMatch(/^\s+paths(-ignore)?:/m);
+        expect(ci).toMatch(/^on:\s*\n\s+push:\s*\n\s+branches: \[main, master\]\s*\n\s+pull_request:\s*\n\s+branches: \[main, master\]\s*$/m);
+    });
+
     it('should report exactly the status checks the ruleset requires, on all three platforms', () => {
         // `name:` is what decides the check name, which is why renaming a job
         // here — or dropping the `name:` — would leave required checks pending
         // forever. Adding a platform must stay additive.
         expect(ci).toMatch(/^ {2}ci:\s*\n\s+name: \$\{\{ matrix\.name \}\}/m);
         expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'macos', 'windows']);
+        expect(ci).toMatch(/^ {2}runtimes:\s*\n {4}name: runtimes\s*$/m);
+        expect(ci).toMatch(/^ {2}workflow-lint:\s*\n {4}name: workflow lint\s*$/m);
         expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'windows', 'macos']));
         for (const os of ['ubuntu-latest', 'windows-latest', 'macos-latest']) expect(ci, os).toContain(`os: ${os}`);
         expect(ci).toMatch(/node-version: 22/);
         expect(ci).toMatch(/node-version: 24/);
     });
+
+    it('should test, on Linux, the Node line the release is built and uploaded on', () => {
+        // publish.yml builds and uploads on .nvmrc; CI must test that line.
+        const pinned = readText('.nvmrc').trim();
+        expect(ci).toMatch(new RegExp(`name: 'ci \\(${pinned}\\)', os: ubuntu-latest, node-version: ${pinned},`));
+    });
+
+    /** One job's text, from its head to the next job head. */
+    const ciJob = (job: string): string =>
+        new RegExp(`^  ${job}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(ci)?.[1] ?? '';
+
+    it('should smoke-test the built package on Deno, Bun and headless Chromium, with pinned runtimes', () => {
+        const job = ciJob('runtimes');
+        const order = ['run: npm run build', 'denoland/setup-deno@', 'oven-sh/setup-bun@', 'run: deno run .github/runtime-smoke/run.mjs', 'run: bun .github/runtime-smoke/run.mjs', 'node .github/runtime-smoke/browser.mjs']
+            .map((needle) => job.indexOf(needle));
+        expect(order.every((i) => i >= 0), String(order)).toBe(true);
+        expect([...order].sort((a, b) => a - b)).toEqual(order);
+        expect(job).toMatch(/deno-version: \d+\.\d+\.\d+\s*$/m);
+        expect(job).toMatch(/bun-version: \d+\.\d+\.\d+\s*$/m);
+        expect(job).toMatch(/no-cache: true/);
+        for (const f of ['checks.mjs', 'run.mjs', 'browser.mjs']) expect(existsSync(join(ROOT, '.github', 'runtime-smoke', f)), f).toBe(true);
+    });
+
+    it('should lint the workflows with a pinned zizmor and a checksum-verified actionlint', () => {
+        const job = ciJob('workflow-lint');
+        expect(job).toMatch(/uses: zizmorcore\/zizmor-action@[0-9a-f]{40} # v\d/);
+        expect(job).toMatch(/^\s+version: \d+\.\d+\.\d+\s*$/m);
+        expect(job).toMatch(/min-severity: medium/);
+        expect(job).toMatch(/ACTIONLINT_SHA256: [0-9a-f]{64}\s*$/m);
+        const check = job.indexOf('sha256sum --check --strict');
+        expect(check).toBeGreaterThan(0);
+        expect(check).toBeLessThan(job.indexOf('/actionlint" -color'));
+    });
+
 
     it('should run the gate with --require-all once, for every platform, and audit only once', () => {
         // One job now, so one gate invocation in the file — and `npm audit` is
@@ -216,8 +315,56 @@ describe('ci.yml', () => {
 
     it('should list no gate step by hand', () => {
         for (const step of ['typecheck:all', 'test:coverage', 'check:package', 'verify:docs', 'npm run build', 'npm run lint', 'npm test']) {
-            expect(ci, step).not.toMatch(new RegExp(`run: (npm run )?${step.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm'));
+            expect(ciJob('ci'), step).not.toMatch(new RegExp(`run: (npm run )?${step.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm'));
         }
+    });
+});
+
+describe('the main ruleset', () => {
+    const ruleset = JSON.parse(readText('.github', 'rulesets', 'main.json')) as {
+        rules: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string; integration_id?: number }>; code_scanning_tools?: Array<Record<string, string>> } }>;
+    };
+    const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks ?? [];
+
+    /** Every check a workflow reports: the matrix `name:` values, else the job `name:`, else the job id. */
+    function reported(file: string): string[] {
+        const text = readWorkflow(file);
+        const out: string[] = [];
+        for (const job of jobSteps(text).keys()) {
+            const body = new RegExp(`^  ${job}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(text)?.[1] ?? '';
+            const name = /^ {4}name:\s*(.+?)\s*$/m.exec(body)?.[1] ?? job;
+            if (name === '${{ matrix.name }}') out.push(...[...body.matchAll(/^\s+- \{ name: '?([^,']+)'?,/gm)].map((m) => m[1]));
+            else out.push(name);
+        }
+        return out;
+    }
+
+    it('should require exactly the checks ci.yml, conformance.yml and dependency-review.yml report, all from GitHub Actions', () => {
+        // Both directions: a required context nothing reports blocks every
+        // pull request; a blocking job nobody requires is advisory in fact
+        // (audit P-11: Dependency Review was described as blocking).
+        const blocking = ['ci.yml', 'conformance.yml', 'dependency-review.yml'].flatMap(reported).sort();
+        expect(contexts.map((c) => c.context).sort()).toEqual(blocking);
+        for (const c of contexts) expect(c.integration_id, c.context).toBe(15368);
+        for (const f of ['conformance.yml', 'dependency-review.yml']) expect(readWorkflow(f), f).not.toMatch(/^\s+paths(-ignore)?:/m);
+    });
+
+    it('should require CodeQL results (high security alerts and errors block), and waive signed commits in writing', () => {
+        const scanning = ruleset.rules.find((r) => r.type === 'code_scanning')?.parameters?.code_scanning_tools ?? [];
+        expect(scanning).toEqual([{ tool: 'CodeQL', security_alerts_threshold: 'high_or_higher', alerts_threshold: 'errors' }]);
+        // Signed commits are a documented waiver, not an oversight: GitHub
+        // checks every commit of the head branch, so one unsigned commit of a
+        // first-time contributor would block the squash merge (audit P-14).
+        expect(ruleset.rules.some((r) => r.type === 'required_signatures')).toBe(false);
+        expect(readText('CONTRIBUTING.md')).toContain('**Signed commits are not required.**');
+        // The code_scanning rule waits for results on every pull request and
+        // its base, so CodeQL is never path-filtered; it reads the workflows
+        // too (the `actions` language), not only the TypeScript.
+        const codeql = readWorkflow('codeql.yml');
+        expect(codeql).not.toMatch(/^\s+paths(-ignore)?:/m);
+        expect(codeql).toMatch(/- \{ language: actions, build-mode: none \}/);
+        expect(codeql).toMatch(/- \{ language: javascript-typescript, build-mode: none \}/);
+        expect(codeql).not.toContain('autobuild');
     });
 });
 
@@ -252,24 +399,56 @@ describe('conformance.yml', () => {
     });
 });
 
+/**
+ * Whether a setup-node v6 step restores the npm cache, as the action decides
+ * it — not whether the step happens to spell `cache: npm`. At the pinned SHA
+ * the action's own input says: "By default, caching is enabled when either
+ * devEngines.packageManager or the top-level packageManager field in
+ * package.json specifies npm" and `package-manager-cache: false` turns it
+ * off. The former test checked only for `cache: npm`, and passed while both
+ * release jobs restored the cache (audit P-01).
+ */
+function npmCacheEnabled(step: string, pkg: { packageManager?: string; devEngines?: { packageManager?: { name?: string } } }): boolean {
+    if (/^\s+cache:\s*['"]?npm['"]?\s*$/m.test(step)) return true;
+    const automatic = (pkg.packageManager ?? '').startsWith('npm@') || pkg.devEngines?.packageManager?.name === 'npm';
+    return automatic && !/^\s+package-manager-cache:\s*false\s*$/m.test(step);
+}
+
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');
     const jobs = jobSteps(publish);
+    const pkg = JSON.parse(readText('package.json')) as { packageManager?: string; devEngines?: { packageManager?: { name?: string } } };
+
+    /** The text of one job, from its head to the next job head. */
+    const jobBody = (job: string): string =>
+        new RegExp(`^  ${job}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(publish)?.[1] ?? '';
+    /** The permissions a job grants, trailing comments stripped, sorted. */
+    const grants = (job: string): string[] => {
+        const block = /^ {4}permissions:\s*\n((?: {6}[a-z-]+:[^\n]*\n)+)/m.exec(jobBody(job))?.[1] ?? '';
+        return block.trim().split('\n').map((l) => l.replace(/#.*$/, '').trim()).sort();
+    };
+    /** The steps of one job, and the index of the first one containing `needle`. */
+    const stepIndex = (job: string, needle: string | RegExp): number =>
+        (jobs.get(job) ?? []).findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
+
+    it('should start from a pushed v* tag or a manual run, never from a published release', () => {
+        // A published release is immutable once release immutability is on:
+        // files are attached to the draft, which the maintainer publishes last.
+        expect(publish).toMatch(/^on:\s*\n\s+push:\s*\n\s+tags: \['v\*'\]\s*\n\s+workflow_dispatch:\s*$/m);
+        expect(publish).not.toMatch(/^\s+release:\s*$/m);
+    });
 
     it('should mint an OIDC token and never read an NPM_TOKEN secret', () => {
         expect(publish).toMatch(/^\s*id-token:\s*write/m);
         expect(publish).not.toMatch(/secrets\.NPM_TOKEN/);
     });
 
-    /** The text of one job, from its head to the next job head. */
-    const jobBody = (job: string): string =>
-        new RegExp(`^  ${job}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'm').exec(publish)?.[1] ?? '';
-
-    it('should run exactly three jobs: guard, then publish, then attest', () => {
-        expect([...jobs.keys()]).toEqual(['guard', 'publish', 'attest']);
+    it('should run exactly four jobs: guard, then build, then publish, then attest', () => {
+        expect([...jobs.keys()]).toEqual(['guard', 'build', 'publish', 'attest']);
         expect(jobBody('guard')).not.toMatch(/^\s*needs:/m);
-        expect(jobBody('publish')).toMatch(/^ {4}needs:\s*guard\s*$/m);
-        expect(jobBody('attest')).toMatch(/^ {4}needs:\s*publish\s*$/m);
+        expect(jobBody('build')).toMatch(/^ {4}needs:\s*guard\s*$/m);
+        expect(jobBody('publish')).toMatch(/^ {4}needs:\s*build\s*$/m);
+        expect(jobBody('attest')).toMatch(/^ {4}needs:\s*\[build, publish\]\s*$/m);
     });
 
     it('should publish from the npm-publish environment, and only the publishing job, one release at a time', () => {
@@ -278,20 +457,32 @@ describe('publish.yml', () => {
         expect(publish).toMatch(/concurrency:\s*\n\s*group:\s*publish\s*\n\s*cancel-in-progress:\s*false/);
     });
 
+    it('should hold id-token: write only where nothing from the dev toolchain runs (audit P-04)', () => {
+        expect(grants('guard')).toEqual(['contents: read']);
+        expect(grants('build')).toEqual(['contents: read']);
+        expect(grants('publish')).toEqual(['contents: read', 'id-token: write']);
+        expect(grants('attest')).toEqual(['attestations: write', 'contents: write', 'id-token: write']);
+        // The publishing job: no lockfile install, no repository script, no
+        // gate, and a checkout of .nvmrc alone.
+        const body = jobBody('publish');
+        expect(body).not.toMatch(/npm ci|npm run |npx |scripts\/|npm install/);
+        const checkouts = (jobs.get('publish') ?? []).filter((s) => s.includes('actions/checkout@'));
+        expect(checkouts).toHaveLength(1);
+        expect(checkouts[0]).toMatch(/sparse-checkout: \.nvmrc\s*$/m);
+        expect(checkouts[0]).toMatch(/sparse-checkout-cone-mode: false/);
+    });
+
     it('should refuse a pre-1.0 version in a guard job that no approval stands in front of', () => {
         // The defect this shape removes: a job carrying `environment:` asks
         // for an approval before its first step, so a refusal placed inside
         // it trained the maintainer to approve eight runs designed to fail.
         const guard = jobBody('guard');
         expect(guard).not.toMatch(/^\s*environment:/m);
-        const perms = /^ {4}permissions:\s*\n((?: {6}[a-z-]+:\s*\w+\s*\n)+)/m.exec(guard);
-        expect(perms?.[1]?.trim().split('\n').map((l) => l.trim())).toEqual(['contents: read']);
         // Nothing to install and nothing to publish with: the guard reads a file.
         expect(guard).not.toMatch(/npm (ci|install|publish)|secrets\.|id-token/);
         const steps = jobs.get('guard') ?? [];
-        const index = (needle: string): number => steps.findIndex((s) => s.includes(needle));
-        const tag = index('does not match package.json version');
-        const pre1 = index('Refuse a pre-1.0 publication');
+        const tag = stepIndex('guard', 'does not match package.json version');
+        const pre1 = stepIndex('guard', 'Refuse a pre-1.0 publication');
         expect(steps).toHaveLength(4);
         expect([tag, pre1]).toEqual([2, 3]);
         expect(steps[pre1]).toMatch(/\[ "\$\{MAJOR\}" = "0" \][\s\S]*exit 1/);
@@ -299,93 +490,132 @@ describe('publish.yml', () => {
         expect(guard).toMatch(/^ {6}version:\s*\$\{\{ steps\.version\.outputs\.version \}\}\s*$/m);
     });
 
-    it('should pin the npm client to one exact 11.x release, at least 11.5.1, before publishing', () => {
-        const pins = [...publish.matchAll(/npm install -g npm@(\S+)/g)].map((m) => m[1]);
-        expect(pins).toHaveLength(1);
-        expect(pins[0]).toMatch(/^\d+\.\d+\.\d+$/);
-        const [major, minor, patch] = pins[0].split('.').map(Number);
-        expect(major === 11 && (minor > 5 || (minor === 5 && patch >= 1))).toBe(true);
-        expect(publish).toContain(`test "$(npm --version)" = "${pins[0]}"`);
-        expect(publish.indexOf('npm install -g npm@')).toBeLessThan(publish.indexOf('run: npm publish'));
-    });
-
-    it('should build on the .nvmrc Node line and publish with provenance', () => {
-        expect(publish).toMatch(/node-version-file:\s*\.nvmrc/);
-        expect(publish).toMatch(/run: npm publish --provenance --access public\s*$/m);
-        expect(publish).toMatch(/run: npm pack --dry-run/);
-    });
-
-    it('should confirm, before anything is installed, that the version it publishes is the one the guard passed', () => {
-        const steps = jobs.get('publish') ?? [];
-        const index = (needle: string): number => steps.findIndex((s) => s.includes(needle));
-        const confirm = index('Confirm the guarded version');
-        const npmPin = index('npm install -g npm@');
-        const gate = index('run: npx tsx scripts/gate.ts --publish --require-all');
-        expect([confirm, npmPin, gate].every((i) => i >= 0)).toBe(true);
-        expect(confirm).toBeLessThan(npmPin);
-        expect(steps[confirm]).toContain('GUARDED: ${{ needs.guard.outputs.version }}');
-        expect(steps[confirm]).toMatch(/\[ "\$\{VERSION\}" != "\$\{GUARDED\}" \] \|\| \[ "\$\{VERSION%%\.\*\}" = "0" \][\s\S]*exit 1/);
-        // The refusal itself lives in the guard alone; the publishing job
-        // re-asserts it, it does not carry a second copy to drift.
-        expect(steps.some((s) => s.includes('Refuse a pre-1.0 publication'))).toBe(false);
-        expect(jobBody('publish')).toMatch(/^ {6}version:\s*\$\{\{ needs\.guard\.outputs\.version \}\}\s*$/m);
-    });
-
     it('should publish from a tag only: the guard refuses a branch before anything else', () => {
-        // A workflow_dispatch on a branch would otherwise publish whatever that
-        // branch holds, with only the environment approval in the way.
         const guard = jobBody('guard');
         expect(guard).toMatch(/if \[ "\$\{GITHUB_REF_TYPE\}" != "tag" \]; then\s*\n\s*echo "::error::publish runs from a v\* tag only[^\n]*\n\s*exit 1/);
         expect(guard.indexOf('!= "tag"')).toBeLessThan(guard.indexOf('Refuse a pre-1.0 publication'));
     });
 
-    it('should attest the bytes npm published, fetched from the registry, not a rebuild', () => {
-        // A tarball rebuilt in another job is only the published one if the
-        // build is byte-for-byte reproducible; fetching it back makes the
-        // attested file the published file by construction.
+    it('should restore no dependency cache in any release job — the effective setup-node behaviour, not a spelling', () => {
+        const setups = [...jobs.values()].flat().filter((s) => s.includes('actions/setup-node@'));
+        expect(setups.length).toBe(3);
+        for (const step of setups) expect(npmCacheEnabled(step, pkg), step.split('\n')[0]).toBe(false);
+        // The model itself: with packageManager naming npm, a step that is
+        // silent about caching DOES restore the cache — what P-01 missed.
+        expect(pkg.packageManager ?? '').toMatch(/^npm@/);
+        expect(npmCacheEnabled('      - uses: actions/setup-node@x\n        with:\n          node-version-file: .nvmrc', pkg)).toBe(true);
+        expect(npmCacheEnabled('      - uses: actions/setup-node@x\n        with:\n          node-version-file: .nvmrc', {})).toBe(false);
+        expect(npmCacheEnabled('      - uses: actions/setup-node@x\n        with:\n          cache: npm\n          package-manager-cache: false', pkg)).toBe(true);
+    });
+
+    it('should build, test and upload on the .nvmrc Node line, the one CI tests', () => {
+        for (const job of ['build', 'publish', 'attest']) {
+            const setup = (jobs.get(job) ?? []).find((s) => s.includes('actions/setup-node@')) ?? '';
+            expect(setup, job).toMatch(/node-version-file:\s*\.nvmrc/);
+            expect(setup, job).not.toMatch(/^\s+node-version:/m);
+        }
+        const pinned = readText('.nvmrc').trim();
+        expect(readWorkflow('ci.yml')).toMatch(new RegExp(`os: ubuntu-latest, node-version: ${pinned},`));
+    });
+
+    it('should confirm, before anything is installed, that the version it builds is the one the guard passed', () => {
+        const steps = jobs.get('build') ?? [];
+        const confirm = stepIndex('build', 'Confirm the guarded version');
+        const install = stepIndex('build', 'run: npm ci --ignore-scripts');
+        expect(confirm).toBeGreaterThanOrEqual(0);
+        expect(confirm).toBeLessThan(install);
+        expect(steps[confirm]).toContain('GUARDED: ${{ needs.guard.outputs.version }}');
+        expect(steps[confirm]).toMatch(/\[ "\$\{VERSION\}" != "\$\{GUARDED\}" \] \|\| \[ "\$\{VERSION%%\.\*\}" = "0" \][\s\S]*exit 1/);
+        expect([...jobs.values()].flat().filter((s) => s.includes('Refuse a pre-1.0 publication'))).toHaveLength(1);
+    });
+
+    it('should run the publish gate with --require-all, then pack once and hand the tarball on with its digests', () => {
+        const gate = stepIndex('build', 'run: npx tsx scripts/gate.ts --publish --require-all');
+        const dry = stepIndex('build', 'run: npm pack --dry-run');
+        const pack = stepIndex('build', 'Pack the tarball and record its digests');
+        const upload = stepIndex('build', 'actions/upload-artifact@');
+        expect([gate, dry, pack, upload].every((i) => i >= 0)).toBe(true);
+        expect(gate).toBeLessThan(dry);
+        expect(dry).toBeLessThan(pack);
+        expect(pack).toBeLessThan(upload);
+        const packStep = (jobs.get('build') ?? [])[pack];
+        expect(packStep).toMatch(/sha256sum "\$\{RUNNER_TEMP\}\/release\/\$\{TARBALL\}"/);
+        expect(packStep).toMatch(/INTEGRITY="sha512-\$\(openssl dgst -sha512 -binary/);
+        for (const out of ['tarball', 'sha256', 'integrity']) expect(jobBody('build')).toMatch(new RegExp(`^ {6}${out}: \\$\\{\\{ steps\\.pack\\.outputs\\.${out} \\}\\}\\s*$`, 'm'));
+        for (const hand of ['npm run test:coverage', 'npm run typecheck:all', 'npm run verify:docs']) expect(publish, hand).not.toContain(`run: ${hand}`);
+    });
+
+    it('should upload exactly the handed-on tarball, after checking both digests and its version, with a client pinned by content', () => {
+        const body = jobBody('publish');
+        const receive = stepIndex('publish', 'actions/download-artifact@');
+        const verify = stepIndex('publish', 'Verify the tarball against the build job');
+        const client = stepIndex('publish', 'Fetch and verify the pinned npm client');
+        const upload = stepIndex('publish', /publish "\.\/\$\{TARBALL\}"/);
+        expect([receive, verify, client, upload].every((i) => i >= 0)).toBe(true);
+        expect(receive).toBeLessThan(verify);
+        expect(verify).toBeLessThan(upload);
+        expect(client).toBeLessThan(upload);
+        const steps = jobs.get('publish') ?? [];
+        expect(steps[verify]).toContain('sha256sum --check --strict');
+        expect(steps[verify]).toContain('= "${INTEGRITY}"');
+        expect(steps[verify]).toMatch(/tar -xzOf "\$\{TARBALL\}" package\/package\.json/);
+        expect(steps[upload]).toMatch(/run: node "\$\{RUNNER_TEMP\}\/npm-client\/package\/bin\/npm-cli\.js" publish "\.\/\$\{TARBALL\}" --provenance --access public\s*$/m);
+        // The client: an exact 11.x at least 11.5.1 (Trusted Publishing),
+        // whose registry tarball must equal a recorded SHA-512 before it runs.
+        const version = /^ {6}NPM_CLIENT_VERSION: (\d+)\.(\d+)\.(\d+)\s*$/m.exec(body);
+        expect(version).not.toBeNull();
+        const [major, minor, patch] = (version ?? []).slice(1).map(Number);
+        expect(major === 11 && (minor > 5 || (minor === 5 && patch >= 1))).toBe(true);
+        expect(body).toMatch(/^ {6}NPM_CLIENT_INTEGRITY: sha512-[A-Za-z0-9+/]{86}==\s*$/m);
+        expect(steps[client]).toMatch(/test "sha512-\$\(openssl dgst -sha512 -binary npm-client\.tgz \| base64 -w0\)" = "\$\{NPM_CLIENT_INTEGRITY\}"/);
+        expect(steps[client].indexOf('NPM_CLIENT_INTEGRITY')).toBeLessThan(steps[client].indexOf('tar -xzf'));
+        expect(publish).not.toMatch(/npm install -g/);
+    });
+
+    it('should attest the bytes npm serves, checked against the build digests and the registry signatures', () => {
+        // Fetching the tarball back makes the attested file the published
+        // file by construction; comparing it with the build job's digests
+        // makes it the file the gate checked.
         const attest = jobBody('attest');
-        expect(attest).toMatch(/npm pack "pkinative@\$\{VERSION\}"/);
+        const fetch = stepIndex('attest', 'Fetch the published tarball and check it against the build');
+        const signatures = stepIndex('attest', 'npm audit signatures');
+        const provenance = stepIndex('attest', 'actions/attest-build-provenance@');
+        expect([fetch, signatures, provenance].every((i) => i >= 0)).toBe(true);
+        expect(fetch).toBeLessThan(signatures);
+        expect(signatures).toBeLessThan(provenance);
+        const steps = jobs.get('attest') ?? [];
+        expect(steps[fetch]).toMatch(/npm pack "pkinative@\$\{VERSION\}"/);
+        expect(steps[fetch]).toContain('sha256sum --check --strict');
+        expect(steps[fetch]).toMatch(/test "\$\(npm view "pkinative@\$\{VERSION\}" dist\.integrity\)" = "\$\{INTEGRITY\}"/);
         expect(attest).not.toMatch(/run: npm run build|run: npm ci/);
         expect(attest).not.toMatch(/^\s*run: npm pack\s*$/m);
     });
 
-    it('should restore no dependency cache in a release job', () => {
-        expect(publish).not.toMatch(/^\s+cache:\s*npm\s*$/m);
+    it('should write the runtime SBOMs (CycloneDX and SPDX, empty by design) and the toolchain SBOM, and attest all of them', () => {
+        const attest = jobBody('attest');
+        expect(attest).toContain('npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pkinative-${VERSION}.cdx.json"');
+        expect(attest).toContain('npm sbom --sbom-format spdx --omit dev --package-lock-only > "pkinative-${VERSION}.spdx.json"');
+        expect(attest).toContain('npm sbom --sbom-format cyclonedx --package-lock-only > "pkinative-${VERSION}.toolchain.cdx.json"');
+        const subjects = /subject-path: \|\s*\n((?:\s+pkinative-[^\n]+\n?)+)/.exec(attest)?.[1].trim().split('\n').map((l) => l.trim());
+        expect(subjects).toEqual(['pkinative-${{ env.VERSION }}.tgz', 'pkinative-${{ env.VERSION }}.cdx.json', 'pkinative-${{ env.VERSION }}.spdx.json', 'pkinative-${{ env.VERSION }}.toolchain.cdx.json']);
     });
 
-    it('should run the publish gate with --require-all before packing and publishing, and list no gate step by hand', () => {
-        const steps = jobs.get('publish') ?? [];
-        const index = (needle: string | RegExp): number => steps.findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
-        const gate = index('run: npx tsx scripts/gate.ts --publish --require-all');
-        const pack = index('run: npm pack --dry-run');
-        const pub = index(/run: npm publish/);
-        expect([gate, pack, pub].every((i) => i >= 0)).toBe(true);
-        expect(gate).toBeLessThan(pack);
-        expect(pack).toBeLessThan(pub);
-        for (const hand of ['npm run test:coverage', 'npm run typecheck:all', 'npm run verify:docs']) {
-            expect(publish, hand).not.toContain(`run: ${hand}`);
-        }
+    it('should attach the files and the Sigstore bundle to a DRAFT release only, never replacing an asset', () => {
+        const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
+        expect(attach).toContain('BUNDLE: ${{ steps.attest.outputs.bundle-path }}');
+        expect(attach).toContain('cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"');
+        expect(attach).toMatch(/--json isDraft --jq \.isDraft/);
+        expect(attach).toMatch(/elif \[ "\$\{DRAFT\}" != "true" \]; then\s*\n\s*echo "::warning::/);
+        for (const f of ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json']) expect(attach).toContain(`"pkinative-\${VERSION}${f}"`);
+        expect(publish).not.toContain('--clobber');
+        expect(publish).not.toMatch(/gh release (create|edit|delete)/);
     });
 
-    it('should have an attest job with exactly three permissions that attests the tarball and the SBOM', () => {
-        const attest = /^ {2}attest:\s*\n([\s\S]*?)(?=^ {2}[a-z-]+:\s*$|(?![\s\S]))/m.exec(publish);
-        expect(attest).not.toBeNull();
-        const body = attest?.[1] ?? '';
-        expect(body).toMatch(/needs:\s*publish/);
-        const perms = /permissions:\s*\n((?:\s{6}[a-z-]+:\s*\w+\s*\n)+)/.exec(body);
-        expect(perms).not.toBeNull();
-        const granted = (perms?.[1] ?? '').trim().split('\n').map((l) => l.trim()).sort();
-        expect(granted).toEqual(['attestations: write', 'contents: write', 'id-token: write']);
-        expect(body).toMatch(/npm sbom --sbom-format cyclonedx --omit dev --package-lock-only/);
-        expect(body).toMatch(/uses: actions\/attest-build-provenance@[0-9a-f]{40}/);
-        expect(body).toMatch(/gh release view "v\$\{VERSION\}"[\s\S]*gh release upload "v\$\{VERSION\}"[^\n]*--clobber/);
-        expect(body).not.toMatch(/gh release create/);
-    });
-
-    it('should list the endpoints for the future block policy', () => {
-        for (const host of ['api.github.com', 'codeload.github.com', 'registry.npmjs.org', 'raw.githubusercontent.com', 'fulcio.sigstore.dev', 'rekor.sigstore.dev', 'tuf-repo-cdn.sigstore.dev']) {
-            expect(publish).toContain(host);
-        }
+    it('should state the provenance level exactly: SLSA Build L2, with L3 discussed in its ADR', () => {
+        expect(publish).toContain('SLSA Build L2');
+        expect(publish).not.toMatch(/SLSA Level 2\+/);
+        expect(publish).toContain('docs/adr/0019-release-integrity-slsa-build-l2.md');
+        expect(existsSync(join(ROOT, 'docs', 'adr', '0019-release-integrity-slsa-build-l2.md'))).toBe(true);
     });
 });
 
@@ -453,6 +683,19 @@ describe('dependency review and audit', () => {
         expect(readText('.gitattributes')).toMatch(/^\*\.der\s+binary$/m);
     });
 
+    it('should hold every Dependabot ecosystem back seven days, and move the actions as one group', () => {
+        const dependabot = readText('.github', 'dependabot.yml');
+        const blocks = dependabot.split(/^ {2}- package-ecosystem: /m).slice(1);
+        expect(blocks.map((b) => b.split('\n')[0].trim()).sort()).toEqual(['docker', 'github-actions', 'npm']);
+        for (const block of blocks) {
+            const days = /cooldown:\s*\n\s+default-days: (\d+)/.exec(block)?.[1];
+            expect(Number(days), block.split('\n')[0]).toBeGreaterThanOrEqual(7);
+        }
+        const actions = blocks.find((b) => b.startsWith('github-actions')) ?? '';
+        expect(actions).toMatch(/groups:\s*\n\s+actions:\s*\n\s+patterns:\s*\n\s+- "\*"/);
+        expect(blocks.find((b) => b.startsWith('docker'))).toMatch(/directory: \/\.clusterfuzzlite/);
+    });
+
     it('should protect release tags with a ruleset', () => {
         const tags = JSON.parse(readText('.github', 'rulesets', 'tags.json')) as {
             target: string; conditions: { ref_name: { include: string[] } }; rules: Array<{ type: string }>;
@@ -460,6 +703,26 @@ describe('dependency review and audit', () => {
         expect(tags.target).toBe('tag');
         expect(tags.conditions.ref_name.include).toEqual(['refs/tags/v*']);
         expect(tags.rules.map((r) => r.type).sort()).toEqual(['deletion', 'non_fast_forward', 'update']);
+    });
+});
+
+// ── Runtime smoke checks ─────────────────────────────────────────────
+
+describe('.github/runtime-smoke/checks.mjs', () => {
+    type Smoke = { runChecks: (m: unknown) => Promise<string[]> };
+    const load = async (): Promise<Smoke> => (await import(pathToFileURL(join(ROOT, '.github', 'runtime-smoke', 'checks.mjs')).href)) as Smoke;
+
+    it('should pass against the sources, so a red runtimes job means the runtime, not the checks', async () => {
+        // CI runs the same file against dist/ on Deno, Bun and Chromium; here
+        // it runs against src/ on every gate run, the way the fuzz targets
+        // are held (tests/fuzzing/targets.test.ts).
+        const lines = await (await load()).runChecks(await import('../../src/index.js'));
+        expect(lines).toHaveLength(5);
+    });
+
+    it('should fail loudly when the package under test misbehaves', async () => {
+        const real = await import('../../src/index.js');
+        await expect((await load()).runChecks({ ...real, verifySelfSignature: async () => false })).rejects.toThrow(/runtime smoke: X1/);
     });
 });
 

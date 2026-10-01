@@ -8,7 +8,10 @@ on:
   push:
     branches: [main, master]
 
-permissions: read-all
+# Read-only at the workflow level (the Scorecard API refuses results from a
+# workflow with a top-level write); the job holds what it needs.
+permissions:
+  contents: read
 
 concurrency:
   group: scorecard-${{ github.ref }}
@@ -20,19 +23,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      # Needed to upload the SARIF results to the Security tab.
-      security-events: write
-      # Needed to publish signed results to the OpenSSF public dataset.
-      id-token: write
-      # Optional: read repository metadata (branch protection, etc.).
-      contents: read
-      actions: read
+      security-events: write # Needed to upload the SARIF results to the Security tab.
+      id-token: write # Needed to publish signed results to the OpenSSF public dataset.
+      contents: read # Optional: read repository metadata (branch protection, etc.).
+      actions: read # Read the workflow runs and their files, which several checks score.
 
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: the Scorecard API and the GitHub APIs it walks are not baselined yet
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
