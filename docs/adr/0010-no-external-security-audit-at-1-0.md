@@ -50,5 +50,6 @@ A user who needs an audit for procurement opens an issue; it will be scoped, and
 ## More Information
 
 - [CHANGELOG.md, 0.2.0](../../CHANGELOG.md) and [release-notes/v0.2.0.md](../../release-notes/v0.2.0.md) — "1.0 no longer promises an external audit or the satellites".
-- ROADMAP.md §1.0.0 says what stands in the audit's place "is named in SECURITY.md". SECURITY.md names the corpora, the seeded suites, CodeQL, Scorecard and Dependency Review; it does not name the release review or the coverage bar, which live in CONTRIBUTING.md and `vitest.config.ts`. The table above cites each where it actually is.
-- ROADMAP.md §1.0.0 still describes the gate as "L0–L5"; the gate has run L6 since 0.5.0 and L8 since 0.7.0.
+- When this record was written, ROADMAP.md §1.0.0 said what stands in the audit's place "is named in SECURITY.md", and SECURITY.md named the corpora, the seeded suites, CodeQL, Scorecard and Dependency Review but not the release review or the coverage bar, which live in CONTRIBUTING.md and `vitest.config.ts`. The table above cites each where it actually is.
+- When this record was written, ROADMAP.md §1.0.0 still described the gate as "L0–L5", although the gate had run L6 since 0.5.0 and L8 since 0.7.0.
+- Amended at 1.0.0 (the decision is unchanged): both gaps above are closed. SECURITY.md §In place of an external audit now names the adversarial release audit and 100 % coverage on all four axes, and ROADMAP.md §1.0.0 describes the L0–L8 conformance gate.

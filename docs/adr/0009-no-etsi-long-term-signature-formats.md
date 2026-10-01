@@ -42,4 +42,5 @@ Chosen option: 2. `atTimeStamp` takes one level of evidence; B-LTA archive times
 
 ## More Information
 
-- [docs/guides/use-cases.md](../guides/use-cases.md) says B-LTA is not implemented "yet"; this record covers the 0.x line and 1.0, and says nothing about after.
+- This record covers the 0.x line and 1.0, and says nothing about after.
+- Amended at 1.0.0 (the decision is unchanged): [docs/guides/use-cases.md](../guides/use-cases.md) said B-LTA was not implemented "yet"; it now says B-LTA is not implemented and links this record, so the guide no longer reads as a promise this record does not make.

@@ -71,7 +71,7 @@ number typed from memory is the failure this instruction exists to prevent.
 | `npm run test:coverage` | <N tests across M files; statements / branches / functions / lines> |
 | `npm run verify:bundle` | <N probes, largest X KB against budget Y KB> |
 | `npx tsx scripts/verify-docs.ts` | <N rules, 0 errors> |
-| `npx tsx scripts/validate-certs.ts --require-all` | <L0–L5 verdicts, corpus counts> |
+| `npx tsx scripts/validate-certs.ts --require-all` | <L0–L8 verdicts, corpus counts> |
 | `npm run check:package` | <attw + publint> |
 | `npm run smoke:install` | <ESM and CJS load from the packed tarball> |
 | `npm pack --dry-run` | <file count, packed size> |
