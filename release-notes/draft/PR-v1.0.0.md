@@ -79,10 +79,10 @@ Conformance:
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 607.6 s` |
+| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 515.0 s` |
 | `npm run test:coverage` | 3 875 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
 | `npm run verify:bundle` | 18 probes within budget; `*` 272.9 KB of 280 KB, `openPkcs12` 101.8 KB of 104 KB |
-| `npx tsx scripts/verify-docs.ts` | 79 rules, 0 errors, 0 warnings |
+| `npx tsx scripts/verify-docs.ts` | 81 rules, 0 errors, 0 warnings |
 | `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32) |
 | `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact, in both directions |
 | `npm run check:ts-floor` | TypeScript 5.0.4 compiles the declarations under node16, bundler, node10 and nodom |
