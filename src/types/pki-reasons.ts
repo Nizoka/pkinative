@@ -66,7 +66,7 @@ export type PkiReasonCode =
     /** A name in the certificate falls inside a subtree a CA above it excluded. */
     | 'PKI_REASON_NAME_EXCLUDED'
     // ── Revocation ──
-    /** The certificate is listed in a revocation list that covers it. */
+    /** The certificate is listed in a revocation list that covers it and is authenticated, or an authorised OCSP responder says it is revoked. */
     | 'PKI_REASON_REVOKED'
     /** The revocation list is older than the caller allows, or its nextUpdate has passed. */
     | 'PKI_REASON_REVOCATION_STALE'

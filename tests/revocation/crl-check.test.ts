@@ -152,16 +152,44 @@ describe('checkRevocation', () => {
         expect(reasons[0]?.message).toContain('declares no nextUpdate');
     });
 
-    it('should still report a revocation found on a stale list from the wrong CA', () => {
-        // The one direction of error that matters: hiding a revocation behind
-        // an earlier failure would be worse than reporting all three.
+    it('should not report a revocation from a stale, unverified list of the wrong CA', () => {
+        // This pinned the opposite until the 1.0 audit: REVOKED from any list
+        // naming the serial. RFC 5280 §6.3.3 consults a list only once (b) its
+        // issuer is the certificate's and (g) its signature is valid, and
+        // serial numbers are unique per issuer (§4.1.2.2) — another CA's list
+        // naming serial 7 says nothing about this serial 7. The answer still
+        // fails on every reason it has.
         const bad = buildCrl({ issuer: nameOf('Other CA'), nextUpdate: utc('260105000000Z') });
         expect(codes(check(LISTED, bad, { signatureVerified: false })).sort()).toEqual([
             'PKI_REASON_REVOCATION_STALE',
             'PKI_REASON_REVOCATION_UNKNOWN',
             'PKI_REASON_REVOCATION_WRONG_ISSUER',
-            'PKI_REASON_REVOKED',
         ]);
+    });
+
+    it('should not report a revocation from the list of another CA, even a verified one', () => {
+        // The colliding-serial case the audit reproduced: a certificate of one
+        // CA, checked against the genuine list of another that revokes the
+        // same serial.
+        const other = buildCrl({ issuer: nameOf('Other CA') });
+        expect(codes(check(LISTED, other))).toEqual(['PKI_REASON_REVOCATION_WRONG_ISSUER']);
+    });
+
+    it('should carry an unverified listing as a claim, in an UNKNOWN, never as REVOKED', () => {
+        // RFC 5280 §6.3.3 (g): the signature first. An unsigned list is one
+        // anyone can write, so its listing is reported as what it is.
+        for (const signatureVerified of [false, undefined]) {
+            const reasons = check(LISTED, buildCrl(), { signatureVerified });
+            expect(codes(reasons)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
+            expect(reasons[1]?.message).toContain('the list says this certificate was revoked on 2026-02-01T00:00:00.000Z (no reason given), but the list is not authenticated');
+        }
+    });
+
+    it('should still report a revocation from a stale list that may speak', () => {
+        // Time does not withdraw a revocation: an authentic, applicable list
+        // past its nextUpdate still proves it, and says it is stale besides.
+        const stale = buildCrl({ nextUpdate: utc('260215000000Z') });
+        expect(codes(check(LISTED, stale))).toEqual(['PKI_REASON_REVOCATION_STALE', 'PKI_REASON_REVOKED']);
     });
 
     it('should compare serials by octets, so a leading zero is a different certificate', async () => {

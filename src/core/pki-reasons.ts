@@ -96,7 +96,10 @@ export function nameExcludedReason(path: string, form: string, text: string): Pk
 }
 
 /**
- * The certificate is listed in a revocation list that covers it.
+ * The certificate is listed in a revocation list that covers it and is
+ * authenticated, or an authorised OCSP responder's verified answer says so —
+ * never on the say-so of an unverified list, a response nobody authorised, or
+ * another CA's list (RFC 5280 §6.3.3, RFC 6960 §3.2).
  *
  * The date is in the message because "revoked" without one is unanswerable: a
  * signature made before the revocation instant may still be good, and a caller

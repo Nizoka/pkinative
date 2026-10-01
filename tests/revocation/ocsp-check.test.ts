@@ -263,12 +263,29 @@ describe('checkOcspStatus — several reasons at once', () => {
         // A caller fixing one problem per round trip is a caller the report
         // failed.
         const stale = build({ singles: [single({ status: revokedStatus(AT - 30 * DAY), thisUpdate: AT - 40 * DAY, nextUpdate: AT - 10 * DAY })] });
+        // The revoked answer of a response nobody authenticated is the third
+        // UNKNOWN, not REVOKED: this pinned REVOKED until the 1.0 audit, and
+        // RFC 6960 §3.2 accepts a response only once its signature is valid
+        // and its signer authorised.
         expect(codes(check(stale, { signatureVerified: false, responderAuthorized: false }))).toEqual([
             'PKI_REASON_REVOCATION_STALE',
             'PKI_REASON_REVOCATION_UNKNOWN',
             'PKI_REASON_REVOCATION_UNKNOWN',
-            'PKI_REASON_REVOKED',
+            'PKI_REASON_REVOCATION_UNKNOWN',
         ]);
+    });
+
+    it('should not report REVOKED on the word of a signer nobody authorised, or of a bad signature', () => {
+        // An on-path attacker on plain-HTTP OCSP, or any key at all, could
+        // otherwise have a report say "revoked (reason: keyCompromise)".
+        const revoked = build({ singles: [single({ status: revokedStatus(AT - 30 * DAY) })] });
+        for (const verdicts of [{ signatureVerified: true, responderAuthorized: false }, { signatureVerified: false, responderAuthorized: true }]) {
+            const reasons = check(revoked, verdicts);
+            expect(codes(reasons)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
+            expect(reasons[1]?.message).toContain('the response says this certificate was revoked on');
+            expect(reasons[1]?.message).toContain('but the response is not authenticated');
+            expect(reasons[1]?.message).toContain('(reason: keyCompromise)');
+        }
     });
 
     it('should report UNKNOWN for a successful response with no body', () => {

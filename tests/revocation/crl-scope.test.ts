@@ -245,13 +245,15 @@ describe('the kind of certificate a list is about (RFC 5280 §5.2.5)', () => {
         expect(codesFor(CA, crl)).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE']);
     });
 
-    it('should still report the revocation when a listed serial is on an out-of-scope list', async () => {
-        // Scope decides what silence means, not what a hit means. A CA that
-        // says "revoked" about a certificate it also says it does not cover is
-        // confused, and burying the revocation would be the wrong half to keep.
+    it('should not read a listed serial off an out-of-scope list as a revocation', async () => {
+        // This pinned the opposite until the 1.0 audit. RFC 5280 §6.3.3 (b)
+        // consults a list only when its scope includes the certificate, so a
+        // list that says it does not cover this one is not evidence about it
+        // either way: OUT_OF_SCOPE already fails the answer, and REVOKED is kept
+        // for a listing on a list entitled to make it.
         const listed = await certificate({ serial: 7n, cA: true });
         const crl = buildCrl({ extensions: [extension(OID_IDP, idp({ onlyUserCerts: true }))] });
-        expect(codesFor(listed, crl)).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE', 'PKI_REASON_REVOKED']);
+        expect(codesFor(listed, crl)).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE']);
     });
 });
 

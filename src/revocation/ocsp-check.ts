@@ -26,6 +26,13 @@
  *   4. *`thisUpdate` is sufficiently recent* and *`nextUpdate` has not passed*
  *      — `PKI_REASON_REVOCATION_STALE`.
  *
+ * §3.2 asks for these *"prior to accepting a signed response ... as valid"*,
+ * so a `revoked` answer becomes `PKI_REASON_REVOKED` only when checks 2 and 3
+ * hold. Otherwise anyone who can write a response — an on-path attacker on
+ * plain-HTTP OCSP, a key nobody authorised — could have a report say
+ * "revoked (reason: keyCompromise)"; the claim is carried instead in a
+ * `PKI_REASON_REVOCATION_UNKNOWN`, beside the reasons that already fail it.
+ *
  * ## The nonce, and why an absence is not the same as a mismatch
  *
  * A nonce that comes back **different** is always wrong: that response was not
@@ -47,6 +54,7 @@ import {
 } from '../core/pki-reasons.js';
 import type { OcspBasicResponse, OcspResponse, OcspSingleResponse } from '../types/ocsp-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
+import { _unverifiedRevocation } from './crl-check.js';
 
 /** `id-pkix-ocsp-nonce`, RFC 6960 §4.4.1. */
 export const OCSP_NONCE_OID = '1.3.6.1.5.5.7.48.1.2';
@@ -171,7 +179,10 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
     out.push(...checkFreshness(answer, input, path));
 
     if (answer.status.kind === 'revoked') {
-        out.push(revokedReason(path, answer.status.revocationTime.epochMilliseconds, answer.status.reason));
+        const { revocationTime, reason } = answer.status;
+        out.push(input.signatureVerified === true && input.responderAuthorized === true
+            ? revokedReason(path, revocationTime.epochMilliseconds, reason)
+            : revocationUnknownReason(path, _unverifiedRevocation('response', revocationTime.epochMilliseconds, reason)));
     } else if (answer.status.kind === 'unknown') {
         // The responder's own third state, carried through rather than
         // flattened: it means "I do not know about this certificate", which is

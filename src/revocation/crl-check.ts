@@ -14,9 +14,11 @@
  * `[]` — not revoked, by a list that was entitled to say so and current
  * enough to be believed.
  *
- * `PKI_REASON_REVOKED` — listed. Carries the date, because a signature made
- * before the revocation instant may still be good and the caller deciding
- * that needs the date.
+ * `PKI_REASON_REVOKED` — listed, by a list entitled to say so: this
+ * certificate's issuer's, covering it, with a verified signature. Carries the
+ * date, because a signature made before the revocation instant may still be
+ * good and the caller deciding that needs the date. A listing on any other
+ * list is not evidence and never becomes this code.
  *
  * `PKI_REASON_REVOCATION_STALE` / `..._WRONG_ISSUER` / `..._OUT_OF_SCOPE` — the
  * list cannot answer for this certificate. An out-of-date list says what was
@@ -137,6 +139,18 @@ function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefine
 }
 
 /**
+ * What an unauthenticated source claims, worded as a claim: the detail of the
+ * `PKI_REASON_REVOCATION_UNKNOWN` that carries a revocation nobody vouched for
+ * (RFC 5280 §6.3.3 (g), RFC 6960 §3.2).
+ *
+ * @internal
+ */
+export function _unverifiedRevocation(source: 'list' | 'response', at: number, reason: string | undefined): string {
+    return `the ${source} says this certificate was revoked on ${new Date(at).toISOString()} (${reason === undefined ? 'no reason given' : `reason: ${reason}`}), `
+        + `but the ${source} is not authenticated, so that is a claim and not evidence`;
+}
+
+/**
  * Decide a certificate's revocation status against one CRL.
  *
  * ```ts
@@ -202,10 +216,9 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
         out.push(revocationStaleReason(path, nextUpdate, input.at));
     }
 
-    // The lookup happens regardless of everything above. A list that is stale
-    // or from the wrong CA still tells you something worth reporting when the
-    // serial is on it, and hiding that behind an earlier failure would be the
-    // one direction of error that matters.
+    // The lookup happens regardless of everything above, so a malformed entry
+    // is refused whatever else is wrong with the list. What a listing *means*
+    // is decided below: evidence only from a list that may speak.
     const serial = input.certificate.serialNumber.bytes;
     const lookup = { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
     const delta = _applicableDelta(input);
@@ -223,8 +236,23 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // it is the delta's answer the base is never asked. Reporting it would take
     // an un-revocation and answer "revoked (reason: removeFromCRL)", a sentence
     // that is wrong in both halves.
+    //
+    // **A listing is evidence only from a list entitled to make it.** RFC 5280
+    // §6.3.3 consults a list only once (b) its issuer and scope are this
+    // certificate's and (g) its signature is valid, and §5.2 forbids using a
+    // list with a critical extension nothing here processes. Serial numbers are
+    // unique per issuer (§4.1.2.2), so another CA's list naming the same serial
+    // says nothing about this certificate, and a list nobody verified is one
+    // anyone can write. Such a listing is not `REVOKED`, which a caller rightly
+    // reads as "this certificate is revoked"; the reasons above already fail
+    // the answer. A list whose only fault is its unverified signature is still
+    // this CA's list about this certificate, so its claim is carried, as what
+    // it is, in an `UNKNOWN`. A stale list that may speak still proves the
+    // revocation: a revocation, once published, is not withdrawn by time.
     if (entry !== undefined && entry.reason !== 'removeFromCRL') {
-        out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
+        const revokedAt = entry.revocationDate.epochMilliseconds;
+        if (scope === null && input.signatureVerified === true) out.push(revokedReason(path, revokedAt, entry.reason));
+        else if (scope === null) out.push(revocationUnknownReason(path, _unverifiedRevocation('list', revokedAt, entry.reason)));
         return out;
     }
 

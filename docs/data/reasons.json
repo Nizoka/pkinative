@@ -62,7 +62,7 @@
     {
       "code": "PKI_REASON_REVOKED",
       "since": "0.5.0",
-      "returnedWhen": "The certificate is listed in a revocation list that covers it.",
+      "returnedWhen": "The certificate is listed in a revocation list that covers it, from its issuer, whose signature a key entitled to sign it verified — or an OCSP response verified and signed by an authorised responder says it is revoked. A listing on any other list or response is not evidence and is never this code.",
       "remedy": "The message carries the revocation date: a signature made before that instant may still be good, and a caller deciding that needs the date.",
       "standard": "RFC 5280 §5.1"
     },
@@ -97,7 +97,7 @@
     {
       "code": "PKI_REASON_REVOCATION_UNKNOWN",
       "since": "0.5.0",
-      "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify.",
+      "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify. When such an unauthenticated list or response names the certificate as revoked, that claim is in the message, as a claim.",
       "remedy": "This is not \"not revoked\". Proceeding on it is a soft-fail decision to make deliberately, not one a validator should make for you.",
       "standard": "RFC 5280 §6.3"
     },
