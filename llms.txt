@@ -15,6 +15,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
+- [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when another tool is the right one
 

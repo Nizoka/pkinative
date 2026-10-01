@@ -23,6 +23,7 @@ tests/
 ├── oid/            # registry integrity
 ├── x509/           # certificate envelope, names, general names, SPKI, every extension
 ├── fuzzing/        # one file per adversarial class, seeded, fixed budgets
+├── security/       # CVE-class replays, one test per published class, held to docs/data/cve-classes.json
 ├── property/       # seeded round-trip properties (encode → decode → encode)
 ├── conformance/    # offline differential against node:crypto
 ├── tools/          # guard hook, workflows, agent config, architecture, verify-issue

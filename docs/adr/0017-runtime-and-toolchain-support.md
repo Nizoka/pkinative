@@ -15,7 +15,7 @@ Four facts frame the decision, each checked at its source on 2026-10-01:
 - **The Node.js release schedule** ([nodejs/Release `schedule.json`](https://github.com/nodejs/Release/blob/main/schedule.json)): Node 22 reaches its end of life on **2027-04-30**, Node 24 on 2028-04-30; Node 26 enters long-term support on 2026-10-28. Node 22 therefore leaves support in the middle of the 1.x line.
 - **CVE-2026-21713** ([Node.js March 2026 security releases](https://nodejs.org/en/blog/vulnerability/march-2026-security-releases)): HMAC verification in Node's Web Crypto compared the MAC with C's `memcmp`, a timing side channel (Medium); 20.x, 22.x, 24.x and 25.x were affected, and the fix shipped in **22.22.2, 24.14.1 and 25.8.2** (and 20.20.2). pkinative reaches that code: `verifyMac` in `src/crypto/webcrypto.ts` calls `subtle.verify({ name: 'HMAC' }, …)` for the RFC 9579 PBMAC1 MAC of every PKCS#12 file `openPkcs12` opens. The later Web Crypto fix of June 2026, CVE-2026-48933, is in `subtle.encrypt()`, which pkinative never calls (`KEY_OPERATION_POLICY` refuses `encrypt` forever); the July 2026 release fixed nothing in Web Crypto.
 - **TypeScript**: the 1.0.0 audit compiled a consumer against `dist/index.d.ts` with `skipLibCheck: false`. TypeScript 4.7.4 to 5.9.3 compile it under `moduleResolution: node10` and `node16`; `moduleResolution: bundler` exists only from TypeScript 5.0, which [introduced it](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/) on 2023-03-16. The measurement was repeated on this tree with TypeScript 4.9.5 and 5.0.4. The [semver-ts specification](https://www.semver-ts.org/formal-spec/5-compiler-considerations.html) asks a package to "adopt and clearly specify one of two support policies: *simple majors* or *rolling support windows*".
-- **Other runtimes**: the README says that browsers, Deno, Bun and Cloudflare Workers run the same build. No workflow executes any of them. What is checked is static: `scripts/lib/bundle-probe.ts` refuses a `node:` import in the bundle, and `tests/tools/architecture.test.ts` refuses `process`, `Buffer`, `Deno`, `Bun` and every other host-specific global in `src/`.
+- **Other runtimes**: the README says that browsers, Deno, Bun and Cloudflare Workers run the same build. Since the 1.0.0 audit the `runtimes` job of `.github/workflows/ci.yml` — a required check — executes the built package on Deno, Bun and headless Chromium: one parse, one signature verification per family and one PKCS#12 opened (`.github/runtime-smoke/`). Workers are executed by nothing. What is also checked is static: `scripts/lib/bundle-probe.ts` refuses a `node:` import in the bundle, and `tests/tools/architecture.test.ts` refuses `process`, `Buffer`, `Deno`, `Bun` and every other host-specific global in `src/`.
 
 ## Decision Drivers
 
@@ -53,7 +53,7 @@ Chosen option: 2. Option 1 binds pkinative to Node 22 until 2.0, beyond its end 
 
 ### Runtimes beyond Node.js
 
-Browsers, Deno, Bun and Cloudflare Workers are **targets, not tested runtimes**. The build is platform-neutral by construction and checked statically, as described above; no gate executes it on those runtimes, and no version floor is promised for them. A defect found on one of them is a bug, fixed like any other.
+Deno, Bun and browsers are **smoke-tested, not fully tested**: the `runtimes` job runs a smoke test of the built package on Deno, Bun and headless Chromium at pinned versions, while the full suite runs on Node.js only; no version floor is promised for them. Cloudflare Workers are a **target, not a tested runtime**: the build is platform-neutral by construction and checked statically, and no gate executes it there. A defect found on any of them is a bug, fixed like any other.
 
 ### Consequences
 
@@ -62,7 +62,7 @@ Browsers, Deno, Bun and Cloudflare Workers are **targets, not tested runtimes**.
 - Good, because a TypeScript consumer can tell from one sentence whether their compiler is supported, and a check holds the floor.
 - Bad, because a caller pinned to a Node line past its end of life must stay on the last 1.x minor that supported it, and gets no fix after it.
 - Bad, because a patch-level `engines` floor warns users of older patch releases of a supported line at install, which some will read as noise.
-- Bad, because the browser, Deno, Bun and Workers claims rest on static checks only; a runtime defect there is found by a user, not by the gate.
+- Bad, because outside Node.js only a smoke test runs, on Deno, Bun and headless Chromium, and Workers rest on static checks only; a runtime defect the smoke test does not reach is found by a user, not by the gate.
 
 ### Confirmation
 

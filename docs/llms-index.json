@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3514,
-      "approxTokens": 879
+      "bytes": 3699,
+      "approxTokens": 925
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 200164,
-      "approxTokens": 50041
+      "bytes": 212277,
+      "approxTokens": 53069
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 14293,
-      "approxTokens": 3573
+      "bytes": 14340,
+      "approxTokens": 3585
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13609,
-      "approxTokens": 3402
+      "bytes": 13777,
+      "approxTokens": 3444
     },
     {
       "title": "Use cases",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 80435,
-      "approxTokens": 20109
+      "bytes": 80825,
+      "approxTokens": 20206
     },
     {
       "title": "Security model",
@@ -152,6 +152,21 @@
       "approxTokens": 10025
     },
     {
+      "title": "Standards",
+      "summary": "A tooled self-assessment, not a certification. Every ISO/IEC, ITU-T and IETF standard pkinative touches, the evidence that holds each — a test, a rule or a conformance level — and the gaps it leaves.",
+      "html": "guides/standards.html",
+      "markdown": "guides/standards.md",
+      "anchors": [
+        "asn1-and-the-directory",
+        "character-sets-and-data-formats",
+        "the-rfcs-pkinative-claims",
+        "process-and-supply-chain",
+        "what-would-change-a-row"
+      ],
+      "bytes": 11113,
+      "approxTokens": 2778
+    },
+    {
       "title": "Errors, diagnostics and reasons",
       "summary": "Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.",
       "html": "guides/errors.html",
@@ -172,8 +187,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 23989,
-      "approxTokens": 5997
+      "bytes": 24198,
+      "approxTokens": 6050
     },
     {
       "title": "Choosing a PKI library",

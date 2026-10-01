@@ -202,7 +202,7 @@
 <td><code>code</code>, <code>path</code>, <code>offset</code></td>
 </tr>
 </tbody></table>
-<p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all, and every message starts with <code>pkinative: </code>. The error vocabulary is frozen under semantic versioning: within the 1.x line no code is renamed, removed or moved to another class, and a new code is semver-minor (<code>docs/data/errors.frozen.json</code> is the snapshot, <a href="../adr/0012-frozen-error-vocabulary.md">ADR 0012</a> the decision). Diagnostic codes are additions-only: none is ever renamed or removed, while a diagnostic&#39;s severity and wording may change in a minor release.</p>
+<p>Every subclass extends <code>PkiError</code>, so <code>error instanceof PkiError</code> catches them all — also for an error thrown by the other build (the CommonJS copy beside the ES module one) or by another realm, through a brand every copy shares (<a href="../adr/0021-error-identity-across-builds.md">ADR 0021</a>) — and every message starts with <code>pkinative: </code>. The error vocabulary is frozen under semantic versioning: within the 1.x line no code is renamed, removed or moved to another class, and a new code is semver-minor (<code>docs/data/errors.frozen.json</code> is the snapshot, <a href="../adr/0012-frozen-error-vocabulary.md">ADR 0012</a> the decision). Diagnostic codes are additions-only: none is ever renamed or removed, while a diagnostic&#39;s severity and wording may change in a minor release.</p>
 <p>Each class types its own <code>code</code>, so narrowing the error narrows the codes: <code>PkiBaseErrorCode</code> on <code>PkiError</code>, and <code>PkiEncodingErrorCode</code>, <code>PkiCertificateErrorCode</code>, <code>PkiLimitErrorCode</code>, <code>PkiCryptoErrorCode</code>, <code>PkiCmsErrorCode</code> and <code>PkiKeyErrorCode</code> on the six subclasses. <code>PkiErrorCode</code> is the union of all seven — the type to write when you store or pass a code without caring which class raised it.</p>
 <h3 id="the-line-pkicryptoerror-draws">The line <code>PkiCryptoError</code> draws <a class="heading-anchor" href="#the-line-pkicryptoerror-draws" aria-label="Link to this section">#</a></h3>
 <p><code>verifyCertificateSignature</code> returns a boolean, and <strong>throws only when the question could not be put</strong>. A signature that does not check out is <code>false</code>. So is one whose bytes are malformed, one whose issuer key is of the wrong family entirely, and one whose two <code>signatureAlgorithm</code> fields disagree — every case where the answer is knowably &quot;no&quot;. Failing closed is deliberate: a caller who forgets a <code>catch</code> gets &quot;not verified&quot;, which is the safe reading, instead of an exception some layer above may swallow into a success path.</p>
@@ -342,6 +342,7 @@
             <li><a href="../guides/use-cases.html">Use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
           </ul>

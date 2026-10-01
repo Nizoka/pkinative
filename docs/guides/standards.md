@@ -1,6 +1,8 @@
 # Standards
 
-> **A tooled self-assessment, not a certification.** No body has audited or certified pkinative against any standard on this page. What each row records is the evidence the repository itself runs — a test file, a `verify:docs` rule or a level of the conformance gate — and the gaps that evidence leaves. Every path and rule named here is checked to exist by the `standards-evidence` rule, so the page cannot cite evidence that has gone away; whether the evidence is *sufficient* is your judgement.
+> **A tooled self-assessment, not a certification.** Every ISO/IEC, ITU-T and IETF standard pkinative touches, the evidence that holds each — a test, a rule or a conformance level — and the gaps it leaves.
+
+No body has audited or certified pkinative against any standard on this page. What each row records is the evidence the repository itself runs — a test file, a `verify:docs` rule or a level of the conformance gate — and the gaps that evidence leaves. Every path and rule named here is checked to exist by the `standards-evidence` rule, so the page cannot cite evidence that has gone away; whether the evidence is *sufficient* is your judgement.
 
 The claimed profile is the IETF one: RFC 5280 for certificates, and the RFCs below for everything built on them. The ISO/IEC and ITU-T standards appear because RFC 5280 is written on top of them. Most ISO/IEC standards on this page are published as common text with an ITU-T Recommendation; both numbers are given, and the editions are the ones in force when this page was written (X.680 and X.690: 02/2021; X.509 and X.520: 10/2019).
 

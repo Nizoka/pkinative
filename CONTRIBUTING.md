@@ -12,7 +12,7 @@ npm ci
 
 ### Requirements
 
-- Node.js 22 — the line in `.nvmrc` and `.node-version` (`nvm use` / `fnm use` / `volta` pick it up; CI also runs the suite on 24 and on Windows, and `engines.node` allows `>=22`).
+- Node.js 22 — the line in `.nvmrc` and `.node-version` (`nvm use` / `fnm use` / `volta` pick it up; CI also runs the suite on 24, on Windows and on macOS. `engines.node` is a patched floor per line, `^22.22.2 || ^24.14.1 || >=25.8.2`, which [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md) explains; a local 22.x below it builds and tests, but the release is gated on a patched one).
 - npm — the version pinned by `packageManager` in `package.json` (Corepack honours it). The repository's `.npmrc` sets `ignore-scripts=true` (no dependency runs an install script here), `fund=false` and `audit-level=high`; `npm run <script>` still runs the script you name, but lifecycle hooks such as `prepublishOnly` do not fire, which is why the publish workflow builds explicitly before it packs.
 - Dev dependencies use caret ranges on purpose: `package-lock.json` plus `npm ci` is what makes an install reproducible, not narrow ranges. Let npm manage the lockfile.
 
@@ -201,6 +201,9 @@ What the ruleset deliberately does not do, on a single-maintainer project:
 Settings that live outside the rulesets, to set once when the repository is created (Settings → Code security, Settings → General):
 
 - **Dependency graph: on.** `dependency-review.yml` needs it, and `dependency-review` is a required check — without the graph every pull request fails it.
+- **Private vulnerability reporting: on**, with Dependabot alerts, Dependabot security updates, and secret scanning with push protection. SECURITY.md names private vulnerability reporting as the first channel; check it before the first tag with `curl -s https://api.github.com/repos/Nizoka/pkinative/private-vulnerability-reporting`, which must answer `{"enabled":true}`. The second channel, security@pkinative.dev, is a mailbox the maintainer keeps.
+- **Pages: from `main`, folder `/docs`, custom domain `pkinative.dev`, Enforce HTTPS.** `docs/CNAME` carries the domain; the DNS record already proves ownership. Check with `curl -sI https://pkinative.dev/llms.txt` once the first build has run.
+- **Discussions: off**, until there is a reason to open them; SUPPORT.md sends questions to issues meanwhile, and says so.
 - **Code scanning: the CodeQL *advanced* set-up** (`codeql.yml`), not the default set-up, which would analyse a second time with other settings.
 - **Release immutability: on** (Settings → General → Releases). A published release then accepts no new or changed asset, which is why `publish.yml` attaches its files to the draft and the maintainer publishes it afterwards.
 - **Environments → `npm-publish`: the maintainer as required reviewer, and deployments limited to tags matching `v*`**, so no branch run can reach the job that holds the npm token, whatever the guard says.

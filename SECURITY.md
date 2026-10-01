@@ -33,7 +33,8 @@ Decided in [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md); `contract
 | Node.js | Every line in Active or Maintenance LTS: Node.js 22 and Node.js 24 at 1.0.0, both run by CI, each from its patched floor (below) | Drop a line after its end of life (Node 22: 2027-04-30), announced one minor ahead; raise the floor of a line to the release that fixes a vulnerability in a Web Crypto operation pkinative calls |
 | TypeScript (consumers) | TypeScript 5.0 and later, under `moduleResolution` `node16`/`nodenext`, `bundler` and `node10` | Raise the floor, never to a release younger than two years |
 | ECMAScript | ES2020 syntax and library, plus two host APIs: Web Crypto (`globalThis.crypto.subtle`, for signatures, keys, PKCS#12 and asynchronous digests) and `TextDecoder` | Nothing: raising it is major |
-| Browsers (secure context), Deno, Bun, Cloudflare Workers | Targeted: the build has no Node-only import or global, checked statically. **No gate executes it there**, and no version floor is promised | — |
+| Deno, Bun, browsers (secure context) | Smoke-tested: the `runtimes` CI job runs the built package on Deno, Bun and headless Chromium (a parse, a verification per signature family, a PKCS#12 opened); the full suite runs on Node.js only, and no version floor is promised | — |
+| Cloudflare Workers | Targeted: the build has no Node-only import or global, checked statically. **No gate executes it there**, and no version floor is promised | — |
 
 `engines.node` is `^22.22.2 || ^24.14.1 || >=25.8.2`. **Run the latest security release of your Node.js line.** pkinative checks a PKCS#12 MAC with the host's Web Crypto: before 22.22.2, 24.14.1 and 25.8.2, Node compared that MAC in variable time ([CVE-2026-21713](https://nodejs.org/en/blog/vulnerability/march-2026-security-releases)), which is why those releases are the floor. npm warns, and refuses only under `engine-strict`, when a runtime is outside the range.
 
@@ -96,7 +97,7 @@ Security fixes stay possible within 1.x because every one found so far made pkin
 - **Limit default values.** A default may be lowered in a minor when an attack makes it dangerous; that is a new refusal like any other, recorded the same way. Raising a limit is the caller's act, for trusted input. The limit names are frozen.
 - **Verdicts**, beyond what the table above says: path, revocation, CMS, timestamp, PKCS#12 and signature verdicts are recorded, not frozen.
 - **A JSON form of results**, as above.
-- **Runtimes no gate executes.** Browsers, Deno, Bun and Cloudflare Workers are targeted, not tested ([Supported runtimes and compilers](#supported-runtimes-and-compilers)).
+- **Runtimes beyond Node.js.** Deno, Bun and browsers are smoke-tested only, and Cloudflare Workers are targeted, not tested; no version floor is promised for any of them ([Supported runtimes and compilers](#supported-runtimes-and-compilers)).
 - **Conformance scores.** They are measurements, and they move when a corpus is re-pinned.
 - **Bundle sizes and performance.** They are measurements, and they move when a budget is reviewed.
 

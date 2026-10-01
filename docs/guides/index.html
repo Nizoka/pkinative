@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guides — pkinative</title>
-  <meta name="description" content="The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.">
+  <meta name="description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/">
   <meta property="og:title" content="Guides — pkinative">
-  <meta property="og:description" content="The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.">
+  <meta property="og:description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Guides — pkinative">
-  <meta name="twitter:description" content="The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.">
+  <meta name="twitter:description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/">
@@ -54,7 +54,7 @@
         "@id": "https://pkinative.dev/guides/",
         "url": "https://pkinative.dev/guides/",
         "name": "Guides",
-        "description": "The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.",
+        "description": "The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.",
         "inLanguage": "en",
         "isPartOf": {
           "@type": "WebSite",
@@ -96,6 +96,7 @@
         <li><a href="use-cases.html">Use cases</a><span class="guide-toc-desc">The jobs pkinative does today, with the code that does them and the guarantee behind each. Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, sign, verify and timestamp CMS messages, and open the PKCS#8 keys and PKCS#12 files that sign them.</span></li>
         <li><a href="security.html">Security model</a><span class="guide-toc-desc">Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled. This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</span></li>
         <li><a href="conformance.html">Conformance</a><span class="guide-toc-desc">pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.</span></li>
+        <li><a href="standards.html">Standards</a><span class="guide-toc-desc">A tooled self-assessment, not a certification. Every ISO/IEC, ITU-T and IETF standard pkinative touches, the evidence that holds each — a test, a rule or a conformance level — and the gaps it leaves.</span></li>
         <li><a href="errors.html">Errors, diagnostics and reasons</a><span class="guide-toc-desc">Every failure has a stable code, and every code has a cause and a remedy. Branch on the code; the message is for people. The machine-readable registries are docs/data/errors.json, docs/data/diagnostics.json and docs/data/reasons.json.</span></li>
         <li><a href="choose.html">Choosing a PKI library</a><span class="guide-toc-desc">Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</span></li>
       </ul>
@@ -124,6 +125,7 @@
             <li><a href="../guides/use-cases.html">Use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
           </ul>

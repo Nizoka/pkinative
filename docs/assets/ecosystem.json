@@ -98,7 +98,7 @@
         "limit default values, which may be lowered in a minor",
         "path, revocation, CMS, timestamp, PKCS#12 and signature verdicts, which are recorded but not frozen",
         "a JSON form of results",
-        "the runtimes the build targets and no gate executes: browsers, Deno, Bun and Workers",
+        "runtimes beyond Node.js: Deno, Bun and browsers are smoke-tested only, Workers targeted and not executed",
         "conformance scores",
         "bundle sizes and performance"
       ]
@@ -109,8 +109,8 @@
       "nodeLines": [22, 24],
       "typescript": "5.0.4",
       "esTarget": "es2020",
-      "tested": ["Node.js"],
-      "targeted": ["browsers, in a secure context", "Deno", "Bun", "Cloudflare Workers"]
+      "tested": ["Node.js", "Deno (smoke test)", "Bun (smoke test)", "headless Chromium (smoke test)"],
+      "targeted": ["Cloudflare Workers"]
     }
   },
   "milestones": {

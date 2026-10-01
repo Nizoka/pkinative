@@ -40,7 +40,7 @@ export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
 export const NPM = 'https://www.npmjs.com/package/pkinative';
 
 /** The guides, in navigation order. */
-export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'errors', 'choose'];
+export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'standards', 'errors', 'choose'];
 
 const markdown = new Marked({ gfm: true, breaks: false });
 
@@ -376,7 +376,7 @@ export function renderGuidesIndex(read: Reader): string {
     }).join('\n');
     return page({
         title: 'Guides — pkinative',
-        description: 'The pkinative guides: quick start, security model, conformance, errors and diagnostics, and choosing a PKI library.',
+        description: 'The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.',
         // The URL, not the output path: under `cleanUrls` (npm run docs:serve,
         // and most static hosts) /guides/index.html is served at /guides, which
         // loses a path segment and 404s every relative stylesheet.
