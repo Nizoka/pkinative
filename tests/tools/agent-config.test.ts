@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
     CLAUDE_CONTEXT_BUDGET,
     EOL_LF_MODE,
@@ -296,5 +298,34 @@ describe('agent-config — skills-shape', () => {
         expect(checkSkillShape(input({ existsInRepo: () => false })).map((f) => f.message)).toEqual([expect.stringContaining('ecosystem.json')]);
         expect(checkSkillShape(input({ text: null }))[0].message).toContain('missing');
         expect(checkSkillShape(input({ text: '# no frontmatter' }))[0].message).toContain('frontmatter');
+    });
+});
+
+describe('agent-config — skills declared both ways (ai-governance.json)', () => {
+    // The governance rule checked only declared → exists, so a tracked skill
+    // that SECURITY.md cites as a control could sit undeclared in the
+    // machine-readable manifest (audit P-13). This holds the other direction
+    // on the real tree until the verify-docs rule checks both.
+    const ROOT = process.cwd();
+    const governance = JSON.parse(readFileSync(join(ROOT, '.github', 'ai-governance.json'), 'utf8')) as {
+        capability_manifest: { claude_code: { skills: Array<{ name: string; path: string; model_invocable: boolean }> } };
+    };
+    const declared = governance.capability_manifest.claude_code.skills;
+    const tracked = readdirSync(join(ROOT, '.claude', 'skills'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+
+    it('should declare every tracked skill, and track every declared one', () => {
+        expect(declared.map((s) => s.name).sort()).toEqual(tracked);
+        for (const skill of declared) {
+            expect(skill.path).toBe(`.claude/skills/${skill.name}/SKILL.md`);
+            expect(existsSync(join(ROOT, skill.path)), skill.path).toBe(true);
+        }
+    });
+
+    it('should mark a skill model-invocable exactly when its SKILL.md allows it', () => {
+        for (const skill of declared) {
+            const text = readFileSync(join(ROOT, skill.path), 'utf8');
+            const disabled = /^disable-model-invocation:\s*true\s*$/m.test(text);
+            expect(skill.model_invocable, skill.name).toBe(!disabled);
+        }
     });
 });

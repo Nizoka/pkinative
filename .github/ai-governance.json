@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "pkinative AI Governance Configuration",
   "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes to pkinative. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol.",
-  "version": "1.1.0",
-  "spec_updated": "2026-09-15",
+  "version": "1.2.0",
+  "spec_updated": "2026-10-01",
   "applies_to": [
     "pkinative"
   ],
@@ -81,7 +81,9 @@
       "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, social images), and the HITL commands above denied once per shell tool — Bash(...) and PowerShell(...) — since a family denied for one and allowed for the other is not denied",
       "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
       "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
-      "skills": []
+      "skills": [
+        { "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false, "purpose": "The pre-release audit of CONTRIBUTING.md §Release step 5 and SECURITY.md §In place of an external audit; run by the maintainer, never by the model on its own (disable-model-invocation: true)." }
+      ]
     }
   },
   "verification": {
