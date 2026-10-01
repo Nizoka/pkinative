@@ -12,7 +12,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0004](0004-dsa-and-ed448-cms-signers-not-verified.md) | DSA signatures and Ed448 CMS signers are not verified | accepted | 0.3.0 |
 | [0005](0005-names-compared-by-encoded-bytes.md) | Distinguished names are compared by encoded bytes, not by RFC 5280 §7.1 string preparation | accepted | 0.5.0 |
 | [0006](0006-no-network-io-in-the-engine.md) | No network I/O in the engine | accepted | 0.1.0 |
-| [0007](0007-no-subpath-exports-before-1-0.md) | One entry point until 1.0; subpath exports are decided at 1.0, for the whole partition at once | accepted | 0.3.0 |
+| [0007](0007-no-subpath-exports-before-1-0.md) | One entry point until 1.0; subpath exports are decided at 1.0, for the whole partition at once | superseded by ADR 0016 | 0.3.0 |
 | [0008](0008-section-6-judged-by-scored-corpora.md) | RFC 5280 §6 is judged by scored corpora, not by a second clause table | accepted | 0.5.0 |
 | [0009](0009-no-etsi-long-term-signature-formats.md) | No ETSI long-term signature formats; `atTimeStamp` takes one level of evidence | accepted | 0.7.0 |
 | [0010](0010-no-external-security-audit-at-1-0.md) | No external security audit at 1.0 | accepted | 0.2.0 |
@@ -21,6 +21,9 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0013](0013-renames-before-the-freeze.md) | The rename set before the freeze, landed once in the band that exists for it | accepted | 0.9.0 |
 | [0014](0014-the-decision-surface-contract.md) | The decision surface: a frozen refusal keeps its code, a new refusal is a recorded fix, and DER re-encodes byte for byte | accepted | 1.0.0 |
 | [0015](0015-no-default-rsa-scheme.md) | No default RSA scheme: openPkcs12 opens an RSA key only with the scheme the caller names | accepted | 1.0.0 |
+| [0016](0016-one-entry-point-for-1-x.md) | One entry point for 1.x: no subpath export at 1.0; a later minor may add one, never remove it | accepted | 1.0.0 |
+| [0017](0017-runtime-and-toolchain-support.md) | Runtime and toolchain support for 1.x: Node.js LTS lines with a patched floor, TypeScript 5.0 on a two-year window, ES2020 | accepted | 1.0.0 |
+| [0018](0018-what-the-1-x-promise-covers-beyond-its-snapshots.md) | What the 1.x promise covers beyond its three snapshots: option defaults, verdicts, open unions, report fields and the wire form | accepted | 1.0.0 |
 
 ## Adding a record
 

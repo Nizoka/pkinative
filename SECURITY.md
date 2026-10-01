@@ -4,11 +4,16 @@
 
 **Please do NOT open a public issue for security vulnerabilities.**
 
-To report a security vulnerability, please use [GitHub's private vulnerability reporting](https://github.com/Nizoka/pkinative/security/advisories/new).
+Report privately, through either channel:
 
-We will acknowledge receipt within 48 hours and target a fix within 7 days for Critical severity and within 14 days for High severity.
+1. **[GitHub private vulnerability reporting](https://github.com/Nizoka/pkinative/security/advisories/new)** — preferred: the report, the discussion, the fix in a temporary private fork and the advisory all stay in one place.
+2. **E-mail to [security@pkinative.dev](mailto:security@pkinative.dev)** — when you cannot or would rather not use GitHub. Mail is not encrypted: send the description and a way to reproduce, and we will invite you to a private advisory for anything more sensitive.
 
-What counts as a vulnerability here: an input that makes pkinative accept an encoding the standard forbids in a way that could change a security decision (a parser differential), an input that exhausts memory or CPU despite the configured limits, an exception other than a `PkiError` subclass escaping on malformed input, or any secret-dependent behaviour.
+Please include the version (or commit), the function called with its options, the input that triggers the problem (or how to build it), what you expected and what happened. A certificate or a DER blob attached as base64 or PEM is the most useful reproduction.
+
+What counts as a vulnerability here: an input that makes pkinative accept an encoding the standard forbids in a way that could change a security decision (a parser differential), a verdict that accepts what the standard rejects, an input that exhausts memory or CPU despite the configured limits, an exception other than a `PkiError` subclass escaping on malformed input, or any secret-dependent behaviour.
+
+The handling steps, their timelines, the advisory and the credit are in [Disclosure Policy](#disclosure-policy). The same contacts are published for machines at `https://pkinative.dev/.well-known/security.txt` ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)).
 
 ## Supported Versions
 
@@ -19,17 +24,30 @@ What counts as a vulnerability here: an input that makes pkinative accept an enc
 | 0.x (git tags only, never on npm) | ❌ |
 | npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |
 
+### Supported runtimes and compilers
+
+Decided in [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md); `contracts.support` in `docs/assets/ecosystem.json` is the same policy for a program to read.
+
+| | 1.x | What a minor may change |
+|---|---|---|
+| Node.js | Every line in Active or Maintenance LTS: Node.js 22 and Node.js 24 at 1.0.0, both run by CI, each from its patched floor (below) | Drop a line after its end of life (Node 22: 2027-04-30), announced one minor ahead; raise the floor of a line to the release that fixes a vulnerability in a Web Crypto operation pkinative calls |
+| TypeScript (consumers) | TypeScript 5.0 and later, under `moduleResolution` `node16`/`nodenext`, `bundler` and `node10` | Raise the floor, never to a release younger than two years |
+| ECMAScript | ES2020 syntax and library, plus two host APIs: Web Crypto (`globalThis.crypto.subtle`, for signatures, keys, PKCS#12 and asynchronous digests) and `TextDecoder` | Nothing: raising it is major |
+| Browsers (secure context), Deno, Bun, Cloudflare Workers | Targeted: the build has no Node-only import or global, checked statically. **No gate executes it there**, and no version floor is promised | — |
+
+`engines.node` is `^22.22.2 || ^24.14.1 || >=25.8.2`. **Run the latest security release of your Node.js line.** pkinative checks a PKCS#12 MAC with the host's Web Crypto: before 22.22.2, 24.14.1 and 25.8.2, Node compared that MAC in variable time ([CVE-2026-21713](https://nodejs.org/en/blog/vulnerability/march-2026-security-releases)), which is why those releases are the floor. npm warns, and refuses only under `engine-strict`, when a runtime is outside the range.
+
 ## Compatibility promise
 
-From 1.0.0, pkinative promises three things for the whole major line. Each is recorded in a committed snapshot, held by a rule of `npm run verify:docs` that fails the build, and decided in an architecture decision record; the promise is made for the default options (DER, `strict: false`, the default limits).
+From 1.0.0, pkinative promises three things for the whole major line. Each is recorded in a committed snapshot, held by a rule of `npm run verify:docs` that fails the build, and decided in an architecture decision record; the snapshots are taken, and the gate runs, under the default options (DER, `strict: false`, the default limits). What the promise says beyond them — option defaults, verdicts, returned unions, report fields, other options, the wire form, entry points — is decided in [ADR 0016](docs/adr/0016-one-entry-point-for-1-x.md), [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md) and [ADR 0018](docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md), and summarised below.
 
 | Leg | What is promised | Snapshot | Held by | Decided in |
 |---|---|---|---|---|
-| The export surface | Every export of the package keeps its name, its kind and a compatible signature, and every `PkiReasonCode` stays. | `docs/assets/api.frozen.json` | `api-surface-frozen` | [ADR 0012](docs/adr/0012-frozen-error-vocabulary.md), [ADR 0013](docs/adr/0013-renames-before-the-freeze.md) |
+| The export surface | Every export of the package keeps its name, its kind and a compatible signature, and every `PkiReasonCode` keeps its name: the reason vocabulary is grow-only. | `docs/assets/api.frozen.json` | `api-surface-frozen` | [ADR 0012](docs/adr/0012-frozen-error-vocabulary.md), [ADR 0013](docs/adr/0013-renames-before-the-freeze.md) |
 | The error vocabulary | Every `PkiErrorCode` keeps its name and its `PkiError` class — frozen since 0.8.0. | `docs/data/errors.frozen.json` | `error-codes-frozen` | [ADR 0012](docs/adr/0012-frozen-error-vocabulary.md) |
 | The decision surface | A corpus certificate pkinative refuses stays refused, with the same code; a new refusal is a recorded fix; and every corpus certificate decoded with `decodeAsn1` and re-encoded with `encodeAsn1Node` comes back byte for byte. | `docs/data/refusals.frozen.json` | `refusal-baseline-frozen`, and conformance L1 and L2 | [ADR 0014](docs/adr/0014-the-decision-surface-contract.md) |
 
-The corpus is x509-limbo, pinned by commit and SHA-256: the snapshot lists every certificate of it that `parseCertificate` refuses, by the SHA-256 of its DER, with the code it is refused with. Conformance L1 ([docs/guides/conformance.md](docs/guides/conformance.md#the-levels)) holds the engine to that list on every run, and L2 re-encodes every certificate of the corpus, the refused ones included.
+The corpus is x509-limbo, pinned by commit and SHA-256: the snapshot lists every certificate of it that `parseCertificate` refuses, by the SHA-256 of its DER, with the code it is refused with. Conformance L1 ([docs/guides/conformance.md](docs/guides/conformance.md#the-levels)) holds the engine to that list on every run, and L2 re-encodes every certificate of the corpus, the refused ones included. When the corpus is re-pinned, a certificate it brings and pkinative refuses is promised from the re-pin; one the new corpus expects to be accepted is fixed in the engine first, in its own commit; and a promised certificate the corpus drops is retired from verification only on an accepted record ([ADR 0014](docs/adr/0014-the-decision-surface-contract.md), [ADR 0018](docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
 
 ### What a 1.x release may change
 
@@ -38,24 +56,53 @@ The corpus is x509-limbo, pinned by commit and SHA-256: the snapshot lists every
 | An export removed, renamed or given an incompatible signature; a reason code removed or renamed | major |
 | An error code removed, renamed or moved to another class | major |
 | A refused corpus certificate lifted (it now parses), or refused with another code | major |
+| An option's default value changed, in either direction — the defaults are listed in `docs/data/defaults.json`, held to the source by `option-defaults-parity` | major |
+| A limit default lowered — a new refusal, recorded like the next row | minor |
+| A default added to an option that had none (`openPkcs12`'s `rsaAlgorithm`, `importPrivateKey`'s `algorithm` for an RSA key) | minor |
 | A corpus certificate that parsed now refused — only as a security or conformance fix, listed by SHA-256 under `### Decision surface` in the release note | minor |
-| A path, revocation or CMS verdict, or the reasons returned with it, changed — never silently: the reviewed conformance baselines of L6, L7 and L8 move in the same change, and the release note says so | minor |
+| A path, revocation, CMS, timestamp, PKCS#12 or signature verdict, or the reasons returned with it, corrected toward the standard — never silently: the reviewed conformance baselines of L6, L7 and L8 move in the same change where they hold the case, and the release note says so | minor |
+| A capability added: an outcome that meant "cannot decide" — `PKI_REASON_SIGNATURE_NOT_CHECKED`, a `PKI_REASON_PKCS12_*_UNSUPPORTED` or `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED` reason, a key import refused as unsupported — becomes a decision | minor |
+| A returned union gains a member, or an input reported as `'unknown'` is reported as a known kind | minor |
 | A new export, optional parameter or member, error code, reason code or diagnostic code | minor |
+| A subpath export added beside `.` | minor ([ADR 0016](docs/adr/0016-one-entry-point-for-1-x.md)) |
+| A subpath export removed or renamed; `.` made incomplete | major |
+| A Node.js line dropped after its end of life; the TypeScript floor raised within its two-year window | minor ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md)) |
+| A field added to a `docs/data` registry; a field removed or renamed | minor; major |
+| A refusal the doctrine makes permanent lifted — PBES1, the RFC 7292 Appendix B MAC and Appendix C ciphers, a key operation `KEY_OPERATION_POLICY` refuses | never, in any version |
 | A decoded certificate that no longer re-encodes byte for byte | never — a defect, fixed in a patch |
 
 Security fixes stay possible within 1.x because every one found so far made pkinative refuse more: 0.9.0 closed two paths it accepted and RFC 5280 rejects. A fix that would change the code of an existing refusal waits for 2.0, and so does a refusal later found to be wrong: a caller can rely on a refused certificate staying refused.
 
+### Options
+
+**Defaults.** Every default pkinative chooses on a caller's behalf — `requireRevocation: false`, `allowWildcards: true`, `restrictIssuers: true`, `allowSha1: false`, the 60-second `futureTolerance` of OCSP, the SHA-1 of `computeKeyIdentifier`, and every other — is in [`docs/data/defaults.json`](docs/data/defaults.json) with the source line that implements it, and is frozen for 1.x unless its row says `lowerable` (the limits), `addable` (an option with no default yet, [ADR 0015](docs/adr/0015-no-default-rsa-scheme.md)) or `not-promised` (the diagnostic sink).
+
+**Non-default options.** Every option keeps its name, its type, its meaning — the check it switches on or off — and its default. What it accepts when set is not snapshotted: which BER constructs `encodingRules: 'ber'` accepts, which inputs `strict: true` refuses, what parses beyond the default limits, what `mode: 'lax'` tolerates, and the verdicts reached under a relaxing or tightening flag may change in a minor, by the rows above, never silently.
+
+### Reading a report
+
+**Unions are open.** Keep a default branch in every `switch` over a returned `kind`, status or code, and branch on the positive member — `valid === true`, `status === 'valid'` — never on the absence of a known failure.
+
+**Fields.** `code`, the error class, `errorCode` and `limit` are promised. A `path` keeps its grammar: it starts at a member of the input the operation took, or at `path` for the certification path a report describes, and descends with `.member` and `[index]`; a minor may make it more precise. The rest is for a human or a measurement, listed below.
+
+**The wire form.** Results hold `bigint` and `Uint8Array` values, so `JSON.stringify` refuses them; no JSON form is promised. The convention reserved for one — and for the satellites — is a `bigint` as its decimal string and bytes as lowercase hexadecimal. The registries under `docs/data/` and `docs/assets/api.json` are machine contracts that only grow; they are not in the npm package, and the copy for version X.Y.Z is the one at the git tag `vX.Y.Z`.
+
 ### What is not promised
 
 - **Diagnostics.** A diagnostic code is never renamed or removed, but its severity and wording may change in a minor — so under `strict: true`, which turns diagnostics into `PKI_STRICT_DIAGNOSTIC`, a certificate may become refused in a minor.
-- **Error message wording.** The code and the class are the contract; the sentence after `pkinative: ` is for a human.
+- **Message wording.** The code and the class are the contract; the sentence after `pkinative: `, a reason's `message` and the clause its `standard` cites are for a human, and a cited clause may become more precise.
+- **The exact `path` and `offset`** of an error or a reason, beyond the grammar above: they move when a check moves.
+- **Order and counts.** The order of `reasons` (treat them as a set), the counts a report carries (`explored`, `signatureVerifications`) and the order of properties in a returned object.
 - **Limit default values.** A default may be lowered in a minor when an attack makes it dangerous; that is a new refusal like any other, recorded the same way. Raising a limit is the caller's act, for trusted input. The limit names are frozen.
-- **Path, revocation and CMS verdicts**, beyond what the table above says: they are recorded, not frozen.
-- **Conformance scores, bundle sizes and performance.** They are measurements, and they move when a corpus is re-pinned or a budget is reviewed.
+- **Verdicts**, beyond what the table above says: path, revocation, CMS, timestamp, PKCS#12 and signature verdicts are recorded, not frozen.
+- **A JSON form of results**, as above.
+- **Runtimes no gate executes.** Browsers, Deno, Bun and Cloudflare Workers are targeted, not tested ([Supported runtimes and compilers](#supported-runtimes-and-compilers)).
+- **Conformance scores.** They are measurements, and they move when a corpus is re-pinned.
+- **Bundle sizes and performance.** They are measurements, and they move when a budget is reviewed.
 
 ### Machine-readable form
 
-`docs/assets/ecosystem.json` → `contracts.compatibility` names each leg with its snapshot, its rules, its conformance levels and its records, and lists what is not promised. The `contracts-shape` rule holds that block to the files, the rules, the records and this section, both ways: a snapshot or a frozen-surface rule that no leg names fails too. The snapshots move only through their generators — `scripts/build-api-frozen.ts`, `scripts/build-errors-frozen.ts` and `scripts/build-refusals-frozen.ts` — which `scripts/release-prepare.ts` runs at every release from 1.0.0, so that what a 1.x release adds becomes part of the promise.
+`docs/assets/ecosystem.json` → `contracts.compatibility` names each leg with its snapshot, its rules, its conformance levels and its records, then each policy of ADR 0016 to 0018 with its records and the registry or conformance level that holds it, and lists what is not promised, entry for entry with the section above; `contracts.support` states the runtime and compiler floors. The `contracts-shape` rule holds that block to the files, the rules, the records and this section, both ways: a snapshot or a frozen-surface rule that no leg names fails too. The snapshots move only through their generators — `scripts/build-api-frozen.ts`, `scripts/build-errors-frozen.ts` and `scripts/build-refusals-frozen.ts` — which `scripts/release-prepare.ts` runs at every release from 1.0.0, so that what a 1.x release adds becomes part of the promise.
 
 ## Security Model
 
@@ -162,7 +209,7 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 - A certificate is refused only where every x509-limbo case using it expects failure; any other refusal, and any exception that is not a `PkiError`, fails the gate.
 - Coverage-guided fuzzing runs through ClusterFuzzLite (`.clusterfuzzlite/`, `.github/workflows/fuzz.yml`) over three targets — the X.690 decoder in both rule sets, the RFC 5280 parser with and without extension decoding, and PEM together with the OID codec, which also asserts that `encodeOid(decodeOid(x))` returns the input byte for byte. It is **not** a required status check: the seeded suites are the blocking half, and this one explores. Jazzer.js is installed inside the build image and never in `package.json`, so the zero-dependency promise is unaffected. The same three target files are executed against `src/` by `tests/fuzzing/targets.test.ts` on every gate run, including an assertion that a target still rethrows what is not a `PkiError` — a target that swallowed everything would search for a week and report nothing.
 
-> The ClusterFuzzLite workflow has **not yet executed**: this repository has no pushed history at the time of writing. What is proven locally is that the targets load, run and propagate correctly; what is unproven is the container wiring. The first scheduled run is the evidence, and this note stands until then.
+> What `tests/fuzzing/targets.test.ts` proves on every gate run is that the targets load, run and propagate. The container wiring is proven only by a completed run of the `fuzz` workflow, on a pull request, on its weekly schedule or by hand; its run history on GitHub, not this file, is the record. Where that history shows no completed run, treat the coverage-guided half as unproven.
 
 ### Code Safety
 
@@ -205,8 +252,23 @@ npm audit signatures
 
 ## Disclosure Policy
 
-We follow [coordinated disclosure](https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure). We ask that you:
+We follow [coordinated disclosure](https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure). The process below is structured after ISO/IEC 29147:2018, on receiving vulnerability reports and publishing remediation information, and ISO/IEC 30111:2019, on handling them from receipt to post-release; it claims no conformity to either.
 
-1. Report vulnerabilities privately (see above)
-2. Allow reasonable time for a fix before public disclosure
-3. Do not exploit the vulnerability beyond what is necessary to demonstrate it
+| Step | What happens | Target |
+|---|---|---|
+| Receipt | The report is acknowledged, by the channel it came in on. | 48 hours |
+| Verification | The report is reproduced or refuted, its severity assessed with CVSS, and the reporter told the outcome and the planned dates. A report that is not a vulnerability is answered with the reason, and may become a public issue with the reporter's agreement. | 7 days |
+| Remediation | The fix and its regression test are developed in the advisory's temporary private fork; the reporter is invited to review it. | Critical 7 days, High 14 days, Medium 30 days, Low the next minor or 90 days |
+| Release | The fix ships as a patch or minor of the latest 1.x line ([Supported Versions](#supported-versions)), with a `### Security` entry in its release note. | with the fix |
+| Advisory | A GitHub Security Advisory is published when the fixed version is on npm, with a CVE identifier requested through GitHub, a CVE Numbering Authority, the affected and fixed versions, the severity, a workaround where one exists, and the credit. | the day of the release |
+| Post-release | The root cause is reviewed. When it is a class of defect, a rule, a test or a named limit is added so that the class cannot return unnoticed, and the next release note says which. | the next minor |
+
+**Disclosure date.** A vulnerability is disclosed when its fix is released, and no later than **90 days** after the report. If no fix is ready by then, the advisory is published with the mitigations known, unless the reporter agrees to a later date. If the vulnerability is being exploited, or is already public, the advisory may be published earlier, with mitigations.
+
+**Credit.** The reporter is credited in the advisory, with GitHub's credit types, and in the release note — under the name or handle they choose, or not at all if they prefer.
+
+We ask that you:
+
+1. Report vulnerabilities privately (see [Reporting a Vulnerability](#reporting-a-vulnerability))
+2. Allow the time above for a fix before public disclosure
+3. Do not exploit the vulnerability beyond what is necessary to demonstrate it, and do not access, modify or keep data that is not yours

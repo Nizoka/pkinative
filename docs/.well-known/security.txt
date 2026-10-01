@@ -1,0 +1,11 @@
+# pkinative — how to report a vulnerability (RFC 9116).
+# The policy, the handling timeline and the credit are in SECURITY.md.
+# Held to SECURITY.md by the security-txt-parity rule of scripts/verify-docs.ts;
+# renew Expires whenever docs/assets/ecosystem.json is re-verified.
+
+Contact: https://github.com/Nizoka/pkinative/security/advisories/new
+Contact: mailto:security@pkinative.dev
+Expires: 2027-09-28T00:00:00Z
+Policy: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://pkinative.dev/.well-known/security.txt

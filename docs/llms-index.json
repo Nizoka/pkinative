@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 170828,
-      "approxTokens": 42707
+      "bytes": 170957,
+      "approxTokens": 42739
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 9250,
-      "approxTokens": 2313
+      "bytes": 13923,
+      "approxTokens": 3481
     }
   ],
   "guides": [
@@ -170,8 +170,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 21148,
-      "approxTokens": 5287
+      "bytes": 21277,
+      "approxTokens": 5319
     },
     {
       "title": "Choosing a PKI library",

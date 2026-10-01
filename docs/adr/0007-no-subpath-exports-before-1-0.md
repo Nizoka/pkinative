@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0016
 date: 2026-09-29
 since: 0.3.0
 ---
@@ -41,5 +41,6 @@ Chosen option: 2. When the trigger fired at 0.7.0, the decision stayed where the
 
 ## More Information
 
+- [ADR 0016](0016-one-entry-point-for-1-x.md) — supersedes this record at 1.0.0 and takes the decision it deferred: one entry point for 1.x, a subpath only ever added.
 - [`docs/assets/ecosystem.json`](../assets/ecosystem.json) — the measurement history in `declared.bundle`, and the trigger in `declared.typeSurface`.
 - [release-notes/v0.7.0.md §Downstream integration notes](../../release-notes/v0.7.0.md) — the trigger passed.

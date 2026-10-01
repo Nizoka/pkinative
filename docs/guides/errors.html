@@ -96,7 +96,7 @@
       <li><strong>A reason message never starts with <code>pkinative: </code>.</strong> That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. <code>reason-parity</code> refuses it.</li>
       <li><strong>A reason never duplicates an error code.</strong> <code>PKI_REASON_INPUT_MALFORMED</code> carries in its <code>errorCode</code> field the <code>PkiErrorCode</code> that <em>would</em> have been thrown, so a report can promise never to throw for a malformed input without copying 47 encoding codes into a second vocabulary — which would then have to be frozen too. The reason registry <strong>wraps</strong> the error registry; it never mirrors it.</li>
       </ul>
-      <p>Unlike <code>PkiErrorCode</code>, which freezes at 0.8, the reason vocabulary is <strong>not frozen</strong>: the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major.</p>
+      <p>Unlike <code>PkiErrorCode</code>, frozen whole since 0.8, the reason vocabulary is <strong>grow-only</strong>: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major (<a href="../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md">ADR 0018</a>).</p>
       <h2 id="the-error-classes">The error classes <a class="heading-anchor" href="#the-error-classes" aria-label="Link to this section">#</a></h2>
       <table>
       <thead>

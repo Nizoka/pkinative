@@ -1,0 +1,449 @@
+{
+  "$comment": "Every default pkinative chooses on a caller's behalf, and what a 1.x release may do to it (ADR 0018). semver: frozen — changing the default is semver-major, in either direction; lowerable — a minor may lower it, as a recorded new refusal (ADR 0014); addable — there is no default, and a minor may add one (ADR 0015), which is frozen from then; not-promised — a diagnostic behaviour, which is not promised. Each row names the exported types or functions that take the option, and the source lines that implement the default: the option-defaults-parity rule of scripts/verify-docs.ts finds every evidence string in its file, finds the option on every type or function named, and requires a row for every optional boolean member of an exported ...Options, ...Input or ...Description type. A change to a default changes its evidence, so it cannot land without a diff of this file — and the review of that diff is what calls it major.",
+  "package": "pkinative",
+  "verifiedOn": "2026-10-01",
+  "defaults": [
+    {
+      "option": "encodingRules",
+      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions", "VerifySignedDataInput"],
+      "default": "'der' — every BER-only construct refused",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/asn1/asn1-context.ts", "text": "const rules = options?.encodingRules ?? 'der';" }]
+    },
+    {
+      "option": "strict",
+      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions"],
+      "default": "false — a diagnostic is reported, not thrown",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true) {" }]
+    },
+    {
+      "option": "limits",
+      "in": ["PkiParseOptions", "DecodePemOptions", "ValidateCertificatePathInput"],
+      "default": "DEFAULT_PKI_LIMITS, value by value as SECURITY.md §Resource Limits lists them",
+      "semver": "lowerable",
+      "evidence": [{ "file": "src/asn1/asn1-context.ts", "text": "limits: resolveLimits(options?.limits)," }]
+    },
+    {
+      "option": "onDiagnostic",
+      "in": ["PkiParseOptions", "DecodePemOptions"],
+      "default": "console.warn, once per diagnostic code per operation",
+      "semver": "not-promised",
+      "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (!warned.has(diagnostic.code)) {" }]
+    },
+    {
+      "option": "allowTrailingData",
+      "in": ["DecodeAsn1Options", "ParseSignedDataOptions", "VerifySignedDataInput"],
+      "default": "false — bytes after the outermost value are refused",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/asn1/asn1-decode.ts", "text": "return decodeWithContext(bytes, ctx, allow === true);" },
+        { "file": "src/cms/cms-signed-data.ts", "text": "const root = decodeWithContext(bytes, ctx, allow === true);" }
+      ]
+    },
+    {
+      "option": "mode",
+      "in": ["DecodePemOptions"],
+      "default": "'strict' — the RFC 7468 strict grammar",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/pem/pem.ts", "text": "const mode = options?.mode ?? 'strict';" }]
+    },
+    {
+      "option": "label",
+      "in": ["DecodePemOptions"],
+      "default": "none — a block of any valid label is returned",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/pem/pem.ts", "text": "const wanted = options?.label;" }]
+    },
+    {
+      "option": "decodeExtensions",
+      "in": ["ParseCertificateOptions"],
+      "default": "true — every recognised extension is decoded",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions ?? true;" }]
+    },
+    {
+      "option": "critical",
+      "in": ["DecodeExtensionValueOptions"],
+      "default": "false",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/x509/x509-extensions.ts", "text": "const critical = options?.critical ?? false;" }]
+    },
+    {
+      "option": "critical",
+      "in": ["ExtensionDescription"],
+      "default": "false — the field is omitted, as DER requires of a DEFAULT",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-structures.ts", "text": "if (extension.critical === true) fields.push(encodeBoolean(true));" }]
+    },
+    {
+      "option": "requireAlgorithmMatch",
+      "in": ["VerifyCertificateSignatureOptions"],
+      "default": "true — the outer and inner signature algorithms must be equal (RFC 5280 §4.1.1.2)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/crypto/x509-verify.ts", "text": "requireAlgorithmMatch: options?.requireAlgorithmMatch !== false" }]
+    },
+    {
+      "option": "allowSha1",
+      "in": ["VerifyCertificateSignatureOptions", "VerifySignerInfoSignatureOptions", "VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput"],
+      "default": "false — a SHA-1 signature is not evidence",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/crypto/x509-verify.ts", "text": "allowSha1: options?.allowSha1 === true" },
+        { "file": "src/crypto/cms-verify.ts", "text": "if (resolved.hash === 'SHA-1' && options?.allowSha1 !== true) {" },
+        { "file": "src/verify/verify-chain.ts", "text": "const options = { allowSha1: input.allowSha1 === true };" },
+        { "file": "src/verify/verify-signed-data.ts", "text": "allowSha1: input.allowSha1 === true," },
+        { "file": "src/verify/verify-timestamp.ts", "text": "allowSha1: input.allowSha1 === true," }
+      ]
+    },
+    {
+      "option": "at",
+      "in": ["VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput"],
+      "default": "the moment of the call (Date.now())",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/verify/verify-chain.ts", "text": "const at = input.at ?? Date.now();" },
+        { "file": "src/verify/verify-signed-data.ts", "text": "return input.at ?? Date.now();" },
+        { "file": "src/verify/verify-timestamp.ts", "text": "at: input.at ?? Date.now()," }
+      ]
+    },
+    {
+      "option": "serverName",
+      "in": ["VerifyCertificateChainInput"],
+      "default": "none — no name is checked",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "if (input.serverName !== undefined) reasons.push(...checkServerName(input.leaf, input.serverName));" }]
+    },
+    {
+      "option": "purposes",
+      "in": ["VerifyCertificateChainInput"],
+      "default": "none — no extended key usage is checked",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "if (input.purposes !== undefined && anchored && !alreadySaid && report.path.length > 0) {" }]
+    },
+    {
+      "option": "requireRevocation",
+      "in": ["VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput"],
+      "default": "false — soft-fail: no revocation evidence is not a reason",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "if (input.requireRevocation === true && !covered.has(0)) {" }]
+    },
+    {
+      "option": "requireOcspNonce",
+      "in": ["VerifyCertificateChainInput"],
+      "default": "false — a missing nonce echo is not a mismatch",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/verify/verify-chain.ts", "text": "...(input.requireOcspNonce === undefined ? {} : { requireNonce: input.requireOcspNonce })," },
+        { "file": "src/revocation/ocsp-check.ts", "text": "return input.requireNonce === true" }
+      ]
+    },
+    {
+      "option": "requireNonce",
+      "in": ["CheckOcspStatusInput"],
+      "default": "false — a missing nonce echo is not a mismatch",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/revocation/ocsp-check.ts", "text": "return input.requireNonce === true" }]
+    },
+    {
+      "option": "signatureVerified",
+      "in": ["CheckRevocationInput", "CheckOcspStatusInput", "DeltaCrlInput"],
+      "default": "not verified — absent is false, and the answer is not evidence",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/revocation/crl-check.ts", "text": "if (input.signatureVerified !== true) {" },
+        { "file": "src/revocation/crl-check.ts", "text": "if (delta === undefined || delta.signatureVerified !== true) return undefined;" },
+        { "file": "src/revocation/ocsp-check.ts", "text": "if (input.signatureVerified !== true) {" }
+      ]
+    },
+    {
+      "option": "responderAuthorized",
+      "in": ["CheckOcspStatusInput"],
+      "default": "not authorised — absent is false, and the answer is not evidence",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/revocation/ocsp-check.ts", "text": "if (input.responderAuthorized !== true) {" }]
+    },
+    {
+      "option": "staleTolerance",
+      "in": ["CheckRevocationInput", "CheckOcspStatusInput"],
+      "default": "0 ms — an answer past its nextUpdate is stale",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/revocation/crl-check.ts", "text": "const tolerance = input.staleTolerance ?? 0;" },
+        { "file": "src/revocation/ocsp-check.ts", "text": "(input.staleTolerance ?? 0)" }
+      ]
+    },
+    {
+      "option": "futureTolerance",
+      "in": ["CheckOcspStatusInput"],
+      "default": "60 000 ms — an OCSP thisUpdate further in the future is refused",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/revocation/ocsp-check.ts", "text": "const future = input.futureTolerance ?? MINUTE;" },
+        { "file": "src/revocation/ocsp-check.ts", "text": "const MINUTE = 60_000;" }
+      ]
+    },
+    {
+      "option": "initialPolicySet",
+      "in": ["ValidateCertificatePathInput", "VerifyCertificateChainInput"],
+      "default": "any policy (RFC 5280 §6.1.1 (c) user-initial-policy-set of anyPolicy)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-validate.ts", "text": "input.initialPolicySet ?? []" }]
+    },
+    {
+      "option": "requireExplicitPolicy",
+      "in": ["ValidateCertificatePathInput", "VerifyCertificateChainInput"],
+      "default": "false (RFC 5280 §6.1.1 (e))",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-validate.ts", "text": "input.requireExplicitPolicy === true," }]
+    },
+    {
+      "option": "inhibitPolicyMapping",
+      "in": ["ValidateCertificatePathInput", "VerifyCertificateChainInput"],
+      "default": "false (RFC 5280 §6.1.1 (f))",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-validate.ts", "text": "input.inhibitPolicyMapping === true," }]
+    },
+    {
+      "option": "inhibitAnyPolicy",
+      "in": ["ValidateCertificatePathInput", "VerifyCertificateChainInput"],
+      "default": "false (RFC 5280 §6.1.1 (g))",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-validate.ts", "text": "input.inhibitAnyPolicy === true," }]
+    },
+    {
+      "option": "restrictIssuers",
+      "in": ["CheckExtendedKeyUsageOptions"],
+      "default": "true — a CA's own extKeyUsage restricts what it issued",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-purpose.ts", "text": "const restrictIssuers = options?.restrictIssuers !== false;" }]
+    },
+    {
+      "option": "requireExplicitPurpose",
+      "in": ["CheckExtendedKeyUsageOptions"],
+      "default": "false — an end entity without extKeyUsage permits every purpose",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-purpose.ts", "text": "options?.requireExplicitPurpose === true" }]
+    },
+    {
+      "option": "allowWildcards",
+      "in": ["CheckServerNameOptions", "MatchDnsNameOptions"],
+      "default": "true — a left-most wildcard label may match",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/path/path-server-name.ts", "text": "allowWildcards: options?.allowWildcards !== false" },
+        { "file": "src/path/path-server-name.ts", "text": "if (options?.allowWildcards === false) return false;" }
+      ]
+    },
+    {
+      "option": "allowCommonNameFallback",
+      "in": ["CheckServerNameOptions"],
+      "default": "false — commonName is never a server name",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/path/path-server-name.ts", "text": "if (options?.allowCommonNameFallback !== true) {" }]
+    },
+    {
+      "option": "atTimeStamp",
+      "in": ["VerifySignedDataInput"],
+      "default": "false — chains are judged at `at`",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-signed-data.ts", "text": "if (input.atTimeStamp === true && proved.length > 0)" }]
+    },
+    {
+      "option": "requireSigningCertificate",
+      "in": ["VerifySignedDataInput"],
+      "default": "false",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-signed-data.ts", "text": "requireSigningCertificate: input.requireSigningCertificate === true," }]
+    },
+    {
+      "option": "requireAlgorithmProtection",
+      "in": ["VerifySignedDataInput"],
+      "default": "false",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-signed-data.ts", "text": "requireAlgorithmProtection: input.requireAlgorithmProtection === true," }]
+    },
+    {
+      "option": "allowNonCriticalTimeStampingEku",
+      "in": ["VerifyTimeStampTokenInput"],
+      "default": "false — RFC 3161 §2.3 requires the extKeyUsage to be critical",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-timestamp.ts", "text": "_tsaPurposeReason(tsa, input.allowNonCriticalTimeStampingEku === true)" }]
+    },
+    {
+      "option": "allowUnverifiedIntegrity",
+      "in": ["OpenPkcs12Options"],
+      "default": "false — a container whose MAC cannot be checked is not valid",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/verify/verify-pkcs12.ts", "text": "options.allowUnverifiedIntegrity !== true" }]
+    },
+    {
+      "option": "rsaAlgorithm",
+      "in": ["OpenPkcs12Options"],
+      "default": "none — an rsaEncryption key stays shut, with PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED",
+      "semver": "addable",
+      "evidence": [
+        { "file": "src/verify/verify-pkcs12.ts", "text": "if (chosen === undefined) return undefined;" },
+        { "file": "src/verify/verify-pkcs12.ts", "text": "reasons.push(pkcs12RsaSchemeUnspecifiedReason(bag.path));" }
+      ]
+    },
+    {
+      "option": "algorithm",
+      "in": ["ImportPrivateKeyOptions"],
+      "default": "for an EC key: ECDSA with the curve's customary digest — P-256 with SHA-256, P-384 with SHA-384, P-521 with SHA-512",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/keys/key-import.ts", "text": "if (requested === undefined) return { name: 'ECDSA', hash: CUSTOMARY_HASH[curve], namedCurve: curve };" },
+        { "file": "src/keys/key-import.ts", "text": "'P-256': 'SHA-256'," },
+        { "file": "src/keys/key-import.ts", "text": "'P-384': 'SHA-384'," },
+        { "file": "src/keys/key-import.ts", "text": "'P-521': 'SHA-512'," }
+      ]
+    },
+    {
+      "option": "algorithm",
+      "in": ["ImportPrivateKeyOptions"],
+      "default": "for an RSA key: none — PKI_API_MISUSE until the scheme is named",
+      "semver": "addable",
+      "evidence": [
+        { "file": "src/keys/key-import.ts", "text": "throw _ambiguous('an RSA key (rsaEncryption)'" },
+        { "file": "src/keys/key-import.ts", "text": "throw _ambiguous('an RSA key restricted to PSS (id-RSASSA-PSS)'" }
+      ]
+    },
+    {
+      "option": "saltLength",
+      "in": ["SignatureAlgorithm"],
+      "default": "the digest's output length, for an RSASSA-PSS signature pkinative writes",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/crypto/crypto-algorithms.ts", "text": "const saltLength = algorithm.saltLength ?? size;" }]
+    },
+    {
+      "option": "algorithm",
+      "in": ["computeKeyIdentifier"],
+      "default": "'SHA-1' (RFC 5280 §4.2.1.2 method 1)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/hash/key-identifier.ts", "text": "algorithm: 'SHA-1' | 'SHA-256' = 'SHA-1'" }]
+    },
+    {
+      "option": "algorithm",
+      "in": ["encodeOcspCertId"],
+      "default": "'SHA-1'",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/revocation/ocsp-request.ts", "text": "algorithm: OcspHashAlgorithm = 'SHA-1'" }]
+    },
+    {
+      "option": "hashAlgorithm",
+      "in": ["CreateOcspRequestOptions"],
+      "default": "'SHA-1'",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/revocation/ocsp-request.ts", "text": "options?.hashAlgorithm ?? 'SHA-1'" }]
+    },
+    {
+      "option": "hashAlgorithm",
+      "in": ["CreateTimeStampRequestOptions"],
+      "default": "'SHA-256'",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/cms/tsp-request.ts", "text": "const name = options?.hashAlgorithm ?? 'SHA-256';" }]
+    },
+    {
+      "option": "certReq",
+      "in": ["CreateTimeStampRequestOptions"],
+      "default": "true — the TSA is asked for its certificate",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/cms/tsp-request.ts", "text": "if (options?.certReq !== false) fields.push(encodeBoolean(true));" }]
+    },
+    {
+      "option": "policy",
+      "in": ["CreateTimeStampRequestOptions"],
+      "default": "none — the TSA's own default policy",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/cms/tsp-request.ts", "text": "if (options?.policy !== undefined) fields.push(encodeObjectIdentifier(options.policy));" }]
+    },
+    {
+      "option": "detached",
+      "in": ["CreateSignedDataInput"],
+      "default": "false — given content is embedded",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "eContent: input.detached === true ? undefined : content" }]
+    },
+    {
+      "option": "contentType",
+      "in": ["CreateSignedDataInput"],
+      "default": "id-data (1.2.840.113549.1.7.1)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "const contentType = input.contentType ?? OID_DATA;" }]
+    },
+    {
+      "option": "sid",
+      "in": ["CreateSignedDataInput"],
+      "default": "'issuerAndSerialNumber' (SignerInfo version 1)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "if (sid !== undefined && sid !== 'issuerAndSerialNumber') {" }]
+    },
+    {
+      "option": "signingTime",
+      "in": ["CreateSignedDataInput"],
+      "default": "none — no signingTime attribute is written",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "if (input.signingTime !== undefined) signed.push(" }]
+    },
+    {
+      "option": "signingCertificateV2",
+      "in": ["CreateSignedDataInput"],
+      "default": "true — SigningCertificateV2 (RFC 5035) is written",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "if (input.signingCertificateV2 !== false) {" }]
+    },
+    {
+      "option": "algorithmProtection",
+      "in": ["CreateSignedDataInput"],
+      "default": "true — CMSAlgorithmProtection (RFC 6211) is written",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-signed-data.ts", "text": "if (input.algorithmProtection !== false) {" }]
+    },
+    {
+      "option": "stringType",
+      "in": ["NameAttribute"],
+      "default": "'utf8' — UTF8String, as RFC 5280 §4.1.2.6 asks of new certificates",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/build/build-structures.ts", "text": "encodeString(stringType ?? 'utf8', value)" }]
+    },
+    {
+      "option": "separator",
+      "in": ["FormatFingerprintOptions"],
+      "default": "':'",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/hash/fingerprint.ts", "text": "const separator = options?.separator ?? ':';" }]
+    },
+    {
+      "option": "letterCase",
+      "in": ["FormatFingerprintOptions"],
+      "default": "'upper'",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/hash/fingerprint.ts", "text": "const letterCase = options?.letterCase ?? 'upper';" }]
+    },
+    {
+      "option": "type",
+      "in": ["encodeTime"],
+      "default": "'rfc5280' — UTCTime for 1950–2049, GeneralizedTime otherwise (RFC 5280 §4.1.2.5)",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/asn1/asn1-encode.ts", "text": "type: 'UTCTime' | 'GeneralizedTime' | 'rfc5280' = 'rfc5280'" }]
+    },
+    {
+      "option": "unusedBits",
+      "in": ["encodeBitString"],
+      "default": "0",
+      "semver": "frozen",
+      "evidence": [{ "file": "src/asn1/asn1-encode.ts", "text": "export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array {" }]
+    },
+    {
+      "option": "options.tagClass",
+      "in": ["encodeExplicit", "encodeImplicit"],
+      "default": "'context'",
+      "semver": "frozen",
+      "evidence": [
+        { "file": "src/asn1/asn1-encode.ts", "text": "return encodeTlv(options?.tagClass ?? 'context', tagNumber, true," },
+        { "file": "src/asn1/asn1-encode.ts", "text": "const retagged = encodeTlv(options?.tagClass ?? 'context', tagNumber," }
+      ]
+    }
+  ]
+}

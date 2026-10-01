@@ -74,6 +74,10 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'refusal-baseline-frozen': (f) => edit(f, 'scripts/data/limbo-refusals.json', /("0014e18b[0-9a-f]{56}": )"PKI_X509_GENERAL_NAME_INVALID"/, '$1"PKI_X509_EXTENSION_MALFORMED"'),
     // A leg held by a rule that does not exist is a promise held by nothing.
     'contracts-shape': (f) => edit(f, 'docs/assets/ecosystem.json', '"rules": ["refusal-baseline-frozen"]', '"rules": ["refusal-baseline-held"]'),
+    // The defect ADR 0018 exists for: a default flipped in the source, its registry row left behind.
+    'option-defaults-parity': (f) => edit(f, 'src/path/path-server-name.ts', 'allowWildcards: options?.allowWildcards !== false', 'allowWildcards: options?.allowWildcards === true'),
+    // An expired security.txt tells a reporter the contact may be stale (RFC 9116 §2.5.5).
+    'security-txt-parity': (f) => edit(f, 'docs/.well-known/security.txt', /^Expires: .+$/m, 'Expires: 2020-01-01T00:00:00Z'),
     // From 1.0.0 a "not on npm" sentence must be gone; one that comes back
     // (a stale paragraph pasted from an old branch) is a false statement.
     'release-era-prose': (f) => edit(f, 'llms.txt', /\n$/, '\nVersions below 1.0 are git tags, not npm releases.\n'),
@@ -503,13 +507,97 @@ describe('verify-docs rule table', () => {
         expect(await contractProblems(stray)).toEqual([expect.stringContaining('docs/data/reasons.frozen.json is a frozen snapshot no leg')]);
         const prose = { ...TREE };
         edit(prose, 'SECURITY.md', /`refusal-baseline-frozen`/g, '`the refusal rule`');
-        expect(await contractProblems(prose)).toEqual([expect.stringContaining('does not name the rule `refusal-baseline-frozen`')]);
+        // The rule holds two things now: the decision-surface leg and the corpus re-pin policy (ADR 0018).
+        expect(await contractProblems(prose)).toEqual([
+            expect.stringContaining('does not name the rule `refusal-baseline-frozen`, which holds the decision-surface leg'),
+            expect.stringContaining('does not name the rule `refusal-baseline-frozen`, which holds policy "corpus-repin"'),
+        ]);
         const legless = { ...TREE };
         edit(legless, 'docs/assets/ecosystem.json', '"error-vocabulary": {', '"error-codes": {');
         expect(await contractProblems(legless)).toEqual(expect.arrayContaining([expect.stringContaining('lacks "error-vocabulary"'), expect.stringContaining('names "error-codes"')]));
         const scalar = { ...TREE };
         edit(scalar, 'docs/assets/ecosystem.json', '"runtime_dependencies": 0', '"runtime_dependencies": 1');
         expect(await contractProblems(scalar)).toEqual([expect.stringContaining('package.json declares 0')]);
+    });
+
+    // ── The policies of ADR 0016–0018 and the support block of ADR 0017 ──
+
+    it('should fire contracts-shape on a missing policy, on a policy record SECURITY.md does not cite, and on what is not promised drifting from the prose', async () => {
+        const missing = { ...TREE };
+        edit(missing, 'docs/assets/ecosystem.json', '"open-unions": {', '"closed-unions": {');
+        expect(await contractProblems(missing)).toEqual(expect.arrayContaining([expect.stringContaining('policies lacks "open-unions"'), expect.stringContaining('names "closed-unions"')]));
+        const uncited = { ...TREE };
+        edit(uncited, 'SECURITY.md', /0016/g, 'NNNN');
+        expect(await contractProblems(uncited)).toEqual([expect.stringContaining('does not name ADR 0016, which holds policy "entry-points"')]);
+        const drift = { ...TREE };
+        edit(drift, 'docs/assets/ecosystem.json', '"a JSON form of results",\n', '');
+        expect(await contractProblems(drift)).toEqual([expect.stringContaining('notPromised lists 9 entries and SECURITY.md §What is not promised 10')]);
+    });
+
+    it('should fire contracts-shape when contracts.support drifts from package.json, the build target, the CI matrix or SECURITY.md', async () => {
+        const engines = { ...TREE };
+        edit(engines, 'package.json', '"node": "^22.22.2 || ^24.14.1 || >=25.8.2"', '"node": ">=22"');
+        expect(await contractProblems(engines)).toEqual(expect.arrayContaining([expect.stringContaining('package.json engines.node is ">=22"'), expect.stringContaining('Node.js 22 is a supported line and engines.node ">=22" gives it no floor')]));
+        const target = { ...TREE };
+        edit(target, 'tsup.config.ts', "target: 'es2020'", "target: 'es2022'");
+        expect(await contractProblems(target)).toEqual([expect.stringContaining('does not build for es2020')]);
+        const untested = { ...TREE };
+        edit(untested, 'docs/assets/ecosystem.json', '"nodeLines": [22, 24]', '"nodeLines": [22, 24, 26]');
+        expect(await contractProblems(untested)).toEqual(expect.arrayContaining([
+            expect.stringContaining('Node.js 26 is a supported line and .github/workflows/ci.yml does not test it'),
+            expect.stringContaining('gives it no floor'),
+            expect.stringContaining('does not name the supported line Node.js 26'),
+        ]));
+        const floor = { ...TREE };
+        edit(floor, 'SECURITY.md', /TypeScript 5\.0/g, 'TypeScript 4.7');
+        expect(await contractProblems(floor)).toEqual([expect.stringContaining('does not name the TypeScript floor TypeScript 5.0')]);
+    });
+
+    it('should fire contracts-shape on the reason vocabulary called "not frozen" again', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/errors.md', 'the reason vocabulary is **grow-only**', 'the reason vocabulary is **not frozen**');
+        expect(await contractProblems(files)).toEqual([expect.stringContaining('it is grow-only')]);
+    });
+
+    const defaultProblems = async (files: Record<string, string>): Promise<string[]> =>
+        (await runRules(createMemoryContext(files), RULES, 'option-defaults-parity')).map((p) => p.message);
+
+    it('should fire option-defaults-parity on a flag without a row, on a type that does not take the option, and on a semver outside the four', async () => {
+        const flag = { ...TREE };
+        edit(flag, 'docs/assets/api.json', /("name": "allowCommonNameFallback",\n\s+"type": "boolean \| undefined",)/, '"name": "allowIpFallback",\n          "type": "boolean | undefined",');
+        expect(await defaultProblems(flag)).toEqual(expect.arrayContaining([
+            expect.stringContaining('CheckServerNameOptions.allowIpFallback is an optional flag with no row'),
+            expect.stringContaining('CheckServerNameOptions does not take "allowCommonNameFallback"'),
+        ]));
+        const semver = { ...TREE };
+        edit(semver, 'docs/data/defaults.json', '"semver": "lowerable"', '"semver": "raisable"');
+        expect(await defaultProblems(semver)).toEqual([expect.stringContaining('"semver" is "raisable"')]);
+        const gone = { ...TREE };
+        edit(gone, 'docs/data/defaults.json', '"in": ["CheckExtendedKeyUsageOptions"]', '"in": ["CheckPurposeOptions"]');
+        expect(await defaultProblems(gone)).toEqual(expect.arrayContaining([expect.stringContaining('names CheckPurposeOptions, which docs/assets/api.json does not list')]));
+    });
+
+    const txtProblems = async (files: Record<string, string>): Promise<string[]> =>
+        (await runRules(createMemoryContext(files), RULES, 'security-txt-parity')).map((p) => p.message);
+
+    it('should fire security-txt-parity on a channel SECURITY.md does not offer, a missing one, a second Expires, a wrong Canonical and an unknown field', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/.well-known/security.txt', 'Contact: mailto:security@pkinative.dev', 'Contact: mailto:root@pkinative.dev');
+        edit(files, 'docs/.well-known/security.txt', /^(Expires: .+)$/m, '$1\n$1');
+        edit(files, 'docs/.well-known/security.txt', 'Canonical: https://pkinative.dev/.well-known/security.txt', 'Canonical: https://example.org/security.txt');
+        edit(files, 'docs/.well-known/security.txt', /\n$/, '\nSignature: none\n');
+        const problems = await txtProblems(files);
+        expect(problems).toEqual(expect.arrayContaining([
+            expect.stringContaining('Contact mailto:root@pkinative.dev is not a channel SECURITY.md names'),
+            expect.stringContaining('does not offer mailto:security@pkinative.dev'),
+            expect.stringContaining('has 2 Expires fields'),
+            expect.stringContaining('has no "Canonical: https://pkinative.dev/.well-known/security.txt"'),
+            expect.stringContaining('"Signature" is not a field RFC 9116 defines'),
+        ]));
+        expect(problems).toHaveLength(5);
+        const far = { ...TREE };
+        edit(far, 'docs/.well-known/security.txt', /^Expires: .+$/m, 'Expires: 2030-01-01T00:00:00Z');
+        expect(await txtProblems(far)).toEqual([expect.stringContaining('is not within a year after the manifest\'s verifiedOn')]);
     });
 
     it('should honour a verify-docs:allow suppression on the reported line or the line above', async () => {

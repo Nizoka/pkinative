@@ -18,7 +18,7 @@
     "zipnative": "https://github.com/Nizoka/zipnative"
   },
   "contracts": {
-    "$comment": "What pkinative promises, for a program to read. compatibility is the three-part promise of SECURITY.md §Compatibility promise (ADR 0014): each leg names its snapshot, the verify-docs rules that hold it, the conformance levels that verify it against a corpus, and the records that decide it. The contracts-shape rule holds the block to those files, rules and records and to SECURITY.md, both ways; it also holds runtime_dependencies to package.json and error_codes_frozen_since to docs/data/errors.frozen.json. The snapshots, not this block, carry the promised names, codes and refusals.",
+    "$comment": "What pkinative promises, for a program to read. compatibility is the promise of SECURITY.md §Compatibility promise: three legs (ADR 0014), each naming its snapshot, the verify-docs rules that hold it, the conformance levels that verify it against a corpus, and the records that decide it; then the policies that complete it (ADR 0016, 0017, 0018), each with its records and, where one exists, the rule, registry or conformance level that holds it; then what is not promised, entry for entry with SECURITY.md. support is the runtime and compiler policy of ADR 0017. The contracts-shape rule holds the block to those files, rules and records and to SECURITY.md, both ways; it also holds runtime_dependencies to package.json, error_codes_frozen_since to docs/data/errors.frozen.json, and support to package.json engines, tsup.config.ts and the CI matrix. The snapshots and registries, not this block, carry the promised names, codes, refusals and defaults.",
     "runtime_dependencies": 0,
     "secret_dependent_primitives": "never implemented; Web Crypto only",
     "error_codes_frozen_since": "0.8.0",
@@ -28,7 +28,7 @@
       "section": "Compatibility promise",
       "legs": {
         "export-surface": {
-          "promise": "Every export of src/index.ts keeps its name, its kind and a compatible signature, and every PkiReasonCode stays, for the whole major line; an addition is semver-minor.",
+          "promise": "Every export of src/index.ts keeps its name, its kind and a compatible signature, and every PkiReasonCode keeps its name (the reason vocabulary is grow-only), for the whole major line; an addition is semver-minor.",
           "snapshot": "docs/assets/api.frozen.json",
           "rules": ["api-surface-frozen"],
           "adrs": ["docs/adr/0012-frozen-error-vocabulary.md", "docs/adr/0013-renames-before-the-freeze.md"]
@@ -47,14 +47,70 @@
           "adrs": ["docs/adr/0014-the-decision-surface-contract.md"]
         }
       },
+      "policies": {
+        "entry-points": {
+          "promise": "One entry point, '.', complete for the whole major line; a later minor may add a subpath export sharing one runtime chunk with it, and only a major removes one.",
+          "adrs": ["docs/adr/0016-one-entry-point-for-1-x.md"]
+        },
+        "option-defaults": {
+          "promise": "The default of every option is part of the promise: changing one is semver-major, except a limit default lowered as a recorded refusal, a default added where an option had none, and the diagnostic sink.",
+          "registry": "docs/data/defaults.json",
+          "rules": ["option-defaults-parity"],
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md", "docs/adr/0015-no-default-rsa-scheme.md"]
+        },
+        "returned-verdicts": {
+          "promise": "A path, revocation, CMS, timestamp, PKCS#12 or signature verdict may be corrected toward the standard, and a capability may be added, in a minor, never silently; a refusal the doctrine makes permanent is never lifted.",
+          "gate": ["L6", "L7", "L8"],
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md", "docs/adr/0014-the-decision-surface-contract.md"]
+        },
+        "open-unions": {
+          "promise": "Every returned union may gain members in a minor, and an input reported as 'unknown' may be reported as a known kind; callers keep a default branch and branch on the positive member.",
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md"]
+        },
+        "report-fields": {
+          "promise": "Codes, error classes, errorCode and limit names are promised, and so is the grammar of a reason or error path; messages, cited clauses, offsets, reason order and counts are not.",
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md", "docs/adr/0013-renames-before-the-freeze.md"]
+        },
+        "non-default-options": {
+          "promise": "Every option keeps its name, its type, its meaning and its default; what BER, strict mode, raised limits, lax PEM and the other flags accept may change in a minor, never silently.",
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md"]
+        },
+        "wire-form": {
+          "promise": "Results are JavaScript values with bigint and Uint8Array members and no promised JSON form; the reserved convention is bigint as a decimal string and bytes as lowercase hex; the docs/data registries are additions-only and read at the git tag of a version.",
+          "adrs": ["docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md"]
+        },
+        "corpus-repin": {
+          "promise": "A refusal a re-pinned corpus brings is promised from the re-pin; one the corpus calls wrong is fixed in the engine first, and a refusal the corpus drops is retired only on an accepted record.",
+          "rules": ["refusal-baseline-frozen"],
+          "gate": ["L1"],
+          "adrs": ["docs/adr/0014-the-decision-surface-contract.md", "docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md"]
+        },
+        "runtime-support": {
+          "promise": "Node.js LTS lines with a patched floor, dropped in a minor after their end of life; TypeScript 5.0 and later on a two-year window; ES2020 for the whole major line; browsers, Deno, Bun and Workers targeted, not tested.",
+          "adrs": ["docs/adr/0017-runtime-and-toolchain-support.md"]
+        }
+      },
       "notPromised": [
         "diagnostic severity and wording",
-        "error message wording",
+        "error and reason message wording, and the clause a reason cites",
+        "the exact path and offset of an error or a reason, beyond the path grammar",
+        "the order of reasons, the counts a report carries, and the property order of returned objects",
         "limit default values, which may be lowered in a minor",
-        "path, revocation and CMS verdicts, which are recorded but not frozen",
+        "path, revocation, CMS, timestamp, PKCS#12 and signature verdicts, which are recorded but not frozen",
+        "a JSON form of results",
+        "the runtimes the build targets and no gate executes: browsers, Deno, Bun and Workers",
         "conformance scores",
         "bundle sizes and performance"
       ]
+    },
+    "support": {
+      "adr": "docs/adr/0017-runtime-and-toolchain-support.md",
+      "node": "^22.22.2 || ^24.14.1 || >=25.8.2",
+      "nodeLines": [22, 24],
+      "typescript": "5.0.4",
+      "esTarget": "es2020",
+      "tested": ["Node.js"],
+      "targeted": ["browsers, in a secure context", "Deno", "Bun", "Cloudflare Workers"]
     }
   },
   "milestones": {
