@@ -43,7 +43,7 @@ import type { ValidateCertificatePathInput, ValidateCertificatePathReport } from
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
 import { checkExtendedKeyUsage } from './path-purpose.js';
-import { validateCertificatePath } from './path-validate.js';
+import { _signatureIndex, _validateIndexed } from './path-validate.js';
 
 /** What to build from, and everything needed to judge each candidate. */
 export interface BuildCertificatePathInput extends Omit<ValidateCertificatePathInput, 'path'> {
@@ -122,6 +122,8 @@ export function buildCertificatePath(input: BuildCertificatePathInput): BuildCer
     const limits = resolveLimits(input.limits);
     const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
     const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
+    // Every candidate path is judged against the same verdicts: index them once.
+    const signatures = _signatureIndex(input.signatures ?? []);
 
     // Index the bag by subject name so each step costs a lookup rather than a
     // scan. Encoded names, never rendered ones — two names that print the same
@@ -156,7 +158,7 @@ export function buildCertificatePath(input: BuildCertificatePathInput): BuildCer
      * e-mail.
      */
     const judge = (path: readonly Certificate[]): ValidateCertificatePathReport => {
-        const report = validateCertificatePath({ ...input, path });
+        const report = _validateIndexed({ ...input, path }, signatures);
         if (!report.valid || input.purposes === undefined) return report;
         const refused = input.purposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
         return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };

@@ -67,7 +67,7 @@ import {
 } from './path-policies.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureVerdict } from '../types/path-types.js';
+import type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureVerdict, SignatureResult } from '../types/path-types.js';
 import type { Certificate, DistinguishedName, GeneralName } from '../types/x509-types.js';
 import { getExtension } from '../x509/x509-extensions.js';
 import { formatDistinguishedName } from '../x509/x509-name-format.js';
@@ -393,9 +393,23 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
  */
 export function validateCertificatePath(input: ValidateCertificatePathInput): ValidateCertificatePathReport {
-    const limits = resolveLimits(input.limits);
+    return _validateIndexed(input, _signatureIndex(input.signatures ?? []));
+}
+
+/**
+ * The verdict map `validateCertificatePath` looks signatures up in, keyed by
+ * encoded certificate. Built once per verdict list: `buildCertificatePath`
+ * validates up to `maxPathsExplored` candidate paths against one list, and
+ * re-encoding every verdict's certificates for each of them made the search
+ * cost paths × verdicts × certificate size — eighteen minutes for sixty-five
+ * certificates sharing one name, before the index moved here.
+ *
+ * @internal
+ */
+export function _signatureIndex(results: readonly SignatureResult[]): ReadonlyMap<string, SignatureEntry> {
     const signatures = new Map<string, SignatureEntry>();
-    for (const result of input.signatures ?? []) {
+    // Bounded by the caller's verdict list, one entry each.
+    for (const result of results) {
         const subject = _hex(result.certificate.der);
         const entry = { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail };
         if (result.issuer !== undefined) {
@@ -413,6 +427,17 @@ export function validateCertificatePath(input: ValidateCertificatePathInput): Va
         }
         signatures.set(subject, entry);
     }
+    return signatures;
+}
+
+/**
+ * `validateCertificatePath` against a verdict map already built by
+ * `_signatureIndex` from `input.signatures`, which this does not read.
+ *
+ * @internal
+ */
+export function _validateIndexed(input: ValidateCertificatePathInput, signatures: ReadonlyMap<string, SignatureEntry>): ValidateCertificatePathReport {
+    const limits = resolveLimits(input.limits);
     const context: PathContext = {
         at: input.at,
         signatures,

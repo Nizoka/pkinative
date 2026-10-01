@@ -238,6 +238,39 @@ describe('buildCertificatePath', () => {
         if (!report.valid) expect(codes(report)).toContain('PKI_REASON_LIMIT_EXCEEDED');
     });
 
+    it('should read the verdicts once per search, not once per path it tries', async () => {
+        // Each candidate path used to rebuild the verdict index, re-encoding
+        // every verdict's certificates: paths x verdicts x certificate size.
+        // Sixty-five certificates sharing one name took eighteen minutes.
+        let reads = 0;
+        const counted = (certificate: Certificate): Certificate => new Proxy(certificate, {
+            get: (target, key, receiver) => {
+                if (key === 'der') reads += 1;
+                return Reflect.get(target, key, receiver) as unknown;
+            },
+        });
+        const verdicts: SignatureResult[] = [];
+        for (let i = 0; i < 12; i += 1) {
+            const decoy = await issue({ subject: 'Example Intermediate', issuerDer: R12.subject.der, ca: true, serial: BigInt(500 + i) });
+            verdicts.push({ certificate: counted(decoy.certificate), verdict: 'valid' });
+        }
+        const report = buildCertificatePath({
+            leaf: LEAF.certificate,
+            candidates: [...verdicts.map((v) => v.certificate), ROOT],
+            trustAnchors: [ROOT],
+            at: AT,
+            signatures: verdicts,
+            limits: { maxPathsExplored: 20 },
+        });
+        expect(report.explored).toBe(13);
+        // Twelve reads to index the verdicts, and a few per path for the
+        // certificates it walks — never twelve per path.
+        expect(reads).toBeLessThan(verdicts.length * report.explored);
+        reads = 0;
+        buildCertificatePath({ leaf: LEAF.certificate, candidates: [], trustAnchors: [ROOT], at: AT, signatures: verdicts });
+        expect(reads).toBe(verdicts.length);
+    });
+
     it('should not extend past maxChainLength', () => {
         const report = buildCertificatePath({
             leaf: LEAF.certificate,
