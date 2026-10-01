@@ -9,7 +9,8 @@ import { readTlvHeader, walkChildren } from '../../src/asn1/asn1-cursor.js';
  * bytes. A cursor that accepted what the decoder refuses would be a weaker
  * parser for the same input — exactly the ambiguity DER exists to remove, and
  * exactly the shape of CVE-2020-0601-style trouble. So every rule the decoder
- * enforces is tested here too, on the cursor.
+ * enforces is tested here too, on the cursor. (CurveBall itself is replayed
+ * end to end in tests/security/cve-classes.test.ts.)
  */
 
 const bytes = (...values: readonly number[]): Uint8Array => Uint8Array.from(values);

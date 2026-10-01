@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 180036,
-      "approxTokens": 45009
+      "bytes": 179872,
+      "approxTokens": 44968
     },
     {
       "url": "llms-recipes.txt",
@@ -127,10 +127,11 @@
         "fail-in-one-way",
         "cryptography-pkinative-does-not-own",
         "no-reach-outside-the-engine",
+        "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 6178,
-      "approxTokens": 1545
+      "bytes": 15222,
+      "approxTokens": 3806
     },
     {
       "title": "Conformance",
@@ -142,13 +143,12 @@
         "the-levels",
         "the-write-direction",
         "key-containers-the-arrow-turned-back",
-        "signed-structures-what-the-tools-sign-pkinative-verifies",
         "what-is-not-claimed-yet",
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 40088,
-      "approxTokens": 10022
+      "bytes": 30880,
+      "approxTokens": 7720
     },
     {
       "title": "Errors, diagnostics and reasons",

@@ -148,6 +148,9 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The one defect only the hermetic half can see without a build: a legal
     // text that ships, edited without the pinned list being regenerated.
     'package-files-parity': (f) => edit(f, 'LICENSE', 'MIT License', 'MIT Licence'),
+    // A replay renamed without its registry row: the row now names a test
+    // that does not exist, and the claim and its proof come apart.
+    'cve-class-parity': (f) => edit(f, 'tests/security/cve-classes.test.ts', "it('CVE-2020-0601 (CurveBall):", "it('CVE-2020-0601 (CurveBall), renamed:"),
 };
 
 describe('verify-docs on the repository', () => {
@@ -221,6 +224,20 @@ describe('verify-docs rule table', () => {
         edit(files, 'scripts/data/lint-waivers.json', from, to);
         const problems = await runRules(createMemoryContext(files), RULES, 'lint-waiver-reviewed');
         expect(problems).toEqual([expect.objectContaining({ file: 'scripts/data/lint-waivers.json', message: expect.stringContaining(message) })]);
+    });
+
+    it.each([
+        // The other direction: a replay that answers an identifier nobody listed.
+        ['a test naming an identifier the registry does not list', 'tests/security/cve-classes.test.ts', "it('ECDSA control:", "it('ECDSA control, CVE-1999-0001:", 'tests/security/cve-classes.test.ts', 'names CVE-1999-0001'],
+        // The guide drifting: a row dropped from the table a reader sees.
+        ['a registry entry the guide table omits', 'docs/guides/security.md', /^\| CVE-2009-2408 \|.*\n/m, '', 'docs/guides/security.md', 'does not list CVE-2009-2408'],
+        // The honesty field: a defence nobody can name.
+        ['an entry that does not say who stops it', 'docs/data/cve-classes.json', '"applies": "no", "defence": "pkinative",\n      "why": "Names are compared', '"applies": "no", "defence": "somebody",\n      "why": "Names are compared', 'docs/data/cve-classes.json', 'defence must be one of'],
+    ] as const)('should fire cve-class-parity on %s', async (_what, path, from, to, file, message) => {
+        const files = { ...TREE };
+        edit(files, path, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'cve-class-parity');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
     });
 
     it('should fire error-parity on a throw site whose message lacks the pkinative prefix', async () => {
