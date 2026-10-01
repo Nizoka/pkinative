@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkServerName, matchDnsName, type ServerIdentity } from '../../src/path/path-server-name.js';
-import type { Certificate, GeneralName } from '../../src/types/x509-types.js';
+import type { Certificate, GeneralName, GeneralSubtree } from '../../src/types/x509-types.js';
 
 /**
  * RFC 6125 server identity matching.
@@ -28,8 +28,23 @@ function certificate(options: { names?: readonly GeneralName[]; commonNames?: re
     const extensions = options.names === undefined
         ? []
         : [{ kind: 'subjectAltName', oid: '2.5.29.17', critical: false, valueDer: new Uint8Array(0), names: options.names }];
-    return { subject: { rdns, der: new Uint8Array(0) }, extensions } as unknown as Certificate;
+    return { der: Uint8Array.of(serial++), subject: { rdns, der: new Uint8Array(0) }, extensions } as unknown as Certificate;
 }
+
+let serial = 1;
+
+/** A CA carrying the given nameConstraints, and nothing else. */
+function constrainedCa(permitted: readonly GeneralName[] | undefined, excluded: readonly GeneralName[] | undefined = undefined): Certificate {
+    const subtrees = (names: readonly GeneralName[] | undefined): readonly GeneralSubtree[] | undefined => names?.map((base) => ({ base, minimum: 0, maximum: undefined }));
+    return {
+        der: Uint8Array.of(serial++),
+        subject: { rdns: [], der: new Uint8Array(0) },
+        extensions: [{ kind: 'nameConstraints', oid: '2.5.29.30', critical: true, valueDer: new Uint8Array(0), permittedSubtrees: subtrees(permitted), excludedSubtrees: subtrees(excluded) }],
+    } as unknown as Certificate;
+}
+
+/** The fallback, with a path that constrains nothing. */
+const FALLBACK = { allowCommonNameFallback: true, path: [] };
 
 const host = (value: string): ServerIdentity => ({ kind: 'dns', value });
 const address = (...bytes: readonly number[]): ServerIdentity => ({ kind: 'ip', value: Uint8Array.from(bytes) });
@@ -129,7 +144,7 @@ describe('checkServerName — subjectAltName', () => {
         // for the SAN's hosts only — reading the CN there would be matching a
         // field no issuer has controlled since 2017.
         const cert = certificate({ names: [dns('other.example')], commonNames: ['bank.example'] });
-        expect(codes(checkServerName(cert, host('bank.example'), { allowCommonNameFallback: true }))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(codes(checkServerName(cert, host('bank.example'), FALLBACK))).toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 
     it('should quote an IPv6 identity as hex rather than as dotted quad', () => {
@@ -154,7 +169,7 @@ describe('checkServerName — subjectAltName', () => {
         // The one case RFC 6125 leaves open: a SAN of other forms is not
         // authoritative for a host name.
         const cert = certificate({ names: [email('a@bank.example')], commonNames: ['bank.example'] });
-        expect(checkServerName(cert, host('bank.example'), { allowCommonNameFallback: true })).toEqual([]);
+        expect(checkServerName(cert, host('bank.example'), FALLBACK)).toEqual([]);
     });
 });
 
@@ -166,29 +181,29 @@ describe('checkServerName — the commonName fallback', () => {
     });
 
     it('should match a commonName when explicitly asked', () => {
-        expect(checkServerName(certificate({ commonNames: ['bank.example'] }), host('bank.example'), { allowCommonNameFallback: true })).toEqual([]);
+        expect(checkServerName(certificate({ commonNames: ['bank.example'] }), host('bank.example'), FALLBACK)).toEqual([]);
     });
 
     it('should honour a wildcard commonName under the same rules', () => {
         const cert = certificate({ commonNames: ['*.bank.example'] });
-        expect(checkServerName(cert, host('www.bank.example'), { allowCommonNameFallback: true })).toEqual([]);
-        expect(codes(checkServerName(cert, host('bank.example'), { allowCommonNameFallback: true }))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(checkServerName(cert, host('www.bank.example'), FALLBACK)).toEqual([]);
+        expect(codes(checkServerName(cert, host('bank.example'), FALLBACK))).toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 
     it('should never match an address against a commonName', () => {
         // An IP in a CN is text, and comparing an address to text is how a
         // certificate for "127.0.0.1" the string gets accepted for the host.
         const cert = certificate({ commonNames: ['192.0.2.1'] });
-        expect(codes(checkServerName(cert, address(192, 0, 2, 1), { allowCommonNameFallback: true }))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(codes(checkServerName(cert, address(192, 0, 2, 1), FALLBACK))).toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 
     it('should try every commonName of a multi-CN subject', () => {
         const cert = certificate({ commonNames: ['a.example', 'bank.example'] });
-        expect(checkServerName(cert, host('bank.example'), { allowCommonNameFallback: true })).toEqual([]);
+        expect(checkServerName(cert, host('bank.example'), FALLBACK)).toEqual([]);
     });
 
     it('should report the commonNames it did find', () => {
-        const reasons = checkServerName(certificate({ commonNames: ['other.example'] }), host('bank.example'), { allowCommonNameFallback: true });
+        const reasons = checkServerName(certificate({ commonNames: ['other.example'] }), host('bank.example'), FALLBACK);
         expect(reasons[0]?.message).toContain('other.example');
         expect(reasons[0]?.path).toBe('certificate.subject');
     });
@@ -202,14 +217,56 @@ describe('checkServerName — the commonName fallback', () => {
             subject: { rdns: [[{ type: '2.5.4.3', value: undefined, valueDer: new Uint8Array(0) }]], der: new Uint8Array(0) },
             extensions: [],
         } as unknown as Certificate;
-        const reasons = checkServerName(cert, host('bank.example'), { allowCommonNameFallback: true });
+        const reasons = checkServerName(cert, host('bank.example'), FALLBACK);
         expect(codes(reasons)).toEqual(['PKI_REASON_NAME_MISMATCH']);
         expect(reasons[0]?.message).toContain('(none)');
     });
 
     it('should report "(none)" rather than nothing for a subject with no commonName', () => {
-        const reasons = checkServerName(certificate({ commonNames: [] }), host('bank.example'), { allowCommonNameFallback: true });
+        const reasons = checkServerName(certificate({ commonNames: [] }), host('bank.example'), FALLBACK);
         expect(reasons[0]?.message).toContain('(none)');
+    });
+
+    it('should refuse the fallback without the validated path, and say what it needs', () => {
+        // A commonName read as a host is held to the path's dNSName
+        // constraints, and without the path there is nothing to hold it to.
+        const reasons = checkServerName(certificate({ commonNames: ['bank.example'] }), host('bank.example'), { allowCommonNameFallback: true });
+        expect(codes(reasons)).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(reasons[0]?.message).toContain('needs options.path');
+    });
+
+    it('should hold a commonName to the dNSName constraints of the CAs that issued it', () => {
+        // The audit's chain: an intermediate permitting only example.com, a
+        // CN-only leaf for www.evil.test. OpenSSL refuses it (error 47); a
+        // fallback that did not would be the one route around the constraint.
+        const leaf = certificate({ commonNames: ['www.evil.test'] });
+        const ica = constrainedCa([dns('.example.com'), dns('example.com')]);
+        const reasons = checkServerName(leaf, host('www.evil.test'), { allowCommonNameFallback: true, path: [leaf, ica] });
+        expect(codes(reasons)).toEqual(['PKI_REASON_NAME_NOT_PERMITTED']);
+        expect(reasons[0]?.path).toBe('certificate.subject');
+        expect(reasons[0]?.message).toContain('www.evil.test');
+
+        const inside = certificate({ commonNames: ['www.example.com'] });
+        expect(checkServerName(inside, host('www.example.com'), { allowCommonNameFallback: true, path: [inside, ica, certificate()] })).toEqual([]);
+    });
+
+    it('should apply an exclusion anywhere above, and never the constraints of the certificate itself', () => {
+        const leaf = certificate({ commonNames: ['www.evil.test'] });
+        const root = constrainedCa(undefined, [dns('evil.test')]);
+        const ica = constrainedCa([dns('evil.test'), dns('example.com')]);
+        expect(codes(checkServerName(leaf, host('www.evil.test'), { allowCommonNameFallback: true, path: [leaf, ica, root] })))
+            .toEqual(['PKI_REASON_NAME_EXCLUDED']);
+        // Accumulated from the anchor down: the intermediate's wider permission
+        // does not widen the root's narrower one.
+        const narrow = constrainedCa([dns('example.com')]);
+        const wide = constrainedCa([dns('evil.test'), dns('example.com')]);
+        expect(codes(checkServerName(leaf, host('www.evil.test'), { allowCommonNameFallback: true, path: [leaf, wide, narrow] })))
+            .toEqual(['PKI_REASON_NAME_NOT_PERMITTED']);
+        // A path given without the leaf is all issuers; a constraint on the
+        // leaf itself binds only what it would issue.
+        expect(checkServerName(leaf, host('www.evil.test'), { allowCommonNameFallback: true, path: [wide] })).toEqual([]);
+        const selfConstrained = { ...leaf, extensions: constrainedCa([dns('example.com')]).extensions } as Certificate;
+        expect(checkServerName(selfConstrained, host('www.evil.test'), { allowCommonNameFallback: true, path: [selfConstrained] })).toEqual([]);
     });
 
     it('should say the certificate has no subjectAltName at all when it has none', () => {

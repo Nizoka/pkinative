@@ -16,7 +16,11 @@
  * every modern browser. CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only
  * certificates since 2017, so the fallback is **off by default** here and has
  * to be asked for; a library that read CN when a SAN was present would be
- * matching a field no issuer has controlled for a decade.
+ * matching a field no issuer has controlled for a decade. When it is asked
+ * for, the `commonName` it reads is a host name and is held to the `dNSName`
+ * name constraints of the path that issued it, which is why it also needs the
+ * validated path: §6 constrains the subjectAltName and the subject DN, never
+ * a CN read as a host, so without this the fallback is a route around them.
  *
  * **A wildcard is one whole leftmost label, and nothing else.** Not
  * `f*.example.com` (browsers refuse partial wildcards, whatever RFC 6125 §6.4.3
@@ -40,10 +44,12 @@
  * @module path/path-server-name
  */
 
-import { nameMismatchReason } from '../core/pki-reasons.js';
+import { bytesEqual } from '../core/bytes.js';
+import { nameExcludedReason, nameMismatchReason, nameNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate, GeneralName } from '../types/x509-types.js';
 import { getExtension } from '../x509/x509-extensions.js';
+import { accumulateNameConstraints, checkName, initialNameConstraints, type NameVerdict } from './path-name-constraints.js';
 
 /** The host or address a caller connected to. */
 export type ServerIdentity =
@@ -64,8 +70,24 @@ export interface CheckServerNameOptions {
      * forbidden CN-only certificates since 2017 and browsers stopped reading CN
      * years before that; turning this on is accepting a certificate no modern
      * relying party would.
+     *
+     * The fallback also needs {@link CheckServerNameOptions.path}: a
+     * `commonName` read as a host name is held to the `dNSName` name
+     * constraints of the CAs that issued it, as a `dNSName` in the
+     * subjectAltName is by path validation — otherwise a CA constrained to
+     * `.example.com` could vouch for `www.evil.test` by leaving the SAN out.
+     * Without `path` the fallback refuses.
      */
     readonly allowCommonNameFallback?: boolean | undefined;
+    /**
+     * The validated certification path, leaf first, as `validateCertificatePath`
+     * and `verifyCertificateChain` report it in `path`. Read only by the
+     * `commonName` fallback, which applies the `dNSName` subtrees of every
+     * `nameConstraints` on it — every certificate but this one, accumulated
+     * from the anchor down as RFC 5280 §6.1.4 (g) does — to the `commonName`
+     * it matched. OpenSSL applies them to such a name during verification.
+     */
+    readonly path?: readonly Certificate[] | undefined;
     /**
      * Accept a wildcard certificate at all. On by default, because the public
      * web runs on them. Off is the right setting for an internal PKI that
@@ -139,10 +161,39 @@ export function checkServerName(
                 : 'the subjectAltName carries no dNSName and no iPAddress, and the deprecated commonName fallback was not asked for')];
     }
 
-    for (const common of commonNames(certificate)) {
-        if (identity.kind === 'dns' && matchDnsName(common, identity.value, dns)) return [];
+    const common = commonNames(certificate);
+    const matched = identity.kind === 'dns' ? common.find((cn) => matchDnsName(cn, identity.value, dns)) : undefined;
+    if (matched === undefined) {
+        return [nameMismatchReason('certificate.subject', identityText(identity), `commonName ${common.map((c) => JSON.stringify(c)).join(', ') || '(none)'}`)];
     }
-    return [nameMismatchReason('certificate.subject', identityText(identity), `commonName ${commonNames(certificate).map((c) => JSON.stringify(c)).join(', ') || '(none)'}`)];
+    // A commonName used as a host name is a host name, and the CAs above it
+    // constrained host names: the fallback must not be the one route around
+    // their dNSName subtrees. Without the path nothing says what they were.
+    if (options.path === undefined) {
+        return [nameMismatchReason('certificate.subject', identityText(identity),
+            `commonName ${JSON.stringify(matched)} matches, but the commonName fallback needs options.path — the validated path — so that the dNSName name constraints of the CAs that issued the certificate apply to it`)];
+    }
+    const verdict = constrainedCommonName(certificate, options.path, matched);
+    if (verdict === null) return [];
+    return [verdict.why === 'excluded'
+        ? nameExcludedReason('certificate.subject', 'dNSName', verdict.text)
+        : nameNotPermittedReason('certificate.subject', 'dNSName', verdict.text)];
+}
+
+/**
+ * A `commonName` against the `dNSName` constraints of the path that issued the
+ * certificate: every `nameConstraints` but the certificate's own, accumulated
+ * from the anchor down as RFC 5280 §6.1.4 (g) does, then tested as §6.1.3 (b)
+ * and (c) test a `dNSName`.
+ */
+function constrainedCommonName(certificate: Certificate, path: readonly Certificate[], commonName: string): NameVerdict {
+    const state = initialNameConstraints();
+    // Bounded by the caller's path, which validation already bounded by maxChainLength.
+    for (const issuer of path.filter((candidate) => !bytesEqual(candidate.der, certificate.der)).reverse()) {
+        const constraints = getExtension(issuer, 'nameConstraints');
+        if (constraints !== undefined) accumulateNameConstraints(state, constraints.permittedSubtrees, constraints.excludedSubtrees);
+    }
+    return checkName(state, { kind: 'dNSName', value: commonName, der: new Uint8Array(0) });
 }
 
 /** One GeneralName against the identity. Forms never cross. */
