@@ -90,7 +90,7 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'internal-links': (f) => edit(f, 'README.md', '[ROADMAP.md](ROADMAP.md)', '[ROADMAP.md](ROADMAP-missing.md)'),
     'anchor-parity': (f) => edit(f, 'docs/guides/quickstart.md', '[error guide](errors.md)', '[error guide](errors.md#no-such-heading)'),
     'seo-head': (f) => edit(f, 'docs/index.html', '<html lang="en">', '<html>'),
-    'sitemap-parity': (f) => edit(f, 'docs/sitemap.xml', /\s*<url><loc>https:\/\/pkinative\.dev\/guides\/choose\.html<\/loc><\/url>/, ''),
+    'sitemap-parity': (f) => edit(f, 'docs/sitemap.xml', /\s*<url><loc>https:\/\/pkinative\.dev\/guides\/choose\.html<\/loc><lastmod>[^<]*<\/lastmod><\/url>/, ''),
     // api.json is what the rule reads; dropping a TSDoc in src/ would only make it stale.
     'member-tsdoc': (f) => edit(f, 'docs/assets/api.json', /"summary": "The algorithm OID[^"]*"/, '"summary": null'),
     // encodeSetOf is named in exactly one hand-written file, the primitives recipe.
@@ -113,7 +113,19 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'social-images': (f) => edit(f, 'docs/assets/og-image.svg', '<rect', '<rect id="x"'),
     'jsonld-version': (f) => edit(f, 'docs/index.html', /"softwareVersion": "[^"]*"/, '"softwareVersion": "9.9.9"'),
     'verified-on-parity': (f) => edit(f, 'docs/index.html', /<time id="verified-on" datetime="[^"]+">[^<]+</, '<time id="verified-on" datetime="2020-01-01">2020-01-01<'),
-    'contrast': (f) => edit(f, 'docs/style.css', /--c-text-dim: +#[0-9a-f]{6};/, '--c-text-dim:   #c0c0c0;'),
+    // A pair the dark palette fails (4.07:1), declared as if the CSS made it:
+    // editing a token instead would trip design-tokens-parity first.
+    'contrast': (f) => edit(f, 'docs/data/design-tokens.json', '{ "text": "--c-primary", "on": "--c-bg", "where": "links" }', '{ "text": "--c-primary", "on": "--c-surface", "where": "links" }'),
+    // The charter's radius quietly rounded differently: the port drifts one token at a time.
+    'design-tokens-parity': (f) => edit(f, 'docs/style.css', /--radius: +12px;/, '--radius:       10px;'),
+    // A heading level skipped: the playground's h1 demoted below its h2s.
+    'a11y-structure': (f) => edit(f, 'docs/playground/asn1.html', '<h1>ASN.1 tree</h1>', '<h3>ASN.1 tree</h3>'),
+    // The structured breadcrumb drifting from the visible one.
+    'structured-data': (f) => edit(f, 'docs/playground/index.html', '"name": "Playground",', '"name": "Playgrounds",'),
+    // The diagram hand-edited instead of regenerated from LAYERS.
+    'architecture-diagram': (f) => edit(f, 'docs/assets/architecture.svg', '<title id="architecture-title">pkinative layers</title>', '<title id="architecture-title">pkinative modules</title>'),
+    // The 0.1-era cell this rule exists for: a shipped feature shown as a promise.
+    'comparison-current': (f) => edit(f, 'docs/index.html', '<tr><td>Path validation</td><td class="cmp-check">✓</td>', '<tr><td>Path validation</td><td class="cmp-cross">0.5</td>'),
     'api-exists': (f) => edit(f, 'docs/agent-brief.md', "import { decodePem, getExtension", "import { decodePem, parsePemCertificates, getExtension"),
     'count-tokens': (f) => edit(f, 'README.md', /\d+ public exports/, '999 public exports'),
     // The defect this rule exists for, and the only one a hermetic run can
@@ -341,6 +353,60 @@ describe('verify-docs rule table', () => {
         edit(files, 'README.md', /\b[A-Z][a-z]+-[a-z]+ named limits/, 'Twenty-three named limits');
         const problems = await runRules(createMemoryContext(files), RULES, 'count-tokens');
         expect(problems).toEqual([expect.objectContaining({ file: 'README.md', message: expect.stringContaining('"Twenty-three named limits"') })]);
+    });
+
+    it('should fire count-tokens on a stale error-code count on a playground page', async () => {
+        // The playground hub quoted "44 codes" for a 57-code registry: the
+        // playground pages were outside every count rule.
+        const files = { ...TREE };
+        edit(files, 'docs/playground/index.html', /\d+ error codes/, '44 error codes');
+        const problems = await runRules(createMemoryContext(files), RULES, 'count-tokens');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playground/index.html', message: expect.stringContaining('"44 error codes"') })]);
+    });
+
+    it('should fire contrast on a colour/background pair one CSS rule declares and the inventory omits', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/style.css', '.pg-sev-warning { border-color: var(--c-primary) !important; color: var(--c-text); }', '.pg-sev-warning { border-color: var(--c-primary) !important; color: var(--c-text); }\n.probe { color: var(--c-primary); background: var(--c-code-bg); }');
+        const problems = await runRules(createMemoryContext(files), RULES, 'contrast');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/style.css', message: expect.stringContaining('.probe puts --c-primary on --c-code-bg') })]);
+    });
+
+    it('should fire contrast when a guard of a refused pair is removed, and when the OS dark block drifts from the toggled one', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/guide.css', '.guide-content a code { background: var(--c-bg-alt); }', '');
+        edit(files, 'docs/style.css', /(:root:not\(\[data-theme="light"\]\) \{[\s\S]*?--c-text-muted: +)#[0-9a-f]{6}/, '$1#a3b0c3');
+        const problems = await runRules(createMemoryContext(files), RULES, 'contrast');
+        expect(problems.map((p) => p.message)).toEqual(expect.arrayContaining([
+            expect.stringContaining('lacks the rule .guide-content a code'),
+            expect.stringContaining('the prefers-color-scheme dark block sets --c-text-muted'),
+        ]));
+    });
+
+    it('should fire design-tokens-parity on a font stack and a breakpoint the charter does not have', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/guide.css', '.guide-shell {', '@media (max-width: 700px) { .x { font-family: Georgia, serif; } }\n\n.guide-shell {');
+        const problems = await runRules(createMemoryContext(files), RULES, 'design-tokens-parity');
+        expect(problems.map((p) => p.message)).toEqual([
+            expect.stringContaining('font stack Georgia, serif'),
+            expect.stringContaining('breakpoint (max-width: 700px)'),
+        ]);
+    });
+
+    it('should fire a11y-structure on an inline SVG the Markdown renderer split into an escaped code block', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/index.html', /(<svg width="16" height="16" viewBox="0 0 16 16"[^>]*>)/, '$1<pre><code>&lt;rect x="1"/&gt;</code></pre>');
+        const problems = await runRules(createMemoryContext(files), RULES, 'a11y-structure');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/index.html', message: expect.stringContaining('escaped markup') })]);
+    });
+
+    it('should fire a11y-structure on an image without alt and a button without a name', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/playground/index.html', '<p class="guide-breadcrumb">', '<img src="../favicon.svg"><button type="button"></button><p class="guide-breadcrumb">');
+        const problems = await runRules(createMemoryContext(files), RULES, 'a11y-structure');
+        expect(problems.map((p) => p.message)).toEqual([
+            expect.stringContaining('<img> without alt'),
+            expect.stringContaining('<button> without an accessible name'),
+        ]);
     });
 
     it('should fire coverage-ignore-budget on an ignore comment that states no reason', async () => {

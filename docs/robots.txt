@@ -1,3 +1,11 @@
+# robots.txt for pkinative.dev
+# Allow every well-behaved crawler the whole documentation site.
+#
+# Machine-readable documentation for AI agents and LLM pipelines:
+#   https://pkinative.dev/llms.txt        — index (llmstxt.org convention)
+#   https://pkinative.dev/llms-full.txt   — full documentation corpus
+# Every guide also serves its Markdown source at the same path with .md.
+
 User-agent: *
 Allow: /
 

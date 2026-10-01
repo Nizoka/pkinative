@@ -1,0 +1,111 @@
+{
+  "$comment": "The native-family design charter as pkinative.dev ports it: pdfnative's design tokens, read from pdfnative's docs/style.css and docs/guides/guide.css at the commit below, plus the one exception this port makes and why. The design-tokens-parity rule holds docs/style.css and docs/guides/guide.css to this file (palette blocks, font stacks, width breakpoints, guide column); the contrast rule checks every pair in textPairs in the light palette, the [data-theme=\"dark\"] palette and the prefers-color-scheme dark block, and fails on a token the CSS uses as text colour, or a colour/background pair it declares in one rule, that textPairs does not list. Re-capture after a charter change upstream: update the commit, the palettes and the lists, never one without the others.",
+  "charter": {
+    "repository": "https://github.com/Nizoka/pdfnative",
+    "commit": "2900513f9bf03451f7d3488aad4baa4f27df911a",
+    "files": ["docs/style.css", "docs/guides/guide.css"],
+    "capturedOn": "2026-10-01"
+  },
+  "palettes": {
+    "light": {
+      "--c-bg": "#ffffff",
+      "--c-bg-alt": "#f8fafc",
+      "--c-bg-card": "#ffffff",
+      "--c-surface": "#f1f5f9",
+      "--c-border": "#e2e8f0",
+      "--c-text": "#0f172a",
+      "--c-text-dim": "#54606f",
+      "--c-text-muted": "#475569",
+      "--c-primary": "#2563eb",
+      "--c-primary-fg": "#ffffff",
+      "--c-primary-dim": "#3b82f6",
+      "--c-accent": "#1d4ed8",
+      "--c-success": "#16a34a",
+      "--c-code-bg": "#1e293b",
+      "--c-code-text": "#e2e8f0",
+      "--c-bar": "#3b82f6",
+      "--shadow-sm": "0 1px 2px rgba(0,0,0,.05)",
+      "--shadow-md": "0 4px 12px rgba(0,0,0,.08)",
+      "--shadow-lg": "0 8px 24px rgba(0,0,0,.12)",
+      "--radius": "12px",
+      "--radius-sm": "8px",
+      "--max-w": "1120px",
+      "--nav-h": "64px"
+    },
+    "dark": {
+      "--c-bg": "#0f172a",
+      "--c-bg-alt": "#1e293b",
+      "--c-bg-card": "#1e293b",
+      "--c-surface": "#334155",
+      "--c-border": "#334155",
+      "--c-text": "#f1f5f9",
+      "--c-text-dim": "#aab6c6",
+      "--c-text-muted": "#a3b0c2",
+      "--c-primary": "#3b82f6",
+      "--c-primary-dim": "#60a5fa",
+      "--c-accent": "#60a5fa",
+      "--c-code-bg": "#0f172a",
+      "--c-code-text": "#e2e8f0",
+      "--c-bar": "#60a5fa",
+      "--shadow-sm": "0 1px 2px rgba(0,0,0,.2)",
+      "--shadow-md": "0 4px 12px rgba(0,0,0,.3)",
+      "--shadow-lg": "0 8px 24px rgba(0,0,0,.4)"
+    }
+  },
+  "exception": {
+    "palette": "dark",
+    "tokens": {
+      "--c-primary": { "charter": "#3b82f6", "value": "#60a5fa" },
+      "--c-primary-fg": { "charter": "#ffffff, inherited from the light palette", "value": "#0f172a" }
+    },
+    "reason": "WCAG 2.2 SC 1.4.3 (AA). The charter's dark --c-primary #3b82f6 measures 3.98:1 on --c-bg-alt, and its inherited #ffffff label measures 3.68:1 on #3b82f6. #60a5fa measures 5.75:1 on --c-bg-alt and #0f172a measures 7.02:1 on #60a5fa. The only visible difference is the primary button label."
+  },
+  "fonts": [
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    "'SF Mono', 'Fira Code', monospace",
+    "inherit"
+  ],
+  "breakpoints": [
+    "(max-width: 1024px)",
+    "(max-width: 900px)",
+    "(max-width: 768px)",
+    "(max-width: 600px)",
+    "(max-width: 480px)",
+    "(min-width: 769px) and (max-width: 1024px)"
+  ],
+  "guideShell": { "maxWidth": "820px", "padding": "80px 24px 80px" },
+  "textPairs": [
+    { "text": "--c-text", "on": "--c-bg", "where": "body text" },
+    { "text": "--c-text", "on": "--c-bg-alt", "where": "alternate sections, table headers" },
+    { "text": "--c-text", "on": "--c-bg-card", "where": "cards, playground pickers" },
+    { "text": "--c-text", "on": "--c-surface", "where": ".btn-secondary, inline code, guide buttons" },
+    { "text": "--c-text-dim", "on": "--c-bg", "where": "subtitles, hero text" },
+    { "text": "--c-text-dim", "on": "--c-bg-alt", "where": "blockquotes, table headers" },
+    { "text": "--c-text-dim", "on": "--c-bg-card", "where": "feature and playground cards" },
+    { "text": "--c-text-dim", "on": "--c-surface", "where": ".pg-tag, .pg-status.info" },
+    { "text": "--c-text-muted", "on": "--c-bg", "where": "footer, breadcrumb, hero note" },
+    { "text": "--c-text-muted", "on": "--c-bg-alt", "where": "metric labels, comparison headers" },
+    { "text": "--c-text-muted", "on": "--c-bg-card", "where": "diagnostic locations" },
+    { "text": "--c-text-muted", "on": "--c-surface", "where": "anything muted on a surface" },
+    { "text": "--c-primary", "on": "--c-bg", "where": "links" },
+    { "text": "--c-primary", "on": "--c-bg-alt", "where": "links in alternate sections, linked inline code" },
+    { "text": "--c-primary", "on": "--c-bg-card", "where": "links and calls to action in cards, the ASN.1 tree" },
+    { "text": "--c-accent", "on": "--c-bg-card", "where": ".pg-node > summary:hover" },
+    { "text": "--c-primary-fg", "on": "--c-primary", "where": ".btn-primary, .skip-link, the current playground" },
+    { "text": "--c-primary-fg", "on": "--c-accent", "where": "the current playground on hover" },
+    { "text": "--c-code-text", "on": "--c-code-bg", "where": "code blocks, the install command, playground input and output" }
+  ],
+  "refusedPairs": [
+    {
+      "text": "--c-primary",
+      "on": "--c-surface",
+      "why": "4.07:1 in the dark palette. The CSS must never put link-coloured text on --c-surface; these rules are what keep it from doing so.",
+      "guards": [
+        { "file": "docs/guides/guide.css", "selector": ".guide-content a code" },
+        { "file": "docs/style.css", "selector": ".pg-sev-warning" }
+      ]
+    }
+  ]
+}

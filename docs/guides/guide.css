@@ -52,6 +52,16 @@
   border-radius: 4px;
 }
 
+/* WCAG 1.4.10 Reflow: an identifier such as
+   PKI_REASON_CMS_SIGNING_CERTIFICATE_MISMATCH or a dotted property path has
+   no break opportunity, and at 375 px it widened four guides to 626 px.
+   Inline code may break anywhere; code blocks keep scrolling inside. */
+.guide-content :not(pre) > code { overflow-wrap: anywhere; }
+
+/* A code span inside a link: the dark --c-primary is 4.07:1 on --c-surface,
+   so linked code sits on --c-bg-alt (5.75:1) instead. */
+.guide-content a code { background: var(--c-bg-alt); }
+
 .guide-content pre {
   background: var(--c-code-bg);
   color: var(--c-code-text);
@@ -122,6 +132,14 @@
 }
 
 .guide-content a { font-weight: 500; }
+
+/* WCAG 2.2 SC 1.4.1 (Level A): links in prose are underlined, not told
+   apart by colour alone. Heading anchors and the guide index keep none. */
+.guide-content p a, .guide-content li a, .guide-content td a, .guide-content blockquote a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guide-content .guide-toc-list a, .guide-content a.heading-anchor { text-decoration: none; }
 
 .guide-content img { display: block; margin: 0 auto 20px; }
 

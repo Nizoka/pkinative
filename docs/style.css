@@ -5,9 +5,14 @@
    content dropped — the same rule zipnative followed. No build step,
    no web font.
 
-   TWO TOKENS DIVERGE FROM THE CHARTER, both in the dark palette, both
-   forced by the `contrast` rule — which checks eight text pairs here
-   where zipnative's checks two, so these were never measured upstream:
+   The charter is captured, with the pdfnative commit it was read at, in
+   docs/data/design-tokens.json; the `design-tokens-parity` rule holds the
+   three palette blocks below, the font stacks and the breakpoints of this
+   file and of guides/guide.css to it.
+
+   ONE EXCEPTION, in the dark palette, forced by the `contrast` rule, which
+   checks every text/background pair docs/data/design-tokens.json lists in
+   all three palettes — pairs the charter never measured:
      --c-primary     the charter's #3b82f6 is 3.98:1 on --c-bg-alt (needs 4.5)
      --c-primary-fg  the charter leaves it #ffffff, which is 3.68:1 on #3b82f6
    The values kept below measure 5.75:1 and 7.02:1. Copying a WCAG AA
@@ -100,6 +105,17 @@ body {
 
 a { color: var(--c-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
+
+/* WCAG 2.2 SC 1.4.1 (Level A): a link inside running text must not differ
+   from the words around it by colour alone, and the charter's blue measures
+   1.2:1 against --c-text-dim. Links in prose are underlined; the nav, the
+   buttons, the cards and the footer lists keep their own affordance. The
+   guide prose gets the same rule in guides/guide.css. */
+.section-subtitle a, .hero-note a, .feature-card p a, .bench-note a, .origin p a,
+.cmp-table caption a, .guide-breadcrumb a, .pg-note a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 img, svg { max-width: 100%; height: auto; }
 
@@ -203,9 +219,9 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 .btn-primary { background: var(--c-primary); color: var(--c-primary-fg); border: none; }
 .btn-secondary { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); }
 
-/* The install command is long here: pkinative is a git-tag release, not an
-   npm package, so the tarball URL is the whole command. It wraps rather
-   than overflowing the hero on a phone. */
+/* The install command is `npm install pkinative`. The pill still allows a
+   wrap rather than overflowing the hero on a phone, so a longer command —
+   a tag, a registry flag — never needs this rule revisited. */
 .install-cmd {
   display: inline-flex; align-items: center; gap: 12px;
   background: var(--c-code-bg); color: var(--c-code-text);
@@ -215,13 +231,15 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   max-width: 100%; text-align: left;
 }
 .install-cmd code { color: #93c5fd; overflow-wrap: anywhere; }
+/* The copy glyph sits on --c-code-bg: the charter's --c-text-muted measures
+   2.2:1 there in the light palette, under the 3:1 of SC 1.4.11. The glyph
+   itself (⧉ → ✓) says the copy happened, so no colour change is needed. */
 .copy-btn {
-  background: none; border: none; color: var(--c-text-muted);
+  background: none; border: none; color: var(--c-code-text);
   cursor: pointer; padding: 4px; border-radius: 4px;
   transition: color .15s; flex-shrink: 0;
 }
-.copy-btn:hover { color: var(--c-code-text); }
-.copy-btn.copied { color: var(--c-success); }
+.copy-btn:hover { color: #ffffff; }
 
 /* ── Metrics Bar ───────────────────────────────────────────── */
 .metrics {
@@ -235,6 +253,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 .metric-value {
   font-size: 28px; font-weight: 800;
   color: var(--c-primary); letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .metric-label { font-size: 12px; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
@@ -324,8 +343,11 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   text-align: left; font-weight: 600; color: var(--c-text);
 }
 .cmp-table td:nth-child(2) { color: var(--c-primary); font-weight: 600; }
-.cmp-check { color: var(--c-success); }
-.cmp-cross { color: #dc2626; }
+/* The glyph carries the answer (✓ / ✗), so the colour is free to stay
+   readable: the charter's green is 3.30:1 on white and its red 3.57:1 on the
+   dark background, both under the 4.5:1 small text needs. */
+.cmp-check { color: var(--c-text); }
+.cmp-cross { color: var(--c-text-muted); }
 
 /* ── Benchmarks ────────────────────────────────────────────── */
 .bench-grid { max-width: 700px; margin: 0 auto; }
@@ -380,7 +402,9 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   gap: 24px 32px;
   width: 100%;
 }
-.footer-col h4 {
+/* An h2, not the charter's h4: the footer follows the page's h2 sections,
+   and a heading level may not be skipped (WCAG 1.3.1). It looks the same. */
+.footer-col .footer-title {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -496,7 +520,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   text-decoration: none;
 }
 .pg-icon { font-size: 28px; margin-bottom: 10px; }
-.pg-card h3 { font-size: 17px; font-weight: 700; margin: 0 0 6px; }
+.pg-card h2 { font-size: 17px; font-weight: 700; margin: 0 0 6px; }
 .pg-card p { font-size: 14px; color: var(--c-text-dim); margin: 0 0 14px; line-height: 1.5; }
 .pg-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .pg-tag {
@@ -529,7 +553,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 .pg-status.info { display: block; background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-dim); }
 .pg-status.error {
   display: block; background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b;
-  white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px;
+  white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
 }
 [data-theme="dark"] .pg-status.error { background: #450a0a; border-color: #7f1d1d; color: #fecaca; }
 .pg-status.ok { display: block; background: #dcfce7; border: 1px solid #86efac; color: #166534; }
@@ -555,7 +579,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   text-transform: uppercase; letter-spacing: .05em;
 }
 .pg-table td { padding: 6px 10px; border-bottom: 1px solid var(--c-border); white-space: nowrap; }
-.pg-table td:first-child { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.pg-table td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
 .pg-table td.pg-wrap { white-space: normal; word-break: break-word; font-family: inherit; }
 
 /* ── Playground output ─────────────────────────────────────── */
@@ -563,7 +587,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   margin-top: 22px; padding: 18px 20px;
   background: var(--c-bg-card); border: 1px solid var(--c-border); border-radius: var(--radius);
 }
-.pg-section h3 {
+.pg-section h2 {
   margin: 0 0 12px; font-size: 13px; font-weight: 700;
   text-transform: uppercase; letter-spacing: .06em; color: var(--c-text-dim);
 }
@@ -572,7 +596,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 .pg-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
 .pg-facts dt { color: var(--c-text-dim); font-weight: 600; }
 .pg-facts dd {
-  margin: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
   word-break: break-all; color: var(--c-text);
 }
 @media (max-width: 600px) {
@@ -586,22 +610,24 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
   font-size: 12px; padding: 1px 7px; border-radius: 4px;
   background: var(--c-surface); border: 1px solid var(--c-border);
 }
-.pg-sev-warning { border-color: var(--c-primary) !important; color: var(--c-primary); }
+/* The border carries the severity; the code stays --c-text, because the
+   dark --c-primary measures 4.07:1 on --c-surface. */
+.pg-sev-warning { border-color: var(--c-primary) !important; color: var(--c-text); }
 .pg-diag-where { display: block; font-size: 12px; color: var(--c-text-muted); margin-top: 2px; }
 
 /* The ASN.1 tree: <details> nests, so the indentation is the structure. */
 .pg-node { margin-left: 14px; border-left: 1px solid var(--c-border); padding-left: 12px; }
 .pg-node > summary {
   cursor: pointer; padding: 3px 0;
-  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--c-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--c-primary);
 }
 .pg-node > summary:hover { color: var(--c-accent); }
 .pg-leaf {
   margin-left: 14px; padding: 3px 0 3px 12px; border-left: 1px solid var(--c-border);
   display: flex; flex-wrap: wrap; gap: 4px 14px;
-  font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
 }
-.pg-tag { color: var(--c-text-dim); white-space: nowrap; }
+.pg-leaf .pg-tag { color: var(--c-text-dim); overflow-wrap: anywhere; }
 .pg-value { color: var(--c-text); word-break: break-all; }
 
 .pg-switch {
@@ -691,7 +717,9 @@ textarea:focus-visible,
   .guide-source-bar,
   .footer-links,
   .skip-link,
-  .copy-btn {
+  .copy-btn,
+  .pg-toolbar,
+  .pg-drop {
     display: none !important;
   }
   .guide-content a[href^="http"]::after {

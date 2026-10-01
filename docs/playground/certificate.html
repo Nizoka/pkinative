@@ -26,6 +26,63 @@
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playground",
+            "item": "https://pkinative.dev/playground/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Certificate inspector",
+            "item": "https://pkinative.dev/playground/certificate.html"
+          }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://pkinative.dev/playground/certificate.html",
+        "url": "https://pkinative.dev/playground/certificate.html",
+        "name": "Certificate inspector — pkinative playground",
+        "description": "Paste an X.509 certificate and read every field pkinative decodes: distinguished names, validity, public key, fingerprints, all twenty extension kinds and every conformance diagnostic with its clause.",
+        "inLanguage": "en",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires JavaScript and ES modules",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body data-playground="certificate">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -57,8 +114,10 @@
       <a href="asn1.html">ASN.1 tree</a>
     </nav>
 
-    <h1>Certificate inspector</h1>
-    <p>Paste PEM, hexadecimal or base64. Everything runs in this tab on the published build — nothing is uploaded.</p>
+    <div class="guide-content">
+      <h1>Certificate inspector</h1>
+      <p>Paste PEM, hexadecimal or base64. Everything runs in this tab on the published build — nothing is uploaded.</p>
+    </div>
 
     <div class="pg-toolbar">
       <label class="sr-only" for="sample">Sample certificate</label>
@@ -75,32 +134,37 @@
 
     <div id="output"></div>
 
-    <h2 id="refusals">What a refusal looks like</h2>
-    <p>Delete a few characters from the middle of the sample, or flip one hexadecimal digit. The panel above is replaced by the <code>PkiError</code> that was thrown — its stable <code>code</code>, its subclass, and the byte offset where the decoder stopped. A <code>PkiLimitError</code> additionally names which bound it hit, what it was configured to and what it observed, so a rejection tells an operator what to change rather than leaving them to guess.</p>
-    <p>That is the contract: <strong>branch on <code>code</code>, never on the message.</strong> Every code is registered in <a href="../data/errors.json">errors.json</a> with when it is raised, its remedy, the clause it comes from and its CWE. The <a href="../guides/errors.html">errors guide</a> reads the whole registry.</p>
+    <div class="guide-content">
+      <h2 id="refusals">What a refusal looks like</h2>
+      <p>Delete a few characters from the middle of the sample, or flip one hexadecimal digit. The panel above is replaced by the <code>PkiError</code> that was thrown — its stable <code>code</code>, its subclass, and the byte offset where the decoder stopped. A <code>PkiLimitError</code> additionally names which bound it hit, what it was configured to and what it observed, so a rejection tells an operator what to change rather than leaving them to guess.</p>
+      <p>That is the contract: <strong>branch on <code>code</code>, never on the message.</strong> Every code is registered in <a href="../data/errors.json">errors.json</a> with when it is raised, its remedy, the clause it comes from and its CWE. The <a href="../guides/errors.html">errors guide</a> reads the whole registry.</p>
 
-    <h2 id="diagnostics">Diagnostics are not refusals</h2>
-    <p>A diagnostic is a conformance note about a certificate pkinative accepted: a DEFAULT value that was encoded anyway, a named-bits BIT STRING with trailing zeroes, a validity window that runs backwards. It is reported and parsing continues, because a reader that refuses every imperfect certificate in the wild is a reader nobody can deploy. Pass <code>strict: true</code> and each one becomes a thrown <code>PKI_STRICT_DIAGNOSTIC</code> instead — the same information, a different policy, chosen by the caller.</p>
+      <h2 id="diagnostics">Diagnostics are not refusals</h2>
+      <p>A diagnostic is a conformance note about a certificate pkinative accepted: a DEFAULT value that was encoded anyway, a named-bits BIT STRING with trailing zeroes, a validity window that runs backwards. It is reported and parsing continues, because a reader that refuses every imperfect certificate in the wild is a reader nobody can deploy. Pass <code>strict: true</code> and each one becomes a thrown <code>PKI_STRICT_DIAGNOSTIC</code> instead — the same information, a different policy, chosen by the caller.</p>
 
-    <h2 id="limits">Nothing here is unbounded</h2>
-    <p>Every loop over your input consults a named, CWE-tagged limit, and the defaults are what this page runs with. A certificate that trips one is refused with the name of the bound, not with a hung tab. The <a href="../guides/security.html">security model</a> lists all of them.</p>
+      <h2 id="limits">Nothing here is unbounded</h2>
+      <p>Every loop over your input consults a named, CWE-tagged limit, and the defaults are what this page runs with. A certificate that trips one is refused with the name of the bound, not with a hung tab. The <a href="../guides/security.html">security model</a> lists all of them.</p>
+    </div>
   </main>
 
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -111,7 +175,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

@@ -169,7 +169,7 @@ function wire(render) {
 /** A titled section of the output panel. */
 function section(panel, title) {
     const box = el('section', null, 'pg-section');
-    box.appendChild(el('h3', title));
+    box.appendChild(el('h2', title));
     panel.appendChild(box);
     return box;
 }

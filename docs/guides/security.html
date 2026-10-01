@@ -29,6 +29,66 @@
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Security model",
+            "item": "https://pkinative.dev/guides/security.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Security model",
+        "description": "Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled. This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/security.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -53,504 +113,183 @@
   <main class="guide-shell" id="main-content" tabindex="-1">
     <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Security model</p>
     <article id="guide-content" class="guide-content" data-md="security.md" data-prerendered="true">
-      <h1 id="security-model">Security model</h1>
-      <blockquote>
-      <p><strong>Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled.</strong> This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</p>
-      </blockquote>
-      <h2 id="refuse-ambiguity">Refuse ambiguity <a class="heading-anchor" href="#refuse-ambiguity" aria-label="Link to this section">#</a></h2>
-      <p>A signature covers bytes. If two parsers can read the same bytes as two different values, an attacker can have one of them verify what the other one displays (CWE-436). DER exists to rule that out, and pkinative decodes it the way X.690 §10–11 defines it: indefinite lengths, non-minimal lengths and tags, constructed strings, BOOLEAN values other than <code>0x00</code> and <code>0xFF</code>, non-minimal INTEGERs, non-zero BIT STRING padding and trailing bytes are all refused with a stable code.</p>
-      <p>BER is accepted only when the caller asks for it with <code>encodingRules: &#39;ber&#39;</code> — as real CMS needs — and every tolerated construct is reported once as a diagnostic. <code>encodeAsn1Node</code> refuses to re-encode a BER-only tree as if it were DER.</p>
-      <p>One exception is deliberate: a DEFAULT value encoded explicitly (<code>cA FALSE</code>, <code>critical FALSE</code>, version v1) reads the same in every parser, and Go, OpenSSL and BoringSSL accept it; pkinative reads it with the <code>PKI_DIAG_DEFAULT_ENCODED</code> diagnostic, and <code>strict: true</code> refuses it.</p>
-      <h2 id="bound-every-resource">Bound every resource <a class="heading-anchor" href="#bound-every-resource" aria-label="Link to this section">#</a></h2>
-      <p>Every loop over input consults a named limit. The decoder is iterative, so nesting depth is a limit and never a call-stack overflow. Every declared length is checked against the remaining input before anything is allocated.</p>
-      <table>
-      <thead>
-      <tr>
-      <th>Limit</th>
-      <th>Default</th>
-      <th>CWE</th>
-      <th>Guards</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td><code>maxInputBytes</code></td>
-      <td>64 MiB</td>
-      <td>CWE-400</td>
-      <td>The size of one DER input, or the length of one PEM text</td>
-      </tr>
-      <tr>
-      <td><code>maxDepth</code></td>
-      <td>64</td>
-      <td>CWE-674</td>
-      <td>The nesting depth of constructed values</td>
-      </tr>
-      <tr>
-      <td><code>maxNodes</code></td>
-      <td>200 000</td>
-      <td>CWE-770</td>
-      <td>The values decoded from one input</td>
-      </tr>
-      <tr>
-      <td><code>maxIntegerBytes</code></td>
-      <td>8 192</td>
-      <td>CWE-407</td>
-      <td>The content length of one INTEGER converted to a bigint</td>
-      </tr>
-      <tr>
-      <td><code>maxOidBytes</code></td>
-      <td>256</td>
-      <td>CWE-400</td>
-      <td>The content length of one OBJECT IDENTIFIER</td>
-      </tr>
-      <tr>
-      <td><code>maxBerSegments</code></td>
-      <td>10 000</td>
-      <td>CWE-400</td>
-      <td>The segments joined from one BER constructed string</td>
-      </tr>
-      <tr>
-      <td><code>maxPemBlocks</code></td>
-      <td>10 000</td>
-      <td>CWE-400</td>
-      <td>The blocks read from one PEM text</td>
-      </tr>
-      <tr>
-      <td><code>maxExtensions</code></td>
-      <td>256</td>
-      <td>CWE-400</td>
-      <td>The extensions of one certificate</td>
-      </tr>
-      <tr>
-      <td><code>maxGeneralNames</code></td>
-      <td>10 000</td>
-      <td>CWE-400</td>
-      <td>The GeneralName entries of one field</td>
-      </tr>
-      <tr>
-      <td><code>maxNameAttributes</code></td>
-      <td>1 024</td>
-      <td>CWE-400</td>
-      <td>The attributes of one distinguished name</td>
-      </tr>
-      <tr>
-      <td><code>maxPolicies</code></td>
-      <td>1 024</td>
-      <td>CWE-400</td>
-      <td>The policies or policy mappings of one extension</td>
-      </tr>
-      <tr>
-      <td><code>maxChainLength</code></td>
-      <td>10</td>
-      <td>CWE-400</td>
-      <td>The certificates in one path, the leaf and the anchor included</td>
-      </tr>
-      <tr>
-      <td><code>maxPolicyNodes</code></td>
-      <td>4 096</td>
-      <td>CWE-770</td>
-      <td>The live nodes of the RFC 5280 <code>valid_policy_tree</code></td>
-      </tr>
-      <tr>
-      <td><code>maxRevokedCertificates</code></td>
-      <td>1 000 000</td>
-      <td>CWE-400</td>
-      <td>The entries walked in one CRL — walked lazily, never decoded into nodes</td>
-      </tr>
-      <tr>
-      <td><code>maxOcspSingleResponses</code></td>
-      <td>256</td>
-      <td>CWE-400</td>
-      <td>The <code>SingleResponse</code> entries of one OCSP response</td>
-      </tr>
-      <tr>
-      <td><code>maxPathsExplored</code></td>
-      <td>1 000</td>
-      <td>CWE-400</td>
-      <td>The candidate paths explored while building one — the denial-of-service bound of §6</td>
-      </tr>
-      <tr>
-      <td><code>maxSignerInfos</code></td>
-      <td>64</td>
-      <td>CWE-400</td>
-      <td>The signers of one SignedData, each costing a signature verification</td>
-      </tr>
-      <tr>
-      <td><code>maxAttributes</code></td>
-      <td>256</td>
-      <td>CWE-400</td>
-      <td>The attributes in one attribute set — a CMS signer&#39;s, a PKCS#8 key&#39;s, a PKCS#12 bag&#39;s</td>
-      </tr>
-      <tr>
-      <td><code>maxCmsCertificatesAndCrls</code></td>
-      <td>1 024</td>
-      <td>CWE-400</td>
-      <td>The certificates and revocation entries one SignedData carries</td>
-      </tr>
-      <tr>
-      <td><code>maxKdfIterations</code></td>
-      <td>10 000 000</td>
-      <td>CWE-400</td>
-      <td>The PBKDF2 iteration count honoured in one derivation — declared by the file, run by the host</td>
-      </tr>
-      <tr>
-      <td><code>maxPkcs12Bags</code></td>
-      <td>4 096</td>
-      <td>CWE-400</td>
-      <td>The SafeBags read from one PKCS#12, across every SafeContents</td>
-      </tr>
-      <tr>
-      <td><code>maxPkcs12KdfIterations</code></td>
-      <td>10 000 000</td>
-      <td>CWE-400</td>
-      <td>The PBKDF2 iterations one PKCS#12 costs in total — its MAC, every encrypted SafeContents and every shrouded key</td>
-      </tr>
-      </tbody></table>
-      <p>Exceeding a limit throws <code>PkiLimitError</code> with code <code>PKI_LIMIT_EXCEEDED</code> and the <code>limit</code>, <code>configured</code> and <code>observed</code> values. Override per call with <code>options.limits</code>; <code>DEFAULT_PKI_LIMITS</code> holds the defaults.</p>
-      <h2 id="fail-in-one-way">Fail in one way <a class="heading-anchor" href="#fail-in-one-way" aria-label="Link to this section">#</a></h2>
-      <p>A structural failure throws a <code>PkiError</code> subclass — <code>PkiEncodingError</code> for X.690, OID and PEM syntax, <code>PkiCertificateError</code> for the RFC 5280 structure, <code>PkiLimitError</code> for a limit — with a stable <code>code</code>. A conformance concern is a diagnostic. The two never mix: a diagnostic never hides a structural failure, and a thrown error never carries a merely pedantic concern. Any other exception escaping on malformed input — a <code>TypeError</code>, a <code>RangeError</code> — is a bug, and the fuzzing suites plus the conformance gate check that none does across every truncation, every single-octet mutation and 30 361 unique x509-limbo certificates.</p>
-      <p>Decoded names and OIDs are kept in arrays and <code>Map</code>s, never as plain object keys, so a crafted <code>__proto__</code> cannot reach an object prototype (CWE-1321). <code>formatDistinguishedName</code> escapes control characters, so a crafted name cannot drive the terminal that prints it.</p>
-      <h2 id="cryptography-pkinative-does-not-own">Cryptography pkinative does not own <a class="heading-anchor" href="#cryptography-pkinative-does-not-own" aria-label="Link to this section">#</a></h2>
-      <p>pkinative never implements secret-dependent cryptography in TypeScript: no signing arithmetic, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Every signature it verifies and every signature it creates — on a certificate, a certification request or a CMS SignedData — is one Web Crypto call with the caller&#39;s key, and so is every password-based derivation, MAC and decryption of a PKCS#8 or PKCS#12 container; the arithmetic runs in the host&#39;s native implementation, not in JavaScript <code>BigInt</code>s. <code>src/crypto/webcrypto.ts</code> is the only module that names those operations, and it refuses <code>generateKey</code>, <code>exportKey</code>, <code>deriveBits</code>, <code>encrypt</code> and <code>wrapKey</code> for good. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.</p>
-      <p>The consequence is a split worth knowing: the <strong>structure</strong> around a signature is pkinative&#39;s to check — the DER of an ECDSA signature, the algorithm named inside and outside the signed bytes, the key&#39;s curve — and the <strong>arithmetic</strong> is the host&#39;s, RSA padding, Ed25519 canonicity and the ECDSA scalar range included. The CVE-class corpus below says which side stops each known attack.</p>
-      <p>This is a deliberate departure from the code pkinative grew out of: pdfnative&#39;s pure-JavaScript RSA and ECDSA use <code>BigInt</code> arithmetic that is not constant-time, and are not ported. The reasoning behind each permanent refusal — a Web Crypto operation, a legacy PKCS#12 scheme, an algorithm Web Crypto lacks — is recorded in the <a href="../adr/README.md">architecture decision records</a>.</p>
-      <h2 id="no-reach-outside-the-engine">No reach outside the engine <a class="heading-anchor" href="#no-reach-outside-the-engine" aria-label="Link to this section">#</a></h2>
-      <p><code>src/</code> has no filesystem, network, process or dynamic-import access, no <code>eval</code> and no <code>Function</code>, and no module-level side effects — all enforced from the syntax tree by the architecture test. The package is tree-shakeable, and <code>npm run verify:bundle</code> proves that a certificate parser bundle carries no PEM code, no hash and no OID name registry.</p>
-      <h2 id="cve-classes">CVE classes <a class="heading-anchor" href="#cve-classes" aria-label="Link to this section">#</a></h2>
-      <p>Every published vulnerability of a PKI library whose class pkinative could share is replayed against the engine on every gate run: <code>tests/security/cve-classes.test.ts</code> rebuilds each one from synthetic input — raw DER, keys generated in the test, forgeries computed with public arithmetic — and asserts the refusal, the code or the verdict. <code>docs/data/cve-classes.json</code> records, for each identifier, the library it hit, the class, the CWE, whether it applies, why, and the test that proves it; the <code>cve-class-parity</code> rule of <code>npm run verify:docs</code> fails the build when the registry, the tests and this table disagree.</p>
-      <p><strong>Applies</strong> is <code>no</code> when pkinative has the code path and refuses the attack, <code>n.a.</code> when the class cannot exist here (no DSA, no padding parser, no memory-unsafe code), and <code>yes</code> when the audit found it. <strong>Stopped by</strong> is honest about delegation: where it says the host&#39;s Web Crypto, pkinative hands the bytes over unchanged and the test proves the host refuses them — a host that stopped refusing would turn the suite red.</p>
-      <table>
-      <thead>
-      <tr>
-      <th>Identifier</th>
-      <th>Library</th>
-      <th>Class</th>
-      <th>Applies</th>
-      <th>Stopped by</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td>CVE-2020-0601</td>
-      <td>Windows CryptoAPI (crypt32.dll)</td>
-      <td>CurveBall: an ECC certificate carrying a trusted root&#39;s public point under explicit curve parameters with an attacker-chosen generator is trusted as that root</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-42461, GHSA-49q7-c7j4-3p7m</td>
-      <td>elliptic (npm) 5.2.1–6.5.6</td>
-      <td>BER-encoded ECDSA signatures accepted (signature malleability)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2020-14966</td>
-      <td>jsrsasign (npm) ≤ 8.0.18</td>
-      <td>ECDSA signature malleability through unchecked sequence lengths and appended zero octets</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-42460, GHSA-977x-g7h5-7qgw</td>
-      <td>elliptic (npm) 2.0.0–6.5.6</td>
-      <td>ECDSA r and s not checked for a redundant leading octet or a negative value</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2020-13822</td>
-      <td>elliptic (npm) 6.5.2</td>
-      <td>ECDSA malleability through integer overflow (r + n, s + n)</td>
-      <td>no</td>
-      <td>pkinative, then the host</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-21449</td>
-      <td>Oracle Java SE 17.0.2 and 18</td>
-      <td>ECDSA signature with r = s = 0 accepted</td>
-      <td>no</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-24771</td>
-      <td>node-forge (npm) &lt; 1.3.0</td>
-      <td>RSA PKCS#1 v1.5 verification lenient about the DigestInfo algorithm structure</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-24773</td>
-      <td>node-forge (npm) &lt; 1.3.0</td>
-      <td>RSA PKCS#1 v1.5 verification does not check the DigestInfo ASN.1 structure</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-33894, GHSA-ppp5-5v6c-4jwp</td>
-      <td>node-forge (npm) &lt; 1.4.0</td>
-      <td>RSA PKCS#1 v1.5 signature forgery through an extra ASN.1 field in the DigestInfo</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-24772</td>
-      <td>node-forge (npm) &lt; 1.3.0</td>
-      <td>RSA PKCS#1 v1.5 verification ignores trailing garbage after the DigestInfo</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2021-30246</td>
-      <td>jsrsasign (npm) ≤ 10.1.13</td>
-      <td>some invalid RSA PKCS#1 v1.5 signatures (malformed encoded message) recognised as valid</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2006-4339</td>
-      <td>OpenSSL before 0.9.7k, and 0.9.8 before 0.9.8c</td>
-      <td>Bleichenbacher forgery of PKCS#1 v1.5 signatures under an e = 3 key, computed without the private key</td>
-      <td>n.a.</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2020-14968, GHSA-q3gh-5r98-j4h3</td>
-      <td>jsrsasign (npm) 3.0.0–8.0.15</td>
-      <td>RSA signature with prepended zero octets accepted</td>
-      <td>no</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4598</td>
-      <td>jsrsasign (npm) &lt; 11.1.1</td>
-      <td>infinite loop in modular inversion on a zero or negative input</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4602</td>
-      <td>jsrsasign (npm) &lt; 11.1.1</td>
-      <td>negative exponents mishandled, breaking signature verification</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4603</td>
-      <td>jsrsasign (npm) &lt; 11.1.1</td>
-      <td>division by zero in RSA public-key operations on a zero modulus</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-42459, GHSA-f7q4-pwc6-w24p</td>
-      <td>elliptic (npm) 4.0.0–6.5.6</td>
-      <td>EdDSA signature length not checked, so zero octets can be appended or removed</td>
-      <td>no</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-33895, GHSA-q67f-28xg-22rw</td>
-      <td>node-forge (npm) &lt; 1.4.0</td>
-      <td>Ed25519 signature with S ≥ L (non-canonical) accepted</td>
-      <td>no</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-48949, GHSA-434g-2637-qmqr</td>
-      <td>elliptic (npm) &lt; 6.5.6</td>
-      <td>EdDSA verify omits the S &lt; n range check</td>
-      <td>no</td>
-      <td>the host&#39;s Web Crypto</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-24783</td>
-      <td>Go crypto/x509</td>
-      <td>Certificate.Verify panics on a certificate with an unknown public-key algorithm in the chain</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-29857</td>
-      <td>Bouncy Castle (Java) &lt; 1.78</td>
-      <td>explicit F2m curve parameters cause excessive CPU when a certificate is imported</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-0217</td>
-      <td>OpenSSL 3.0</td>
-      <td>NULL dereference checking a malformed DSA public key (EVP_PKEY_public_check)</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4599</td>
-      <td>jsrsasign (npm) 7.0.0 to before 11.1.1</td>
-      <td>biased random scalar generation (DSA/ECDSA signing) leaks the private key</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4600</td>
-      <td>jsrsasign (npm) &lt; 11.1.1</td>
-      <td>DSA domain parameters not validated before verification</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-4601</td>
-      <td>jsrsasign (npm) &lt; 11.1.1</td>
-      <td>DSA signing does not retry when r or s is zero, leaking the private key</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2025-66031, GHSA-554w-wpv2-vw27</td>
-      <td>node-forge (npm) &lt; 1.3.2</td>
-      <td>unbounded recursion in ASN.1 decoding</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2025-66030, GHSA-65ch-62r8-g69g</td>
-      <td>node-forge (npm) &lt; 1.3.2</td>
-      <td>OID arc truncated to 32 bits, so a crafted OID reads as another (OID spoofing)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-2650</td>
-      <td>OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1</td>
-      <td>very slow translation of a crafted OID with huge arcs (OBJ_obj2txt)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2025-12816, GHSA-5gfm-wpxj-wjgq</td>
-      <td>node-forge (npm) &lt; 1.3.2</td>
-      <td>ASN.1 schema validation desynchronised by optional fields (interpretation conflict)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-33202</td>
-      <td>Bouncy Castle (Java) &lt; 1.73</td>
-      <td>denial of service in the PEM parser on crafted input</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-0727</td>
-      <td>OpenSSL 1.0.2, 1.1.1, 3.0, 3.1 and 3.2</td>
-      <td>NULL dereference on a PKCS#12 whose ContentInfo content is absent</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-0216</td>
-      <td>OpenSSL 3.0</td>
-      <td>invalid pointer dereference loading malformed PKCS#7 data (d2i_PKCS7)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-36083</td>
-      <td>jose (npm)</td>
-      <td>attacker-chosen PBKDF2 iteration count (the JWE p2c header) costs the receiver unbounded CPU</td>
-      <td>yes</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2026-33896, GHSA-2328-f5f3-gj25</td>
-      <td>node-forge (npm) ≤ 1.3.3</td>
-      <td>an intermediate without basicConstraints or keyUsage accepted as a CA</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-0286</td>
-      <td>OpenSSL 1.0.2, 1.1.1 and 3.0</td>
-      <td>type confusion on x400Address in GeneralName comparison</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-3602</td>
-      <td>OpenSSL 3.0</td>
-      <td>buffer overrun decoding a punycode email address in name-constraint checking</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2022-3786</td>
-      <td>OpenSSL 3.0</td>
-      <td>buffer overrun (variable length) decoding a punycode email address in name-constraint checking</td>
-      <td>n.a.</td>
-      <td>by construction</td>
-      </tr>
-      <tr>
-      <td>CVE-2024-45341</td>
-      <td>Go crypto/x509</td>
-      <td>a URI with an IPv6 zone identifier wrongly satisfies a URI name constraint</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2025-61727</td>
-      <td>Go crypto/x509</td>
-      <td>an excluded subdomain constraint does not restrict a wildcard dNSName</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-0464</td>
-      <td>OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1</td>
-      <td>exponential growth of the policy tree on crafted policy mappings (denial of service)</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2023-0465</td>
-      <td>OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1</td>
-      <td>invalid certificate policies in a leaf silently ignored</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2009-2408</td>
-      <td>Mozilla NSS &lt; 3.12.3</td>
-      <td>a NUL character in the commonName matches the name before it</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      <tr>
-      <td>CVE-2021-42574</td>
-      <td>Unicode Bidirectional Algorithm</td>
-      <td>bidirectional control characters reorder rendered text</td>
-      <td>no</td>
-      <td>pkinative</td>
-      </tr>
-      </tbody></table>
-      <p>CVE-2022-36083 is the one that applied: a PKCS#12 with no MAC could make <code>openPkcs12</code> run one ten-million-iteration PBKDF2 per entry. <code>maxPkcs12KdfIterations</code> bounds the work of a whole file and refuses it at parse, before anything is derived.</p>
-      <p>Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eight targets in <code>fuzz/</code> — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses, RFC 3161 timestamps, and PKCS#12 with PKCS#8 — each seeded with a real structure of its grammar and each executed against <code>src/</code> on every gate run by <code>tests/fuzzing/targets.test.ts</code>.</p>
-      <h2 id="reporting-a-vulnerability">Reporting a vulnerability <a class="heading-anchor" href="#reporting-a-vulnerability" aria-label="Link to this section">#</a></h2>
-      <p>Report privately, never in an issue: through <a href="https://github.com/Nizoka/pkinative/security/advisories/new" target="_blank" rel="noopener">GitHub&#39;s private vulnerability reporting</a>, or by email to <a href="mailto:security@pkinative.dev">security@pkinative.dev</a>. See <a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a> for scope and response times.</p>
+<h1 id="security-model">Security model</h1>
+<blockquote>
+<p><strong>Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled.</strong> This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</p>
+</blockquote>
+<h2 id="refuse-ambiguity">Refuse ambiguity <a class="heading-anchor" href="#refuse-ambiguity" aria-label="Link to this section">#</a></h2>
+<p>A signature covers bytes. If two parsers can read the same bytes as two different values, an attacker can have one of them verify what the other one displays (CWE-436). DER exists to rule that out, and pkinative decodes it the way X.690 §10–11 defines it: indefinite lengths, non-minimal lengths and tags, constructed strings, BOOLEAN values other than <code>0x00</code> and <code>0xFF</code>, non-minimal INTEGERs, non-zero BIT STRING padding and trailing bytes are all refused with a stable code.</p>
+<p>BER is accepted only when the caller asks for it with <code>encodingRules: &#39;ber&#39;</code> — as real CMS needs — and every tolerated construct is reported once as a diagnostic. <code>encodeAsn1Node</code> refuses to re-encode a BER-only tree as if it were DER.</p>
+<p>One exception is deliberate: a DEFAULT value encoded explicitly (<code>cA FALSE</code>, <code>critical FALSE</code>, version v1) reads the same in every parser, and Go, OpenSSL and BoringSSL accept it; pkinative reads it with the <code>PKI_DIAG_DEFAULT_ENCODED</code> diagnostic, and <code>strict: true</code> refuses it.</p>
+<h2 id="bound-every-resource">Bound every resource <a class="heading-anchor" href="#bound-every-resource" aria-label="Link to this section">#</a></h2>
+<p>Every loop over input consults a named limit. The decoder is iterative, so nesting depth is a limit and never a call-stack overflow. Every declared length is checked against the remaining input before anything is allocated.</p>
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Default</th>
+<th>CWE</th>
+<th>Guards</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>maxInputBytes</code></td>
+<td>64 MiB</td>
+<td>CWE-400</td>
+<td>The size of one DER input, or the length of one PEM text</td>
+</tr>
+<tr>
+<td><code>maxDepth</code></td>
+<td>64</td>
+<td>CWE-674</td>
+<td>The nesting depth of constructed values</td>
+</tr>
+<tr>
+<td><code>maxNodes</code></td>
+<td>200 000</td>
+<td>CWE-770</td>
+<td>The values decoded from one input</td>
+</tr>
+<tr>
+<td><code>maxIntegerBytes</code></td>
+<td>8 192</td>
+<td>CWE-407</td>
+<td>The content length of one INTEGER converted to a bigint</td>
+</tr>
+<tr>
+<td><code>maxOidBytes</code></td>
+<td>256</td>
+<td>CWE-400</td>
+<td>The content length of one OBJECT IDENTIFIER</td>
+</tr>
+<tr>
+<td><code>maxBerSegments</code></td>
+<td>10 000</td>
+<td>CWE-400</td>
+<td>The segments joined from one BER constructed string</td>
+</tr>
+<tr>
+<td><code>maxPemBlocks</code></td>
+<td>10 000</td>
+<td>CWE-400</td>
+<td>The blocks read from one PEM text</td>
+</tr>
+<tr>
+<td><code>maxExtensions</code></td>
+<td>256</td>
+<td>CWE-400</td>
+<td>The extensions of one certificate</td>
+</tr>
+<tr>
+<td><code>maxGeneralNames</code></td>
+<td>10 000</td>
+<td>CWE-400</td>
+<td>The GeneralName entries of one field</td>
+</tr>
+<tr>
+<td><code>maxNameAttributes</code></td>
+<td>1 024</td>
+<td>CWE-400</td>
+<td>The attributes of one distinguished name</td>
+</tr>
+<tr>
+<td><code>maxPolicies</code></td>
+<td>1 024</td>
+<td>CWE-400</td>
+<td>The policies or policy mappings of one extension</td>
+</tr>
+<tr>
+<td><code>maxChainLength</code></td>
+<td>10</td>
+<td>CWE-400</td>
+<td>The certificates in one path, the leaf and the anchor included</td>
+</tr>
+<tr>
+<td><code>maxPolicyNodes</code></td>
+<td>4 096</td>
+<td>CWE-770</td>
+<td>The live nodes of the RFC 5280 <code>valid_policy_tree</code></td>
+</tr>
+<tr>
+<td><code>maxRevokedCertificates</code></td>
+<td>1 000 000</td>
+<td>CWE-400</td>
+<td>The entries walked in one CRL — walked lazily, never decoded into nodes</td>
+</tr>
+<tr>
+<td><code>maxOcspSingleResponses</code></td>
+<td>256</td>
+<td>CWE-400</td>
+<td>The <code>SingleResponse</code> entries of one OCSP response</td>
+</tr>
+<tr>
+<td><code>maxPathsExplored</code></td>
+<td>1 000</td>
+<td>CWE-400</td>
+<td>The candidate paths explored while building one — the denial-of-service bound of §6</td>
+</tr>
+<tr>
+<td><code>maxSignerInfos</code></td>
+<td>64</td>
+<td>CWE-400</td>
+<td>The signers of one SignedData, each costing a signature verification</td>
+</tr>
+<tr>
+<td><code>maxAttributes</code></td>
+<td>256</td>
+<td>CWE-400</td>
+<td>The attributes in one attribute set — a CMS signer&#39;s, a PKCS#8 key&#39;s, a PKCS#12 bag&#39;s</td>
+</tr>
+<tr>
+<td><code>maxCmsCertificatesAndCrls</code></td>
+<td>1 024</td>
+<td>CWE-400</td>
+<td>The certificates and revocation entries one SignedData carries</td>
+</tr>
+<tr>
+<td><code>maxKdfIterations</code></td>
+<td>10 000 000</td>
+<td>CWE-400</td>
+<td>The PBKDF2 iteration count honoured — declared by the file, run by the host</td>
+</tr>
+<tr>
+<td><code>maxPkcs12Bags</code></td>
+<td>4 096</td>
+<td>CWE-400</td>
+<td>The SafeBags read from one PKCS#12, across every SafeContents</td>
+</tr>
+</tbody></table>
+<p>Exceeding a limit throws <code>PkiLimitError</code> with code <code>PKI_LIMIT_EXCEEDED</code> and the <code>limit</code>, <code>configured</code> and <code>observed</code> values. Override per call with <code>options.limits</code>; <code>DEFAULT_PKI_LIMITS</code> holds the defaults.</p>
+<h2 id="fail-in-one-way">Fail in one way <a class="heading-anchor" href="#fail-in-one-way" aria-label="Link to this section">#</a></h2>
+<p>A structural failure throws a <code>PkiError</code> subclass — <code>PkiEncodingError</code> for X.690, OID and PEM syntax, <code>PkiCertificateError</code> for the RFC 5280 structure, <code>PkiLimitError</code> for a limit — with a stable <code>code</code>. A conformance concern is a diagnostic. The two never mix: a diagnostic never hides a structural failure, and a thrown error never carries a merely pedantic concern. Any other exception escaping on malformed input — a <code>TypeError</code>, a <code>RangeError</code> — is a bug, and the fuzzing suites plus the conformance gate check that none does across every truncation, every single-octet mutation and 30 361 unique x509-limbo certificates.</p>
+<p>Decoded names and OIDs are kept in arrays and <code>Map</code>s, never as plain object keys, so a crafted <code>__proto__</code> cannot reach an object prototype (CWE-1321). <code>formatDistinguishedName</code> escapes control characters, so a crafted name cannot drive the terminal that prints it.</p>
+<h2 id="cryptography-pkinative-does-not-own">Cryptography pkinative does not own <a class="heading-anchor" href="#cryptography-pkinative-does-not-own" aria-label="Link to this section">#</a></h2>
+<p>pkinative never implements secret-dependent cryptography in TypeScript: no signing, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Verification and creation, from 0.3, go through Web Crypto, whose implementations run in constant time in the host. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.</p>
+<p>This is a deliberate departure from the code pkinative grew out of: pdfnative&#39;s pure-JavaScript RSA and ECDSA use <code>BigInt</code> arithmetic that is not constant-time, and are not ported. The reasoning behind each permanent refusal — a Web Crypto operation, a legacy PKCS#12 scheme, an algorithm Web Crypto lacks — is recorded in the <a href="../adr/README.md">architecture decision records</a>.</p>
+<h2 id="no-reach-outside-the-engine">No reach outside the engine <a class="heading-anchor" href="#no-reach-outside-the-engine" aria-label="Link to this section">#</a></h2>
+<p><code>src/</code> has no filesystem, network, process or dynamic-import access, no <code>eval</code> and no <code>Function</code>, and no module-level side effects — all enforced from the syntax tree by the architecture test. The package is tree-shakeable, and <code>npm run verify:bundle</code> proves that a certificate parser bundle carries no PEM code, no hash and no OID name registry.</p>
+<h2 id="reporting-a-vulnerability">Reporting a vulnerability <a class="heading-anchor" href="#reporting-a-vulnerability" aria-label="Link to this section">#</a></h2>
+<p>Report privately through GitHub&#39;s private vulnerability reporting, never in an issue — see <a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a> for scope and response times.</p>
     </article>
   </main>
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -561,7 +300,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

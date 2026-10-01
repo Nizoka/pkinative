@@ -29,6 +29,66 @@
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Quick start",
+            "item": "https://pkinative.dev/guides/quickstart.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Quick start",
+        "description": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/quickstart.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -53,223 +113,226 @@
   <main class="guide-shell" id="main-content" tabindex="-1">
     <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Quick start</p>
     <article id="guide-content" class="guide-content" data-md="quickstart.md" data-prerendered="true">
-      <h1 id="quick-start">Quick start</h1>
-      <blockquote>
-      <p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 1.0 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
-      </blockquote>
-      <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
-      <p>pkinative is on npm, published with provenance from the tagged commit after the full gate:</p>
-      <pre><code class="language-bash">npm install pkinative
-      </code></pre>
-      <p><code>npm audit signatures</code> verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: <code>npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz</code>, and <code>gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative</code> checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 and 24 on Linux, Windows and macOS, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</p>
-      <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
-      <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
-      <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
+<h1 id="quick-start">Quick start</h1>
+<blockquote>
+<p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 1.0 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
+</blockquote>
+<h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
+<p>pkinative is on npm, published with provenance from the tagged commit after the full gate:</p>
+<pre><code class="language-bash">npm install pkinative
+</code></pre>
+<p><code>npm audit signatures</code> verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: <code>npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz</code>, and <code>gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative</code> checks where it was built. Node.js ≥ 22, browsers, Deno, Bun and Workers load the same build. There is no runtime dependency.</p>
+<h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
+<p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
+<pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
 
-      const [block] = decodePem(pemText, { label: &#39;CERTIFICATE&#39; });
-      const cert = parseCertificate(block.bytes);
+const [block] = decodePem(pemText, { label: &#39;CERTIFICATE&#39; });
+const cert = parseCertificate(block.bytes);
 
-      formatDistinguishedName(cert.subject);            // &#39;CN=letsencrypt.org&#39;
-      cert.serialNumber.hex;                            // &#39;0543933be386b3a2b3add534f2103bc8b65f&#39;
-      new Date(cert.validity.notAfter.epochMilliseconds);
-      getExtension(cert, &#39;subjectAltName&#39;)?.names;      // [{ kind: &#39;dNSName&#39;, value: &#39;cp.letsencrypt.org&#39;, … }, …]
-      getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
-      </code></pre>
-      <p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
-      <h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
-      <p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
-      <table>
-      <thead>
-      <tr>
-      <th>Field</th>
-      <th>Holds</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td><code>der</code>, <code>tbsDer</code></td>
-      <td>The whole certificate, and the <code>tbsCertificate</code> bytes its signature covers</td>
-      </tr>
-      <tr>
-      <td><code>version</code></td>
-      <td><code>1</code>, <code>2</code> or <code>3</code> (the encoded INTEGER is 0, 1 or 2)</td>
-      </tr>
-      <tr>
-      <td><code>serialNumber</code></td>
-      <td><code>{ bytes, hex, value }</code> — the content octets, their lowercase hex, and a <code>bigint</code></td>
-      </tr>
-      <tr>
-      <td><code>signatureAlgorithm</code>, <code>tbsSignatureAlgorithm</code></td>
-      <td><code>{ oid, parameters, der }</code>; RFC 5280 requires the two to be equal (a diagnostic says when they are not)</td>
-      </tr>
-      <tr>
-      <td><code>signatureValue</code></td>
-      <td><code>{ bytes, unusedBits }</code> — the signature; <code>verifyCertificateSignature(cert, issuer)</code> checks it</td>
-      </tr>
-      <tr>
-      <td><code>issuer</code>, <code>subject</code></td>
-      <td><code>{ rdns, der }</code>: each RDN a list of <code>{ type, value, valueDer }</code>, <code>value</code> a <code>{ stringType, value, raw }</code> string when the attribute is one</td>
-      </tr>
-      <tr>
-      <td><code>validity</code></td>
-      <td><code>{ notBefore, notAfter }</code>, each <code>{ type, epochMilliseconds, text }</code></td>
-      </tr>
-      <tr>
-      <td><code>subjectPublicKeyInfo</code></td>
-      <td><code>{ kind, algorithm, publicKey, der, … }</code>, by <code>kind</code>: <code>rsa</code> and <code>rsa-pss</code> add <code>modulus</code>, <code>modulusBits</code>, <code>publicExponent</code>; <code>ec</code> adds <code>namedCurve</code>, <code>curve</code> (<code>P-256</code>, <code>P-384</code>, <code>P-521</code> or <code>undefined</code>), <code>pointFormat</code>, <code>point</code>; <code>ed25519</code>, <code>ed448</code>, <code>x25519</code>, <code>x448</code>, <code>ml-dsa-44</code>, <code>ml-dsa-65</code>, <code>ml-dsa-87</code> add <code>key</code>; <code>unknown</code> adds nothing</td>
-      </tr>
-      <tr>
-      <td><code>issuerUniqueId</code>, <code>subjectUniqueId</code></td>
-      <td><code>{ bytes, unusedBits }</code> or <code>undefined</code></td>
-      </tr>
-      <tr>
-      <td><code>extensions</code>, <code>diagnostics</code></td>
-      <td>In encoded order, below</td>
-      </tr>
-      </tbody></table>
-      <p>The fields of the extensions <code>getExtension</code> returns:</p>
-      <table>
-      <thead>
-      <tr>
-      <th>Kind</th>
-      <th>Fields</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td><code>basicConstraints</code></td>
-      <td><code>cA</code>, <code>pathLenConstraint</code> (<code>undefined</code> when absent)</td>
-      </tr>
-      <tr>
-      <td><code>keyUsage</code></td>
-      <td><code>usages</code> (<code>digitalSignature</code>, <code>nonRepudiation</code>, <code>keyEncipherment</code>, <code>dataEncipherment</code>, <code>keyAgreement</code>, <code>keyCertSign</code>, <code>cRLSign</code>, <code>encipherOnly</code>, <code>decipherOnly</code>), <code>bits</code></td>
-      </tr>
-      <tr>
-      <td><code>extendedKeyUsage</code></td>
-      <td><code>purposes</code>: KeyPurposeId OIDs, e.g. <code>1.3.6.1.5.5.7.3.1</code> (serverAuth)</td>
-      </tr>
-      <tr>
-      <td><code>subjectAltName</code>, <code>issuerAltName</code></td>
-      <td><code>names</code>: GeneralNames, by <code>kind</code> — <code>dNSName</code>, <code>rfc822Name</code>, <code>uniformResourceIdentifier</code> with <code>value</code>; <code>iPAddress</code> with <code>version</code>, <code>address</code>, <code>mask</code>, <code>bytes</code>; <code>directoryName</code> with <code>name</code>; <code>otherName</code> with <code>typeId</code>, <code>value</code>; <code>registeredID</code> with <code>oid</code>; <code>x400Address</code>, <code>ediPartyName</code> with <code>value</code></td>
-      </tr>
-      <tr>
-      <td><code>subjectKeyIdentifier</code></td>
-      <td><code>keyIdentifier</code></td>
-      </tr>
-      <tr>
-      <td><code>authorityKeyIdentifier</code></td>
-      <td><code>keyIdentifier</code>, <code>authorityCertIssuer</code>, <code>authorityCertSerialNumber</code></td>
-      </tr>
-      <tr>
-      <td><code>authorityInfoAccess</code>, <code>subjectInfoAccess</code></td>
-      <td><code>descriptions</code>: <code>{ accessMethod, accessLocation }</code> — <code>1.3.6.1.5.5.7.48.1</code> is OCSP, <code>1.3.6.1.5.5.7.48.2</code> CA issuers, the location a GeneralName (usually a <code>uniformResourceIdentifier</code>)</td>
-      </tr>
-      <tr>
-      <td><code>crlDistributionPoints</code>, <code>freshestCRL</code></td>
-      <td><code>points</code>: <code>{ fullName, nameRelativeToCRLIssuer, reasons, cRLIssuer }</code></td>
-      </tr>
-      <tr>
-      <td><code>certificatePolicies</code></td>
-      <td><code>policies</code>: <code>{ policyIdentifier, qualifiers }</code>, a qualifier <code>cps</code> with <code>uri</code>, <code>userNotice</code> with <code>noticeRef</code> and <code>explicitText</code>, or <code>unknown</code></td>
-      </tr>
-      <tr>
-      <td><code>policyMappings</code></td>
-      <td><code>mappings</code>: <code>{ issuerDomainPolicy, subjectDomainPolicy }</code></td>
-      </tr>
-      <tr>
-      <td><code>policyConstraints</code></td>
-      <td><code>requireExplicitPolicy</code>, <code>inhibitPolicyMapping</code></td>
-      </tr>
-      <tr>
-      <td><code>inhibitAnyPolicy</code></td>
-      <td><code>skipCerts</code></td>
-      </tr>
-      <tr>
-      <td><code>nameConstraints</code></td>
-      <td><code>permittedSubtrees</code>, <code>excludedSubtrees</code>: <code>{ base, minimum, maximum }</code>, <code>base</code> a GeneralName (an <code>iPAddress</code> base carries its <code>mask</code>)</td>
-      </tr>
-      <tr>
-      <td><code>signedCertificateTimestampList</code></td>
-      <td><code>list</code>: the RFC 6962 SCT list in its TLS encoding</td>
-      </tr>
-      <tr>
-      <td><code>ocspNoCheck</code></td>
-      <td>nothing beyond <code>oid</code>, <code>critical</code>, <code>valueDer</code></td>
-      </tr>
-      </tbody></table>
-      <h2 id="every-extension-typed">Every extension, typed <a class="heading-anchor" href="#every-extension-typed" aria-label="Link to this section">#</a></h2>
-      <p><code>cert.extensions</code> lists every extension in encoded order, each with <code>oid</code>, <code>critical</code> and <code>valueDer</code>, and a <code>kind</code> that says how it was decoded: <code>basicConstraints</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>subjectAltName</code>, <code>issuerAltName</code>, <code>subjectKeyIdentifier</code>, <code>authorityKeyIdentifier</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code>, <code>authorityInfoAccess</code>, <code>subjectInfoAccess</code>, <code>crlDistributionPoints</code>, <code>freshestCRL</code>, <code>signedCertificateTimestampList</code>, <code>ocspNoCheck</code> — or <code>unknown</code> for an extension pkinative does not decode. <code>getExtension(cert, kind)</code> returns the one of that kind, typed.</p>
-      <p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer, { critical })</code>; <code>critical</code> (default <code>false</code>) is reported on the result and decides whether an unknown extension raises <code>PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION</code>.</p>
-      <p><code>computeFingerprint(der, algorithm)</code> takes <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code> (anything else is <code>PKI_INVALID_OPTION</code>); <code>formatFingerprint(digest, { separator, letterCase })</code> writes <code>96:BC:EC:…</code> by default — <code>separator</code> defaults to <code>&#39;:&#39;</code>, <code>letterCase</code> to <code>&#39;upper&#39;</code> (or <code>&#39;lower&#39;</code>), so <code>{ separator: &#39;&#39;, letterCase: &#39;lower&#39; }</code> gives the pinning form.</p>
-      <h2 id="diagnostics-what-real-issuers-get-wrong">Diagnostics: what real issuers get wrong <a class="heading-anchor" href="#diagnostics-what-real-issuers-get-wrong" aria-label="Link to this section">#</a></h2>
-      <p>A structural violation throws; a profile violation that real issuers commit is a diagnostic. Diagnostics are recorded on <code>cert.diagnostics</code>, each with a <code>code</code>, the RFC section it cites, a <code>path</code> and an <code>offset</code>:</p>
-      <pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
-      cert.diagnostics;   // the same list, in order
-      </code></pre>
-      <p>By default each code is also written to <code>console.warn</code>, once per code in each call; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
-      <h2 id="errors-branch-on-the-code">Errors: branch on the code <a class="heading-anchor" href="#errors-branch-on-the-code" aria-label="Link to this section">#</a></h2>
-      <p>Every failure is a <code>PkiError</code> subclass with a stable <code>code</code>, a message that starts with <code>pkinative: </code> and names the remedy, and — for certificates — the <code>path</code> and <code>offset</code> of the offending field:</p>
-      <pre><code class="language-ts">import { parseCertificate, PkiCertificateError, PkiError, PkiLimitError } from &#39;pkinative&#39;;
+formatDistinguishedName(cert.subject);            // &#39;CN=letsencrypt.org&#39;
+cert.serialNumber.hex;                            // &#39;0543933be386b3a2b3add534f2103bc8b65f&#39;
+new Date(cert.validity.notAfter.epochMilliseconds);
+getExtension(cert, &#39;subjectAltName&#39;)?.names;      // [{ kind: &#39;dNSName&#39;, value: &#39;cp.letsencrypt.org&#39;, … }, …]
+getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
+</code></pre>
+<p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
+<h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
+<p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>der</code>, <code>tbsDer</code></td>
+<td>The whole certificate, and the <code>tbsCertificate</code> bytes its signature covers</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td><code>1</code>, <code>2</code> or <code>3</code> (the encoded INTEGER is 0, 1 or 2)</td>
+</tr>
+<tr>
+<td><code>serialNumber</code></td>
+<td><code>{ bytes, hex, value }</code> — the content octets, their lowercase hex, and a <code>bigint</code></td>
+</tr>
+<tr>
+<td><code>signatureAlgorithm</code>, <code>tbsSignatureAlgorithm</code></td>
+<td><code>{ oid, parameters, der }</code>; RFC 5280 requires the two to be equal (a diagnostic says when they are not)</td>
+</tr>
+<tr>
+<td><code>signatureValue</code></td>
+<td><code>{ bytes, unusedBits }</code> — the signature; <code>verifyCertificateSignature(cert, issuer)</code> checks it</td>
+</tr>
+<tr>
+<td><code>issuer</code>, <code>subject</code></td>
+<td><code>{ rdns, der }</code>: each RDN a list of <code>{ type, value, valueDer }</code>, <code>value</code> a <code>{ stringType, value, raw }</code> string when the attribute is one</td>
+</tr>
+<tr>
+<td><code>validity</code></td>
+<td><code>{ notBefore, notAfter }</code>, each <code>{ type, epochMilliseconds, text }</code></td>
+</tr>
+<tr>
+<td><code>subjectPublicKeyInfo</code></td>
+<td><code>{ kind, algorithm, publicKey, der, … }</code>, by <code>kind</code>: <code>rsa</code> and <code>rsa-pss</code> add <code>modulus</code>, <code>modulusBits</code>, <code>publicExponent</code>; <code>ec</code> adds <code>namedCurve</code>, <code>curve</code> (<code>P-256</code>, <code>P-384</code>, <code>P-521</code> or <code>undefined</code>), <code>pointFormat</code>, <code>point</code>; <code>ed25519</code>, <code>ed448</code>, <code>x25519</code>, <code>x448</code>, <code>ml-dsa-44</code>, <code>ml-dsa-65</code>, <code>ml-dsa-87</code> add <code>key</code>; <code>unknown</code> adds nothing</td>
+</tr>
+<tr>
+<td><code>issuerUniqueId</code>, <code>subjectUniqueId</code></td>
+<td><code>{ bytes, unusedBits }</code> or <code>undefined</code></td>
+</tr>
+<tr>
+<td><code>extensions</code>, <code>diagnostics</code></td>
+<td>In encoded order, below</td>
+</tr>
+</tbody></table>
+<p>The fields of the extensions <code>getExtension</code> returns:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Fields</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>basicConstraints</code></td>
+<td><code>cA</code>, <code>pathLenConstraint</code> (<code>undefined</code> when absent)</td>
+</tr>
+<tr>
+<td><code>keyUsage</code></td>
+<td><code>usages</code> (<code>digitalSignature</code>, <code>nonRepudiation</code>, <code>keyEncipherment</code>, <code>dataEncipherment</code>, <code>keyAgreement</code>, <code>keyCertSign</code>, <code>cRLSign</code>, <code>encipherOnly</code>, <code>decipherOnly</code>), <code>bits</code></td>
+</tr>
+<tr>
+<td><code>extendedKeyUsage</code></td>
+<td><code>purposes</code>: KeyPurposeId OIDs, e.g. <code>1.3.6.1.5.5.7.3.1</code> (serverAuth)</td>
+</tr>
+<tr>
+<td><code>subjectAltName</code>, <code>issuerAltName</code></td>
+<td><code>names</code>: GeneralNames, by <code>kind</code> — <code>dNSName</code>, <code>rfc822Name</code>, <code>uniformResourceIdentifier</code> with <code>value</code>; <code>iPAddress</code> with <code>version</code>, <code>address</code>, <code>mask</code>, <code>bytes</code>; <code>directoryName</code> with <code>name</code>; <code>otherName</code> with <code>typeId</code>, <code>value</code>; <code>registeredID</code> with <code>oid</code>; <code>x400Address</code>, <code>ediPartyName</code> with <code>value</code></td>
+</tr>
+<tr>
+<td><code>subjectKeyIdentifier</code></td>
+<td><code>keyIdentifier</code></td>
+</tr>
+<tr>
+<td><code>authorityKeyIdentifier</code></td>
+<td><code>keyIdentifier</code>, <code>authorityCertIssuer</code>, <code>authorityCertSerialNumber</code></td>
+</tr>
+<tr>
+<td><code>authorityInfoAccess</code>, <code>subjectInfoAccess</code></td>
+<td><code>descriptions</code>: <code>{ accessMethod, accessLocation }</code> — <code>1.3.6.1.5.5.7.48.1</code> is OCSP, <code>1.3.6.1.5.5.7.48.2</code> CA issuers, the location a GeneralName (usually a <code>uniformResourceIdentifier</code>)</td>
+</tr>
+<tr>
+<td><code>crlDistributionPoints</code>, <code>freshestCRL</code></td>
+<td><code>points</code>: <code>{ fullName, nameRelativeToCRLIssuer, reasons, cRLIssuer }</code></td>
+</tr>
+<tr>
+<td><code>certificatePolicies</code></td>
+<td><code>policies</code>: <code>{ policyIdentifier, qualifiers }</code>, a qualifier <code>cps</code> with <code>uri</code>, <code>userNotice</code> with <code>noticeRef</code> and <code>explicitText</code>, or <code>unknown</code></td>
+</tr>
+<tr>
+<td><code>policyMappings</code></td>
+<td><code>mappings</code>: <code>{ issuerDomainPolicy, subjectDomainPolicy }</code></td>
+</tr>
+<tr>
+<td><code>policyConstraints</code></td>
+<td><code>requireExplicitPolicy</code>, <code>inhibitPolicyMapping</code></td>
+</tr>
+<tr>
+<td><code>inhibitAnyPolicy</code></td>
+<td><code>skipCerts</code></td>
+</tr>
+<tr>
+<td><code>nameConstraints</code></td>
+<td><code>permittedSubtrees</code>, <code>excludedSubtrees</code>: <code>{ base, minimum, maximum }</code>, <code>base</code> a GeneralName (an <code>iPAddress</code> base carries its <code>mask</code>)</td>
+</tr>
+<tr>
+<td><code>signedCertificateTimestampList</code></td>
+<td><code>list</code>: the RFC 6962 SCT list in its TLS encoding</td>
+</tr>
+<tr>
+<td><code>ocspNoCheck</code></td>
+<td>nothing beyond <code>oid</code>, <code>critical</code>, <code>valueDer</code></td>
+</tr>
+</tbody></table>
+<h2 id="every-extension-typed">Every extension, typed <a class="heading-anchor" href="#every-extension-typed" aria-label="Link to this section">#</a></h2>
+<p><code>cert.extensions</code> lists every extension in encoded order, each with <code>oid</code>, <code>critical</code> and <code>valueDer</code>, and a <code>kind</code> that says how it was decoded: <code>basicConstraints</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>subjectAltName</code>, <code>issuerAltName</code>, <code>subjectKeyIdentifier</code>, <code>authorityKeyIdentifier</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code>, <code>authorityInfoAccess</code>, <code>subjectInfoAccess</code>, <code>crlDistributionPoints</code>, <code>freshestCRL</code>, <code>signedCertificateTimestampList</code>, <code>ocspNoCheck</code> — or <code>unknown</code> for an extension pkinative does not decode. <code>getExtension(cert, kind)</code> returns the one of that kind, typed.</p>
+<p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer, { critical })</code>; <code>critical</code> (default <code>false</code>) is reported on the result and decides whether an unknown extension raises <code>PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION</code>.</p>
+<p><code>computeFingerprint(der, algorithm)</code> takes <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code> (anything else is <code>PKI_INVALID_OPTION</code>); <code>formatFingerprint(digest, { separator, letterCase })</code> writes <code>96:BC:EC:…</code> by default — <code>separator</code> defaults to <code>&#39;:&#39;</code>, <code>letterCase</code> to <code>&#39;upper&#39;</code> (or <code>&#39;lower&#39;</code>), so <code>{ separator: &#39;&#39;, letterCase: &#39;lower&#39; }</code> gives the pinning form.</p>
+<h2 id="diagnostics-what-real-issuers-get-wrong">Diagnostics: what real issuers get wrong <a class="heading-anchor" href="#diagnostics-what-real-issuers-get-wrong" aria-label="Link to this section">#</a></h2>
+<p>A structural violation throws; a profile violation that real issuers commit is a diagnostic. Diagnostics are recorded on <code>cert.diagnostics</code>, each with a <code>code</code>, the RFC section it cites, a <code>path</code> and an <code>offset</code>:</p>
+<pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
+cert.diagnostics;   // the same list, in order
+</code></pre>
+<p>By default each code is also written to <code>console.warn</code>, once per code in each call; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
+<h2 id="errors-branch-on-the-code">Errors: branch on the code <a class="heading-anchor" href="#errors-branch-on-the-code" aria-label="Link to this section">#</a></h2>
+<p>Every failure is a <code>PkiError</code> subclass with a stable <code>code</code>, a message that starts with <code>pkinative: </code> and names the remedy, and — for certificates — the <code>path</code> and <code>offset</code> of the offending field:</p>
+<pre><code class="language-ts">import { parseCertificate, PkiCertificateError, PkiError, PkiLimitError } from &#39;pkinative&#39;;
 
-      try {
-          parseCertificate(der);
-      } catch (error) {
-          if (error instanceof PkiLimitError) console.error(error.limit, error.configured, error.observed);
-          else if (error instanceof PkiCertificateError) console.error(error.code, error.path, error.offset);
-          else if (error instanceof PkiError) console.error(error.code);
-          else throw error;
-      }
-      </code></pre>
-      <p>Never branch on the message. The <a href="errors.html">error guide</a> lists every code with its cause and remedy.</p>
-      <h2 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h2>
-      <p>Twenty-two named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
-      <pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
-      </code></pre>
-      <p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
-      <h2 id="below-the-certificate-asn1-and-oids">Below the certificate: ASN.1 and OIDs <a class="heading-anchor" href="#below-the-certificate-asn1-and-oids" aria-label="Link to this section">#</a></h2>
-      <p>The layers the certificate parser stands on are public too. <code>decodeAsn1</code> decodes one DER value (BER with <code>encodingRules: &#39;ber&#39;</code>) into frozen nodes that keep their exact bytes, and refuses anything after that value unless you pass <code>allowTrailingData: true</code>; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; <code>encodeAsn1Node</code> re-encodes a decoded tree to the exact input bytes:</p>
-      <pre><code class="language-ts">import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from &#39;pkinative&#39;;
+try {
+    parseCertificate(der);
+} catch (error) {
+    if (error instanceof PkiLimitError) console.error(error.limit, error.configured, error.observed);
+    else if (error instanceof PkiCertificateError) console.error(error.code, error.path, error.offset);
+    else if (error instanceof PkiError) console.error(error.code);
+    else throw error;
+}
+</code></pre>
+<p>Never branch on the message. The <a href="errors.html">error guide</a> lists every code with its cause and remedy.</p>
+<h2 id="limits">Limits <a class="heading-anchor" href="#limits" aria-label="Link to this section">#</a></h2>
+<p>Twenty-one named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:</p>
+<pre><code class="language-ts">parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
+</code></pre>
+<p>The <a href="security.html">security guide</a> lists them with their defaults and CWE.</p>
+<h2 id="below-the-certificate-asn1-and-oids">Below the certificate: ASN.1 and OIDs <a class="heading-anchor" href="#below-the-certificate-asn1-and-oids" aria-label="Link to this section">#</a></h2>
+<p>The layers the certificate parser stands on are public too. <code>decodeAsn1</code> decodes one DER value (BER with <code>encodingRules: &#39;ber&#39;</code>) into frozen nodes that keep their exact bytes, and refuses anything after that value unless you pass <code>allowTrailingData: true</code>; typed readers turn a node into a value; the encoders emit DER only and refuse what DER cannot represent; <code>encodeAsn1Node</code> re-encodes a decoded tree to the exact input bytes:</p>
+<pre><code class="language-ts">import { decodeAsn1, encodeInteger, encodeObjectIdentifier, encodeSequence, getOidName, readInteger, readObjectIdentifier } from &#39;pkinative&#39;;
 
-      const der = encodeSequence([encodeObjectIdentifier(&#39;2.5.29.17&#39;), encodeInteger(65537n)]);
-      const [oidNode, integerNode] = decodeAsn1(der).children;
-      readObjectIdentifier(oidNode);                 // &#39;2.5.29.17&#39;
-      getOidName(&#39;2.5.29.17&#39;);                       // &#39;subjectAltName&#39;
-      readInteger(integerNode);                      // 65537n
-      </code></pre>
-      <p>A node is <code>{ tagClass, tagNumber, constructed, offset, headerLength, contentLength, indefinite, bytes, content, children }</code>: <code>tagClass</code> is <code>&#39;universal&#39;</code>, <code>&#39;application&#39;</code>, <code>&#39;context&#39;</code> or <code>&#39;private&#39;</code>, <code>bytes</code> the whole encoding and <code>content</code> the content octets, both views of the input. A reader accepts its universal tag or any implicit (non-universal) tag, which it reads as its own type; <code>readString</code> and <code>readTime</code> need the type of an implicit tag — <code>readString(node, { stringType: &#39;ia5&#39; })</code>, <code>readTime(node, { timeType: &#39;GeneralizedTime&#39; })</code> — and throw <code>PKI_API_MISUSE</code> without it.</p>
-      <p>The readers are <code>readBoolean</code>, <code>readInteger</code> (a bigint), <code>readSmallInteger</code> (a number), <code>readNull</code>, <code>readBitString</code>, <code>readOctetString</code>, <code>readObjectIdentifier</code>, <code>readString</code> (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and <code>readTime</code> (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have no typed reader: read their <code>content</code> octets. For OIDs, <code>encodeOid</code> and <code>decodeOid</code> convert between dotted text and content octets, <code>isValidOid</code> checks a string, and <code>getOidName</code> names 300+ registered OIDs. <code>decodePem</code> returns blocks of <code>{ label, bytes, headers, offset }</code> — <code>headers</code> holds the RFC 1421 <code>[name, value]</code> pairs lax mode reads; it takes an optional <code>label</code> that every block must carry, and <code>mode: &#39;lax&#39;</code> accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. <code>OID_REGISTRY</code> entries are <code>{ oid, name, standard }</code>.</p>
-      <h2 id="types-you-write">Types you write <a class="heading-anchor" href="#types-you-write" aria-label="Link to this section">#</a></h2>
-      <p>Most of what pkinative returns you never name: you reach it through a return value, and its fields are in <code>docs/assets/api.json</code>. These are the ones you may have to write down — in a signature, a variable annotation or an options object.</p>
-      <ul>
-      <li><strong>Certificate</strong>: <code>DistinguishedName</code> (<code>subject</code>, <code>issuer</code>), <code>PkiTime</code> (both ends of <code>validity</code>), <code>Extension</code> (the union <code>certificate.extensions</code> holds) and <code>DecodedExtensionKind</code> (the argument <code>getExtension</code> takes).</li>
-      <li><strong>ASN.1</strong>: <code>Asn1Node</code> (what <code>decodeAsn1</code> returns and every reader takes), <code>TagClass</code> (<code>node.tagClass</code>, and the first argument of <code>encodeTlv</code>), <code>Asn1String</code> and <code>Asn1StringType</code> (what <code>readString</code> returns, and the eight types it can read), <code>BitString</code> (<code>readBitString</code>, <code>encodeBitString</code>, and <code>certificate.signatureValue</code>).</li>
-      <li><strong>PEM</strong>: <code>PemBlock</code> — what <code>decodePem</code> yields, and what <code>encodePem</code> reverses.</li>
-      <li><strong>Fingerprints</strong>: <code>FingerprintAlgorithm</code> — <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code>.</li>
-      <li><strong>Options</strong>, one per function, each extending <code>PkiParseOptions</code> (which carries <code>limits</code>, <code>strict</code> and <code>onDiagnostic</code>): <code>ParseCertificateOptions</code>, <code>DecodeExtensionValueOptions</code>, <code>DecodeAsn1Options</code>, <code>DecodePemOptions</code>, <code>ReadStringOptions</code>, <code>ReadTimeOptions</code>, and <code>FormatFingerprintOptions</code>.</li>
-      </ul>
-      <p>Error code unions are in the <a href="errors.html">errors guide</a>.</p>
-      <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
-      <ul>
-      <li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 21 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.</li>
-      <li><a href="use-cases.html">Use cases</a> — the jobs end to end, from a certificate inventory to a timestamped signature and the <code>.p12</code> holding its key.</li>
-      <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.</li>
-      <li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when another one is.</li>
-      </ul>
+const der = encodeSequence([encodeObjectIdentifier(&#39;2.5.29.17&#39;), encodeInteger(65537n)]);
+const [oidNode, integerNode] = decodeAsn1(der).children;
+readObjectIdentifier(oidNode);                 // &#39;2.5.29.17&#39;
+getOidName(&#39;2.5.29.17&#39;);                       // &#39;subjectAltName&#39;
+readInteger(integerNode);                      // 65537n
+</code></pre>
+<p>A node is <code>{ tagClass, tagNumber, constructed, offset, headerLength, contentLength, indefinite, bytes, content, children }</code>: <code>tagClass</code> is <code>&#39;universal&#39;</code>, <code>&#39;application&#39;</code>, <code>&#39;context&#39;</code> or <code>&#39;private&#39;</code>, <code>bytes</code> the whole encoding and <code>content</code> the content octets, both views of the input. A reader accepts its universal tag or any implicit (non-universal) tag, which it reads as its own type; <code>readString</code> and <code>readTime</code> need the type of an implicit tag — <code>readString(node, { stringType: &#39;ia5&#39; })</code>, <code>readTime(node, { timeType: &#39;GeneralizedTime&#39; })</code> — and throw <code>PKI_API_MISUSE</code> without it.</p>
+<p>The readers are <code>readBoolean</code>, <code>readInteger</code> (a bigint), <code>readSmallInteger</code> (a number), <code>readNull</code>, <code>readBitString</code>, <code>readOctetString</code>, <code>readObjectIdentifier</code>, <code>readString</code> (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and <code>readTime</code> (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have none yet. For OIDs, <code>encodeOid</code> and <code>decodeOid</code> convert between dotted text and content octets, <code>isValidOid</code> checks a string, and <code>getOidName</code> names 300+ registered OIDs. <code>decodePem</code> returns blocks of <code>{ label, bytes, headers, offset }</code> — <code>headers</code> holds the RFC 1421 <code>[name, value]</code> pairs lax mode reads; it takes an optional <code>label</code> that every block must carry, and <code>mode: &#39;lax&#39;</code> accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. <code>OID_REGISTRY</code> entries are <code>{ oid, name, standard }</code>.</p>
+<h2 id="types-you-write">Types you write <a class="heading-anchor" href="#types-you-write" aria-label="Link to this section">#</a></h2>
+<p>Most of what pkinative returns you never name: you reach it through a return value, and its fields are in <code>docs/assets/api.json</code>. These are the ones you may have to write down — in a signature, a variable annotation or an options object.</p>
+<ul>
+<li><strong>Certificate</strong>: <code>DistinguishedName</code> (<code>subject</code>, <code>issuer</code>), <code>PkiTime</code> (both ends of <code>validity</code>), <code>Extension</code> (the union <code>certificate.extensions</code> holds) and <code>DecodedExtensionKind</code> (the argument <code>getExtension</code> takes).</li>
+<li><strong>ASN.1</strong>: <code>Asn1Node</code> (what <code>decodeAsn1</code> returns and every reader takes), <code>TagClass</code> (<code>node.tagClass</code>, and the first argument of <code>encodeTlv</code>), <code>Asn1String</code> and <code>Asn1StringType</code> (what <code>readString</code> returns, and the eight types it can read), <code>BitString</code> (<code>readBitString</code>, <code>encodeBitString</code>, and <code>certificate.signatureValue</code>).</li>
+<li><strong>PEM</strong>: <code>PemBlock</code> — what <code>decodePem</code> yields, and what <code>encodePem</code> reverses.</li>
+<li><strong>Fingerprints</strong>: <code>FingerprintAlgorithm</code> — <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code>.</li>
+<li><strong>Options</strong>, one per function, each extending <code>PkiParseOptions</code> (which carries <code>limits</code>, <code>strict</code> and <code>onDiagnostic</code>): <code>ParseCertificateOptions</code>, <code>DecodeExtensionValueOptions</code>, <code>DecodeAsn1Options</code>, <code>DecodePemOptions</code>, <code>ReadStringOptions</code>, <code>ReadTimeOptions</code>, and <code>FormatFingerprintOptions</code>.</li>
+</ul>
+<p>Error code unions are in the <a href="errors.html">errors guide</a>.</p>
+<h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 21 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.</li>
+<li><a href="use-cases.html">Use cases</a> — the jobs end to end, from a certificate inventory to a timestamped signature and the <code>.p12</code> holding its key.</li>
+<li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, Wycheproof and OpenSSL.</li>
+<li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when it is not yet.</li>
+</ul>
     </article>
   </main>
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -280,7 +343,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

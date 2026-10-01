@@ -7,8 +7,8 @@
    Two of the charter's blocks are absent because they have nothing to act
    on here. The install switcher needs more than one install target, and
    pkinative has one. The GitHub star counter is a network call whose answer
-   on a pre-1.0 repository is weaker than the conformance numbers already in
-   the metrics strip, so it would cost a request to say less.
+   says less about a parser than the conformance numbers already in the
+   metrics strip, so it would cost a request to say less.
 
    Everything below is progressive enhancement: the page is complete and
    readable with this file blocked. The one thing it cannot do without

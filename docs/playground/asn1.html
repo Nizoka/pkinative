@@ -26,6 +26,63 @@
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playground",
+            "item": "https://pkinative.dev/playground/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "ASN.1 tree",
+            "item": "https://pkinative.dev/playground/asn1.html"
+          }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://pkinative.dev/playground/asn1.html",
+        "url": "https://pkinative.dev/playground/asn1.html",
+        "name": "ASN.1 tree — pkinative playground",
+        "description": "Walk any DER value tag by tag in your browser: every offset and length, object identifiers resolved to their names, and a switch that shows what strict DER refuses and BER accepts.",
+        "inLanguage": "en",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires JavaScript and ES modules",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body data-playground="asn1">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -57,8 +114,10 @@
       <a href="asn1.html" aria-current="page">ASN.1 tree</a>
     </nav>
 
-    <h1>ASN.1 tree</h1>
-    <p>Any DER value, not only a certificate. Paste PEM, hexadecimal or base64; every node shows its tag, its content length and its absolute offset in your input.</p>
+    <div class="guide-content">
+      <h1>ASN.1 tree</h1>
+      <p>Any DER value, not only a certificate. Paste PEM, hexadecimal or base64; every node shows its tag, its content length and its absolute offset in your input.</p>
+    </div>
 
     <div class="pg-toolbar">
       <label class="sr-only" for="sample">Sample certificate</label>
@@ -76,33 +135,38 @@
 
     <div id="output"></div>
 
-    <h2 id="strictness">The switch is the point</h2>
-    <p>DER is a canonical subset of BER: for any value there is exactly one encoding. <strong>Accept BER</strong> turns that off, and the difference is worth seeing on real bytes. Try <code>30 80 02 01 00 00 00</code> — a SEQUENCE with an indefinite length, terminated by an end-of-contents marker. Strict DER refuses it with <code>PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN</code>; tick the box and BER reads it, reporting what it tolerated as a diagnostic. Same input, two policies, and the caller chooses which.</p>
-    <p>Two more the switch changes: a non-minimal length — <code>30 81 03 02 01 00</code>, where <code>81 03</code> spends two octets saying what one could say, refused as <code>PKI_ASN1_LENGTH_NON_MINIMAL</code> — and a constructed OCTET STRING, <code>24 06 04 01 41 04 01 42</code>, refused as <code>PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN</code>. Each names its clause of X.690.</p>
-    <p><strong>What this page will <em>not</em> refuse is as instructive.</strong> Paste <code>01 01 01</code> — a BOOLEAN whose content octet is neither <code>0x00</code> nor <code>0xFF</code> — and the tree accepts it under both policies. That is not a gap: <code>decodeAsn1</code> decides structure, and the rule that DER's TRUE is exactly <code>0xFF</code> belongs to <code>readBoolean</code>, which fires when something reads the value as a boolean. The layering is the point — a decoder that enforced every type's value rules would have to know every schema, and pkinative's does not. The certificate inspector is where those rules run.</p>
+    <div class="guide-content">
+      <h2 id="strictness">The switch is the point</h2>
+      <p>DER is a canonical subset of BER: for any value there is exactly one encoding. <strong>Accept BER</strong> turns that off, and the difference is worth seeing on real bytes. Try <code>30 80 02 01 00 00 00</code> — a SEQUENCE with an indefinite length, terminated by an end-of-contents marker. Strict DER refuses it with <code>PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN</code>; tick the box and BER reads it, reporting what it tolerated as a diagnostic. Same input, two policies, and the caller chooses which.</p>
+      <p>Two more the switch changes: a non-minimal length — <code>30 81 03 02 01 00</code>, where <code>81 03</code> spends two octets saying what one could say, refused as <code>PKI_ASN1_LENGTH_NON_MINIMAL</code> — and a constructed OCTET STRING, <code>24 06 04 01 41 04 01 42</code>, refused as <code>PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN</code>. Each names its clause of X.690.</p>
+      <p><strong>What this page will <em>not</em> refuse is as instructive.</strong> Paste <code>01 01 01</code> — a BOOLEAN whose content octet is neither <code>0x00</code> nor <code>0xFF</code> — and the tree accepts it under both policies. That is not a gap: <code>decodeAsn1</code> decides structure, and the rule that DER's TRUE is exactly <code>0xFF</code> belongs to <code>readBoolean</code>, which fires when something reads the value as a boolean. The layering is the point — a decoder that enforced every type's value rules would have to know every schema, and pkinative's does not. The certificate inspector is where those rules run.</p>
 
-    <h2 id="oids">Object identifiers, resolved</h2>
-    <p>Every <code>OBJECT IDENTIFIER</code> node is decoded to dotted notation and, when the registry knows it, given its name. That resolution is a deliberate composition rather than a feature of the parser: the certificate layer never imports the name registry, so a caller that only parses never pays for its bytes, and a caller that wants names asks for them. This page asks.</p>
+      <h2 id="oids">Object identifiers, resolved</h2>
+      <p>Every <code>OBJECT IDENTIFIER</code> node is decoded to dotted notation and, when the registry knows it, given its name. That resolution is a deliberate composition rather than a feature of the parser: the certificate layer never imports the name registry, so a caller that only parses never pays for its bytes, and a caller that wants names asks for them. This page asks.</p>
 
-    <h2 id="offsets">Offsets are real</h2>
-    <p>The offset on every node is its position in the bytes you pasted, and the length is the content length excluding the header. That is what makes the tree usable next to a hex editor, and it is the same arithmetic conformance level L2 uses to prove that <code>tbsCertificate</code> and <code>signatureValue</code> start and end where an independently written walker says they do.</p>
+      <h2 id="offsets">Offsets are real</h2>
+      <p>The offset on every node is its position in the bytes you pasted, and the length is the content length excluding the header. That is what makes the tree usable next to a hex editor, and it is the same arithmetic conformance level L2 uses to prove that <code>tbsCertificate</code> and <code>signatureValue</code> start and end where an independently written walker says they do.</p>
+    </div>
   </main>
 
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -113,7 +177,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

@@ -5,7 +5,7 @@
  * `llms-index-sync`) and read well (`llms-index-quality`); links and anchors
  * resolve (`internal-links`, `anchor-parity`); every page carries its search
  * and social metadata (`seo-head`, `sitemap-parity`, `jsonld-version`,
- * `verified-on-parity`); the palette is readable (`contrast`); the docs name
+ * `verified-on-parity`); the docs name
  * only real exports (`api-exists`) and quote only real numbers
  * (`count-tokens`); release notes have their mandatory sections
  * (`release-notes`).
@@ -166,13 +166,26 @@ const seoHead: Rule = {
 
 const sitemapParity: Rule = {
     id: 'sitemap-parity',
-    summary: 'docs/sitemap.xml lists exactly the canonical URL of every page under docs/.',
+    summary: 'docs/sitemap.xml lists exactly the canonical URL of every page under docs/, each with a <lastmod> equal to verifiedOn of docs/assets/ecosystem.json — the date of the last documentation audit, never a guessed modification date.',
     check(ctx) {
         const sitemap = ctx.read('docs/sitemap.xml');
         if (sitemap === null) return [error('docs/sitemap.xml', 'missing')];
+        const manifest = readJson<{ verifiedOn?: unknown }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const out: Finding[] = [];
         const listed = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1] ?? '').sort();
         const canonical = htmlPages(ctx).map((p) => canonicalOf(ctx.read(p) ?? '') ?? `(no canonical in ${p})`).sort();
-        return listed.join('\n') === canonical.join('\n') ? [] : [error('docs/sitemap.xml', `lists ${listed.join(', ')}; the pages declare ${canonical.join(', ')}`)];
+        if (listed.join('\n') !== canonical.join('\n')) out.push(error('docs/sitemap.xml', `lists ${listed.join(', ')}; the pages declare ${canonical.join(', ')}`));
+        const verifiedOn = String(manifest.value.verifiedOn ?? '');
+        for (const m of sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
+            const entry = m[1] ?? '';
+            const lastmod = /<lastmod>([^<]*)<\/lastmod>/.exec(entry)?.[1];
+            if (lastmod !== verifiedOn) {
+                const loc = /<loc>([^<]+)<\/loc>/.exec(entry)?.[1] ?? '?';
+                out.push(error('docs/sitemap.xml', `${loc} has lastmod ${String(lastmod)}; verifiedOn is ${verifiedOn} — run \`npm run docs:sitemap\``, lineContaining(sitemap, loc)));
+            }
+        }
+        return out;
     },
 };
 
@@ -364,61 +377,9 @@ const verifiedOnParity: Rule = {
     },
 };
 
-// ── Contrast (WCAG 2.2 AA, 4.5:1 for text) ───────────────────────────
-
-function luminance(hex: string): number {
-    const channel = (i: number): number => {
-        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    };
-    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
-}
-
-export function contrastRatio(a: string, b: string): number {
-    const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
-    return (light + 0.05) / (dark + 0.05);
-}
-
-const TEXT_PAIRS: ReadonlyArray<readonly [string, string]> = [
-    ['--c-text', '--c-bg'], ['--c-text-dim', '--c-bg'], ['--c-text-muted', '--c-bg-alt'], ['--c-text-muted', '--c-surface'],
-    ['--c-primary', '--c-bg'], ['--c-primary', '--c-bg-alt'], ['--c-primary-fg', '--c-primary'], ['--c-code-text', '--c-code-bg'],
-];
-
-const contrast: Rule = {
-    id: 'contrast',
-    summary: 'Every text/background token pair of docs/style.css reaches the WCAG 2.2 AA ratio of 4.5:1, in the light and in the dark palette.',
-    check(ctx) {
-        const css = ctx.read('docs/style.css') ?? '';
-        const out: Finding[] = [];
-        const palettes: Array<[string, string | undefined]> = [
-            ['light', /:root \{([^}]*)\}/.exec(css)?.[1]],
-            ['dark', /\[data-theme="dark"\] \{([^}]*)\}/.exec(css)?.[1]],
-        ];
-        const light = new Map([...(palettes[0]?.[1] ?? '').matchAll(/(--c-[\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1] ?? '', m[2] ?? '']));
-        for (const [name, block] of palettes) {
-            if (block === undefined) {
-                out.push(error('docs/style.css', `has no ${name} palette block`));
-                continue;
-            }
-            const tokens = new Map([...light, ...[...block.matchAll(/(--c-[\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1] ?? '', m[2] ?? ''] as const)]);
-            for (const [fg, bg] of TEXT_PAIRS) {
-                const a = tokens.get(fg);
-                const b = tokens.get(bg);
-                if (a === undefined || b === undefined) {
-                    out.push(error('docs/style.css', `${name} palette lacks ${a === undefined ? fg : bg}`));
-                    continue;
-                }
-                const ratio = contrastRatio(a, b);
-                if (ratio < 4.5) out.push(error('docs/style.css', `${name}: ${fg} on ${bg} is ${ratio.toFixed(2)}:1, below 4.5:1`, lineContaining(css, fg)));
-            }
-        }
-        return out;
-    },
-};
-
 // ── Names and numbers the docs quote ─────────────────────────────────
 
-const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html')];
+const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html' || /^docs\/playground\/[^/]+\.html$/.test(p))];
 
 const apiExists: Rule = {
     id: 'api-exists',
@@ -476,14 +437,15 @@ function quotedValue(token: string): number {
 
 const countTokens: Rule = {
     id: 'count-tokens',
-    summary: 'Every count quoted in the README, the changelog and the docs \u2014 in digits or in words \u2014 equals its source: the corpus canaries of docs/assets/ecosystem.json, the export count of docs/assets/api.json, the limits of docs/data/limits.json, the guides and the recipes.',
+    summary: 'Every count quoted in the README, the changelog and the docs \u2014 in digits or in words \u2014 equals its source: the corpus canaries of docs/assets/ecosystem.json, the export count of docs/assets/api.json, the limits of docs/data/limits.json, the error codes of docs/data/errors.json, the guides and the recipes.',
     check(ctx) {
         const ecosystem = readJson<{ declared?: Record<string, Record<string, number | string>> }>(ctx, 'docs/assets/ecosystem.json');
         const api = readJson<{ exportCount?: number }>(ctx, 'docs/assets/api.json');
         const limits = readJson<Record<string, unknown>>(ctx, 'docs/data/limits.json');
         const recipes = readJson<{ recipes?: unknown[] }>(ctx, 'recipes/index.json');
-        for (const parsed of [ecosystem, api, limits, recipes]) if ('finding' in parsed) return [parsed.finding];
-        if ('finding' in ecosystem || 'finding' in api || 'finding' in limits || 'finding' in recipes) return [];
+        const errors = readJson<{ errors?: unknown[] }>(ctx, 'docs/data/errors.json');
+        for (const parsed of [ecosystem, api, limits, recipes, errors]) if ('finding' in parsed) return [parsed.finding];
+        if ('finding' in ecosystem || 'finding' in api || 'finding' in limits || 'finding' in recipes || 'finding' in errors) return [];
         const limbo = ecosystem.value.declared?.['x509-limbo'] ?? {};
         const limitList = Object.values(limits.value).find(Array.isArray);
         const phrases: ReadonlyArray<readonly [string, unknown]> = [
@@ -495,6 +457,7 @@ const countTokens: Rule = {
             ['(?:named, CWE-tagged |named |CWE-tagged )?limits', limitList?.length],
             ['guides', GUIDES.length],
             ['executable recipes', recipes.value.recipes?.length],
+            ['error codes', errors.value.errors?.length],
         ];
         const out: Finding[] = [];
         for (const path of PROSE_SOURCES(ctx)) {
@@ -645,5 +608,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, contrast, apiExists, countTokens, playgroundFreshness, releaseNotes, releasePrDrafts,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, playgroundFreshness, releaseNotes, releasePrDrafts,
 ];

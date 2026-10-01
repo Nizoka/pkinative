@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript</title>
-  <meta name="description" content="Read the certificates your software trusts: strict ASN.1 DER, RFC 7468 PEM, object identifiers and complete RFC 5280 X.509, with zero runtime dependencies on every runtime.">
-  <meta name="keywords" content="x509, asn1, der, ber, pem, typescript, zero-dependency, certificate, rfc 5280, x.690, pki, oid, fingerprint">
+  <meta name="description" content="Parse, verify and build X.509 in TypeScript with zero runtime dependencies: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12.">
+  <meta name="keywords" content="x509, asn1, der, pem, typescript, zero-dependency, certificate, rfc 5280, path validation, crl, ocsp, cms, rfc 3161, pkcs12, pkcs8, web crypto, pki">
   <meta name="author" content="Nizoka">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#2563eb">
@@ -14,13 +14,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/">
   <meta property="og:title" content="pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript">
-  <meta property="og:description" content="Read the certificates your software trusts — strictly, safely, on every runtime, without a single dependency.">
+  <meta property="og:description" content="Parse, verify and build the certificates your software trusts — strictly, safely, on every runtime, without a single dependency.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="pkinative">
-  <meta name="twitter:description" content="Strict, zero-dependency X.509 and ASN.1 for TypeScript, held to x509-limbo, Wycheproof and OpenSSL.">
+  <meta name="twitter:title" content="pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript">
+  <meta name="twitter:description" content="Parse, verify and build X.509 with zero dependencies: path validation, CRL, OCSP, CMS, timestamps and PKCS#12, held to x509-limbo, Wycheproof and OpenSSL.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/">
@@ -42,6 +42,7 @@
         "url": "https://pkinative.dev/",
         "name": "pkinative",
         "inLanguage": "en",
+        "description": "pkinative documentation: guides, playgrounds and the machine-readable API of a zero-dependency TypeScript PKI toolkit.",
         "publisher": { "@id": "https://pkinative.dev/#org" }
       },
       {
@@ -50,7 +51,7 @@
         "name": "Nizoka",
         "url": "https://pkinative.dev/",
         "logo": "https://pkinative.dev/assets/logo.svg",
-        "sameAs": ["https://github.com/Nizoka/pkinative"]
+        "sameAs": ["https://github.com/Nizoka/pkinative", "https://www.npmjs.com/package/pkinative"]
       },
       {
         "@type": ["SoftwareSourceCode", "SoftwareApplication"],
@@ -67,7 +68,19 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@id": "https://pkinative.dev/#org" },
         "softwareVersion": "1.0.0",
-        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER, RFC 7468 PEM, OIDs and complete RFC 5280 X.509 certificate parsing."
+        "downloadUrl": "https://www.npmjs.com/package/pkinative",
+        "featureList": [
+          "Strict ITU-T X.690 DER decoding, BER on request",
+          "RFC 7468 PEM",
+          "Complete RFC 5280 certificate parsing and building",
+          "Signature verification through Web Crypto",
+          "RFC 5280 section 6 path validation",
+          "CRL and OCSP revocation checking",
+          "RFC 5652 CMS SignedData and RFC 3161 timestamps",
+          "PKCS#8 and PKCS#12 under PBES2",
+          "Zero runtime dependencies"
+        ],
+        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure: strict ASN.1 DER, RFC 7468 PEM, complete RFC 5280 X.509, signature verification through Web Crypto, section 6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12."
       }
     ]
   }
@@ -94,10 +107,11 @@
     </div>
   </nav>
 
-  <section class="hero" id="main-content" tabindex="-1">
+  <main id="main-content" tabindex="-1">
+  <section class="hero">
     <div class="container">
       <h1>Read the certificates<br><span class="gradient">your software trusts</span></h1>
-      <p class="hero-sub">Strict ASN.1 DER, RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 — with zero runtime dependencies, on Node, browsers, Deno, Bun and Workers.</p>
+      <p class="hero-sub">Parse, verify and build X.509: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12 — every signature through Web Crypto, zero runtime dependencies, on Node, browsers, Deno, Bun and Workers.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="guides/quickstart.html">Quick start →</a>
         <a class="btn btn-secondary" href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">
@@ -106,6 +120,11 @@
         </a>
       </div>
       <div class="hero-badges" aria-label="Project status">
+        <a href="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy"></a>
+        <a href="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml/badge.svg" alt="CodeQL status" height="20" loading="lazy"></a>
+        <a href="https://scorecard.dev/viewer/?uri=github.com/Nizoka/pkinative" target="_blank" rel="noopener"><img src="https://api.scorecard.dev/projects/github.com/Nizoka/pkinative/badge" alt="OpenSSF Scorecard" height="20" loading="lazy"></a>
+        <a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener"><img src="https://img.shields.io/npm/v/pkinative" alt="npm version" height="20" loading="lazy"></a>
+        <a href="https://docs.npmjs.com/generating-provenance-statements" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/provenance-signed-blueviolet" alt="npm provenance signed" height="20" loading="lazy"></a>
         <a href="https://github.com/Nizoka/pkinative/blob/main/LICENSE" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT licence" height="20" loading="lazy"></a>
         <img src="https://img.shields.io/badge/dependencies-0-16a34a" alt="Zero runtime dependencies" height="20" loading="lazy">
         <img src="https://img.shields.io/badge/coverage-100%25-16a34a" alt="100% coverage" height="20" loading="lazy">
@@ -115,21 +134,21 @@
         <code>npm install pkinative</code>
         <button class="copy-btn" type="button" data-copy="npm install pkinative" aria-label="Copy the install command">⧉</button>
       </div>
-      <p class="hero-note">On npm with provenance since 1.0.0, under semantic versioning: a minor release only adds.</p>
+      <p class="hero-note">On <a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a> with provenance since 1.0.0, under semantic versioning: a minor release only adds.</p>
     </div>
   </section>
 
   <div class="metrics" aria-label="Conformance figures">
-    <div class="metric"><div class="metric-value">30 361</div><div class="metric-label">x509-limbo certificates</div></div>
-    <div class="metric"><div class="metric-value">1 530</div><div class="metric-label">Wycheproof vectors</div></div>
-    <div class="metric"><div class="metric-value">100 %</div><div class="metric-label">Branch coverage</div></div>
+    <div class="metric"><div class="metric-value">30 361</div><div class="metric-label">x509-limbo certificates</div></div>
+    <div class="metric"><div class="metric-value">1 530</div><div class="metric-label">Wycheproof vectors</div></div>
+    <div class="metric"><div class="metric-value">100 %</div><div class="metric-label">Branch coverage</div></div>
     <div class="metric"><div class="metric-value">0</div><div class="metric-label">Runtime dependencies</div></div>
   </div>
 
   <section class="section" id="features">
     <div class="container">
       <h2 class="section-title">Why pkinative</h2>
-      <p class="section-subtitle">A reader for hostile bytes, complete on the profile it claims and explicit about the profile it does not.</p>
+      <p class="section-subtitle">A reader for hostile bytes and a verifier that owns no secret arithmetic — complete on the profile it claims and explicit about the profile it does not.</p>
       <div class="feature-grid">
         <article class="feature-card">
           <div class="feature-icon fi-security"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
@@ -138,8 +157,8 @@
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-zero"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M2 12h20"/></svg></div>
-          <h3>Zero dependencies</h3>
-          <p>Nothing to audit but this. No <code>node:</code> import, no <code>process</code>, no filesystem, no network — checked on the shipped bundle, not just the source.</p>
+          <h3>Zero dependencies, every runtime</h3>
+          <p>Nothing to audit but this. No <code>node:</code> import, no <code>process</code>, no filesystem, no network — checked on the shipped bundle. The same build runs on Node, browsers, Deno, Bun and Workers, and tree-shakes: the OID name registry never enters a parser's bundle.</p>
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-production"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h12"/></svg></div>
@@ -149,7 +168,22 @@
         <article class="feature-card">
           <div class="feature-icon fi-iso"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
           <h3>Complete on RFC 5280</h3>
-          <p>Every field and all eighteen standard extensions, decoded and typed — not a subset with the awkward ones left as raw bytes.</p>
+          <p>Every field and all eighteen standard extensions, decoded and typed — not a subset with the awkward ones left as raw bytes. Certificates and PKCS#10 requests are built and signed the same way they are read.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-unicode"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <h3>Every signature through Web Crypto</h3>
+          <p>Certificates, CRLs, OCSP responses, CMS signers and timestamps are verified by one call into the host's Web Crypto. No signing, no key generation, no arithmetic on secret material in TypeScript; hashing covers public data only.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-iso"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h6v4H4zM14 14h6v4h-6zM7 10v4h10"/></svg></div>
+          <h3>Paths and revocation</h3>
+          <p>RFC 5280 §6 path validation — name constraints, policies, key usage — plus CRL and OCSP. <code>verifyCertificateChain</code> composes them and answers with stable reason codes, not exceptions.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon fi-production"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></div>
+          <h3>CMS, timestamps, keys</h3>
+          <p>RFC 5652 SignedData and RFC 3161 timestamps, created and verified; PKCS#8 and PKCS#12 under PBES2, opened into non-extractable Web Crypto keys.</p>
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-content"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
@@ -157,19 +191,9 @@
           <p>A structural violation throws; a profile deviation real issuers commit becomes a diagnostic carrying its RFC clause. Never both, and never silence.</p>
         </article>
         <article class="feature-card">
-          <div class="feature-icon fi-unicode"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <h3>No cryptography it should not own</h3>
-          <p>No signing, no key generation, no arithmetic on secret material in TypeScript. Hashing covers public data; verification goes through Web Crypto from 0.3.</p>
-        </article>
-        <article class="feature-card">
-          <div class="feature-icon fi-cli"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9M3 15h18M8 20h8"/></svg></div>
-          <h3>One build, every runtime</h3>
-          <p>The same bundle on Node, browsers, Deno, Bun and Workers. Tree-shakeable: the 300-name OID registry never enters a certificate parser's bundle.</p>
-        </article>
-        <article class="feature-card">
           <div class="feature-icon fi-mcp"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10M12 8v4l3 2"/></svg></div>
           <h3>Built for agents</h3>
-          <p>Stable machine-readable error codes, a diagnostics channel, <a href="llms.txt">llms.txt</a>, a generated <a href="assets/api.json">API manifest</a> — and gate rules that prove an agent can use every export from the docs alone.</p>
+          <p>Stable machine-readable error and reason codes, a diagnostics channel, <a href="llms.txt">llms.txt</a>, a generated <a href="assets/api.json">API manifest</a> — and gate rules that prove an agent can use every export from the docs alone.</p>
         </article>
       </div>
     </div>
@@ -229,11 +253,11 @@ try {
   <section class="section" id="comparison">
     <div class="container">
       <h2 class="section-title">How it compares</h2>
-      <p class="section-subtitle">Registry facts only — no benchmark of someone else's library, no opinion about their code.</p>
+      <p class="section-subtitle">Registry facts and documented scope — no benchmark of someone else's library, no opinion about their code.</p>
       <div class="table-wrap">
         <table class="cmp-table">
           <caption style="caption-side:bottom;text-align:left;font-size:12px;color:var(--c-text-dim);padding-top:12px;line-height:1.6;">
-            Read on <strong>2026-09-19</strong> from the npm registry. Source data: <a href="data/comparison-2026-09-19.json">comparison-2026-09-19.json</a>. Scope differences are described in the <a href="guides/choose.html">choosing guide</a>, which also says when another library is the right answer.
+            Dependencies, bundled types and module format of the other libraries were read on <strong>2026-09-19</strong> from the npm registry (<a href="data/comparison-2026-09-19.json">comparison-2026-09-19.json</a>, a dated snapshot whose pkinative row predates 1.0). The capability rows are each project's documented scope, and pkinative's column describes 1.0. The <a href="guides/choose.html">choosing guide</a> details the differences and says when another library is the right answer.
           </caption>
           <thead>
             <tr><th>Library</th><th>pkinative</th><th>node-forge</th><th>asn1js</th><th>@peculiar/x509</th><th>pkijs</th><th>jsrsasign</th><th>micro509</th></tr>
@@ -243,8 +267,8 @@ try {
             <tr><td>Types bundled</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>ES modules</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>Strict DER by default</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td></tr>
-            <tr><td>Signature verification</td><td class="cmp-cross">0.3</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td></tr>
-            <tr><td>Path validation</td><td class="cmp-cross">0.5</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td></tr>
+            <tr><td>Signature verification</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td></tr>
+            <tr><td>Path validation</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td></tr>
           </tbody>
         </table>
       </div>
@@ -295,10 +319,10 @@ try {
   <section class="section" id="architecture">
     <div class="container">
       <h2 class="section-title">Small, layered, tree-shakeable</h2>
-      <p class="section-subtitle">Seven layers, no reverse edge — and two imports refused on purpose.</p>
+      <p class="section-subtitle">Fourteen layers, every import pointing down — and seven imports refused on purpose.</p>
       <div class="arch-diagram">
         <a href="https://github.com/Nizoka/pkinative/tree/main/src" target="_blank" rel="noopener">
-          <img src="assets/architecture.svg" width="760" height="360" loading="lazy" alt="The pkinative layers. src/index.ts imports every layer and nothing imports it. x509 parses RFC 5280 certificates and imports asn1; asn1 decodes X.690 DER; pem reads RFC 7468; hash computes SHA-1 through SHA-512; oid names object identifiers. x509, asn1, pem and hash each import core and types; core imports types; types imports nothing. Two imports are refused by policy: x509 to oid, so the name registry never enters the certificate parser's bundle, and pem to asn1, because PEM is an envelope, not a decoder.">
+          <img src="assets/architecture.svg" width="960" height="608" loading="lazy" alt="The fourteen pkinative layers. src/index.ts imports every layer, and nothing imports it. types imports nothing. core imports types. hash imports types and core. asn1 imports types and core. pem imports types and core. oid imports nothing. x509 imports types, core and asn1. crypto imports types, core and asn1. build imports types, core, asn1, hash and crypto. path imports types, core and x509. revocation imports types, core, asn1, hash, x509 and build. cms imports types, core, asn1, hash, x509 and build. keys imports types, core, asn1 and crypto. verify imports types, core, asn1, hash, x509, crypto, path, revocation, cms and keys. Refused on purpose: x509 never imports oid; pem never imports asn1; crypto and build never import x509; path and cms never import crypto; keys never imports x509.">
         </a>
       </div>
     </div>
@@ -327,21 +351,26 @@ try {
     </div>
   </section>
 
+  </main>
+
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="guides/quickstart.html">Quick start</a></li>
             <li><a href="guides/use-cases.html">Use cases</a></li>
@@ -352,7 +381,7 @@ try {
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="llms.txt">llms.txt</a></li>
             <li><a href="llms-full.txt">llms-full.txt</a></li>

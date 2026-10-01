@@ -29,6 +29,66 @@
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Choosing a PKI library",
+            "item": "https://pkinative.dev/guides/choose.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Choosing a PKI library",
+        "description": "Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/choose.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -53,142 +113,150 @@
   <main class="guide-shell" id="main-content" tabindex="-1">
     <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing a PKI library</p>
     <article id="guide-content" class="guide-content" data-md="choose.md" data-prerendered="true">
-      <h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
-      <blockquote>
-      <p><strong>Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</strong></p>
-      </blockquote>
-      <h2 id="what-pkinative-does">What pkinative does <a class="heading-anchor" href="#what-pkinative-does" aria-label="Link to this section">#</a></h2>
-      <ul>
-      <li><strong>Reads</strong> DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.</li>
-      <li><strong>Builds</strong> certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an <code>ExternalSigner</code> for a key in an HSM or a remote service.</li>
-      <li><strong>Judges</strong>: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps. The one-call reports — <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>openPkcs12</code> — return every reason at once and never throw for a problem with the input.</li>
-      <li><strong>Proves it</strong>: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the <a href="conformance.html">conformance guide</a> carries the current figures and every reviewed deviation.</li>
-      <li>Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 and 24 on Linux, Windows and macOS, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</li>
-      </ul>
-      <p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
-      <p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
-      <h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
-      <p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
-      <table>
-      <thead>
-      <tr>
-      <th>You need</th>
-      <th>Why pkinative will not</th>
-      <th>Instead</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td>A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC</td>
-      <td>Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript (<a href="../adr/0002-pkcs12-pbes2-only.md">ADR 0002</a>)</td>
-      <td>Convert it once: <code>openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
-      </tr>
-      <tr>
-      <td>To write a PKCS#8 or PKCS#12, or to generate or export a key</td>
-      <td>Web Crypto&#39;s <code>encrypt</code>, <code>wrapKey</code>, <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>, <a href="../adr/0003-no-pkcs8-or-pkcs12-writer.md">ADR 0003</a>)</td>
-      <td>Web Crypto or <code>node:crypto</code> in your own code, or OpenSSL</td>
-      </tr>
-      <tr>
-      <td>To verify DSA signatures</td>
-      <td>Web Crypto implements none of it, and pkinative implements no signature algorithm (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>)</td>
-      <td><code>node:crypto</code> on Node.js</td>
-      </tr>
-      <tr>
-      <td>To fetch a CRL, an OCSP response, a missing intermediate or a timestamp</td>
-      <td>The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker&#39;s choosing (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>)</td>
-      <td>Fetch them yourself and pass the bytes</td>
-      </tr>
-      <tr>
-      <td>ETSI long-term signatures — archive timestamps, chained proof of existence</td>
-      <td>Out of scope through 1.0; <code>atTimeStamp</code> takes one level of evidence (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>)</td>
-      <td>A PAdES or CAdES toolkit</td>
-      </tr>
-      <tr>
-      <td>Distinguished names matched by RFC 5280 §7.1 preparation when building chains</td>
-      <td>Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal (<a href="../adr/0005-names-compared-by-encoded-bytes.md">ADR 0005</a>)</td>
-      <td>Re-issue with consistent encodings</td>
-      </tr>
-      </tbody></table>
-      <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
-      <p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
-      <table>
-      <thead>
-      <tr>
-      <th>Library</th>
-      <th>Runtime dependencies</th>
-      <th>Types bundled</th>
-      <th>ES modules</th>
-      <th>Weekly downloads</th>
-      </tr>
-      </thead>
-      <tbody><tr>
-      <td>node-forge 1.4.0</td>
-      <td>0</td>
-      <td>no</td>
-      <td>no</td>
-      <td>27.6 M</td>
-      </tr>
-      <tr>
-      <td>asn1js 3.0.10</td>
-      <td>3</td>
-      <td>yes</td>
-      <td>yes</td>
-      <td>13.7 M</td>
-      </tr>
-      <tr>
-      <td>@peculiar/x509 2.1.0</td>
-      <td>11</td>
-      <td>yes</td>
-      <td>yes</td>
-      <td>8.2 M</td>
-      </tr>
-      <tr>
-      <td>pkijs 3.4.0</td>
-      <td>6</td>
-      <td>yes</td>
-      <td>yes</td>
-      <td>6.8 M</td>
-      </tr>
-      <tr>
-      <td>jsrsasign 11.1.5</td>
-      <td>0</td>
-      <td>no</td>
-      <td>no</td>
-      <td>1.0 M</td>
-      </tr>
-      <tr>
-      <td>micro509 0.14.0</td>
-      <td>0</td>
-      <td>yes</td>
-      <td>yes</td>
-      <td>59</td>
-      </tr>
-      </tbody></table>
-      <p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>
-      <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
-      <ul>
-      <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
-      <li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
-      <li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
-      <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
-      <li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>
-      </ul>
+<h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
+<blockquote>
+<p><strong>Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</strong></p>
+</blockquote>
+<h2 id="what-pkinative-does">What pkinative does <a class="heading-anchor" href="#what-pkinative-does" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Reads</strong> DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.</li>
+<li><strong>Builds</strong> certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an <code>ExternalSigner</code> for a key in an HSM or a remote service.</li>
+<li><strong>Judges</strong>: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps. The one-call reports — <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>openPkcs12</code> — return every reason at once and never throw for a problem with the input.</li>
+<li><strong>Proves it</strong>: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the <a href="conformance.html">conformance guide</a> carries the current figures and every reviewed deviation.</li>
+<li>Runs unchanged on Node.js ≥ 22, browsers, Deno, Bun and Workers, with zero runtime dependencies.</li>
+</ul>
+<p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
+<p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
+<h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
+<p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
+<table>
+<thead>
+<tr>
+<th>You need</th>
+<th>Why pkinative will not</th>
+<th>Instead</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC</td>
+<td>Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript (<a href="../adr/0002-pkcs12-pbes2-only.md">ADR 0002</a>)</td>
+<td>Convert it once: <code>openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
+</tr>
+<tr>
+<td>To write a PKCS#8 or PKCS#12, or to generate or export a key</td>
+<td>Web Crypto&#39;s <code>encrypt</code>, <code>wrapKey</code>, <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>, <a href="../adr/0003-no-pkcs8-or-pkcs12-writer.md">ADR 0003</a>)</td>
+<td>Web Crypto or <code>node:crypto</code> in your own code, or OpenSSL</td>
+</tr>
+<tr>
+<td>To verify DSA signatures</td>
+<td>Web Crypto implements none of it, and pkinative implements no signature algorithm (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>)</td>
+<td><code>node:crypto</code> on Node.js</td>
+</tr>
+<tr>
+<td>To fetch a CRL, an OCSP response, a missing intermediate or a timestamp</td>
+<td>The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker&#39;s choosing (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>)</td>
+<td>Fetch them yourself and pass the bytes</td>
+</tr>
+<tr>
+<td>ETSI long-term signatures — archive timestamps, chained proof of existence</td>
+<td>Out of scope through 1.0; <code>atTimeStamp</code> takes one level of evidence (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>)</td>
+<td>A PAdES or CAdES toolkit</td>
+</tr>
+<tr>
+<td>Distinguished names matched by RFC 5280 §7.1 preparation when building chains</td>
+<td>Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal (<a href="../adr/0005-names-compared-by-encoded-bytes.md">ADR 0005</a>)</td>
+<td>Re-issue with consistent encodings</td>
+</tr>
+<tr>
+<td>An npm package before 1.0.0</td>
+<td>Pre-1.0 versions are git tags; <code>publish.yml</code> refuses them</td>
+<td>Install the tarball attached to the GitHub release</td>
+</tr>
+</tbody></table>
+<h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
+<p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Library</th>
+<th>Runtime dependencies</th>
+<th>Types bundled</th>
+<th>ES modules</th>
+<th>Weekly downloads</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>node-forge 1.4.0</td>
+<td>0</td>
+<td>no</td>
+<td>no</td>
+<td>27.6 M</td>
+</tr>
+<tr>
+<td>asn1js 3.0.10</td>
+<td>3</td>
+<td>yes</td>
+<td>yes</td>
+<td>13.7 M</td>
+</tr>
+<tr>
+<td>@peculiar/x509 2.1.0</td>
+<td>11</td>
+<td>yes</td>
+<td>yes</td>
+<td>8.2 M</td>
+</tr>
+<tr>
+<td>pkijs 3.4.0</td>
+<td>6</td>
+<td>yes</td>
+<td>yes</td>
+<td>6.8 M</td>
+</tr>
+<tr>
+<td>jsrsasign 11.1.5</td>
+<td>0</td>
+<td>no</td>
+<td>no</td>
+<td>1.0 M</td>
+</tr>
+<tr>
+<td>micro509 0.14.0</td>
+<td>0</td>
+<td>yes</td>
+<td>yes</td>
+<td>59</td>
+</tr>
+</tbody></table>
+<p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>
+<h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
+<li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
+<li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
+<li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
+<li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>
+</ul>
     </article>
   </main>
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -199,7 +267,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

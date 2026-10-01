@@ -2,10 +2,19 @@
  * pkinative — guide pages (`npm run docs:guides`)
  * ===============================================
  * Renders every docs/guides/<name>.md into a complete, static
- * docs/guides/<name>.html page, plus docs/guides/index.html. The pages are
- * prerendered: no client-side Markdown, no JavaScript and no third-party
- * load at all, so there is nothing to pin with SRI and nothing a CSP must
- * allow.
+ * docs/guides/<name>.html page, plus docs/guides/index.html, and draws
+ * docs/assets/architecture.svg from LAYERS. The pages are prerendered — no
+ * client-side Markdown — and load two things besides the site stylesheets:
+ * the first-party guides/guide.js (copy buttons, heading anchors) and Prism
+ * from jsDelivr, pinned by SRI (`prismTags`, held by the `cdn-sri` rule).
+ *
+ * The Markdown is reproduced, not re-indented: the article body is written
+ * at column 0, so a fenced block reaches the page — and the Copy button —
+ * byte for byte, and an inline `<svg>` block passes through raw even when it
+ * holds blank lines (`renderMarkdown`). Each page also carries schema.org
+ * JSON-LD — a BreadcrumbList mirroring the visible breadcrumb, and a
+ * TechArticle — as pdfnative's guides do, and like them without
+ * dateModified: the only honest per-page date is not available here.
  *
  * Rendering is deterministic — marked@12.0.2 pinned as an EXACT
  * devDependency (zipnative's choice), LF endings, a GitHub-style slugger
@@ -21,12 +30,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Marked } from 'marked';
+import { LAYERS } from './lib/architecture.js';
 
 /** Repository-relative POSIX path → text, or null when absent. */
 export type Reader = (path: string) => string | null;
 
 export const SITE = 'https://pkinative.dev';
 export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
+export const NPM = 'https://www.npmjs.com/package/pkinative';
 
 /** The guides, in navigation order. */
 export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'errors', 'choose'];
@@ -150,23 +161,26 @@ export function footerHtml(prefix: string, extra = ''): string {
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="${NPM}" target="_blank" rel="noopener">npm</a></li>
             <li><a href="${REPOSITORY}/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="${REPOSITORY}/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="${REPOSITORY}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="${REPOSITORY}/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
 ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">${escapeHtml(guideNavLabel(name))}</a></li>`).join('\n')}
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="${prefix}llms.txt">llms.txt</a></li>
             <li><a href="${prefix}llms-full.txt">llms-full.txt</a></li>
@@ -213,13 +227,65 @@ function guideNavLabel(name: string): string {
     return name === 'quickstart' ? 'Quick start' : `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
 }
 
+/** One `ListItem` of a schema.org BreadcrumbList: the visible label and its URL. */
+export interface Crumb {
+    readonly name: string;
+    readonly url: string;
+}
+
+/** The schema.org BreadcrumbList that mirrors a visible breadcrumb, crumb for crumb. */
+export function breadcrumbList(crumbs: readonly Crumb[]): Record<string, unknown> {
+    return {
+        '@type': 'BreadcrumbList',
+        itemListElement: crumbs.map((crumb, i) => ({ '@type': 'ListItem', position: i + 1, name: crumb.name, item: crumb.url })),
+    };
+}
+
+/** The publisher every page names: the project, with its logo. */
+const PUBLISHER = {
+    '@type': 'Organization',
+    name: 'pkinative',
+    url: `${SITE}/`,
+    logo: { '@type': 'ImageObject', url: `${SITE}/assets/logo.svg` },
+};
+
+/**
+ * A `<script type="application/ld+json">` block for a schema.org @graph.
+ * `<` is escaped so no string in the graph can close the script element.
+ *
+ * @internal Exported for the hand-written playground pages' generator check.
+ */
+export function jsonLdBlock(graph: ReadonlyArray<Record<string, unknown>>): string {
+    const json = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }, null, 2).replace(/</g, '\\u003c');
+    return `  <script type="application/ld+json">\n${json.split('\n').map((l) => `  ${l}`).join('\n')}\n  </script>`;
+}
+
 function page(options: { title: string; description: string; path: string; body: string; current: string }): string {
     const url = `${SITE}/${options.path}`;
     const prism = prismTags();
     const isIndex = options.current === 'index';
+    const heading = options.title.replace(/ — pkinative$/, '');
     const breadcrumb = isIndex
         ? `<a href="../">Home</a> › Guides`
-        : `<a href="../">Home</a> › <a href="./">Guides</a> › ${escapeHtml(options.title.replace(/ — pkinative$/, ''))}`;
+        : `<a href="../">Home</a> › <a href="./">Guides</a> › ${escapeHtml(heading)}`;
+    const crumbs: Crumb[] = [{ name: 'Home', url: `${SITE}/` }, { name: 'Guides', url: `${SITE}/guides/` }];
+    if (!isIndex) crumbs.push({ name: heading, url });
+    const ld = jsonLdBlock([
+        breadcrumbList(crumbs),
+        isIndex
+            ? { '@type': 'CollectionPage', '@id': url, url, name: heading, description: options.description, inLanguage: 'en', isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` } }
+            : {
+                '@type': 'TechArticle',
+                headline: heading,
+                description: options.description,
+                inLanguage: 'en',
+                author: { '@type': 'Organization', name: 'Nizoka', url: 'https://github.com/Nizoka' },
+                publisher: PUBLISHER,
+                image: `${SITE}/assets/og-image.png`,
+                mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+                isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` },
+            },
+    ]);
     const markdownAlternate = isIndex ? '' : `\n  <link rel="alternate" type="text/markdown" href="${options.current}.md" title="Markdown source">`;
     const articleAttrs = isIndex ? '' : ` data-md="${options.current}.md" data-prerendered="true"`;
     return `<!DOCTYPE html>
@@ -252,6 +318,7 @@ function page(options: { title: string; description: string; path: string; body:
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="guide.css">
 ${prism.head}
+${ld}
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -269,15 +336,33 @@ ${prism.tail}
 `;
 }
 
+/**
+ * Markdown to HTML, with every inline `<svg>…</svg>` block kept raw.
+ *
+ * CommonMark ends an HTML block at the first blank line, so an SVG laid out
+ * with blank lines between its groups would otherwise be cut in two and its
+ * indented remainder rendered as an escaped code block. Each block that
+ * starts a line with `<svg` and ends one with `</svg>` is set aside, replaced
+ * by an HTML comment (a block of its own), and put back verbatim afterwards.
+ */
+export function renderMarkdown(md: string): string {
+    const figures: string[] = [];
+    const parked = lf(md).replace(/^<svg\b[\s\S]*?^<\/svg>[ \t]*$/gm, (block) => {
+        figures.push(block);
+        return `<!--pkinative:raw-svg:${figures.length - 1}-->`;
+    });
+    const html = rewriteLinks(addHeadingAnchors(markdown.parse(parked, { async: false }) as string));
+    return html.replace(/<!--pkinative:raw-svg:(\d+)-->/g, (_m, index: string) => figures[Number(index)] ?? '');
+}
+
 /** One guide page. */
 export function renderGuidePage(read: Reader, name: string): string {
     const md = lf(read(`docs/guides/${name}.md`) ?? '');
-    const body = rewriteLinks(addHeadingAnchors(markdown.parse(md, { async: false }) as string)).trimEnd();
     return page({
         title: `${guideTitle(md)} — pkinative`,
         description: guideSummary(md),
         path: `guides/${name}.html`,
-        body: `${body.split('\n').map((l) => (l === '' ? '' : `      ${l}`)).join('\n')}\n`,
+        body: `${renderMarkdown(md).trimEnd()}\n`,
         current: name,
     });
 }
@@ -309,11 +394,164 @@ export function guideOutputs(read: Reader): ReadonlyMap<string, string> {
     return out;
 }
 
+// ── Architecture diagram ─────────────────────────────────────────────
+
+/**
+ * The imports AGENTS.md §Architecture refuses by name, each a decision rather
+ * than an absence. `renderArchitectureSvg` throws if LAYERS ever grants one.
+ */
+export const REFUSED_IMPORTS: ReadonlyArray<readonly [from: readonly string[], to: string]> = [
+    [['x509'], 'oid'],
+    [['pem'], 'asn1'],
+    [['crypto', 'build'], 'x509'],
+    [['path', 'cms'], 'crypto'],
+    [['keys'], 'x509'],
+];
+
+/**
+ * Where each layer sits: a row (0 = the top, src/index.ts) and a column of
+ * seven. Hand-placed so that no arrow runs through a box; a layer added to
+ * LAYERS without a place here makes the generator throw, which is the point
+ * — a new layer is a reviewed change to the picture too.
+ */
+const ARCHITECTURE_PLACES: Readonly<Record<string, readonly [row: number, column: number]>> = {
+    index: [0, 3], oid: [0, 5],
+    verify: [1, 3],
+    revocation: [2, 2], cms: [2, 4],
+    path: [3, 1], build: [3, 3], keys: [3, 6],
+    x509: [4, 2], crypto: [4, 4],
+    pem: [5, 0], asn1: [5, 3], hash: [5, 5],
+    core: [6, 3],
+    types: [7, 3],
+};
+
+/** A layer's nearest dependencies: LAYERS without the imports another import already reaches. */
+export function nearestDependencies(layer: string): string[] {
+    const reach = (from: string, seen = new Set<string>()): Set<string> => {
+        for (const next of LAYERS[from] ?? []) if (!seen.has(next)) { seen.add(next); reach(next, seen); }
+        return seen;
+    };
+    const direct = layer === 'index' ? Object.keys(LAYERS) : [...(LAYERS[layer] ?? [])];
+    return direct.filter((d) => !direct.some((other) => other !== d && reach(other).has(d)));
+}
+
+const NUMBER_NAMES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+
+/** A count as prose writes it: a word up to twenty, digits beyond. */
+export function countWord(n: number): string {
+    return NUMBER_NAMES[n] ?? String(n);
+}
+
+function listWords(items: readonly string[], joiner = 'and'): string {
+    return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${joiner} ${items[items.length - 1] ?? ''}`;
+}
+
+/**
+ * The diagram's long description, derived from LAYERS — also the `alt` of the
+ * landing page's `<img>` (`architecture-diagram` holds both to it).
+ */
+export function architectureDescription(): string {
+    const layers = Object.keys(LAYERS);
+    const sentences = layers.map((layer) => {
+        const deps = LAYERS[layer] ?? [];
+        return `${layer} imports ${deps.length === 0 ? 'nothing' : listWords(deps)}.`;
+    });
+    const refused = REFUSED_IMPORTS.map(([from, to]) => `${listWords(from)} never ${from.length > 1 ? 'import' : 'imports'} ${to}`);
+    return `The ${countWord(layers.length)} pkinative layers. src/index.ts imports every layer, and nothing imports it. ${sentences.join(' ')} `
+        + `Refused on purpose: ${refused.join('; ')}.`;
+}
+
+/** docs/assets/architecture.svg, drawn from LAYERS. */
+export function renderArchitectureSvg(): string {
+    const layers = Object.keys(LAYERS);
+    for (const layer of [...layers, 'index']) {
+        if (ARCHITECTURE_PLACES[layer] === undefined) throw new Error(`build-guides: layer "${layer}" has no place in ARCHITECTURE_PLACES — add one, then look at the picture`);
+    }
+    for (const [from, to] of REFUSED_IMPORTS) {
+        for (const layer of from) if ((LAYERS[layer] ?? []).includes(to)) throw new Error(`build-guides: LAYERS lets ${layer} import ${to}, which AGENTS.md refuses`);
+    }
+    const W = 116, H = 36, STEP = 64, TOP = 32;
+    const x = (column: number): number => 90 + column * 130;
+    const y = (row: number): number => TOP + row * STEP;
+    const at = (layer: string): { cx: number; top: number; bottom: number; row: number } => {
+        const [row, column] = ARCHITECTURE_PLACES[layer] ?? [0, 0];
+        return { cx: x(column), top: y(row), bottom: y(row) + H, row };
+    };
+    // Sources that share a row take distinct horizontal lanes in the gap below
+    // it, so two buses never run along the same line.
+    const lane = new Map<string, number>();
+    const byRow = new Map<number, string[]>();
+    for (const layer of ['index', ...layers]) {
+        const { row } = at(layer);
+        byRow.set(row, [...(byRow.get(row) ?? []), layer]);
+    }
+    for (const group of byRow.values()) group.forEach((layer, i) => lane.set(layer, 8 + ((i * 7) % 21)));
+
+    const edges: string[] = [];
+    for (const from of ['index', ...layers]) {
+        for (const to of nearestDependencies(from)) {
+            const a = at(from), b = at(to);
+            if (a.row === b.row) {
+                const dir = Math.sign(b.cx - a.cx);
+                edges.push(`<path class="edge" d="M${a.cx + dir * W / 2} ${a.top + H / 2}H${b.cx - dir * (W / 2 + 4)}"/>`);
+            } else if (a.cx === b.cx) {
+                edges.push(`<path class="edge" d="M${a.cx} ${a.bottom}V${b.top - 4}"/>`);
+            } else {
+                const mid = a.bottom + (lane.get(from) ?? 14);
+                edges.push(`<path class="edge" d="M${a.cx} ${a.bottom}V${mid}H${b.cx}V${b.top - 4}"/>`);
+            }
+        }
+    }
+    const boxes = ['index', ...layers].map((layer) => {
+        const { cx, top } = at(layer);
+        const label = layer === 'index' ? 'src/index.ts' : layer;
+        const cls = layer === 'index' ? 'top' : layer === 'oid' ? 'box apart' : 'box';
+        return `  <rect class="${cls}" x="${cx - W / 2}" y="${top}" width="${W}" height="${H}" rx="8"/>\n`
+            + `  <text class="${layer === 'index' ? 'top-label' : 'label'}" x="${cx}" y="${top + 23}">${label}</text>`;
+    }).join('\n');
+    const height = y(7) + H + 92;
+    const refused = REFUSED_IMPORTS.map(([from, to]) => `${from.join(' or ')} to ${to}`).join(' · ');
+    const oid = at('oid');
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 ${height}" width="960" height="${height}" role="img" aria-labelledby="architecture-title architecture-desc">
+  <!-- Generated by scripts/build-guides.ts from LAYERS (scripts/lib/architecture.ts); run npm run docs:guides, never edit by hand. -->
+  <title id="architecture-title">pkinative layers</title>
+  <desc id="architecture-desc">${escapeHtml(architectureDescription())}</desc>
+  <style>
+    .canvas { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; }
+    .box { fill: #eff6ff; stroke: #2563eb; stroke-width: 1.5; }
+    .apart { stroke-dasharray: 5 4; }
+    .top { fill: #2563eb; stroke: #1d4ed8; stroke-width: 1.5; }
+    .label { font: 600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #0f172a; text-anchor: middle; }
+    .top-label { font: 600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #ffffff; text-anchor: middle; }
+    .note { font: 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #475569; }
+    .edge { stroke: #64748b; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect class="canvas" x="0.5" y="0.5" width="959" height="${height - 1}" rx="12"/>
+${edges.map((e) => `  ${e}`).join('\n')}
+${boxes}
+  <text class="note" x="${oid.cx + W / 2 + 12}" y="${oid.top + 15}">imports nothing; only</text>
+  <text class="note" x="${oid.cx + W / 2 + 12}" y="${oid.top + 33}">getOidName pulls it in</text>
+  <text class="note" x="32" y="${height - 56}">Arrows point at each layer's nearest dependencies; AGENTS.md §Architecture lists every permitted import.</text>
+  <text class="note" x="32" y="${height - 30}">Imports refused on purpose: ${refused}.</text>
+</svg>
+`;
+}
+
+/** Every generated site asset besides the guide pages, path → content. */
+export function siteAssetOutputs(): ReadonlyMap<string, string> {
+    return new Map([['docs/assets/architecture.svg', renderArchitectureSvg()]]);
+}
+
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
     const root = join(dirname(fileURLToPath(import.meta.url)), '..');
     const read: Reader = (path) => (existsSync(join(root, path)) ? readFileSync(join(root, path), 'utf8') : null);
     let changed = 0;
-    for (const [path, text] of guideOutputs(read)) {
+    for (const [path, text] of [...guideOutputs(read), ...siteAssetOutputs()]) {
         if (read(path) !== text) {
             writeFileSync(join(root, path), text);
             changed++;

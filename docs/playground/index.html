@@ -26,6 +26,44 @@
   <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playground",
+            "item": "https://pkinative.dev/playground/"
+          }
+        ]
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": "https://pkinative.dev/playground/",
+        "url": "https://pkinative.dev/playground/",
+        "name": "pkinative playground",
+        "description": "Run pkinative in your browser on a byte-for-byte copy of the published build: inspect an X.509 certificate, walk its ASN.1 tree, and watch strict DER refuse the bytes it should refuse.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -50,14 +88,16 @@
 
   <main class="guide-shell" id="main-content" tabindex="-1">
     <p class="guide-breadcrumb"><a href="../">Home</a> › Playground</p>
-    <h1>Playground</h1>
-    <p>Everything below runs <strong>in your tab</strong>, on <code>pkinative.js</code> — a byte-for-byte copy of what <code>npm run build</code> produces, held to the build by the <code>playground-freshness</code> rule. There is no server, no upload and no telemetry: a certificate you paste never leaves the browser, which matters because the interesting ones are usually not public.</p>
-    <p>The siblings load their engine from a CDN. pkinative commits its copy instead, so the playground runs the build of the tree this site is published from, not the last npm release. That is the one place these playgrounds diverge from the family, and it is why they carry a freshness rule the siblings do not need.</p>
+    <div class="guide-content">
+      <h1>Playground</h1>
+      <p>Everything below runs <strong>in your tab</strong>, on <code>pkinative.js</code> — a byte-for-byte copy of what <code>npm run build</code> produces, held to the build by the <code>playground-freshness</code> rule. There is no server, no upload and no telemetry: a certificate you paste never leaves the browser, which matters because the interesting ones are usually not public.</p>
+      <p>The siblings load their engine from a CDN. pkinative commits its copy instead, so the playground runs the build of the tree this site is published from, not the last npm release. That is the one place these playgrounds diverge from the family, and it is why they carry a freshness rule the siblings do not need.</p>
+    </div>
 
     <div class="pg-grid">
       <a class="pg-card" href="certificate.html">
         <div class="pg-icon" aria-hidden="true">🔑</div>
-        <h3>Certificate inspector</h3>
+        <h2>Certificate inspector</h2>
         <p>Paste a certificate and read every field pkinative decodes: names, validity, public key, fingerprints, all twenty extension kinds, and every conformance diagnostic with the clause it cites.</p>
         <div class="pg-tags">
           <span class="pg-tag">parseCertificate</span>
@@ -69,7 +109,7 @@
 
       <a class="pg-card" href="asn1.html">
         <div class="pg-icon" aria-hidden="true">🌳</div>
-        <h3>ASN.1 tree</h3>
+        <h2>ASN.1 tree</h2>
         <p>Walk any DER value tag by tag, with every offset and length, object identifiers resolved to their names, and a switch that lets you watch strict DER refuse what BER accepts.</p>
         <div class="pg-tags">
           <span class="pg-tag">decodeAsn1</span>
@@ -80,28 +120,33 @@
       </a>
     </div>
 
-    <h2 id="refusals">Try to break them</h2>
-    <p>Both pages treat a refusal as a result, not as an accident. Truncate a sample, flip an octet, feed them a private key or a JPEG: what comes back is a <code>PkiError</code> with its stable <code>code</code>, its subclass, and the byte offset where the decoder stopped. That is the error registry — <a href="../data/errors.json">44 codes</a>, each with a remedy, a standard and a CWE — firing on bytes you chose rather than on an example somebody wrote down. The <a href="../guides/errors.html">errors guide</a> is the whole list.</p>
+    <div class="guide-content">
+      <h2 id="refusals">Try to break them</h2>
+      <p>Both pages treat a refusal as a result, not as an accident. Truncate a sample, flip an octet, feed them a private key or a JPEG: what comes back is a <code>PkiError</code> with its stable <code>code</code>, its subclass, and the byte offset where the decoder stopped. That is the error registry — <a href="../data/errors.json">57 error codes</a>, each with a remedy, a standard and a CWE — firing on bytes you chose rather than on an example somebody wrote down. The <a href="../guides/errors.html">errors guide</a> is the whole list.</p>
 
-    <h2 id="not-yet">What they cannot show yet</h2>
-    <p>Neither page verifies a signature or validates a chain, because pkinative 0.1 does neither. Signature verification through Web Crypto arrives in 0.3 and path validation in 0.5; both will get a playground here when they do. Until then a fingerprint proves two byte strings are the same certificate, and nothing about whether that certificate should be trusted. The <a href="../guides/choose.html">comparison guide</a> says what to use meanwhile.</p>
+      <h2 id="not-here">What they leave to the library</h2>
+      <p>Neither page verifies a signature or validates a chain, although pkinative does both: <code>verifyCertificateChain</code> checks every signature through Web Crypto, validates the path as RFC 5280 §6 requires and decides revocation from CRLs and OCSP responses, and the CMS and timestamp verifiers build on it. A verdict needs a trust anchor you chose and revocation data a static page cannot fetch for you, so these playgrounds stay with what one pasted certificate can show honestly. A fingerprint here proves two byte strings are the same certificate, and nothing about whether that certificate should be trusted. The <a href="../guides/use-cases.html">use cases</a> walk through verification end to end, and the <a href="../guides/choose.html">choosing guide</a> says when another tool fits better.</p>
+    </div>
   </main>
 
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="footer-col">
-          <h4>Project</h4>
+          <h2 class="footer-title">Project</h2>
           <ul>
             <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Guides</h4>
+          <h2 class="footer-title">Guides</h2>
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
@@ -112,7 +157,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>For agents</h4>
+          <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="../llms.txt">llms.txt</a></li>
             <li><a href="../llms-full.txt">llms-full.txt</a></li>

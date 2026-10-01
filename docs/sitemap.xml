@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://pkinative.dev/</loc></url>
-  <url><loc>https://pkinative.dev/guides/</loc></url>
-  <url><loc>https://pkinative.dev/guides/quickstart.html</loc></url>
-  <url><loc>https://pkinative.dev/guides/use-cases.html</loc></url>
-  <url><loc>https://pkinative.dev/guides/security.html</loc></url>
-  <url><loc>https://pkinative.dev/guides/conformance.html</loc></url>
-  <url><loc>https://pkinative.dev/guides/errors.html</loc></url>
-  <url><loc>https://pkinative.dev/guides/choose.html</loc></url>
-  <url><loc>https://pkinative.dev/playground/</loc></url>
-  <url><loc>https://pkinative.dev/playground/asn1.html</loc></url>
-  <url><loc>https://pkinative.dev/playground/certificate.html</loc></url>
+  <url><loc>https://pkinative.dev/</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/quickstart.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/use-cases.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/security.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/conformance.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/errors.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/guides/choose.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/playground/</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/playground/asn1.html</loc><lastmod>2026-09-29</lastmod></url>
+  <url><loc>https://pkinative.dev/playground/certificate.html</loc><lastmod>2026-09-29</lastmod></url>
 </urlset>

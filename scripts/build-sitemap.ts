@@ -10,6 +10,13 @@
  * is omitted and named on stderr, because `seo-head` already fails on it and
  * guessing its URL would hide that failure behind a plausible line.
  *
+ * Every URL carries `<lastmod>` = `verifiedOn` of docs/assets/ecosystem.json:
+ * the date of the last documentation audit, as the family's sitemaps declare
+ * it (pdfnative bounds each lastmod to the same date). It is never a git
+ * date: the CI verifier's shallow checkout has no history, and a
+ * modification date nobody can check is worse than an audit date that
+ * `sitemap-parity` holds to the manifest.
+ *
  * Run it after `docs:guides` (which creates the pages this reads) and before
  * `docs:llms` (which measures everything else). Inverted, `llms-index-sync`
  * and `sitemap-parity` contend for the same commit.
@@ -54,8 +61,8 @@ function rank(url: string): [number, string] {
     return [4, path];
 }
 
-/** The sitemap for a set of `path → html` pages. */
-export function renderSitemap(pages: ReadonlyMap<string, string>): { xml: string; missing: readonly string[] } {
+/** The sitemap for a set of `path → html` pages, every URL stamped with the audit date `lastmod` (YYYY-MM-DD). */
+export function renderSitemap(pages: ReadonlyMap<string, string>, lastmod: string): { xml: string; missing: readonly string[] } {
     const urls: string[] = [];
     const missing: string[] = [];
     for (const [path, html] of pages) {
@@ -68,14 +75,16 @@ export function renderSitemap(pages: ReadonlyMap<string, string>): { xml: string
         const [rb, sb] = rank(b);
         return ra - rb || sa.localeCompare(sb) || a.localeCompare(b);
     });
-    const body = urls.map((url) => `  <url><loc>${url}</loc></url>`).join('\n');
+    const body = urls.map((url) => `  <url><loc>${url}</loc><lastmod>${lastmod}</lastmod></url>`).join('\n');
     return { xml: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`, missing };
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
     const root = join(dirname(fileURLToPath(import.meta.url)), '..');
     const pages = new Map(htmlPagesOf(root).map((path) => [path, readFileSync(join(root, path), 'utf8')]));
-    const { xml, missing } = renderSitemap(pages);
+    const verifiedOn = (JSON.parse(readFileSync(join(root, 'docs/assets/ecosystem.json'), 'utf8')) as { verifiedOn?: unknown }).verifiedOn;
+    if (typeof verifiedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(verifiedOn)) throw new Error('build-sitemap: docs/assets/ecosystem.json declares no verifiedOn date (YYYY-MM-DD)');
+    const { xml, missing } = renderSitemap(pages, verifiedOn);
     for (const path of missing) console.error(`build-sitemap: ${path} declares no canonical URL and is not listed`);
     const target = join(root, 'docs/sitemap.xml');
     const changed = readFileSync(target, 'utf8') !== xml;
