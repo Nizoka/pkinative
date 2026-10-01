@@ -49,12 +49,6 @@
       "original": "limitHit",
       "replacement": "false",
       "reason": "Semantic: limitHit is set only when explored has reached maxPathsExplored, and explored never decreases. Without the early return the loop goes on to its next issuer, where a revisited one is skipped without effect and any other meets the same explored >= maxPathsExplored test, sets limitHit again and returns null; a loop with no issuer left returns null as well. The search, explored and the report are identical."
-    },
-    {
-      "id": "src/path/path-server-name.ts:228:54:logical",
-      "original": "||",
-      "replacement": "&&",
-      "reason": "Semantic: the mutant reads presented === '' || (presented.includes('\\0') && reference === '') || reference.includes('\\0'), dropping the test of a NUL in the presented name on its own. A presented name with a NUL matches only a reference with the same NUL — exactly, or past a wildcard's first label, where the suffixes must be equal — and that reference is refused by the last test. The refusal of a NUL is kept on both sides because it states the intent (CVE-2009-2408); either side alone decides every input."
     }
   ]
 }
