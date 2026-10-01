@@ -3,6 +3,13 @@ name: Dependency Audit
 # Weekly `npm audit` of the lockfile, so an advisory published between two
 # pull requests is noticed without waiting for the next CI run. CI runs the
 # same command on every push and pull request (ci.yml).
+#
+# And OSV-Scanner over the same lockfile: OSV aggregates the GitHub Advisory
+# Database with every other ecosystem feed, and it saw the three
+# brace-expansion advisories of 2026-09-29 before `npm audit` did (the 1.0.0
+# audit, V-06). Installed as a Go module at a fixed version, so the Go
+# checksum database verifies it — no container image referenced by a
+# mutable tag, no new action.
 
 on:
   schedule:
@@ -48,3 +55,39 @@ jobs:
 
       - name: Audit dependencies
         run: npm audit --audit-level=high
+
+  osv:
+    name: OSV-Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit # 2026-10-01: the Go toolchain, module proxy and OSV endpoints are not baselined yet
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # osv-scanner 2.6.0 needs Go 1.27; setup-go pins GOTOOLCHAIN=local, so
+      # the line is asked for here rather than fetched behind its back.
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.27'
+          cache: false
+
+      - name: Install osv-scanner (pinned, checksum-verified)
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.6.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Exits non-zero on any known vulnerability, development dependencies
+      # included: a dev package runs in the release build.
+      - name: Scan the lockfile
+        run: osv-scanner scan source --lockfile package-lock.json

@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 212342,
-      "approxTokens": 53086
+      "bytes": 212874,
+      "approxTokens": 53219
     },
     {
       "url": "llms-recipes.txt",
@@ -163,8 +163,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 11113,
-      "approxTokens": 2778
+      "bytes": 11645,
+      "approxTokens": 2911
     },
     {
       "title": "Errors, diagnostics and reasons",

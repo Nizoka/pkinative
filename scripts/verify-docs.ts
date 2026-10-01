@@ -15,8 +15,8 @@
  *
  * Usage:
  *   npm run verify:docs                              # offline, hermetic — safe in CI
- *   npx tsx scripts/verify-docs.ts --online          # also the rules that may reach the network (none today:
- *                                                    #   the npm registry is scripts/check-npm-drift.ts)
+ *   npx tsx scripts/verify-docs.ts --online          # also the rules that reach the network: external-links probes
+ *                                                    #   every cited URL (the npm registry is scripts/check-npm-drift.ts)
  *   npx tsx scripts/verify-docs.ts --strict          # warnings fail too
  *   npx tsx scripts/verify-docs.ts --json            # machine-readable
  *   npx tsx scripts/verify-docs.ts --only <rule>     # one rule

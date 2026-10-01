@@ -1,0 +1,41 @@
+# REUSE 3.3 (https://reuse.software/spec-3.3/): the copyright and licence of
+# every file, in one place, so no source file carries a header — the module
+# headers stay as AGENTS.md describes them, and the line numbers mutation
+# testing records stay stable. `reuse lint` must report the project
+# compliant; the verify-docs rule `reuse-shape` holds this file's shape.
+#
+# Order matters: when several annotations match a file, the last one wins.
+version = 1
+SPDX-PackageName = "pkinative"
+SPDX-PackageSupplier = "Nizoka — Plika"
+SPDX-PackageDownloadLocation = "https://github.com/Nizoka/pkinative"
+
+# Everything pkinative writes: the code, the tests, the scripts, the docs,
+# the site and its images.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nizoka — Plika (https://plika.app)"
+SPDX-License-Identifier = "MIT"
+
+# Foreign certificates committed as test fixtures, byte for byte as their
+# issuers publish them (tests/fixtures/PROVENANCE.md).
+[[annotations]]
+path = [
+    "tests/fixtures/certs/isrg-root-x1.der",
+    "tests/fixtures/certs/isrg-root-x2.der",
+    "tests/fixtures/certs/lets-encrypt-e7.der",
+    "tests/fixtures/certs/lets-encrypt-r12.der",
+    "tests/fixtures/certs/letsencrypt-org-leaf.der",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "Internet Security Research Group"
+SPDX-License-Identifier = "LicenseRef-public-certificate"
+
+# The example certificate of RFC 8410 §10.2, a code component of an IETF
+# document: the Revised BSD License under the IETF Trust Legal Provisions.
+[[annotations]]
+path = "tests/fixtures/certs/rfc8410-x25519.der"
+precedence = "override"
+SPDX-FileCopyrightText = "2018 IETF Trust and the persons identified as the document authors"
+SPDX-License-Identifier = "BSD-3-Clause"

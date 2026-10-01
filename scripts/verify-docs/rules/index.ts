@@ -25,6 +25,8 @@ import { REGISTRY_RULES } from './registries.js';
 import { SHOWCASE_RULES } from './showcase.js';
 import { SITE_RULES } from './site.js';
 import { CURRENCY_RULES } from './currency.js';
+import { LINK_RULES } from './links.js';
+import { LICENSING_RULES } from './licensing.js';
 import { VERSION_RULES } from './versions.js';
 
-export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...FREEZE_RULES, ...CONTRACT_RULES, ...PACKAGE_RULES, ...CONFORMANCE_RULES, ...BENCH_RULES, ...COVERAGE_RULES, ...CVE_RULES, ...SITE_RULES, ...SHOWCASE_RULES, ...DESIGN_RULES, ...ADR_RULES, ...PROSE_RULES, ...CURRENCY_RULES];
+export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...FREEZE_RULES, ...CONTRACT_RULES, ...PACKAGE_RULES, ...CONFORMANCE_RULES, ...BENCH_RULES, ...COVERAGE_RULES, ...CVE_RULES, ...SITE_RULES, ...SHOWCASE_RULES, ...DESIGN_RULES, ...ADR_RULES, ...PROSE_RULES, ...CURRENCY_RULES, ...LINK_RULES, ...LICENSING_RULES];

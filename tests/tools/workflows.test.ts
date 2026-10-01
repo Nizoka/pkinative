@@ -668,6 +668,15 @@ describe('dependency review and audit', () => {
         expect(audit).toMatch(/run: npm audit --audit-level=high/);
     });
 
+    it('should scan the lockfile with OSV-Scanner weekly, installed at a fixed version the Go checksum database verifies', () => {
+        const audit = readWorkflow('audit.yml');
+        const osv = audit.slice(audit.indexOf('\n  osv:\n'));
+        expect(osv.length).toBeLessThan(audit.length);
+        expect(osv).toMatch(/go install github\.com\/google\/osv-scanner\/v2\/cmd\/osv-scanner@v\d+\.\d+\.\d+\n/);
+        expect(osv).toMatch(/run: osv-scanner scan source --lockfile package-lock\.json/);
+        expect(osv).not.toMatch(/docker:\/\/|osv-scanner-action/);
+    });
+
     it('should carry the contributor defaults in .npmrc, .node-version and .gitattributes', () => {
         expect(readText('.npmrc')).toBe('ignore-scripts=true\nfund=false\naudit-level=high\n');
         expect(readText('.node-version')).toBe('22\n');

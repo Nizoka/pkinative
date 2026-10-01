@@ -119,6 +119,10 @@ Every certificate and DER blob is attacker-controlled (`.github/instructions/sec
 - No secret-dependent cryptography, no `eval`, no dynamic `import()`, no I/O in the engine.
 - Vulnerabilities are reported privately ([SECURITY.md](SECURITY.md)), never in an issue or a pull request.
 
+## Licensing
+
+Every file is MIT, owned as `LICENSE` says, through the catch-all annotation of [REUSE.toml](REUSE.toml) (REUSE 3.3): no source file carries a licence header. A file someone else wrote — a fixture with foreign provenance, a vendored text — gets its own annotation in `REUSE.toml`, after the catch-all, with its real copyright and SPDX identifier, and that licence's text in `LICENSES/`; a fixture is also listed in `tests/fixtures/PROVENANCE.md`. `npm run verify:docs` (rule `reuse-shape`) holds the two together offline; `reuse lint` (`pip install "reuse[charset-normalizer]"`, then `python -m reuse lint`) proves the whole project compliant before a release.
+
 ## Conformance
 
 pkinative is held to external corpora rather than to its own encoder ([conformance guide](docs/guides/conformance.md)):

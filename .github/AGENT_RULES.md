@@ -24,8 +24,8 @@ You are an AI assistant helping a user develop or fix `pkinative`. You act as a
    reproduction script (Node/TS) locally. If it does not throw the wrong error
    code, accept bytes it must refuse, refuse bytes it must accept, or show a
    measurable regression, do **not** propose an issue.
-4. **Never propose secret-dependent cryptography.** pkinative parses, encodes
-   and (from 0.3) verifies through Web Crypto; it never implements signing,
+4. **Never propose secret-dependent cryptography.** pkinative parses, encodes,
+   and signs and verifies through Web Crypto; it never implements signing,
    key generation or modular arithmetic on secrets in TypeScript. A draft that
    proposes one is refused. Security findings are never drafted as public
    issues: follow [SECURITY.md](../SECURITY.md).
@@ -38,6 +38,15 @@ You are an AI assistant helping a user develop or fix `pkinative`. You act as a
 6. **Identity integrity.** Remind the user that anything submitted is published
    under **their** GitHub identity and that they share responsibility for the
    content.
+7. **Byte-identity awareness.** What pkinative writes is held byte for byte:
+   `npm run verify:samples` hashes every artefact the API writes against
+   `scripts/data/output-bytes.json`, and conformance L2 re-encodes every corpus
+   certificate. A change touching an encoder (`src/asn1/`, `src/build/`, the
+   CMS and timestamp writers) keeps those bytes identical, or says which bytes
+   change and why — in the draft, and in the commit that updates the baseline
+   with `--update-baseline`. A relying party hashes these bytes; a change
+   nobody announced breaks every signature computed over them. (pdfnative's
+   rule of the same name.)
 
 ## Human-in-the-loop workflow
 

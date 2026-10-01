@@ -1,0 +1,15 @@
+Public certificates, redistributed as test fixtures
+
+The files this identifier covers are X.509 certificates that their issuers
+publish for anyone to fetch, store and relay, because relaying them is what a
+certificate is for: CA certificates published by the Internet Security
+Research Group (Let's Encrypt) at https://letsencrypt.org/certificates/, and
+an end-entity certificate served to every TLS client and logged in public
+Certificate Transparency logs.
+
+pkinative claims no copyright in them and grants no licence to them. They are
+committed unmodified, byte for byte as published, so that a parser bug cannot
+be baked into both a fixture and its reading. Where each came from, when, its
+SHA-256 and the terms under which it is published are recorded in
+tests/fixtures/PROVENANCE.md, which tests/docs/fixture-budget.test.ts holds to
+the files.

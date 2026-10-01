@@ -5,6 +5,7 @@ import { createFsContext, createMemoryContext, loadTextTree } from '../../script
 import { RULES } from '../../scripts/verify-docs/rules/index.js';
 import { PRE_1_0_PROSE } from '../../scripts/verify-docs/rules/freeze.js';
 import { findStaleMilestones } from '../../scripts/verify-docs/rules/currency.js';
+import { brokenBecause, externalLinks, judgeLinks, type ProbeResult } from '../../scripts/verify-docs/rules/links.js';
 
 /**
  * Every verify-docs rule, proven in both directions. The repository must pass
@@ -164,6 +165,12 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A replay renamed without its registry row: the row now names a test
     // that does not exist, and the claim and its proof come apart.
     'cve-class-parity': (f) => edit(f, 'tests/security/cve-classes.test.ts', "it('CVE-2020-0601 (CurveBall):", "it('CVE-2020-0601 (CurveBall), renamed:"),
+    // A citation sent over plain HTTP: the one external-links defect the
+    // hermetic gate can see without a network.
+    'external-links': (f) => edit(f, 'README.md', /\n$/, '\nSee [the RFC](http://www.rfc-editor.org/rfc/rfc5280).\n'),
+    // A foreign fixture dropped from its annotation: the catch-all would then
+    // relicense a certificate ISRG published as pkinative's MIT.
+    'reuse-shape': (f) => edit(f, 'REUSE.toml', '    "tests/fixtures/certs/lets-encrypt-r12.der",\n', ''),
     // The 1.0.0 audit's own cases: a promise to a version long released, on
     // the npm front page, and a reason code that was never registered.
     'stale-milestone': (f) => edit(f, 'README.md', /\n$/, '\nNo signature verification before 0.3; it arrives in 0.3.\n'),
@@ -812,5 +819,64 @@ describe('standards-evidence, what it resolves', () => {
         edit(files, 'docs/guides/standards.md', from, to);
         const problems = await runRules(createMemoryContext(files), RULES, 'standards-evidence');
         expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining(message) })]));
+    });
+});
+
+describe('external-links, what it reads and what it reports', () => {
+    it('should read Markdown targets, autolinks, attributes and bare URLs, and skip code and reserved hosts', () => {
+        const md = [
+            'A [spec](https://www.rfc-editor.org/rfc/rfc5280) and <https://datatracker.ietf.org/>.',
+            'Bare: https://openssl.org/docs, end.',
+            '`npm install https://github.com/x/y/releases/download/v1/y.tgz` is code.',
+            '```sh',
+            'curl https://pkinative.dev/llms.txt',
+            '```',
+            'Reserved: https://example.com/a and https://ca.test/b.',
+        ].join('\n');
+        expect(externalLinks('docs/guides/x.md', md).map((l) => `${String(l.line)} ${l.url}`)).toEqual([
+            '1 https://www.rfc-editor.org/rfc/rfc5280',
+            '1 https://datatracker.ietf.org/',
+            '2 https://openssl.org/docs',
+        ]);
+        const html = '<svg xmlns="http://www.w3.org/2000/svg"></svg>\n<a href="https://zipnative.dev">z</a> <code>https://code.example.org/x</code>\n<script type="application/ld+json">{"@context":"https://schema.org"}</script>';
+        expect(externalLinks('docs/index.html', html).map((l) => l.url)).toEqual(['https://zipnative.dev']);
+    });
+
+    it.each<[string, ProbeResult, string | null]>([
+        ['a 404', { status: 404 }, 'answers 404'],
+        ['a 410', { status: 410 }, 'answers 410'],
+        ['a host that no longer resolves', { failure: 'ENOTFOUND' }, 'its host no longer resolves (ENOTFOUND)'],
+        ['a 403 from a bot wall', { status: 403 }, null],
+        ['a 429', { status: 429 }, null],
+        ['a 503', { status: 503 }, null],
+        ['a timeout', { failure: 'TimeoutError' }, null],
+        ['a 200', { status: 200 }, null],
+    ])('should judge %s', (_what, result, expected) => {
+        expect(brokenBecause(result)).toBe(expected);
+    });
+
+    it('should probe each distinct URL once and report it where it first appears', async () => {
+        const asked: string[] = [];
+        const links = [
+            { url: 'https://gone.example.net/a', file: 'README.md', line: 3 },
+            { url: 'https://gone.example.net/a', file: 'docs/guides/b.md', line: 9 },
+            { url: 'https://fine.example.net/', file: 'README.md', line: 4 },
+        ];
+        const problems = await judgeLinks(links, async (url) => { asked.push(url); return { status: url.includes('gone') ? 404 : 200 }; });
+        expect(asked.sort()).toEqual(['https://fine.example.net/', 'https://gone.example.net/a']);
+        expect(problems).toEqual([expect.objectContaining({ file: 'README.md', line: 3, message: expect.stringContaining('answers 404') })]);
+    });
+});
+
+describe('reuse-shape, what it holds', () => {
+    it.each([
+        ['a licence text nobody uses', (f: Record<string, string>) => { f['LICENSES/Apache-2.0.txt'] = 'Apache License\n'; }, 'LICENSES/Apache-2.0.txt', 'no annotation of REUSE.toml uses this licence'],
+        ['a licence used without its text', (f: Record<string, string>) => { delete f['LICENSES/BSD-3-Clause.txt']; }, 'REUSE.toml', 'LICENSES/BSD-3-Clause.txt does not exist'],
+        ['a catch-all that disagrees with package.json', (f: Record<string, string>) => { f['REUSE.toml'] = (f['REUSE.toml'] ?? '').replace('SPDX-License-Identifier = "MIT"', 'SPDX-License-Identifier = "Apache-2.0"'); f['LICENSES/Apache-2.0.txt'] = 'x\n'; }, 'REUSE.toml', 'package.json says MIT'],
+    ])('should fire on %s', async (_what, mutate, file, message) => {
+        const files = { ...TREE };
+        mutate(files);
+        const problems = await runRules(createMemoryContext(files), RULES, 'reuse-shape');
+        expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ file, message: expect.stringContaining(message) })]));
     });
 });
