@@ -102,7 +102,7 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // One edit, both halves: the comment states no reason, and the count is now 2 against a declared 1.
     'coverage-ignore-budget': (f) => edit(f, 'src/core/bytes.ts', /^const HEX_DIGITS/m, '/* v8 ignore next */\nconst HEX_DIGITS'),
     // A field L4 compares, dropped from the guide that documents the contract.
-    'validator-record-parity': (f) => edit(f, 'docs/guides/conformance.md', '`spkiKeyFp256`', '`spkiKeyFingerprint`'),
+    'validator-record-parity': (f) => edit(f, 'docs/guides/conformance.md', /`spkiKeyFp256`/g, '`spkiKeyFingerprint`'),
     // Strip the first integrity attribute — the Prism theme stylesheet.
     'cdn-sri': (f) => edit(f, 'docs/index.html', /\s+integrity="sha384-[^"]+"/, ''),
     // The landing nav drifting from the one the generator writes into the guides.
@@ -134,6 +134,9 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The workflow stops running the write direction, so the matrix becomes a
     // script nothing invokes on the three platforms that matter.
     'interop-matrix-declared': (f) => edit(f, '.github/workflows/conformance.yml', 'run: npm run interop', 'run: echo skipped'),
+    // A reviewed lint warning loses its reason: the waiver now silences a
+    // finding instead of recording it.
+    'lint-waiver-reviewed': (f) => edit(f, 'scripts/data/lint-waivers.json', /"reason": "The CA\/Browser Forum baseline requirements \(7\.1\.2\.7\.1\)[^"]*"/, '"reason": "TODO"'),
     // A reason message takes the prefix that belongs to thrown errors, which
     // is how a log reader stops being able to tell a verdict from an
     // exception. Decided from the syntax tree, so this has to be a real
@@ -179,11 +182,45 @@ describe('verify-docs rule table', () => {
     it.each([
         ['a declared key-container case the guide does not describe', '`openssl:pkcs12-legacy`', '`openssl -legacy`', 'does not describe the key-container case `openssl:pkcs12-legacy`'],
         ['a key-container case the guide describes and nobody declares', '`openssl:pkcs8-pbes1`', '`openssl:pkcs8-pbes1` and `openssl:pkcs8-scrypt`', 'describes the key-container case `openssl:pkcs8-scrypt`'],
+        ['a declared read case the guide does not describe', '`gnutls-certtool:crl`', '`certtool crl`', 'does not describe the read case `gnutls-certtool:crl`'],
+        ['a read case the guide describes and nobody declares', '`openssl:crl-delta`', '`openssl:crl-delta` and `openssl:crl-indirect`', 'describes the read case `openssl:crl-indirect`'],
     ])('should fire interop-matrix-declared on %s', async (_what, from, to, message) => {
         const files = { ...TREE };
         edit(files, 'docs/guides/conformance.md', from, to);
         const problems = await runRules(createMemoryContext(files), RULES, 'interop-matrix-declared');
         expect(problems).toEqual([expect.objectContaining({ file: 'docs/guides/conformance.md', message: expect.stringContaining(message) })]);
+    });
+
+    it.each([
+        // The two places --require-all must reach, and the one install a
+        // required Linux tool depends on.
+        ['the workflow without --require-all', '.github/workflows/conformance.yml', 'npm run interop -- --require-all', 'npm run interop', 'runs the matrix without --require-all'],
+        ['the release gate without --require-all', 'scripts/gate.ts', "env: { PKINATIVE_INTEROP_REQUIRE_ALL: '1' }", 'env: {}', 'does not pass PKINATIVE_INTEROP_REQUIRE_ALL'],
+        ['a required Linux tool the workflow does not install', '.github/workflows/conformance.yml', 'go install github.com/zmap/zlint/v3/cmd/zlint@v3.7.2', 'echo zlint', 'does not install zlint'],
+        ['a tool the notices do not credit', 'THIRD-PARTY-NOTICES.md', '| `java-keytool` |', '| java-keytool |', 'does not credit `java-keytool`'],
+    ])('should fire interop-matrix-declared on %s', async (_what, file, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, file, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'interop-matrix-declared');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
+    });
+
+    it('should fire validator-record-parity on an L4 validator the guide does not name', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/conformance.md', /`go-x509`/g, 'Go');
+        const problems = await runRules(createMemoryContext(files), RULES, 'validator-record-parity');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/guides/conformance.md', message: expect.stringContaining('does not name the L4 validator `go-x509`') })]);
+    });
+
+    it.each([
+        ['a waiver of an unknown linter', '"tool": "pkilint",\n      "lint": "pkix.certificate_policies_policy_has_qualifier"', '"tool": "openssl",\n      "lint": "pkix.certificate_policies_policy_has_qualifier"', 'not an implemented linter'],
+        ['a zlint error lint waived without saying it answered WARNING', 'Despite its e_ prefix this lint returns a WARNING', 'Despite its e_ prefix this lint returns a warning', 'without saying why it answered WARNING'],
+        ['a waiver that names no artefact', '"artefacts": ["*/leaf-rich"]', '"artefacts": []', 'does not say which artefacts'],
+    ])('should fire lint-waiver-reviewed on %s', async (_what, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, 'scripts/data/lint-waivers.json', from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'lint-waiver-reviewed');
+        expect(problems).toEqual([expect.objectContaining({ file: 'scripts/data/lint-waivers.json', message: expect.stringContaining(message) })]);
     });
 
     it('should fire error-parity on a throw site whose message lacks the pkinative prefix', async () => {

@@ -24,20 +24,39 @@ PKITS is distributed as a ZIP archive and nothing else, so it is pinned twice: b
 |---|---|---|---|---|
 | RFC 5280, Internet X.509 PKI Certificate and CRL Profile (plain text) | https://www.rfc-editor.org/rfc/rfc5280 | `a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d` (SHA-256 of `rfc5280.txt`; an RFC has no version but its number) | `rfc5280.txt`, from https://www.rfc-editor.org/rfc/rfc5280.txt | Copyright (C) The IETF Trust (2008), BCP 78 |
 
-RFC 5280 is fetched and pinned like the corpora above, by `npm run conformance:fetch`, and read by conformance level L5 to check that every clause of `scripts/lib/clauses.ts` quotes it verbatim and that every requirement sentence of its §4.1 and §4.2 is accounted for. The document is not redistributed. Individual sentences of it are quoted, each with its section, in `scripts/lib/clauses.ts` and `scripts/data/rfc5280-requirements.json`, as the subject of that review; the RFC's copyright notice is *"Copyright (C) The IETF Trust (2008). This document is subject to the rights, licenses and restrictions contained in BCP 78, and except as set forth therein, the authors retain all their rights"*, and the IETF Trust Legal Provisions (https://trustee.ietf.org/license-info) govern its use. The ITU-T X.690 sentences quoted by three clauses are not pinned and not checked this way.
+RFC 5280 is fetched and pinned like the corpora above, by `npm run conformance:fetch`, and read by conformance level L5 to check that every clause of `scripts/lib/clauses.ts` quotes it verbatim and that every requirement sentence of its §4.1 and §4.2 is accounted for. The document is not redistributed. Individual sentences of it are quoted, each with its section, in `scripts/lib/clauses.ts` and `scripts/data/rfc5280-requirements.json`, as the subject of that review; the RFC's copyright notice is *"Copyright (C) The IETF Trust (2008). This document is subject to the rights, licenses and restrictions contained in BCP 78, and except as set forth therein, the authors retain all their rights"*, and the IETF Trust Legal Provisions (https://trustee.ietf.org/license-info) govern its use. The ITU-T X.690 sentences quoted by three clauses are not pinned and not checked this way: they quote Recommendation ITU-T X.690 (02/2021), published by the ITU only as a PDF, were compared with its text by hand, and `tests/conformance/clauses.test.ts` holds them to that reading.
 
 ## Committed test fixtures
 
 `tests/fixtures/certs/` holds six public certificates of foreign provenance — the ISRG roots, two Let's Encrypt intermediates, one Let's Encrypt end-entity certificate and the RFC 8410 §10.2 example. [tests/fixtures/PROVENANCE.md](tests/fixtures/PROVENANCE.md) lists the source, retrieval date, SHA-256 and terms of each; `tests/docs/fixture-budget.test.ts` holds the files to those hashes. Certificates are public data published for distribution; none carries a private key.
 
-## Cross-implementation validators (already on the runner, never fetched)
+## Cross-implementation validators (run, never vendored)
 
-Conformance level L4 confronts pkinative's reading of a certificate with other implementations'. Each of them is a toolchain the runner already provides:
+Conformance level L4 confronts pkinative's reading of a certificate with other implementations'. Each of them is a toolchain the runner already provides, or one the conformance workflow installs at a pinned version:
 
 - **Microsoft CryptoAPI**, reached through .NET's `X509Certificate2` under Windows PowerShell, which ships with Windows.
+- **Go crypto/x509**, through `scripts/validators/go-x509/main.go` (standard library only), with the Go toolchain `actions/setup-go` installs at a commit-pinned release on the Linux runner.
+- **pyca/cryptography**, through `scripts/validators/python-cryptography.py`, installed on the Linux runner from `scripts/data/interop-python-requirements.txt`, pinned by version and by the SHA-256 of every file (`pip --require-hashes`).
 - **OpenSSL**, through the `openssl` command line at level L3 — the OpenSSL build of the runner image, and separately the one inside Node.js.
 
-None of these is downloaded, vendored, cached or checksum-pinned by this repository, and none is redistributed: the gate invokes what the platform already has, so it adds no supply-chain surface of its own. That is also the rule for admitting a new one. They are used as independent readers, never as libraries, and no code of theirs enters `dist/`.
+None of these is vendored, cached or redistributed by this repository: the gate invokes them, and what it installs it pins, so nothing reaches the gate that a reviewer did not pin. That is also the rule for admitting a new one. They are used as independent readers, never as libraries, and no code of theirs enters `dist/`.
+
+## Interoperability matrix tools (run, never vendored)
+
+`npm run interop` (`scripts/run-interop.ts`) hands what pkinative writes to foreign tools and verifies what they write. Each is invoked as a separate program; none is vendored, redistributed or linked, and no code of theirs enters `dist/`. Where the conformance workflow installs one, it pins it.
+
+| Tool id | What it is | Where it comes from |
+|---|---|---|
+| `openssl` | The OpenSSL command line | the runner image |
+| `windows-cryptoapi` | Microsoft CryptoAPI through .NET Framework's `X509Certificate2` | Windows PowerShell, part of Windows |
+| `dotnet` | .NET's `X509Certificate2`, `CertificateRequest`, `SignedCms` and `Rfc3161TimestampRequest` | PowerShell 7, part of the runner image |
+| `gnutls-certtool` | GnuTLS `certtool` | the Ubuntu archive (`gnutls-bin`), installed by the workflow |
+| `go-x509` | Go `crypto/x509` | `actions/setup-go`, pinned by commit |
+| `python-cryptography` | pyca/cryptography | `scripts/data/interop-python-requirements.txt`, pinned by version and SHA-256 |
+| `java-keytool` | The JDK's `CertificateFactory`, PKIX validator and `keytool` | the runner image, wherever it carries a JDK |
+| `gpgsm` | GnuPG's `gpgsm` over libksba | the Ubuntu archive, installed by the workflow |
+| `zlint` | zlint v3, the Web PKI certificate linter | `go install github.com/zmap/zlint/v3/cmd/zlint@v3.7.2`, verified by the Go checksum database |
+| `pkilint` | DigiCert pkilint | `scripts/data/interop-python-requirements.txt`, pinned by version and SHA-256 |
 
 ## Not included
 

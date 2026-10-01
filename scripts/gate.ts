@@ -187,8 +187,11 @@ export const STEPS: readonly Step[] = [
     // the arrow L0-L5 never point along, and the one with no corpus, because
     // nobody publishes a set of certificates a library is supposed to have
     // written. It shells out to whatever is installed, so it is publish-only:
-    // a contributor laptop without OpenSSL must not go red for that.
-    { id: 'interop', npmScript: 'interop', profiles: ['publish'] },
+    // a contributor laptop without OpenSSL must not go red for that. On the
+    // release machine it runs as the conformance workflow does, with
+    // --require-all: a tool REQUIRED_TOOLS (scripts/lib/interop.ts) names for
+    // this platform that is missing fails the gate instead of skipping.
+    { id: 'interop', npmScript: 'interop', profiles: ['publish'], env: { PKINATIVE_INTEROP_REQUIRE_ALL: '1' } },
 ];
 
 // ── Running a step ──────────────────────────────────────────────────

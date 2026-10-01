@@ -232,8 +232,8 @@ export function negativeCanaries(real: Uint8Array): ReadonlyArray<{ readonly why
 export const sha256Hex = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 /** Run a command, capturing everything, and never throw. */
-export function run(command: string, args: readonly string[], timeoutMs = 900_000): { status: number | null; stdout: string; stderr: string } {
-    const result = spawnSync(command, [...args], { encoding: 'utf8', windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
+export function run(command: string, args: readonly string[], timeoutMs = 900_000, env: Readonly<Record<string, string>> = {}): { status: number | null; stdout: string; stderr: string } {
+    const result = spawnSync(command, [...args], { encoding: 'utf8', windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, ...env } });
     return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? (result.error?.message ?? '') };
 }
 
@@ -253,15 +253,17 @@ const EMITTERS = join(dirname(fileURLToPath(import.meta.url)), '..', 'validators
 /**
  * The implementations pkinative is confronted with.
  *
- * The rule for membership is that the toolchain is **already on the runner**:
- * nothing here is downloaded, vendored, cached or checksum-pinned, so the
- * conformance gate adds no supply-chain surface of its own. A lineage that
- * needs an install is not worth what it would cost.
+ * The rule for membership is that the toolchain is **already on the runner**,
+ * or installed by the conformance workflow at a version pinned in it —
+ * actions/setup-go by commit SHA, a pip requirements file by version and
+ * SHA-256 (scripts/data/interop-python-requirements.txt) — so nothing reaches
+ * the gate that a reviewer did not pin. Nothing is vendored or cached.
  *
- * Still to come, each one entry plus one small program, and each deliberately
- * absent until it can be run and proved rather than written blind: Go's
- * `crypto/x509`, Java's `CertificateFactory`, and .NET's own reader on Linux
- * and macOS — three lineages independent of both OpenSSL and CryptoAPI.
+ * Three lineages, none sharing code with another or with OpenSSL: CryptoAPI
+ * (Windows), Go's crypto/x509 and pyca/cryptography's Rust parser (Linux,
+ * where the workflow installs them). Still to come, each deliberately absent
+ * until it can be run and proved rather than written blind: Java's
+ * `CertificateFactory`, and .NET's own reader on Linux and macOS.
  */
 export const VALIDATORS: readonly ValidatorSpec[] = [
     {
@@ -274,6 +276,35 @@ export const VALIDATORS: readonly ValidatorSpec[] = [
         },
         emit: (blobPath, outPath) => {
             const result = run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(EMITTERS, 'windows-cryptoapi.ps1'), blobPath, outPath]);
+            return { ok: result.status === 0, stderr: result.stderr };
+        },
+    },
+    {
+        id: 'go-x509',
+        lineage: 'Go crypto/x509, its own ASN.1 with no C underneath',
+        platforms: ['linux'],
+        probe: () => {
+            const probe = run('go', ['version'], 60_000);
+            return probe.status === 0 ? probe.stdout.trim() : null;
+        },
+        // All six fields, tbsFp256 included: RawSubject, RawIssuer and
+        // RawTBSCertificate are the slices Go itself read.
+        emit: (blobPath, outPath) => {
+            const result = run('go', ['run', join(EMITTERS, 'go-x509', 'main.go'), 'l4', blobPath, outPath], 900_000, { CGO_ENABLED: '0' });
+            return { ok: result.status === 0, stderr: result.stderr };
+        },
+    },
+    {
+        id: 'python-cryptography',
+        lineage: 'pyca/cryptography, rust-asn1 and the cryptography-x509 crate',
+        platforms: ['linux'],
+        probe: () => {
+            const probe = run('python3', ['-c', 'import cryptography; print(cryptography.__version__)'], 60_000);
+            return probe.status === 0 ? `cryptography ${probe.stdout.trim()}` : null;
+        },
+        // Five fields: pyca exposes no slice of the SubjectPublicKeyInfo it read.
+        emit: (blobPath, outPath) => {
+            const result = run('python3', [join(EMITTERS, 'python-cryptography.py'), 'l4', blobPath, outPath], 900_000, { PYTHONIOENCODING: 'utf-8' });
             return { ok: result.status === 0, stderr: result.stderr };
         },
     },

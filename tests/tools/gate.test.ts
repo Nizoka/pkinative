@@ -19,6 +19,12 @@ describe('the gate step table', () => {
         expect(STEPS.find((s) => s.id === 'test:coverage')?.env).toEqual({ GATE: '1', GATE_REQUIRE_ARTIFACTS: '1' });
     });
 
+    it('should run the interoperability matrix with --require-all, as the conformance workflow does', () => {
+        // A required tool missing from the release machine fails the gate
+        // instead of being skipped (scripts/run-interop.ts reads the variable).
+        expect(STEPS.find((s) => s.id === 'interop')?.env).toEqual({ PKINATIVE_INTEROP_REQUIRE_ALL: '1' });
+    });
+
     it('should probe the bundle right after dist-check', () => {
         expect(indexOf('bundle-check')).toBe(indexOf('dist-check') + 1);
         expect(STEPS.find((s) => s.id === 'bundle-check')?.inline, 'bundle-check is an inline step').toBeTypeOf('function');

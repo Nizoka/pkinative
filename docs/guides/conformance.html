@@ -100,8 +100,9 @@
       <li><p><strong>L3 — OpenSSL.</strong> Every parsed certificate agrees with <code>node:crypto.X509Certificate</code> on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 200 agrees with the <code>openssl</code> command-line tool — two builds, the one inside Node and the system one. What is cross-checked is the values the tool reads, never its acceptance policy: a disagreement on a serial or a fingerprint always fails, while a non-reference implementation refusing a certificate (LibreSSL on macOS) is reported as not applicable, and fails only if it reads too few to be a cross-check at all.</p>
       </li>
       <li><p><strong>L4 — other implementations.</strong> There is no veraPDF for the PKI: no single reference a parser can be held to. The honest equivalent is confrontation, so a sample of the corpus is read again by implementations written by other people, in other languages, and the readings must agree. What is compared is never rendered text — every implementation prints a distinguished name its own way — but SHA-256 of exact DER slices: <code>subjectFp256</code> and <code>issuerFp256</code> over the encoded subject and issuer, <code>spkiKeyFp256</code> over the public key octets, <code>tbsFp256</code> over the signed bytes, plus the exact identifiers <code>keyAlgOid</code> and <code>version</code>. Each validator declares in its output which of those it can supply, so a tool that cannot reach a field says so instead of being special-cased.</p>
+      <p>Three validators, three lineages that share no code with OpenSSL or with each other. On Windows, <code>windows-cryptoapi</code> reads through CryptoAPI and supplies five fields — every one but <code>tbsFp256</code>, which <code>X509Certificate2</code> does not expose. On Linux, <code>go-x509</code> reads through Go&#39;s <code>crypto/x509</code> and supplies all six, <code>tbsFp256</code> included, from the slices Go itself read; <code>python-cryptography</code> reads through pyca/cryptography&#39;s Rust parser and supplies five — every one but <code>spkiKeyFp256</code>, because pyca exposes no slice of the key it read. On macOS none runs, and the report says so. Over the 200-certificate sample both Linux validators agree with pkinative on every certificate they read, with the positive canary agreeing and no negative canary accepted.</p>
       <p>Three guards make agreement mean something. A <strong>positive canary</strong> every implementation reads is submitted first, so one that rejects everything is unmasked (<code>VACUOUS</code>). <strong>Negative canaries</strong> — a truncated certificate, no bytes at all, octets that are not ASN.1, a length that runs past the input — are submitted last, so one that accepts everything is unmasked (<code>XPASS</code>). A <strong>footer</strong> states how many certificates were read, so one that stops halfway and exits 0 is caught by the contract rather than by a guess. Neither canary verdict can be waived.</p>
-      <p>A real difference between two implementations is recorded in <code>scripts/data/validator-disagreements.json</code> with the reason it is accepted, the way refusals are recorded in <code>limbo-refusals.json</code> — never silenced, never a permanent red. Today that file is empty. Every toolchain the matrix uses is already on the runner: nothing is downloaded, vendored, cached or checksum-pinned, so the gate adds no supply-chain surface of its own. A validator that does not exist on a platform is reported as not applicable, never as a pass.</p>
+      <p>A real difference between two implementations is recorded in <code>scripts/data/validator-disagreements.json</code> with the reason it is accepted, the way refusals are recorded in <code>limbo-refusals.json</code> — never silenced, never a permanent red. Today that file is empty. Every toolchain the matrix uses is on the runner or installed by the conformance workflow at a pinned version — Go through a commit-pinned <code>actions/setup-go</code>, pyca/cryptography from <code>scripts/data/interop-python-requirements.txt</code>, pinned by version and by the SHA-256 of every file — so nothing reaches the gate that a reviewer did not pin, and nothing is vendored. A validator that does not exist on a platform is reported as not applicable, never as a pass; one that should exist there and is missing fails under <code>--require-all</code>.</p>
       </li>
       <li><p><strong>L5 — RFC 5280, clause by clause.</strong> L1 to L4 are all <strong>differential</strong>: they prove agreement, not correctness. If pkinative, OpenSSL and <code>node:crypto</code> were wrong in the same way, L3 would be green. And a red L1 says <em>&quot;certificate <code>ab3f…</code> was refused and the baseline says otherwise&quot;</em> — a regression detector, not an authority.</p>
       <p>L5 makes the claim that is missing, and it is a claim about <strong>attribution</strong>. <code>scripts/lib/clauses.ts</code> holds 25 clauses — 22 of RFC 5280 §4.1 and §4.2, and 3 of the X.690 encoding rules the profile inherits — each quoting the normative sentence it enforces and naming the <code>PkiDiagnosticCode</code> that must report it. <code>scripts/validators/rfc5280-clauses.ts</code> decides each one from the raw bytes through <code>raw-der.ts</code>, without importing <code>src/</code> — two readings that shared a decoder could not disagree. The runner then fails on a violation pkinative is <strong>silent</strong> about, and, for a clause that claims to decide every case its diagnostic covers, on a diagnostic with <strong>no violation behind it</strong>: the two readings disagree, and one of them is wrong.</p>
@@ -138,14 +139,66 @@
       </ul>
       <h2 id="the-write-direction">The write direction <a class="heading-anchor" href="#the-write-direction" aria-label="Link to this section">#</a></h2>
       <p>Everything above points one way: bytes someone else produced, read by pkinative. From 0.3 the arrow also points outward, and that direction has <strong>no corpus</strong> — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.</p>
-      <p><code>npm run interop</code> (<code>scripts/run-interop.ts</code>) hands every artefact of the sample catalogue to each foreign tool it can find, and requires agreement on facts that have exactly one right answer: the serial number as an integer, the subject common name, the DNS names, whether the chain verifies, and whether the PKCS#10 request&#39;s self-signature checks out. The artefacts are the same ones <code>verify:samples</code> freezes by hash, so the bytes a baseline blesses are the bytes OpenSSL is asked to read — two catalogues would each be green about something the other never saw.</p>
-      <p>Three details decide whether the result means anything:</p>
+      <p><code>npm run interop</code> (<code>scripts/run-interop.ts</code>) hands two sets of artefacts to every foreign tool it can find, and requires agreement on facts that have exactly one right answer — a serial number as an integer, a name attribute, the DNS names, whether a chain or a self-signature or a SignedData verifies, the digest and nonce a request carries — never on rendered text.</p>
       <ul>
-      <li><strong>A tool that refuses an artefact is a finding about pkinative.</strong> This is the opposite of the read direction, where a foreign acceptance policy stricter than ours is not our defect. Here the bytes are ours.</li>
-      <li><strong>A tool this runner cannot parse is a defect in the runner, never evidence about the certificate.</strong> The two are separate states because conflating them is how a gate ends up red in one language and green in another: Windows <code>certutil</code> reads the artefacts perfectly and prints <em>&quot;Numéro de série&quot;</em> on a French system, and a runner with two states reported a good certificate as refused.</li>
-      <li><strong>Each tool declares which fields it can supply</strong>, exactly as the L4 validators do, and a tool that compares nothing fails as vacuous. Windows CryptoAPI supplies the serial and the subject — both API values, identical in every locale — and does not supply DNS names, because reaching them from Windows PowerShell 5.1 means <code>X509Extension.Format()</code>, whose output is translated.</li>
+      <li><strong>The frozen samples</strong> of <code>scripts/lib/samples.ts</code>: the bytes <code>verify:samples</code> freezes by hash, so the bytes a baseline blesses are the bytes the tools are asked to read. They are Ed25519 only, because only a deterministic signature has a stable hash.</li>
+      <li><strong>A set generated afresh on every run</strong> (<code>scripts/lib/interop-artefacts.ts</code>), for every other signature family the API writes: RSA PKCS #1 v1.5, RSASSA-PSS with SHA-256, SHA-384 and SHA-512, ECDSA on P-256, P-384 and P-521, and Ed25519. For each: a CA with critical name constraints; a leaf carrying every extension a server certificate carries, a BMPString and a multi-valued RDN in its subject; a leaf shaped by the CA/Browser Forum baseline requirements; a CSR with and without the extensionRequest attribute; CMS SignedData attached, detached and identified by subject key identifier; an OCSP request — then three RFC 3161 TimeStampReqs. Every artefact as DER and as PEM. The keys are made by the harness through Web Crypto <code>generateKey</code>, never by <code>src/</code>, so nothing here has a stable hash and nothing is compared by one.</li>
       </ul>
-      <p>Today <code>openssl</code> and Windows CryptoAPI run, on all three platforms, blocking: the matrix runs inside the <code>conformance</code> job, whose three contexts the ruleset already requires. GnuTLS <code>certtool</code>, Windows <code>certutil</code>, <code>keytool</code>, macOS <code>security</code> and Python <code>cryptography</code> are declared in <code>scripts/lib/interop.ts</code> with the reason each is pending, and <code>interop-matrix-declared</code> holds that list to ROADMAP.md in both directions so a gap cannot quietly disappear. <code>--require-all</code>, which turns a missing tool into a failure, goes on in the commit that lands the last of them.</p>
+      <p>The readers, and what each is asked:</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Tool</th>
+      <th>Reads</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>openssl</code></td>
+      <td>certificates (DER and PEM), the chain with <code>-x509_strict</code>, the TLS purpose and the host name, CSR self-signatures, every SignedData with <code>cms -verify</code> and the content it returns, the OCSP request with <code>-req_text</code>, the TimeStampReqs with <code>ts -query -text</code></td>
+      </tr>
+      <tr>
+      <td><code>windows-cryptoapi</code></td>
+      <td>every certificate, through CryptoAPI under Windows PowerShell 5.1</td>
+      </tr>
+      <tr>
+      <td><code>dotnet</code></td>
+      <td>certificates (DER and PEM), the chain through <code>X509Chain</code> with a custom root and the server-authentication policy — on Windows, CryptoAPI&#39;s chain engine — CSRs through <code>LoadSigningRequest</code>, every SignedData through <code>SignedCms.CheckSignature</code>, the TimeStampReqs through <code>Rfc3161TimestampRequest</code></td>
+      </tr>
+      <tr>
+      <td><code>gnutls-certtool</code></td>
+      <td>certificates, the chain with the host name and the purpose, CSR self-signatures</td>
+      </tr>
+      <tr>
+      <td><code>go-x509</code></td>
+      <td>certificates, the signature and the whole path as a TLS client builds it, CSR self-signatures</td>
+      </tr>
+      <tr>
+      <td><code>python-cryptography</code></td>
+      <td>certificates, each leaf&#39;s signature by its issuer, the Web PKI verifier on the baseline-shaped leaves, CSRs, the certificates a SignedData carries, the OCSP request</td>
+      </tr>
+      <tr>
+      <td><code>java-keytool</code></td>
+      <td>certificates and the PKIX path through the JDK, CSRs through <code>keytool -printcertreq</code></td>
+      </tr>
+      <tr>
+      <td><code>gpgsm</code></td>
+      <td>every SignedData, with the CA in its trust list</td>
+      </tr>
+      <tr>
+      <td><code>zlint</code>, <code>pkilint</code></td>
+      <td>every certificate created: zlint with the RFC sources everywhere and the CA/Browser Forum, Mozilla, Chrome and Apple sources on what is shaped for the Web PKI in a family it admits; pkilint&#39;s <code>lint_pkix_cert</code> on each and <code>lint_pkix_signer_signee_cert_chain</code> on each leaf with its CA</td>
+      </tr>
+      </tbody></table>
+      <p>What decides whether the result means anything (<code>scripts/lib/interop-judge.ts</code>, every rule of it proved to fire by <code>tests/tools/interop.test.ts</code>):</p>
+      <ul>
+      <li><strong>A tool that refuses an artefact is a finding about pkinative.</strong> This is the opposite of the read direction, where a foreign acceptance policy stricter than ours is not our defect. Here the bytes are ours. The one exception is a build that is not the reference — OpenSSL before 3.0, LibreSSL — whose refusals are reported as not applicable, exactly as L3 treats them, while every fact it does read must still agree.</li>
+      <li><strong>A tool this runner cannot parse is a defect in the runner, never evidence about the certificate.</strong> The two are separate states because conflating them is how a gate ends up red in one language and green in another: Windows <code>certutil</code> reads the artefacts perfectly and prints <em>&quot;Numéro de série&quot;</em> on a French system, and a runner with two states reported a good certificate as refused. Libraries are therefore driven by small programs in <code>scripts/validators/</code> that answer in NDJSON with API values; a command line is parsed for values, never for sentences.</li>
+      <li><strong>A known limitation of a tool is reviewed, proved, and must stay true.</strong> <code>TOOL_LIMITATIONS</code> in <code>scripts/lib/interop.ts</code> lists each check a tool cannot pass for a reason that is the tool&#39;s — .NET has no Ed25519, libksba cannot parse a subject-key-identifier signer, pyca reads PKCS #7 version 1 only, pkilint cannot verify an RSASSA-PSS signature, zlint mistakes a BMPString&#39;s zero octets for control characters — each with the control that proved it: the same check failing identically on an artefact OpenSSL made. A limitation whose check starts to pass fails the run as stale.</li>
+      <li><strong>A lint error is never waived; a lint warning is reviewed.</strong> zlint and pkilint must report no error on anything pkinative creates. Every warning is recorded in <code>scripts/data/lint-waivers.json</code> with the reason it is accepted — a commonName the baseline requirements call NOT RECOMMENDED, a subjectKeyIdentifier RFC 5280 asks for and the baseline requirements advise against — and the rule <code>lint-waiver-reviewed</code> holds the file&#39;s shape. A warning nobody reviewed fails the run, and so does a waiver that matched nothing.</li>
+      <li><strong>A tool that compares nothing fails as vacuous.</strong></li>
+      </ul>
+      <p>The matrix runs blocking inside the <code>conformance</code> job, whose three contexts the ruleset already requires, and in the release gate, both with <code>--require-all</code> per platform: a tool <code>REQUIRED_TOOLS</code> names for the runner fails the job when it is missing. On Linux that is <code>openssl</code>, <code>gnutls-certtool</code>, <code>python-cryptography</code>, <code>go-x509</code>, <code>zlint</code> and <code>pkilint</code>, which the workflow installs pinned; on Windows <code>openssl</code>, <code>windows-cryptoapi</code> and <code>dotnet</code>, which the image carries; on macOS <code>openssl</code>, the system build. Windows CryptoAPI runs on Windows only. Every other implemented tool runs where the image carries it and where it has been proved (<code>TOOL_PLATFORMS</code>), and a Windows workstation reaches the Linux readers through WSL. Windows <code>certutil</code> and macOS <code>security</code> are declared in <code>scripts/lib/interop.ts</code> with the reason each is pending, and <code>interop-matrix-declared</code> holds the declarations to ROADMAP.md, THIRD-PARTY-NOTICES.md, this page and the workflow, so a gap cannot quietly disappear.</p>
+      <p>The first run of the extended set found one defect: the RSASSA-PSS AlgorithmIdentifier was written without the NULL after each digest OID, which the CA/Browser Forum baseline requirements fix byte for byte — zlint and pyca&#39;s Web PKI verifier refused every RSASSA-PSS certificate pkinative wrote, while the whole gate had been green, because no foreign tool had ever been shown one.</p>
       <h3 id="key-containers-the-arrow-turned-back">Key containers: the arrow turned back <a class="heading-anchor" href="#key-containers-the-arrow-turned-back" aria-label="Link to this section">#</a></h3>
       <p>pkinative reads PKCS#8 and PKCS#12 and never writes either — it may not encrypt or wrap a key, by policy — so for key containers the same runner points the other way: each implemented tool writes, pkinative reads (<code>scripts/lib/interop-keys.ts</code>, the <code>KEYS</code> lines of <code>npm run interop</code>). Every case is declared in <code>KEY_CONTAINER_CASES</code> of <code>scripts/lib/interop.ts</code>, the runner refuses to evaluate one that is not, and <code>interop-matrix-declared</code> holds that list to this page in both directions. Three things are compared on every file, none of them decided by pkinative alone:</p>
       <ul>
@@ -208,6 +261,108 @@
       </tr>
       </tbody></table>
       <p>The first run found one defect, in the report rather than the reading: a key shrouded under a PKCS#12 scheme, in a file whose certificates sit in contents the same refusal keeps shut — exactly what <code>-legacy</code> and a default Windows export write — was reported as <code>PKI_REASON_PKCS12_KEY_UNMATCHED</code>, whose remedy sends the caller after a certificate that could not have helped. It is now reported under its own scheme. Windows wrote DER at every level <code>parsePkcs12</code> reads; <code>encodingRules: &#39;ber&#39;</code> was not needed for any of it.</p>
+      <h3 id="signed-structures-what-the-tools-sign-pkinative-verifies">Signed structures: what the tools sign, pkinative verifies <a class="heading-anchor" href="#signed-structures-what-the-tools-sign-pkinative-verifies" aria-label="Link to this section">#</a></h3>
+      <p>The same arrow for everything else pkinative verifies and never writes in the tool&#39;s dialect: CMS SignedData, RFC 3161 tokens, OCSP responses and CRLs (<code>scripts/lib/interop-reads.ts</code>, the <code>READS</code> lines). Each tool makes its own keys, its own CA and its own signers, signs, revokes and stamps — so the tool is the oracle: what it signed verifies, what it revoked is revoked, what it stamped is that imprint. Every case is declared in <code>READ_CASES</code> of <code>scripts/lib/interop.ts</code> with the verdict pkinative must reach, and <code>interop-matrix-declared</code> holds that list to the table below in both directions. pkinative is handed only the DER the tool wrote; PEM is unwrapped with Node&#39;s base64, never with pkinative&#39;s own decoder. A case the installed build cannot write is a skip when the tool is not the reference build, and a failure when it is.</p>
+      <table>
+      <thead>
+      <tr>
+      <th>Case</th>
+      <th>Written by</th>
+      <th>pkinative decides</th>
+      </tr>
+      </thead>
+      <tbody><tr>
+      <td><code>openssl:cms-rsa</code></td>
+      <td><code>openssl cms -sign -nodetach</code>, RSA 2048 with PKCS #1 v1.5</td>
+      <td><code>verifySignedData</code> valid</td>
+      </tr>
+      <tr>
+      <td><code>openssl:cms-rsa-pss</code></td>
+      <td><code>openssl cms -sign -keyopt rsa_padding_mode:pss</code>, detached</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>openssl:cms-ecdsa</code></td>
+      <td><code>openssl cms -sign -nodetach -md sha384</code>, ECDSA P-384</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>openssl:cms-ed25519</code></td>
+      <td><code>openssl cms -sign -md sha512</code>, Ed25519, detached</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>openssl:cms-ber-stream</code></td>
+      <td><code>openssl cms -sign -stream -nodetach</code>: indefinite-length BER</td>
+      <td>refused under the default DER rules with a message naming <code>encodingRules: &#39;ber&#39;</code>; valid under them</td>
+      </tr>
+      <tr>
+      <td><code>openssl:cms-tampered</code></td>
+      <td>the attached SignedData with one content octet changed afterwards</td>
+      <td>not valid: <code>PKI_REASON_CMS_DIGEST_MISMATCH</code></td>
+      </tr>
+      <tr>
+      <td><code>openssl:tsp-reply</code></td>
+      <td><code>openssl ts -reply</code> to an <code>openssl ts -query -cert</code>, an RSA TSA whose timeStamping EKU is critical</td>
+      <td><code>verifyTimeStampToken</code> valid against the request and the data; <code>PKI_REASON_TSP_IMPRINT_MISMATCH</code> against other data</td>
+      </tr>
+      <tr>
+      <td><code>openssl:ocsp-good</code></td>
+      <td><code>openssl ocsp -index</code>, answered by a delegated responder (<code>id-kp-OCSPSigning</code>, <code>ocspNoCheck</code>)</td>
+      <td><code>verifyCertificateChain</code> valid with <code>requireRevocation</code></td>
+      </tr>
+      <tr>
+      <td><code>openssl:ocsp-revoked</code></td>
+      <td>the same responder, after <code>openssl ca -revoke -crl_reason keyCompromise</code></td>
+      <td><code>PKI_REASON_REVOKED</code></td>
+      </tr>
+      <tr>
+      <td><code>openssl:crl-base</code></td>
+      <td><code>openssl ca -gencrl</code> after that revocation</td>
+      <td>the revoked certificate <code>PKI_REASON_REVOKED</code>, another valid</td>
+      </tr>
+      <tr>
+      <td><code>openssl:crl-delta</code></td>
+      <td><code>openssl crl -gendelta -sha256</code> between that CRL and the next, after a second revocation</td>
+      <td>with the base alone the second certificate is valid; with the base and the delta, <code>PKI_REASON_REVOKED</code></td>
+      </tr>
+      <tr>
+      <td><code>gnutls-certtool:crl</code></td>
+      <td><code>certtool --generate-crl</code> over an ECDSA CA and one certificate it issued</td>
+      <td>the listed certificate <code>PKI_REASON_REVOKED</code>, the other valid</td>
+      </tr>
+      <tr>
+      <td><code>gpgsm:cms-detached</code></td>
+      <td><code>gpgsm --detach-sign</code>, with an RSA key imported from PKCS #12</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>gpgsm:cms-attached</code></td>
+      <td><code>gpgsm --sign</code>: indefinite-length BER</td>
+      <td>valid with <code>encodingRules: &#39;ber&#39;</code></td>
+      </tr>
+      <tr>
+      <td><code>dotnet:cms-rsa</code></td>
+      <td><code>SignedCms.ComputeSignature</code>, RSA PKCS #1 v1.5, detached, IssuerAndSerialNumber</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>dotnet:cms-rsa-ski</code></td>
+      <td>the same, attached, SubjectKeyIdentifier, SHA-512</td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>dotnet:cms-rsa-pss</code></td>
+      <td>the same with <code>RSASignaturePadding.Pss</code></td>
+      <td>valid</td>
+      </tr>
+      <tr>
+      <td><code>dotnet:cms-ecdsa</code></td>
+      <td>the same, ECDSA P-256</td>
+      <td>valid</td>
+      </tr>
+      </tbody></table>
+      <p>Writing the delta case found something worth knowing about the tool rather than the library: <code>openssl crl -gendelta</code> signs with SHA-1 unless it is given a digest, and pkinative does not take a SHA-1 signature as evidence, so a delta written that way is not applied — the certificate it revokes stays valid. The case passes <code>-sha256</code>.</p>
       <h2 id="what-is-not-claimed-yet">What is not claimed yet <a class="heading-anchor" href="#what-is-not-claimed-yet" aria-label="Link to this section">#</a></h2>
       <p>The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 20 messages their end entities signed — at L8, and they are the only tests of either corpus that are. Their expected result depends on the <code>user-initial-policy-set</code> a validator is given; PKITS answers per setting in its prose, the archive states none of them, and a runner that guessed would be scoring its own guess. A reviewed transcription belongs in <code>scripts/data/pkits-score.json</code>, where the 8 deviations already live.</p>
       <p><strong>And the score is a measurement, not a promise.</strong> It moves when the corpus is re-pinned, which is why the 1.0 freeze will not name it: what gets frozen is the <em>decision surface</em> — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else&#39;s test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said <code>createCertificate</code> had to be able to emit <code>subjectKeyIdentifier</code> and <code>authorityKeyIdentifier</code> before their absence could be diagnosed, or everything this library builds would trip its own reader; <code>computeKeyIdentifier</code> closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.</p>

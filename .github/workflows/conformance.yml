@@ -75,6 +75,38 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # The Linux readers REQUIRED_TOOLS.linux names (scripts/lib/interop.ts),
+      # which the ubuntu image does not carry. Every one is pinned: GnuTLS and
+      # gpgsm by the distribution's signed archive; Go by the setup-go commit
+      # below; zlint by its module version, which the Go checksum database
+      # verifies; pyca/cryptography and pkilint by version AND the SHA-256 of
+      # every file (--require-hashes), with --only-binary so nothing is built.
+      # `interop-matrix-declared` fails if one of them stops being installed
+      # here, because --require-all would then turn its absence red.
+      - name: Install the Linux interoperability readers (GnuTLS, gpgsm)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends gnutls-bin gpgsm
+
+      - name: Setup Go (crypto/x509 reader, zlint)
+        if: runner.os == 'Linux'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Install zlint and the Python readers (pinned)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          go install github.com/zmap/zlint/v3/cmd/zlint@v3.7.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/interop-python"
+          "$RUNNER_TEMP/interop-python/bin/python" -m pip install --require-hashes --no-deps --only-binary :all: -r scripts/data/interop-python-requirements.txt
+          echo "$RUNNER_TEMP/interop-python/bin" >> "$GITHUB_PATH"
+
       # Explicitly bash: the default shell on the Windows runner is PowerShell,
       # where none of this parses. A red run has to be attributable to "our
       # bug" or to "runner image drift", and that needs the versions.
@@ -86,6 +118,13 @@ jobs:
             echo '```'
             echo "node $(node --version), bundled OpenSSL $(node -p process.versions.openssl)"
             openssl version || echo 'openssl CLI: not found'
+            certtool --version 2>/dev/null | head -n 1 || true
+            gpgsm --version 2>/dev/null | head -n 1 || true
+            go version 2>/dev/null || true
+            zlint -version 2>&1 | head -n 1 || true
+            python3 -c 'import cryptography, importlib.metadata as m; print("cryptography", cryptography.__version__, "pkilint", m.version("pkilint"))' 2>/dev/null || true
+            pwsh -NoProfile -Command '"PowerShell $($PSVersionTable.PSVersion) on $([System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription)"' 2>/dev/null || true
+            java --version 2>/dev/null | head -n 1 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -98,19 +137,18 @@ jobs:
       - name: Run the conformance gate (blocking)
         run: npx tsx scripts/validate-certs.ts --require-all
 
-      # The write direction: foreign tools reading what pkinative produces.
-      # This job's three contexts are already required by the ruleset, so the
-      # matrix becomes blocking on Linux, Windows and macOS without the
-      # ruleset changing at all.
+      # Both directions: foreign tools reading what pkinative writes, and
+      # pkinative reading what they write. This job's three contexts are
+      # already required by the ruleset, so the matrix is blocking on Linux,
+      # Windows and macOS without the ruleset changing at all.
       #
-      # Deliberately NOT --require-all yet. Four tools in PENDING_TOOLS are
-      # declared and not implemented, and --require-all turns each of them
-      # into a failure; turning it on now would make the job red for work that
-      # is scheduled rather than missed. It goes on in the commit that lands
-      # the last pending tool, and `interop-matrix-declared` holds the list in
-      # ROADMAP.md to the list in the runner until then.
+      # --require-all: a tool REQUIRED_TOOLS names for this runner — Linux:
+      # openssl, GnuTLS, Go, pyca/cryptography, zlint, pkilint; Windows:
+      # openssl, CryptoAPI, .NET; macOS: openssl — that is missing fails the
+      # job instead of being skipped. Every other tool runs wherever the image
+      # happens to carry it, and is held to the same agreement when it does.
       - name: Run the interoperability matrix (blocking)
-        run: npm run interop
+        run: npm run interop -- --require-all
 
       - name: Upload the conformance report
         if: always()

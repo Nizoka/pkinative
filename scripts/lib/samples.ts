@@ -11,7 +11,10 @@
  * **Determinism, and why there is no key in this repository.** A signature
  * must be reproducible for a signed sample to have a stable hash, so every
  * signed sample uses Ed25519 (RFC 8032: deterministic by construction —
- * ECDSA and RSASSA-PSS are not, and are covered by the unsigned samples).
+ * ECDSA and RSASSA-PSS are not). Every other signature family the API writes,
+ * and every other signed structure, is covered by the set
+ * scripts/lib/interop-artefacts.ts generates afresh on each interop run and
+ * holds to facts rather than to hashes.
  * The key comes from a fixed 32-octet seed wrapped in the PKCS#8 prefix
  * below, so nothing secret-looking is committed and the rule "never commit
  * what our own code can build" holds. `node:crypto` derives the public half,
@@ -172,9 +175,15 @@ export async function samples(): Promise<Map<string, Uint8Array>> {
 }
 
 
-/** What the signed samples say, for a foreign tool to be held to. */
+/**
+ * What the signed samples say, for a foreign tool to be held to: the facts
+ * with one right answer, the certificate that issued each one, and — since
+ * the samples' validity is fixed in 2026 — the instant a chain is judged at.
+ */
 export const EXPECTED = Object.freeze({
-    'cert/v3-ed25519-root': { commonName: 'pkinative sample root', serialHex: '0123456789abcdef', dnsNames: [] as readonly string[] },
-    'cert/v3-leaf-issued-by-root': { commonName: 'sample.example', serialHex: '02', dnsNames: ['sample.example'] },
-    'cert/v1-no-extensions': { commonName: 'pkinative sample v1', serialHex: '01', dnsNames: [] as readonly string[] },
-});
+    'cert/v3-ed25519-root': { kind: 'cert', shape: 'ca', issuer: 'cert/v3-ed25519-root', facts: { commonName: 'pkinative sample root', serial: '123456789abcdef', dnsNames: '' } },
+    'cert/v3-leaf-issued-by-root': { kind: 'cert', shape: 'leaf', issuer: 'cert/v3-ed25519-root', serverName: 'sample.example', verifyAt: Date.UTC(2026, 1, 1), facts: { commonName: 'sample.example', serial: '2', dnsNames: 'sample.example' } },
+    'cert/v1-no-extensions': { kind: 'cert', shape: 'ca', issuer: 'cert/v1-no-extensions', facts: { commonName: 'pkinative sample v1', serial: '1', dnsNames: '' } },
+    'csr/no-attributes': { kind: 'csr', facts: { commonName: 'sample.example' } },
+    'csr/with-requested-extensions': { kind: 'csr', facts: { commonName: 'sample.example' } },
+} as const);

@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 172536,
-      "approxTokens": 43134
+      "bytes": 180036,
+      "approxTokens": 45009
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 289955,
-      "approxTokens": 72489
+      "bytes": 289290,
+      "approxTokens": 72323
     },
     {
       "url": "data/errors.json",
@@ -48,8 +48,8 @@
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5101,
-      "approxTokens": 1275
+      "bytes": 4694,
+      "approxTokens": 1174
     },
     {
       "url": "data/surfaces.json",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 79746,
-      "approxTokens": 19937
+      "bytes": 78224,
+      "approxTokens": 19556
     },
     {
       "title": "Security model",
@@ -129,8 +129,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 6364,
-      "approxTokens": 1591
+      "bytes": 6178,
+      "approxTokens": 1545
     },
     {
       "title": "Conformance",
@@ -142,12 +142,13 @@
         "the-levels",
         "the-write-direction",
         "key-containers-the-arrow-turned-back",
+        "signed-structures-what-the-tools-sign-pkinative-verifies",
         "what-is-not-claimed-yet",
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 30880,
-      "approxTokens": 7720
+      "bytes": 40088,
+      "approxTokens": 10022
     },
     {
       "title": "Errors, diagnostics and reasons",

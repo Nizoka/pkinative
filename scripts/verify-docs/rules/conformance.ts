@@ -12,7 +12,7 @@
 
 import { CLAUSES } from '../../lib/clauses.js';
 import { CORPORA, checksumPath, parseChecksums } from '../../lib/corpora.js';
-import { IMPLEMENTED_TOOLS, KEY_CONTAINER_CASES, PENDING_TOOLS } from '../../lib/interop.js';
+import { IMPLEMENTED_TOOLS, KEY_CONTAINER_CASES, PENDING_TOOLS, READ_CASES, REQUIRED_TOOLS, TOOL_LIMITATIONS } from '../../lib/interop.js';
 import { error, readJson, type Finding, type Rule } from '../context.js';
 
 const NOTICES = 'THIRD-PARTY-NOTICES.md';
@@ -22,6 +22,7 @@ const CLAUSE_TABLE = 'scripts/lib/clauses.ts';
 const INTEROP = 'scripts/lib/interop.ts';
 const ROADMAP = 'ROADMAP.md';
 const CONFORMANCE_WORKFLOW = '.github/workflows/conformance.yml';
+const GATE = 'scripts/gate.ts';
 const REQUIREMENTS = 'scripts/data/rfc5280-requirements.json';
 
 const corpusPinParity: Rule = {
@@ -81,7 +82,7 @@ const DISAGREEMENTS = 'scripts/data/validator-disagreements.json';
 
 const validatorRecordParity: Rule = {
     id: 'validator-record-parity',
-    summary: 'The L4 record contract is the one the conformance guide documents: every field scripts/lib/validators.ts can compare is described in the guide, the guide invents none, every validator names its implementation lineage in THIRD-PARTY-NOTICES.md, and every reviewed disagreement carries a reason rather than a TODO.',
+    summary: 'The L4 record contract is the one the conformance guide documents: every field scripts/lib/validators.ts can compare is described in the guide, the guide invents none, the guide names every validator, every validator names its implementation lineage in THIRD-PARTY-NOTICES.md, and every reviewed disagreement carries a reason rather than a TODO.',
     check(ctx) {
         const out: Finding[] = [];
         const guide = ctx.read(GUIDE);
@@ -97,6 +98,13 @@ const validatorRecordParity: Rule = {
         }
         for (const m of guide.matchAll(/`([a-z][A-Za-z0-9]*Fp256)`/g)) {
             if (!fields.includes(m[1] ?? '')) out.push(error(GUIDE, `documents the L4 field \`${m[1] ?? ''}\`, which scripts/lib/validators.ts does not compare`));
+        }
+
+        // Every validator the registry runs is named in the guide, so the
+        // page says which lineages L4 confronts and where — the claim it
+        // once made in general terms while one Windows-only validator ran.
+        for (const m of source.matchAll(/^ {8}id: '([^']+)'/gm)) {
+            if (!guide.includes(`\`${m[1] ?? ''}\``)) out.push(error(GUIDE, `does not name the L4 validator \`${m[1] ?? ''}\`, which scripts/lib/validators.ts runs`));
         }
 
         const notices = ctx.read(NOTICES) ?? '';
@@ -187,18 +195,27 @@ const clauseTableComplete: Rule = {
  * A gap written down is a gap someone can close; a gap only the code knows
  * about is a matrix that looks complete and is not.
  *
- * ROADMAP.md promises six tools in both directions. This rule holds that
- * promise to `scripts/lib/interop.ts`: every tool named in the roadmap line
- * is either implemented or listed as pending with a reason, and every pending
- * tool carries one long enough to act on. It also refuses a pending list that
- * has emptied without `--require-all` being turned on in the workflow, which
- * is the one moment the matrix stops being partly aspirational. And it holds
- * the key-container cases — the read direction — to the conformance guide in
- * both directions.
+ * This rule holds the matrix's declarations (scripts/lib/interop.ts) to every
+ * place that promises it: ROADMAP.md names every tool, implemented or pending;
+ * THIRD-PARTY-NOTICES.md credits every tool the matrix runs; the conformance
+ * guide describes every read-direction case and no other; each platform's
+ * required tools are implemented, and the Linux ones are installed by the
+ * conformance workflow, which runs the matrix with --require-all — as the
+ * release gate does — so a missing tool goes red instead of skipping; and
+ * every reviewed tool limitation names an implemented tool, a pattern, a
+ * reason and the proof that the limitation is the tool's.
  */
+const INSTALLED_BY_WORKFLOW: Readonly<Record<string, string>> = {
+    'gnutls-certtool': 'gnutls-bin',
+    'go-x509': 'actions/setup-go@',
+    zlint: 'github.com/zmap/zlint/v3/cmd/zlint@v',
+    'python-cryptography': '--require-hashes',
+    pkilint: '--require-hashes',
+};
+
 const interopMatrixDeclared: Rule = {
     id: 'interop-matrix-declared',
-    summary: 'Every interoperability tool is implemented or listed as pending with a reason; ROADMAP.md names them all; every key-container case belongs to an implemented tool and is described in the conformance guide, which describes no other; and when nothing is pending the conformance workflow runs the matrix with --require-all.',
+    summary: 'Every interoperability tool is implemented or pending with a reason; ROADMAP.md names them all and THIRD-PARTY-NOTICES.md credits the implemented ones; every required tool is implemented and, on Linux, installed by the conformance workflow, which runs the matrix with --require-all as the release gate does; every tool limitation is reasoned and proved; every key-container and read case belongs to an implemented tool and is described in the conformance guide, which describes no other.',
     check(ctx) {
         const out: Finding[] = [];
         const declared = new Set([...IMPLEMENTED_TOOLS, ...PENDING_TOOLS.map((t) => t.id)]);
@@ -226,32 +243,107 @@ const interopMatrixDeclared: Rule = {
             }
         }
 
-        // The read direction for key containers: every case the runner may
-        // evaluate belongs to an implemented tool and is described in the
-        // conformance guide, and the guide describes no case the runner does
-        // not run — a case documented and never run is a claim nobody checks.
-        const guide = ctx.read(GUIDE) ?? '';
-        const cases = new Set(KEY_CONTAINER_CASES.map((c) => c.id));
-        if (cases.size !== KEY_CONTAINER_CASES.length) out.push(error(INTEROP, 'declares a key-container case twice'));
-        for (const c of KEY_CONTAINER_CASES) {
-            if (!IMPLEMENTED_TOOLS.includes(c.tool) || !c.id.startsWith(`${c.tool}:`)) {
-                out.push(error(INTEROP, `the key-container case ${c.id} names ${c.tool}, which is not an implemented tool or not its prefix`));
-            }
-            if (!guide.includes(`\`${c.id}\``)) out.push(error(GUIDE, `does not describe the key-container case \`${c.id}\`, which npm run interop runs`));
-        }
-        for (const m of guide.matchAll(/`([a-z0-9-]+:(?:pkcs8|pkcs12|pfx)-[a-z0-9-]+)`/g)) {
-            if (!cases.has(m[1] ?? '')) out.push(error(GUIDE, `describes the key-container case \`${m[1] ?? ''}\`, which scripts/lib/interop.ts does not declare`));
+        const notices = ctx.read(NOTICES) ?? '';
+        for (const id of IMPLEMENTED_TOOLS) {
+            if (!notices.includes(`\`${id}\``)) out.push(error(NOTICES, `does not credit \`${id}\`, which npm run interop runs — every foreign tool the matrix invokes is named, with the fact that it is run and never vendored`));
         }
 
+        // Which platform must have which tool, and how Linux gets them.
         const workflow = ctx.read(CONFORMANCE_WORKFLOW) ?? '';
+        for (const [platform, tools] of Object.entries(REQUIRED_TOOLS)) {
+            if (tools.length === 0) out.push(error(INTEROP, `REQUIRED_TOOLS.${platform} is empty — a platform the workflow runs on must be held to something`));
+            for (const id of tools) if (!IMPLEMENTED_TOOLS.includes(id)) out.push(error(INTEROP, `REQUIRED_TOOLS.${platform} requires ${id}, which is not implemented`));
+        }
+        for (const id of REQUIRED_TOOLS.linux) {
+            const marker = INSTALLED_BY_WORKFLOW[id];
+            if (marker !== undefined && !workflow.includes(marker)) out.push(error(CONFORMANCE_WORKFLOW, `does not install ${id} (looked for "${marker}"), which REQUIRED_TOOLS.linux requires — under --require-all the Linux run would go red for a tool nobody installed`));
+        }
+
+        // Reviewed limitations: a tool's, with a reason and a proof.
+        for (const l of TOOL_LIMITATIONS) {
+            if (!IMPLEMENTED_TOOLS.includes(l.tool)) out.push(error(INTEROP, `a tool limitation names ${l.tool}, which is not implemented`));
+            if (l.reason.trim().length < 60) out.push(error(INTEROP, `the ${l.tool} limitation "${l.match.join(', ')}" gives no reason anyone could check`));
+            if (l.proof.trim().length < 30) out.push(error(INTEROP, `the ${l.tool} limitation "${l.match.join(', ')}" records no proof that the limitation is the tool's and not pkinative's`));
+            if (l.match.length === 0) out.push(error(INTEROP, `a ${l.tool} limitation matches nothing`));
+            for (const m of l.match) {
+                if (!/^(?:[a-z.*]+|lint:[A-Za-z0-9_.*-]+)@[a-z0-9*-]+\/[a-z0-9*-]+$/.test(m)) out.push(error(INTEROP, `the ${l.tool} limitation pattern ${JSON.stringify(m)} is not <check>@<profile>/<artefact> or lint:<id>@<profile>/<artefact>`));
+            }
+        }
+
+        // The read direction: every case the runner may evaluate belongs to an
+        // implemented tool and is described in the conformance guide, and the
+        // guide describes no case the runner does not run — a case documented
+        // and never run is a claim nobody checks.
+        const guide = ctx.read(GUIDE) ?? '';
+        const tables = [
+            { table: 'KEY_CONTAINER_CASES', kind: 'key-container', list: KEY_CONTAINER_CASES, shape: /`([a-z0-9-]+:(?:pkcs8|pkcs12|pfx)-[a-z0-9-]+)`/g },
+            { table: 'READ_CASES', kind: 'read', list: READ_CASES, shape: /`([a-z0-9-]+:(?:cms|tsp|ocsp|crl)(?:-[a-z0-9-]+)?)`/g },
+        ];
+        for (const { table, kind, list, shape } of tables) {
+            const cases = new Set(list.map((c) => c.id));
+            if (cases.size !== list.length) out.push(error(INTEROP, `${table} declares a case twice`));
+            for (const c of list) {
+                if (!IMPLEMENTED_TOOLS.includes(c.tool) || !c.id.startsWith(`${c.tool}:`)) {
+                    out.push(error(INTEROP, `the ${table} case ${c.id} names ${c.tool}, which is not an implemented tool or not its prefix`));
+                }
+                if (!guide.includes(`\`${c.id}\``)) out.push(error(GUIDE, `does not describe the ${kind} case \`${c.id}\`, which npm run interop runs`));
+            }
+            for (const m of guide.matchAll(shape)) {
+                if (!cases.has(m[1] ?? '')) out.push(error(GUIDE, `describes the ${kind} case \`${m[1] ?? ''}\`, which scripts/lib/interop.ts does not declare`));
+            }
+        }
+
         const runsMatrix = /run:\s*npm run interop/.test(workflow);
         if (!runsMatrix) {
             out.push(error(CONFORMANCE_WORKFLOW, 'does not run the interoperability matrix — its three contexts are already required, so this is where the write direction becomes blocking on Linux, Windows and macOS'));
-        } else if (PENDING_TOOLS.length === 0 && !/npm run interop[^\n]*--require-all/.test(workflow)) {
-            out.push(error(CONFORMANCE_WORKFLOW, 'nothing is pending any more, so the matrix must run with --require-all — a tool missing from a runner has to go red, not skip'));
+        } else if (!/npm run interop[^\n]*--require-all/.test(workflow)) {
+            out.push(error(CONFORMANCE_WORKFLOW, 'runs the matrix without --require-all — a tool REQUIRED_TOOLS names for a runner has to go red when it is missing, not skip'));
+        }
+        if (!(ctx.read(GATE) ?? '').includes('PKINATIVE_INTEROP_REQUIRE_ALL')) {
+            out.push(error(GATE, 'the interop step does not pass PKINATIVE_INTEROP_REQUIRE_ALL — the release gate would accept a run that skipped a required tool'));
         }
         return out;
     },
 };
 
-export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity, clauseTableComplete, interopMatrixDeclared];
+const WAIVERS = 'scripts/data/lint-waivers.json';
+const LINTERS = ['zlint', 'pkilint'];
+
+/**
+ * A lint finding accepted on what pkinative creates is a decision, and a
+ * decision without its reason is a silenced finding. The runner already
+ * refuses a warning nobody reviewed and a waiver nothing matches; this rule
+ * holds the shape where a run is not needed: a known linter, a lint id, the
+ * artefacts it applies to, a reason someone wrote. An error result is never
+ * waived — the runner does not consult this file for one — so a waiver of a
+ * zlint lint named as an error (`e_`, `f_`) must say why that lint answered
+ * WARNING: zlint's e_signature_algorithm_not_supported does, by design, for
+ * RSASSA-PSS.
+ */
+const lintWaiverReviewed: Rule = {
+    id: 'lint-waiver-reviewed',
+    summary: 'Every waiver in scripts/data/lint-waivers.json names an implemented linter, a lint id, the artefacts it applies to and a written reason; one of a zlint lint named as an error (e_, f_) says why it answered WARNING; none appears twice.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const file = readJson<{ schema?: unknown; waivers?: unknown }>(ctx, WAIVERS);
+        if ('finding' in file) return [file.finding];
+        if (file.value.schema !== 1) out.push(error(WAIVERS, `declares schema ${String(file.value.schema)}; the runner reads 1`));
+        if (!Array.isArray(file.value.waivers)) return [...out, error(WAIVERS, 'has no `waivers` array')];
+        const seen = new Set<string>();
+        for (const [i, raw] of (file.value.waivers as unknown[]).entries()) {
+            const w = (raw ?? {}) as { tool?: unknown; lint?: unknown; artefacts?: unknown; reason?: unknown };
+            const where = `waiver ${String(i)}`;
+            if (typeof w.tool !== 'string' || !LINTERS.includes(w.tool) || !IMPLEMENTED_TOOLS.includes(w.tool)) out.push(error(WAIVERS, `${where} names ${JSON.stringify(w.tool)}, which is not an implemented linter (${LINTERS.join(', ')})`));
+            if (typeof w.lint !== 'string' || !/^[a-z][a-z0-9_.-]+$/.test(w.lint)) out.push(error(WAIVERS, `${where} names no lint id`));
+            else if (w.tool === 'zlint' && /^[ef]_/.test(w.lint) && !(typeof w.reason === 'string' && w.reason.includes('WARNING'))) out.push(error(WAIVERS, `${where} waives ${w.lint}, a zlint lint named as an error, without saying why it answered WARNING — an error is fixed, or the linter proved wrong in TOOL_LIMITATIONS, never waived`));
+            if (!Array.isArray(w.artefacts) || w.artefacts.length === 0 || !w.artefacts.every((a) => typeof a === 'string' && /^[a-z0-9*-]+\/[a-z0-9*-]+$/.test(a))) out.push(error(WAIVERS, `${where} does not say which artefacts it applies to (<profile>/<name>, * allowed)`));
+            if (typeof w.reason !== 'string' || w.reason.trim().length < 60 || /^TODO\b/i.test(w.reason)) out.push(error(WAIVERS, `${where} (${String(w.lint)}) carries no reason — a waiver without one silences a finding instead of recording it`));
+            const key = `${String(w.tool)}:${String(w.lint)}`;
+            if (seen.has(key)) out.push(error(WAIVERS, `${key} is waived twice`));
+            seen.add(key);
+        }
+        return out;
+    },
+};
+
+export const CONFORMANCE_RULES: readonly Rule[] = [corpusPinParity, validatorRecordParity, clauseTableComplete, interopMatrixDeclared, lintWaiverReviewed];

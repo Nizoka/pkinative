@@ -1,0 +1,36 @@
+{
+  "$comment": "Every lint WARNING or NOTICE zlint or pkilint raises on a certificate pkinative creates in npm run interop (scripts/lib/interop-artefacts.ts), reviewed. A lint ERROR is never waived here: it is fixed, or the linter is proved wrong and the proof recorded in TOOL_LIMITATIONS of scripts/lib/interop.ts. A waiver names the tool, the lint, the artefacts it applies to (`<profile>/<name>`, * matches anything) and why the finding is accepted; one that matches nothing in a run of its tool fails the run as stale. The verify-docs rule lint-waiver-reviewed holds the shape.",
+  "schema": 1,
+  "waivers": [
+    {
+      "tool": "zlint",
+      "lint": "w_subject_common_name_included",
+      "artefacts": ["*/leaf-br"],
+      "reason": "The CA/Browser Forum baseline requirements (7.1.2.7.1) call a subscriber commonName NOT RECOMMENDED, not forbidden, and every TLS stack still in service reads it; the BR-shaped leaf carries one so the readers that compare commonName have one to compare. The encoder writes what the description asks for."
+    },
+    {
+      "tool": "zlint",
+      "lint": "w_ext_subject_key_identifier_missing_sub_cert",
+      "artefacts": ["*/leaf-br"],
+      "reason": "RFC 5280 §4.2.1.2 says an end-entity certificate SHOULD carry a subjectKeyIdentifier, and the CA/Browser Forum baseline requirements 7.1.2.7.6 say a subscriber certificate's is NOT RECOMMENDED; no certificate satisfies both. The BR-shaped leaf follows the baseline requirements and the rich leaf carries one, so each linter sees each choice once."
+    },
+    {
+      "tool": "zlint",
+      "lint": "e_signature_algorithm_not_supported",
+      "artefacts": ["pss-*/ca", "pss-*/leaf-br"],
+      "reason": "Despite its e_ prefix this lint returns a WARNING, never an error, for the three RSASSA-PSS algorithms: zlint v3.7.2 lists them in warnSigAlgs because 'the BRs do not forbid the use of RSA-PSS as a signature scheme in certificates but it is not broadly supported by user-agents' (v3/lints/cabf_br/lint_signature_algorithm_not_supported.go). The encoding itself is held by e_mp_rsassa-pss_parameters_encoding_in_signature_algorithm_correct, which passes. pkinative writes RSASSA-PSS because callers ask for it; the BR-shaped leaf is where that choice is checked."
+    },
+    {
+      "tool": "pkilint",
+      "lint": "pkix.certificate_skid_end_entity_missing",
+      "artefacts": ["*/leaf-br"],
+      "reason": "The same conflict seen from pkilint's RFC 5280 profile: the BR-shaped leaf omits the subjectKeyIdentifier the baseline requirements call NOT RECOMMENDED for a subscriber, which RFC 5280 §4.2.1.2 says SHOULD be present."
+    },
+    {
+      "tool": "pkilint",
+      "lint": "pkix.certificate_policies_policy_has_qualifier",
+      "artefacts": ["*/leaf-rich"],
+      "reason": "RFC 5280 §4.2.1.4 RECOMMENDS policy identifiers without qualifiers, and allows the CPS pointer qualifier the rich leaf carries on purpose: it is there to exercise the PolicyQualifierInfo encoding with an IA5String, which a leaf without one would never reach."
+    }
+  ]
+}
