@@ -167,7 +167,13 @@ export interface OctetPublicKeyInfo extends PublicKeyInfoBase {
     readonly key: Uint8Array;
 }
 
-/** A key of an algorithm pkinative does not decode. */
+/**
+ * A key of an algorithm pkinative does not decode.
+ *
+ * A later minor may decode what lands here today and report it under a kind of
+ * its own (ADR 0018): branch on the known kinds, and treat this one as a
+ * fallback rather than as a promise that the input stays unknown.
+ */
 export interface UnknownPublicKeyInfo extends PublicKeyInfoBase {
     /** Discriminant: read `algorithm.oid` and `publicKey` to go further. */
     readonly kind: 'unknown';
@@ -214,7 +220,13 @@ export interface RawExtension extends ExtensionBase {
     readonly kind: 'raw';
 }
 
-/** An extension pkinative does not decode. */
+/**
+ * An extension pkinative does not decode.
+ *
+ * A later minor may decode what lands here today and report it under a kind of
+ * its own (ADR 0018): branch on the known kinds, and treat this one as a
+ * fallback rather than as a promise that the input stays unknown.
+ */
 export interface UnknownExtension extends ExtensionBase {
     /** Discriminant. Read `oid` and `valueDer`; an unknown extension marked critical also raises a diagnostic. */
     readonly kind: 'unknown';
@@ -346,7 +358,13 @@ export interface UserNoticeQualifier {
     readonly explicitText: Asn1String | undefined;
 }
 
-/** A qualifier pkinative does not decode. */
+/**
+ * A qualifier pkinative does not decode.
+ *
+ * A later minor may decode what lands here today and report it under a kind of
+ * its own (ADR 0018): branch on the known kinds, and treat this one as a
+ * fallback rather than as a promise that the input stays unknown.
+ */
 export interface UnknownPolicyQualifier {
     /** Discriminant: switch on it to narrow a `PolicyQualifier` to this alternative. */
     readonly kind: 'unknown';

@@ -775,8 +775,8 @@
       "section": "4.2.1.8",
       "text": "Conforming CAs MUST mark this extension as non-critical.",
       "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical subjectDirectoryAttributes is visible in the bytes; pkinative does not decode the extension and reports nothing."
+      "reason": "covered-elsewhere",
+      "why": "PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL fires on a critical subjectDirectoryAttributes, which pkinative decodes since 1.0.0; it is not an L5 clause because no corpus certificate carries the extension critical, and a clause nothing exercises proves nothing."
     },
     "4.2.1.9-1-8594a6be": {
       "section": "4.2.1.9",

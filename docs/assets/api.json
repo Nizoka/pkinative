@@ -6205,13 +6205,13 @@
           "name": "earliest",
           "type": "number | undefined",
           "optional": false,
-          "summary": "`genTime` minus the declared accuracy, in epoch milliseconds: the earliest the stamping can have happened."
+          "summary": "`genTime` minus the declared accuracy, in whole epoch milliseconds rounded down: the earliest the stamping can have happened."
         },
         {
           "name": "latest",
           "type": "number | undefined",
           "optional": false,
-          "summary": "`genTime` plus the declared accuracy: the latest."
+          "summary": "`genTime` plus the declared accuracy, rounded up: the latest."
         },
         {
           "name": "tsaCertificate",

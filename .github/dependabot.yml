@@ -63,6 +63,20 @@ updates:
         patterns:
           - "*"
 
+  # The fuzzing engine Jazzer.js, pinned with its lockfile under
+  # .clusterfuzzlite/engine so the build image installs exactly those bytes.
+  - package-ecosystem: npm
+    directory: /.clusterfuzzlite/engine
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    labels:
+      - dependencies
+      - ci
+
   # The ClusterFuzzLite base image (.clusterfuzzlite/Dockerfile), pinned by
   # digest. gcr.io is a public registry Dependabot reads; it gives no
   # publication date, so the cooldown cannot hold there and Dependabot

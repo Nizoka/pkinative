@@ -159,13 +159,6 @@ const BLOCKING_JOBS: Readonly<Record<string, readonly string[]>> = {
     'docs.yml': ['verify'],
 };
 
-/**
- * Workflows still carrying the macOS carve-out that the vendor README at the
- * pinned SHA contradicts (audit P-07). conformance.yml belongs to another
- * change set; once it drops the `if:`, this list empties and every assertion
- * below covers it too.
- */
-const MACOS_CARVE_OUT_PENDING: readonly string[] = ['conformance.yml'];
 
 describe('every workflow job', () => {
     it('should start with harden-runner, in block mode with an allow-list or in audit mode with a dated reason', () => {
@@ -174,7 +167,6 @@ describe('every workflow job', () => {
             expect(jobs.size, `${f}: no job with steps`).toBeGreaterThan(0);
             for (const [job, steps] of jobs) {
                 expect(steps[0], `${f} › ${job}: first step`).toContain(HARDEN_RUNNER);
-                if (MACOS_CARVE_OUT_PENDING.includes(f)) continue;
                 const egress = egressOf(steps[0]);
                 expect(egress, `${f} › ${job}: egress-policy must be "block" with allowed-endpoints, or "audit # YYYY-MM-DD: reason"`).not.toBeNull();
                 if (egress?.policy === 'block') {
@@ -218,7 +210,7 @@ describe('every workflow job', () => {
         // The vendor README at the pinned SHA lists GitHub-hosted Windows and
         // macOS runners as supported in audit mode (audit P-07); the former
         // "does not support macOS at all" exemption contradicted it.
-        for (const f of workflowFiles.filter((x) => !MACOS_CARVE_OUT_PENDING.includes(x))) {
+        for (const f of workflowFiles) {
             const text = readWorkflow(f);
             expect(text, `${f}: harden-runner must be unconditional`).not.toMatch(/runner\.os\s*!=\s*'macOS'/);
             expect(text, f).not.toContain('does not support macOS');
@@ -686,7 +678,8 @@ describe('dependency review and audit', () => {
     it('should hold every Dependabot ecosystem back seven days, and move the actions as one group', () => {
         const dependabot = readText('.github', 'dependabot.yml');
         const blocks = dependabot.split(/^ {2}- package-ecosystem: /m).slice(1);
-        expect(blocks.map((b) => b.split('\n')[0].trim()).sort()).toEqual(['docker', 'github-actions', 'npm']);
+        // npm twice: the package, and the fuzzing engine pinned under .clusterfuzzlite/engine.
+        expect(blocks.map((b) => b.split('\n')[0].trim()).sort()).toEqual(['docker', 'github-actions', 'npm', 'npm']);
         for (const block of blocks) {
             const days = /cooldown:\s*\n\s+default-days: (\d+)/.exec(block)?.[1];
             expect(Number(days), block.split('\n')[0]).toBeGreaterThanOrEqual(7);
@@ -694,6 +687,7 @@ describe('dependency review and audit', () => {
         const actions = blocks.find((b) => b.startsWith('github-actions')) ?? '';
         expect(actions).toMatch(/groups:\s*\n\s+actions:\s*\n\s+patterns:\s*\n\s+- "\*"/);
         expect(blocks.find((b) => b.startsWith('docker'))).toMatch(/directory: \/\.clusterfuzzlite/);
+        expect(blocks.some((b) => b.startsWith('npm') && /directory: \/\.clusterfuzzlite\/engine/.test(b))).toBe(true);
     });
 
     it('should protect release tags with a ruleset', () => {

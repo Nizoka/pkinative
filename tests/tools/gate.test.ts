@@ -23,6 +23,9 @@ describe('the gate step table', () => {
         // A required tool missing from the release machine fails the gate
         // instead of being skipped (scripts/run-interop.ts reads the variable).
         expect(STEPS.find((s) => s.id === 'interop')?.env).toEqual({ PKINATIVE_INTEROP_REQUIRE_ALL: '1' });
+        // ADR 0017: the TypeScript floor is compiled on the release machine, after the build it packs.
+        expect(STEPS.find((s) => s.id === 'ts-floor')?.profiles).toEqual(['publish']);
+        expect(indexOf('ts-floor')).toBeGreaterThan(indexOf('build'));
     });
 
     it('should probe the bundle right after dist-check', () => {

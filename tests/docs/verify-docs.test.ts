@@ -439,6 +439,15 @@ describe('verify-docs rule table', () => {
         expect(problems).toEqual([expect.objectContaining({ file: 'docs/adr/0006-no-network-io-in-the-engine.md', message: expect.stringContaining('lacks the "### Confirmation" section') })]);
     });
 
+    it('should fire skills-shape on a well-formed skill the governance manifest does not declare', async () => {
+        const files = { ...TREE };
+        const audit = TREE['.claude/skills/release-audit/SKILL.md'] ?? '';
+        files['.claude/skills/undeclared/SKILL.md'] = audit.replace(/^name: release-audit$/m, 'name: undeclared');
+        const problems = await runRules(createMemoryContext(files), RULES, 'skills-shape');
+        // The copy also misses the templates its SKILL.md references; only the manifest's finding is asserted here.
+        expect(problems.filter((p) => p.file === '.github/ai-governance.json')).toEqual([expect.objectContaining({ message: expect.stringContaining('does not declare the skill .claude/skills/undeclared/SKILL.md') })]);
+    });
+
     it('should fire adr-index on a record with no row, a row with no record, and a status the record does not carry', async () => {
         const files = { ...TREE };
         // The next free numbers, so the case outlives the next real record.

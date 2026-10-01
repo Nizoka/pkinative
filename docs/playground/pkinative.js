@@ -6461,7 +6461,7 @@ async function _checkRevocation(input, path, at) {
       parsed.push({ der, crl: parseCertificateList(der, reading), index });
     } catch (error) {
       const refused = _pkiError(error);
-      out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
+      out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
     }
   }
   const signing = { input, path, at, lists: parsed, reading };
@@ -6475,7 +6475,7 @@ async function _checkRevocation(input, path, at) {
       const problem = _crlScopeProblem({ certificate: subject, crl });
       if (problem !== null && problem.kind !== "unusable") continue;
       if (problem !== null) {
-        mine.push(unknownCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, "revocation list"));
+        mine.push(unknownCriticalExtensionReason(`crls[${String(index)}]`, problem.oid, "revocation list"));
         continue;
       }
       covered.add(position);
@@ -6494,7 +6494,7 @@ async function _checkRevocation(input, path, at) {
         ...delta === void 0 ? {} : { delta },
         limits: reading.limits,
         onDiagnostic: reading.onDiagnostic
-      }, `crl[${String(index)}]`));
+      }, `crls[${String(index)}]`));
     }
     out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
@@ -9289,8 +9289,10 @@ function _report(reasons, token, tsa, chain, signatureVerifications) {
     valid,
     token,
     genTime: info?.genTime,
-    earliest: info === void 0 ? void 0 : info.genTime.epochMilliseconds - slack,
-    latest: info === void 0 ? void 0 : info.genTime.epochMilliseconds + slack,
+    // Microsecond accuracy would leave fractional milliseconds; rounding
+    // outward keeps both bounds whole and only ever widens the window.
+    earliest: info === void 0 ? void 0 : Math.floor(info.genTime.epochMilliseconds - slack),
+    latest: info === void 0 ? void 0 : Math.ceil(info.genTime.epochMilliseconds + slack),
     tsaCertificate: tsa,
     chain,
     reasons: Object.freeze([...reasons]),

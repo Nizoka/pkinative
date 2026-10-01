@@ -20,7 +20,7 @@ lines of that log and stops.
 |---|---|---|
 | Fast — before every commit | `npm run gate:fast` | 5: typecheck:all, lint, test, verify:samples, verify:docs |
 | CI — the default | `npm run gate` | 12: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-fresh, verify:docs |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 14: adds conformance and interop |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 15: adds conformance, interop and ts-floor |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
 step's position in the full table; `--json` emits `{ ok, profile, steps }`.
@@ -35,16 +35,18 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 62 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 79 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `package-files.ts` | inside `check:package` | yes | The tarball, file by file: `npm pack --dry-run --json` against `docs/data/package-files.json` — a file added, removed or made executable, or a changed LICENSE or THIRD-PARTY-NOTICES.md, fails; nothing under `src/`/`tests/`, no dotfile, no key or certificate, every `dist/` file budgeted, whatever the manifest says. `--update` regenerates it (and refuses a forbidden file) | 0/1/2 |
+| `run-interop.ts` | `interop` | publish only | The write and read directions against foreign implementations: ten tools and two linters (zlint, pkilint) over everything the API writes, and their artefacts read back by pkinative. `--require-all` (or `PKINATIVE_INTEROP_REQUIRE_ALL=1`, set by the gate) fails on a missing tool `REQUIRED_TOOLS` names for the platform | 0/1/2 |
+| `check-ts-floor.ts` | `check:ts-floor` | publish only | ADR 0017's TypeScript floor: packs the build and compiles a consumer of every export under that compiler release, four resolutions (`node16`, `bundler`, `node10`, `nodom`) | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
 | `fetch-corpora.ts` | `conformance:fetch` | — | Downloads x509-limbo and Wycheproof at their pinned commits, refusing any file whose SHA-256 differs | 0/1/2 |
 | `release-prepare.ts` | — | — | The mechanical half of a version bump: every row of its `EDITS` table, at 1.0.0 every stable-era swap of `PRE_1_0_PROSE`, plus the release-note and pull-request-body scaffolds; a pure `planRelease` a test runs on the in-memory tree. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
-| `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages, plus the nav and footer every hand-written page pastes | 0/1 |
-| `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares | 0/1 |
+| `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages with their JSON-LD (TechArticle, BreadcrumbList, WebPage), plus the nav and footer every hand-written page pastes, and `docs/assets/architecture.svg` drawn from `LAYERS` | 0/1 |
+| `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares, every `<lastmod>` stamped with `verifiedOn` | 0/1 |
 | `build-playground.ts` | `docs:playground`, `docs:playground-fresh` | yes (`--check`) | Copies `dist/index.js` into the playground byte for byte and records its hashes in the manifest; `--check` re-derives and compares | 0/1/2 |
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
@@ -69,7 +71,10 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `corpora.ts` | The corpus pins, their checksum paths and their local directories |
 | `raw-der.ts` | An engine-independent DER walker: the conformance gate's second opinion, which never imports `src/` |
 | `mutation.ts` | `mutate.ts` and `tests/tools/mutation.test.ts`: the mutation operators, the seeded sampler, the import graph that selects suites, the equivalents table and the score |
-| `validators.ts` | The cross-implementation confrontation of level L4, its blob format and its canaries |
+| `validators.ts` | The cross-implementation confrontation of level L4 — CryptoAPI, Python cryptography and Go `crypto/x509` — its blob format and its canaries |
+| `interop.ts` | The interoperability registries: `IMPLEMENTED_TOOLS`, `REQUIRED_TOOLS`, `TOOL_PLATFORMS`, `TOOL_LIMITATIONS`, `READ_CASES` |
+| `interop-keys.ts`, `interop-reads.ts` | The read direction: key containers and CMS, timestamps, OCSP and CRLs written by foreign tools, with the verdict each must get |
+| `interop-artefacts.ts`, `interop-tools.ts`, `interop-judge.ts`, `interop-host.ts` | The write direction: what the API writes, how each tool is driven (directly or through WSL), how its answer is judged, and how a tool is found by running it |
 | `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |
 | `api-surface.ts` | The public surface fingerprinted from the syntax tree, and the semver classification of a change — `build-api-frozen.ts` and the `api-surface-frozen` rule |

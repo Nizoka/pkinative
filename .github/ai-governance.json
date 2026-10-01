@@ -22,7 +22,7 @@
   "anti_goals": [
     "a runtime dependency of any kind",
     "a TypeScript implementation of signing, key generation or arithmetic on secret material (Web Crypto only)",
-    "certificate path validation, revocation or CMS before the milestone that owns it (ROADMAP.md)",
+    "a feature the roadmap has not taken through a reviewed milestone (ROADMAP.md), or one an architecture decision record refuses (docs/adr/)",
     "filesystem, network or process access inside the engine",
     "a lenient decoder that guesses at ambiguous encodings instead of refusing them"
   ],

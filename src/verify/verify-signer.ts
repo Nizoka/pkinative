@@ -188,7 +188,7 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
 /**
  * A reason from a composition below, re-rooted under a path of this one.
  *
- * `verifyCertificateChain` reports `path[0]`, `crl[1]`; inside a signed
+ * `verifyCertificateChain` reports `path[0]`, `crls[1]`; inside a signed
  * message the reader needs to know **whose** chain that was.
  *
  * @internal

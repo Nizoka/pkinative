@@ -111,9 +111,9 @@ export interface VerifyTimeStampTokenReport {
     readonly token: TimeStampToken | undefined;
     /** The time the token asserts — established only when `valid`. */
     readonly genTime: PkiTime | undefined;
-    /** `genTime` minus the declared accuracy, in epoch milliseconds: the earliest the stamping can have happened. */
+    /** `genTime` minus the declared accuracy, in whole epoch milliseconds rounded down: the earliest the stamping can have happened. */
     readonly earliest: number | undefined;
-    /** `genTime` plus the declared accuracy: the latest. An LTV check asking "before the certificate expired?" wants this one. */
+    /** `genTime` plus the declared accuracy, rounded up: the latest. An LTV check asking "before the certificate expired?" wants this one. */
     readonly latest: number | undefined;
     /** The TSA's certificate, when its key verified the token and it is the one the token names. */
     readonly tsaCertificate: Certificate | undefined;
@@ -269,8 +269,10 @@ function _report(reasons: readonly PkiReason[], token: TimeStampToken | undefine
         valid,
         token,
         genTime: info?.genTime,
-        earliest: info === undefined ? undefined : info.genTime.epochMilliseconds - slack,
-        latest: info === undefined ? undefined : info.genTime.epochMilliseconds + slack,
+        // Microsecond accuracy would leave fractional milliseconds; rounding
+        // outward keeps both bounds whole and only ever widens the window.
+        earliest: info === undefined ? undefined : Math.floor(info.genTime.epochMilliseconds - slack),
+        latest: info === undefined ? undefined : Math.ceil(info.genTime.epochMilliseconds + slack),
         tsaCertificate: tsa,
         chain,
         reasons: Object.freeze([...reasons]),

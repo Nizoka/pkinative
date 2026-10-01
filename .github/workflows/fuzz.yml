@@ -8,7 +8,7 @@ name: Fuzz
 # The seeded suites in tests/fuzzing/ are the blocking half and stay so. They
 # are deterministic and reproduce from a printed seed; this is the half that
 # explores, and the two answer different questions. What tests/fuzzing/
-# targets.test.ts adds is the link between them: the three files in fuzz/ are
+# targets.test.ts adds is the link between them: the eight files in fuzz/ are
 # executed there, against src/, on every gate run — so a target that stopped
 # loading, or that started swallowing the exceptions it exists to surface,
 # goes red in seconds instead of fuzzing nothing for a week.

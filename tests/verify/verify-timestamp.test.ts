@@ -423,8 +423,9 @@ describe('verifyTimeStampToken', () => {
             const accuracy = encodeSequence([encodeInteger(1), encodeTlv('context', 0, false, Uint8Array.of(0x01, 0xf4)), encodeTlv('context', 1, false, Uint8Array.of(0x64))]);
             const report = await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint, accuracy })));
             expect(codes(report)).toEqual([]);
-            expect(report.earliest).toBeCloseTo(AT - 1500.1, 6);
-            expect(report.latest).toBeCloseTo(AT + 1500.1, 6);
+            // 1.5001 s of accuracy, rounded outward to whole milliseconds.
+            expect(report.earliest).toBe(AT - 1501);
+            expect(report.latest).toBe(AT + 1501);
         });
     });
 

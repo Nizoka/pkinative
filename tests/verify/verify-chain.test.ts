@@ -251,7 +251,7 @@ describe('verifyCertificateChain — the one place that catches', () => {
         expect(codes(report)).toContain('PKI_REASON_INPUT_MALFORMED');
         const malformed = report.reasons.find((r) => r.code === 'PKI_REASON_INPUT_MALFORMED');
         expect(malformed?.errorCode).toMatch(/^PKI_/);
-        expect(malformed?.path).toBe('crl[0]');
+        expect(malformed?.path).toBe('crls[0]');
     });
 
     const bytes = new Uint8Array(1);
@@ -403,8 +403,8 @@ describe('verifyCertificateChain — what it passes through', () => {
             crls: [Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x01), emptyCrl(ica, { oddExtension: true })],
         });
         const paths = report.reasons.map((r) => `${r.code}@${r.path}`);
-        expect(paths).toContain('PKI_REASON_INPUT_MALFORMED@crl[0]');
-        expect(paths.some((p) => p.startsWith('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crl[1]'))).toBe(true);
+        expect(paths).toContain('PKI_REASON_INPUT_MALFORMED@crls[0]');
+        expect(paths.some((p) => p.startsWith('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crls[1]'))).toBe(true);
     });
 
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
@@ -1064,7 +1064,7 @@ describe('verifyCertificateChain — what it passes through', () => {
             requireRevocation: true,
         });
         expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
-        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crl[0]' });
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crls[0]' });
     });
 
     it('should stop believing a delegated signer when the list that would clear it cannot be walked', async () => {
@@ -1080,7 +1080,7 @@ describe('verifyCertificateChain — what it passes through', () => {
             requireRevocation: true,
         });
         expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_INPUT_MALFORMED']);
-        expect(report.reasons[1]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crl[1]' });
+        expect(report.reasons[1]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crls[1]' });
     });
 
     it('should stop believing a delegated signer whose certificate has expired', async () => {

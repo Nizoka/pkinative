@@ -171,6 +171,10 @@ export const STEPS: readonly Step[] = [
     // a relying party hashes.
     { id: 'verify:samples', npmScript: 'verify:samples', profiles: ['fast', 'ci', 'publish'] },
     { id: 'smoke:install', npmScript: 'smoke:install', profiles: ['ci', 'publish'] },
+    // ADR 0017's TypeScript floor, compiled for real: the packed declarations
+    // under the oldest promised compiler, four resolutions. It installs that
+    // compiler from the registry, so it is publish-only, like conformance.
+    { id: 'ts-floor', npmScript: 'check:ts-floor', profiles: ['publish'] },
     // The second layer of the playground's freshness guard. verify:docs
     // fingerprints the inputs hermetically; this re-derives the file from the
     // dist/ built above and compares byte for byte, which is what "the

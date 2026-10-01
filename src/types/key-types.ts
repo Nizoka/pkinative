@@ -58,7 +58,13 @@ export interface PasswordEncryption {
     readonly scheme: string;
 }
 
-/** The kinds of private key a PrivateKeyInfo can name that pkinative recognises. */
+/**
+ * The kinds of private key a PrivateKeyInfo can name that pkinative recognises.
+ *
+ * `'unknown'` is open: a later minor may decode what lands here today and
+ * report it under a kind of its own (ADR 0018): branch on the known kinds, and
+ * treat it as a fallback rather than as a promise that the input stays unknown.
+ */
 export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown';
 
 /**
@@ -134,7 +140,13 @@ export interface DecryptPrivateKeyOptions extends PkiParseOptions {
     readonly algorithm: SignatureAlgorithm;
 }
 
-/** The six SafeBag types of RFC 7292 §4.2, and anything else. */
+/**
+ * The six SafeBag types of RFC 7292 §4.2, and anything else.
+ *
+ * `'unknown'` is open: a later minor may decode what lands here today and
+ * report it under a kind of its own (ADR 0018): branch on the known kinds, and
+ * treat it as a fallback rather than as a promise that the input stays unknown.
+ */
 export type SafeBagKind = 'keyBag' | 'pkcs8ShroudedKeyBag' | 'certBag' | 'crlBag' | 'secretBag' | 'safeContentsBag' | 'unknown';
 
 /** One RFC 7292 §4.2 SafeBag, read but not opened. */

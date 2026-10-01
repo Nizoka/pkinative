@@ -69,7 +69,9 @@ export interface OpenPkcs12Options extends PkiParseOptions {
      * RFC 7292 Appendix B, which is most files written before OpenSSL 3.4, or
      * no MAC at all — and report it `valid`. Off by default: without a MAC, an
      * unencrypted bag can be swapped by anyone who can write the file. The
-     * report's `integrity` says what was established either way.
+     * report's `integrity` says what was established either way. Note what
+     * waiving it means for a file with nothing encrypted: with no MAC to
+     * check and nothing to decrypt, it opens under any password.
      */
     readonly allowUnverifiedIntegrity?: boolean | undefined;
     /**

@@ -342,15 +342,23 @@ const eolLf: Rule = {
 
 const skillsShape: Rule = {
     id: 'skills-shape',
-    summary: 'Every .claude/skills/<dir>/SKILL.md has a matching name, a description and references that exist.',
+    summary: 'Every .claude/skills/<dir>/SKILL.md has a matching name, a description and references that exist, and is declared in .github/ai-governance.json → capability_manifest.claude_code.skills (the other direction is governance-sources).',
     check(ctx) {
         const dirs = new Set(ctx.list('.claude/skills').map((p) => p.split('/')[2]).filter((d): d is string => d !== undefined));
-        return [...dirs].sort().flatMap((dir) => checkSkillShape({
+        const shape = [...dirs].sort().flatMap((dir) => checkSkillShape({
             dir,
             text: ctx.read(`.claude/skills/${dir}/SKILL.md`),
             existsInSkill: (name) => ctx.exists(`.claude/skills/${dir}/${name}`),
             existsInRepo: (path) => ctx.exists(path),
         }));
+        // A skill the governance manifest does not declare is a capability an
+        // auditor reading the manifest would never know the agents have.
+        const read = readJson<Governance>(ctx, '.github/ai-governance.json');
+        if ('finding' in read) return [...shape, read.finding];
+        const declared = new Set((read.value.capability_manifest?.claude_code?.skills ?? []).map((s) => s.path));
+        const undeclared = [...dirs].sort().filter((dir) => !declared.has(`.claude/skills/${dir}/SKILL.md`))
+            .map((dir) => error('.github/ai-governance.json', `does not declare the skill .claude/skills/${dir}/SKILL.md in capability_manifest.claude_code.skills — every tracked skill is a capability the manifest must name`));
+        return [...shape, ...undeclared];
     },
 };
 

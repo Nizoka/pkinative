@@ -628,7 +628,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             // can promise never to throw for bad input without a second frozen
             // vocabulary of encoding failures.
             const refused = _pkiError(error);
-            out.push(inputMalformedReason(refused.code, refused.message, `crl[${String(index)}]`));
+            out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
         }
     }
     const signing: CrlSignerContext = { input, path, at, lists: parsed, reading };
@@ -666,7 +666,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             const problem = _crlScopeProblem({ certificate: subject, crl });
             if (problem !== null && problem.kind !== 'unusable') continue;
             if (problem !== null) {
-                mine.push(unknownCriticalExtensionReason(`crl[${String(index)}]`, problem.oid, 'revocation list'));
+                mine.push(unknownCriticalExtensionReason(`crls[${String(index)}]`, problem.oid, 'revocation list'));
                 continue;
             }
             covered.add(position);
@@ -690,7 +690,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 ...(delta === undefined ? {} : { delta }),
                 limits: reading.limits,
                 onDiagnostic: reading.onDiagnostic,
-            }, `crl[${String(index)}]`));
+            }, `crls[${String(index)}]`));
         }
         // §6.3.3's `reasons_mask`, which only the composition can see: a CA that
         // publishes a keyCompromise list and a second list for everything else

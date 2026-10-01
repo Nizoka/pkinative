@@ -7,6 +7,12 @@
  * same pure-TypeScript hashes otherwise — both return identical bytes, which
  * the test suite checks against `node:crypto`.
  *
+ * A fingerprint names an encoding, not a certificate's content: under ECDSA
+ * the high-S twin (r, n − s) of a signature verifies too — Web Crypto accepts
+ * both, and no X.509 profile requires low S — so two DERs with one
+ * `tbsCertificate` carry two fingerprints. Where that matters, identify a
+ * certificate by its `tbsDer`, or by issuer and serial number.
+ *
  * @module hash/fingerprint
  */
 

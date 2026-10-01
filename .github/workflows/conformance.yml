@@ -53,14 +53,14 @@ jobs:
           - { name: conformance-macos, os: macos-latest, slug: macos }
 
     steps:
-      # Harden-Runner supports Windows runners in audit mode only, and the
-      # action does not support macOS at all — so it is skipped there
-      # rather than left to fail.
+      # Harden-Runner's README at the pinned SHA lists GitHub-hosted Windows
+      # and macOS runners as supported in audit mode, and Linux with block mode
+      # as well. One step serves the three legs, so the policy is the one the
+      # Windows and macOS legs allow.
       - name: Harden the runner
-        if: runner.os != 'macOS'
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-01: audit only on Windows/macOS (vendor matrix), and one step serves every leg
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -112,9 +112,11 @@ jobs:
       # bug" or to "runner image drift", and that needs the versions.
       - name: Record tool versions
         shell: bash
+        env:
+          RUNNER_LABEL: ${{ matrix.os }}
         run: |
           {
-            echo '## Conformance tool versions (${{ matrix.os }})'
+            echo "## Conformance tool versions (${RUNNER_LABEL})"
             echo '```'
             echo "node $(node --version), bundled OpenSSL $(node -p process.versions.openssl)"
             openssl version || echo 'openssl CLI: not found'
@@ -123,6 +125,7 @@ jobs:
             go version 2>/dev/null || true
             zlint -version 2>&1 | head -n 1 || true
             python3 -c 'import cryptography, importlib.metadata as m; print("cryptography", cryptography.__version__, "pkilint", m.version("pkilint"))' 2>/dev/null || true
+            # shellcheck disable=SC2016 # the $ belongs to PowerShell, not to bash
             pwsh -NoProfile -Command '"PowerShell $($PSVersionTable.PSVersion) on $([System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription)"' 2>/dev/null || true
             java --version 2>/dev/null | head -n 1 || true
             echo '```'
