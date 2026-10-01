@@ -258,6 +258,51 @@ describe('checkOcspStatus — the nonce', () => {
     });
 });
 
+describe('checkOcspStatus — the edges of the nonce echo and of freshness', () => {
+    /** A response whose nonce extension carries exactly these octets as its value. */
+    const echoing = (value: readonly number[]): Uint8Array => {
+        const tbs = sequence(
+            tlv(2, true, 2, universal(4, [...new Array<number>(20).fill(0xcc)])),
+            gen(AT - DAY),
+            sequence(single({ nextUpdate: AT + DAY })),
+            tlv(2, true, 1, sequence(sequence(NONCE_OID, universal(4, [...value])))),
+        );
+        const basic = sequence(tbs, ALG, universal(3, [0x00, 0xde]));
+        return sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...basic]))));
+    };
+    const run = (n: number, from = 1): number[] => Array.from({ length: n }, (_, i) => (from + i) & 0xff);
+
+    it.each([
+        // An empty OCTET STRING is an empty echo, and matches an empty nonce.
+        { what: 'an empty OCTET STRING, for an empty nonce', value: [0x04, 0x00], sent: [], codes: [] },
+        { what: 'a lone tag', value: [0x04], sent: [], codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'another type, empty', value: [0x05, 0x00], sent: [], codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'a long-form length over exactly the nonce', value: [0x04, 0x81, 1, 2, 3], sent: [1, 2, 3], codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'a long-form length that fits', value: [0x04, 0x81, ...run(129)], sent: run(129), codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'the indefinite-length marker', value: [0x04, 0x80, ...run(128)], sent: run(128), codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'the longest short form, 127 octets', value: [0x04, 0x7f, ...run(127)], sent: run(127), codes: [] },
+        { what: 'a length past the end', value: [0x04, 0x03, 1, 2], sent: [1, 2], codes: ['PKI_REASON_REVOCATION_MISMATCH'] },
+        { what: 'a trailing octet after the OCTET STRING', value: [0x04, 0x02, 1, 2, 9], sent: [1, 2], codes: [] },
+    ])('should read $what', ({ value, sent, codes: expected }) => {
+        expect(codes(check(echoing(value), { nonce: Uint8Array.from(sent) }))).toEqual(expected);
+    });
+
+    it('should allow a thisUpdate a minute ahead, and not a millisecond more', () => {
+        expect(check(build({ singles: [single({ thisUpdate: AT + MINUTE, nextUpdate: AT + DAY })] }))).toEqual([]);
+        expect(codes(check(build({ singles: [single({ thisUpdate: AT + MINUTE + 1000, nextUpdate: AT + DAY })] }))))
+            .toEqual(['PKI_REASON_REVOCATION_STALE']);
+        // A minute is sixty thousand milliseconds, not one more.
+        expect(codes(check(build({ singles: [single({ thisUpdate: AT + MINUTE, nextUpdate: AT + DAY })] }), { at: AT - 1 })))
+            .toEqual(['PKI_REASON_REVOCATION_STALE']);
+    });
+
+    it('should hold a response current up to its nextUpdate, inclusive', () => {
+        expect(check(build({ singles: [single({ nextUpdate: AT })] }))).toEqual([]);
+        expect(check(build({ singles: [single({ nextUpdate: AT - DAY })] }), { staleTolerance: DAY })).toEqual([]);
+        expect(codes(check(build({ singles: [single({ nextUpdate: AT - 1000 })] })))).toEqual(['PKI_REASON_REVOCATION_STALE']);
+    });
+});
+
 describe('checkOcspStatus — several reasons at once', () => {
     it('should report every applicable reason, not only the first', () => {
         // A caller fixing one problem per round trip is a caller the report
