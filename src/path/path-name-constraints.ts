@@ -510,7 +510,8 @@ export function wildcardMeetsSubtree(base: string, parent: string, labels = 1): 
     if (subtreeCoversWildcard(base, parent)) return true;
     const b = fold(base);
     if (b.startsWith('.') || !b.endsWith(`.${parent}`)) return false;
-    return b.slice(0, b.length - parent.length - 1).split('.').length === labels;
+    // b is the labels below the parent, a dot, then the parent itself.
+    return b.split('.').length - parent.split('.').length === labels;
 }
 
 /**

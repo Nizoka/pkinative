@@ -527,6 +527,8 @@ describe('wildcardMeetsSubtree and subtreeCoversWildcard', () => {
         { base: '.bar.example.com', parent: 'example.com', meets: false, covers: false },
         { base: 'notexample.com', parent: 'example.com', meets: false, covers: false },
         { base: 'example.com', parent: 'notexample.com', meets: false, covers: false },
+        // As many labels as the stars, but under another domain.
+        { base: 'a.other.org', parent: 'example.com', meets: false, covers: false },
     ])('$base vs *.$parent → meets $meets, covers $covers', ({ base, parent, meets, covers }) => {
         expect(wildcardMeetsSubtree(base, parent)).toBe(meets);
         expect(subtreeCoversWildcard(base, parent)).toBe(covers);

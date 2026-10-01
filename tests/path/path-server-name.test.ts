@@ -78,6 +78,7 @@ describe('matchDnsName — RFC 6125 §6.4', () => {
         // An empty presented name identifies nothing, even against the root,
         // which its trailing-dot rule would otherwise make it equal to.
         { presented: '', reference: '.', expected: false },
+        { presented: '.', reference: '', expected: false },
         { presented: 'example.*', reference: 'example.com', expected: false },
         // Two wildcards.
         { presented: '*.*.example.com', reference: 'a.b.example.com', expected: false },

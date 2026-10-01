@@ -196,7 +196,8 @@ describe('buildCertificatePath', () => {
         });
         // It terminates, and it finds the path through the real A.
         expect(report.valid).toBe(true);
-        expect(report.explored).toBeLessThan(50);
+        // [leaf], [leaf, A'], [leaf, A', B], [leaf, A', B, A] — A' is never revisited.
+        expect(report.explored).toBe(4);
     });
 
     it('should stop at maxPathsExplored and say so', () => {
@@ -281,6 +282,8 @@ describe('buildCertificatePath', () => {
             limits: { maxChainLength: 1 },
         });
         expect(report.valid).toBe(false);
+        // The leaf alone fills a chain of one: nothing is extended.
+        expect(report.explored).toBe(1);
     });
 
     it('should accept a leaf that is itself a trust anchor, without exploring', () => {
@@ -422,5 +425,71 @@ describe('buildCertificatePath — the purpose is part of the search', () => {
             signatures: allValid(solo.certificate), purposes: [SERVER_AUTH],
         });
         expect(codes(report)).toContain('PKI_REASON_PURPOSE_NOT_PERMITTED');
+    });
+});
+
+describe('buildCertificatePath — the search, step by step', () => {
+    /** A CA named `subject`, issued under `issuer`'s name, whose own issuer is nowhere in the bag. */
+    const ca = async (subject: string, issuer: string, serial: bigint): Promise<Certificate> => {
+        const issuerName = (await issue({ subject: issuer, issuerDer: ROOT.subject.der, ca: true, serial: serial + 1000n })).certificate.subject.der;
+        return (await issue({ subject, issuerDer: issuerName, ca: true, serial })).certificate;
+    };
+
+    it('should report the deepest dead end, not the last one, and not a shallower one found first', async () => {
+        // leaf -> {A -> B, C}: the deepest attempt is [leaf, A, B], tried before C.
+        const leaf = (await issue({ subject: 'deep.example', issuerDer: (await ca('Search X', 'Nowhere', 600n)).subject.der, ca: false, serial: 601n })).certificate;
+        const a = await ca('Search X', 'Search Y', 602n);
+        const b = await ca('Search Y', 'Nowhere Else', 603n);
+        const c = await ca('Search X', 'Search Z', 604n);
+        const report = buildCertificatePath({ leaf, candidates: [a, b, c], trustAnchors: [ROOT], at: AT, signatures: allValid(leaf, a, b, c) });
+        expect(report.valid).toBe(false);
+        expect(report.explored).toBe(4);
+        expect(report.path.map((x) => x.der)).toEqual([leaf, a, b].map((x) => x.der));
+    });
+
+    it('should keep the first of two dead ends of the same depth', async () => {
+        // leaf -> {A -> B -> F, C -> D -> G}: both reach depth three; the first stays.
+        const leaf = (await issue({ subject: 'tie.example', issuerDer: (await ca('Tie X', 'Nowhere', 610n)).subject.der, ca: false, serial: 611n })).certificate;
+        const a = await ca('Tie X', 'Tie Y', 612n);
+        const b = await ca('Tie Y', 'Tie W', 613n);
+        const f = await ca('Tie W', 'Nowhere Else', 614n);
+        const c = await ca('Tie X', 'Tie Z', 615n);
+        const d = await ca('Tie Z', 'Tie V', 616n);
+        const g = await ca('Tie V', 'Nowhere Else', 617n);
+        const report = buildCertificatePath({ leaf, candidates: [a, b, f, c, d, g], trustAnchors: [ROOT], at: AT, signatures: allValid(leaf, a, b, f, c, d, g) });
+        expect(report.explored).toBe(7);
+        expect(report.path.map((x) => x.der)).toEqual([leaf, a, b, f].map((x) => x.der));
+    });
+
+    it('should not extend a certificate that bears an anchor\'s name, nor try one anchor twice', async () => {
+        // C is named like the anchor without being it: past C lies only what
+        // the anchor's name already settles. And an anchor also among the
+        // candidates is one issuer, not two.
+        const anchor = await ca('Search Anchor', 'Anchor Parent', 620n);
+        const other = await ca('Search Other', 'Nowhere', 621n);
+        const lookalike = (await issue({ subject: 'Search Anchor', issuerDer: other.subject.der, ca: true, serial: 622n })).certificate;
+        const leaf = (await issue({ subject: 'anchored.example', issuerDer: anchor.subject.der, ca: false, serial: 623n })).certificate;
+        const report = buildCertificatePath({
+            leaf, candidates: [lookalike, other, anchor], trustAnchors: [anchor], at: AT,
+            signatures: [{ certificate: leaf, verdict: 'invalid' }],
+        });
+        expect(report.valid).toBe(false);
+        // [leaf], [leaf, lookalike], [leaf, anchor] — never [leaf, lookalike, other], never the anchor twice.
+        expect(report.explored).toBe(3);
+    });
+
+    it('should find a path through the second of two anchors that share a name', async () => {
+        // A key rollover in the trust store: the leaf's issuer is the second
+        // anchor, and the first anchor of that name, which validation tries on
+        // its own, does not verify it. The anchors are issuers to the search too.
+        const first = await ca('Rolled Root', 'Rolled Parent', 630n);
+        const second = await ca('Rolled Root', 'Rolled Parent', 631n);
+        const leaf = (await issue({ subject: 'rolled.example', issuerDer: second.subject.der, ca: false, serial: 632n })).certificate;
+        const report = buildCertificatePath({
+            leaf, candidates: [], trustAnchors: [first, second], at: AT,
+            signatures: [{ certificate: leaf, issuer: first, verdict: 'invalid' }, { certificate: leaf, issuer: second, verdict: 'valid' }],
+        });
+        expect(report.valid).toBe(true);
+        expect(report.path.map((x) => x.der)).toEqual([leaf, second].map((x) => x.der));
     });
 });
