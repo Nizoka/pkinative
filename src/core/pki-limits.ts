@@ -31,6 +31,7 @@
  * | maxCmsCertificatesAndCrls | 1 024 | CWE-400 |
  * | maxKdfIterations  | 10 000 000 | CWE-400 |
  * | maxPkcs12Bags     | 4 096   | CWE-400 |
+ * | maxPkcs12KdfIterations | 10 000 000 | CWE-400 |
  *
  * @module core/pki-limits
  */
@@ -61,6 +62,7 @@ export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
     maxCmsCertificatesAndCrls: 1024,
     maxKdfIterations: 10_000_000,
     maxPkcs12Bags: 4096,
+    maxPkcs12KdfIterations: 10_000_000,
 });
 
 /**

@@ -37,6 +37,7 @@ describe('DEFAULT_PKI_LIMITS', () => {
             maxCmsCertificatesAndCrls: 1024,
             maxKdfIterations: 10_000_000,
             maxPkcs12Bags: 4096,
+            maxPkcs12KdfIterations: 10_000_000,
         });
     });
 });

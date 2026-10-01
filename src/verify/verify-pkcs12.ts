@@ -33,6 +33,7 @@
  */
 
 import { assertBytes, bytesEqual } from '../core/bytes.js';
+import { enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import {
     inputMalformedReason,
     pkcs12DecryptionFailedReason,
@@ -47,10 +48,10 @@ import { canDecrypt } from '../crypto/webcrypto.js';
 import { decryptPrivateKey, importPrivateKey } from '../keys/key-import.js';
 import { openSafeContents, parsePkcs12, verifyPkcs12Mac } from '../keys/key-pkcs12.js';
 import type { SignatureAlgorithm, SigningKey } from '../types/crypto-types.js';
-import type { Pkcs12, SafeBag } from '../types/key-types.js';
+import type { Pbes2Parameters, Pkcs12, SafeBag } from '../types/key-types.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { PkiParseOptions } from '../types/pki-types.js';
+import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
 import { _assertArguments, _pkiError } from './verify-chain.js';
@@ -150,6 +151,7 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
         ...(options.encodingRules === undefined ? {} : { encodingRules: options.encodingRules }),
     };
     _assertArguments([], reading);
+    const limits = resolveLimits(reading.limits);
     // Without Web Crypto nothing in a PKCS#12 can be opened or checked, so the
     // call could never succeed: that is said once, here, rather than once per
     // bag in a report that would read like a fact about the file.
@@ -172,6 +174,13 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
         return _report(reasons, 'unverified', undefined, [], [], []);
     }
 
+    // What this call has asked the host to derive, against
+    // maxPkcs12KdfIterations. parsePkcs12 already refused a file whose
+    // visible derivations exceed it; what it could not see are the shrouded
+    // keys inside encrypted SafeContents, and those are charged here, before
+    // each one runs. A derivation that fails still ran, so it still counts.
+    const budget: _KdfBudget = { limits, spent: 0 };
+
     // ── Integrity ──
     let integrity: OpenPkcs12Report['integrity'] = 'unverified';
     const mac = pkcs12.mac;
@@ -180,6 +189,8 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
     else if (mac.kind === 'pkcs12-kdf') unverified = 'pkcs12-kdf';
     else if (mac.pbmac1 === undefined) unverified = 'pbmac1-unsupported';
     else {
+        // Within the budget by construction: parsePkcs12 counted it first.
+        _charge(budget, mac.pbmac1.iterations, 'macData');
         try {
             integrity = await verifyPkcs12Mac(pkcs12, password) ? 'verified' : 'mismatch';
         } catch (error) {
@@ -207,6 +218,7 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
     const decrypted = new Set<SafeBag>();
     for (const contents of pkcs12.contents) {
         try {
+            _charge(budget, contents.encryption?.pbes2?.iterations ?? 0, contents.path);
             const opened = await openSafeContents(contents, password, reading);
             bags.push(...opened);
             if (contents.encrypted) for (const bag of opened) decrypted.add(bag);
@@ -270,6 +282,7 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
         }
         let signingKey: SigningKey | undefined;
         try {
+            if ('encryption' in held) _charge(budget, (held.encryption.pbes2 as Pbes2Parameters).iterations, bag.path);
             signingKey = 'encryption' in held
                 ? await decryptPrivateKey(held.der, { ...reading, password, algorithm })
                 : await importPrivateKey(held.der, { ...reading, algorithm });
@@ -292,6 +305,25 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
 }
 
 // ── Helpers ──
+
+/** The PBKDF2 iterations one `openPkcs12` call has asked the host for. */
+interface _KdfBudget {
+    readonly limits: PkiLimits;
+    spent: number;
+}
+
+/**
+ * Count one derivation against `maxPkcs12KdfIterations` before it runs. A
+ * refusal leaves the count unchanged — nothing was derived — so a cheaper
+ * derivation later in the file may still fit.
+ *
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` when the derivation would take the call past the budget.
+ */
+function _charge(budget: _KdfBudget, iterations: number, path: string): void {
+    const next = budget.spent + iterations;
+    enforceLimit(budget.limits, 'maxPkcs12KdfIterations', next, `the PBKDF2 iterations opening this PKCS#12 would run by ${path}`);
+    budget.spent = next;
+}
 
 /** The password, refused before anything is read when it cannot be one. */
 function _password(options: OpenPkcs12Options | undefined): Uint8Array | string {

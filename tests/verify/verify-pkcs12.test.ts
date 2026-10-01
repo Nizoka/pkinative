@@ -22,6 +22,7 @@ import {
     friendlyName,
     macData,
     P12,
+    pbes2Algorithm,
     pbmac1MacData,
     pfx,
     safeContents,
@@ -449,6 +450,45 @@ describe('openPkcs12 — what it reports instead of throwing', () => {
         const report = await read(await file({ holder }));
         expect(codes(report)).toEqual([]);
         expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'Ed448' });
+    });
+});
+
+describe('openPkcs12 — what one file may cost (maxPkcs12KdfIterations)', () => {
+    it('should report the audit\'s file at once, rather than run thirty seconds of PBKDF2 for it', async () => {
+        // Random ciphertext, no MAC, three entries of ten million iterations
+        // each: no password needed to make a host derive them all.
+        const garbage = new Uint8Array(32).fill(0x41);
+        const entry = (salt: number): Uint8Array => encryptedDataInfo(garbage, { algorithm: pbes2Algorithm({ iterations: 10_000_000, salt: new Uint8Array(16).fill(salt) }) });
+        const report = await read(pfx({ authSafe: authenticatedSafe(entry(0), entry(1), entry(2)) }));
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_LIMIT_EXCEEDED' });
+        expect(report.reasons[0]?.message).toContain('maxPkcs12KdfIterations');
+    });
+
+    it('should charge every derivation it runs, the keys an encrypted SafeContents reveals included', async () => {
+        // MAC 1 200, two encrypted SafeContents of 1 000 and 1 100, holding a
+        // key of 2 000 and one of 500. parsePkcs12 sees 3 300; the keys it
+        // cannot see are charged here, before each one runs.
+        const root = await makeRoot();
+        const [a, b] = [await issue(root), await issue(root)] as const;
+        const [idA, idB] = [Uint8Array.of(0xa1), Uint8Array.of(0xb2)];
+        const keyContents = async (holder: Holder, id: Uint8Array, keyIterations: number, iterations: number): Promise<Uint8Array> =>
+            encryptedSafeContents(safeContents(shroudedKeyBag(await shroudKey(await pkcs8Of(holder), PASSWORD, { iterations: keyIterations }), [localKeyId(id)])), PASSWORD, { iterations });
+        const auth = authenticatedSafe(
+            await keyContents(a, idA, 2000, 1000),
+            await keyContents(b, idB, 500, 1100),
+            dataInfo(safeContents(certBag(a.certificate.der, [localKeyId(idA)]), certBag(b.certificate.der, [localKeyId(idB)]))),
+        );
+        const der = pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD, { iterations: 1200 }) });
+
+        expect(codes(await read(der))).toEqual([]);
+        // 5 000: the first key would take the call to 5 300, so it stays shut;
+        // the refusal ran nothing, so the second, at 3 800, still fits.
+        const report = await read(der, { limits: { maxPkcs12KdfIterations: 5000 } });
+        expect(report.integrity).toBe('verified');
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_LIMIT_EXCEEDED', path: 'authSafe[0].bags[0]' });
+        expect(report.keys.map((k) => k.signingKey === undefined)).toEqual([true, false]);
     });
 });
 

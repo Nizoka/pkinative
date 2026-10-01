@@ -25,6 +25,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0017](0017-runtime-and-toolchain-support.md) | Runtime and toolchain support for 1.x: Node.js LTS lines with a patched floor, TypeScript 5.0 on a two-year window, ES2020 | accepted | 1.0.0 |
 | [0018](0018-what-the-1-x-promise-covers-beyond-its-snapshots.md) | What the 1.x promise covers beyond its three snapshots: option defaults, verdicts, open unions, report fields and the wire form | accepted | 1.0.0 |
 | [0019](0019-release-integrity-slsa-build-l2.md) | Release integrity at SLSA Build L2: the job that builds cannot publish, and L3 is deferred | accepted | 1.0.0 |
+| [0020](0020-a-kdf-budget-per-pkcs12.md) | One PKCS#12 costs a bounded number of PBKDF2 iterations in total: maxPkcs12KdfIterations joins the limits before the freeze | accepted | 1.0.0 |
 
 ## Adding a record
 

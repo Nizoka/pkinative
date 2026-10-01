@@ -55,10 +55,12 @@ export interface PkiLimits {
     readonly maxAttributes: number;
     /** Maximum number of certificates plus revocation entries a SignedData carries — the signer search walks them. CWE-400. */
     readonly maxCmsCertificatesAndCrls: number;
-    /** Maximum PBKDF2 iteration count honoured — a count the file declares, and the host then runs. CWE-400. */
+    /** Maximum PBKDF2 iteration count honoured in one derivation — a count the file declares, and the host then runs. CWE-400. */
     readonly maxKdfIterations: number;
     /** Maximum number of SafeBags read from one PKCS#12, across every SafeContents. CWE-400. */
     readonly maxPkcs12Bags: number;
+    /** Maximum PBKDF2 iterations one PKCS#12 costs in total — its PBMAC1 MAC, every encrypted SafeContents and every shrouded key together. CWE-400. */
+    readonly maxPkcs12KdfIterations: number;
 }
 
 // ── Diagnostics ──────────────────────────────────────────────────────

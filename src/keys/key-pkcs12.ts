@@ -25,6 +25,11 @@
  * first in encoded order, and every bag in the call counts against
  * `maxPkcs12Bags` before any is read.
  *
+ * **The file declares its own cost**, one PBKDF2 count per derivation, and
+ * may declare thousands of derivations. `maxKdfIterations` bounds each one;
+ * `maxPkcs12KdfIterations` bounds what one file costs in total, so the sum
+ * of what a call can see is checked before anything is derived.
+ *
  * @module keys/key-pkcs12
  */
 
@@ -370,13 +375,14 @@ function _readMacData(node: Asn1Node, ctx: Asn1Context): Pkcs12Mac {
  * ```
  *
  * @param der     The DER (or, with `encodingRules: 'ber'`, the BER) of an RFC 7292 `PFX`.
- * @param options Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics.
+ * @param options Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`, `maxPkcs12KdfIterations`) and diagnostics.
  * @returns The container, read but not opened.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array; `PKI_INVALID_OPTION` for a bad option.
  * @throws {PkiEncodingError} When the bytes, or the bytes inside an OCTET STRING, are not valid DER (or BER).
  * @throws {PkiKeyError} `PKI_KEY_STRUCTURE_INVALID`; `PKI_KEY_VERSION_UNSUPPORTED` for a PFX version other than 3;
  *   `PKI_KEY_MAC_UNSUPPORTED` when the AuthenticatedSafe is `signedData` (public-key integrity mode).
- * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations`, `maxAttributes` or another named limit.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations`, `maxAttributes` or another named limit,
+ *   and past `maxPkcs12KdfIterations` when the MAC, the encrypted SafeContents and the shrouded keys read here declare more PBKDF2 iterations together.
  */
 export function parsePkcs12(der: Uint8Array, options?: PkiParseOptions): Pkcs12 {
     const bytes = assertBytes(der, 'parsePkcs12 input');
@@ -406,7 +412,25 @@ export function parsePkcs12(der: Uint8Array, options?: PkiParseOptions): Pkcs12 
     const contents = Object.freeze(safe.children.map((entry, i) => _readSafeContentsInfo(entry, ctx, `authSafe[${String(i)}]`, safe.offset, budget)));
 
     const mac = macDataNode === undefined ? undefined : _readMacData(macDataNode, ctx);
+    // Every derivation the file already shows, summed: the PBMAC1 MAC, each
+    // PBES2 SafeContents and each shrouded key read in the clear. Each count
+    // passed maxKdfIterations on its own; the file as a whole must fit too.
+    const declared = (mac?.pbmac1?.iterations ?? 0)
+        + contents.reduce((sum, entry) => sum + (entry.encryption?.pbes2?.iterations ?? 0) + _keysKdfIterations(entry.bags), 0);
+    enforceLimit(ctx.limits, 'maxPkcs12KdfIterations', declared, 'the PBKDF2 iterations this PKCS#12 declares across its MAC, its encrypted SafeContents and its shrouded keys');
     return Object.freeze({ der: pfx.bytes, version, authenticatedSafe, contents, mac, diagnostics: ctx.emitter.diagnostics });
+}
+
+/**
+ * The PBKDF2 iterations unwrapping every PBES2-shrouded key among `bags` would
+ * cost — a key under a scheme pkinative refuses costs nothing, since it is
+ * never derived.
+ *
+ * @internal
+ */
+export function _keysKdfIterations(bags: readonly SafeBag[]): number {
+    // Bounded: `bags` were read under maxPkcs12Bags.
+    return bags.reduce((sum, bag) => sum + (bag.encryptedKey?.encryption.pbes2?.iterations ?? 0), 0);
 }
 
 /**
@@ -482,14 +506,15 @@ export async function verifyPkcs12Mac(pkcs12: Pkcs12, password: Uint8Array | str
  *
  * @param contents An entry of `parsePkcs12(…).contents`.
  * @param password The password, as a string (UTF-8) or as exact octets; unused for a plain SafeContents.
- * @param options  Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics for the decrypted SafeContents.
+ * @param options  Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`, `maxPkcs12KdfIterations`) and diagnostics for the decrypted SafeContents.
  * @returns The bags, in encoded order, nested safeContentsBags flattened.
  * @throws {PkiError} `PKI_INVALID_INPUT` or `PKI_INVALID_OPTION` for a bad argument; `PKI_API_MISUSE` for an encrypted entry without its ciphertext.
  * @throws {PkiKeyError} `PKI_KEY_ENCRYPTION_UNSUPPORTED` for a scheme other than PBES2 with PBKDF2 and AES-CBC, or for `envelopedData`;
  *   `PKI_KEY_STRUCTURE_INVALID` for decrypted content that is not a SafeContents.
  * @throws {PkiCryptoError} `PKI_CRYPTO_DECRYPTION_FAILED` for a wrong password or altered data; `PKI_CRYPTO_UNAVAILABLE`; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED`.
  * @throws {PkiEncodingError} When the decrypted bytes are not valid DER.
- * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations` or another named limit.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxPkcs12Bags`, `maxKdfIterations` or another named limit, and past
+ *   `maxPkcs12KdfIterations` when this derivation, or it and the shrouded keys the plaintext holds, would cost more.
  */
 export async function openSafeContents(contents: SafeContentsInfo, password: Uint8Array | string, options?: PkiParseOptions): Promise<readonly SafeBag[]> {
     if (typeof contents !== 'object' || contents === null) {
@@ -506,7 +531,13 @@ export async function openSafeContents(contents: SafeContentsInfo, password: Uin
         throw new PkiError('PKI_API_MISUSE', `pkinative: ${path} is marked encrypted but carries no ciphertext — pass an entry of parsePkcs12(…).contents unchanged`);
     }
     enforceLimit(ctx.limits, 'maxKdfIterations', pbes2.iterations, `${path} PBKDF2 iteration count`);
+    enforceLimit(ctx.limits, 'maxPkcs12KdfIterations', pbes2.iterations, `${path} PBKDF2 iteration count`);
     const key = await _derivePbes2Key(password, pbes2, encryption.algorithm.oid);
     const plaintext = await decryptContent(key, pbes2.iv, encryptedContent, encryption.algorithm.oid);
-    return _readSafeContents(decodeWithContext(plaintext, ctx, false), ctx, path, { scheduled: 0 });
+    const bags = _readSafeContents(decodeWithContext(plaintext, ctx, false), ctx, path, { scheduled: 0 });
+    // What the plaintext reveals it would cost next: the shrouded keys inside,
+    // on top of the derivation that opened them.
+    enforceLimit(ctx.limits, 'maxPkcs12KdfIterations', pbes2.iterations + _keysKdfIterations(bags),
+        `the PBKDF2 iterations of ${path} and of the shrouded keys it holds`);
+    return bags;
 }

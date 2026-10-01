@@ -21,6 +21,7 @@ import {
     legacyMacData,
     localKeyId,
     macData,
+    pbes2Algorithm,
     pbmac1MacData,
     pfx,
     safeBag,
@@ -618,5 +619,64 @@ describe('openSafeContents', () => {
 
     it.each([[null], ['entry']])('should refuse a contents argument of %s', async (bad) => {
         await expect(openSafeContents(bad as unknown as SafeContentsInfo, PASSWORD)).rejects.toEqual(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+    });
+});
+
+describe('maxPkcs12KdfIterations — what one file costs, not one derivation', () => {
+    // The 1.0 audit's file: three encryptedData entries of random ciphertext,
+    // no MAC, each declaring ten million iterations. maxKdfIterations passed
+    // each, and the host ran thirty seconds of PBKDF2 without a password.
+    const garbage = new Uint8Array(32).fill(0x41);
+    const hostileEntry = (iterations: number, salt: number): Uint8Array =>
+        encryptedDataInfo(garbage, { algorithm: pbes2Algorithm({ iterations, salt: new Uint8Array(16).fill(salt) }) });
+
+    it('should refuse, before anything is derived, a file whose derivations together exceed the budget', () => {
+        const hostile = pfx({ authSafe: authenticatedSafe(hostileEntry(10_000_000, 0), hostileEntry(10_000_000, 1), hostileEntry(10_000_000, 2)) });
+        const error = refuse(hostile);
+        expect(error).toBeInstanceOf(PkiLimitError);
+        expect(error).toEqual(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxPkcs12KdfIterations', configured: 10_000_000, observed: 30_000_000 }));
+        // One such entry is the most a file may cost, and still opens.
+        expect(parse(pfx({ authSafe: authenticatedSafe(hostileEntry(10_000_000, 0)) })).p12.contents).toHaveLength(1);
+    });
+
+    it('should add the PBMAC1 MAC, every PBES2 SafeContents and every shrouded key it can see', async () => {
+        const auth = authenticatedSafe(
+            await encryptedSafeContents(safeContents(), PASSWORD, { iterations: 1100 }),
+            dataInfo(safeContents(shroudedKeyBag(await shroudKey(PKCS8, PASSWORD, { iterations: 1200 })), certBag(CERT))),
+        );
+        const der = pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD, { iterations: 1000 }) });
+        expect(refuse(der, { limits: { maxPkcs12KdfIterations: 3299 } })).toEqual(expect.objectContaining({ limit: 'maxPkcs12KdfIterations', observed: 3300 }));
+        expect(parse(der, { limits: { maxPkcs12KdfIterations: 3300 } }).p12.contents).toHaveLength(2);
+    });
+
+    it('should count nothing for what is never derived: an Appendix B MAC, a refused scheme, public-key privacy', () => {
+        const refusedScheme = alg(P12.pbeWithSHAAnd3KeyTripleDES, sequence(octets([1]), int(2048)));
+        const der = pfx({
+            authSafe: authenticatedSafe(
+                encryptedDataInfo(garbage, { algorithm: refusedScheme }),
+                contentInfo(P12.envelopedData, sequence()),
+                dataInfo(safeContents(shroudedKeyBag(sequence(refusedScheme, octets(garbage))))),
+            ),
+            macData: legacyMacData(),
+        });
+        expect(parse(der, { limits: { maxPkcs12KdfIterations: 1 } }).p12.contents).toHaveLength(3);
+    });
+
+    it('should refuse an encrypted SafeContents past the budget before deriving its key', async () => {
+        // A wrong password on purpose: had the derivation run, the answer would
+        // be a decryption failure, not the limit.
+        const der = pfx({ authSafe: authenticatedSafe(await encryptedSafeContents(safeContents(), PASSWORD, { iterations: 1000 })) });
+        const entry = parse(der).p12.contents[0] as SafeContentsInfo;
+        await expect(openSafeContents(entry, 'wrong', { limits: { maxPkcs12KdfIterations: 999 } }))
+            .rejects.toEqual(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxPkcs12KdfIterations', observed: 1000 }));
+    });
+
+    it('should count the shrouded keys an encrypted SafeContents reveals on top of the derivation that opened it', async () => {
+        const inner = safeContents(shroudedKeyBag(await shroudKey(PKCS8, PASSWORD, { iterations: 1000 })), shroudedKeyBag(await shroudKey(PKCS8, PASSWORD, { iterations: 1100 })));
+        const der = pfx({ authSafe: authenticatedSafe(await encryptedSafeContents(inner, PASSWORD, { iterations: 1200 })) });
+        const entry = parse(der).p12.contents[0] as SafeContentsInfo;
+        await expect(openSafeContents(entry, PASSWORD, { limits: { maxPkcs12KdfIterations: 3299 } }))
+            .rejects.toEqual(expect.objectContaining({ limit: 'maxPkcs12KdfIterations', observed: 3300 }));
+        expect(await openSafeContents(entry, PASSWORD, { limits: { maxPkcs12KdfIterations: 3300 } })).toHaveLength(2);
     });
 });
