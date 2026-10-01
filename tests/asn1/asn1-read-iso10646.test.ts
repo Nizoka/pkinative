@@ -32,7 +32,7 @@ describe('readString — X.690 §8.23 in the ISO/IEC 10646 types', () => {
     ])('should report the byte-order signature leading %s, and keep it in the value', (_what, bytes, value, standard) => {
         const read1 = read(bytes);
         expect(read1.value).toBe(value);
-        expect(read1.diagnostics).toEqual([expect.objectContaining({ code: 'PKI_DIAG_STRING_SIGNATURE', standard })]);
+        expect(read1.diagnostics).toEqual([expect.objectContaining({ code: 'PKI_DIAG_STRING_SIGNATURE', standard, message: expect.stringContaining(`a ${_what.slice(2)} starts`) })]);
     });
 
     it('should not take a U+FEFF after the first character for a signature', () => {
@@ -53,6 +53,7 @@ describe('readString — X.690 §8.23 in the ISO/IEC 10646 types', () => {
     ])('should report %s once, and decode it as ISO/IEC 10646', (_what, bytes, control, standard) => {
         const result = read(bytes);
         expect(result.diagnostics).toEqual([expect.objectContaining({ code: 'PKI_DIAG_STRING_ESCAPE_SEQUENCE', standard, message: expect.stringContaining(control) })]);
+        expect(result.diagnostics[0]?.message).toContain(`a ${_what.split(' in a ')[1] ?? ''} contains`);
     });
 
     it('should report one escape diagnostic per string, however many controls it holds', () => {

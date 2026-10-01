@@ -176,6 +176,16 @@ describe('resolveAlgorithm', () => {
                 .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', message: expect.stringContaining('mask generation uses SHA-1') }));
         });
 
+        it.each<[string, Uint8Array]>([
+            ['a SET where the AlgorithmIdentifier SEQUENCE belongs', universal(17, concat(oid('1.2.840.113549.1.1.8'), algorithm(SHA256)), true)],
+            ['an AlgorithmIdentifier whose first field is not an OID', sequence(universal(2, [1]), algorithm(SHA256))],
+            ['an empty AlgorithmIdentifier', sequence()],
+        ])('should refuse a maskGenAlgorithm that is %s, by code', (_what, maskGen) => {
+            const params = sequence(tagged(0, algorithm(SHA256)), tagged(1, maskGen));
+            expect(() => resolveAlgorithm(identifier(PSS, params), RSA_KEY))
+                .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', message: expect.stringContaining('maskGenAlgorithm is not an AlgorithmIdentifier') }));
+        });
+
         it('should ignore a field that is neither a context tag nor one it knows', () => {
             const params = sequence(nullValue(), tagged(7, universal(2, [1])), tagged(2, universal(2, [48])));
             expect(resolveAlgorithm(identifier(PSS, params), RSA_KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 48 });

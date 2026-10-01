@@ -196,6 +196,15 @@ describe('createCertificate', () => {
             .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining(says) }));
     });
 
+    it.each([
+        { name: '0x00 before a high bit', serial: Uint8Array.of(0x00, 0x80), hex: '0080' },
+        { name: '0xff before a clear bit', serial: Uint8Array.of(0xff, 0x7f), hex: 'ff7f' },
+    ])('should keep a leading octet the sign needs: $name', async ({ serial, hex }) => {
+        const m = await P256();
+        const cert = parseCertificate(await createCertificate(root(m, { serialNumber: serial }), m.signer), { onDiagnostic: () => undefined });
+        expect(cert.serialNumber.hex).toBe(hex);
+    });
+
     it('should pass its limits down to the name and the extensions', async () => {
         const m = await P256();
         await expect(createCertificate(root(m, {
@@ -242,6 +251,12 @@ describe('encodeSignatureAlgorithm', () => {
         const params = decodeAsn1(der).children[1];
         const salt = params?.children.find((c) => c.tagNumber === 2)?.children[0];
         expect(salt?.content[0]).toBe(48);
+    });
+
+    it('should accept a salt length of zero, which RFC 4055 allows', () => {
+        const der = encodeSignatureAlgorithm({ key: {} as never, algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 0 } });
+        const salt = decodeAsn1(der).children[1]?.children.find((c) => c.tagNumber === 2)?.children[0];
+        expect(salt?.content[0]).toBe(0);
     });
 
     it('should refuse a negative salt length', () => {
@@ -413,6 +428,16 @@ describe('an ExternalSigner', () => {
             algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
             produceSignature: (data) => new Uint8Array(nodeSign('sha256', data, key)),
         })).rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('exactly 64 octets') }));
+    });
+
+    it.each([
+        ['an Int8Array', new Int8Array(64)],
+        ['a DataView', new DataView(new ArrayBuffer(64))],
+    ])('should refuse a signature returned as %s rather than a Uint8Array', async (_what, produced) => {
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+            algorithm: { name: 'Ed25519' },
+            produceSignature: () => produced as unknown as Uint8Array,
+        })).rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('non-empty Uint8Array') }));
     });
 
     it('should let an error the signer throws reach the caller unchanged', async () => {

@@ -128,6 +128,10 @@ describe('readTime — impossible instants', () => {
 
     it('should refuse an impossible offset under BER and an oversized content before decoding it', () => {
         expect(codeOf(() => read(utc('250101000000+2400'), BER))).toBe('PKI_ASN1_TIME_INVALID');
+        expect(codeOf(() => read(utc('250101000000+0060'), BER))).toBe('PKI_ASN1_TIME_INVALID');
+        expect(read(utc('250101000000+2359'), BER).epochMilliseconds).toBe(Date.parse('2024-12-31T00:01:00Z'));
+        // Exactly 64 octets is not oversized: it is refused for its grammar, not its length.
+        expect(thrownMessage(() => read(universal(24, new Uint8Array(64).fill(0x31))))).not.toContain('longer than');
         const oversized = universal(24, new Uint8Array(65).fill(0x31));
         expect(codeOf(() => read(oversized))).toBe('PKI_ASN1_TIME_INVALID');
         let message = '';

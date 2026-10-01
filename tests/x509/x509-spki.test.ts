@@ -96,6 +96,7 @@ describe('_readSubjectPublicKeyInfo', () => {
             expect(readSpki(spki(ecAlgorithm(curve), bitString(point(1 + 2 * size)))))
                 .toMatchObject({ kind: 'ec', namedCurve: curve, curve: name, pointFormat: 'uncompressed' });
             expect(readSpki(spki(ecAlgorithm(curve), bitString(point(1 + size, 0x03))))).toMatchObject({ curve: name, pointFormat: 'compressed' });
+            expect(readSpki(spki(ecAlgorithm(curve), bitString(point(1 + size, 0x02))))).toMatchObject({ curve: name, pointFormat: 'compressed' });
         });
 
         it('should read a point on a curve it does not name', () => {

@@ -162,8 +162,9 @@ describe('decodeExtensionValue', () => {
             expect('names' in decoded ? decoded.names.map((n) => n.kind) : []).toEqual(['dNSName', 'iPAddress']);
         });
 
-        it.each([OID.subjectAltName, OID.issuerAltName])('should report an empty %s', (extensionOid) => {
+        it.each([OID.subjectAltName, OID.issuerAltName])('should report an empty %s, and only an empty one', (extensionOid) => {
             expect(diagnosticsOf(extensionOid, sequence())).toEqual(['PKI_DIAG_SAN_EMPTY']);
+            expect(diagnosticsOf(extensionOid, NAMES)).toEqual([]);
         });
 
         it('should refuse a malformed GeneralName with the GeneralName code', () => {

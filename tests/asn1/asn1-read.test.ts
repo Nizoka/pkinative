@@ -128,6 +128,11 @@ describe('readBitString', () => {
         expect(codeOf(() => readBitString(node(text)))).toBe('PKI_ASN1_BIT_STRING_INVALID');
     });
 
+    it('should refuse unused bits on an empty string under BER too, where padding alone would only be reported', () => {
+        expect(() => readBitString(node('03 01 03'), { encodingRules: 'ber', onDiagnostic: () => undefined }))
+            .toThrow(expect.objectContaining({ code: 'PKI_ASN1_BIT_STRING_INVALID', message: expect.stringContaining('empty BIT STRING') }));
+    });
+
     it('should accept non-zero padding bits under BER with a diagnostic', () => {
         const seen: PkiDiagnostic[] = [];
         expect(readBitString(node('03 02 01 01'), { encodingRules: 'ber', onDiagnostic: (d) => seen.push(d) }).unusedBits).toBe(1);
