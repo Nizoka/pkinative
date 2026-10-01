@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **The cross-validation made permanent**: eight foreign implementations and two linters (zlint, pkilint) over everything the API writes and reads, both directions, `--require-all` in the conformance workflow and the publish gate; L4 with three lineages.
 - **Coverage-guided fuzzing over eight targets**, CMS, CRLs, OCSP, RFC 3161 and PKCS#12 added, with the engine pinned.
 - **The tarball inspected file by file** (`docs/data/package-files.json`, `package-files-parity`), and the 1.0.0 prose swap as a reviewed table (`PRE_1_0_PROSE`, `release-era-prose`).
-- **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; `docs/.well-known/security.txt`; 79 verify-docs rules in all.
+- **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; `docs/.well-known/security.txt`; REUSE 3.3 compliance (`REUSE.toml`, `reuse-shape`); 81 verify-docs rules in all, `external-links` among them.
 
 ### Changed
 
@@ -31,7 +31,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **fix(build)!: name attributes are written in the string type RFC 5280 Appendix A gives them** — PrintableString for countryName, serialNumber and dnQualifier, IA5String for domainComponent and emailAddress — and held to their bounds.
 - **fix(build): RSASSA-PSS AlgorithmIdentifiers carry an explicit NULL** after the hash and MGF1 hash OIDs.
 - **ci(publish): the release path, hardened before its first use** ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)): triggered by the `v*` tag, a guard before any approval, a build job that cannot publish, a publish job that uploads exactly the tarball handed on, the registry's own bytes attested, `package-manager-cache: false` on every setup-node step, CycloneDX, SPDX and toolchain SBOMs. SLSA Build L2.
-- **ci: no path filter on a required check**; a runtime smoke test on Deno, Bun and headless Chromium; CodeQL over the workflows, zizmor and actionlint; harden-runner on every job, in block mode where the endpoints are known; Dependabot with a seven-day cooldown.
+- **ci: no path filter on a required check**; a runtime smoke test on Deno, Bun and headless Chromium; CodeQL over the workflows, zizmor and actionlint; harden-runner on every job, in block mode where the endpoints are known; Dependabot with a seven-day cooldown; a weekly OSV-Scanner pass over the lockfile.
 - **`engines.node` raised to `^22.22.2 || ^24.14.1 || >=25.8.2`**, the first releases fixing CVE-2026-21713.
 - **The 0.x line is tagged, never released**, and `release-assets.yml` is retired.
 - **docs:** SECURITY.md restructured around the compatibility promise, the supported runtimes, two private reporting channels mapped to ISO/IEC 29147 and 30111, what stands in place of an external audit and release integrity; the site at parity with pdfnative's design, with a WCAG 2.2 AA dark palette, JSON-LD on every guide and the 14 layers of 1.0.

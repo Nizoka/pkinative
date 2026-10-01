@@ -1,3 +1,4 @@
+import type { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
@@ -21,6 +22,7 @@ import {
     encodeKeyUsage,
     encodeSubjectAltName,
 } from '../../src/build/build-structures.js';
+import { ecdsaRawToDer } from '../../src/crypto/crypto-signature.js';
 import { computeKeyIdentifier } from '../../src/hash/key-identifier.js';
 import { sha1 } from '../../src/hash/sha1.js';
 import { sha256 } from '../../src/hash/sha256.js';
@@ -28,6 +30,7 @@ import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
 import { PkiError } from '../../src/types/pki-errors.js';
+import type { ExtensionDescription } from '../../src/types/build-types.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
 import type { CryptoKeyHandle } from '../../src/types/webcrypto.js';
 import type { Certificate } from '../../src/types/x509-types.js';
@@ -76,8 +79,11 @@ async function issue(options: {
     readonly sha1?: boolean;
     /** Add cRLSign, without which a CA may not issue a revocation list. */
     readonly crlSign?: boolean;
-}): Promise<Material> {
-    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    /** Reuse a key pair — how two certificates for one key are made. */
+    readonly pair?: webcrypto.CryptoKeyPair;
+    readonly extensions?: readonly ExtensionDescription[];
+}): Promise<Material & { readonly pair: webcrypto.CryptoKeyPair }> {
+    const pair = options.pair ?? await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
     const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
     const der = await createCertificate({
         serialNumber: options.serial,
@@ -95,9 +101,10 @@ async function issue(options: {
                 : [{ oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) }]),
             ...(options.purposes === undefined ? [] : [{ oid: '2.5.29.37', value: encodeExtendedKeyUsage([...options.purposes]) }]),
             ...(options.host === undefined ? [] : [{ oid: '2.5.29.17', value: encodeSubjectAltName([{ kind: 'dNSName', value: options.host }]) }]),
+            ...(options.extensions ?? []),
         ],
     }, { key: options.signer ?? pair.privateKey, algorithm: { name: 'ECDSA', hash: options.sha1 === true ? 'SHA-1' : 'SHA-256', namedCurve: 'P-256' } });
-    return { certificate: parseCertificate(der, quiet), key: pair.privateKey };
+    return { certificate: parseCertificate(der, quiet), key: pair.privateKey, pair };
 }
 
 /** root → ica → leaf, every signature real, the leaf naming `leaf.example`. */
@@ -214,9 +221,10 @@ describe('verifyCertificateChain', () => {
         const root = await issue({ subject: 'Purpose Root', issuerDer: encodeSequence([]), ca: true, serial: 10n });
         const realRoot = await issue({ subject: 'Purpose Root', issuerDer: root.certificate.subject.der, signer: root.key, ca: true, serial: 10n });
         const restricted = await issue({ subject: 'Shared ICA', issuerDer: realRoot.certificate.subject.der, signer: realRoot.key, ca: true, serial: 11n, purposes: [KEY_PURPOSES.emailProtection] });
-        const open = await issue({ subject: 'Shared ICA', issuerDer: realRoot.certificate.subject.der, signer: realRoot.key, ca: true, serial: 12n });
-        // Signed by the *open* intermediate, but naming a subject both share —
-        // so the builder meets the restricted one first and has to look past it.
+        const open = await issue({ subject: 'Shared ICA', issuerDer: realRoot.certificate.subject.der, signer: realRoot.key, ca: true, serial: 12n, pair: restricted.pair });
+        // One key, two certificates, one subject: the leaf's signature verifies
+        // under either, so only the purpose can make the builder look past the
+        // restricted one it meets first.
         const leaf = await issue({
             subject: 'leaf.example', issuerDer: open.certificate.subject.der, signer: open.key, ca: false, serial: 13n,
             purposes: [KEY_PURPOSES.serverAuth], host: 'leaf.example',
@@ -232,6 +240,23 @@ describe('verifyCertificateChain', () => {
         });
         expect(codes(report)).toEqual([]);
         expect(report.valid).toBe(true);
+        expect(report.path.map((c) => c.serialNumber.hex)).not.toContain(restricted.certificate.serialNumber.hex);
+    });
+
+    it('should restate the purpose on a one-certificate path the search refused for another reason', async () => {
+        // The anchor itself as the leaf: a path of one. It has expired, which
+        // the search reports and stops at; the purpose it does not permit is
+        // said by the restatement, because the caller renewing it needs both.
+        const root = await issue({ subject: 'Lone Root', issuerDer: encodeSequence([]), ca: true, serial: 20n });
+        const lone = await issue({
+            subject: 'Lone Root', issuerDer: root.certificate.subject.der, signer: root.key, ca: true, serial: 20n,
+            pair: root.pair, purposes: [KEY_PURPOSES.emailProtection],
+        });
+        const report = await verifyCertificateChain({
+            leaf: lone.certificate, trustAnchors: [lone.certificate], at: AT + 5 * DAY, purposes: [KEY_PURPOSES.serverAuth],
+        });
+        expect(report.path).toHaveLength(1);
+        expect(codes(report)).toEqual(['PKI_REASON_EXPIRED', 'PKI_REASON_PURPOSE_NOT_PERMITTED']);
     });
 });
 
@@ -261,6 +286,7 @@ describe('verifyCertificateChain — the one place that catches', () => {
         ['a candidate without its DER', { candidates: [{ ...R12, der: undefined }] }],
         ['a candidate without a subject', { candidates: [{ der: bytes }] }],
         ['a trust anchor without an issuer', { trustAnchors: [{ der: bytes, subject: { der: bytes } }] }],
+        ['a candidate without an issuer, its extensions a list', { candidates: [{ der: bytes, subject: { der: bytes }, extensions: [] }] }],
         ['a trust anchor whose extensions are not a list', { trustAnchors: [{ ...ROOT_X1, extensions: 'none' }] }],
         ['a CRL that is not bytes', { crls: ['MIIB'] }],
         ['an OCSP response that is not bytes', { ocspResponses: [[0x30, 0x00]] }],
@@ -347,6 +373,49 @@ describe('verifyCertificateChain — what it passes through', () => {
             limits: { maxPathsExplored: 50 },
         });
         expect(codes(strictPolicy)).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+    });
+
+    describe('each §6.1.1 input and the limits, each where it changes the answer', () => {
+        const P1 = '1.3.6.1.4.1.55555.1.1';
+        const P2 = '1.3.6.1.4.1.55555.1.2';
+        const ANY_POLICY = '2.5.29.32.0';
+        const policies = (...oids: string[]): ExtensionDescription =>
+            ({ oid: '2.5.29.32', value: encodeSequence(oids.map((oid) => encodeSequence([encodeObjectIdentifier(oid)]))) });
+        const mapping = (from: string, to: string): ExtensionDescription =>
+            ({ oid: '2.5.29.33', critical: true, value: encodeSequence([encodeSequence([encodeObjectIdentifier(from), encodeObjectIdentifier(to)])]) });
+
+        /** root → ica → leaf, the intermediate and the leaf carrying the extensions given. */
+        async function policyChain(ica: readonly ExtensionDescription[], leaf: readonly ExtensionDescription[]): Promise<{ leaf: Certificate; candidates: Certificate[]; trustAnchors: Certificate[]; at: number }> {
+            const seed = await issue({ subject: 'Policy Root', issuerDer: encodeSequence([]), ca: true, serial: 30n });
+            const root = await issue({ subject: 'Policy Root', issuerDer: seed.certificate.subject.der, signer: seed.key, ca: true, serial: 30n, pair: seed.pair });
+            const intermediate = await issue({ subject: 'Policy ICA', issuerDer: root.certificate.subject.der, signer: root.key, ca: true, serial: 31n, extensions: ica });
+            const end = await issue({ subject: 'policy.example', issuerDer: intermediate.certificate.subject.der, signer: intermediate.key, ca: false, serial: 32n, extensions: leaf });
+            return { leaf: end.certificate, candidates: [intermediate.certificate], trustAnchors: [root.certificate], at: AT };
+        }
+
+        it('should pass initialPolicySet: a chain under P1 is refused when only P2 is acceptable', async () => {
+            const chain = await policyChain([policies(P1)], [policies(P1)]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true, initialPolicySet: [P1] }))).toEqual([]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true, initialPolicySet: [P2] }))).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+        });
+
+        it('should pass inhibitAnyPolicy: an intermediate asserting only anyPolicy then establishes nothing', async () => {
+            const chain = await policyChain([policies(ANY_POLICY)], [policies(P1)]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true }))).toEqual([]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true, inhibitAnyPolicy: true }))).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+        });
+
+        it('should pass inhibitPolicyMapping: a policy reached only through a mapping is then lost', async () => {
+            const chain = await policyChain([policies(P1), mapping(P1, P2)], [policies(P2)]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true }))).toEqual([]);
+            expect(codes(await verifyCertificateChain({ ...chain, requireExplicitPolicy: true, inhibitPolicyMapping: true }))).toEqual(['PKI_REASON_NO_VALID_POLICY']);
+        });
+
+        it('should pass the limits: a path bound of one certificate cannot reach the anchor', async () => {
+            const chain = await policyChain([], []);
+            expect(codes(await verifyCertificateChain(chain))).toEqual([]);
+            expect(codes(await verifyCertificateChain({ ...chain, limits: { maxChainLength: 1 } }))).toContain('PKI_REASON_NO_TRUST_ANCHOR');
+        });
     });
 
     it('should throw for API misuse, which is not a verification issue', async () => {
@@ -461,6 +530,53 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
         expect(report.reasons.find((r) => r.code === 'PKI_REASON_REVOCATION_UNKNOWN')?.message)
             .toMatch(/signature|signed/i);
+    });
+
+    it('should refuse a list its CA really signed when its keyUsage omits cRLSign', async () => {
+        // The test above, with a real signature: the arithmetic would say yes,
+        // and the entitlement is what says no.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, icaKey)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+    });
+
+    it('should not take a list from a key certified under another name', async () => {
+        // RFC 5280 §6.3.3 (f): the list's signer is found among certificates
+        // whose subject is the list's issuer. This key is certified by the CA,
+        // may sign lists, and signed this one — under a name that is not the CA's.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const pair = await ed25519Key();
+        const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
+        const other = parseCertificate(await createCertificate({
+            serialNumber: 41n, issuerDer: ica.subject.der, subject: [[{ type: '2.5.4.3', value: 'Another Signer' }]],
+            notBefore: AT - DAY, notAfter: AT + DAY, subjectPublicKey: spki,
+            extensions: [
+                { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+                { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['cRLSign']) },
+            ],
+        }, { key: icaKey, algorithm: { name: 'Ed25519' } }), quiet);
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, other], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, pair.privateKey)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+    });
+
+    it('should weigh a list really signed over SHA-1 only with allowSha1', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ ecdsaIca: true, crlSign: true });
+        const ECDSA_SHA1 = encodeSequence([encodeObjectIdentifier('1.2.840.10045.4.1')]);
+        const tbs = encodeSequence([
+            encodeInteger(1n), ECDSA_SHA1, ica.subject.der,
+            encodeTime(AT - DAY, 'UTCTime'), encodeTime(AT + DAY, 'UTCTime'),
+        ]);
+        const raw = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-1' }, icaKey as unknown as webcrypto.CryptoKey, tbs));
+        const crl = encodeSequence([tbs, ECDSA_SHA1, encodeBitString(ecdsaRawToDer(raw, 32))]);
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, crls: [crl], requireRevocation: true } as const;
+        expect(codes(await verifyCertificateChain(common))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        expect(codes(await verifyCertificateChain({ ...common, allowSha1: true }))).toEqual([]);
     });
 
     it('should check the signature of a list its CA was entitled to issue', async () => {
@@ -630,6 +746,21 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual([]);
     });
 
+    it('should take the digest from the answer about our serial, not from another answer before it', async () => {
+        // A multi-answer response whose first answer, about another serial,
+        // uses SHA-1 while ours uses SHA-256: reading the digest anywhere but
+        // from our own answer computes the expected CertID wrongly, and the
+        // good answer is never recognised.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const response = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, sha256: true, others: [{ serial: Uint8Array.of(0x7a, 0x01) }] });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            ocspResponses: [response], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual([]);
+    });
+
     it('should match a nonce that comes back and miss one that does not', async () => {
         const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
         const nonce = Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8);
@@ -689,6 +820,48 @@ describe('verifyCertificateChain — what it passes through', () => {
             leaf, candidates: [ica], trustAnchors: [root], at: AT,
             serverName: { kind: 'dns', value: 'leaf.example' },
             ocspResponses: [response],
+        });
+        expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+    });
+
+    it.each([
+        ['the first instant', { notBefore: AT }],
+        ['the last instant', { notAfter: AT }],
+    ])('should believe a delegate at %s of its own window', async (_label, window) => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const delegate = await issueEd25519({
+            subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey,
+            purposes: [OCSP_SIGNING], ...window,
+        });
+        const response = await ocspResponse({
+            certificate: leaf, issuer: ica,
+            signer: { key: delegate.key, certificates: [delegate.certificate.der] },
+        });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            ocspResponses: [response], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual([]);
+    });
+
+    it('should refuse a delegate that names another issuer, even signed by the key of the CA', async () => {
+        // RFC 6960 §4.2.2.2: the responder certificate is issued *directly by
+        // the CA that is identified in the request*. The CA's key under a name
+        // that is not the CA's is not that.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const delegate = await issueEd25519({
+            subject: 'OCSP Responder', issuerDer: root.subject.der, signer: icaKey,
+            purposes: [OCSP_SIGNING],
+        });
+        const response = await ocspResponse({
+            certificate: leaf, issuer: ica,
+            signer: { key: delegate.key, certificates: [delegate.certificate.der] },
+        });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'leaf.example' },
+            ocspResponses: [response], requireRevocation: true,
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
@@ -967,6 +1140,24 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
     });
 
+    it('should pass over a delta outside the certificate\'s scope and pair the next one that covers it', async () => {
+        // Two deltas over one base: the first speaks only of CA certificates,
+        // the second of everything. Stopping at the first, and letting the
+        // revocation check discard it, would leave the second unread — and
+        // the revocation it carries with it.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [
+                await signedCrl(ica, icaKey, { number: 4 }),
+                await signedCrl(ica, icaKey, { number: 5, over: 4, onlyCACerts: true }),
+                await signedCrl(ica, icaKey, { number: 6, over: 4, revoked: leaf }),
+            ],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
     it('should pair a delta it could not check the signature of, and say so', async () => {
         // No candidates and no anchor, so the path stops at the leaf and there
         // is nobody to check either list against. The pair is still *about*
@@ -1091,6 +1282,36 @@ describe('verifyCertificateChain — what it passes through', () => {
             crls: [await signedCrl(ica, delegate.key)], requireRevocation: true,
         });
         expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+    });
+
+    it.each([
+        ['the first instant', { notBefore: AT }],
+        ['the last instant', { notAfter: AT }],
+    ])('should believe a delegated signer at %s of its validity', async (_label, window) => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const delegate = await crlDelegate(ica, icaKey, window);
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, delegate.certificate], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, delegate.key)], requireRevocation: true,
+        });
+        expect(codes(report)).toEqual([]);
+    });
+
+    it('should judge a delegated signer only by lists about it, not by a list of another issuer it cannot walk', async () => {
+        // The root's list is signed by a key the path vouches for, but it is
+        // the root's list: the delegate was issued by the CA, so the list says
+        // nothing about it (RFC 5280 §6.3.3 (b)(1)), unreadable entry or not.
+        // It does speak about the CA, where its unreadable entry is reported —
+        // once, and without taking the delegate's list down with it.
+        const { root, ica, leaf, icaKey, rootKey } = await ed25519Hierarchy({ crlSign: true, rootCrlSign: true });
+        const delegate = await crlDelegate(ica, icaKey);
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, delegate.certificate], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, delegate.key), await signedCrl(root, rootKey, { malformedEntry: true })],
+            requireRevocation: true,
+        });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ path: 'crls[1]' });
     });
 
     it('should refuse a signer the list does not name in its authorityKeyIdentifier', async () => {
@@ -1260,6 +1481,7 @@ async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean
 async function crlDelegate(ca: Certificate, caKey: CryptoKeyHandle, options: {
     readonly serial?: bigint;
     readonly ski?: Uint8Array;
+    readonly notBefore?: number;
     readonly notAfter?: number;
 } = {}): Promise<{ certificate: Certificate; key: CryptoKeyHandle }> {
     const pair = await ed25519Key();
@@ -1268,7 +1490,7 @@ async function crlDelegate(ca: Certificate, caKey: CryptoKeyHandle, options: {
         serialNumber: options.serial ?? 40n,
         issuerDer: ca.subject.der,
         subject: [[{ type: '2.5.4.3', value: 'OCSP ICA' }]],
-        notBefore: AT - DAY,
+        notBefore: options.notBefore ?? AT - DAY,
         notAfter: options.notAfter ?? AT + DAY,
         subjectPublicKey: spki,
         extensions: [
@@ -1305,27 +1527,33 @@ async function ocspResponse(options: {
     readonly nonce?: Uint8Array;
     /** Declare a different signature algorithm than the one actually used. */
     readonly signatureAlgorithm?: Uint8Array;
+    /** Answers about other serials, placed before ours, each with its own CertID digest. */
+    readonly others?: ReadonlyArray<{ readonly serial: Uint8Array; readonly sha256?: boolean }>;
 }): Promise<Uint8Array> {
     if (options.statusCode !== undefined) return encodeSequence([encodeEnumerated(options.statusCode)]);
-    const wide = options.sha256 === true;
-    const digest = wide ? sha256 : sha1;
-    const certId = encodeSequence([
-        wide ? SHA256_ALG : SHA1_ALG,
-        encodeOctetString(digest(options.issuer.subject.der)),
-        encodeOctetString(computeKeyIdentifier(options.issuer.subjectPublicKeyInfo.publicKey.bytes, wide ? 'SHA-256' : 'SHA-1')),
-        encodeTlv('universal', 2, false, options.serial ?? options.certificate.serialNumber.bytes),
-    ]);
-    const single = encodeSequence([
-        certId,
-        options.status ?? encodeTlv('context', 0, false, new Uint8Array(0)),
-        encodeTime(AT - DAY, 'GeneralizedTime'),
-        encodeExplicit(0, encodeTime(AT + DAY, 'GeneralizedTime'), { tagClass: 'context' }),
-    ]);
+    const singleResponse = (serial: Uint8Array, wide: boolean, status: Uint8Array): Uint8Array => {
+        const digest = wide ? sha256 : sha1;
+        const certId = encodeSequence([
+            wide ? SHA256_ALG : SHA1_ALG,
+            encodeOctetString(digest(options.issuer.subject.der)),
+            encodeOctetString(computeKeyIdentifier(options.issuer.subjectPublicKeyInfo.publicKey.bytes, wide ? 'SHA-256' : 'SHA-1')),
+            encodeTlv('universal', 2, false, serial),
+        ]);
+        return encodeSequence([
+            certId,
+            status,
+            encodeTime(AT - DAY, 'GeneralizedTime'),
+            encodeExplicit(0, encodeTime(AT + DAY, 'GeneralizedTime'), { tagClass: 'context' }),
+        ]);
+    };
+    const good = encodeTlv('context', 0, false, new Uint8Array(0));
+    const single = singleResponse(options.serial ?? options.certificate.serialNumber.bytes, options.sha256 === true, options.status ?? good);
+    const others = (options.others ?? []).map((other) => singleResponse(other.serial, other.sha256 === true, good));
     const tbs = encodeSequence([
         // responderID ::= [2] KeyHash — by key, which needs no name to match.
         encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
         encodeTime(AT - DAY, 'GeneralizedTime'),
-        encodeSequence([single]),
+        encodeSequence([...others, single]),
         // responseExtensions ::= [1] EXPLICIT Extensions — the nonce echo, whose
         // value sits inside TWO OCTET STRINGs.
         ...(options.nonce === undefined

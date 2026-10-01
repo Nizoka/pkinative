@@ -49,6 +49,90 @@
       "original": "limitHit",
       "replacement": "false",
       "reason": "Semantic: limitHit is set only when explored has reached maxPathsExplored, and explored never decreases. Without the early return the loop goes on to its next issuer, where a revisited one is skipped without effect and any other meets the same explored >= maxPathsExplored test, sets limitHit again and returns null; a loop with no issuer left returns null as well. The search, explored and the report are identical."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:439:13:if-true",
+      "original": "verified === false",
+      "replacement": "true",
+      "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is undefined (the signature could not be checked), where it turns answer from undefined into false. Every reader of the answer asks only whether it is true — checkRevocation (signatureVerified !== true, and === true before REVOKED), the delta pairing (!== true) and _signerStillGood (!== true) — so the codes, paths and verdicts are unchanged; checkRevocation alone words the REVOCATION_UNKNOWN message differently for false (\"did not verify\") and undefined (\"never checked\")."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:439:22:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: verified === true has already returned, so verified !== false holds exactly when verified is undefined — the same single case as the if-true mutant at 439:13, with the same consequence: false in place of undefined, read by every consumer only as \"not true\", and worded differently in the REVOCATION_UNKNOWN message."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:564:13:if-true",
+      "original": "!signed.has(index)",
+      "replacement": "true",
+      "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:673:17:if-true",
+      "original": "!signed.has(index)",
+      "replacement": "true",
+      "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:590:9:if-false",
+      "original": "lists.length === 0 && stapled.length === 0",
+      "replacement": "false",
+      "reason": "Message-only: with no list and no response, the code past the early return parses nothing, finds no list covering any certificate (mine stays empty, so the reason-mask push adds nothing) and runs no OCSP loop; what remains is the final requirement check, which pushes PKI_REASON_REVOCATION_UNKNOWN at path[0] exactly when requireRevocation is true and nothing covered path[0] — the code, path and condition of the early return's own reason, with other wording."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:590:26:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:590:50:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:727:91:number+1",
+      "original": "0",
+      "replacement": "1",
+      "reason": "Semantic: the fallback is read only when no single response names the leaf's serial (mine is undefined). The digest then chooses how the expected CertID is computed, and a CertID matches only when its serial does too, so no answer can match under any digest and checkOcspStatus returns the same no-matching-answer verdict; _digestOf(undefined) yields SHA-1, a member of the same two-value range."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:727:91:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Semantic: responses[-1] is undefined, so the digest falls to SHA-1 — read only when no single response names the leaf's serial, where no CertID can match under any digest (see 727:91:number+1)."
+    },
+    {
+      "id": "src/verify/verify-timestamp.ts:267:110:number+1",
+      "original": "1000",
+      "replacement": "1001",
+      "reason": "Semantic: the TSTInfo reader refuses micros outside 1..999 (RFC 3161 §2.4.2, tsp-tst-info.ts), so micros / 1000 and micros / 1001 both lie strictly between 0 and 1. genTime and the whole part of the slack are integers, and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 for every f in (0, 1): earliest and latest are identical."
+    },
+    {
+      "id": "src/verify/verify-timestamp.ts:267:110:number-1",
+      "original": "1000",
+      "replacement": "999",
+      "reason": "Semantic: with micros in 1..999, micros / 999 lies in (0, 1] — 1 exactly at 999 — and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 hold for every f in (0, 1] when g and k are integers, as they are with micros / 1000: earliest and latest are identical."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:439:13:if-false",
+      "original": "verified === false",
+      "replacement": "false",
+      "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is false, where answer keeps the undefined (or the false set by ??= for an earlier candidate) it held instead of becoming false. Every reader of the answer asks only whether it is true (see 439:13:if-true); checkRevocation alone words REVOCATION_UNKNOWN differently for false and undefined."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:369:88:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:369:90:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
     }
   ]
 }

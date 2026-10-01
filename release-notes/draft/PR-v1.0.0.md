@@ -15,7 +15,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 45 diagnostic codes · 22 named limits · 79 verify-docs rules · 18 bundle probes · 3 836 tests · 100 % statements, branches, functions and lines · 21 decision records.
+Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 45 diagnostic codes · 22 named limits · 81 verify-docs rules · 18 bundle probes · 3 875 tests · 100 % statements, branches, functions and lines · 21 decision records.
 
 Conformance:
 
@@ -42,7 +42,7 @@ Conformance:
 ### Tooling (scripts/)
 
 - `build-refusals-frozen.ts`; `check-ts-floor.ts` in the publish profile; the interop runner rebuilt over `scripts/lib/interop-*.ts` with ten tools, `REQUIRED_TOOLS` per platform and reviewed `TOOL_LIMITATIONS`; two new L4 validators.
-- 79 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`; `skills-shape` now also fails on an undeclared skill.
+- 81 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`, `reuse-shape`, `external-links`; `skills-shape` now also fails on an undeclared skill.
 - Bundle budgets raised with the measured cause of each (`scripts/verify-bundle.ts`): `*` 272.9 KB of 280 KB.
 
 ### CI and repository (.github/, root)
@@ -51,16 +51,18 @@ Conformance:
 - `ci.yml`: no path filter on a required check; the `runtimes` job (Deno 2.9.7, Bun 1.4.2, headless Chromium); the `workflow lint` job (zizmor, actionlint). CodeQL over the workflows. harden-runner on every job, in block mode where the endpoints are known, and on macOS too.
 - Rulesets: ten required checks (`ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows`, `conformance-macos`, `runtimes`, `workflow lint`, `dependency-review`) and a `code_scanning` rule (CodeQL, high or higher).
 - Dependabot with a seven-day cooldown, the actions grouped, the ClusterFuzzLite image and the pinned fuzzing engine watched. brace-expansion lifted in the lockfile (three advisories published 2026-09-29, dev-only).
-- ClusterFuzzLite over eight targets.
+- ClusterFuzzLite over eight targets. A weekly OSV-Scanner job in `audit.yml`, installed at a fixed version through the Go checksum database.
+- REUSE 3.3: `REUSE.toml` and `LICENSES/`; `reuse lint` reports 520/520 files compliant.
 
 ### Agent layer (.claude/, AGENTS.md, governance)
 
 - `.github/copilot-instructions.md` and the pki-core instructions describe 1.0; `copilot-layer-parity` holds the Copilot layer table to `LAYERS`.
+- `AGENT_RULES.md` gains rule 7, byte-identity awareness (pdfnative's rule, adapted to `output-bytes.json` and L2).
 - `ai-governance.json` declares the release-audit skill; its anti-goals are restated for 1.0. `guard.mjs` judges a list-form exemption on the leading segment.
 
 ### Tests and conformance
 
-- `tests/security/cve-classes.test.ts` (43 classes), `tests/tools/dual-package.test.ts`, `tests/tools/exported-constants.test.ts`, `tests/tools/interop.test.ts`, `tests/conformance/guide-counts.test.ts`, `tests/tools/check-ts-floor.test.ts`; mutation testing back to 100 % on every module the fixes touched.
+- `tests/security/cve-classes.test.ts` (43 classes), `tests/tools/dual-package.test.ts`, `tests/tools/exported-constants.test.ts`, `tests/tools/interop.test.ts`, `tests/conformance/guide-counts.test.ts`, `tests/tools/check-ts-floor.test.ts`; mutation testing back to 100 % on every module the fixes touched, `verify-chain.ts` (213 mutants) and `verify-timestamp.ts` (131) included — 22 reviewed equivalents in all, each with its argument in `scripts/data/mutation-equivalents.json`.
 
 ### Documentation
 
@@ -78,7 +80,7 @@ Conformance:
 | Command | Result |
 |---|---|
 | `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 607.6 s` |
-| `npm run test:coverage` | 3 836 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
+| `npm run test:coverage` | 3 875 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
 | `npm run verify:bundle` | 18 probes within budget; `*` 272.9 KB of 280 KB, `openPkcs12` 101.8 KB of 104 KB |
 | `npx tsx scripts/verify-docs.ts` | 79 rules, 0 errors, 0 warnings |
 | `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32) |
@@ -89,6 +91,12 @@ Conformance:
 | `npm pack --dry-run` | 12 files, 1.2 MB packed, 4.7 MB unpacked |
 | `npm audit` / `osv-scanner` (2.6.0) | 0 vulnerabilities / no issues in 326 packages |
 | zizmor 1.30.1 (offline) / actionlint 1.7.12 | no findings / clean |
+| `reuse lint` (reuse 6.2.0) | 520/520 files with copyright and licence information; compliant with REUSE 3.3 |
+| L4 Linux lineages, run locally under WSL Ubuntu on the release machine's validator input | Go `crypto/x509` (go 1.27) 202/202 on all six fields, `tbsFp256` included; Python cryptography 46.0.5 202/202; both canaries behaved (1 positive accepted, 4/4 negative refused) — with CryptoAPI, three lineages agree |
+| Jazzer.js 4.0.0, 180 s per target over the eight ClusterFuzzLite targets | 780 036 runs, 0 crashes, 0 artefacts |
+| axe-core (WCAG 2.0/2.1/2.2 A and AA) over 12 pages, light and dark, Edge headless | 0 violations in 24 runs |
+| Lighthouse accessibility, the same 12 pages | 100 on every page |
+| Horizontal overflow at 1280 and 375 px, light and dark | 0 px on the home page and the guides |
 
 The local Node.js, 22.17.0, is below the floor this release declares (`^22.22.2`): it builds and tests, but the release gate that matters is the `build` job of `publish.yml`, which runs on the `.nvmrc` line's latest patch.
 
@@ -140,7 +148,7 @@ This is the first push to an empty repository, so the steps differ from the temp
 9. What to expect: `guard` passes; `build` runs the publish gate and packs; approve `npm-publish` only once `build` is green; `publish` uploads the tarball with provenance; `attest` checks the registry's bytes and attaches the tarball, the SBOMs and the Sigstore bundle to the draft. **Then publish the draft.**
 10. Check: `npm view pkinative version` shows `1.0.0`; `npm audit signatures`; `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative`; `npm run check:npm-drift`; `curl -sI https://pkinative.dev/llms.txt`.
 11. CONTRIBUTING §Release step 11: require 2FA and disallow tokens on the package; deprecate the `0.0.1` reservation; upload `docs/assets/social-preview.png` (Settings → General → Social preview); fill the OpenSSF Best Practices questionnaire once the repository is public.
-12. Optional: submit the eight issue drafts the audit wrote for pdfnative (`D:\Github\pdfnative\.github\drafts\`), each validated by pdfnative's `verify:issue`.
+12. Optional: submit the nine issue drafts the audit wrote for pdfnative (`D:\Github\pdfnative\.github\drafts\`), each validated by pdfnative's `verify:issue`.
 
 ## Self-review checklist
 

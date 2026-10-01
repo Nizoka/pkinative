@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { encodeInteger, encodeSequence, encodeTlv } from '../../src/asn1/asn1-encode.js';
-import { encodeDistinguishedName, encodeSubjectAltName } from '../../src/build/build-structures.js';
+import { createCertificate } from '../../src/build/build-certificate.js';
+import { encodeBasicConstraints, encodeDistinguishedName, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { createTimeStampRequest } from '../../src/cms/tsp-request.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
 import { verifyTimeStampToken, type VerifyTimeStampTokenInput } from '../../src/verify/verify-timestamp.js';
+import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import {
     AT,
     type Authority,
@@ -14,12 +16,15 @@ import {
     flipLastOctetOf,
     type Holder,
     issueTsa,
+    keyPair,
     makeCrl,
     makeRoot,
     makeToken,
     OID,
+    quiet,
     sha,
     signerInfosOf,
+    spkiOf,
     tstInfo,
     withCertificates,
     withSigners,
@@ -347,6 +352,34 @@ describe('verifyTimeStampToken', () => {
             expect(codes(report)).toEqual([code]);
             expect(report.reasons[0]?.path).toBe('token.tsaCertificate');
         });
+
+        it.each([
+            ['the first instant the TSA certificate is valid', AT - DAY],
+            ['the last instant the TSA certificate is valid', AT + 9 * DAY],
+        ])('should accept a genTime at %s: validity includes both ends', async (_label, genTime) => {
+            const w = await world();
+            expect(codes(await verify(w, await makeToken(w.tsa, tstInfo({ imprint: w.imprint, genTime }))))).toEqual([]);
+        });
+    });
+
+    describe('a SHA-1 token', () => {
+        async function sha1Token(): Promise<{ w: World; token: Uint8Array }> {
+            const w = await world({ family: 'RSA', pair: await keyPair('RSA', { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: Uint8Array.of(1, 0, 1), hash: 'SHA-1' }) });
+            const tsa = { ...w.tsa, signer: { key: w.tsa.pair.privateKey, algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-1' } as const } };
+            return { w, token: await makeToken(tsa, tstInfo({ imprint: w.imprint })) };
+        }
+
+        it('should report the token\'s SHA-1 signature as not checked by default', async () => {
+            const { w, token } = await sha1Token();
+            const report = await verify(w, token);
+            expect(codes(report)).toEqual(['PKI_REASON_SIGNATURE_NOT_CHECKED']);
+            expect(report.reasons[0]?.path).toBe('token.signerInfos[0].signature');
+        });
+
+        it('should accept it with allowSha1', async () => {
+            const { w, token } = await sha1Token();
+            expect(codes(await verify(w, token, { allowSha1: true }))).toEqual([]);
+        });
     });
 
     describe('the tsa name in the TSTInfo', () => {
@@ -413,6 +446,52 @@ describe('verifyTimeStampToken', () => {
             const options = { ocspResponses: [], allowSha1: false, limits: { maxInputBytes: 1 << 20 } };
             expect(codes(await verify(w, token, { ...options, requireRevocation: true }))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
             expect(codes(await verify(w, token, { ...options, requireRevocation: true, crls: [await makeCrl(w.root)] }))).toEqual([]);
+        });
+
+        it('should judge the TSA\'s chain under the caller\'s allowSha1: a TSA certificate signed over SHA-1', async () => {
+            const pair = await keyPair('ECDSA');
+            const name = [[{ type: '2.5.4.3', value: 'CMS SHA-1 Root' }]];
+            const rootDer = await createCertificate({
+                serialNumber: 1n, issuer: name, subject: name,
+                notBefore: AT - 30 * DAY, notAfter: AT + 30 * DAY,
+                subjectPublicKey: await spkiOf(pair),
+                extensions: [
+                    { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+                    { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+                ],
+            }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
+            const root = { certificate: parseCertificate(rootDer, quiet), key: pair.privateKey };
+            const tsaPair = await keyPair('ECDSA');
+            // The TSA certificate alone is signed over SHA-1; the token itself is signed over SHA-256.
+            const tsaDer = await createCertificate({
+                serialNumber: 3n, issuerDer: root.certificate.subject.der,
+                subject: [[{ type: '2.5.4.3', value: 'CMS Test TSA' }]],
+                notBefore: AT - DAY, notAfter: AT + 9 * DAY,
+                subjectPublicKey: await spkiOf(tsaPair),
+                extensions: [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) }, eku([OID.timeStamping])],
+            }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-1', namedCurve: 'P-256' } });
+            const tsa = {
+                certificate: parseCertificate(tsaDer, quiet),
+                pair: tsaPair,
+                signer: { key: tsaPair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } as const },
+            };
+            const w = { root, tsa, imprint: await sha('SHA-256', DATA) };
+            const token = await makeToken(tsa, tstInfo({ imprint: w.imprint }));
+            const refused = await verify(w, token);
+            expect(refused.reasons.length).toBeGreaterThan(0);
+            expect(refused.reasons.every((reason) => reason.path.startsWith('token.tsaChain'))).toBe(true);
+            expect(codes(await verify(w, token, { allowSha1: true }))).toEqual([]);
+        });
+
+        it('should judge the TSA\'s chain under the caller\'s limits', async () => {
+            const w = await world();
+            const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+            // A list naming two other serials: only the chain reads it, and one is over the bound below.
+            const crls = [await makeCrl(w.root, [w.root.certificate, w.root.certificate])];
+            expect(codes(await verify(w, token, { crls }))).toEqual([]);
+            const bounded = await verify(w, token, { crls, limits: { maxRevokedCertificates: 1 } });
+            expect(bounded.reasons.length).toBeGreaterThan(0);
+            expect(bounded.reasons.every((reason) => reason.path.startsWith('token.tsaChain'))).toBe(true);
         });
     });
 
