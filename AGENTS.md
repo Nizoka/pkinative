@@ -51,7 +51,7 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 
 ## Architecture
 
-Strict layering, enforced from `LAYERS` in `scripts/lib/architecture.ts`; `verify:docs` rule `layer-parity` holds this diagram to it:
+Strict layering, enforced from `LAYERS` in `scripts/lib/architecture.ts`; `verify:docs` rules `layer-parity` and `copilot-layer-parity` hold this diagram, and the Copilot file's, to it:
 
 ```
 types  → (nothing)

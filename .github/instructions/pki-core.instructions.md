@@ -36,8 +36,9 @@ applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**"
   `decodeExtensions: false` defers that decision to the caller
 - An unknown extension is kept raw (`kind: 'unknown'`); an unknown *critical* extension also raises a diagnostic
 - `x509/` parses and nothing more: it never verifies a signature, never writes a structure and never builds or
-  validates a chain. Verification lives in `crypto/`, creation in `build/`, and **path validation does not exist
-  yet** (0.5) — never imply otherwise in a name or a doc comment
+  validates a chain. Verification lives in `crypto/`, creation in `build/`, path building and validation in
+  `path/`, revocation in `revocation/`, and `verify/` composes them into the one-call reports — never give an
+  `x509/` name or doc comment a verdict it does not reach (a parsed certificate is not a trusted one)
 - `build/` writes what `x509/` reads, and the two are held together by one rule: every structure a recipe or a
   test builds is parsed back with `onDiagnostic`, and **zero diagnostics** is the assertion. A builder whose
   output its own reader complains about has written what someone else's reader will refuse
