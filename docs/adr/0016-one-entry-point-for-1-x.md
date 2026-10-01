@@ -10,7 +10,7 @@ since: 1.0.0
 
 [ADR 0007](0007-no-subpath-exports-before-1-0.md) kept a single entry point through the 0.x line and put the decision on subpath exports (`pkinative/x509`, `pkinative/cms`, …) at 1.0, for the whole module partition at once. It deferred the decision without taking it. This record takes it, because 1.0.0 is the release from which the `exports` map of `package.json` becomes part of the compatibility promise ([SECURITY.md §Compatibility promise](../../SECURITY.md#compatibility-promise)).
 
-The trigger written down at 0.3.0 was 200 000 bytes of `dist/index.d.ts`. On the 1.0.0 tree, built with `npm run build`, the file measures **296 510 bytes**: 148 % of the trigger, and 95.6 % of the 310 000-byte budget that `declared.bundle` in [`docs/assets/ecosystem.json`](../assets/ecosystem.json) sets and the `bundle-check` gate step enforces. Its growth was 182 552 bytes at 0.5.0, 258 879 at 0.7.0, 294 325 at 0.8.0, and 296 510 at 1.0.0: the 0.9 band and the 1.0 freeze added almost nothing.
+The trigger written down at 0.3.0 was 200 000 bytes of `dist/index.d.ts`. On the 1.0.0 tree, built with `npm run build`, the file measures **307 592 bytes**: 154 % of the trigger, and 99.2 % of the 310 000-byte budget that `declared.bundle` in [`docs/assets/ecosystem.json`](../assets/ecosystem.json) sets and the `bundle-check` gate step enforces. Its growth was 182 552 bytes at 0.5.0, 258 879 at 0.7.0, 294 325 at 0.8.0, 296 510 on the 1.0.0 release commit, and 307 592 once the pre-publication audit had landed its fixes (two exports, five diagnostics, the subjectDirectoryAttributes decoder, the error brand): the 0.9 band and the freeze itself added almost nothing.
 
 The same file was then measured as a TypeScript consumer loads it. A one-file consumer importing `pkinative`, compiled by TypeScript 5.9.3 with `skipLibCheck: false` and the ES2020 and DOM libraries, loads 5 671 lines of definitions against 49 324 lines of the standard library, and checks in 1.3 to 2.1 seconds under `moduleResolution: bundler` and `node16`. The declaration file is about a tenth of what the compiler reads for a browser-targeting project.
 
@@ -45,7 +45,7 @@ What holds for 1.x:
 - Good, because no module split is frozen at 1.0, and the one decision that cannot be undone in 1.x — removing a subpath — cannot arise.
 - Good, because the error classes keep one identity per build, and a caller's `instanceof PkiError` works whatever they imported.
 - Good, because adding subpaths stays possible in a minor if the declaration file becomes a measured problem.
-- Bad, because every TypeScript consumer keeps loading the whole declaration file, 296 510 bytes at 1.0.0.
+- Bad, because every TypeScript consumer keeps loading the whole declaration file, 307 592 bytes at 1.0.0.
 - Bad, because the budget will have to be argued again, rather than raised, the next time a subsystem lands.
 
 ### Confirmation
