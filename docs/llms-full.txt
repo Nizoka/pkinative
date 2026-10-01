@@ -13,7 +13,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 ## Guides
 
 - [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
-- [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-one limits, typed failures, the cryptography boundary
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, Wycheproof, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when not yet
@@ -139,7 +139,7 @@ pkinative has 282 public exports. There is deliberately no PEM-to-certificate sh
 
 ## Security model
 
-Every certificate, PEM text and DER blob is attacker-controlled. Twenty-one named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
+Every certificate, PEM text and DER blob is attacker-controlled. Twenty-two named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, and conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them). No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
 
 ## Conformance
 
@@ -296,7 +296,7 @@ Never branch on the message. The [error guide](errors.md) lists every code with 
 
 ## Limits
 
-Twenty-one named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
+Twenty-two named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
 
 ```ts
 parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
@@ -681,7 +681,7 @@ const problems = [
 if (problems.length > 0) for (const reason of problems) console.log(reason.code, reason.path, reason.message);
 ```
 
-**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. The same matcher is exported as `matchDnsName(presented, reference, options?)`, for a name you hold outside a certificate; its [`MatchDnsNameOptions`](../assets/api.json) take the same `allowWildcards`, on by default. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
+**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. Turned on, it also needs `path`, the validated path: RFC 5280 §6 constrains the subjectAltName and the subject, never a CN read as a host, so the fallback holds that CN to the `dNSName` name constraints of the CAs on the path — `PKI_REASON_NAME_NOT_PERMITTED` or `PKI_REASON_NAME_EXCLUDED`, as OpenSSL refuses it — and without `path` it refuses. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. The same matcher is exported as `matchDnsName(presented, reference, options?)`, for a name you hold outside a certificate; its [`MatchDnsNameOptions`](../assets/api.json) take the same `allowWildcards`, on by default. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
 
 **When you build rather than validate, put the purpose *into* the search.** `buildCertificatePath` takes `purposes`, and passing it is not an optimisation — a builder that picks a path without knowing what the path is for will confidently return one that `checkExtendedKeyUsage` then condemns **while an acceptable path existed**. A real bag of cross-signed intermediates, some restricted to `emailProtection` and some not, is exactly that shape. Whatever can make a path unacceptable belongs inside the search, for the same reason name constraints are inside §6 rather than after it — and `validateCertificatePath` is untouched by this, because §6 has no notion of purpose and searching is not §6.
 
@@ -735,7 +735,7 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 | Answer | Meaning |
 |---|---|
 | `[]` | Not revoked, by a list entitled to say so and current enough to believe |
-| `PKI_REASON_REVOKED` | Listed — and the message carries the date, because a signature made before it may still be good |
+| `PKI_REASON_REVOKED` | Listed by a list entitled to say so — this certificate's issuer's, covering it, its signature verified — and the message carries the date, because a signature made before it may still be good |
 | `PKI_REASON_REVOCATION_STALE` | No `nextUpdate`, or it has passed beyond your `staleTolerance` |
 | `PKI_REASON_REVOCATION_WRONG_ISSUER` | The list names another CA, compared by encoded name |
 | `PKI_REASON_REVOCATION_OUT_OF_SCOPE` | The right CA's **wrong list** — its `issuingDistributionPoint` excludes this certificate |
@@ -746,7 +746,7 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 
 A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.
 
-And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
+**`REVOKED` is evidence, never a rumour.** RFC 5280 §6.3.3 consults a list only once its issuer and scope are this certificate's and its signature is valid, and serial numbers are unique per issuer, so a listing on another CA's list, an out-of-scope list or a list with a critical extension nothing here processes is not reported as a revocation: the reason that disqualifies the list already fails the answer. A list whose only fault is an unverified signature is still this CA's list about this certificate, so what it names is carried as a claim in a `PKI_REASON_REVOCATION_UNKNOWN`, dated. A stale list that may speak still proves a revocation — time does not withdraw one — and says it is stale besides. `checkOcspStatus` follows RFC 6960 §3.2 the same way: a `revoked` answer is `REVOKED` only when the signature verified and the signer is authorised.
 
 ### What a list is *about* (RFC 5280 §5.2.5)
 
@@ -958,7 +958,7 @@ The key in `bundle.pem` stays encrypted under the passphrase you give, PBES2 wit
 
 **The primitives underneath.** `parsePkcs12` needs no password: it returns a [`Pkcs12`](../assets/api.json) whose `contents` are [`SafeContentsInfo`](../assets/api.json) entries — `encrypted`, the `encryption` scheme and ciphertext, or the `bags` already read when the SafeContents is plain — and whose `mac` says `kind: 'pbmac1'` or `kind: 'pkcs12-kdf'`, or is `undefined`. `verifyPkcs12Mac(pkcs12, password)` checks a PBMAC1 and returns `true` or `false`, the two failures being indistinguishable; it throws `PKI_KEY_MAC_UNSUPPORTED` for an Appendix B MAC and `PKI_API_MISUSE` for a file with none, so check `pkcs12.mac` first. `openSafeContents(contents, password)` returns the [`SafeBag`](../assets/api.json)s of one entry, decrypting it when it is PBES2-encrypted; each bag has its `kind`, `friendlyName`, `localKeyId`, and `certificateDer`, `crlDer`, `encryptedKey` or `privateKey` by kind, and a `path` such as `authSafe[1].bags[0]`. Nested `safeContentsBag`s are flattened, and every bag counts against `maxPkcs12Bags`. The layer never parses a certificate for you — `certificateDer` goes to `parseCertificate` — and `decryptPrivateKey(bag.encryptedKey.der, { password, algorithm })` opens a key. Public-key privacy mode (`envelopedData`) is reported as encrypted with no password scheme and refused by `openSafeContents`; public-key integrity mode is refused by `parsePkcs12` with `PKI_KEY_MAC_UNSUPPORTED`.
 
-**The file declares its own cost.** The PBKDF2 iteration count is the file's to declare and the host's to run, inside Web Crypto where no JavaScript bound reaches, so `maxKdfIterations` (10 000 000, about ten seconds of SHA-256) is checked before the host is asked for anything: a file declaring 2³¹ iterations is `PKI_LIMIT_EXCEEDED` — thrown by the primitives, reported by `openPkcs12` as `PKI_REASON_INPUT_MALFORMED` carrying that code — and not a frozen process. A count below the 1 000 RFC 8018 recommends still opens, with `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: the count is what a stolen copy costs to brute-force.
+**The file declares its own cost.** The PBKDF2 iteration count is the file's to declare and the host's to run, inside Web Crypto where no JavaScript bound reaches, so `maxKdfIterations` (10 000 000, about ten seconds of SHA-256) is checked before the host is asked for anything: a file declaring 2³¹ iterations is `PKI_LIMIT_EXCEEDED` — thrown by the primitives, reported by `openPkcs12` as `PKI_REASON_INPUT_MALFORMED` carrying that code — and not a frozen process. A file may declare thousands of derivations, so `maxPkcs12KdfIterations` (also 10 000 000) bounds what one PKCS#12 costs in total — its PBMAC1 MAC, every encrypted SafeContents and every shrouded key — checked by `parsePkcs12` over what it can see, by `openSafeContents` before it derives and over the keys it reveals, and by `openPkcs12` before each derivation it runs. A count below the 1 000 RFC 8018 recommends still opens, with `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: the count is what a stolen copy costs to brute-force.
 
 **The three vocabularies, applied to keys.**
 
@@ -1027,8 +1027,9 @@ Every loop over input consults a named limit. The decoder is iterative, so nesti
 | `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData, each costing a signature verification |
 | `maxAttributes` | 256 | CWE-400 | The attributes in one attribute set — a CMS signer's, a PKCS#8 key's, a PKCS#12 bag's |
 | `maxCmsCertificatesAndCrls` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries |
-| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured — declared by the file, run by the host |
+| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured in one derivation — declared by the file, run by the host |
 | `maxPkcs12Bags` | 4 096 | CWE-400 | The SafeBags read from one PKCS#12, across every SafeContents |
+| `maxPkcs12KdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iterations one PKCS#12 costs in total — its MAC, every encrypted SafeContents and every shrouded key |
 
 Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` values. Override per call with `options.limits`; `DEFAULT_PKI_LIMITS` holds the defaults.
 

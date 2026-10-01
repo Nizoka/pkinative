@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 170957,
-      "approxTokens": 42739
+      "bytes": 172536,
+      "approxTokens": 43134
     },
     {
       "url": "llms-recipes.txt",
@@ -30,26 +30,26 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 289867,
-      "approxTokens": 72467
+      "bytes": 289955,
+      "approxTokens": 72489
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 27897,
-      "approxTokens": 6974
+      "bytes": 27248,
+      "approxTokens": 6812
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 17930,
-      "approxTokens": 4483
+      "bytes": 15513,
+      "approxTokens": 3878
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 4694,
-      "approxTokens": 1174
+      "bytes": 5101,
+      "approxTokens": 1275
     },
     {
       "url": "data/surfaces.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 13923,
-      "approxTokens": 3481
+      "bytes": 9250,
+      "approxTokens": 2313
     }
   ],
   "guides": [
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do-yet"
       ],
-      "bytes": 78224,
-      "approxTokens": 19556
+      "bytes": 79746,
+      "approxTokens": 19937
     },
     {
       "title": "Security model",
@@ -129,8 +129,8 @@
         "no-reach-outside-the-engine",
         "reporting-a-vulnerability"
       ],
-      "bytes": 6178,
-      "approxTokens": 1545
+      "bytes": 6364,
+      "approxTokens": 1591
     },
     {
       "title": "Conformance",
@@ -170,8 +170,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 21277,
-      "approxTokens": 5319
+      "bytes": 21148,
+      "approxTokens": 5287
     },
     {
       "title": "Choosing a PKI library",

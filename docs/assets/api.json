@@ -1003,6 +1003,12 @@
           "summary": "Fall back to `commonName` when the certificate carries no `dNSName` and no `iPAddress`."
         },
         {
+          "name": "path",
+          "type": "readonly Certificate[] | undefined",
+          "optional": true,
+          "summary": "The validated certification path, leaf first, as `validateCertificatePath` and `verifyCertificateChain` report it in `path`."
+        },
+        {
           "name": "allowWildcards",
           "type": "boolean | undefined",
           "optional": true,
@@ -1247,7 +1253,7 @@
       "name": "DEFAULT_PKI_LIMITS",
       "kind": "constant",
       "module": "src/core/pki-limits.ts",
-      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspSingleResponses: 256, maxPathsExplored: 1000, maxSignerInfos: 64, maxAttributes: 256, maxCmsCertificatesAndCrls: 1024, maxKdfIterations: 10_000_000, maxPkcs12Bags: 4096, })",
+      "signature": "export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({ maxInputBytes: 64 * 1024 * 1024, maxDepth: 64, maxNodes: 200_000, maxIntegerBytes: 8192, maxOidBytes: 256, maxBerSegments: 10_000, maxPemBlocks: 10_000, maxExtensions: 256, maxGeneralNames: 10_000, maxNameAttributes: 1024, maxPolicies: 1024, maxChainLength: 10, maxPolicyNodes: 4096, maxRevokedCertificates: 1_000_000, maxOcspSingleResponses: 256, maxPathsExplored: 1000, maxSignerInfos: 64, maxAttributes: 256, maxCmsCertificatesAndCrls: 1024, maxKdfIterations: 10_000_000, maxPkcs12Bags: 4096, maxPkcs12KdfIterations: 10_000_000, })",
       "summary": "Default security bounds — the safe path for untrusted input.",
       "throws": null,
       "params": null,
@@ -3751,13 +3757,19 @@
           "name": "maxKdfIterations",
           "type": "number",
           "optional": false,
-          "summary": "Maximum PBKDF2 iteration count honoured — a count the file declares, and the host then runs."
+          "summary": "Maximum PBKDF2 iteration count honoured in one derivation — a count the file declares, and the host then runs."
         },
         {
           "name": "maxPkcs12Bags",
           "type": "number",
           "optional": false,
           "summary": "Maximum number of SafeBags read from one PKCS#12, across every SafeContents."
+        },
+        {
+          "name": "maxPkcs12KdfIterations",
+          "type": "number",
+          "optional": false,
+          "summary": "Maximum PBKDF2 iterations one PKCS#12 costs in total — its PBMAC1 MAC, every encrypted SafeContents and every shrouded key together."
         }
       ]
     },
@@ -7636,7 +7648,7 @@
         },
         {
           "name": "options",
-          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics for the decrypted SafeContents."
+          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`, `maxPkcs12KdfIterations`) and diagnostics for the decrypted SafeContents."
         }
       ],
       "returns": "The bags, in encoded order, nested safeContentsBags flattened.",
@@ -7760,7 +7772,7 @@
         },
         {
           "name": "options",
-          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`) and diagnostics."
+          "description": "Encoding rules, limits (`maxPkcs12Bags`, `maxKdfIterations`, `maxPkcs12KdfIterations`) and diagnostics."
         }
       ],
       "returns": "The container, read but not opened.",

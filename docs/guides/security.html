@@ -190,13 +190,19 @@
       <td><code>maxKdfIterations</code></td>
       <td>10 000 000</td>
       <td>CWE-400</td>
-      <td>The PBKDF2 iteration count honoured — declared by the file, run by the host</td>
+      <td>The PBKDF2 iteration count honoured in one derivation — declared by the file, run by the host</td>
       </tr>
       <tr>
       <td><code>maxPkcs12Bags</code></td>
       <td>4 096</td>
       <td>CWE-400</td>
       <td>The SafeBags read from one PKCS#12, across every SafeContents</td>
+      </tr>
+      <tr>
+      <td><code>maxPkcs12KdfIterations</code></td>
+      <td>10 000 000</td>
+      <td>CWE-400</td>
+      <td>The PBKDF2 iterations one PKCS#12 costs in total — its MAC, every encrypted SafeContents and every shrouded key</td>
       </tr>
       </tbody></table>
       <p>Exceeding a limit throws <code>PkiLimitError</code> with code <code>PKI_LIMIT_EXCEEDED</code> and the <code>limit</code>, <code>configured</code> and <code>observed</code> values. Override per call with <code>options.limits</code>; <code>DEFAULT_PKI_LIMITS</code> holds the defaults.</p>

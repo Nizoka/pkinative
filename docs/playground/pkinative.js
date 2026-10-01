@@ -119,7 +119,8 @@ var DEFAULT_PKI_LIMITS = /* @__PURE__ */ Object.freeze({
   maxAttributes: 256,
   maxCmsCertificatesAndCrls: 1024,
   maxKdfIterations: 1e7,
-  maxPkcs12Bags: 4096
+  maxPkcs12Bags: 4096,
+  maxPkcs12KdfIterations: 1e7
 });
 function resolveLimits(overrides) {
   if (overrides === void 0) return DEFAULT_PKI_LIMITS;
@@ -3449,6 +3450,9 @@ function _applicableDelta(input) {
   if (_crlScopeProblem({ certificate: input.certificate, crl: delta.crl, asDelta: true }) !== null) return void 0;
   return delta;
 }
+function _unverifiedRevocation(source, at, reason) {
+  return `the ${source} says this certificate was revoked on ${new Date(at).toISOString()} (${reason === void 0 ? "no reason given" : `reason: ${reason}`}), but the ${source} is not authenticated, so that is a claim and not evidence`;
+}
 function checkRevocation(input) {
   const out = [];
   const path = "crl";
@@ -3470,7 +3474,9 @@ function checkRevocation(input) {
   const changed = delta === void 0 ? void 0 : findRevocation(delta.crlDer, serial, lookup);
   const entry = changed ?? findRevocation(input.crlDer, serial, lookup);
   if (entry !== void 0 && entry.reason !== "removeFromCRL") {
-    out.push(revokedReason(path, entry.revocationDate.epochMilliseconds, entry.reason));
+    const revokedAt = entry.revocationDate.epochMilliseconds;
+    if (scope === null && input.signatureVerified === true) out.push(revokedReason(path, revokedAt, entry.reason));
+    else if (scope === null) out.push(revocationUnknownReason(path, _unverifiedRevocation("list", revokedAt, entry.reason)));
     return out;
   }
   const covered = input.crl.issuingDistributionPoint?.onlySomeReasons;
@@ -4479,7 +4485,8 @@ function checkOcspStatus(input) {
   }
   out.push(...checkFreshness(answer, input, path));
   if (answer.status.kind === "revoked") {
-    out.push(revokedReason(path, answer.status.revocationTime.epochMilliseconds, answer.status.reason));
+    const { revocationTime, reason } = answer.status;
+    out.push(input.signatureVerified === true && input.responderAuthorized === true ? revokedReason(path, revocationTime.epochMilliseconds, reason) : revocationUnknownReason(path, _unverifiedRevocation("response", revocationTime.epochMilliseconds, reason)));
   } else if (answer.status.kind === "unknown") {
     out.push(revocationUnknownReason(path, "the responder answered unknown, meaning it has no record of this certificate \u2014 often a sign the serial does not belong to that CA"));
   }
@@ -4590,9 +4597,8 @@ function emailMatches(constraint, name) {
   const c = fold(constraint);
   const n = fold(name);
   if (c === "") return true;
-  const at = n.lastIndexOf("@");
   if (c.includes("@")) return n === c;
-  const host = at >= 0 ? n.slice(at + 1) : n;
+  const host = n.slice(n.lastIndexOf("@") + 1);
   if (c.startsWith(".")) return host.endsWith(c);
   return host === c;
 }
@@ -4605,34 +4611,34 @@ function uriMatches(constraint, uri) {
   if (c.startsWith(".")) return h.endsWith(c);
   return h === c;
 }
+var URI_SCHEME_AND_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
+var URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+var URI_USERINFO = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:]|%[0-9A-Fa-f]{2})*$/;
+var URI_REG_NAME = /^[A-Za-z0-9\-._~!$&'()*+,;=]+$/;
+var URI_IP_LITERAL = /^\[[0-9A-Fa-f:.]+\]$/;
+var URI_PORT = /^(?::[0-9]*)?$/;
 function uriHost(uri) {
-  const schemeEnd = uri.indexOf("://");
-  if (schemeEnd < 0) return null;
-  let authority = uri.slice(schemeEnd + 3);
-  for (const stop of ["/", "?", "#"]) {
-    const at2 = authority.indexOf(stop);
-    if (at2 >= 0) authority = authority.slice(0, at2);
+  const scheme = URI_SCHEME_AND_AUTHORITY.exec(uri);
+  if (scheme === null || !URI_CHARACTERS.test(uri)) return null;
+  const authority = uri.slice(scheme[0].length).split(/[/?#]/, 1)[0];
+  const at = authority.indexOf("@");
+  if (!URI_USERINFO.test(authority.slice(0, Math.max(at, 0)))) return null;
+  const hostAndPort = authority.slice(at + 1);
+  if (hostAndPort.startsWith("[")) {
+    const close = hostAndPort.indexOf("]") + 1;
+    const literal = hostAndPort.slice(0, close);
+    return URI_IP_LITERAL.test(literal) && URI_PORT.test(hostAndPort.slice(close)) ? literal : null;
   }
-  const at = authority.lastIndexOf("@");
-  if (at >= 0) authority = authority.slice(at + 1);
-  if (authority.startsWith("[")) {
-    const close = authority.indexOf("]");
-    if (close < 0) return null;
-    authority = authority.slice(0, close + 1);
-  } else {
-    const colon = authority.indexOf(":");
-    if (colon >= 0) authority = authority.slice(0, colon);
-  }
-  return authority === "" ? null : authority;
+  const host = hostAndPort.split(":", 1)[0];
+  return URI_REG_NAME.test(host) && URI_PORT.test(hostAndPort.slice(host.length)) ? host : null;
 }
 function ipMatches(constraintBytes, nameBytes) {
   const width = nameBytes.length;
   if (constraintBytes.length !== width * 2) return false;
-  for (let i = 0; i < width; i += 1) {
+  return nameBytes.every((byte, i) => {
     const mask = constraintBytes[width + i];
-    if ((nameBytes[i] & mask) !== (constraintBytes[i] & mask)) return false;
-  }
-  return true;
+    return (byte & mask) === (constraintBytes[i] & mask);
+  });
 }
 function directoryMatches(constraint, name) {
   if (constraint.rdns.length > name.rdns.length) return false;
@@ -4676,8 +4682,8 @@ function wellFormedName(name) {
     case "dNSName":
       return _wellFormedHost(name.value);
     case "rfc822Name": {
-      const at = name.value.indexOf("@");
-      return at > 0 && name.value.indexOf("@", at + 1) < 0 && _wellFormedHost(name.value.slice(at + 1));
+      const [local, host, ...more] = name.value.split("@");
+      return local !== "" && more.length === 0 && host !== void 0 && _wellFormedHost(host);
     }
     case "uniformResourceIdentifier": {
       const host = uriHost(name.value);
@@ -4690,7 +4696,6 @@ function wellFormedName(name) {
   }
 }
 function _wellFormedHost(host) {
-  if (host === "" || host.endsWith(".")) return false;
   return host.split(".").every((label) => label !== "");
 }
 function _starredSet(value) {
@@ -4703,7 +4708,6 @@ function _starredSet(value) {
 }
 function subtreeCoversWildcard(base, parent) {
   const b = fold(base);
-  if (b === "") return true;
   if (b.startsWith(".")) return parent === b.slice(1) || parent.endsWith(b);
   return dnsConstraintCovers(b, parent);
 }
@@ -4715,7 +4719,6 @@ function wildcardMeetsSubtree(base, parent, labels = 1) {
 }
 function subtreeCovers(subtree, name) {
   const base = subtree.base;
-  if (base.kind !== name.kind) return false;
   if (subtree.minimum !== 0 || subtree.maximum !== void 0) return false;
   switch (base.kind) {
     case "dNSName":
@@ -4728,6 +4731,8 @@ function subtreeCovers(subtree, name) {
       return name.kind === "iPAddress" && ipMatches(base.bytes, name.bytes);
     case "directoryName":
       return name.kind === "directoryName" && directoryMatches(base.name, name.name);
+    // Every other form, and a name of another form than the base: each
+    // case above checks the name's kind as well as the base's.
     default:
       return false;
   }
@@ -4761,10 +4766,40 @@ function accumulateNameConstraints(state, permitted, excluded) {
     state.excluded[form] = [...state.excluded[form], subtree];
   }
 }
+var OID_SMTP_UTF8_MAILBOX = "1.3.6.1.5.5.7.8.9";
+var UTF8_STRING = 12;
+var LDH_DOMAIN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*$/;
+function _mailboxDomain(mailbox) {
+  const [local, domain, ...more] = mailbox.split("@");
+  if (local === "" || more.length > 0 || domain === void 0) return null;
+  return LDH_DOMAIN.test(domain) ? fold(domain) : null;
+}
+function _mailboxDomainCovered(constraint, domain) {
+  const c = fold(constraint);
+  if (c === "") return true;
+  const host = c.slice(c.lastIndexOf("@") + 1);
+  return host.startsWith(".") ? domain.endsWith(host) : domain === host;
+}
+function _checkSmtpUtf8Mailbox(state, value) {
+  const permitted = state.permitted.rfc822Name;
+  const excluded = state.excluded.rfc822Name;
+  if (permitted === null && excluded.length === 0) return null;
+  const mailbox = value.tagClass === "universal" && value.tagNumber === UTF8_STRING && !value.constructed ? decodeUtf8(value.content) : null;
+  const text = mailbox === null ? "an SmtpUTF8Mailbox that is not a UTF8String" : `SmtpUTF8Mailbox ${mailbox}`;
+  const domain = mailbox === null ? null : _mailboxDomain(mailbox);
+  if (domain === null) return { form: "rfc822Name", text, why: "not-permitted" };
+  const covers = (subtree) => subtree.minimum === 0 && subtree.maximum === void 0 && _mailboxDomainCovered(subtree.base.value, domain);
+  if (excluded.some(covers)) return { form: "rfc822Name", text, why: "excluded" };
+  if (permitted === null || permitted.some(covers)) return null;
+  return { form: "rfc822Name", text, why: "not-permitted" };
+}
 function checkName(state, name) {
   const form = formOf(name);
   if (form === null) {
-    return state.unprocessed.has(name.kind) ? { form: "directoryName", text: `${name.kind} \u2014 a constrained name form this validator does not process`, why: "not-permitted" } : null;
+    if (state.unprocessed.has(name.kind)) {
+      return { form: "directoryName", text: `${name.kind} \u2014 a constrained name form this validator does not process`, why: "not-permitted" };
+    }
+    return name.kind === "otherName" && name.typeId === OID_SMTP_UTF8_MAILBOX ? _checkSmtpUtf8Mailbox(state, name.value) : null;
   }
   const text = nameText(name);
   const constrained = state.permitted[form] !== null || state.excluded[form].length > 0;
@@ -5106,9 +5141,11 @@ function advancePolicies(certificate, policies, maxNodes, path) {
   return out;
 }
 function validateCertificatePath(input) {
-  const limits = resolveLimits(input.limits);
+  return _validateIndexed(input, _signatureIndex(input.signatures ?? []));
+}
+function _signatureIndex(results) {
   const signatures = /* @__PURE__ */ new Map();
-  for (const result of input.signatures ?? []) {
+  for (const result of results) {
     const subject = _hex(result.certificate.der);
     const entry = { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail };
     if (result.issuer !== void 0) {
@@ -5122,6 +5159,10 @@ function validateCertificatePath(input) {
     }
     signatures.set(subject, entry);
   }
+  return signatures;
+}
+function _validateIndexed(input, signatures) {
+  const limits = resolveLimits(input.limits);
   const context = {
     at: input.at,
     signatures,
@@ -5214,6 +5255,7 @@ function buildCertificatePath(input) {
   const limits = resolveLimits(input.limits);
   const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
   const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
+  const signatures = _signatureIndex(input.signatures ?? []);
   const bySubject = /* @__PURE__ */ new Map();
   for (const candidate of input.candidates) {
     const key = hexOf(candidate.subject.der);
@@ -5225,7 +5267,7 @@ function buildCertificatePath(input) {
     if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
   }
   const judge = (path) => {
-    const report = validateCertificatePath({ ...input, path });
+    const report = _validateIndexed({ ...input, path }, signatures);
     if (!report.valid || input.purposes === void 0) return report;
     const refused = input.purposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
     return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
@@ -5293,10 +5335,29 @@ function checkServerName(certificate, identity, options) {
       names.length === 0 ? "the certificate carries no subjectAltName at all, and the deprecated commonName fallback was not asked for" : "the subjectAltName carries no dNSName and no iPAddress, and the deprecated commonName fallback was not asked for"
     )];
   }
-  for (const common of commonNames(certificate)) {
-    if (identity.kind === "dns" && matchDnsName(common, identity.value, dns)) return [];
+  const common = commonNames(certificate);
+  const matched = identity.kind === "dns" ? common.find((cn) => matchDnsName(cn, identity.value, dns)) : void 0;
+  if (matched === void 0) {
+    return [nameMismatchReason("certificate.subject", identityText(identity), `commonName ${common.map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
   }
-  return [nameMismatchReason("certificate.subject", identityText(identity), `commonName ${commonNames(certificate).map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
+  if (options.path === void 0) {
+    return [nameMismatchReason(
+      "certificate.subject",
+      identityText(identity),
+      `commonName ${JSON.stringify(matched)} matches, but the commonName fallback needs options.path \u2014 the validated path \u2014 so that the dNSName name constraints of the CAs that issued the certificate apply to it`
+    )];
+  }
+  const verdict = constrainedCommonName(certificate, options.path, matched);
+  if (verdict === null) return [];
+  return [verdict.why === "excluded" ? nameExcludedReason("certificate.subject", "dNSName", verdict.text) : nameNotPermittedReason("certificate.subject", "dNSName", verdict.text)];
+}
+function constrainedCommonName(certificate, path, commonName) {
+  const state = initialNameConstraints();
+  for (const issuer of path.filter((candidate) => !bytesEqual(candidate.der, certificate.der)).reverse()) {
+    const constraints = getExtension(issuer, "nameConstraints");
+    if (constraints !== void 0) accumulateNameConstraints(state, constraints.permittedSubtrees, constraints.excludedSubtrees);
+  }
+  return checkName(state, { kind: "dNSName", value: commonName});
 }
 function matches2(name, identity, dns) {
   if (identity.kind === "dns") {
@@ -10061,7 +10122,12 @@ function parsePkcs12(der, options) {
   const budget = { scheduled: 0 };
   const contents = Object.freeze(safe.children.map((entry, i) => _readSafeContentsInfo(entry, ctx, `authSafe[${String(i)}]`, safe.offset, budget)));
   const mac = macDataNode === void 0 ? void 0 : _readMacData(macDataNode, ctx);
+  const declared = (mac?.pbmac1?.iterations ?? 0) + contents.reduce((sum, entry) => sum + (entry.encryption?.pbes2?.iterations ?? 0) + _keysKdfIterations(entry.bags), 0);
+  enforceLimit(ctx.limits, "maxPkcs12KdfIterations", declared, "the PBKDF2 iterations this PKCS#12 declares across its MAC, its encrypted SafeContents and its shrouded keys");
   return Object.freeze({ der: pfx.bytes, version, authenticatedSafe, contents, mac, diagnostics: ctx.emitter.diagnostics });
+}
+function _keysKdfIterations(bags) {
+  return bags.reduce((sum, bag) => sum + (bag.encryptedKey?.encryption.pbes2?.iterations ?? 0), 0);
 }
 async function verifyPkcs12Mac(pkcs12, password) {
   if (typeof pkcs12 !== "object" || pkcs12 === null) {
@@ -10107,9 +10173,17 @@ async function openSafeContents(contents, password, options) {
     throw new PkiError("PKI_API_MISUSE", `pkinative: ${path} is marked encrypted but carries no ciphertext \u2014 pass an entry of parsePkcs12(\u2026).contents unchanged`);
   }
   enforceLimit(ctx.limits, "maxKdfIterations", pbes2.iterations, `${path} PBKDF2 iteration count`);
+  enforceLimit(ctx.limits, "maxPkcs12KdfIterations", pbes2.iterations, `${path} PBKDF2 iteration count`);
   const key = await _derivePbes2Key(password, pbes2, encryption.algorithm.oid);
   const plaintext = await decryptContent(key, pbes2.iv, encryptedContent, encryption.algorithm.oid);
-  return _readSafeContents(decodeWithContext(plaintext, ctx, false), ctx, path, { scheduled: 0 });
+  const bags = _readSafeContents(decodeWithContext(plaintext, ctx, false), ctx, path, { scheduled: 0 });
+  enforceLimit(
+    ctx.limits,
+    "maxPkcs12KdfIterations",
+    pbes2.iterations + _keysKdfIterations(bags),
+    `the PBKDF2 iterations of ${path} and of the shrouded keys it holds`
+  );
+  return bags;
 }
 
 // src/verify/verify-pkcs12.ts
@@ -10124,6 +10198,7 @@ async function openPkcs12(der, options) {
     ...options.encodingRules === void 0 ? {} : { encodingRules: options.encodingRules }
   };
   _assertArguments([], reading);
+  const limits = resolveLimits(reading.limits);
   if (!canDecrypt()) {
     throw new PkiCryptoError(
       "PKI_CRYPTO_UNAVAILABLE",
@@ -10140,6 +10215,7 @@ async function openPkcs12(der, options) {
     reasons.push(refused.code === "PKI_KEY_MAC_UNSUPPORTED" ? pkcs12IntegrityUnverifiedReason("authSafe", "public-key") : inputMalformedReason(refused.code, refused.message, "pkcs12"));
     return _report2(reasons, "unverified", void 0, [], [], []);
   }
+  const budget = { limits, spent: 0 };
   let integrity = "unverified";
   const mac = pkcs12.mac;
   let unverified;
@@ -10147,6 +10223,7 @@ async function openPkcs12(der, options) {
   else if (mac.kind === "pkcs12-kdf") unverified = "pkcs12-kdf";
   else if (mac.pbmac1 === void 0) unverified = "pbmac1-unsupported";
   else {
+    _charge(budget, mac.pbmac1.iterations, "macData");
     try {
       integrity = await verifyPkcs12Mac(pkcs12, password) ? "verified" : "mismatch";
     } catch (error) {
@@ -10165,6 +10242,7 @@ async function openPkcs12(der, options) {
   const decrypted = /* @__PURE__ */ new Set();
   for (const contents of pkcs12.contents) {
     try {
+      _charge(budget, contents.encryption?.pbes2?.iterations ?? 0, contents.path);
       const opened = await openSafeContents(contents, password, reading);
       bags.push(...opened);
       if (contents.encrypted) for (const bag of opened) decrypted.add(bag);
@@ -10219,6 +10297,7 @@ async function openPkcs12(der, options) {
     }
     let signingKey;
     try {
+      if ("encryption" in held) _charge(budget, held.encryption.pbes2.iterations, bag.path);
       signingKey = "encryption" in held ? await decryptPrivateKey(held.der, { ...reading, password, algorithm }) : await importPrivateKey(held.der, { ...reading, algorithm });
     } catch (error) {
       reasons.push(_openingReason(_pkiError(error), bag.path, "encryption" in held ? held.encryption.scheme : "no encryption"));
@@ -10228,6 +10307,11 @@ async function openPkcs12(der, options) {
     keys.push(Object.freeze({ ...entry, signingKey }));
   }
   return _report2(reasons, integrity === "verified" ? "verified" : "unverified", pkcs12, keys, certificates.map((c) => c.certificate), crls);
+}
+function _charge(budget, iterations, path) {
+  const next = budget.spent + iterations;
+  enforceLimit(budget.limits, "maxPkcs12KdfIterations", next, `the PBKDF2 iterations opening this PKCS#12 would run by ${path}`);
+  budget.spent = next;
 }
 function _password(options) {
   const password = options?.password;
