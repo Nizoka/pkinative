@@ -6,19 +6,42 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 
 ## [1.0.0] – 2026-09-29
 
+### Security
+
+- **fix(keys): the PBKDF2 work of a whole PKCS#12 is bounded** by the new limit `maxPkcs12KdfIterations` (CWE-400; the class of CVE-2022-36083): a 544-byte file made `openPkcs12` run 34 s, because only each derivation was bounded ([ADR 0020](docs/adr/0020-a-kdf-budget-per-pkcs12.md)).
+- **fix(revocation): `PKI_REASON_REVOKED` only from authenticated, applicable evidence**; an unauthenticated claim is carried in `PKI_REASON_REVOCATION_UNKNOWN`.
+- **fix(path): three name-constraint bypasses closed** — a URI host read by the RFC 3986 grammar, SmtpUTF8Mailbox (RFC 9598) held to rfc822Name subtrees, and the commonName fallback held to dNSName constraints through the new `CheckServerNameOptions.path`.
+- **fix(crypto): id-RSASSA-PSS keys held to RFC 4055 §1.2 and §3.3.**
+- **A CVE-class regression corpus**: 43 published vulnerabilities of comparable PKI libraries, each identifier checked against NVD or the GitHub Advisory Database, replayed by `tests/security/cve-classes.test.ts` and listed in `docs/data/cve-classes.json` with who stops each (`cve-class-parity`).
+
 ### Added
 
-- **The three-part compatibility promise, each leg held by a rule.** SECURITY.md §Compatibility promise states what 1.x keeps — the export surface (`api-surface-frozen`), the error vocabulary (`error-codes-frozen`) and, new, the *decision surface*: every x509-limbo certificate pkinative refuses stays refused with the same code, a new refusal is a recorded fix listed in its release note, and every corpus certificate re-encodes byte for byte. `docs/data/refusals.frozen.json` snapshots the 565 refusals, `refusal-baseline-frozen` holds it, conformance L1 now reads it directly so `--update-baseline` cannot drop a promised refusal, and [ADR 0014](docs/adr/0014-the-decision-surface-contract.md) decides what is and is not promised. `ecosystem.json → contracts.compatibility` is the machine-readable form, and `contracts-shape` holds it to SECURITY.md both ways.
-- **The 1.0.0 prose swap as a reviewed table.** Every sentence that says pkinative is not on npm has its stable-era replacement written, reviewed and held since now in `PRE_1_0_PROSE`; `release-prepare.ts` applies it at the 1.0.0 bump and refuses, writing nothing, if any span is not found exactly once. The same bump rebases all three snapshots.
-- **The tarball inspected file by file.** `docs/data/package-files.json` lists the twelve files the package ships, with the executable bit of each and the SHA-256 of the licence files; `check:package` fails on any other file, a missing one or a changed bit.
+- **The three-part compatibility promise, each leg held by a rule** — the export surface (`api-surface-frozen`), the error vocabulary (`error-codes-frozen`) and the decision surface: the 565 refused x509-limbo certificates keep their codes, and every corpus certificate re-encodes byte for byte (`refusal-baseline-frozen`, [ADR 0014](docs/adr/0014-the-decision-surface-contract.md)). `ecosystem.json → contracts` is its machine-readable form, held to SECURITY.md by `contracts-shape`.
+- **What the promise covers beyond its snapshots** ([ADR 0018](docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)): option defaults in `docs/data/defaults.json` (`option-defaults-parity`), open returned unions, and an explicit list of what is not promised.
+- **The irreversible decisions of 1.0**: one entry point for 1.x ([ADR 0016](docs/adr/0016-one-entry-point-for-1-x.md), superseding 0007); the runtime and toolchain policy, with the TypeScript floor compiled in the publish gate (`check:ts-floor`) ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md)); error identity across the ESM and CJS builds ([ADR 0021](docs/adr/0021-error-identity-across-builds.md)).
+- **`subjectDirectoryAttributes` decoded** (RFC 5280 §4.2.1.8), with `SubjectDirectoryAttributesExtension` and `DirectoryAttribute` exported (284 exports); five diagnostics since 1.0.0, 45 in all; `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`, the 43rd reason code.
+- **The cross-validation made permanent**: ten foreign implementations and two linters (zlint, pkilint) over everything the API writes and reads, both directions, `--require-all` in the conformance workflow and the publish gate; L4 with three lineages.
+- **Coverage-guided fuzzing over eight targets**, CMS, CRLs, OCSP, RFC 3161 and PKCS#12 added, with the engine pinned.
+- **The tarball inspected file by file** (`docs/data/package-files.json`, `package-files-parity`), and the 1.0.0 prose swap as a reviewed table (`PRE_1_0_PROSE`, `release-era-prose`).
+- **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; `docs/.well-known/security.txt`; 79 verify-docs rules in all.
 
 ### Changed
 
-- **feat(verify)!: `openPkcs12` no longer guesses an RSA key's scheme.** An `rsaEncryption` certificate names the key, not whether it signs with PKCS#1 v1.5 or PSS nor with which hash, and the key is unwrapped non-extractable, so a wrong guess could not be corrected. Without `options.rsaAlgorithm` an RSA key now stays shut and the report is `valid: false` with the new reason `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`; the file's certificates and other keys are still reported. Pass `rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }` — the former default — to keep the 0.9 behaviour. Decided before the freeze because a default promised at 1.0 could not change within the major, while one added later breaks nobody ([ADR 0015](docs/adr/0015-no-default-rsa-scheme.md)); `importPrivateKey` already refused to guess.
-- **ci(publish): the publication path hardened before its first use.** A guard job with no environment refuses a run not started from a matching `v*` tag, and any version below 1.0.0, before the `npm-publish` approval is ever asked. Neither release job restores a dependency cache. The attestation job fetches the tarball back from the registry instead of rebuilding it, so the attested bytes and the bytes npm serves are the same.
-- **The 0.x line is tagged, never released.** `v0.1.0` to `v0.9.0` are git tags on their release commits, source snapshots with their notes in `release-notes/`; 1.0.0 is the first release, on npm and on GitHub.
-- **chore(release): `release-assets.yml` retired.** It attested the tarball of a pre-1.0 GitHub release, and there are none; from 1.0.0 `publish.yml` publishes and attests.
-- **docs: SECURITY.md restructured** around the compatibility promise, what stands in place of an external audit (each scanner on the trigger it actually runs on) and release integrity; six sentences false at 0.9 corrected; the roadmap names the L0–L8 gate and places the satellites after 1.0.
+- **feat(verify)!: `openPkcs12` no longer guesses an RSA key's scheme** ([ADR 0015](docs/adr/0015-no-default-rsa-scheme.md)).
+- **fix(build)!: name attributes are written in the string type RFC 5280 Appendix A gives them** — PrintableString for countryName, serialNumber and dnQualifier, IA5String for domainComponent and emailAddress — and held to their bounds.
+- **fix(build): RSASSA-PSS AlgorithmIdentifiers carry an explicit NULL** after the hash and MGF1 hash OIDs.
+- **ci(publish): the release path, hardened before its first use** ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)): triggered by the `v*` tag, a guard before any approval, a build job that cannot publish, a publish job that uploads exactly the tarball handed on, the registry's own bytes attested, `package-manager-cache: false` on every setup-node step, CycloneDX, SPDX and toolchain SBOMs. SLSA Build L2.
+- **ci: no path filter on a required check**; a runtime smoke test on Deno, Bun and headless Chromium; CodeQL over the workflows, zizmor and actionlint; harden-runner on every job, in block mode where the endpoints are known; Dependabot with a seven-day cooldown.
+- **`engines.node` raised to `^22.22.2 || ^24.14.1 || >=25.8.2`**, the first releases fixing CVE-2026-21713.
+- **The 0.x line is tagged, never released**, and `release-assets.yml` is retired.
+- **docs:** SECURITY.md restructured around the compatibility promise, the supported runtimes, two private reporting channels mapped to ISO/IEC 29147 and 30111, what stands in place of an external audit and release integrity; the site at parity with pdfnative's design, with a WCAG 2.2 AA dark palette, JSON-LD on every guide and the 14 layers of 1.0.
+
+### Fixed
+
+- **fix(asn1):** X.690 §8.23 violations in the ISO/IEC 10646 string types diagnosed instead of silently accepted.
+- **fix(verify):** reason paths name `crls[n]`, the input member; timestamp bounds are whole milliseconds, rounded outward.
+- **fix(build):** `KEY_USAGE_BITS` is read-only at runtime.
+- **docs:** every 0.x-era sentence left on a 1.0 surface, held from now on by `stale-milestone`; the X.690 quotes made word for word against the 02/2021 edition.
 
 ## [0.9.0] – 2026-09-29
 
