@@ -47,6 +47,7 @@ import {
     type SigningKey,
 } from '../../src/index.js';
 import { KEY_CONTAINER_CASES } from './interop.js';
+import { locate } from './interop-host.js';
 
 // ── The vocabulary ───────────────────────────────────────────────────
 
@@ -473,8 +474,12 @@ const WINDOWS_WRITER: Writer = {
         //  - the same layout as the 3DES export (key first), DER throughout.
         const pbes2 = join(dir, 'pbes2');
         mkdirSync(pbes2, { recursive: true });
-        if (onPath('pwsh') === undefined) {
-            skipped.push({ caseId: 'windows-cryptoapi:pfx-pbes2', why: 'PowerShell 7 (pwsh) is not installed, and Windows PowerShell 5.1 has no ExportPkcs12' });
+        // Probed by spawning it, never by looking for pwsh.exe on PATH:
+        // PowerShell 7 from the Store is an App Execution Alias that `stat`
+        // cannot open (EACCES) and that runs perfectly, so a file check
+        // reported "not installed" on a machine running 7.6.
+        if (locate(['pwsh'], ['-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()']) === null) {
+            skipped.push({ caseId: 'windows-cryptoapi:pfx-pbes2', why: 'PowerShell 7 (pwsh) does not run here, and Windows PowerShell 5.1 has no ExportPkcs12' });
         } else {
             const p = run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', windowsScript(pbes2,
                 `$c.ExportPkcs12([System.Security.Cryptography.X509Certificates.Pkcs12ExportPbeParameters]::Pbes2Aes256Sha256, '${PASSWORD}')`,
