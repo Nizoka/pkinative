@@ -16,6 +16,126 @@
       "sha256": "beef31b653b95e04fde915ea3c41772fa8b398f56e7420dbfaea2696066d8814",
       "since": "0.3.0"
     },
+    "algid/signature-from-ed25519-signer": {
+      "bytes": 7,
+      "sha256": "3873b90699d82761793f881259e24d446117577512c817382ed89fef7451bc98",
+      "since": "1.0.0"
+    },
+    "asn1/bit-string-three-unused": {
+      "bytes": 6,
+      "sha256": "5789aa87ee07fc238ee52aecc92fa52d6bcd9610026499e34c53f5d31a4a2f6f",
+      "since": "1.0.0"
+    },
+    "asn1/boolean-true": {
+      "bytes": 3,
+      "sha256": "ff9b5729d5ed88f97042a190185d50112cecdbd62ff67f57dcde221e63bc95a7",
+      "since": "1.0.0"
+    },
+    "asn1/enumerated-3": {
+      "bytes": 3,
+      "sha256": "fcb95b5de9262ec65b88c5890a915f84c98feefa73edb00d7f4a5909224dc831",
+      "since": "1.0.0"
+    },
+    "asn1/explicit-0-null": {
+      "bytes": 4,
+      "sha256": "1f0c0524a3cb185ffa6eea56a2d7ad1f376aff8d8daa8884d464fe619a5b751c",
+      "since": "1.0.0"
+    },
+    "asn1/implicit-1-octets": {
+      "bytes": 4,
+      "sha256": "d1bc1899ecbf5a118ac65bba291fc6e9180abd3735d8241226e58656aad0db19",
+      "since": "1.0.0"
+    },
+    "asn1/integer-2-pow-64": {
+      "bytes": 11,
+      "sha256": "2963f2d73e0b896f6278fbb8ca6a4a2edf903ae83b039243d2cd2bdc7cd1c46b",
+      "since": "1.0.0"
+    },
+    "asn1/integer-minus-129": {
+      "bytes": 4,
+      "sha256": "c410c2f2384b080616ea9d8ebbcf7825c476ec983e78e8e20467203f2e11bd26",
+      "since": "1.0.0"
+    },
+    "asn1/named-bits-0-3-8": {
+      "bytes": 5,
+      "sha256": "e1bff04724df1b9b0c048d6eb265c1a234c98c3c0abaa62ac7d56ab4d9f700a2",
+      "since": "1.0.0"
+    },
+    "asn1/node-reencoded-root": {
+      "bytes": 345,
+      "sha256": "6de9fd7f22944a7e07b8b8b0538509673bdc8c48f3ff1548106bc8f70a8cac29",
+      "since": "1.0.0"
+    },
+    "asn1/null": {
+      "bytes": 2,
+      "sha256": "2921a11f25dadaa24aa79a548e4e81508c2e5e56af2d833d65e2bcce448ce2f5",
+      "since": "1.0.0"
+    },
+    "asn1/object-identifier-basic-constraints": {
+      "bytes": 5,
+      "sha256": "aa054b371b1a21fe7f8be67d935badd36feb58ebe84c01276bba414039ff2e78",
+      "since": "1.0.0"
+    },
+    "asn1/octet-string-four": {
+      "bytes": 6,
+      "sha256": "0c576860c2b1a9cd055a494414a6fb4bd1bba9f79b1409ee5e3b944e3ccbaa7b",
+      "since": "1.0.0"
+    },
+    "asn1/oid-contents-sha256-with-rsa": {
+      "bytes": 9,
+      "sha256": "a75c7c6977811e1921292fa083a6814259c7fd2a58c4b93425782f9aa3ab95de",
+      "since": "1.0.0"
+    },
+    "asn1/sequence-integer-boolean": {
+      "bytes": 8,
+      "sha256": "8df045fa1c2721c2c540700c38aade29b80702bda84830b93c8587b5d6a44e88",
+      "since": "1.0.0"
+    },
+    "asn1/set-as-given": {
+      "bytes": 8,
+      "sha256": "ccf32e3870aee1f308bbd5b3f63acb974b3039f73c59242bb3fb181ab1935eac",
+      "since": "1.0.0"
+    },
+    "asn1/set-of-sorted": {
+      "bytes": 8,
+      "sha256": "904cf82a8d6ca45c54dc94166033eacc6153cacf325302b9e3d15e36ff671576",
+      "since": "1.0.0"
+    },
+    "asn1/string-bmp": {
+      "bytes": 20,
+      "sha256": "3253fcca0fb874ed71e95529aeb49ad14669770ff47e2bc86cc795e0d731236d",
+      "since": "1.0.0"
+    },
+    "asn1/string-printable": {
+      "bytes": 18,
+      "sha256": "e1d4c61619a249ebbc3317b9afaf28dfaeab7362c1ca48648fa078d24ec9fe0c",
+      "since": "1.0.0"
+    },
+    "asn1/time-generalized-2050": {
+      "bytes": 17,
+      "sha256": "aad11946448ea2e08a94939603b6876c4a2daa16b5c52b0ff412d2f397290646",
+      "since": "1.0.0"
+    },
+    "asn1/time-rfc5280-pivot": {
+      "bytes": 15,
+      "sha256": "e779a756ca675e4d82c4ba5bed79ee442ab6fc6fc07ae41291b4e206536be44b",
+      "since": "1.0.0"
+    },
+    "asn1/time-utc-2026": {
+      "bytes": 15,
+      "sha256": "72dcdd19f4e62ecc46a03a6639183f86cf10fd515e96abd9520358656c5a4cb9",
+      "since": "1.0.0"
+    },
+    "asn1/tlv-private-7": {
+      "bytes": 3,
+      "sha256": "eafa747e81fb4cde0ee4dc289283827ba2673254983a687b32c276037cadc6cb",
+      "since": "1.0.0"
+    },
+    "attr/extension-request": {
+      "bytes": 31,
+      "sha256": "8b234df92085459e788e70b652c22ffb6a9a1f96c6e557b25048787ac55b96e9",
+      "since": "1.0.0"
+    },
     "cert/v1-no-extensions": {
       "bytes": 230,
       "sha256": "0fc411f4ce725781b9302a0dff192be084c30dc467edc5817b8163c2b12bdaa5",
@@ -30,6 +150,26 @@
       "bytes": 324,
       "sha256": "da475c496048b014b3ca94c7bc52ab9e499c50fe13ce9c8df26d17b9db4f02c8",
       "since": "0.3.0"
+    },
+    "cms/signed-data-attached": {
+      "bytes": 877,
+      "sha256": "fdca3a19970aaf33bc97ab149ca1131b00509d318fe5750813228df4c267e505",
+      "since": "1.0.0"
+    },
+    "cms/signed-data-detached-ski-signing-time": {
+      "bytes": 870,
+      "sha256": "6f59f60a36807faf2960f29aa34155f731d6dd5eac8eecf4258bb5189535690c",
+      "since": "1.0.0"
+    },
+    "cms/signed-data-with-timestamp-token": {
+      "bytes": 1872,
+      "sha256": "436e2f68abac2e8c8913ca206fe8b0400621effcb406223391359bf6a5267f67",
+      "since": "1.0.0"
+    },
+    "cms/timestamp-token": {
+      "bytes": 970,
+      "sha256": "49bd94bd55cd807b3c15472f87c22be29fe21fcc5b1508afd06aa462652d208d",
+      "since": "1.0.0"
     },
     "csr/no-attributes": {
       "bytes": 155,
@@ -76,6 +216,11 @@
       "sha256": "3d5ef43f2b0d587694171f65330d54af4f041692f37a540f6b56453f0ad8aca7",
       "since": "0.3.0"
     },
+    "ext/one-critical-extension": {
+      "bytes": 16,
+      "sha256": "e6ebf9c6fb97d41092002ac94679f49763af0d40f5237ff386203964bd7da70d",
+      "since": "1.0.0"
+    },
     "ext/sequence-of-three": {
       "bytes": 63,
       "sha256": "e3ff3c0ab97d3596562761781957b7ca6c7223c2f97312538d7dfd624859c81a",
@@ -110,6 +255,36 @@
       "bytes": 42,
       "sha256": "f5408e49c3230ff92c0a000ec0ca5ad306f65952f2459c2adf9c6abe5ec816ed",
       "since": "0.3.0"
+    },
+    "ocsp/cert-id-sha256": {
+      "bytes": 88,
+      "sha256": "545cc19286257b13e3f1f3df93da02b3d179a7d39cefa368a6a6e14562b728a0",
+      "since": "1.0.0"
+    },
+    "ocsp/request-sha1-nonce": {
+      "bytes": 105,
+      "sha256": "edba08936af0b983bd49c130758a7c9eaad3a0ff12e7ee94d18e20e824a0b02c",
+      "since": "1.0.0"
+    },
+    "pem/certificate": {
+      "bytes": 522,
+      "sha256": "77455ec8b76854e3ce34185f33595ae02fe7dec36a96c260499f7affc2193b60",
+      "since": "1.0.0"
+    },
+    "spki/ed25519": {
+      "bytes": 44,
+      "sha256": "9a82517f9af19416d98fdbcf193726b3a95c0b6fec1d51884bf3e1b739ba2ef4",
+      "since": "1.0.0"
+    },
+    "tsp/request-minimal": {
+      "bytes": 59,
+      "sha256": "0e4983aced1744c0f308080a8b01c2c6b2db3ef6768ee18ac76c36c28d5e6cbc",
+      "since": "1.0.0"
+    },
+    "tsp/request-nonce-policy-certreq": {
+      "bytes": 80,
+      "sha256": "9285915d2eb5a8f128a1afe39593f1f3953c3be6f8607946e63cd6ba10aaf49d",
+      "since": "1.0.0"
     },
     "validity/utctime-both": {
       "bytes": 32,

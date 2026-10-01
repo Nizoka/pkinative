@@ -171,6 +171,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A foreign fixture dropped from its annotation: the catch-all would then
     // relicense a certificate ISRG published as pkinative's MIT.
     'reuse-shape': (f) => edit(f, 'REUSE.toml', '    "tests/fixtures/certs/lets-encrypt-r12.der",\n', ''),
+    // A function the manifest lists and no suite ever imports by name.
+    'export-exercised': (f) => edit(f, 'docs/assets/api.json', '"exports": [', '"exports": [{"name":"encodeNothing","kind":"function","module":"src/asn1/asn1-encode.ts","signature":"export function encodeNothing(): Uint8Array"},'),
     // The 1.0.0 audit's own cases: a promise to a version long released, on
     // the npm front page, and a reason code that was never registered.
     'stale-milestone': (f) => edit(f, 'README.md', /\n$/, '\nNo signature verification before 0.3; it arrives in 0.3.\n'),

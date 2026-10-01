@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import {
     applyMutant, buildImportGraph, checkEquivalentsFile, enumerateMutants, matchEquivalents, sampleMutants, scoreOf, selectTests,
     type EquivalentsFile, type Mutant,
 } from '../../scripts/lib/mutation.ts';
+import { DEFAULT_TARGETS, EXCLUDED_FROM_MUTATION } from '../../scripts/mutate.ts';
 
 // scripts/mutate.ts spawns vitest once per mutant, which is far too slow for
 // the gate; everything it decides from file contents alone is pinned here.
@@ -120,6 +121,34 @@ describe('selectTests', () => {
 
     it('should reach every suite that imports the module transitively, minus the excluded prefixes', () => {
         expect(selectTests(graph, 'src/a.ts', ['tests/docs/']).reach).toEqual(['tests/api.test.ts', 'tests/b.test.ts']);
+    });
+});
+
+describe('the default targets', () => {
+    const sources = readdirSync('src', { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .map((entry) => `${entry.parentPath.replace(/\\/g, '/')}/${entry.name}`)
+        .sort();
+
+    it('should name every file of src/ once, or exclude it with a reason', () => {
+        const targets = new Set(DEFAULT_TARGETS.map((t) => t.file));
+        expect(DEFAULT_TARGETS.length).toBe(targets.size);
+        for (const file of sources) {
+            const excluded = EXCLUDED_FROM_MUTATION.filter((e) => e.pattern.test(file));
+            expect(targets.has(file) || excluded.length === 1, `${file}: a target, or excluded for one reason`).toBe(true);
+            expect(targets.has(file) && excluded.length > 0, `${file}: not both a target and excluded`).toBe(false);
+        }
+    });
+
+    it('should name only files that exist, and sample none of them — a sampled score cannot claim 100 %', () => {
+        for (const target of DEFAULT_TARGETS) {
+            expect(sources, target.file).toContain(target.file);
+            expect(target.sample, `${target.file} is sampled`).toBeUndefined();
+        }
+        for (const exclusion of EXCLUDED_FROM_MUTATION) {
+            expect(sources.some((file) => exclusion.pattern.test(file)), `${String(exclusion.pattern)} excludes nothing`).toBe(true);
+            expect(exclusion.reason.length).toBeGreaterThan(20);
+        }
     });
 });
 

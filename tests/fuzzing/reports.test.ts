@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -21,8 +22,22 @@ import type { PkiLimits } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
 import { verifySignedData } from '../../src/verify/verify-signed-data.js';
+import { openPkcs12 } from '../../src/verify/verify-pkcs12.js';
 import { verifyTimeStampToken } from '../../src/verify/verify-timestamp.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
+import {
+    authenticatedSafe,
+    certBag,
+    dataInfo,
+    encryptedSafeContents,
+    friendlyName,
+    localKeyId,
+    pbmac1MacData,
+    pfx,
+    safeContents,
+    shroudedKeyBag,
+    shroudKey,
+} from '../helpers/pkcs12-builder.js';
 import { createPrng, type Prng } from '../helpers/prng.js';
 import {
     AT,
@@ -41,10 +56,11 @@ import {
 } from '../verify/_cms-pki.js';
 
 /**
- * Adversarial inputs against the three one-call reports.
+ * Adversarial inputs against the four one-call reports.
  *
- * `verifyCertificateChain`, `verifySignedData` and `verifyTimeStampToken`
- * promise to **report** every input problem and to throw only for API misuse.
+ * `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken` and
+ * `openPkcs12` promise to **report** every input problem and to throw only
+ * for API misuse.
  * Each run starts from a valid input — every signature real — and mutates one
  * byte-array field: truncation at every structural boundary, byte flips,
  * length inflation, appended garbage, children dropped or duplicated, retagged
@@ -329,8 +345,13 @@ interface World {
     readonly response: Uint8Array;
     readonly request: Uint8Array;
     readonly imprint: Uint8Array;
+    /** The signer's key and certificate, shrouded and MACed under PASSWORD the way OpenSSL 3.4 writes them. */
+    readonly pkcs12: Uint8Array;
     readonly donors: readonly Uint8Array[];
 }
+
+const PASSWORD = 'correct horse battery staple';
+const KEY_ID = Uint8Array.of(0x4b, 0x45, 0x59, 0x31);
 
 let w: World;
 
@@ -351,16 +372,21 @@ beforeAll(async () => {
     const stamp = await makeToken(tsa, tstInfo({ imprint: await sha('SHA-256', signature) }));
     const attached = addTimeStampToken(plain, 0, stamp);
     const detached = await createSignedData({ content: DATA, detached: true, certificate: signer.certificate }, signer.signer);
+    const pkcs8 = new Uint8Array(await webcrypto.subtle.exportKey('pkcs8', signer.pair.privateKey as never));
+    const certs = safeContents(certBag(signer.certificate.der, [localKeyId(KEY_ID), friendlyName('Fuzz Signer')]), certBag(root.certificate.der));
+    const keys = safeContents(shroudedKeyBag(await shroudKey(pkcs8, PASSWORD), [localKeyId(KEY_ID)]));
+    const authSafe = authenticatedSafe(await encryptedSafeContents(certs, PASSWORD), dataInfo(keys));
+    const pkcs12 = pfx({ authSafe, macData: await pbmac1MacData(authSafe, PASSWORD) });
     w = {
-        root, signer, tsa, crl, ocsp, attached, detached, token, response, request, imprint,
-        donors: [crl, ocsp, token, attached, signer.certificate.der, tsa.certificate.der],
+        root, signer, tsa, crl, ocsp, attached, detached, token, response, request, imprint, pkcs12,
+        donors: [crl, ocsp, token, attached, signer.certificate.der, tsa.certificate.der, pkcs12],
     };
 }, 30_000);
 
 // ── The runs ──
 
 const SEED = 0x5eed_0008;
-/** Iterations per report: 360 calls in all, about a second and a half. */
+/** Iterations per report: 480 calls in all, a few seconds. */
 const BUDGET = 120;
 
 describe('verifyCertificateChain under adversarial CRLs, OCSP responses and certificates', () => {
@@ -479,6 +505,29 @@ describe('verifyTimeStampToken under adversarial tokens, responses and requests'
     });
 });
 
+describe('openPkcs12 under adversarial files, passwords and limits', () => {
+    it('should always resolve with a registered report', async () => {
+        const prng = createPrng(SEED + 3);
+        const seen = new Map<string, number>();
+        const sound = await openPkcs12(w.pkcs12, { password: PASSWORD });
+        expect(sound.reasons).toEqual([]);
+        expect(sound.keys).toHaveLength(1);
+        for (let i = 0; i < BUDGET; i += 1) {
+            const limits = TINY_LIMITS[prng.int(TINY_LIMITS.length)];
+            const mode = prng.int(4) === 0 ? 'password' : 'file';
+            const mutated = mode === 'file' ? mutate(prng, w.pkcs12, w.donors) : { name: 'password', bytes: w.pkcs12 };
+            const password = mode === 'password' ? prng.pick(['', 'wrong', PASSWORD.slice(0, -1), ' ', `${PASSWORD} `]) : PASSWORD;
+            const label = `seed ${String(prng.seed)} iteration ${String(i)} ${mutated.name} ${mode} limits ${JSON.stringify(limits)}`;
+            const result = await check(label, mutated.bytes, () => openPkcs12(mutated.bytes, {
+                password,
+                ...(limits === undefined ? {} : { limits }),
+            }));
+            seen.set(result, (seen.get(result) ?? 0) + 1);
+        }
+        expect(seen.size).toBeGreaterThan(3);
+    });
+});
+
 /**
  * The property above must not be satisfied by swallowing everything: misuse
  * still throws its documented code, whatever the bytes beside it.
@@ -509,5 +558,10 @@ describe('the reports under API misuse', () => {
         await expect(verifyTimeStampToken({ ...base, trustAnchors: [notACertificate] })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
         await expect(verifyTimeStampToken({ ...base, response: w.response })).rejects.toMatchObject({ code: 'PKI_API_MISUSE' });
         await expect(verifyTimeStampToken({ token: w.token, trustAnchors: [w.root.certificate] })).rejects.toMatchObject({ code: 'PKI_API_MISUSE' });
+    });
+
+    it('should still throw from openPkcs12', async () => {
+        await expect(openPkcs12(w.pkcs12, { password: PASSWORD, limits: { maxNode: 1 } as Partial<PkiLimits> })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
+        await expect(openPkcs12('MIIB' as unknown as Uint8Array, { password: PASSWORD })).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
     });
 });

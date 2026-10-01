@@ -71,19 +71,100 @@ export const EQUIVALENTS = 'scripts/data/mutation-equivalents.json';
 const VITEST = join(REPO_ROOT, 'node_modules', 'vitest', 'vitest.mjs');
 
 /**
- * The default targets: the modules where a wrong decision is a security
- * decision — key decryption, the Web Crypto door, the CMS and path
- * verdicts, revocation, the decoder. `sample` bounds the large ones.
+ * The default targets: every module of `src/` that executes — the whole
+ * perimeter, not the security-critical subset 0.x ran. Every mutant of every
+ * file, no sampling: a sampled score cannot claim 100 %, and 100 % is the
+ * claim. `tests/tools/mutation.test.ts` holds this table to the tree: a file
+ * is here, or it matches an entry of `EXCLUDED_FROM_MUTATION` with its reason.
  */
 export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sample?: number }> = [
+    { file: 'src/asn1/asn1-context.ts' },
+    { file: 'src/asn1/asn1-cursor.ts' },
+    { file: 'src/asn1/asn1-decode.ts' },
+    { file: 'src/asn1/asn1-encode.ts' },
+    { file: 'src/asn1/asn1-oid.ts' },
+    { file: 'src/asn1/asn1-read.ts' },
+    { file: 'src/asn1/asn1-tags.ts' },
+    { file: 'src/asn1/asn1-time.ts' },
+    { file: 'src/build/build-certificate.ts' },
+    { file: 'src/build/build-csr.ts' },
+    { file: 'src/build/build-signed-data.ts' },
+    { file: 'src/build/build-structures.ts' },
+    { file: 'src/cms/cms-attributes.ts' },
+    { file: 'src/cms/cms-check.ts' },
+    { file: 'src/cms/cms-signed-data.ts' },
+    { file: 'src/cms/tsp-request.ts' },
+    { file: 'src/cms/tsp-response.ts' },
+    { file: 'src/cms/tsp-tst-info.ts' },
+    { file: 'src/core/base64.ts' },
+    { file: 'src/core/bytes.ts' },
+    { file: 'src/core/cms-oids.ts' },
+    { file: 'src/core/key-oids.ts' },
+    { file: 'src/core/name-oids.ts' },
+    { file: 'src/core/pki-diagnostics.ts' },
+    { file: 'src/core/pki-error-guard.ts' },
+    { file: 'src/core/pki-limits.ts' },
+    { file: 'src/core/pki-reasons.ts' },
+    { file: 'src/core/text.ts' },
+    { file: 'src/crypto/cms-verify.ts' },
+    { file: 'src/crypto/crypto-algorithms.ts' },
+    { file: 'src/crypto/crypto-signature.ts' },
+    { file: 'src/crypto/webcrypto.ts' },
+    { file: 'src/crypto/x509-verify.ts' },
+    { file: 'src/hash/fingerprint.ts' },
+    { file: 'src/hash/hash-shared.ts' },
+    { file: 'src/hash/key-identifier.ts' },
+    { file: 'src/hash/sha1.ts' },
+    { file: 'src/hash/sha256.ts' },
+    { file: 'src/hash/sha512.ts' },
+    { file: 'src/keys/key-import.ts' },
     { file: 'src/keys/key-pbes2.ts' },
     { file: 'src/keys/key-pkcs12.ts' },
-    { file: 'src/crypto/webcrypto.ts' },
-    { file: 'src/cms/cms-check.ts' },
-    { file: 'src/path/path-validate.ts', sample: 80 },
-    { file: 'src/revocation/crl-check.ts', sample: 80 },
+    { file: 'src/keys/key-pkcs8.ts' },
+    { file: 'src/oid/oid-names.ts' },
+    { file: 'src/path/path-build.ts' },
+    { file: 'src/path/path-name-constraints.ts' },
+    { file: 'src/path/path-policies.ts' },
+    { file: 'src/path/path-purpose.ts' },
+    { file: 'src/path/path-server-name.ts' },
+    { file: 'src/path/path-validate.ts' },
+    { file: 'src/pem/pem.ts' },
+    { file: 'src/revocation/crl-check.ts' },
+    { file: 'src/revocation/crl-parse.ts' },
+    { file: 'src/revocation/crl-scope.ts' },
+    { file: 'src/revocation/ocsp-check.ts' },
+    { file: 'src/revocation/ocsp-request.ts' },
+    { file: 'src/revocation/ocsp-response.ts' },
+    { file: 'src/types/pki-errors.ts' },
+    { file: 'src/verify/verify-chain.ts' },
     { file: 'src/verify/verify-pkcs12.ts' },
-    { file: 'src/asn1/asn1-decode.ts', sample: 80 },
+    { file: 'src/verify/verify-signed-data.ts' },
+    { file: 'src/verify/verify-signer.ts' },
+    { file: 'src/verify/verify-timestamp.ts' },
+    { file: 'src/x509/x509-algorithm.ts' },
+    { file: 'src/x509/x509-certificate.ts' },
+    { file: 'src/x509/x509-ext-constraints.ts' },
+    { file: 'src/x509/x509-ext-distribution.ts' },
+    { file: 'src/x509/x509-ext-identifiers.ts' },
+    { file: 'src/x509/x509-ext-policies.ts' },
+    { file: 'src/x509/x509-ext-shared.ts' },
+    { file: 'src/x509/x509-extensions.ts' },
+    { file: 'src/x509/x509-fields.ts' },
+    { file: 'src/x509/x509-general-name.ts' },
+    { file: 'src/x509/x509-name-format.ts' },
+    { file: 'src/x509/x509-name.ts' },
+    { file: 'src/x509/x509-spki.ts' },
+];
+
+/**
+ * What is not mutated, and why. A file that is neither a target nor matched
+ * here fails `tests/tools/mutation.test.ts`, so a new module is a decision,
+ * never an omission.
+ */
+export const EXCLUDED_FROM_MUTATION: ReadonlyArray<{ readonly pattern: RegExp; readonly reason: string }> = [
+    { pattern: /^src\/index\.ts$/, reason: 're-exports only: no expression to mutate' },
+    { pattern: /^src\/oid\/oid-registry\.ts$/, reason: 'data: the OID name table; the one function that reads it, oid-names.ts, is a target' },
+    { pattern: /^src\/types\/(?!pki-errors\.ts$)[^/]+\.ts$/, reason: 'type declarations only; pki-errors.ts, which carries the brand and the class hierarchy, is a target' },
 ];
 
 interface Options {

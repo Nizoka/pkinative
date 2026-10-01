@@ -15,6 +15,9 @@
  * the documentation alone" — every name it must write is written somewhere
  * a human wrote, every enumeration is complete, and the machine-readable
  * surface matches the package.
+ * `export-exercised`: every name a caller writes is written by a test too.
+ * Coverage says every line ran; this says every export was reached through
+ * its own name, from a suite, not only through a neighbour that calls it.
  *
  * @module scripts/verify-docs/rules/api
  */
@@ -105,6 +108,35 @@ const exportNamed: Rule = {
         return exports
             .filter((e) => (e.kind !== 'type' || inSignatures.has(e.name ?? '')) && !named.has(e.name ?? ''))
             .map((e) => error(API_JSON, `${e.name ?? '?'} (${e.kind ?? '?'}, ${e.module ?? '?'}) is an export a caller must be able to write, and no guide, recipe, the README, llms.txt or the agent brief names it — an agent with only the docs cannot discover it`));
+    },
+};
+
+/** The names a test imports from `src/` or from the `pkinative` alias, `import type` included, aliases resolved to the exported name. */
+const importedByTests = (ctx: RuleContext): Set<string> => {
+    const names = new Set<string>();
+    const statement = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'(?:(?:\.\.\/)+src\/[^']*|pkinative)'/g;
+    for (const path of ctx.list('tests')) {
+        if (!path.endsWith('.ts') || path.startsWith('tests/helpers/')) continue;
+        for (const match of (ctx.read(path) ?? '').matchAll(statement)) {
+            for (const item of (match[1] ?? '').split(',')) {
+                const name = item.replace(/^\s*type\s+/, '').split(/\s+as\s+/)[0]?.trim();
+                if (name !== undefined && name !== '') names.add(name);
+            }
+        }
+    }
+    return names;
+};
+
+const exportExercised: Rule = {
+    id: 'export-exercised',
+    summary: 'Every runtime export — every function, class and constant — is imported by name in at least one suite under tests/ (tests/helpers never imports src/). Types are exempt: the compiler holds a type wherever the function that carries it is called. Line coverage proves the code ran; this proves each public name was exercised as itself.',
+    check(ctx) {
+        const exports = readExports(ctx);
+        if (!Array.isArray(exports)) return [exports];
+        const imported = importedByTests(ctx);
+        return exports
+            .filter((e) => e.kind !== 'type' && !imported.has(e.name ?? ''))
+            .map((e) => error(API_JSON, `${e.name ?? '?'} (${e.kind ?? '?'}, ${e.module ?? '?'}) is imported by no suite under tests/ — a public name no test writes is a surface no test holds`));
     },
 };
 
@@ -230,5 +262,5 @@ const typeSurfaceParity: Rule = {
 };
 
 export const API_RULES: readonly Rule[] = [
-    apiJsonSync, tsdocComplete, memberTsdoc, exportNamed, optionFieldsNamed, extensionKindsComplete, surfacesParity, typeSurfaceParity,
+    apiJsonSync, tsdocComplete, memberTsdoc, exportNamed, exportExercised, optionFieldsNamed, extensionKindsComplete, surfacesParity, typeSurfaceParity,
 ];
