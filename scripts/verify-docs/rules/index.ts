@@ -22,6 +22,7 @@ import { GOVERNANCE_RULES } from './governance.js';
 import { PROSE_RULES } from './prose.js';
 import { REGISTRY_RULES } from './registries.js';
 import { SITE_RULES } from './site.js';
+import { CURRENCY_RULES } from './currency.js';
 import { VERSION_RULES } from './versions.js';
 
-export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...FREEZE_RULES, ...CONTRACT_RULES, ...PACKAGE_RULES, ...CONFORMANCE_RULES, ...BENCH_RULES, ...COVERAGE_RULES, ...CVE_RULES, ...SITE_RULES, ...ADR_RULES, ...PROSE_RULES];
+export const RULES: readonly Rule[] = [...VERSION_RULES, ...GOVERNANCE_RULES, ...REGISTRY_RULES, ...API_RULES, ...FREEZE_RULES, ...CONTRACT_RULES, ...PACKAGE_RULES, ...CONFORMANCE_RULES, ...BENCH_RULES, ...COVERAGE_RULES, ...CVE_RULES, ...SITE_RULES, ...ADR_RULES, ...PROSE_RULES, ...CURRENCY_RULES];

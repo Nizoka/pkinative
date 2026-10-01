@@ -4,6 +4,7 @@ import { runRules } from '../../scripts/verify-docs.js';
 import { createFsContext, createMemoryContext, loadTextTree } from '../../scripts/verify-docs/context.js';
 import { RULES } from '../../scripts/verify-docs/rules/index.js';
 import { PRE_1_0_PROSE } from '../../scripts/verify-docs/rules/freeze.js';
+import { findStaleMilestones } from '../../scripts/verify-docs/rules/currency.js';
 
 /**
  * Every verify-docs rule, proven in both directions. The repository must pass
@@ -151,6 +152,17 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A replay renamed without its registry row: the row now names a test
     // that does not exist, and the claim and its proof come apart.
     'cve-class-parity': (f) => edit(f, 'tests/security/cve-classes.test.ts', "it('CVE-2020-0601 (CurveBall):", "it('CVE-2020-0601 (CurveBall), renamed:"),
+    // The 1.0.0 audit's own cases: a promise to a version long released, on
+    // the npm front page, and a reason code that was never registered.
+    'stale-milestone': (f) => edit(f, 'README.md', /\n$/, '\nNo signature verification before 0.3; it arrives in 0.3.\n'),
+    'code-token-registered': (f) => edit(f, 'docs/guides/use-cases.md', '`PKI_REASON_REVOCATION_PARTIAL` is the one answer', '`PKI_REASON_PARTIAL` is the one answer'),
+    // The SHA-1 refusal, the code no guide named before 1.0.0.
+    'errors-guide-complete': (f) => edit(f, 'docs/guides/errors.md', '- `PKI_CRYPTO_ALGORITHM_REFUSED` —', '- The SHA-1 refusal —'),
+    // Evidence that went away while the table kept citing it.
+    'standards-evidence': (f) => edit(f, 'docs/guides/standards.md', '`tests/pem/pem.test.ts`', '`tests/pem/pem-strict.test.ts`'),
+    // The headline call dropped from the export table.
+    'readme-surfaces': (f) => edit(f, 'README.md', '| The one-call verdict | `verifyCertificateChain` —', '| The one-call verdict | the chain verdict —'),
+    'copilot-layer-parity': (f) => edit(f, '.github/copilot-instructions.md', /^x509 +→ .+$/m, 'x509   → types, core, asn1, oid'),
 };
 
 describe('verify-docs on the repository', () => {
@@ -658,5 +670,67 @@ describe('verify-docs rule table', () => {
         const files = { ...TREE };
         edit(files, 'README.md', /\n$/, '\n<!-- verify-docs:allow prose-language -->\nLe certificat est valide pour tous les domaines.\n');
         expect(await runRules(createMemoryContext(files), RULES, 'prose-language')).toEqual([]);
+    });
+});
+
+describe('stale-milestone, the phrases it tells apart', () => {
+    const at = (text: string, version: readonly [number, number, number] = [1, 0, 0]): string[] => findStaleMilestones(text, version).map((h) => h.match);
+
+    it.each([
+        ['a promise to a released version', 'Signature verification arrives in 0.3.', ['arrives in 0.3']],
+        ['a future tense on the current version', 'which is why the 1.0 freeze will not name it', ['1.0 freeze will']],
+        ['an adoption dated to a released version', 'its signature stack will run on it from 0.7.', ['will run on it from 0.7']],
+        ['a feature dated to an older version', 'Verification and creation, from 0.3, go through Web Crypto', ['from 0.3']],
+        ['an older milestone tag', '## Private keys and PKCS#12 (0.8)', ['(0.8)']],
+        ['an older version as the current one', 'because pkinative 0.1 does neither', ['pkinative 0.1']],
+        ['an older version in a capability cell', '<td class="cmp-cross">0.5</td>', ['<td class="cmp-cross">0.5</td>']],
+    ] as const)('should report %s', (_what, text, matches) => {
+        expect(at(text)).toEqual(matches);
+    });
+
+    it.each([
+        ['the current minor named as current', 'Everything below runs on pkinative 1.0 as it is tested'],
+        ['a policy dated to the current version', 'From 1.0.0 the public API follows semantic versioning'],
+        ['history in the past tense', 'Until 0.9.0 it did not hold, and the six added in 0.5.0 share one shape'],
+        ['a section number', 'RFC 5280 §4.1 from 4.2 onwards, X.690 §8.1'],
+        ['a measurement', 'from 0.5 ms to 0.8 ms'],
+        ['a promise to a version not yet released', 'A PKCS#10 reader arrives in 1.1.'],
+        ['another library\'s version', '| micro509 | 0.14.0 | 0 | yes | yes |'],
+    ] as const)('should not report %s', (_what, text) => {
+        expect(at(text)).toEqual([]);
+    });
+
+    it('should report a dated phrase once the current minor moves past it', () => {
+        expect(at('From 1.0.0 the public API follows semantic versioning', [1, 1, 0])).toEqual(['From 1.0.0']);
+    });
+
+    it('should honour a suppression on the line or the line above', () => {
+        expect(at('<!-- verify-docs:allow stale-milestone -->\nwhich arrives in 0.3')).toEqual([]);
+        expect(at('which arrives in 0.3 <!-- verify-docs:allow stale-milestone -->')).toEqual([]);
+    });
+
+    it('should report a span another branch owns as a warning, and the same span elsewhere as an error', async () => {
+        const problems = await runRules(createMemoryContext(TREE), RULES, 'stale-milestone');
+        expect(problems.every((p) => p.severity === 'warn' && p.message.includes('[pending'))).toBe(true);
+        const files = { ...TREE };
+        edit(files, 'docs/guides/choose.md', /\n$/, '\nVerification goes through Web Crypto from 0.3.\n');
+        const moved = await runRules(createMemoryContext(files), RULES, 'stale-milestone');
+        expect(moved.filter((p) => p.severity === 'error')).toEqual([expect.objectContaining({ file: 'docs/guides/choose.md', message: expect.stringContaining('"from 0.3" dates a feature') })]);
+    });
+});
+
+describe('standards-evidence, what it resolves', () => {
+    it.each([
+        ['a rule that does not exist', '`corpus-pin-parity`', '`corpus-pin-parities`', 'no verify-docs rule'],
+        ['a conformance level that does not exist', '`L8`', '`L9`', 'does not define'],
+        ['a code that is not registered', '`PKI_DIAG_TELETEX_AS_LATIN1`', '`PKI_DIAG_TELETEX_AS_T61`', 'none of the three code registries'],
+        ['a glob that matches nothing', '`tests/asn1/asn1-decode.test.ts`', '`tests/asn1/zz-*.test.ts`', 'not in the repository'],
+        ['the disclaimer removed', 'not a certification', 'a certification', 'does not say "not a certification"'],
+        ['a relative link to nothing', '(../adr/0005-names-compared-by-encoded-bytes.md)', '(../adr/0005-gone.md)', 'links ../adr/0005-gone.md'],
+    ] as const)('should fire on %s', async (_what, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/standards.md', from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'standards-evidence');
+        expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining(message) })]));
     });
 });
