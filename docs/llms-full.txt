@@ -13,7 +13,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 ## Guides
 
 - [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
-- [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-one limits, typed failures, the cryptography boundary
+- [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
 - [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when another tool is the right one
@@ -144,11 +144,11 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints and key identifiers | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier` |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 282 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 284 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
-Every certificate, PEM text and DER blob is attacker-controlled. Twenty-one named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them), and a judgement — a chain, a message, a timestamp, a key file — returns its reasons in a report. No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
+Every certificate, PEM text and DER blob is attacker-controlled. Twenty-two named limits (`maxDepth`, `maxNodes`, `maxExtensions`, …) bound every loop, each with its CWE; structural failures throw a `PkiError` subclass with a stable `code`, conformance concerns go to a diagnostics channel (`onDiagnostic`, or `strict: true` to refuse them), and a judgement — a chain, a message, a timestamp, a key file — returns its reasons in a report. No `eval`, no I/O, no dynamic import in the engine, and no secret-dependent cryptography in TypeScript. Details: [SECURITY.md](SECURITY.md) and the [security guide](docs/guides/security.md).
 
 ## Conformance
 
@@ -276,7 +276,7 @@ The fields of the extensions `getExtension` returns:
 
 ## Every extension, typed
 
-`cert.extensions` lists every extension in encoded order, each with `oid`, `critical` and `valueDer`, and a `kind` that says how it was decoded: `basicConstraints`, `keyUsage`, `extendedKeyUsage`, `subjectAltName`, `issuerAltName`, `subjectKeyIdentifier`, `authorityKeyIdentifier`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, `authorityInfoAccess`, `subjectInfoAccess`, `crlDistributionPoints`, `freshestCRL`, `signedCertificateTimestampList`, `ocspNoCheck` — or `unknown` for an extension pkinative does not decode. `getExtension(cert, kind)` returns the one of that kind, typed.
+`cert.extensions` lists every extension in encoded order, each with `oid`, `critical` and `valueDer`, and a `kind` that says how it was decoded: `basicConstraints`, `keyUsage`, `extendedKeyUsage`, `subjectAltName`, `issuerAltName`, `subjectDirectoryAttributes`, `subjectKeyIdentifier`, `authorityKeyIdentifier`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, `authorityInfoAccess`, `subjectInfoAccess`, `crlDistributionPoints`, `freshestCRL`, `signedCertificateTimestampList`, `ocspNoCheck` — or `unknown` for an extension pkinative does not decode. `getExtension(cert, kind)` returns the one of that kind, typed.
 
 An inspection tool that must show a certificate even when one extension is malformed parses with `decodeExtensions: false` — every extension stays `kind: 'raw'` — and decodes what it needs with `decodeExtensionValue(oid, valueDer, { critical })`; `critical` (default `false`) is reported on the result and decides whether an unknown extension raises `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`.
 
@@ -314,7 +314,7 @@ Never branch on the message. The [error guide](errors.md) lists every code with 
 
 ## Limits
 
-Twenty-one named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
+Twenty-two named limits bound every loop over untrusted bytes. Tighten one for a context that expects small inputs, raise one only for input you trust:
 
 ```ts
 parseCertificate(der, { limits: { maxExtensions: 32, maxGeneralNames: 100 } });
@@ -699,7 +699,7 @@ const problems = [
 if (problems.length > 0) for (const reason of problems) console.log(reason.code, reason.path, reason.message);
 ```
 
-**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. The same matcher is exported as `matchDnsName(presented, reference, options?)`, for a name you hold outside a certificate; its [`MatchDnsNameOptions`](../assets/api.json) take the same `allowWildcards`, on by default. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
+**`checkServerName` is RFC 6125, written the strict way**, because every relaxation has been somebody's bypass. `subjectAltName` wins absolutely: if the certificate carries any `dNSName` or `iPAddress`, the `commonName` is never consulted, and `allowCommonNameFallback` is **off by default** — CA/Browser Forum BR 7.1.4.2.2 has forbidden CN-only certificates since 2017. Turned on, it also needs `path`, the validated path: RFC 5280 §6 constrains the subjectAltName and the subject, never a CN read as a host, so the fallback holds that CN to the `dNSName` name constraints of the CAs on the path — `PKI_REASON_NAME_NOT_PERMITTED` or `PKI_REASON_NAME_EXCLUDED`, as OpenSSL refuses it — and without `path` it refuses. A wildcard is one whole leftmost label and nothing else, it needs at least three labels, and `*.example.com` does not match `example.com`. An address is compared **as octets, never as text** (`ServerIdentity` takes `Uint8Array` for that reason), and the two forms never cross: `1.2.3.4` written as a `dNSName` is a whole class of bypass. `allowWildcards: false` is the right setting for an internal PKI that issues none. The same matcher is exported as `matchDnsName(presented, reference, options?)`, for a name you hold outside a certificate; its [`MatchDnsNameOptions`](../assets/api.json) take the same `allowWildcards`, on by default. No public suffix list is embedded — that is data which changes weekly, and a parser carrying a stale copy is worse than one that says it does not know.
 
 **When you build rather than validate, put the purpose *into* the search.** `buildCertificatePath` takes `purposes`, and passing it is not an optimisation — a builder that picks a path without knowing what the path is for will confidently return one that `checkExtendedKeyUsage` then condemns **while an acceptable path existed**. A real bag of cross-signed intermediates, some restricted to `emailProtection` and some not, is exactly that shape. Whatever can make a path unacceptable belongs inside the search, for the same reason name constraints are inside §6 rather than after it — and `validateCertificatePath` is untouched by this, because §6 has no notion of purpose and searching is not §6.
 
@@ -753,7 +753,7 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 | Answer | Meaning |
 |---|---|
 | `[]` | Not revoked, by a list entitled to say so and current enough to believe |
-| `PKI_REASON_REVOKED` | Listed — and the message carries the date, because a signature made before it may still be good |
+| `PKI_REASON_REVOKED` | Listed by a list entitled to say so — this certificate's issuer's, covering it, its signature verified — and the message carries the date, because a signature made before it may still be good |
 | `PKI_REASON_REVOCATION_STALE` | No `nextUpdate`, or it has passed beyond your `staleTolerance` |
 | `PKI_REASON_REVOCATION_WRONG_ISSUER` | The list names another CA, compared by encoded name |
 | `PKI_REASON_REVOCATION_OUT_OF_SCOPE` | The right CA's **wrong list** — its `issuingDistributionPoint` excludes this certificate |
@@ -764,7 +764,7 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 
 A list with **no `nextUpdate` at all is stale**, not current. RFC 5280 §5.1.2.5 makes the field optional and tells CAs to include it; nothing asserts such a list is still good.
 
-And a revocation found on a stale list from the wrong CA is **still reported**. Hiding it behind an earlier failure would be the one direction of error that matters.
+**`REVOKED` is evidence, never a rumour.** RFC 5280 §6.3.3 consults a list only once its issuer and scope are this certificate's and its signature is valid, and serial numbers are unique per issuer, so a listing on another CA's list, an out-of-scope list or a list with a critical extension nothing here processes is not reported as a revocation: the reason that disqualifies the list already fails the answer. A list whose only fault is an unverified signature is still this CA's list about this certificate, so what it names is carried as a claim in a `PKI_REASON_REVOCATION_UNKNOWN`, dated. A stale list that may speak still proves a revocation — time does not withdraw one — and says it is stale besides. `checkOcspStatus` follows RFC 6960 §3.2 the same way: a `revoked` answer is `REVOKED` only when the signature verified and the signer is authorised.
 
 ### What a list is *about* (RFC 5280 §5.2.5)
 
@@ -978,7 +978,7 @@ The key in `bundle.pem` stays encrypted under the passphrase you give, PBES2 wit
 
 **The primitives underneath.** `parsePkcs12` needs no password: it returns a [`Pkcs12`](../assets/api.json) whose `contents` are [`SafeContentsInfo`](../assets/api.json) entries — `encrypted`, the `encryption` scheme and ciphertext, or the `bags` already read when the SafeContents is plain — and whose `mac` says `kind: 'pbmac1'` or `kind: 'pkcs12-kdf'`, or is `undefined`. `verifyPkcs12Mac(pkcs12, password)` checks a PBMAC1 and returns `true` or `false`, the two failures being indistinguishable; it throws `PKI_KEY_MAC_UNSUPPORTED` for an Appendix B MAC and `PKI_API_MISUSE` for a file with none, so check `pkcs12.mac` first. `openSafeContents(contents, password)` returns the [`SafeBag`](../assets/api.json)s of one entry, decrypting it when it is PBES2-encrypted; each bag has its `kind`, `friendlyName`, `localKeyId`, and `certificateDer`, `crlDer`, `encryptedKey` or `privateKey` by kind, and a `path` such as `authSafe[1].bags[0]`. Nested `safeContentsBag`s are flattened, and every bag counts against `maxPkcs12Bags`. The layer never parses a certificate for you — `certificateDer` goes to `parseCertificate` — and `decryptPrivateKey(bag.encryptedKey.der, { password, algorithm })` opens a key. Public-key privacy mode (`envelopedData`) is reported as encrypted with no password scheme and refused by `openSafeContents`; public-key integrity mode is refused by `parsePkcs12` with `PKI_KEY_MAC_UNSUPPORTED`.
 
-**The file declares its own cost.** The PBKDF2 iteration count is the file's to declare and the host's to run, inside Web Crypto where no JavaScript bound reaches, so `maxKdfIterations` (10 000 000, about ten seconds of SHA-256) is checked before the host is asked for anything: a file declaring 2³¹ iterations is `PKI_LIMIT_EXCEEDED` — thrown by the primitives, reported by `openPkcs12` as `PKI_REASON_INPUT_MALFORMED` carrying that code — and not a frozen process. A count below the 1 000 RFC 8018 recommends still opens, with `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: the count is what a stolen copy costs to brute-force.
+**The file declares its own cost.** The PBKDF2 iteration count is the file's to declare and the host's to run, inside Web Crypto where no JavaScript bound reaches, so `maxKdfIterations` (10 000 000, about ten seconds of SHA-256) is checked before the host is asked for anything: a file declaring 2³¹ iterations is `PKI_LIMIT_EXCEEDED` — thrown by the primitives, reported by `openPkcs12` as `PKI_REASON_INPUT_MALFORMED` carrying that code — and not a frozen process. A file may declare thousands of derivations, so `maxPkcs12KdfIterations` (also 10 000 000) bounds what one PKCS#12 costs in total — its PBMAC1 MAC, every encrypted SafeContents and every shrouded key — checked by `parsePkcs12` over what it can see, by `openSafeContents` before it derives and over the keys it reveals, and by `openPkcs12` before each derivation it runs. A count below the 1 000 RFC 8018 recommends still opens, with `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: the count is what a stolen copy costs to brute-force.
 
 **The three vocabularies, applied to keys.**
 
@@ -1047,8 +1047,9 @@ Every loop over input consults a named limit. The decoder is iterative, so nesti
 | `maxSignerInfos` | 64 | CWE-400 | The signers of one SignedData, each costing a signature verification |
 | `maxAttributes` | 256 | CWE-400 | The attributes in one attribute set — a CMS signer's, a PKCS#8 key's, a PKCS#12 bag's |
 | `maxCmsCertificatesAndCrls` | 1 024 | CWE-400 | The certificates and revocation entries one SignedData carries |
-| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured — declared by the file, run by the host |
+| `maxKdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iteration count honoured in one derivation — declared by the file, run by the host |
 | `maxPkcs12Bags` | 4 096 | CWE-400 | The SafeBags read from one PKCS#12, across every SafeContents |
+| `maxPkcs12KdfIterations` | 10 000 000 | CWE-400 | The PBKDF2 iterations one PKCS#12 costs in total — its MAC, every encrypted SafeContents and every shrouded key |
 
 Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the `limit`, `configured` and `observed` values. Override per call with `options.limits`; `DEFAULT_PKI_LIMITS` holds the defaults.
 
@@ -1060,7 +1061,9 @@ Decoded names and OIDs are kept in arrays and `Map`s, never as plain object keys
 
 ## Cryptography pkinative does not own
 
-pkinative never implements secret-dependent cryptography in TypeScript: no signing, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Verification and creation, from 0.3, go through Web Crypto, whose implementations run in constant time in the host. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.
+pkinative never implements secret-dependent cryptography in TypeScript: no signing arithmetic, no key generation, no RSA modular exponentiation, no elliptic-curve scalar multiplication. Every signature it verifies and every signature it creates — on a certificate, a certification request or a CMS SignedData — is one Web Crypto call with the caller's key, and so is every password-based derivation, MAC and decryption of a PKCS#8 or PKCS#12 container; the arithmetic runs in the host's native implementation, not in JavaScript `BigInt`s. `src/crypto/webcrypto.ts` is the only module that names those operations, and it refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt` and `wrapKey` for good. The SHA-1, SHA-256, SHA-384 and SHA-512 code exists for synchronous fingerprints of public data only and is not exported as general-purpose hashing.
+
+The consequence is a split worth knowing: the **structure** around a signature is pkinative's to check — the DER of an ECDSA signature, the algorithm named inside and outside the signed bytes, the key's curve — and the **arithmetic** is the host's, RSA padding, Ed25519 canonicity and the ECDSA scalar range included. The CVE-class corpus below says which side stops each known attack.
 
 This is a deliberate departure from the code pkinative grew out of: pdfnative's pure-JavaScript RSA and ECDSA use `BigInt` arithmetic that is not constant-time, and are not ported. The reasoning behind each permanent refusal — a Web Crypto operation, a legacy PKCS#12 scheme, an algorithm Web Crypto lacks — is recorded in the [architecture decision records](../adr/README.md).
 
@@ -1068,9 +1071,65 @@ This is a deliberate departure from the code pkinative grew out of: pdfnative's 
 
 `src/` has no filesystem, network, process or dynamic-import access, no `eval` and no `Function`, and no module-level side effects — all enforced from the syntax tree by the architecture test. The package is tree-shakeable, and `npm run verify:bundle` proves that a certificate parser bundle carries no PEM code, no hash and no OID name registry.
 
+## CVE classes
+
+Every published vulnerability of a PKI library whose class pkinative could share is replayed against the engine on every gate run: `tests/security/cve-classes.test.ts` rebuilds each one from synthetic input — raw DER, keys generated in the test, forgeries computed with public arithmetic — and asserts the refusal, the code or the verdict. `docs/data/cve-classes.json` records, for each identifier, the library it hit, the class, the CWE, whether it applies, why, and the test that proves it; the `cve-class-parity` rule of `npm run verify:docs` fails the build when the registry, the tests and this table disagree.
+
+**Applies** is `no` when pkinative has the code path and refuses the attack, `n.a.` when the class cannot exist here (no DSA, no padding parser, no memory-unsafe code), and `yes` when the audit found it. **Stopped by** is honest about delegation: where it says the host's Web Crypto, pkinative hands the bytes over unchanged and the test proves the host refuses them — a host that stopped refusing would turn the suite red.
+
+| Identifier | Library | Class | Applies | Stopped by |
+|---|---|---|---|---|
+| CVE-2020-0601 | Windows CryptoAPI (crypt32.dll) | CurveBall: an ECC certificate carrying a trusted root's public point under explicit curve parameters with an attacker-chosen generator is trusted as that root | no | pkinative |
+| CVE-2024-42461, GHSA-49q7-c7j4-3p7m | elliptic (npm) 5.2.1–6.5.6 | BER-encoded ECDSA signatures accepted (signature malleability) | no | pkinative |
+| CVE-2020-14966 | jsrsasign (npm) ≤ 8.0.18 | ECDSA signature malleability through unchecked sequence lengths and appended zero octets | no | pkinative |
+| CVE-2024-42460, GHSA-977x-g7h5-7qgw | elliptic (npm) 2.0.0–6.5.6 | ECDSA r and s not checked for a redundant leading octet or a negative value | no | pkinative |
+| CVE-2020-13822 | elliptic (npm) 6.5.2 | ECDSA malleability through integer overflow (r + n, s + n) | no | pkinative, then the host |
+| CVE-2022-21449 | Oracle Java SE 17.0.2 and 18 | ECDSA signature with r = s = 0 accepted | no | the host's Web Crypto |
+| CVE-2022-24771 | node-forge (npm) < 1.3.0 | RSA PKCS#1 v1.5 verification lenient about the DigestInfo algorithm structure | n.a. | the host's Web Crypto |
+| CVE-2022-24773 | node-forge (npm) < 1.3.0 | RSA PKCS#1 v1.5 verification does not check the DigestInfo ASN.1 structure | n.a. | the host's Web Crypto |
+| CVE-2026-33894, GHSA-ppp5-5v6c-4jwp | node-forge (npm) < 1.4.0 | RSA PKCS#1 v1.5 signature forgery through an extra ASN.1 field in the DigestInfo | n.a. | the host's Web Crypto |
+| CVE-2022-24772 | node-forge (npm) < 1.3.0 | RSA PKCS#1 v1.5 verification ignores trailing garbage after the DigestInfo | n.a. | the host's Web Crypto |
+| CVE-2021-30246 | jsrsasign (npm) ≤ 10.1.13 | some invalid RSA PKCS#1 v1.5 signatures (malformed encoded message) recognised as valid | n.a. | the host's Web Crypto |
+| CVE-2006-4339 | OpenSSL before 0.9.7k, and 0.9.8 before 0.9.8c | Bleichenbacher forgery of PKCS#1 v1.5 signatures under an e = 3 key, computed without the private key | n.a. | the host's Web Crypto |
+| CVE-2020-14968, GHSA-q3gh-5r98-j4h3 | jsrsasign (npm) 3.0.0–8.0.15 | RSA signature with prepended zero octets accepted | no | the host's Web Crypto |
+| CVE-2026-4598 | jsrsasign (npm) < 11.1.1 | infinite loop in modular inversion on a zero or negative input | no | pkinative |
+| CVE-2026-4602 | jsrsasign (npm) < 11.1.1 | negative exponents mishandled, breaking signature verification | no | pkinative |
+| CVE-2026-4603 | jsrsasign (npm) < 11.1.1 | division by zero in RSA public-key operations on a zero modulus | no | pkinative |
+| CVE-2024-42459, GHSA-f7q4-pwc6-w24p | elliptic (npm) 4.0.0–6.5.6 | EdDSA signature length not checked, so zero octets can be appended or removed | no | the host's Web Crypto |
+| CVE-2026-33895, GHSA-q67f-28xg-22rw | node-forge (npm) < 1.4.0 | Ed25519 signature with S ≥ L (non-canonical) accepted | no | the host's Web Crypto |
+| CVE-2024-48949, GHSA-434g-2637-qmqr | elliptic (npm) < 6.5.6 | EdDSA verify omits the S < n range check | no | the host's Web Crypto |
+| CVE-2024-24783 | Go crypto/x509 | Certificate.Verify panics on a certificate with an unknown public-key algorithm in the chain | no | pkinative |
+| CVE-2024-29857 | Bouncy Castle (Java) < 1.78 | explicit F2m curve parameters cause excessive CPU when a certificate is imported | no | pkinative |
+| CVE-2023-0217 | OpenSSL 3.0 | NULL dereference checking a malformed DSA public key (EVP_PKEY_public_check) | n.a. | by construction |
+| CVE-2026-4599 | jsrsasign (npm) 7.0.0 to before 11.1.1 | biased random scalar generation (DSA/ECDSA signing) leaks the private key | n.a. | by construction |
+| CVE-2026-4600 | jsrsasign (npm) < 11.1.1 | DSA domain parameters not validated before verification | n.a. | by construction |
+| CVE-2026-4601 | jsrsasign (npm) < 11.1.1 | DSA signing does not retry when r or s is zero, leaking the private key | n.a. | by construction |
+| CVE-2025-66031, GHSA-554w-wpv2-vw27 | node-forge (npm) < 1.3.2 | unbounded recursion in ASN.1 decoding | no | pkinative |
+| CVE-2025-66030, GHSA-65ch-62r8-g69g | node-forge (npm) < 1.3.2 | OID arc truncated to 32 bits, so a crafted OID reads as another (OID spoofing) | no | pkinative |
+| CVE-2023-2650 | OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1 | very slow translation of a crafted OID with huge arcs (OBJ_obj2txt) | no | pkinative |
+| CVE-2025-12816, GHSA-5gfm-wpxj-wjgq | node-forge (npm) < 1.3.2 | ASN.1 schema validation desynchronised by optional fields (interpretation conflict) | no | pkinative |
+| CVE-2023-33202 | Bouncy Castle (Java) < 1.73 | denial of service in the PEM parser on crafted input | no | pkinative |
+| CVE-2024-0727 | OpenSSL 1.0.2, 1.1.1, 3.0, 3.1 and 3.2 | NULL dereference on a PKCS#12 whose ContentInfo content is absent | no | pkinative |
+| CVE-2023-0216 | OpenSSL 3.0 | invalid pointer dereference loading malformed PKCS#7 data (d2i_PKCS7) | no | pkinative |
+| CVE-2022-36083 | jose (npm) | attacker-chosen PBKDF2 iteration count (the JWE p2c header) costs the receiver unbounded CPU | yes | pkinative |
+| CVE-2026-33896, GHSA-2328-f5f3-gj25 | node-forge (npm) ≤ 1.3.3 | an intermediate without basicConstraints or keyUsage accepted as a CA | no | pkinative |
+| CVE-2023-0286 | OpenSSL 1.0.2, 1.1.1 and 3.0 | type confusion on x400Address in GeneralName comparison | n.a. | by construction |
+| CVE-2022-3602 | OpenSSL 3.0 | buffer overrun decoding a punycode email address in name-constraint checking | n.a. | by construction |
+| CVE-2022-3786 | OpenSSL 3.0 | buffer overrun (variable length) decoding a punycode email address in name-constraint checking | n.a. | by construction |
+| CVE-2024-45341 | Go crypto/x509 | a URI with an IPv6 zone identifier wrongly satisfies a URI name constraint | no | pkinative |
+| CVE-2025-61727 | Go crypto/x509 | an excluded subdomain constraint does not restrict a wildcard dNSName | no | pkinative |
+| CVE-2023-0464 | OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1 | exponential growth of the policy tree on crafted policy mappings (denial of service) | no | pkinative |
+| CVE-2023-0465 | OpenSSL 1.0.2, 1.1.1, 3.0 and 3.1 | invalid certificate policies in a leaf silently ignored | no | pkinative |
+| CVE-2009-2408 | Mozilla NSS < 3.12.3 | a NUL character in the commonName matches the name before it | no | pkinative |
+| CVE-2021-42574 | Unicode Bidirectional Algorithm | bidirectional control characters reorder rendered text | no | pkinative |
+
+CVE-2022-36083 is the one that applied: a PKCS#12 with no MAC could make `openPkcs12` run one ten-million-iteration PBKDF2 per entry. `maxPkcs12KdfIterations` bounds the work of a whole file and refuses it at parse, before anything is derived.
+
+Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eight targets in `fuzz/` — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses, RFC 3161 timestamps, and PKCS#12 with PKCS#8 — each seeded with a real structure of its grammar and each executed against `src/` on every gate run by `tests/fuzzing/targets.test.ts`.
+
 ## Reporting a vulnerability
 
-Report privately through GitHub's private vulnerability reporting, never in an issue — see [SECURITY.md](../../SECURITY.md) for scope and response times.
+Report privately, never in an issue: through [GitHub's private vulnerability reporting](https://github.com/Nizoka/pkinative/security/advisories/new), or by email to [security@pkinative.dev](mailto:security@pkinative.dev). See [SECURITY.md](../../SECURITY.md) for scope and response times.
 
 ---
 <!-- source: docs/guides/conformance.md -->
@@ -1100,9 +1159,11 @@ Report privately through GitHub's private vulnerability reporting, never in an i
 - **L3 — OpenSSL.** Every parsed certificate agrees with `node:crypto.X509Certificate` on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 200 agrees with the `openssl` command-line tool — two builds, the one inside Node and the system one. What is cross-checked is the values the tool reads, never its acceptance policy: a disagreement on a serial or a fingerprint always fails, while a non-reference implementation refusing a certificate (LibreSSL on macOS) is reported as not applicable, and fails only if it reads too few to be a cross-check at all.
 - **L4 — other implementations.** There is no veraPDF for the PKI: no single reference a parser can be held to. The honest equivalent is confrontation, so a sample of the corpus is read again by implementations written by other people, in other languages, and the readings must agree. What is compared is never rendered text — every implementation prints a distinguished name its own way — but SHA-256 of exact DER slices: `subjectFp256` and `issuerFp256` over the encoded subject and issuer, `spkiKeyFp256` over the public key octets, `tbsFp256` over the signed bytes, plus the exact identifiers `keyAlgOid` and `version`. Each validator declares in its output which of those it can supply, so a tool that cannot reach a field says so instead of being special-cased.
 
+  Three validators, three lineages that share no code with OpenSSL or with each other. On Windows, `windows-cryptoapi` reads through CryptoAPI and supplies five fields — every one but `tbsFp256`, which `X509Certificate2` does not expose. On Linux, `go-x509` reads through Go's `crypto/x509` and supplies all six, `tbsFp256` included, from the slices Go itself read; `python-cryptography` reads through pyca/cryptography's Rust parser and supplies five — every one but `spkiKeyFp256`, because pyca exposes no slice of the key it read. On macOS none runs, and the report says so. Over the 200-certificate sample both Linux validators agree with pkinative on every certificate they read, with the positive canary agreeing and no negative canary accepted.
+
   Three guards make agreement mean something. A **positive canary** every implementation reads is submitted first, so one that rejects everything is unmasked (`VACUOUS`). **Negative canaries** — a truncated certificate, no bytes at all, octets that are not ASN.1, a length that runs past the input — are submitted last, so one that accepts everything is unmasked (`XPASS`). A **footer** states how many certificates were read, so one that stops halfway and exits 0 is caught by the contract rather than by a guess. Neither canary verdict can be waived.
 
-  A real difference between two implementations is recorded in `scripts/data/validator-disagreements.json` with the reason it is accepted, the way refusals are recorded in `limbo-refusals.json` — never silenced, never a permanent red. Today that file is empty. Every toolchain the matrix uses is already on the runner: nothing is downloaded, vendored, cached or checksum-pinned, so the gate adds no supply-chain surface of its own. A validator that does not exist on a platform is reported as not applicable, never as a pass.
+  A real difference between two implementations is recorded in `scripts/data/validator-disagreements.json` with the reason it is accepted, the way refusals are recorded in `limbo-refusals.json` — never silenced, never a permanent red. Today that file is empty. Every toolchain the matrix uses is on the runner or installed by the conformance workflow at a pinned version — Go through a commit-pinned `actions/setup-go`, pyca/cryptography from `scripts/data/interop-python-requirements.txt`, pinned by version and by the SHA-256 of every file — so nothing reaches the gate that a reviewer did not pin, and nothing is vendored. A validator that does not exist on a platform is reported as not applicable, never as a pass; one that should exist there and is missing fails under `--require-all`.
 - **L5 — RFC 5280, clause by clause.** L1 to L4 are all **differential**: they prove agreement, not correctness. If pkinative, OpenSSL and `node:crypto` were wrong in the same way, L3 would be green. And a red L1 says *"certificate `ab3f…` was refused and the baseline says otherwise"* — a regression detector, not an authority.
 
   L5 makes the claim that is missing, and it is a claim about **attribution**. `scripts/lib/clauses.ts` holds 25 clauses — 22 of RFC 5280 §4.1 and §4.2, and 3 of the X.690 encoding rules the profile inherits — each quoting the normative sentence it enforces and naming the `PkiDiagnosticCode` that must report it. `scripts/validators/rfc5280-clauses.ts` decides each one from the raw bytes through `raw-der.ts`, without importing `src/` — two readings that shared a decoder could not disagree. The runner then fails on a violation pkinative is **silent** about, and, for a clause that claims to decide every case its diagnostic covers, on a diagnostic with **no violation behind it**: the two readings disagree, and one of them is wrong.
@@ -1150,17 +1211,38 @@ Report privately through GitHub's private vulnerability reporting, never in an i
 
 ## The write direction
 
-Everything above points one way: bytes someone else produced, read by pkinative. From 0.3 the arrow also points outward, and that direction has **no corpus** — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.
+Everything above points one way: bytes someone else produced, read by pkinative. For what pkinative writes, the arrow points outward, and that direction has **no corpus** — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.
 
-`npm run interop` (`scripts/run-interop.ts`) hands every artefact of the sample catalogue to each foreign tool it can find, and requires agreement on facts that have exactly one right answer: the serial number as an integer, the subject common name, the DNS names, whether the chain verifies, and whether the PKCS#10 request's self-signature checks out. The artefacts are the same ones `verify:samples` freezes by hash, so the bytes a baseline blesses are the bytes OpenSSL is asked to read — two catalogues would each be green about something the other never saw.
+`npm run interop` (`scripts/run-interop.ts`) hands two sets of artefacts to every foreign tool it can find, and requires agreement on facts that have exactly one right answer — a serial number as an integer, a name attribute, the DNS names, whether a chain or a self-signature or a SignedData verifies, the digest and nonce a request carries — never on rendered text.
 
-Three details decide whether the result means anything:
+- **The frozen samples** of `scripts/lib/samples.ts`: the bytes `verify:samples` freezes by hash, so the bytes a baseline blesses are the bytes the tools are asked to read. They are Ed25519 only, because only a deterministic signature has a stable hash.
+- **A set generated afresh on every run** (`scripts/lib/interop-artefacts.ts`), for every other signature family the API writes: RSA PKCS #1 v1.5, RSASSA-PSS with SHA-256, SHA-384 and SHA-512, ECDSA on P-256, P-384 and P-521, and Ed25519. For each: a CA with critical name constraints; a leaf carrying every extension a server certificate carries, a BMPString and a multi-valued RDN in its subject; a leaf shaped by the CA/Browser Forum baseline requirements; a CSR with and without the extensionRequest attribute; CMS SignedData attached, detached and identified by subject key identifier; an OCSP request — then three RFC 3161 TimeStampReqs. Every artefact as DER and as PEM. The keys are made by the harness through Web Crypto `generateKey`, never by `src/`, so nothing here has a stable hash and nothing is compared by one.
 
-- **A tool that refuses an artefact is a finding about pkinative.** This is the opposite of the read direction, where a foreign acceptance policy stricter than ours is not our defect. Here the bytes are ours.
-- **A tool this runner cannot parse is a defect in the runner, never evidence about the certificate.** The two are separate states because conflating them is how a gate ends up red in one language and green in another: Windows `certutil` reads the artefacts perfectly and prints *"Numéro de série"* on a French system, and a runner with two states reported a good certificate as refused.
-- **Each tool declares which fields it can supply**, exactly as the L4 validators do, and a tool that compares nothing fails as vacuous. Windows CryptoAPI supplies the serial and the subject — both API values, identical in every locale — and does not supply DNS names, because reaching them from Windows PowerShell 5.1 means `X509Extension.Format()`, whose output is translated.
+The readers, and what each is asked:
 
-Today `openssl` and Windows CryptoAPI run, on all three platforms, blocking: the matrix runs inside the `conformance` job, whose three contexts the ruleset already requires. GnuTLS `certtool`, Windows `certutil`, `keytool`, macOS `security` and Python `cryptography` are declared in `scripts/lib/interop.ts` with the reason each is pending, and `interop-matrix-declared` holds that list to ROADMAP.md in both directions so a gap cannot quietly disappear. `--require-all`, which turns a missing tool into a failure, goes on in the commit that lands the last of them.
+| Tool | Reads |
+|---|---|
+| `openssl` | certificates (DER and PEM), the chain with `-x509_strict`, the TLS purpose and the host name, CSR self-signatures, every SignedData with `cms -verify` and the content it returns, the OCSP request with `-req_text`, the TimeStampReqs with `ts -query -text` |
+| `windows-cryptoapi` | every certificate, through CryptoAPI under Windows PowerShell 5.1 |
+| `dotnet` | certificates (DER and PEM), the chain through `X509Chain` with a custom root and the server-authentication policy — on Windows, CryptoAPI's chain engine — CSRs through `LoadSigningRequest`, every SignedData through `SignedCms.CheckSignature`, the TimeStampReqs through `Rfc3161TimestampRequest` |
+| `gnutls-certtool` | certificates, the chain with the host name and the purpose, CSR self-signatures |
+| `go-x509` | certificates, the signature and the whole path as a TLS client builds it, CSR self-signatures |
+| `python-cryptography` | certificates, each leaf's signature by its issuer, the Web PKI verifier on the baseline-shaped leaves, CSRs, the certificates a SignedData carries, the OCSP request |
+| `java-keytool` | certificates and the PKIX path through the JDK, CSRs through `keytool -printcertreq` |
+| `gpgsm` | every SignedData, with the CA in its trust list |
+| `zlint`, `pkilint` | every certificate created: zlint with the RFC sources everywhere and the CA/Browser Forum, Mozilla, Chrome and Apple sources on what is shaped for the Web PKI in a family it admits; pkilint's `lint_pkix_cert` on each and `lint_pkix_signer_signee_cert_chain` on each leaf with its CA |
+
+What decides whether the result means anything (`scripts/lib/interop-judge.ts`, every rule of it proved to fire by `tests/tools/interop.test.ts`):
+
+- **A tool that refuses an artefact is a finding about pkinative.** This is the opposite of the read direction, where a foreign acceptance policy stricter than ours is not our defect. Here the bytes are ours. The one exception is a build that is not the reference — OpenSSL before 3.0, LibreSSL — whose refusals are reported as not applicable, exactly as L3 treats them, while every fact it does read must still agree.
+- **A tool this runner cannot parse is a defect in the runner, never evidence about the certificate.** The two are separate states because conflating them is how a gate ends up red in one language and green in another: Windows `certutil` reads the artefacts perfectly and prints *"Numéro de série"* on a French system, and a runner with two states reported a good certificate as refused. Libraries are therefore driven by small programs in `scripts/validators/` that answer in NDJSON with API values; a command line is parsed for values, never for sentences.
+- **A known limitation of a tool is reviewed, proved, and must stay true.** `TOOL_LIMITATIONS` in `scripts/lib/interop.ts` lists each check a tool cannot pass for a reason that is the tool's — .NET has no Ed25519, libksba cannot parse a subject-key-identifier signer, pyca reads PKCS #7 version 1 only, pkilint cannot verify an RSASSA-PSS signature, zlint mistakes a BMPString's zero octets for control characters — each with the control that proved it: the same check failing identically on an artefact OpenSSL made. A limitation whose check starts to pass fails the run as stale.
+- **A lint error is never waived; a lint warning is reviewed.** zlint and pkilint must report no error on anything pkinative creates. Every warning is recorded in `scripts/data/lint-waivers.json` with the reason it is accepted — a commonName the baseline requirements call NOT RECOMMENDED, a subjectKeyIdentifier RFC 5280 asks for and the baseline requirements advise against — and the rule `lint-waiver-reviewed` holds the file's shape. A warning nobody reviewed fails the run, and so does a waiver that matched nothing.
+- **A tool that compares nothing fails as vacuous.**
+
+The matrix runs blocking inside the `conformance` job, whose three contexts the ruleset already requires, and in the release gate, both with `--require-all` per platform: a tool `REQUIRED_TOOLS` names for the runner fails the job when it is missing. On Linux that is `openssl`, `gnutls-certtool`, `python-cryptography`, `go-x509`, `zlint` and `pkilint`, which the workflow installs pinned; on Windows `openssl`, `windows-cryptoapi` and `dotnet`, which the image carries; on macOS `openssl`, the system build. Windows CryptoAPI runs on Windows only. Every other implemented tool runs where the image carries it and where it has been proved (`TOOL_PLATFORMS`), and a Windows workstation reaches the Linux readers through WSL. Windows `certutil` and macOS `security` are declared in `scripts/lib/interop.ts` with the reason each is pending, and `interop-matrix-declared` holds the declarations to ROADMAP.md, THIRD-PARTY-NOTICES.md, this page and the workflow, so a gap cannot quietly disappear.
+
+The first run of the extended set found one defect: the RSASSA-PSS AlgorithmIdentifier was written without the NULL after each digest OID, which the CA/Browser Forum baseline requirements fix byte for byte — zlint and pyca's Web PKI verifier refused every RSASSA-PSS certificate pkinative wrote, while the whole gate had been green, because no foreign tool had ever been shown one.
 
 ### Key containers: the arrow turned back
 
@@ -1184,11 +1266,38 @@ pkinative reads PKCS#8 and PKCS#12 and never writes either — it may not encryp
 
 The first run found one defect, in the report rather than the reading: a key shrouded under a PKCS#12 scheme, in a file whose certificates sit in contents the same refusal keeps shut — exactly what `-legacy` and a default Windows export write — was reported as `PKI_REASON_PKCS12_KEY_UNMATCHED`, whose remedy sends the caller after a certificate that could not have helped. It is now reported under its own scheme. Windows wrote DER at every level `parsePkcs12` reads; `encodingRules: 'ber'` was not needed for any of it.
 
+### Signed structures: what the tools sign, pkinative verifies
+
+The same arrow for everything else pkinative verifies and never writes in the tool's dialect: CMS SignedData, RFC 3161 tokens, OCSP responses and CRLs (`scripts/lib/interop-reads.ts`, the `READS` lines). Each tool makes its own keys, its own CA and its own signers, signs, revokes and stamps — so the tool is the oracle: what it signed verifies, what it revoked is revoked, what it stamped is that imprint. Every case is declared in `READ_CASES` of `scripts/lib/interop.ts` with the verdict pkinative must reach, and `interop-matrix-declared` holds that list to the table below in both directions. pkinative is handed only the DER the tool wrote; PEM is unwrapped with Node's base64, never with pkinative's own decoder. A case the installed build cannot write is a skip when the tool is not the reference build, and a failure when it is.
+
+| Case | Written by | pkinative decides |
+|---|---|---|
+| `openssl:cms-rsa` | `openssl cms -sign -nodetach`, RSA 2048 with PKCS #1 v1.5 | `verifySignedData` valid |
+| `openssl:cms-rsa-pss` | `openssl cms -sign -keyopt rsa_padding_mode:pss`, detached | valid |
+| `openssl:cms-ecdsa` | `openssl cms -sign -nodetach -md sha384`, ECDSA P-384 | valid |
+| `openssl:cms-ed25519` | `openssl cms -sign -md sha512`, Ed25519, detached | valid |
+| `openssl:cms-ber-stream` | `openssl cms -sign -stream -nodetach`: indefinite-length BER | refused under the default DER rules with a message naming `encodingRules: 'ber'`; valid under them |
+| `openssl:cms-tampered` | the attached SignedData with one content octet changed afterwards | not valid: `PKI_REASON_CMS_DIGEST_MISMATCH` |
+| `openssl:tsp-reply` | `openssl ts -reply` to an `openssl ts -query -cert`, an RSA TSA whose timeStamping EKU is critical | `verifyTimeStampToken` valid against the request and the data; `PKI_REASON_TSP_IMPRINT_MISMATCH` against other data |
+| `openssl:ocsp-good` | `openssl ocsp -index`, answered by a delegated responder (`id-kp-OCSPSigning`, `ocspNoCheck`) | `verifyCertificateChain` valid with `requireRevocation` |
+| `openssl:ocsp-revoked` | the same responder, after `openssl ca -revoke -crl_reason keyCompromise` | `PKI_REASON_REVOKED` |
+| `openssl:crl-base` | `openssl ca -gencrl` after that revocation | the revoked certificate `PKI_REASON_REVOKED`, another valid |
+| `openssl:crl-delta` | `openssl crl -gendelta -sha256` between that CRL and the next, after a second revocation | with the base alone the second certificate is valid; with the base and the delta, `PKI_REASON_REVOKED` |
+| `gnutls-certtool:crl` | `certtool --generate-crl` over an ECDSA CA and one certificate it issued | the listed certificate `PKI_REASON_REVOKED`, the other valid |
+| `gpgsm:cms-detached` | `gpgsm --detach-sign`, with an RSA key imported from PKCS #12 | valid |
+| `gpgsm:cms-attached` | `gpgsm --sign`: indefinite-length BER | valid with `encodingRules: 'ber'` |
+| `dotnet:cms-rsa` | `SignedCms.ComputeSignature`, RSA PKCS #1 v1.5, detached, IssuerAndSerialNumber | valid |
+| `dotnet:cms-rsa-ski` | the same, attached, SubjectKeyIdentifier, SHA-512 | valid |
+| `dotnet:cms-rsa-pss` | the same with `RSASignaturePadding.Pss` | valid |
+| `dotnet:cms-ecdsa` | the same, ECDSA P-256 | valid |
+
+Writing the delta case found something worth knowing about the tool rather than the library: `openssl crl -gendelta` signs with SHA-1 unless it is given a digest, and pkinative does not take a SHA-1 signature as evidence, so a delta written that way is not applied — the certificate it revokes stays valid. The case passes `-sha256`.
+
 ## What is not claimed yet
 
-The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 20 messages their end entities signed — at L8, and they are the only tests of either corpus that are. Their expected result depends on the `user-initial-policy-set` a validator is given; PKITS answers per setting in its prose, the archive states none of them, and a runner that guessed would be scoring its own guess. A reviewed transcription belongs in `scripts/data/pkits-score.json`, where the 9 deviations already live.
+The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 20 messages their end entities signed — at L8, and they are the only tests of either corpus that are. Their expected result depends on the `user-initial-policy-set` a validator is given; PKITS answers per setting in its prose, the archive states none of them, and a runner that guessed would be scoring its own guess. A reviewed transcription belongs in `scripts/data/pkits-score.json`, where the 8 deviations already live.
 
-**And the score is a measurement, not a promise.** It moves when the corpus is re-pinned, which is why the 1.0 freeze will not name it: what gets frozen is the *decision surface* — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else's test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said `createCertificate` had to be able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier` before their absence could be diagnosed, or everything this library builds would trip its own reader; `computeKeyIdentifier` closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.
+**And the score is a measurement, not a promise.** It moves when the corpus is re-pinned, which is why the 1.0 freeze does not name it: what gets frozen is the *decision surface* — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else's test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said `createCertificate` had to be able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier` before their absence could be diagnosed, or everything this library builds would trip its own reader; `computeKeyIdentifier` closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.
 
 ## Where it runs
 
@@ -1230,7 +1339,7 @@ Two consequences worth knowing before you write a `catch`:
 - **A reason message never starts with `pkinative: `.** That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. `reason-parity` refuses it.
 - **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 47 encoding codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
 
-Unlike `PkiErrorCode`, whose list is frozen, the reason vocabulary is **open**: the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major.
+Unlike `PkiErrorCode`, frozen whole since 0.8, the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
 
 ## The error classes
 
@@ -1329,10 +1438,10 @@ One code of that class is the exception, and it is on the decrypting side, where
 A diagnostic is a non-fatal conformance concern: `{ code, severity, message, standard, path, offset }`. Receive them with `onDiagnostic`, read them on `certificate.diagnostics`, or refuse them all with `strict: true`.
 
 - **Serial number and algorithms** — `PKI_DIAG_SERIAL_TOO_LONG`, `PKI_DIAG_SERIAL_NOT_POSITIVE`, `PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH`, `PKI_DIAG_RSA_PARAMETERS_NOT_NULL`.
-- **Version and encoding** — `PKI_DIAG_EXTENSIONS_REQUIRE_V3`, `PKI_DIAG_UNIQUE_ID_REQUIRES_V2`, `PKI_DIAG_DEFAULT_ENCODED`.
+- **Version and encoding** — `PKI_DIAG_EXTENSIONS_REQUIRE_V3`, `PKI_DIAG_UNIQUE_ID_REQUIRES_V2`, `PKI_DIAG_DEFAULT_ENCODED`, `PKI_DIAG_STRING_SIGNATURE` (a BMPString or UniversalString starting with the U+FEFF signature X.690 §8.23 forbids), `PKI_DIAG_STRING_ESCAPE_SEQUENCE` (an ISO/IEC 2022 escape or shift control inside an ISO/IEC 10646 string type).
 - **Time** — `PKI_DIAG_GENERALIZED_TIME_BEFORE_2050`, `PKI_DIAG_GENERALIZED_TIME_FRACTION`, `PKI_DIAG_VALIDITY_INVERTED`.
-- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`, `PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX`, `PKI_DIAG_COMMON_NAME_NOT_IN_SAN`.
-- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY`, `PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`.
+- **Names** — `PKI_DIAG_EMPTY_ISSUER`, `PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL`, `PKI_DIAG_SAN_EMPTY`, `PKI_DIAG_RDN_SET_NOT_SORTED`, `PKI_DIAG_PRINTABLE_STRING_CHARSET`, `PKI_DIAG_TELETEX_AS_LATIN1`, `PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX`, `PKI_DIAG_COMMON_NAME_NOT_IN_SAN`, `PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE` (an attribute encoded outside the syntax RFC 5280 Appendix A.1 gives it, such as a UTF8String countryName), `PKI_DIAG_COUNTRY_NAME_SIZE` (a countryName that is not two characters).
+- **Extensions** — `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`, `PKI_DIAG_PATHLEN_WITHOUT_CA`, `PKI_DIAG_KEY_USAGE_EMPTY`, `PKI_DIAG_NAMED_BITS_TRAILING_ZERO`, `PKI_DIAG_NAME_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_NAME_CONSTRAINTS_IN_END_ENTITY`, `PKI_DIAG_BASIC_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_POLICY_CONSTRAINTS_NOT_CRITICAL`, `PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA`, `PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED`, `PKI_DIAG_POLICY_DUPLICATE`, `PKI_DIAG_POLICY_CONSTRAINTS_EMPTY`, `PKI_DIAG_SUBJECT_DIRECTORY_ATTRIBUTES_CRITICAL` (RFC 5280 §4.2.1.8 says non-critical).
 
   The six added in 0.5.0 share one shape: each is a sentence RFC 5280 or the CA/Browser Forum addresses to the **issuing CA**, and none of them refuses a chain. pkinative reads and enforces the extension whatever the profile says about its criticality, so refusing would make it stricter than the standards ask of a verifier while accepting exactly the same set of chains; `strict: true` is where that choice belongs. Each answers a case of the x509-limbo corpus that expects a refusal, and the reason it stays a diagnostic is written beside that case in `scripts/data/limbo-score.json`. `PKI_DIAG_COMMON_NAME_NOT_IN_SAN` is the first to cite CA/Browser Forum Baseline Requirements rather than an RFC, because no RFC says it — and it fires only for a `commonName` that could be matched **as a host**, since reporting `CN=Example Issuing CA` would be reporting the ordinary shape of every organisational subject.
 - **Key identifiers** — `PKI_DIAG_AKI_MISSING` (a v3 certificate naming another subject as its issuer without an `authorityKeyIdentifier`: path building falls back to names, which costs exploration, not correctness) and `PKI_DIAG_SKI_MISSING` (a CA certificate without a `subjectKeyIdentifier`, so the certificates it issues cannot name its key). `computeKeyIdentifier` with `encodeAuthorityKeyIdentifier` and `encodeSubjectKeyIdentifier` writes both.

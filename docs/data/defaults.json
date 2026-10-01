@@ -403,9 +403,9 @@
     {
       "option": "stringType",
       "in": ["NameAttribute"],
-      "default": "'utf8' — UTF8String, as RFC 5280 §4.1.2.6 asks of new certificates",
+      "default": "the syntax RFC 5280 Appendix A.1 gives the attribute: PrintableString for countryName, serialNumber and dnQualifier; IA5String for domainComponent and emailAddress; UTF8String for every DirectoryString attribute and for any attribute the appendix does not define",
       "semver": "frozen",
-      "evidence": [{ "file": "src/build/build-structures.ts", "text": "encodeString(stringType ?? 'utf8', value)" }]
+      "evidence": [{ "file": "src/build/build-structures.ts", "text": "const chosen = requested ?? fixed ?? 'utf8';" }]
     },
     {
       "option": "separator",

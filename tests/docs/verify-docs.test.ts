@@ -758,6 +758,7 @@ describe('stale-milestone, the phrases it tells apart', () => {
         ['the current minor named as current', 'Everything below runs on pkinative 1.0 as it is tested'],
         ['a policy dated to the current version', 'From 1.0.0 the public API follows semantic versioning'],
         ['history in the past tense', 'Until 0.9.0 it did not hold, and the six added in 0.5.0 share one shape'],
+        ["another product's version, letter-suffixed", 'OpenSSL before 0.9.7k, and 0.9.8 before 0.9.8c'],
         ['a section number', 'RFC 5280 §4.1 from 4.2 onwards, X.690 §8.1'],
         ['a measurement', 'from 0.5 ms to 0.8 ms'],
         ['a promise to a version not yet released', 'A PKCS#10 reader arrives in 1.1.'],
@@ -775,9 +776,13 @@ describe('stale-milestone, the phrases it tells apart', () => {
         expect(at('which arrives in 0.3 <!-- verify-docs:allow stale-milestone -->')).toEqual([]);
     });
 
-    it('should report a span another branch owns as a warning, and the same span elsewhere as an error', async () => {
-        const problems = await runRules(createMemoryContext(TREE), RULES, 'stale-milestone');
-        expect(problems.every((p) => p.severity === 'warn' && p.message.includes('[pending'))).toBe(true);
+    it('should count a patch number only when pkinative released that version', () => {
+        expect(findStaleMilestones('fixed before 0.9.6 upstream', [1, 0, 0], new Set(['0.9.0']))).toEqual([]);
+        expect(findStaleMilestones('available from 0.9.0', [1, 0, 0], new Set(['0.9.0'])).map((h) => h.match)).toEqual(['from 0.9.0']);
+    });
+
+    it('should report nothing on the repository, and an error for a span added anywhere', async () => {
+        expect(await runRules(createMemoryContext(TREE), RULES, 'stale-milestone')).toEqual([]);
         const files = { ...TREE };
         edit(files, 'docs/guides/choose.md', /\n$/, '\nVerification goes through Web Crypto from 0.3.\n');
         const moved = await runRules(createMemoryContext(files), RULES, 'stale-milestone');

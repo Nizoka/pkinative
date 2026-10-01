@@ -140,6 +140,8 @@ export type {
     ExtendedKeyUsageExtension,
     SubjectAltNameExtension,
     IssuerAltNameExtension,
+    DirectoryAttribute,
+    SubjectDirectoryAttributesExtension,
     SubjectKeyIdentifierExtension,
     AuthorityKeyIdentifierExtension,
     GeneralSubtree,

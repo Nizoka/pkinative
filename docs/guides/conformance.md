@@ -75,7 +75,7 @@
 
 ## The write direction
 
-Everything above points one way: bytes someone else produced, read by pkinative. From 0.3 the arrow also points outward, and that direction has **no corpus** — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.
+Everything above points one way: bytes someone else produced, read by pkinative. For what pkinative writes, the arrow points outward, and that direction has **no corpus** — nobody publishes a set of certificates a library is supposed to have written. The only oracle available is the tools themselves.
 
 `npm run interop` (`scripts/run-interop.ts`) hands two sets of artefacts to every foreign tool it can find, and requires agreement on facts that have exactly one right answer — a serial number as an integer, a name attribute, the DNS names, whether a chain or a self-signature or a SignedData verifies, the digest and nonce a request carries — never on rendered text.
 
@@ -161,7 +161,7 @@ Writing the delta case found something worth knowing about the tool rather than 
 
 The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 20 messages their end entities signed — at L8, and they are the only tests of either corpus that are. Their expected result depends on the `user-initial-policy-set` a validator is given; PKITS answers per setting in its prose, the archive states none of them, and a runner that guessed would be scoring its own guess. A reviewed transcription belongs in `scripts/data/pkits-score.json`, where the 8 deviations already live.
 
-**And the score is a measurement, not a promise.** It moves when the corpus is re-pinned, which is why the 1.0 freeze will not name it: what gets frozen is the *decision surface* — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else's test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said `createCertificate` had to be able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier` before their absence could be diagnosed, or everything this library builds would trip its own reader; `computeKeyIdentifier` closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.
+**And the score is a measurement, not a promise.** It moves when the corpus is re-pinned, which is why the 1.0 freeze does not name it: what gets frozen is the *decision surface* — which certificate pkinative refuses and with which code — because that is a property of this library rather than of somebody else's test suite. The deviations file is where the two meet, and it is meant to shrink — it has, twice, and each time because an entry said plainly what was missing. The key-identifier entries said `createCertificate` had to be able to emit `subjectKeyIdentifier` and `authorityKeyIdentifier` before their absence could be diagnosed, or everything this library builds would trip its own reader; `computeKeyIdentifier` closed that, and those certificates are now reported rather than passed over in silence. The entries remain, because a missing key identifier is a hint and not a verdict — but they now record a decision instead of a gap.
 
 ## Where it runs
 

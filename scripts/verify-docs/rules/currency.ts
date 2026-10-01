@@ -41,7 +41,7 @@
  */
 
 import { LAYERS, parseLayerDiagram } from '../../lib/architecture.js';
-import { error, lineContaining, lineOf, readJson, warning, type Finding, type Rule, type RuleContext } from '../context.js';
+import { error, lineContaining, lineOf, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 import { DIAGNOSTICS_REGISTRY, ERRORS_REGISTRY, REASONS_REGISTRY } from './registries.js';
 
 // ── Shared ───────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ const CODE_TOKEN = /\bPKI_[A-Z0-9_]*[A-Z0-9]\b(?![*<])/g;
 // ── stale-milestone ──────────────────────────────────────────────────
 
 /** A version as prose writes it; never a section number (§4.1), a dotted triple's prefix, or a measurement. */
-const V = String.raw`(?<![\w.§])v?(\d+)\.(\d+)(?:\.\d+)?(?![\d.]*\d)(?!\s*(?:%|ms|µs|s\b|KB|kB|MB|GB|x\b|×))`;
+const V = String.raw`(?<![\w.§])v?(\d+)\.(\d+)(?:\.(\d+)([a-z])?)?(?![\d.]*\d)(?!\s*(?:%|ms|µs|s\b|KB|kB|MB|GB|x\b|×))`;
 
 interface MilestonePattern {
     readonly what: string;
@@ -103,24 +103,6 @@ const MILESTONE_PATTERNS: readonly MilestonePattern[] = [
     { what: 'shows an older version where a capability belongs', kind: 'dated', re: new RegExp(String.raw`<td[^>]*>\s*${V}\s*</td>`, 'g') },
 ];
 
-/**
- * Spans other fix branches of the 1.0.0 audit own, reported as warnings
- * until those branches merge: docs/index.html and docs/playground/ (the
- * site), docs/guides/security.md and docs/guides/conformance.md, and the
- * pages generated from them. The integrator empties this list after the
- * merge, at which point anything still matching is an error.
- */
-const PENDING_ELSEWHERE: ReadonlyArray<{ readonly file: RegExp; readonly text: string }> = [
-    { file: /^docs\/index\.html$/, text: 'from 0.3' },
-    { file: /^docs\/index\.html$/, text: '>0.3<' },
-    { file: /^docs\/index\.html$/, text: '>0.5<' },
-    { file: /^docs\/playground\/index\.html$/, text: 'pkinative 0.1' },
-    { file: /^docs\/playground\/index\.html$/, text: 'arrives in 0.3' },
-    { file: /^docs\/guides\/security\.(md|html)$/, text: 'from 0.3' },
-    { file: /^docs\/guides\/conformance\.(md|html)$/, text: '1.0 freeze will' },
-    { file: /^docs\/guides\/conformance\.(md|html)$/, text: 'From 0.3' },
-];
-
 const compare = (a: readonly number[], b: readonly number[]): number => {
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
         const d = (a[i] ?? 0) - (b[i] ?? 0);
@@ -130,12 +112,17 @@ const compare = (a: readonly number[], b: readonly number[]): number => {
 };
 
 /** Every stale-milestone phrase of one text, at the given current version. */
-export function findStaleMilestones(text: string, current: readonly [number, number, number]): Array<{ readonly index: number; readonly match: string; readonly what: string }> {
+export function findStaleMilestones(text: string, current: readonly [number, number, number], released?: ReadonlySet<string>): Array<{ readonly index: number; readonly match: string; readonly what: string }> {
     const out: Array<{ index: number; match: string; what: string }> = [];
     const lines = text.split('\n');
     for (const pattern of MILESTONE_PATTERNS) {
         for (const m of text.matchAll(pattern.re)) {
             const index = m.index;
+            // Another product's version is not a pkinative milestone: a letter
+            // suffix (OpenSSL's 0.9.7k) never names one, and a patch number
+            // counts only when pkinative released that version.
+            if (m[4] !== undefined) continue;
+            if (m[3] !== undefined && released !== undefined && !released.has(`${m[1]}.${m[2]}.${m[3]}`)) continue;
             const at = [Number(m[1]), Number(m[2])] as const;
             const stale = pattern.kind === 'promise' ? compare(at, current) <= 0 : compare(at, current.slice(0, 2)) < 0;
             if (!stale) continue;
@@ -161,14 +148,14 @@ const staleMilestone: Rule = {
     check(ctx) {
         const current = packageVersion(ctx);
         if (current === null) return [error('package.json', 'has no X.Y.Z version — stale-milestone cannot tell a released version from a planned one')];
+        // The versions pkinative released, from the CHANGELOG headings.
+        const released = new Set([...(ctx.read('CHANGELOG.md') ?? '').matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1] ?? ''));
         const out: Finding[] = [];
         for (const path of currentSurfaceDocs(ctx)) {
             const text = ctx.read(path) ?? '';
-            for (const hit of findStaleMilestones(text, current)) {
+            for (const hit of findStaleMilestones(text, current, released)) {
                 const message = `"${hit.match}" ${hit.what} (package.json: ${current.join('.')}) — describe the release as it is, or move the history to CHANGELOG.md, ROADMAP.md or a release note`;
-                const line = lineOf(text, hit.index);
-                const pending = PENDING_ELSEWHERE.some((p) => p.file.test(path) && hit.match.includes(p.text));
-                out.push(pending ? warning(path, `${message} [pending: fixed on another branch of the 1.0.0 audit]`, line) : error(path, message, line));
+                out.push(error(path, message, lineOf(text, hit.index)));
             }
         }
         return out;

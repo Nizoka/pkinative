@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7375,
-      "approxTokens": 1844
+      "bytes": 7405,
+      "approxTokens": 1851
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 179487,
-      "approxTokens": 44872
+      "bytes": 200164,
+      "approxTokens": 50041
     },
     {
       "url": "llms-recipes.txt",
@@ -30,26 +30,26 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 289290,
-      "approxTokens": 72323
+      "bytes": 293283,
+      "approxTokens": 73321
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 27248,
-      "approxTokens": 6812
+      "bytes": 27897,
+      "approxTokens": 6974
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 15513,
-      "approxTokens": 3878
+      "bytes": 17930,
+      "approxTokens": 4483
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 4694,
-      "approxTokens": 1174
+      "bytes": 5101,
+      "approxTokens": 1275
     },
     {
       "url": "data/surfaces.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 9250,
-      "approxTokens": 2313
+      "bytes": 14130,
+      "approxTokens": 3533
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13579,
-      "approxTokens": 3395
+      "bytes": 13609,
+      "approxTokens": 3402
     },
     {
       "title": "Use cases",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 78913,
-      "approxTokens": 19728
+      "bytes": 80435,
+      "approxTokens": 20109
     },
     {
       "title": "Security model",
@@ -127,10 +127,11 @@
         "fail-in-one-way",
         "cryptography-pkinative-does-not-own",
         "no-reach-outside-the-engine",
+        "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 6178,
-      "approxTokens": 1545
+      "bytes": 15408,
+      "approxTokens": 3852
     },
     {
       "title": "Conformance",
@@ -142,12 +143,13 @@
         "the-levels",
         "the-write-direction",
         "key-containers-the-arrow-turned-back",
+        "signed-structures-what-the-tools-sign-pkinative-verifies",
         "what-is-not-claimed-yet",
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 30880,
-      "approxTokens": 7720
+      "bytes": 40101,
+      "approxTokens": 10025
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -170,8 +172,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 23315,
-      "approxTokens": 5829
+      "bytes": 23989,
+      "approxTokens": 5997
     },
     {
       "title": "Choosing a PKI library",
