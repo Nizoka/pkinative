@@ -311,6 +311,12 @@ function _readPbmac1(algorithm: AlgorithmIdentifier, ctx: Asn1Context, path: str
     }
     const hmac = HMAC_OIDS.get(scheme.oid);
     if (hmac === undefined || !_absentOrNull(scheme.parameters)) return undefined;
+    // The key length sits in the unauthenticated MacData, so whoever edits the
+    // file chooses it: at one octet the MAC is forged in 256 guesses. A MAC
+    // keyed below the smallest HMAC output here (20 octets, HMAC-SHA-1) is not
+    // one this reader verifies, and the file is left `unverified` rather than
+    // called sound.
+    if (derivation.keyLength < 20) return undefined;
     return Object.freeze({ salt: derivation.salt, iterations: derivation.iterations, prf: derivation.prf, keyLength: derivation.keyLength, hmac });
 }
 

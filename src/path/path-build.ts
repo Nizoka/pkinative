@@ -121,7 +121,11 @@ const fingerprint = (certificate: Certificate): string => {
 export function buildCertificatePath(input: BuildCertificatePathInput): BuildCertificatePathReport {
     const limits = resolveLimits(input.limits);
     const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
-    const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
+    // An anchor is a name and a key (RFC 5280 §6.1.1 (d)): a candidate that
+    // copies an anchor's name under another key is not where a path ends, it
+    // is one more link whose signature the anchor it names has to vouch for.
+    const anchorKey = (c: Certificate): string => `${hexOf(c.subject.der)}|${hexOf(c.subjectPublicKeyInfo.der)}`;
+    const anchorKeys = new Set(input.trustAnchors.map(anchorKey));
     // Every candidate path is judged against the same verdicts: index them once.
     const signatures = _signatureIndex(input.signatures ?? []);
 
@@ -180,7 +184,7 @@ export function buildCertificatePath(input: BuildCertificatePathInput): BuildCer
         if (chain.length >= limits.maxChainLength) return null;
 
         const last = chain[chain.length - 1] as Certificate;
-        if (anchors.has(fingerprint(last)) || anchorSubjects.has(hexOf(last.subject.der))) return null;
+        if (anchors.has(fingerprint(last)) || anchorKeys.has(anchorKey(last))) return null;
 
         for (const issuer of bySubject.get(hexOf(last.issuer.der)) ?? []) {
             const key = fingerprint(issuer);

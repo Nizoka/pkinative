@@ -515,6 +515,16 @@ function keyKdfIterationsLowDiagnostic(path, iterations, offset) {
     offset
   );
 }
+function spkiRsaExponentWeakDiagnostic(path, exponent, offset) {
+  return _diagnostic(
+    "PKI_DIAG_SPKI_RSA_EXPONENT_WEAK",
+    "warning",
+    "RFC 8017 \xA73.1",
+    `the RSA public exponent is ${exponent.toString()}; RFC 8017 defines RSA for an odd exponent of at least 3, and no signature under this key will be checked`,
+    path,
+    offset
+  );
+}
 function crlExtensionMalformedDiagnostic(path, name, detail, offset) {
   return _diagnostic(
     "PKI_DIAG_CRL_EXTENSION_MALFORMED",
@@ -4949,14 +4959,52 @@ function advancePolicyCounters(state, selfIssued, requireExplicit, inhibitMappin
 }
 function wrapUpPolicies(state, initialPolicySet) {
   const anyRequested = initialPolicySet.length === 0 || initialPolicySet.includes(ANY_POLICY);
+  const tree = anyRequested || state.levels === null ? state : _intersectWithUserSet(state, initialPolicySet);
   const surviving = /* @__PURE__ */ new Set();
-  const level = deepest(state);
-  for (const node of level ?? []) {
+  for (const node of deepest(tree) ?? []) {
     if (node.alive) surviving.add(node.validPolicy);
   }
-  const intersected = anyRequested ? [...surviving] : [...surviving].filter((policy) => initialPolicySet.includes(policy));
-  const treeSurvives = state.levels !== null && intersected.length > 0;
-  return state.explicitPolicy > 0 || treeSurvives ? intersected : null;
+  const treeSurvives = tree.levels !== null && surviving.size > 0;
+  return state.explicitPolicy > 0 || treeSurvives ? [...surviving] : null;
+}
+function _intersectWithUserSet(state, initialPolicySet) {
+  const levels = state.levels.map((level) => level.map((node) => ({ ...node, children: [...node.children] })));
+  const copy = { ...state, levels };
+  const kill = (depth, index) => {
+    const node = levels[depth]?.[index];
+    if (node === void 0 || !node.alive) return;
+    node.alive = false;
+    for (const child of node.children) kill(depth + 1, child);
+  };
+  const named = /* @__PURE__ */ new Set();
+  for (const [depth, level] of levels.entries()) {
+    if (depth === levels.length - 1) break;
+    for (const parent of level) {
+      if (!parent.alive || parent.validPolicy !== ANY_POLICY) continue;
+      for (const index of parent.children) {
+        const child = levels[depth + 1]?.[index];
+        if (child === void 0 || !child.alive) continue;
+        if (child.validPolicy !== ANY_POLICY && !initialPolicySet.includes(child.validPolicy)) kill(depth + 1, index);
+        else named.add(child.validPolicy);
+      }
+    }
+  }
+  const last = levels.length - 1;
+  const bottom = levels[last];
+  const wild = bottom.findIndex((node) => node.alive && node.validPolicy === ANY_POLICY);
+  if (wild >= 0 && last > 0) {
+    const node = bottom[wild];
+    const parentLevel = levels[last - 1];
+    const parent = parentLevel.find((candidate) => candidate.alive && candidate.children.includes(wild));
+    for (const policy of initialPolicySet) {
+      if (named.has(policy)) continue;
+      bottom.push({ validPolicy: policy, qualifiers: node.qualifiers, expectedPolicySet: [policy], children: [], alive: true });
+      parent?.children.push(bottom.length - 1);
+    }
+    node.alive = false;
+  }
+  prunePolicyTree(copy);
+  return copy;
 }
 
 // src/x509/x509-name-format.ts
@@ -5044,6 +5092,7 @@ var _hex = (bytes) => {
   for (const b of bytes) out += b.toString(16).padStart(2, "0");
   return out;
 };
+var _anchorKey = (certificate) => `${_hex(certificate.subject.der)}|${_hex(certificate.subjectPublicKeyInfo.der)}`;
 function checkValidity(certificate, at, path) {
   const { notBefore, notAfter } = certificate.validity;
   if (at < notBefore.epochMilliseconds) return notYetValidReason(`${path}.validity`, notBefore.epochMilliseconds, at);
@@ -5167,6 +5216,7 @@ function _validateIndexed(input, signatures) {
     at: input.at,
     signatures,
     trustAnchorSubjects: new Set(input.trustAnchors.map((c) => _hex(c.subject.der))),
+    trustAnchorKeys: new Set(input.trustAnchors.map(_anchorKey)),
     maxPathLength: limits.maxChainLength,
     maxCertificates: limits.maxChainLength
   };
@@ -5198,7 +5248,7 @@ function _validateIndexed(input, signatures) {
     const validity = checkValidity(certificate, context.at, path);
     if (validity !== null) state.reasons.push(validity);
     state.reasons.push(...checkCriticalExtensions(certificate, path));
-    if (context.trustAnchorSubjects.has(_hex(certificate.subject.der))) {
+    if (context.trustAnchorKeys.has(_anchorKey(certificate))) {
       anchored = true;
       break;
     }
@@ -5254,7 +5304,8 @@ var fingerprint = (certificate) => {
 function buildCertificatePath(input) {
   const limits = resolveLimits(input.limits);
   const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
-  const anchorSubjects = new Set(input.trustAnchors.map((c) => hexOf(c.subject.der)));
+  const anchorKey = (c) => `${hexOf(c.subject.der)}|${hexOf(c.subjectPublicKeyInfo.der)}`;
+  const anchorKeys = new Set(input.trustAnchors.map(anchorKey));
   const signatures = _signatureIndex(input.signatures ?? []);
   const bySubject = /* @__PURE__ */ new Map();
   for (const candidate of input.candidates) {
@@ -5281,7 +5332,7 @@ function buildCertificatePath(input) {
   const extend = (chain, seen) => {
     if (chain.length >= limits.maxChainLength) return null;
     const last = chain[chain.length - 1];
-    if (anchors.has(fingerprint(last)) || anchorSubjects.has(hexOf(last.subject.der))) return null;
+    if (anchors.has(fingerprint(last)) || anchorKeys.has(anchorKey(last))) return null;
     for (const issuer of bySubject.get(hexOf(last.issuer.der)) ?? []) {
       const key = fingerprint(issuer);
       if (seen.has(key)) continue;
@@ -5487,6 +5538,17 @@ function mgf1HashOf(algorithm, oid) {
 }
 var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
 var isPkcs1Key = (key) => key.kind === "rsa";
+function _refuseWeakRsaExponent(key, oid) {
+  if (key.kind !== "rsa" && key.kind !== "rsa-pss") return;
+  const e = key.publicExponent;
+  if (e < 3n || (e & 1n) === 0n) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: the RSA public exponent is ${e.toString()}; RFC 8017 \xA73.1 requires an odd exponent of at least 3, and under this one a signature proves nothing \u2014 the certificate's key is not one any verifier should accept`,
+      oid
+    );
+  }
+}
 function pssKeyAdmits(key, signature, oid) {
   if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return true;
   const restriction = readPssParams(key.algorithm.parameters, oid);
@@ -5497,6 +5559,7 @@ function resolveAlgorithm(algorithm, key) {
   if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
   if (shape.family === "rsa-pss") {
     if (!isRsaKey(key)) return null;
+    _refuseWeakRsaExponent(key, algorithm.oid);
     const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
     if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
     const verifyParams = { name: "RSA-PSS", saltLength };
@@ -5504,6 +5567,7 @@ function resolveAlgorithm(algorithm, key) {
   }
   if (shape.family === "rsa-pkcs1") {
     if (!isPkcs1Key(key)) return null;
+    _refuseWeakRsaExponent(key, algorithm.oid);
     const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
     return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
   }
@@ -5573,6 +5637,7 @@ function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
   const hash = HASH_BY_OID.get(digestAlgorithm.oid);
   if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
   if (!isPkcs1Key(key)) return null;
+  _refuseWeakRsaExponent(key, RSA_ENCRYPTION);
   return { family: "rsa-pkcs1", importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: hash } }, verifyParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, hash };
 }
 function coordinateBytes(curve) {
@@ -5965,6 +6030,9 @@ function readRsa(parts, kind, ctx) {
     const publicExponent = _readInteger(exponentNode, ctx);
     if (modulus <= 0n || publicExponent <= 0n) {
       throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "has a modulus or public exponent that is not positive");
+    }
+    if (publicExponent < 3n || (publicExponent & 1n) === 0n) {
+      ctx.emitter.emit(spkiRsaExponentWeakDiagnostic(parts.keyPath, publicExponent, parts.keyOffset));
     }
     const content = modulusNode.content;
     const info = {
@@ -6362,7 +6430,7 @@ async function verifyCertificateChain(input) {
   if (input.purposes !== void 0 && anchored && !alreadySaid && report.path.length > 0) {
     for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
   }
-  reasons.push(...await _checkRevocation(input, report.path, at));
+  reasons.push(...await _checkRevocation(input, report.path, at, signatures));
   return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
 }
 async function _crlSignature(crl, issuer, allowSha1) {
@@ -6400,6 +6468,15 @@ async function _signerStillGood(ctx, candidate) {
   const mine = _hex2(candidate.der);
   if (ctx.path.some((c) => _hex2(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex2(c.der) === mine)) return true;
   if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
+  const own = buildCertificatePath({
+    leaf: candidate,
+    candidates: ctx.input.candidates ?? [],
+    trustAnchors: ctx.input.trustAnchors,
+    at: ctx.at,
+    signatures: ctx.signatures,
+    limits: ctx.reading.limits ?? {}
+  });
+  if (!own.valid) return false;
   for (const { der, crl } of ctx.lists) {
     if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
     if (await _crlSigner(ctx, crl, _hex2(crl.issuer.der), true) !== true) continue;
@@ -6442,7 +6519,7 @@ async function _deltaFor(ctx, subject, base, signed) {
   }
   return void 0;
 }
-async function _checkRevocation(input, path, at) {
+async function _checkRevocation(input, path, at, signatures) {
   const out = [];
   const lists = input.crls ?? [];
   const stapled = input.ocspResponses ?? [];
@@ -6464,7 +6541,7 @@ async function _checkRevocation(input, path, at) {
       out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
     }
   }
-  const signing = { input, path, at, lists: parsed, reading };
+  const signing = { input, path, at, lists: parsed, reading, signatures };
   const signed = /* @__PURE__ */ new Map();
   for (const [position, subject] of path.entries()) {
     if (anchors.has(_hex2(subject.der))) continue;
@@ -9194,6 +9271,7 @@ function _under(prefix, reason) {
 }
 
 // src/verify/verify-timestamp.ts
+var OID_SHA1 = "1.3.14.3.2.26";
 async function verifyTimeStampToken(input) {
   const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
   const expectation = _expectation(input, reading);
@@ -9327,12 +9405,20 @@ function _expectation(input, reading) {
     data: input.data,
     requested: request?.messageImprint,
     nonce: request?.nonce,
-    policy: request?.policy
+    policy: request?.policy,
+    allowSha1: input.allowSha1 === true
   };
 }
 async function _imprintReasons(stamped, expectation) {
   const out = [];
   const where2 = "token.tstInfo.messageImprint";
+  if (stamped.hashAlgorithm.oid === OID_SHA1 && !expectation.allowSha1) {
+    return [signatureNotCheckedReason(
+      where2,
+      "PKI_CRYPTO_ALGORITHM_REFUSED",
+      "the token stamps a SHA-1 imprint, which a collision lets cover two documents; pass allowSha1: true to accept it anyway, as when reading an archive"
+    )];
+  }
   const requested = expectation.requested;
   if (requested !== void 0 && (requested.hashAlgorithm.oid !== stamped.hashAlgorithm.oid || !bytesEqual(requested.hashedMessage, stamped.hashedMessage))) {
     out.push(tspImprintMismatchReason(where2));
@@ -10064,6 +10150,7 @@ function _readPbmac1(algorithm, ctx, path, offset) {
   }
   const hmac = HMAC_OIDS.get(scheme.oid);
   if (hmac === void 0 || !_absentOrNull2(scheme.parameters)) return void 0;
+  if (derivation.keyLength < 20) return void 0;
   return Object.freeze({ salt: derivation.salt, iterations: derivation.iterations, prf: derivation.prf, keyLength: derivation.keyLength, hmac });
 }
 function _readMacData(node, ctx) {

@@ -1,3 +1,4 @@
+import type { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
@@ -147,9 +148,9 @@ function clique(count: number): { leaf: Certificate; candidates: Certificate[]; 
 /** A chain of `depth` real Ed25519 certificates, root first. */
 async function chain(depth: number): Promise<Certificate[]> {
     const out: Certificate[] = [];
-    let issuer: { name: string; key: CryptoKey } | undefined;
+    let issuer: { name: string; key: webcrypto.CryptoKey } | undefined;
     for (let i = 0; i < depth; i += 1) {
-        const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair;
+        const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']) as webcrypto.CryptoKeyPair;
         const subject = `Depth ${String(i)}`;
         const der = await createCertificate({
             serialNumber: BigInt(i + 1),

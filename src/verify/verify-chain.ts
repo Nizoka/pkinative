@@ -370,7 +370,7 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
         for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
     }
 
-    reasons.push(...await _checkRevocation(input, report.path, at));
+    reasons.push(...await _checkRevocation(input, report.path, at, signatures));
 
     return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
 }
@@ -464,6 +464,19 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     const mine = _hex(candidate.der);
     if (ctx.path.some((c) => _hex(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex(c.der) === mine)) return true;
     if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
+    // RFC 5280 §6.3.3 (f): a CRL issuer that is not on the path is believed
+    // only once *its* certificate has been validated under the same anchors.
+    // The bag is the sender's — a TLS server's, a CMS signer's — so a
+    // self-signed certificate copying the CA's name and asserting cRLSign is
+    // exactly what an attacker who holds a revoked key would put there, with
+    // a list that clears it. The verdicts come from the search above: a pair
+    // it never reached has no verdict, and a signer nobody vouched for is not
+    // believed.
+    const own = buildCertificatePath({
+        leaf: candidate, candidates: ctx.input.candidates ?? [], trustAnchors: ctx.input.trustAnchors, at: ctx.at,
+        signatures: ctx.signatures, limits: ctx.reading.limits ?? {},
+    });
+    if (!own.valid) return false;
     for (const { der, crl } of ctx.lists) {
         if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
         if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
@@ -483,6 +496,8 @@ interface CrlSignerContext {
     /** Every list the caller supplied, parsed — a delegated signer may be revoked on one of them. */
     readonly lists: readonly ParsedCrl[];
     readonly reading: PkiParseOptions;
+    /** The signature verdicts of the search, for judging a signer that is not on the path (RFC 5280 §6.3.3 (f)). */
+    readonly signatures: readonly SignatureResult[];
 }
 
 /** The `keyIdentifier` a list names in its own `authorityKeyIdentifier`, if any. */
@@ -583,7 +598,7 @@ async function _deltaFor(
  * the Web PKI handles intermediates out of band — CRLSets, OneCRL — which is
  * not a decision a library gets to make for its caller.
  */
-async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number): Promise<PkiReason[]> {
+async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number, signatures: readonly SignatureResult[]): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const lists = input.crls ?? [];
     const stapled = input.ocspResponses ?? [];
@@ -631,7 +646,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
         }
     }
-    const signing: CrlSignerContext = { input, path, at, lists: parsed, reading };
+    const signing: CrlSignerContext = { input, path, at, lists: parsed, reading, signatures };
     // Whether a key entitled to sign a list did. Asked once per list rather than
     // once per certificate, because the answer is a property of the list.
     // `undefined` and `false` are different answers and `checkRevocation` words

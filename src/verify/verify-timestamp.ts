@@ -30,6 +30,7 @@ import {
     inputMalformedReason,
     notYetValidReason,
     purposeNotPermittedReason,
+    signatureNotCheckedReason,
     tspImprintMismatchReason,
     tspNotGrantedReason,
     tspRequestMismatchReason,
@@ -48,6 +49,9 @@ import { parseCertificate } from '../x509/x509-certificate.js';
 import { getExtension } from '../x509/x509-extensions.js';
 import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyCertificateChainReport } from './verify-chain.js';
 import { _digestName, _under, _verifySigner } from './verify-signer.js';
+
+/** id-sha1 — the one imprint algorithm `allowSha1` gates. */
+const OID_SHA1 = '1.3.14.3.2.26';
 
 /** What to verify a timestamp token against. */
 export interface VerifyTimeStampTokenInput {
@@ -134,6 +138,8 @@ interface _Expectation {
     readonly requested: MessageImprint | undefined;
     readonly nonce: bigint | undefined;
     readonly policy: string | undefined;
+    /** Whether a SHA-1 imprint may count as evidence of what was stamped. */
+    readonly allowSha1: boolean;
 }
 
 /**
@@ -304,6 +310,7 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
         requested: request?.messageImprint,
         nonce: request?.nonce,
         policy: request?.policy,
+        allowSha1: input.allowSha1 === true,
     };
 }
 
@@ -316,6 +323,15 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
 async function _imprintReasons(stamped: MessageImprint, expectation: _Expectation): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const where = 'token.tstInfo.messageImprint';
+    // The imprint is the whole evidence: a SHA-1 one covers two documents
+    // whenever someone has a collision pair, so it is refused by the same
+    // switch that refuses a SHA-1 signature — the request writer already
+    // refuses to ask for one (tsp-request.ts), and the token reader cannot be
+    // laxer than the request writer about the same contract.
+    if (stamped.hashAlgorithm.oid === OID_SHA1 && !expectation.allowSha1) {
+        return [signatureNotCheckedReason(where, 'PKI_CRYPTO_ALGORITHM_REFUSED',
+            'the token stamps a SHA-1 imprint, which a collision lets cover two documents; pass allowSha1: true to accept it anyway, as when reading an archive')];
+    }
     const requested = expectation.requested;
     if (requested !== undefined
         && (requested.hashAlgorithm.oid !== stamped.hashAlgorithm.oid || !bytesEqual(requested.hashedMessage, stamped.hashedMessage))) {

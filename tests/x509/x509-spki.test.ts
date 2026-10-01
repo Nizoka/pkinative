@@ -64,6 +64,20 @@ describe('_readSubjectPublicKeyInfo', () => {
             expect(diagnosticsOf(spki(algorithm(RSA), rsaPublicKey([0x41], [3])))).toEqual(['PKI_DIAG_RSA_PARAMETERS_NOT_NULL']);
         });
 
+        it.each([
+            ['1, under which a message is its own signature', [0x01]],
+            ['2, an even exponent', [0x02]],
+            ['65536, even however large', [0x01, 0x00, 0x00]],
+        ])('should diagnose a public exponent of %s (RFC 8017 §3.1), and decode the key regardless', (_label, exponent) => {
+            const input = rsaKey([0x41, 0x02, 0x03], exponent);
+            expect(diagnosticsOf(input)).toEqual(['PKI_DIAG_SPKI_RSA_EXPONENT_WEAK']);
+            expect(readSpki(input, QUIET).kind).toBe('rsa');
+        });
+
+        it('should say nothing about an odd exponent of at least 3', () => {
+            expect(diagnosticsOf(rsaKey([0x41, 0x02, 0x03], [0x03]))).toEqual([]);
+        });
+
         it('should read an RSASSA-PSS key with absent parameters', () => {
             const input = spki(algorithm('1.2.840.113549.1.1.10'), rsaPublicKey([0x41], [3]));
             expect(readSpki(input)).toMatchObject({ kind: 'rsa-pss', publicExponent: 3n });

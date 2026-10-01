@@ -29,6 +29,7 @@ import type {
     UnknownPublicKeyInfo,
 } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
+import { spkiRsaExponentWeakDiagnostic } from '../core/pki-diagnostics.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 
 const CODE = 'PKI_X509_SPKI_INVALID';
@@ -91,6 +92,13 @@ function readRsa(parts: KeyParts, kind: RsaPublicKeyInfo['kind'], ctx: Asn1Conte
         const publicExponent = _readInteger(exponentNode, ctx);
         if (modulus <= 0n || publicExponent <= 0n) {
             throw certificateError(CODE, parts.keyPath, parts.keyOffset, 'has a modulus or public exponent that is not positive');
+        }
+        // RFC 8017 §3.1: e is odd and at least 3. The key is a profile concern
+        // here — the certificate still decodes — and a refusal at the one place
+        // it matters, crypto-algorithms.ts, where no signature under it is
+        // checked.
+        if (publicExponent < 3n || (publicExponent & 1n) === 0n) {
+            ctx.emitter.emit(spkiRsaExponentWeakDiagnostic(parts.keyPath, publicExponent, parts.keyOffset));
         }
         const content = modulusNode.content;
         const info: RsaPublicKeyInfo = {

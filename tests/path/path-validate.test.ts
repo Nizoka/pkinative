@@ -162,6 +162,7 @@ const context = (overrides: Partial<PathContext> = {}): PathContext => ({
     at: AT,
     signatures: new Map(),
     trustAnchorSubjects: new Set(),
+    trustAnchorKeys: new Set(),
     maxPathLength: 10,
     maxCertificates: 10,
     ...overrides,
@@ -462,6 +463,35 @@ describe('validateCertificatePath', () => {
         // The link is refused on its signature; the name chain never matched
         // either, because `decoy` is not the issuer the leaf named.
         expect(codes(throughDecoy)).toContain('PKI_REASON_SIGNATURE_INVALID');
+    });
+
+    it('should not take a certificate that copies an anchor\'s name under another key for the anchor (§6.1.1 (d))', async () => {
+        // A trust anchor is a name and a key. The path's second certificate
+        // carries the anchor's name and somebody else's key; it is a link like
+        // any other, and the anchor it names never signed it.
+        const anchor = await syntheticCa({ subject: 'Copied Root' });
+        const impostor = await syntheticCa({ subject: 'Copied Root' });
+        const leaf = await syntheticUnder(impostor.subject.der, 'victim.example', 'victim.example');
+        const report = validateCertificatePath({
+            path: [leaf, impostor],
+            trustAnchors: [anchor],
+            at: AT,
+            signatures: [
+                { certificate: leaf, issuer: impostor, verdict: 'valid' },
+                { certificate: impostor, issuer: anchor, verdict: 'invalid' },
+            ],
+        });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toContain('PKI_REASON_SIGNATURE_INVALID');
+        // The real anchor inside the path is still the anchor: the walk ends there, signature unasked.
+        const genuine = validateCertificatePath({
+            path: [await syntheticUnder(anchor.subject.der, 'leaf.example', 'leaf.example'), anchor],
+            trustAnchors: [anchor],
+            at: AT,
+            signatures: [],
+        });
+        expect(codes(genuine)).toEqual(['PKI_REASON_SIGNATURE_NOT_CHECKED']);
+        expect(report.path).toHaveLength(3);
     });
 
     it('should report NOT_CHECKED, never guess, when two issuer-less verdicts disagree', async () => {

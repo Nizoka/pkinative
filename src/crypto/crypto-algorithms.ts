@@ -192,6 +192,28 @@ const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || k
 const isPkcs1Key = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa';
 
 /**
+ * Refuse an RSA public exponent no signature scheme is defined for.
+ *
+ * RFC 8017 §3.1 makes the public exponent an odd integer between 3 and n − 1.
+ * Web Crypto imports e = 1 regardless (Node.js 22 does), and under e = 1 the
+ * "signature" of a message is the message's own PKCS#1 encoding: anyone writes
+ * one with no private key at all. An even exponent is not a permutation of
+ * the group, so no signature under it means anything either. Both are refused
+ * before the key reaches the host — as `PKI_CRYPTO_KEY_UNSUPPORTED`, which the
+ * reports carry as `SIGNATURE_NOT_CHECKED` and never as a verdict.
+ *
+ * @internal
+ */
+export function _refuseWeakRsaExponent(key: SubjectPublicKeyInfo, oid: string): void {
+    if (key.kind !== 'rsa' && key.kind !== 'rsa-pss') return;
+    const e = key.publicExponent;
+    if (e < 3n || (e & 1n) === 0n) {
+        throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
+            `pkinative: the RSA public exponent is ${e.toString()}; RFC 8017 §3.1 requires an odd exponent of at least 3, and under this one a signature proves nothing — the certificate's key is not one any verifier should accept`, oid);
+    }
+}
+
+/**
  * Whether the RSASSA-PSS parameters of a signature are ones this key admits.
  *
  * An `id-RSASSA-PSS` key whose AlgorithmIdentifier carries parameters
@@ -250,6 +272,7 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
     // and no defensive re-check that no test could ever reach.
     if (shape.family === 'rsa-pss') {
         if (!isRsaKey(key)) return null;
+        _refuseWeakRsaExponent(key, algorithm.oid);
         const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
         if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
         const verifyParams: RsaPssVerifyParams = { name: 'RSA-PSS', saltLength };
@@ -258,6 +281,7 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
 
     if (shape.family === 'rsa-pkcs1') {
         if (!isPkcs1Key(key)) return null;
+        _refuseWeakRsaExponent(key, algorithm.oid);
         const verifyParams: NamedVerifyParams = { name: 'RSASSA-PKCS1-v1_5' };
         return { family: shape.family, importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: shape.hash } }, verifyParams, curve: undefined, hash: shape.hash };
     }
@@ -411,6 +435,7 @@ export function resolveCmsAlgorithm(digestAlgorithm: AlgorithmIdentifier, signat
     const hash = HASH_BY_OID.get(digestAlgorithm.oid);
     if (hash === undefined) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
     if (!isPkcs1Key(key)) return null;
+    _refuseWeakRsaExponent(key, RSA_ENCRYPTION);
     return { family: 'rsa-pkcs1', importParams: { name: 'RSASSA-PKCS1-v1_5', hash: { name: hash } }, verifyParams: { name: 'RSASSA-PKCS1-v1_5' }, curve: undefined, hash };
 }
 

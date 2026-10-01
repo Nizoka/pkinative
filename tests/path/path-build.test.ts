@@ -461,10 +461,11 @@ describe('buildCertificatePath — the search, step by step', () => {
         expect(report.path.map((x) => x.der)).toEqual([leaf, a, b, f].map((x) => x.der));
     });
 
-    it('should not extend a certificate that bears an anchor\'s name, nor try one anchor twice', async () => {
-        // C is named like the anchor without being it: past C lies only what
-        // the anchor's name already settles. And an anchor also among the
-        // candidates is one issuer, not two.
+    it('should extend a certificate that merely bears an anchor\'s name, and never try one anchor twice', async () => {
+        // C is named like the anchor without being it — another key, another
+        // issuer. RFC 5280 §6.1.1 (d) makes an anchor a name *and* a key, so C
+        // is one more link to walk through, not where the walk ends. And an
+        // anchor also among the candidates is one issuer, not two.
         const anchor = await ca('Search Anchor', 'Anchor Parent', 620n);
         const other = await ca('Search Other', 'Nowhere', 621n);
         const lookalike = (await issue({ subject: 'Search Anchor', issuerDer: other.subject.der, ca: true, serial: 622n })).certificate;
@@ -474,8 +475,36 @@ describe('buildCertificatePath — the search, step by step', () => {
             signatures: [{ certificate: leaf, verdict: 'invalid' }],
         });
         expect(report.valid).toBe(false);
-        // [leaf], [leaf, lookalike], [leaf, anchor] — never [leaf, lookalike, other], never the anchor twice.
-        expect(report.explored).toBe(3);
+        // [leaf], [leaf, lookalike], [leaf, lookalike, other], [leaf, anchor] — never the anchor twice.
+        expect(report.explored).toBe(4);
+    });
+
+    it('should not take a self-signed certificate that copies an anchor\'s name for the anchor', async () => {
+        // The bag is the sender's. A self-signed "Search Anchor" with its own
+        // key, signing a leaf for whoever the attacker likes, must not end the
+        // walk as if it were the anchor: it is a link whose signature the real
+        // anchor never made. Stopping on the name alone validated this chain.
+        const anchor = await ca('Impostor Target', 'Impostor Parent', 640n);
+        const impostor = await ca('Impostor Target', 'Impostor Target', 641n);
+        const leaf = (await issue({ subject: 'victim.example', issuerDer: impostor.subject.der, ca: false, serial: 642n })).certificate;
+        const report = buildCertificatePath({
+            leaf, candidates: [impostor], trustAnchors: [anchor], at: AT,
+            signatures: [
+                // The impostor's key did sign the leaf; the anchor's did not sign the impostor.
+                { certificate: leaf, issuer: impostor, verdict: 'valid' },
+                { certificate: leaf, issuer: anchor, verdict: 'invalid' },
+                { certificate: impostor, issuer: anchor, verdict: 'invalid' },
+            ],
+        });
+        expect(report.valid).toBe(false);
+        expect(report.reasons.map((r) => r.code)).toContain('PKI_REASON_SIGNATURE_INVALID');
+        // …while the real anchor presented inside the bag is still itself.
+        const real = buildCertificatePath({
+            leaf, candidates: [impostor, anchor], trustAnchors: [anchor], at: AT,
+            signatures: [{ certificate: leaf, issuer: anchor, verdict: 'valid' }, { certificate: leaf, issuer: impostor, verdict: 'invalid' }],
+        });
+        expect(real.valid).toBe(true);
+        expect(real.path).toHaveLength(2);
     });
 
     it('should find a path through the second of two anchors that share a name', async () => {

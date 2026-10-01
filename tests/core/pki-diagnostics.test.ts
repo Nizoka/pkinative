@@ -107,6 +107,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_DEFAULT_ENCODED', diagnostics.defaultEncodedDiagnostic('tbsCertificate.extensions[0].cA', 'FALSE', 177)],
         ['PKI_DIAG_BER_CONSTRUCT_ACCEPTED', diagnostics.berConstructAcceptedDiagnostic('indefinite length', 0)],
         ['PKI_DIAG_PEM_LAX_ACCEPTED', diagnostics.pemLaxAcceptedDiagnostic('line longer than 64 characters', 28)],
+        ['PKI_DIAG_SPKI_RSA_EXPONENT_WEAK', diagnostics.spkiRsaExponentWeakDiagnostic('tbsCertificate.subjectPublicKeyInfo.subjectPublicKey', 1n, 180)],
     ];
 
     it.each(cases)('should build %s as a frozen, fully described payload', (code, payload) => {

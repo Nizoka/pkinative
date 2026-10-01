@@ -228,6 +228,18 @@ export function keyKdfIterationsLowDiagnostic(path: string, iterations: number, 
 }
 
 /**
+ * An RSA public exponent outside what RFC 8017 §3.1 defines — below 3, or
+ * even. The key still decodes; no signature under it is ever checked
+ * (`PKI_CRYPTO_KEY_UNSUPPORTED` at verification), because under e = 1 a
+ * message is its own signature.
+ */
+export function spkiRsaExponentWeakDiagnostic(path: string, exponent: bigint, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SPKI_RSA_EXPONENT_WEAK', 'warning', 'RFC 8017 §3.1',
+        `the RSA public exponent is ${exponent.toString()}; RFC 8017 defines RSA for an odd exponent of at least 3, and no signature under this key will be checked`,
+        path, offset);
+}
+
+/**
  * A CRL extension whose value pkinative drops rather than reads.
  *
  * `cRLNumber`, `deltaCRLIndicator`, and an entry's `reasonCode` and

@@ -19,12 +19,12 @@ function identifier(dotted: string, parameters?: Uint8Array): AlgorithmIdentifie
     return { oid: dotted, parameters: node.children[1], der };
 }
 
-const RSA_KEY = { kind: 'rsa', der: new Uint8Array(0) } as unknown as SubjectPublicKeyInfo;
+const RSA_KEY = { kind: 'rsa', der: new Uint8Array(0), publicExponent: 65537n } as unknown as SubjectPublicKeyInfo;
 const EC_KEY = (curve: string | undefined) => ({ kind: 'ec', curve, der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
 const ED_KEY = (kind: string) => ({ kind, der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
 /** An `id-RSASSA-PSS` key, whose parameters — when present — restrict what it may verify (RFC 4055 §3.3). */
 const PSS_KEY = (parameters?: Uint8Array) =>
-    ({ kind: 'rsa-pss', algorithm: identifier(PSS, parameters), der: new Uint8Array(0) }) as unknown as SubjectPublicKeyInfo;
+    ({ kind: 'rsa-pss', algorithm: identifier(PSS, parameters), der: new Uint8Array(0), publicExponent: 65537n }) as unknown as SubjectPublicKeyInfo;
 
 /** `[0] EXPLICIT AlgorithmIdentifier` and friends, as RFC 4055 §3.1 writes them. */
 const tagged = (tag: number, ...children: Uint8Array[]): Uint8Array =>
@@ -344,5 +344,26 @@ describe('resolveCmsAlgorithm', () => {
         const resolved = resolveCmsAlgorithm(identifier(SHA256), identifier('1.2.840.10045.4.3.2'), EC_KEY('P-256'));
         expect(resolved?.verifyParams).toEqual({ name: 'ECDSA', hash: { name: 'SHA-256' } });
         expect(resolved?.curve).toBe('P-256');
+    });
+});
+
+describe('the RSA public exponent (RFC 8017 §3.1)', () => {
+    // Web Crypto imports e = 1 and verifies under it: the PKCS#1 encoding of
+    // the digest *is* the signature, so anyone signs for the key. Refused
+    // before the key reaches the host, under every scheme that takes an RSA key.
+    const rsa = (e: bigint, kind: 'rsa' | 'rsa-pss' = 'rsa'): SubjectPublicKeyInfo =>
+        ({ kind, der: new Uint8Array(0), publicExponent: e, ...(kind === 'rsa-pss' ? { algorithm: identifier(PSS) } : {}) }) as unknown as SubjectPublicKeyInfo;
+    const refused = expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED' });
+
+    it.each([[1n], [2n], [65536n]])('should refuse a key with public exponent %s under PKCS#1 v1.5, RSASSA-PSS and CMS rsaEncryption', (e) => {
+        expect(() => resolveAlgorithm(identifier('1.2.840.113549.1.1.11', nullValue()), rsa(e))).toThrow(refused);
+        expect(() => resolveAlgorithm(identifier(PSS), rsa(e))).toThrow(refused);
+        expect(() => resolveAlgorithm(identifier(PSS), rsa(e, 'rsa-pss'))).toThrow(refused);
+        expect(() => resolveCmsAlgorithm(identifier(SHA256), identifier('1.2.840.113549.1.1.1'), rsa(e))).toThrow(refused);
+    });
+
+    it('should accept 3, the smallest exponent RFC 8017 defines, and 65537', () => {
+        expect(resolveAlgorithm(identifier('1.2.840.113549.1.1.11', nullValue()), rsa(3n))?.family).toBe('rsa-pkcs1');
+        expect(resolveCmsAlgorithm(identifier(SHA256), identifier('1.2.840.113549.1.1.1'), rsa(65537n))?.family).toBe('rsa-pkcs1');
     });
 });

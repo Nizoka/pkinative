@@ -243,6 +243,25 @@ describe('verifyCertificateChain', () => {
         expect(report.path.map((c) => c.serialNumber.hex)).not.toContain(restricted.certificate.serialNumber.hex);
     });
 
+    it('should not take a self-signed certificate that copies the anchor\'s name for the anchor', async () => {
+        // RFC 5280 §6.1.1 (d): a trust anchor is a name and a key. Whoever sends
+        // the chain controls `candidates`, so a "Verify Root" of their own
+        // making, signing a leaf for whoever they like, must be one more link
+        // whose signature the real anchor has to vouch for — and it never did.
+        const { root, ica } = await hierarchy();
+        const fake = await issue({ subject: 'Verify Root', issuerDer: root.subject.der, ca: true, serial: 77n });
+        const victim = await issue({
+            subject: 'bank.example', issuerDer: fake.certificate.subject.der, signer: fake.key, ca: false, serial: 78n,
+            purposes: [KEY_PURPOSES.serverAuth], host: 'bank.example',
+        });
+        const report = await verifyCertificateChain({
+            leaf: victim.certificate, candidates: [fake.certificate, ica], trustAnchors: [root], at: AT,
+            serverName: { kind: 'dns', value: 'bank.example' },
+        });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toContain('PKI_REASON_SIGNATURE_INVALID');
+    });
+
     it('should restate the purpose on a one-certificate path the search refused for another reason', async () => {
         // The anchor itself as the leaf: a path of one. It has expired, which
         // the search reports and stops at; the purpose it does not permit is
@@ -1284,6 +1303,30 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
     });
 
+    it('should not believe a list signed by a self-signed certificate that merely copies the CA\'s name', async () => {
+        // RFC 5280 §6.3.3 (f): a CRL issuer off the path is believed only once
+        // its own certificate validates under the same anchors. The bag is the
+        // sender's, so a revoked signer puts in it an "OCSP ICA" of its own
+        // making, asserting cRLSign, and a list that clears it.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const impostor = await selfSignedLike('OCSP ICA');
+        // A forged complete list answers nothing…
+        const complete = await verifyCertificateChain({
+            leaf, candidates: [ica, impostor.certificate], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, impostor.key)], requireRevocation: true,
+        });
+        expect(codes(complete)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        // …and a forged delta hides no revocation the CA's own base list made.
+        const hidden = await verifyCertificateChain({
+            leaf, candidates: [ica, impostor.certificate], trustAnchors: [root], at: AT,
+            crls: [
+                await signedCrl(ica, icaKey, { number: 4, revoked: leaf }),
+                await signedCrl(ica, impostor.key, { number: 6, over: 4, revoked: leaf, entryReason: 8 }),
+            ],
+        });
+        expect(codes(hidden)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
     it.each([
         ['the first instant', { notBefore: AT }],
         ['the last instant', { notAfter: AT }],
@@ -1470,6 +1513,22 @@ async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean
         ],
     }, { key: signsLeaf.privateKey, algorithm: options.rollover === true ? { name: 'Ed25519' } as SignatureAlgorithm : icaAlgorithm });
     return { root, ica, leaf: parseCertificate(leafDer, quiet), icaKey: icaPair.privateKey, rootKey: rootPair.privateKey, ...(rollover === undefined ? {} : { rollover }) };
+}
+
+/** A self-signed Ed25519 certificate under `commonName`, with its own key, cA and cRLSign: what an attacker puts in the bag. */
+async function selfSignedLike(commonName: string): Promise<{ certificate: Certificate; key: CryptoKeyHandle }> {
+    const pair = await ed25519Key();
+    const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
+    const name = [[{ type: '2.5.4.3', value: commonName }]];
+    const der = await createCertificate({
+        serialNumber: 66n, issuer: name, subject: name,
+        notBefore: AT - DAY, notAfter: AT + DAY, subjectPublicKey: spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+        ],
+    }, { key: pair.privateKey, algorithm: { name: 'Ed25519' } });
+    return { certificate: parseCertificate(der, quiet), key: pair.privateKey };
 }
 
 /**

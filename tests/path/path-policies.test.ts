@@ -415,4 +415,27 @@ describe('wrapUpPolicies — §6.1.5', () => {
         expect(wrapUpPolicies(state, [P3])).toBeNull();
         expect(wrapUpPolicies(state, [P1])).toEqual([P1]);
     });
+
+    it('should intersect user-initial-policy-set in the anchor\'s domain, across a policy mapping (PKITS 4.10.1)', () => {
+        // Root → CA asserting P1 and mapping P1 → P2 → leaf asserting P2. The
+        // user speaks the anchor's vocabulary: asking for P1 is what this chain
+        // satisfies, and asking for P2 — a name only the CA's domain uses — is
+        // not. Intersecting at the leaf said the opposite.
+        const state = initialPolicyState(2, true, false, false);
+        growPolicyTree(state, [policy(P1)], MAX);
+        applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }]);
+        growPolicyTree(state, [policy(P2)], MAX);
+        expect(wrapUpPolicies(state, [P1])).toEqual([P2]);
+        expect(wrapUpPolicies(state, [P2])).toBeNull();
+        // Wrapping up is pure: the same state answers both, and the whole tree is still there.
+        expect(wrapUpPolicies(state, [])).toEqual([P2]);
+    });
+
+    it('should let an anyPolicy leaf stand for every policy the user asked for (§6.1.5 (g)(iii)(3))', () => {
+        const state = initialPolicyState(2, true, false, false);
+        growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+        growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+        expect(wrapUpPolicies(state, [P1, P3])).toEqual([P1, P3]);
+        expect(wrapUpPolicies(state, [])).toEqual([ANY_POLICY]);
+    });
 });

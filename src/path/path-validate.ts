@@ -131,7 +131,16 @@ export interface PathContext {
      * is what makes a cross-signed bag decidable.
      */
     readonly signatures: ReadonlyMap<string, SignatureEntry>;
+    /** The anchors' subject names, for finding the anchor a certificate names as its issuer. */
     readonly trustAnchorSubjects: ReadonlySet<string>;
+    /**
+     * The anchors themselves, as `hex(subject.der)|hex(subjectPublicKeyInfo.der)`:
+     * RFC 5280 §6.1.1 (d) makes a trust anchor a name **and a key**, so a
+     * certificate in the path stands for an anchor only when it carries both.
+     * Matching the name alone let a self-signed certificate that merely
+     * copied an anchor's name end the walk unverified.
+     */
+    readonly trustAnchorKeys: ReadonlySet<string>;
     readonly maxPathLength: number;
     readonly maxCertificates: number;
 }
@@ -141,6 +150,9 @@ const _hex = (bytes: Uint8Array): string => {
     for (const b of bytes) out += b.toString(16).padStart(2, '0');
     return out;
 };
+
+/** A trust anchor as §6.1.1 (d) defines it — a name and a key — in one lookup key. */
+const _anchorKey = (certificate: Certificate): string => `${_hex(certificate.subject.der)}|${_hex(certificate.subjectPublicKeyInfo.der)}`;
 
 /**
  * §6.1.3 (a)(2) — the validity window.
@@ -442,6 +454,7 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
         at: input.at,
         signatures,
         trustAnchorSubjects: new Set(input.trustAnchors.map((c) => _hex(c.subject.der))),
+        trustAnchorKeys: new Set(input.trustAnchors.map(_anchorKey)),
         maxPathLength: limits.maxChainLength,
         maxCertificates: limits.maxChainLength,
     };
@@ -485,7 +498,10 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
         // A trust anchor is trusted a priori: its own signature is not
         // checked, and the walk stops there. Checking a root's self-signature
         // proves only that it is self-consistent, which is not what trust is.
-        if (context.trustAnchorSubjects.has(_hex(certificate.subject.der))) {
+        // It is the anchor only by name **and** key: a certificate that copies
+        // an anchor's name under another key is a certificate like any other,
+        // and its signature is checked against the anchor it names below.
+        if (context.trustAnchorKeys.has(_anchorKey(certificate))) {
             anchored = true;
             break;
         }

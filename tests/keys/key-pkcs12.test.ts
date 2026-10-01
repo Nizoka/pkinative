@@ -413,6 +413,22 @@ describe('parsePkcs12 — MacData', () => {
         expect(explicit.diagnostics).toEqual([]);
     });
 
+    it('should not verify a PBMAC1 MAC keyed below 20 octets — the length sits in the unauthenticated MacData', async () => {
+        // At keyLength 1 the MAC is forged in 256 guesses, and whoever edits the
+        // file chooses the length. Such a MAC is one this reader does not run:
+        // the file stays `unverified`, never `verified`.
+        const safe = authenticatedSafe();
+        for (const keyLength of [1, 19]) {
+            const p12 = parse(pfx({ authSafe: safe, macData: await pbmac1MacData(safe, PASSWORD, { keyLength }) })).p12;
+            expect(p12.mac?.kind).toBe('pbmac1');
+            expect(p12.mac?.pbmac1).toBeUndefined();
+            await expect(verifyPkcs12Mac(p12, PASSWORD)).rejects.toMatchObject({ code: 'PKI_KEY_MAC_UNSUPPORTED' });
+        }
+        const sound = parse(pfx({ authSafe: safe, macData: await pbmac1MacData(safe, PASSWORD, { keyLength: 20 }) })).p12;
+        expect(sound.mac?.pbmac1?.keyLength).toBe(20);
+        expect(await verifyPkcs12Mac(sound, PASSWORD)).toBe(true);
+    });
+
     it('should describe a PBMAC1 MAC (RFC 9579)', async () => {
         const safe = authenticatedSafe();
         const mac = parse(pfx({ authSafe: safe, macData: await pbmac1MacData(safe, PASSWORD, { prf: 'SHA-512', hmac: 'SHA-384', keyLength: 48 }) })).p12.mac;

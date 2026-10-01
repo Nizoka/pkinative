@@ -508,6 +508,23 @@ describe('verifyTimeStampToken', () => {
         });
     });
 
+    describe('a SHA-1 imprint', () => {
+        it('should not count the token as evidence without allowSha1, whatever was stamped', async () => {
+            // The imprint is the whole evidence: a collision pair makes one
+            // token cover two documents. The request writer refuses SHA-1
+            // (tsp-request.ts); the reader is held to the same contract.
+            const w = await world();
+            const imprint = await sha('SHA-1', DATA);
+            const token = await makeToken(w.tsa, tstInfo({ imprint, hashOid: OID.sha1 }));
+            const report = await verify(w, token);
+            expect(codes(report)).toEqual(['PKI_REASON_SIGNATURE_NOT_CHECKED']);
+            expect(report.reasons[0]).toMatchObject({ path: 'token.tstInfo.messageImprint', errorCode: 'PKI_CRYPTO_ALGORITHM_REFUSED' });
+            expect(report.genTime).toBeUndefined();
+            expect(codes(await verify(w, token, { imprint }))).toEqual(['PKI_REASON_SIGNATURE_NOT_CHECKED']);
+            expect(codes(await verify(w, token, { allowSha1: true }))).toEqual([]);
+        });
+    });
+
     describe('a whole TimeStampResp', () => {
         it('should verify the token inside a granted response as it verifies the token alone', async () => {
             const w = await world();

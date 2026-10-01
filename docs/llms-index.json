@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 212874,
-      "approxTokens": 53219
+      "bytes": 213207,
+      "approxTokens": 53302
     },
     {
       "url": "llms-recipes.txt",
@@ -42,8 +42,8 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 17930,
-      "approxTokens": 4483
+      "bytes": 18546,
+      "approxTokens": 4637
     },
     {
       "url": "data/limits.json",
@@ -187,8 +187,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 24198,
-      "approxTokens": 6050
+      "bytes": 24531,
+      "approxTokens": 6133
     },
     {
       "title": "Choosing a PKI library",

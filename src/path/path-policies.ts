@@ -293,18 +293,84 @@ export function advancePolicyCounters(
  */
 export function wrapUpPolicies(state: PolicyState, initialPolicySet: readonly string[]): readonly string[] | null {
     const anyRequested = initialPolicySet.length === 0 || initialPolicySet.includes(ANY_POLICY);
+    // On a copy: the caller's state is the walk's record, and the same state
+    // may be wrapped up against several user sets.
+    const tree = anyRequested || state.levels === null ? state : _intersectWithUserSet(state, initialPolicySet);
+
     const surviving = new Set<string>();
-    const level = deepest(state);
-    for (const node of level ?? []) {
+    for (const node of deepest(tree) ?? []) {
         if (node.alive) surviving.add(node.validPolicy);
     }
-    const intersected = anyRequested ? [...surviving] : [...surviving].filter((policy) => initialPolicySet.includes(policy));
 
     // §6.1.5 (g), literally: *"if either the value of the explicit_policy
     // variable is greater than zero or the valid_policy_tree is not NULL,
     // then path processing has succeeded"*. The intersection with
     // `user-initial-policy-set` happens first and can itself empty the tree,
     // which is the only way it affects the verdict.
-    const treeSurvives = state.levels !== null && intersected.length > 0;
-    return state.explicitPolicy > 0 || treeSurvives ? intersected : null;
+    const treeSurvives = tree.levels !== null && surviving.size > 0;
+    return state.explicitPolicy > 0 || treeSurvives ? [...surviving] : null;
+}
+
+/**
+ * §6.1.5 (g)(iii): the intersection of the tree with `user-initial-policy-set`.
+ *
+ * **In the anchor's domain, not the leaf's.** The user names the policies in
+ * the vocabulary of the trust anchor, and a policy mapping renames them on the
+ * way down: a CA that maps P1 → P2 issues under P2 a certificate the user
+ * asked for as P1. So the set is applied to the nodes *whose parent is
+ * anyPolicy* — the first named policies under the root, where the anchor's
+ * vocabulary is still spoken — and every subtree under a node the user did not
+ * ask for dies with it. Intersecting the deepest level instead reversed the
+ * NIST PKITS 4.10.1 verdicts: it refused the P1 the user asked for and accepted
+ * the P2 nobody did.
+ *
+ * Step 3 then replaces an `anyPolicy` node of depth *n* by one node per
+ * requested policy not already present, so a leaf under anyPolicy satisfies
+ * any user set; step 4 prunes what was orphaned.
+ */
+function _intersectWithUserSet(state: PolicyState, initialPolicySet: readonly string[]): PolicyState {
+    const levels = (state.levels as PolicyNode[][]).map((level) => level.map((node) => ({ ...node, children: [...node.children] })));
+    const copy: PolicyState = { ...state, levels };
+    const kill = (depth: number, index: number): void => {
+        const node = levels[depth]?.[index];
+        if (node === undefined || !node.alive) return;
+        node.alive = false;
+        for (const child of node.children) kill(depth + 1, child);
+    };
+
+    // (1) and (2): the nodes whose parent is anyPolicy, and the ones among
+    // them the user did not ask for — gone, with everything below them.
+    const named = new Set<string>();
+    for (const [depth, level] of levels.entries()) {
+        if (depth === levels.length - 1) break;
+        for (const parent of level) {
+            if (!parent.alive || parent.validPolicy !== ANY_POLICY) continue;
+            for (const index of parent.children) {
+                const child = levels[depth + 1]?.[index];
+                if (child === undefined || !child.alive) continue;
+                if (child.validPolicy !== ANY_POLICY && !initialPolicySet.includes(child.validPolicy)) kill(depth + 1, index);
+                else named.add(child.validPolicy);
+            }
+        }
+    }
+
+    // (3): an anyPolicy leaf stands for every policy the user asked for.
+    const last = levels.length - 1;
+    const bottom = levels[last] as PolicyNode[];
+    const wild = bottom.findIndex((node) => node.alive && node.validPolicy === ANY_POLICY);
+    if (wild >= 0 && last > 0) {
+        const node = bottom[wild] as PolicyNode;
+        const parentLevel = levels[last - 1] as PolicyNode[];
+        const parent = parentLevel.find((candidate) => candidate.alive && candidate.children.includes(wild));
+        for (const policy of initialPolicySet) {
+            if (named.has(policy)) continue;
+            bottom.push({ validPolicy: policy, qualifiers: node.qualifiers, expectedPolicySet: [policy], children: [], alive: true });
+            parent?.children.push(bottom.length - 1);
+        }
+        node.alive = false;
+    }
+
+    // (4): a node left without a live child is gone too, up to the root.
+    prunePolicyTree(copy);
+    return copy;
 }
