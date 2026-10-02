@@ -283,6 +283,21 @@ describe('checkIssuingCapability — §6.1.4 (k), (l), (n)', () => {
         expect(reasons[0]?.message).toContain('cA in basicConstraints');
     });
 
+    it.each([1, 2] as const)('should refuse a version %i intermediate even when it asserts cA (§6.1.4 (k))', (version) => {
+        const old = { ...R12, version } as Certificate;
+        expect(checkIssuingCapability(old, state(), 'path[1]').map((r) => [r.code, r.path, r.message.includes('version 1 or 2')]))
+            .toEqual([['PKI_REASON_NOT_A_CA', 'path[1]', true]]);
+    });
+
+    it('should spare a trust anchor the version test, and only that test', () => {
+        // Trusted a priori, not by its encoding; a v1 anchor without
+        // basicConstraints is still no issuer.
+        expect(checkIssuingCapability({ ...ROOT_X1, version: 1 } as Certificate, state(), 'path[2]', true)).toEqual([]);
+        const bare = { ...ROOT_X1, version: 1, extensions: ROOT_X1.extensions.filter((e) => e.kind !== 'basicConstraints') } as unknown as Certificate;
+        expect(checkIssuingCapability(bare, state(), 'path[2]', true).map((r) => [r.code, r.message.includes('cA in basicConstraints')]))
+            .toEqual([['PKI_REASON_NOT_A_CA', true]]);
+    });
+
     it('should refuse a CA whose keyUsage omits keyCertSign', () => {
         const certificate = { ...R12, extensions: R12.extensions.map((e) => (e.kind === 'keyUsage' ? { ...e, usages: ['digitalSignature'] } : e)) } as unknown as Certificate;
         const reasons = checkIssuingCapability(certificate, state(), 'path[1]');
@@ -589,6 +604,16 @@ describe('validateCertificatePath', () => {
         });
         const reason = report.reasons.find((r) => r.code === 'PKI_REASON_LIMIT_EXCEEDED');
         expect(reason?.limit).toBe('maxChainLength');
+    });
+
+    it('should refuse a version 1 intermediate end to end, and not a version 1 anchor that asserts cA', () => {
+        const v1 = { ...R12, version: 1 } as Certificate;
+        const refused = validateCertificatePath({ path: [LEAF, v1, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, v1) });
+        expect(refused.reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_NOT_A_CA', 'path[1]']]);
+        const oldRoot = { ...ROOT_X1, version: 1 } as Certificate;
+        for (const path of [[LEAF, R12, oldRoot], [LEAF, R12]]) {
+            expect(validateCertificatePath({ path, trustAnchors: [oldRoot], at: AT, signatures: valid(LEAF, R12) }).reasons).toEqual([]);
+        }
     });
 
     it.each([

@@ -39,7 +39,7 @@
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 242:118."
     },
     {
-      "id": "src/path/path-validate.ts:273:48:relational",
+      "id": "src/path/path-validate.ts:281:48:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra case is constraint === state.maxPathLength, where the mutant assigns maxPathLength the value it already holds."

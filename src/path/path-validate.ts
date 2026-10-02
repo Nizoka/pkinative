@@ -233,16 +233,28 @@ export function checkSignature(certificate: Certificate, context: PathContext, p
  * a leaf is not required to be a CA, and checking it as one is how a
  * validator ends up refusing every end-entity certificate in existence.
  *
+ * A version 1 or 2 **intermediate** is refused whatever it carries, as
+ * §6.1.4 (k) allows. A trust anchor is exempt from that one test — it is
+ * trusted a priori, not by its encoding — but not from the others, so a v1
+ * anchor, which cannot carry basicConstraints, is refused as an issuer all
+ * the same.
+ *
  * @param issuer The certificate that issued the previous one.
  * @param state  The walk's bookkeeping; `maxPathLength` is updated here.
  * @param path   The report path prefix.
+ * @param anchor Whether `issuer` is the trust anchor, which the version test spares.
  * @returns Every reason this certificate may not have issued.
  */
-export function checkIssuingCapability(issuer: Certificate, state: PathState, path: string): PkiReason[] {
+export function checkIssuingCapability(issuer: Certificate, state: PathState, path: string, anchor = false): PkiReason[] {
     const out: PkiReason[] = [];
     const basicConstraints = getExtension(issuer, 'basicConstraints');
     const keyUsage = getExtension(issuer, 'keyUsage');
 
+    // (k) *"conforming implementations may choose to reject all version 1 and
+    // version 2 intermediate certificates"* — and this one does. The parser
+    // only diagnoses a v1 certificate that carries extensions, so without
+    // this test a v1 intermediate with a cA basicConstraints issued freely.
+    if (!anchor && issuer.version < 3) out.push(notACaReason(path, 'version'));
     // (k) cA MUST be asserted. A v1 or v2 certificate has no basicConstraints
     // at all, and RFC 5280 §6.1.4 (k) gives it no licence to issue either.
     if (basicConstraints?.cA !== true) out.push(notACaReason(path, 'basicConstraints'));
@@ -401,6 +413,10 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * `inhibitAnyPolicy` are processed (§6.1.3, §6.1.4); any **other** critical
  * extension is refused rather than ignored, as `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
  * See `PROCESSED_CRITICAL_EXTENSIONS`.
+ *
+ * A version 1 or 2 intermediate is `PKI_REASON_NOT_A_CA` (§6.1.4 (k)), and so
+ * is a version 1 trust anchor that issued the next certificate: it cannot
+ * carry the basicConstraints that would let it.
  *
  * @param input What to validate, and everything needed to judge it.
  * @returns The verdict and every reason behind it.
@@ -596,7 +612,7 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
         const issuer = walked[index] as Certificate;
         const below = walked[index - 1] as Certificate;
         const belowPath = `path[${String(index - 1)}]`;
-        state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
+        state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`, context.trustAnchorKeys.has(_anchorKey(issuer))));
         const constraints = getExtension(issuer, 'nameConstraints');
         if (constraints !== undefined) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
         // §6.1.3 (b), (c): *"Name constraints are not applied to self-issued

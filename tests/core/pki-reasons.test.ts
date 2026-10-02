@@ -181,9 +181,10 @@ describe('validation reasons', () => {
         expect(reason.message).toContain('4096');
     });
 
-    it('should distinguish the two ways a certificate may not issue', () => {
+    it('should distinguish the three ways a certificate may not issue', () => {
         expect(notACaReason('path[1]', 'basicConstraints').message).toContain('cA in basicConstraints');
         expect(notACaReason('path[1]', 'keyUsage').message).toContain('keyCertSign in keyUsage');
+        expect(notACaReason('path[1]', 'version').message).toContain('version 1 or 2');
     });
 
     it('should say which RFC 3161 rule a TSA certificate broke, under the same code', () => {

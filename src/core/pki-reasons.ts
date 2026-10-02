@@ -532,11 +532,13 @@ export function noTrustAnchorReason(path: string): PkiReason {
 }
 
 /** An issuing certificate is not allowed to issue. */
-export function notACaReason(path: string, why: 'basicConstraints' | 'keyUsage'): PkiReason {
+export function notACaReason(path: string, why: 'basicConstraints' | 'keyUsage' | 'version'): PkiReason {
     return _reason('PKI_REASON_NOT_A_CA', 'RFC 5280 §6.1.4 (k)',
         why === 'basicConstraints'
             ? 'a certificate in the chain issued another without asserting cA in basicConstraints'
-            : 'a certificate in the chain issued another without asserting keyCertSign in keyUsage',
+            : why === 'keyUsage'
+                ? 'a certificate in the chain issued another without asserting keyCertSign in keyUsage'
+                : 'a version 1 or 2 certificate in the chain issued another; only a version 3 intermediate can assert cA',
         path);
 }
 
