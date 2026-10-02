@@ -130,7 +130,7 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 - **An `id-RSASSA-PSS` public key cannot be imported on Node.js 22**, so a certificate, list, response or message signed with one is reported `PKI_REASON_SIGNATURE_NOT_CHECKED` (`PKI_CRYPTO_KEY_UNSUPPORTED`): it fails closed, it is not verified. Keys of type `rsaEncryption` signing with RSASSA-PSS verify normally.
 - **No PKCS#10 reader.** `createCertificationRequest` writes a certification request; nothing parses one.
 - **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied.
-- **X.520 attribute syntaxes are not enforced when reading a name**: a `countryName` that is not two PrintableString letters, or a value past its upper bound, is read as it is. TeletexString is read as Latin-1, with a diagnostic.
+- **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a diagnostic (refused under `strict: true`); a value past one of its other upper bounds is read as it is. TeletexString is read as Latin-1, with a diagnostic.
 - **The Certificate Transparency SCT list** is kept in its TLS encoding, not decoded.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.

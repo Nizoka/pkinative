@@ -156,8 +156,8 @@
 <td>ITU-T X.520 | ISO/IEC 9594-6 — attribute types</td>
 <td>Names: every DirectoryString choice is read</td>
 <td>partial</td>
-<td><code>src/x509/x509-name.ts</code>; <code>tests/x509/x509-name.test.ts</code>; the attribute names in <code>src/oid/</code></td>
-<td>The attribute syntaxes are not enforced when reading: a <code>countryName</code> that is not two PrintableString letters, an <code>emailAddress</code> that is not an IA5String, or a value past its <code>ub-*</code> upper bound is read as it is, with no diagnostic.</td>
+<td><code>src/x509/x509-name.ts</code>, with the RFC 5280 Appendix A.1 syntax table in <code>src/core/name-oids.ts</code>; <code>tests/x509/x509-name.test.ts</code>, <code>tests/build/build-structures.test.ts</code>; the attribute names in <code>src/oid/</code></td>
+<td>When reading, the attribute syntaxes are diagnosed, not enforced: a value outside its Appendix A.1 string type (a <code>countryName</code> that is not a PrintableString, an <code>emailAddress</code> that is not an IA5String) raises <code>PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE</code>, and a <code>countryName</code> that is not two characters <code>PKI_DIAG_COUNTRY_NAME_SIZE</code>; each is refused only under <code>strict: true</code>. A value past its other <code>ub-*</code> upper bounds is read as it is, with no diagnostic. <code>encodeNameAttribute</code> refuses a wrong type or size when writing.</td>
 </tr>
 <tr>
 <td>ITU-T X.660 | ISO/IEC 9834-1 — object identifier arcs</td>
@@ -182,8 +182,8 @@
 <td>ISO/IEC 10646 (the Unicode repertoire)</td>
 <td>UTF8String, BMPString and UniversalString decoding</td>
 <td>applies</td>
-<td><code>src/core/text.ts</code>; <code>tests/asn1/asn1-read.test.ts</code>: overlong UTF-8, surrogates, values past U+10FFFF and odd lengths are refused</td>
-<td>A byte-order mark or an escape sequence inside a BMPString or UniversalString is accepted without a diagnostic.</td>
+<td><code>src/core/text.ts</code>; <code>tests/core/text.test.ts</code>: overlong UTF-8, surrogates and values past U+10FFFF are refused; <code>tests/asn1/asn1-read.test.ts</code>: odd lengths are refused; <code>tests/asn1/asn1-read-iso10646.test.ts</code>: a byte-order signature and an ISO/IEC 2022 escape control are diagnosed (<code>PKI_DIAG_STRING_SIGNATURE</code>, <code>PKI_DIAG_STRING_ESCAPE_SEQUENCE</code>)</td>
+<td>A byte-order signature at the start of a BMPString or UniversalString, or an escape control inside any of the three types, is diagnosed and decoded as it is; it is refused only under <code>strict: true</code>.</td>
 </tr>
 <tr>
 <td>ITU-T T.61 (TeletexString)</td>
@@ -195,9 +195,9 @@
 <tr>
 <td>ISO 3166-1 alpha-2 (country codes)</td>
 <td><code>countryName</code> values</td>
-<td>not checked</td>
-<td>—</td>
-<td>Neither the reader nor the builder checks a country code against the list or its two-letter size.</td>
+<td>partial</td>
+<td><code>src/x509/x509-name.ts</code>; <code>tests/x509/x509-name.test.ts</code>, <code>tests/build/build-structures.test.ts</code></td>
+<td>Only the two-character size is checked: the reader diagnoses any other length (<code>PKI_DIAG_COUNTRY_NAME_SIZE</code>) and <code>encodeNameAttribute</code> refuses it. Neither checks a code against the ISO 3166 list.</td>
 </tr>
 <tr>
 <td>RFC 5280 §4.1.2.5 time profile (and ISO 8601 in spirit)</td>
