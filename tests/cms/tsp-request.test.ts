@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { _parseTimeStampRequest, createTimeStampRequest } from '../../src/cms/tsp-request.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
-import { sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+import { concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 
 /**
  * RFC 3161 §2.4.1 TimeStampReq — the question, written and read back.
@@ -128,5 +128,15 @@ describe('_parseTimeStampRequest', () => {
         ['an unknown context tag', sequence(int(1), sequence(sequence(oid(SHA256), NULL), universal(4, HASH)), tlv(2, true, 1, sequence()))],
     ])('should refuse %s', (_, der) => {
         expect(code(() => _parseTimeStampRequest(der, quiet))).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
+
+    it.each([
+        ['the SET tag', 17, 0],
+        ['a context [16] tag', 16, 2],
+    ] as const)('should refuse a well-formed request under %s, at the root', (_, tagNumber, cls) => {
+        const der = tlv(cls, true, tagNumber, concat(int(1), sequence(sequence(oid(SHA256), NULL), universal(4, HASH))));
+        const thrown = (() => { try { _parseTimeStampRequest(der, quiet); } catch (error) { return error; } return undefined; })();
+        expect(thrown).toBeInstanceOf(PkiCmsError);
+        expect(thrown).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path: 'TimeStampReq', offset: 0 });
     });
 });
