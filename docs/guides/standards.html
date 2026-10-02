@@ -229,8 +229,8 @@
 <td>RFC 5652 — CMS SignedData</td>
 <td>Reading, building and verifying</td>
 <td>applies</td>
-<td><code>tests/cms/cms-signed-data.test.ts</code>, <code>tests/cms/cms-check.test.ts</code>, <code>tests/verify/verify-signed-data.test.ts</code>, <code>tests/fuzzing/cms.test.ts</code>; <code>L8</code>, 224 PKITS S/MIME messages verified whole</td>
-<td>DSA and Ed448 signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>).</td>
+<td><code>tests/cms/cms-signed-data.test.ts</code>, <code>tests/cms/cms-check.test.ts</code>, <code>tests/verify/verify-signed-data.test.ts</code>, <code>tests/fuzzing/cms.test.ts</code>; <code>L8</code>, 224 PKITS S/MIME messages verified whole; the pinned text of §5 and §11.1–11.4 held sentence by sentence to a named test (<code>scripts/data/rfc5652-requirements.json</code>)</td>
+<td>DSA and Ed448 signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); countersignatures are carried, not read; the requirements the inventory records as <code>not-diagnosed</code>.</td>
 </tr>
 <tr>
 <td>RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2</td>
@@ -243,22 +243,22 @@
 <td>RFC 3161 and RFC 5816 — timestamps</td>
 <td>Requests, responses, tokens and their verification</td>
 <td>applies</td>
-<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code></td>
-<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>).</td>
+<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
+<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is not checked (<code>not-diagnosed</code>).</td>
 </tr>
 <tr>
 <td>RFC 6960 — OCSP</td>
 <td>Requests, responses and the client&#39;s §3.2 checks</td>
 <td>applies</td>
-<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code></td>
-<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>).</td>
+<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
+<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); responderID is not compared with the signer, and the other §4.2 requirements the inventory records as <code>not-diagnosed</code>.</td>
 </tr>
 <tr>
 <td>RFC 7468 — PEM</td>
 <td>Strict and lax decoding, encoding</td>
 <td>applies</td>
-<td><code>tests/pem/pem.test.ts</code>, <code>tests/fuzzing/pem-malformed.test.ts</code></td>
-<td>—</td>
+<td><code>tests/pem/pem.test.ts</code>, <code>tests/fuzzing/pem-malformed.test.ts</code>; the pinned text of §2–5 held sentence by sentence (<code>scripts/data/rfc7468-requirements.json</code>)</td>
+<td>Strict mode refuses the whitespace §2 asks parsers to ignore; lax mode accepts it with a diagnostic.</td>
 </tr>
 <tr>
 <td>RFC 5958 — PKCS#8; RFC 8018 — PBES2 and PBKDF2</td>
@@ -271,7 +271,7 @@
 <td>RFC 7292 — PKCS#12; RFC 9579 — PBMAC1</td>
 <td>Opening <code>.p12</code> files</td>
 <td>partial, by design</td>
-<td><code>tests/keys/key-pkcs12.test.ts</code>, <code>tests/verify/verify-pkcs12.test.ts</code>, <code>tests/crypto/webcrypto-password.test.ts</code>, <code>tests/fuzzing/pkcs12.test.ts</code>; the rule <code>pkcs12-policy-parity</code></td>
+<td><code>tests/keys/key-pkcs12.test.ts</code>, <code>tests/verify/verify-pkcs12.test.ts</code>, <code>tests/crypto/webcrypto-password.test.ts</code>, <code>tests/fuzzing/pkcs12.test.ts</code>; the rule <code>pkcs12-policy-parity</code>; the pinned text of §4–5 held sentence by sentence (<code>scripts/data/rfc7292-requirements.json</code>)</td>
 <td>PBES2 only: the Appendix B KDF and the Appendix C ciphers are refused (<a href="../adr/0002-pkcs12-pbes2-only.md">ADR 0002</a>), so an Appendix B MAC is reported unverified.</td>
 </tr>
 <tr>

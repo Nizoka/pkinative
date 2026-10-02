@@ -42,7 +42,7 @@ is swallowed before `npm run gate` sees it.
 | `run-interop.ts` | `interop` | publish only | The write and read directions against foreign implementations: ten tools and two linters (zlint, pkilint) over everything the API writes, and their artefacts read back by pkinative. `--require-all` (or `PKINATIVE_INTEROP_REQUIRE_ALL=1`, set by the gate) fails on a missing tool `REQUIRED_TOOLS` names for the platform | 0/1/2 |
 | `check-ts-floor.ts` | `check:ts-floor` | publish only | ADR 0017's TypeScript floor: packs the build and compiles a consumer of every export under that compiler release, four resolutions (`node16`, `bundler`, `node10`, `nodom`) | 0/1/2 |
 | `validate-certs.ts` | `conformance` | publish only | Conformance levels L0–L8 over the pinned corpora. `--level N`, `--require-all`, `--update-baseline` | 0/1/2 |
-| `fetch-corpora.ts` | `conformance:fetch` | — | Downloads x509-limbo and Wycheproof at their pinned commits, refusing any file whose SHA-256 differs | 0/1/2 |
+| `fetch-corpora.ts` | `conformance:fetch` | — | Downloads every corpus of `lib/corpora.ts` — x509-limbo, Wycheproof, PKITS and the six RFC texts L5 reads — at its pin, refusing any file whose SHA-256 differs | 0/1/2 |
 | `release-prepare.ts` | — | — | The mechanical half of a version bump: every row of its `EDITS` table, at 1.0.0 every stable-era swap of `PRE_1_0_PROSE`, plus the release-note and pull-request-body scaffolds; a pure `planRelease` a test runs on the in-memory tree. Never commits, tags, pushes or publishes. `--version`, `--date`, `--dry-run` | 0/1/2 |
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
 | `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages with their JSON-LD (TechArticle, BreadcrumbList, WebPage), plus the nav and footer every hand-written page pastes, and `docs/assets/architecture.svg` drawn from `LAYERS` | 0/1 |
@@ -69,6 +69,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `agent-config.ts` | `.claude/settings.json` parity, `GUARDED_SHELL_TOOLS`, the generated-rule banner, the line-ending check, the pull-request-template parity |
 | `bundle-probe.ts` | What `dist/` must and must not contain, decided on the artefact |
 | `corpora.ts` | The corpus pins, their checksum paths and their local directories |
+| `rfc-requirements.ts` | `RFC_INVENTORIES` and the extractor of level L5's completeness half: every requirement sentence of RFC 5280, 5652, 3161, 6960, 7292 and 7468 in the sections each spec names, held to its registry `data/rfc<NNNN>-requirements.json` by `validate-certs.ts`, the `clause-table-complete` rule and `tests/conformance/rfc-requirements.test.ts` |
 | `raw-der.ts` | An engine-independent DER walker: the conformance gate's second opinion, which never imports `src/` |
 | `mutation.ts` | `mutate.ts` and `tests/tools/mutation.test.ts`: the mutation operators, the seeded sampler, the import graph that selects suites, the equivalents table and the score |
 | `validators.ts` | The cross-implementation confrontation of level L4 — CryptoAPI, Python cryptography and Go `crypto/x509` — its blob format and its canaries |

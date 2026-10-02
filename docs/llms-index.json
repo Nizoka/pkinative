@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 215647,
-      "approxTokens": 53912
+      "bytes": 220426,
+      "approxTokens": 55107
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 14340,
-      "approxTokens": 3585
+      "bytes": 15323,
+      "approxTokens": 3831
     }
   ],
   "guides": [
@@ -148,8 +148,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 40749,
-      "approxTokens": 10187
+      "bytes": 44597,
+      "approxTokens": 11149
     },
     {
       "title": "Standards",
@@ -163,8 +163,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 12531,
-      "approxTokens": 3133
+      "bytes": 13462,
+      "approxTokens": 3366
     },
     {
       "title": "Errors, diagnostics and reasons",
