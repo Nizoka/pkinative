@@ -24,7 +24,13 @@
  *      responder *attached*: trusting them because they arrived would let the
  *      responder nominate its own authority.
  *   4. *`thisUpdate` is sufficiently recent* and *`nextUpdate` has not passed*
- *      — `PKI_REASON_REVOCATION_STALE`.
+ *      — `PKI_REASON_REVOCATION_STALE`. An answer with **no** `nextUpdate` is
+ *      stale by default, as a CRL without one is: RFC 6960 §4.2.2.1 reads the
+ *      absence as *"newer revocation information is available all the time"*,
+ *      which says the answer is good at `thisUpdate` and promises nothing
+ *      after it. `staleTolerance` is then measured from `thisUpdate`, which
+ *      is how a caller holding a response it fetched a moment ago accepts it.
+ *      A `revoked` answer is exempt: a revocation, once published, stands.
  *
  * §3.2 asks for these *"prior to accepting a signed response ... as valid"*,
  * so a `revoked` answer becomes `PKI_REASON_REVOKED` only when checks 2 and 3
@@ -99,7 +105,9 @@ export interface CheckOcspStatusInput {
     readonly requireNonce?: boolean | undefined;
     /**
      * Accept a response whose `nextUpdate` has passed, up to this many
-     * milliseconds. Zero by default.
+     * milliseconds. Zero by default. For an answer that declares no
+     * `nextUpdate`, the tolerance runs from its `thisUpdate` instead — the
+     * one instant such an answer vouches for — so the default refuses it.
      */
     readonly staleTolerance?: number | undefined;
     /**
@@ -131,6 +139,18 @@ const MINUTE = 60_000;
  *
  * `[]` means the responder said `good`, about this certificate, recently
  * enough, signed by someone you authorised. Everything else is a reason.
+ *
+ * **Freshness** (RFC 6960 §3.2 (4)): a `thisUpdate` more than
+ * `futureTolerance` ahead of `at` is `PKI_REASON_REVOCATION_STALE`, and so
+ * is an answer past its `nextUpdate` (plus `staleTolerance`). An answer with
+ * no `nextUpdate` is stale once `at` is past `thisUpdate` plus
+ * `staleTolerance` — stale by default, as a CRL without one is — unless it
+ * says `revoked`.
+ *
+ * **Contradiction**: a response carrying two answers about this one
+ * certificate that disagree on its status is `PKI_REASON_REVOCATION_UNKNOWN`
+ * — contradictory answers establish nothing, and taking the first would let
+ * the order decide.
  *
  * @param input See {@link CheckOcspStatusInput}.
  * @returns Every reason the answer is not a clean `good`; empty when it is.
@@ -169,10 +189,19 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
 
     // Find the answer that is about the certificate asked about. Never
     // `responses[0]`: a response may carry several, and taking the first is
-    // how a client reads somebody else's status as its own.
-    const answer = basic.responses.find((single) => matches(single, input.expected));
+    // how a client reads somebody else's status as its own. The responses
+    // came out of the parser, bounded by `maxOcspSingleResponses`.
+    const answers = basic.responses.filter((single) => matches(single, input.expected));
+    const answer = answers[0];
     if (answer === undefined) {
         out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
+        return out;
+    }
+    // Two answers about this one certificate that disagree: `good` then
+    // `revoked` is a response that has said both, and believing the first
+    // would let the order of the SEQUENCE decide the verdict.
+    if (answers.some((other) => other.status.kind !== answer.status.kind)) {
+        out.push(revocationUnknownReason(path, 'the response answers more than once about this certificate and the answers disagree on its status, so it establishes nothing'));
         return out;
     }
 
@@ -256,12 +285,20 @@ function checkFreshness(answer: OcspSingleResponse, input: CheckOcspStatusInput,
         out.push(revocationStaleReason(path, undefined, input.at));
     }
     const nextUpdate = answer.nextUpdate?.epochMilliseconds;
-    // Unlike a CRL, a response with no `nextUpdate` is **not** stale by
-    // default: RFC 6960 §4.2.2.1 says an absent nextUpdate means the responder
-    // has newer information available all the time, which is the opposite of
-    // the CRL case where it means nothing promises a successor.
-    if (nextUpdate !== undefined && input.at > nextUpdate + (input.staleTolerance ?? 0)) {
+    const tolerance = input.staleTolerance ?? 0;
+    if (nextUpdate !== undefined && input.at > nextUpdate + tolerance) {
         out.push(revocationStaleReason(path, nextUpdate, input.at));
+    }
+    // No `nextUpdate`: RFC 6960 §4.2.2.1 says the responder *"is indicating
+    // that newer revocation information is available all the time"* — so this
+    // answer vouches for `thisUpdate` and for nothing after it. Read as current
+    // forever, a `good` minted five years ago would still clear a certificate
+    // today. Stale by default, as a CRL without a nextUpdate is, with the
+    // tolerance measured from the one instant it does vouch for. A `revoked`
+    // answer is the exception: a revocation, once published, is not withdrawn
+    // by time.
+    if (nextUpdate === undefined && answer.status.kind !== 'revoked' && input.at > answer.thisUpdate.epochMilliseconds + tolerance) {
+        out.push(revocationStaleReason(path, undefined, input.at));
     }
     return out;
 }

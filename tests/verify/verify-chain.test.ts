@@ -704,6 +704,43 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toContain('PKI_REASON_REVOKED');
     });
 
+    it('should call a good answer with no nextUpdate stale, and a revocation with none still a revocation', async () => {
+        // RFC 6960 §4.2.2.1: no nextUpdate vouches for thisUpdate and nothing
+        // after it — five years on, a good is no evidence of anything.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const ancient = { thisUpdate: AT - 5 * 365 * DAY, nextUpdate: null };
+        const good = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, ...ancient })], requireRevocation: true,
+        });
+        expect(good.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_STALE@ocspResponses[0]']);
+        const revoked = encodeExplicit(1, encodeTime(AT - 30 * DAY, 'GeneralizedTime'), { tagClass: 'context' });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, status: revoked, ...ancient })],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOKED@ocspResponses[0]']);
+    });
+
+    it('should call a thisUpdate in the future stale', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, thisUpdate: AT + DAY / 2 })],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_STALE@ocspResponses[0]']);
+    });
+
+    it('should report UNKNOWN, not the first answer, when the response answers twice and disagrees', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const revoked = encodeExplicit(1, encodeTime(AT - 30 * DAY, 'GeneralizedTime'), { tagClass: 'context' });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, also: revoked })], requireRevocation: true,
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[0]']);
+    });
+
     it('should believe a delegate the CA actually issued and marked as a responder', async () => {
         // The other half: the CA delegated by issuing a certificate that
         // carries id-kp-OCSPSigning, and that certificate signed the response.
@@ -1651,6 +1688,12 @@ async function ocspResponse(options: {
     readonly signatureAlgorithm?: Uint8Array;
     /** Answers about other serials, placed before ours, each with its own CertID digest. */
     readonly others?: ReadonlyArray<{ readonly serial: Uint8Array; readonly sha256?: boolean }>;
+    /** The answer's thisUpdate; a day before AT by default. */
+    readonly thisUpdate?: number;
+    /** The answer's nextUpdate, or null for none; a day after AT by default. */
+    readonly nextUpdate?: number | null;
+    /** A second answer about the same certificate, after the first, with this status. */
+    readonly also?: Uint8Array;
 }): Promise<Uint8Array> {
     if (options.statusCode !== undefined) return encodeSequence([encodeEnumerated(options.statusCode)]);
     const singleResponse = (serial: Uint8Array, wide: boolean, status: Uint8Array): Uint8Array => {
@@ -1664,8 +1707,8 @@ async function ocspResponse(options: {
         return encodeSequence([
             certId,
             status,
-            encodeTime(AT - DAY, 'GeneralizedTime'),
-            encodeExplicit(0, encodeTime(AT + DAY, 'GeneralizedTime'), { tagClass: 'context' }),
+            encodeTime(options.thisUpdate ?? AT - DAY, 'GeneralizedTime'),
+            ...(options.nextUpdate === null ? [] : [encodeExplicit(0, encodeTime(options.nextUpdate ?? AT + DAY, 'GeneralizedTime'), { tagClass: 'context' })]),
         ]);
     };
     const good = encodeTlv('context', 0, false, new Uint8Array(0));
@@ -1675,7 +1718,7 @@ async function ocspResponse(options: {
         // responderID ::= [2] KeyHash — by key, which needs no name to match.
         encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
         encodeTime(AT - DAY, 'GeneralizedTime'),
-        encodeSequence([...others, single]),
+        encodeSequence([...others, single, ...(options.also === undefined ? [] : [singleResponse(options.serial ?? options.certificate.serialNumber.bytes, options.sha256 === true, options.also)])]),
         // responseExtensions ::= [1] EXPLICIT Extensions — the nonce echo, whose
         // value sits inside TWO OCTET STRINGs.
         ...(options.nonce === undefined

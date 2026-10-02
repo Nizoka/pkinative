@@ -180,11 +180,44 @@ describe('checkOcspStatus', () => {
         expect(check(stale, { staleTolerance: 20 * DAY })).toEqual([]);
     });
 
-    it('should NOT treat a missing nextUpdate as stale, unlike a CRL', () => {
+    it('should treat a missing nextUpdate as stale by default, as a CRL does', () => {
         // RFC 6960 §4.2.2.1: an absent nextUpdate means newer information is
-        // always available — the opposite of the CRL case, where it means
-        // nothing promises a successor.
-        expect(check(build({ singles: [single({ nextUpdate: null })] }))).toEqual([]);
+        // available all the time — the answer vouches for thisUpdate and for
+        // nothing after it. A good from five years ago is not a good today.
+        const ancient = check(build({ singles: [single({ thisUpdate: AT - 5 * 365 * DAY, nextUpdate: null })] }));
+        expect(ancient.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_REVOCATION_STALE', 'ocsp']]);
+        expect(codes(check(build({ singles: [single({ nextUpdate: null })] })))).toEqual(['PKI_REASON_REVOCATION_STALE']);
+    });
+
+    it('should measure the tolerance from thisUpdate when there is no nextUpdate', () => {
+        // How a caller holding a response it just fetched accepts it: thisUpdate
+        // is a day before AT, so a day of tolerance is exactly enough.
+        const fetched = build({ singles: [single({ thisUpdate: AT - DAY, nextUpdate: null })] });
+        expect(check(fetched, { staleTolerance: DAY })).toEqual([]);
+        expect(codes(check(fetched, { staleTolerance: DAY - 1 }))).toEqual(['PKI_REASON_REVOCATION_STALE']);
+        // With a nextUpdate the tolerance is still measured from it.
+        expect(check(build({ singles: [single({ thisUpdate: AT - DAY, nextUpdate: AT })] }))).toEqual([]);
+    });
+
+    it('should not call a revocation without nextUpdate stale: a published revocation stands', () => {
+        const reasons = check(build({ singles: [single({ status: revokedStatus(AT - 30 * DAY), thisUpdate: AT - 5 * 365 * DAY, nextUpdate: null })] }));
+        expect(codes(reasons)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should report UNKNOWN for two answers about this certificate that disagree, in either order', () => {
+        // First-wins would let the order of the SEQUENCE decide the verdict.
+        const good = single({ nextUpdate: AT + DAY });
+        const revoked = single({ status: revokedStatus(AT - DAY), nextUpdate: AT + DAY });
+        for (const singles of [[good, revoked], [revoked, good]]) {
+            const reasons = check(build({ singles }));
+            expect(reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_REVOCATION_UNKNOWN', 'ocsp']]);
+            expect(reasons[0]?.message).toContain('disagree');
+        }
+    });
+
+    it('should accept two answers about this certificate that agree', () => {
+        const good = single({ nextUpdate: AT + DAY });
+        expect(check(build({ singles: [good, good] }))).toEqual([]);
     });
 
     it('should refuse a thisUpdate well in the future, within a clock-skew allowance', () => {

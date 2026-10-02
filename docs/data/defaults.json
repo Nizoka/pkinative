@@ -166,11 +166,11 @@
     {
       "option": "staleTolerance",
       "in": ["CheckRevocationInput", "CheckOcspStatusInput"],
-      "default": "0 ms — an answer past its nextUpdate is stale",
+      "default": "0 ms — an answer past its nextUpdate is stale, and an OCSP answer with no nextUpdate past its thisUpdate",
       "semver": "frozen",
       "evidence": [
         { "file": "src/revocation/crl-check.ts", "text": "const tolerance = input.staleTolerance ?? 0;" },
-        { "file": "src/revocation/ocsp-check.ts", "text": "(input.staleTolerance ?? 0)" }
+        { "file": "src/revocation/ocsp-check.ts", "text": "const tolerance = input.staleTolerance ?? 0;" }
       ]
     },
     {

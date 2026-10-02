@@ -69,7 +69,7 @@
     {
       "code": "PKI_REASON_REVOCATION_STALE",
       "since": "0.5.0",
-      "returnedWhen": "The revocation list has no nextUpdate, or its nextUpdate has passed beyond the caller staleTolerance.",
+      "returnedWhen": "The revocation list, or the OCSP answer, has no nextUpdate (an OCSP answer: beyond thisUpdate plus the caller staleTolerance, unless it says revoked), or its nextUpdate has passed beyond the caller staleTolerance, or the OCSP answer's thisUpdate lies beyond the futureTolerance.",
       "remedy": "Fetch a current list. An out-of-date list says what was revoked then, not now.",
       "standard": "RFC 5280 §5.1.2.5"
     },
@@ -97,7 +97,7 @@
     {
       "code": "PKI_REASON_REVOCATION_UNKNOWN",
       "since": "0.5.0",
-      "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify. When such an unauthenticated list or response names the certificate as revoked, that claim is in the message, as a claim.",
+      "returnedWhen": "No revocation evidence was available: no list, or one whose signature was never checked or did not verify, or an OCSP response that answers twice about the certificate and disagrees with itself. When such an unauthenticated list or response names the certificate as revoked, that claim is in the message, as a claim.",
       "remedy": "This is not \"not revoked\". Proceeding on it is a soft-fail decision to make deliberately, not one a validator should make for you.",
       "standard": "RFC 5280 §6.3"
     },
