@@ -58,6 +58,15 @@ describe('readTlvHeader', () => {
         { name: 'a long-form length with a leading zero', data: bytes(0x04, 0x82, 0x00, 0x81), code: 'PKI_ASN1_LENGTH_INVALID' },
         { name: 'a long form used below 128', data: bytes(0x04, 0x81, 0x05, 1, 2, 3, 4, 5), code: 'PKI_ASN1_LENGTH_INVALID' },
         { name: 'content running past the input', data: bytes(0x04, 0x05, 1, 2), code: 'PKI_ASN1_TRUNCATED' },
+        // P-05: the rules decodeAsn1 enforces, enforced here too (CWE-436).
+        { name: 'the high-tag form for tag number 5 (X.690 §8.1.2.2)', data: bytes(0x1f, 0x05, 0x00), code: 'PKI_ASN1_TAG_INVALID' },
+        { name: 'the high-tag form for tag number 30', data: bytes(0x5f, 0x1e, 0x00), code: 'PKI_ASN1_TAG_INVALID' },
+        { name: 'an end-of-contents marker read as a value (X.690 §8.1.5)', data: bytes(0x00, 0x00), code: 'PKI_ASN1_EOC_UNEXPECTED' },
+        { name: 'a constructed end-of-contents marker', data: bytes(0x20, 0x00), code: 'PKI_ASN1_EOC_UNEXPECTED' },
+        { name: 'a primitive SEQUENCE', data: bytes(0x10, 0x00), code: 'PKI_ASN1_CONSTRUCTED_FORM_INVALID' },
+        { name: 'a primitive SET', data: bytes(0x11, 0x00), code: 'PKI_ASN1_CONSTRUCTED_FORM_INVALID' },
+        { name: 'a constructed INTEGER', data: bytes(0x22, 0x00), code: 'PKI_ASN1_CONSTRUCTED_FORM_INVALID' },
+        { name: 'a constructed OCTET STRING (X.690 §10.2)', data: bytes(0x24, 0x00), code: 'PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN' },
     ])('should refuse $name', ({ data, code }) => {
         expect(() => readTlvHeader(data, 0, 'value')).toThrow(expect.objectContaining({ code }));
     });
@@ -75,6 +84,22 @@ describe('readTlvHeader', () => {
 
     it('should accept a zero-length value', () => {
         expect(readTlvHeader(bytes(0x05, 0x00), 0, 'value')).toMatchObject({ length: 0, contentStart: 2, end: 2 });
+    });
+
+    it('should report a refused tag at the identifier octet', () => {
+        expect(() => readTlvHeader(bytes(0x30, 0x00, 0x00, 0x00), 2, 'value')).toThrow(expect.objectContaining({ code: 'PKI_ASN1_EOC_UNEXPECTED', offset: 2 }));
+        expect(() => readTlvHeader(bytes(0x30, 0x00, 0x1f, 0x05, 0x00), 2, 'value')).toThrow(expect.objectContaining({ code: 'PKI_ASN1_TAG_INVALID', offset: 2 }));
+    });
+
+    it.each([
+        { name: 'a constructed SEQUENCE', first: 0x30 },
+        { name: 'a primitive OCTET STRING', first: 0x04 },
+        { name: 'a primitive context tag of number 0', first: 0x80 },
+        { name: 'a constructed context tag of number 0', first: 0xa0 },
+        { name: 'a primitive private tag of number 16', first: 0xd0 },
+        { name: 'a constructed application tag of number 4', first: 0x64 },
+    ])('should accept $name', ({ first }) => {
+        expect(readTlvHeader(bytes(first, 0x00), 0, 'value')).toMatchObject({ length: 0 });
     });
 });
 
@@ -96,6 +121,14 @@ describe('walkChildren', () => {
         const data = bytes(0x30, 0x03, 0x04, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05);
         const parent = readTlvHeader(data, 0, 'seq');
         expect(() => [...walkChildren(data, parent, 'seq')]).toThrow(expect.objectContaining({ code: 'PKI_ASN1_TRUNCATED' }));
+    });
+
+    it('should refuse to walk the children of a primitive value (P-05)', () => {
+        // [0] IMPLICIT holding octets that happen to parse as a value: the decoder
+        // keeps them as content, so the cursor must not read them as children.
+        const data = bytes(0x80, 0x02, 0x05, 0x00);
+        const parent = readTlvHeader(data, 0, 'field');
+        expect(() => [...walkChildren(data, parent, 'field')]).toThrow(expect.objectContaining({ code: 'PKI_ASN1_CONSTRUCTED_FORM_INVALID', offset: 0 }));
     });
 
     it('should hold only one header at a time', () => {

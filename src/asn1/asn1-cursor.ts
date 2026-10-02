@@ -14,7 +14,10 @@
  * (`maxRevokedCertificates`) rather than one written for a different structure.
  *
  * It is strict in the same places the decoder is strict — a non-minimal
- * length, an indefinite length, a reserved high tag — because a cursor that
+ * length, an indefinite length, a high tag number that is not minimal or
+ * names a number below 31, an end-of-contents marker read as a value, a
+ * universal type in a form X.690 forbids, children walked inside a primitive
+ * value — because a cursor that
  * accepted what the decoder refuses would be a second, weaker parser for the
  * same bytes, which is exactly the ambiguity DER exists to remove.
  *
@@ -23,6 +26,7 @@
 
 import { PkiEncodingError } from '../types/pki-errors.js';
 import type { TagClass } from '../types/asn1-types.js';
+import { isConstructedOnly, isPrimitiveOnly, isStringTag } from './asn1-tags.js';
 
 /** Where one value is, without its content decoded. */
 export interface TlvHeader {
@@ -51,7 +55,10 @@ const CLASSES: readonly TagClass[] = ['universal', 'application', 'context', 'pr
  * @throws {PkiEncodingError} `PKI_ASN1_TRUNCATED` when the header or the content
  *   runs past the input; `PKI_ASN1_LENGTH_INVALID` for an indefinite or
  *   non-minimal length, or one wider than 6 octets; `PKI_ASN1_TAG_INVALID`
- *   for a non-minimal or oversized high tag number.
+ *   for a non-minimal or oversized high tag number, or one below 31;
+ *   `PKI_ASN1_EOC_UNEXPECTED` for the universal tag 0;
+ *   `PKI_ASN1_CONSTRUCTED_FORM_INVALID` for a universal type in a form X.690
+ *   forbids; `PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN` for a constructed string.
  */
 export function readTlvHeader(data: Uint8Array, offset: number, path: string): TlvHeader {
     const first = data[offset];
@@ -82,6 +89,20 @@ export function readTlvHeader(data: Uint8Array, offset: number, path: string): T
             tagNumber = (tagNumber << 7) | (byte & 0x7f);
             at += 1;
             if ((byte & 0x80) === 0) break;
+        }
+        if (tagNumber < 31) {
+            throw new PkiEncodingError('PKI_ASN1_TAG_INVALID', `pkinative: ${path} writes tag number ${String(tagNumber)} in the high-tag-number form, which X.690 §8.1.2.2 reserves for numbers of 31 and above`, offset);
+        }
+    }
+    if (tagClass === 'universal') {
+        if (tagNumber === 0) {
+            throw new PkiEncodingError('PKI_ASN1_EOC_UNEXPECTED', `pkinative: ${path} holds an end-of-contents marker where a value belongs (X.690 §8.1.5) — the input is corrupt`, offset);
+        }
+        if (constructed ? isPrimitiveOnly(tagNumber) : isConstructedOnly(tagNumber)) {
+            throw new PkiEncodingError('PKI_ASN1_CONSTRUCTED_FORM_INVALID', `pkinative: ${path} is a universal type ${String(tagNumber)} in the ${constructed ? 'constructed' : 'primitive'} form, which X.690 never uses for it — the input is corrupt`, offset);
+        }
+        if (constructed && isStringTag(tagNumber)) {
+            throw new PkiEncodingError('PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN', `pkinative: ${path} is a string in constructed form, which DER forbids (X.690 §10.2) and this cursor never accepts`, offset);
         }
     }
 
@@ -135,9 +156,14 @@ export function readTlvHeader(data: Uint8Array, offset: number, path: string): T
  * @param path   Where this is, for the error messages.
  * @returns Each child's header, in encoded order.
  * @throws {PkiEncodingError} As {@link readTlvHeader}, plus
- *   `PKI_ASN1_TRUNCATED` when the children do not exactly fill the parent.
+ *   `PKI_ASN1_CONSTRUCTED_FORM_INVALID` when the parent is primitive, whose
+ *   content is octets and not values, and `PKI_ASN1_TRUNCATED` when the
+ *   children do not exactly fill the parent.
  */
 export function* walkChildren(data: Uint8Array, parent: TlvHeader, path: string): Generator<TlvHeader> {
+    if (!parent.constructed) {
+        throw new PkiEncodingError('PKI_ASN1_CONSTRUCTED_FORM_INVALID', `pkinative: ${path} is primitive, so its content is octets and not values to walk — the structure expects the constructed form here`, parent.offset);
+    }
     let at = parent.contentStart;
     let index = 0;
     while (at < parent.end) {
