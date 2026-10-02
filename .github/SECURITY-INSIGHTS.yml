@@ -1,0 +1,129 @@
+# pkinative — OpenSSF Security Insights (specification 2.0.0).
+# https://github.com/ossf/security-insights
+# Held to SECURITY.md, docs/.well-known/security.txt and .github/workflows/ by
+# the security-insights-parity rule of scripts/verify-docs.ts.
+header:
+  schema-version: 2.0.0
+  last-updated: '2026-10-02'
+  last-reviewed: '2026-10-02'
+  url: https://raw.githubusercontent.com/Nizoka/pkinative/main/.github/SECURITY-INSIGHTS.yml
+  comment: >-
+    Every statement here can be read in the repository: SECURITY.md,
+    docs/.well-known/security.txt, package.json and the workflows under
+    .github/workflows/.
+
+project:
+  name: pkinative
+  homepage: https://pkinative.dev
+  roadmap: https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md
+  administrators:
+    - name: Nizoka
+      primary: true
+      social: https://github.com/Nizoka
+  repositories:
+    - name: pkinative
+      url: https://github.com/Nizoka/pkinative
+      comment: The library, its documentation site (docs/) and its conformance gate.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: pkinative security
+      primary: true
+      email: security@pkinative.dev
+    security-policy: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md
+    comment: >-
+      Report privately, never in a public issue. Preferred channel: GitHub
+      private vulnerability reporting,
+      https://github.com/Nizoka/pkinative/security/advisories/new; or e-mail
+      security@pkinative.dev. The handling timeline and the credit are in
+      SECURITY.md §Disclosure Policy.
+  documentation:
+    detailed-guide: https://pkinative.dev/guides/
+    quickstart-guide: https://pkinative.dev/guides/quickstart.html
+    code-of-conduct: https://github.com/Nizoka/pkinative/blob/main/CODE_OF_CONDUCT.md
+    release-process: https://github.com/Nizoka/pkinative/blob/main/CONTRIBUTING.md#release
+    signature-verification: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md#release-integrity
+
+repository:
+  url: https://github.com/Nizoka/pkinative
+  status: active
+  accepts-change-request: true
+  # Dependabot opens the automated ones (.github/dependabot.yml).
+  accepts-automated-change-request: true
+  core-team:
+    - name: Nizoka
+      primary: true
+      social: https://github.com/Nizoka
+  license:
+    url: https://github.com/Nizoka/pkinative/blob/main/LICENSE
+    expression: MIT
+  documentation:
+    contributing-guide: https://github.com/Nizoka/pkinative/blob/main/CONTRIBUTING.md
+    security-policy: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md
+  release:
+    automated-pipeline: true
+    distribution-points:
+      - uri: https://www.npmjs.com/package/pkinative
+        comment: npm, published by .github/workflows/publish.yml through Trusted Publishing, with provenance.
+      - uri: https://github.com/Nizoka/pkinative/releases
+        comment: GitHub Releases, carrying the tarball, the SBOMs and their Sigstore attestation.
+    changelog: https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md
+  security:
+    assessments:
+      self:
+        comment: >-
+          The adversarial release audit run before every release (CONTRIBUTING.md
+          §Release, step 5), with the conformance gate, 100 % coverage and the
+          seeded adversarial suites. There is no third-party audit and none is
+          planned (ADR 0010).
+        evidence: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md#in-place-of-an-external-audit
+    tools:
+      - name: CodeQL
+        type: SAST
+        rulesets: [security-extended]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: TypeScript and the GitHub Actions workflows, on every push and pull request to main and weekly (codeql.yml).
+      - name: zizmor
+        type: SAST
+        rulesets: [default]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: Security analysis of the workflows on every change (ci.yml).
+      - name: actionlint
+        type: other
+        rulesets: [default]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: Workflow syntax and expression checks on every change (ci.yml).
+      - name: OSV-Scanner
+        type: SCA
+        rulesets: [default]
+        integration: { adhoc: true, ci: true, release: false }
+        results: {}
+        comment: The lockfile against the OSV database, weekly and on demand (audit.yml).
+      - name: Dependabot
+        type: SCA
+        rulesets: [default]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: Weekly update pull requests for npm, GitHub Actions and Docker (.github/dependabot.yml).
+      - name: ClusterFuzzLite
+        type: fuzzing
+        rulesets: [default]
+        integration: { adhoc: true, ci: true, release: false }
+        results: {}
+        comment: Coverage-guided fuzzing of eight targets on pull requests, weekly and on demand (fuzz.yml); not a required check.
+      - name: Dependency Review
+        type: SCA
+        rulesets: [default]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: The dependency changes of every pull request, a required check (dependency-review.yml).
+      - name: Scorecard
+        type: other
+        rulesets: [default]
+        integration: { adhoc: false, ci: true, release: false }
+        results: {}
+        comment: OpenSSF Scorecard on every push to main and weekly (scorecard.yml).

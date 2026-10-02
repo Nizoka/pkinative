@@ -35,7 +35,7 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 82 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 83 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `package-files.ts` | inside `check:package` | yes | The tarball, file by file: `npm pack --dry-run --json` against `docs/data/package-files.json` — a file added, removed or made executable, or a changed LICENSE or THIRD-PARTY-NOTICES.md, fails; nothing under `src/`/`tests/`, no dotfile, no key or certificate, every `dist/` file budgeted, whatever the manifest says. `--update` regenerates it (and refuses a forbidden file) | 0/1/2 |

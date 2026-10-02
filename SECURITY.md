@@ -13,7 +13,7 @@ Please include the version (or commit), the function called with its options, th
 
 What counts as a vulnerability here: an input that makes pkinative accept an encoding the standard forbids in a way that could change a security decision (a parser differential), a verdict that accepts what the standard rejects, an input that exhausts memory or CPU despite the configured limits, an exception other than a `PkiError` subclass escaping on malformed input, or any secret-dependent behaviour.
 
-The handling steps, their timelines, the advisory and the credit are in [Disclosure Policy](#disclosure-policy). The same contacts are published for machines at `https://pkinative.dev/.well-known/security.txt` ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)).
+The handling steps, their timelines, the advisory and the credit are in [Disclosure Policy](#disclosure-policy). The same contacts are published for machines at `https://pkinative.dev/.well-known/security.txt` ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)), and with the security tools the workflows run in [`.github/SECURITY-INSIGHTS.yml`](.github/SECURITY-INSIGHTS.yml) ([OpenSSF Security Insights](https://github.com/ossf/security-insights) 2.0.0), which the `security-insights-parity` rule holds to both.
 
 ## Supported Versions
 

@@ -80,6 +80,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'option-defaults-parity': (f) => edit(f, 'src/path/path-server-name.ts', 'allowWildcards: options?.allowWildcards !== false', 'allowWildcards: options?.allowWildcards === true'),
     // An expired security.txt tells a reporter the contact may be stale (RFC 9116 §2.5.5).
     'security-txt-parity': (f) => edit(f, 'docs/.well-known/security.txt', /^Expires: .+$/m, 'Expires: 2020-01-01T00:00:00Z'),
+    // A security tool no workflow runs is a claim of coverage nobody gets.
+    'security-insights-parity': (f) => edit(f, '.github/SECURITY-INSIGHTS.yml', '- name: zizmor', '- name: Snyk'),
     // From 1.0.0 a "not on npm" sentence must be gone; one that comes back
     // (a stale paragraph pasted from an old branch) is a false statement.
     'release-era-prose': (f) => edit(f, 'llms.txt', /\n$/, '\nVersions below 1.0 are git tags, not npm releases.\n'),
@@ -748,6 +750,35 @@ describe('verify-docs rule table', () => {
         const far = { ...TREE };
         edit(far, 'docs/.well-known/security.txt', /^Expires: .+$/m, 'Expires: 2030-01-01T00:00:00Z');
         expect(await txtProblems(far)).toEqual([expect.stringContaining('is not within a year after the manifest\'s verifiedOn')]);
+    });
+
+    const insightsProblems = async (files: Record<string, string>): Promise<string[]> =>
+        (await runRules(createMemoryContext(files), RULES, 'security-insights-parity')).map((p) => p.message);
+
+    it('should fire security-insights-parity on a foreign contact, a lost channel, another policy, a dead link, a missing key and a stale review', async () => {
+        const files = { ...TREE };
+        const path = '.github/SECURITY-INSIGHTS.yml';
+        edit(files, path, 'email: security@pkinative.dev', 'email: root@pkinative.dev');
+        edit(files, path, /https:\/\/github\.com\/Nizoka\/pkinative\/security\/advisories\/new;/, 'the advisories page;');
+        edit(files, path, 'security-policy: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md', 'security-policy: https://github.com/Nizoka/pkinative/blob/main/docs/SECURITY.md');
+        edit(files, path, '/blob/main/ROADMAP.md', '/blob/main/ROADMAP-1.md');
+        edit(files, path, /^ {4}bug-bounty-available: false\n/m, '');
+        edit(files, path, /last-reviewed: '[\d-]+'/, 'last-reviewed: \'2020-01-01\'');
+        const problems = await insightsProblems(files);
+        expect(problems).toEqual(expect.arrayContaining([
+            expect.stringContaining('names root@pkinative.dev as the reporting contact'),
+            expect.stringContaining('does not name security@pkinative.dev'),
+            expect.stringContaining('does not name https://github.com/Nizoka/pkinative/security/advisories/new'),
+            expect.stringContaining('is not https://github.com/Nizoka/pkinative/blob/main/SECURITY.md'),
+            expect.stringContaining('links docs/SECURITY.md, which is not in the repository'),
+            expect.stringContaining('links ROADMAP-1.md, which is not in the repository'),
+            expect.stringContaining('lacks "bug-bounty-available:"'),
+            expect.stringContaining('last-reviewed 2020-01-01 is older than the manifest\'s verifiedOn'),
+        ]));
+        expect(problems).toHaveLength(8);
+        const dependabot = { ...TREE };
+        delete dependabot['.github/dependabot.yml'];
+        expect(await insightsProblems(dependabot)).toEqual([expect.stringContaining('lists the tool Dependabot, which no workflow')]);
     });
 
     it('should honour a verify-docs:allow suppression on the reported line or the line above', async () => {

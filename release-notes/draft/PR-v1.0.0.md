@@ -15,7 +15,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 45 diagnostic codes · 22 named limits · 82 verify-docs rules · 18 bundle probes · 3 875 tests · 100 % statements, branches, functions and lines · 21 decision records.
+Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 45 diagnostic codes · 22 named limits · 83 verify-docs rules · 18 bundle probes · 3 875 tests · 100 % statements, branches, functions and lines · 21 decision records.
 
 Conformance:
 
@@ -42,7 +42,7 @@ Conformance:
 ### Tooling (scripts/)
 
 - `build-refusals-frozen.ts`; `check-ts-floor.ts` in the publish profile; the interop runner rebuilt over `scripts/lib/interop-*.ts` with ten tools, `REQUIRED_TOOLS` per platform and reviewed `TOOL_LIMITATIONS`; two new L4 validators.
-- 82 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`, `reuse-shape`, `external-links`; `skills-shape` now also fails on an undeclared skill.
+- 83 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`, `reuse-shape`, `external-links`; `skills-shape` now also fails on an undeclared skill.
 - Bundle budgets raised with the measured cause of each (`scripts/verify-bundle.ts`): `*` 272.9 KB of 280 KB.
 
 ### CI and repository (.github/, root)
@@ -82,7 +82,7 @@ Conformance:
 | `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 515.0 s` |
 | `npm run test:coverage` | 3 875 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
 | `npm run verify:bundle` | 18 probes within budget; `*` 272.9 KB of 280 KB, `openPkcs12` 101.8 KB of 104 KB |
-| `npx tsx scripts/verify-docs.ts` | 82 rules, 0 errors, 0 warnings |
+| `npx tsx scripts/verify-docs.ts` | 83 rules, 0 errors, 0 warnings |
 | `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32) |
 | `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact, in both directions |
 | `npm run check:ts-floor` | TypeScript 5.0.4 compiles the declarations under node16, bundler, node10 and nodom |

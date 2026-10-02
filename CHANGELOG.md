@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **The cross-validation made permanent**: eight foreign implementations and two linters (zlint, pkilint) over everything the API writes, five of those implementations (OpenSSL, GnuTLS, gpgsm, .NET, CryptoAPI) also writing what it reads, `--require-all` in the conformance workflow and the publish gate; L4 with three lineages.
 - **Coverage-guided fuzzing over eight targets**, CMS, CRLs, OCSP, RFC 3161 and PKCS#12 added, with the engine pinned.
 - **The tarball inspected file by file** (`docs/data/package-files.json`, `package-files-parity`), and the 1.0.0 prose swap as a reviewed table (`PRE_1_0_PROSE`, `release-era-prose`).
-- **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; `docs/.well-known/security.txt`; REUSE 3.3 compliance (`REUSE.toml`, `reuse-shape`); 82 verify-docs rules in all, `external-links` among them.
+- **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; `docs/.well-known/security.txt`; REUSE 3.3 compliance (`REUSE.toml`, `reuse-shape`); 83 verify-docs rules in all, `external-links` among them.
 
 ### Changed
 
