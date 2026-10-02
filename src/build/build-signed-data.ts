@@ -653,8 +653,8 @@ export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: num
  *   {@link addUnsignedAttribute} throws.
  */
 export function addTimeStampToken(signedDataDer: Uint8Array, signerIndex: number, tokenDer: Uint8Array, options?: PkiBuildOptions): Uint8Array {
-    if (!(tokenDer instanceof Uint8Array)) {
-        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: tokenDer must be the TimeStampToken bytes — the tokenDer of a parsed TimeStampResponse');
-    }
-    return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [tokenDer]), options);
+    // assertBytes, as for every other byte argument: a Uint8Array made in
+    // another realm (a vm context, an iframe) is bytes too.
+    const token = assertBytes(tokenDer, 'tokenDer');
+    return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [token]), options);
 }

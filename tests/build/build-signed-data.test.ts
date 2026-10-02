@@ -1,4 +1,5 @@
 import { createHash, KeyObject, sign as nodeSign, webcrypto } from 'node:crypto';
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { addTimeStampToken, addUnsignedAttribute, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
@@ -23,7 +24,7 @@ import {
 } from '../../src/index.js';
 import type { ExternalSigner } from '../../src/types/crypto-types.js';
 import { PkiCmsError, PkiEncodingError, PkiError } from '../../src/types/pki-errors.js';
-import { concat, sequence, tlv } from '../helpers/raw-der-builder.js';
+import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 import { issueTsa, makeRoot, makeToken, tstInfo } from '../verify/_cms-pki.js';
 
 /**
@@ -317,6 +318,31 @@ describe('createSignedData', () => {
             await expect(createSignedData(input(m, { signingTime: '2026' as never }), m.signer))
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
         });
+
+        // A caller's own signingTime attribute, a UTCTime built byte by byte.
+        const callerTime = (): Uint8Array => encodeAttribute(OID.signingTime, [universal(23, ascii('260101000000Z'))]);
+
+        it('should refuse a signingTime attribute among the extras when the option writes one', async () => {
+            const m = await p256();
+            await expect(createSignedData(input(m, { signingTime: NOW, signedAttributes: [callerTime()] }), m.signer))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+        });
+
+        it('should carry a signingTime attribute given as an extra when the option is not set, once and verbatim', async () => {
+            const m = await p256();
+            const d = dissect(await createSignedData(input(m, { signedAttributes: [callerTime()] }), m.signer));
+            expect(readTime(value(d, OID.signingTime)).epochMilliseconds).toBe(NOW);
+            expect(d.signedAttrs.children.map((a) => hex(a.bytes))).toContain(hex(callerTime()));
+        });
+
+        it('should count signingTime against maxAttributes only when it is written', async () => {
+            const m = await p256();
+            // contentType, messageDigest, signingCertificateV2 and algorithmProtection are four.
+            await expect(createSignedData(input(m), m.signer, { limits: { maxAttributes: 4 } }))
+                .resolves.toBeInstanceOf(Uint8Array);
+            await expect(createSignedData(input(m, { signingTime: NOW }), m.signer, { limits: { maxAttributes: 4 } }))
+                .rejects.toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' }));
+        });
     });
 
     describe('signingCertificateV2', () => {
@@ -362,6 +388,14 @@ describe('createSignedData', () => {
             const m = await p256();
             expect(dissect(await createSignedData(input(m, { algorithmProtection: false }), m.signer)).attributes.has(OID.algorithmProtection)).toBe(false);
         });
+
+        it('should accept algorithmProtection as an extra once the builder is told not to write it', async () => {
+            const m = await p256();
+            const attribute = encodeAttribute(OID.algorithmProtection, [encodeSequence([encodeSequence([encodeObjectIdentifier(OID.sha256)])])]);
+            const d = dissect(await createSignedData(input(m, { algorithmProtection: false, signedAttributes: [attribute] }), m.signer));
+            expect(d.attributes.get(OID.algorithmProtection)).toHaveLength(1);
+            expect(d.signedAttrs.children.map((a) => hex(a.bytes))).toContain(hex(attribute));
+        });
     });
 
     it('should carry extra signed and unsigned attributes verbatim, the signed ones under the signature', async () => {
@@ -406,6 +440,14 @@ describe('createSignedData', () => {
             expect(d.crls?.children.map((c) => hex(c.bytes))).toEqual([hex(crl)]);
             expect(d.version).toBe(1);
         }, 60_000);
+
+        it('should leave the crls field out when no CRL is given, rather than write an empty [1]', async () => {
+            const m = await p256();
+            const d = dissect(await createSignedData(input(m), m.signer));
+            expect(d.crls).toBeUndefined();
+            // version, digestAlgorithms, encapContentInfo, certificates [0], signerInfos.
+            expect(d.signedData.children.map((c) => c.bytes[0])).toEqual([0x02, 0x31, 0x30, 0xa0, 0x31]);
+        });
 
         it.each([
             ['an extended certificate [0] leaves it 1', { certificates: [tlv(2, true, 0, [0x05, 0x00])] }, 1],
@@ -708,6 +750,40 @@ describe('addUnsignedAttribute', () => {
         }
     });
 
+    it('should refuse a signerIndex that is not a non-negative integer before reading the SignedData', () => {
+        // Truncated bytes: had the index been accepted, the encoding error would come first.
+        const truncated = Uint8Array.of(0x30, 0x05, 0x06);
+        for (const index of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+            const thrown = catchError(() => addUnsignedAttribute(truncated, index, TOKEN));
+            expect(thrown).not.toBeInstanceOf(PkiEncodingError);
+            expect(thrown).toMatchObject({ code: 'PKI_API_MISUSE' });
+        }
+    });
+
+    it('should add to a SignedData that carries neither certificates nor crls', async () => {
+        const d = dissect(await BASE());
+        const fields = d.signedData.children.filter((c) => !isContext(c, 0)).map((c) => c.bytes);
+        expect(fields).toHaveLength(4);
+        const a = dissect(addUnsignedAttribute(around(...fields), 0, TOKEN));
+        // version, digestAlgorithms, encapContentInfo, signerInfos — RFC 5652 §5.1 makes both bags OPTIONAL.
+        expect(a.signedData.children.map((c) => c.bytes[0])).toEqual([0x02, 0x31, 0x30, 0x31]);
+        expect(a.unsignedAttrs?.children.map((c) => hex(c.bytes))).toEqual([hex(TOKEN)]);
+    });
+
+    it('should point a missing signerInfos at the end of the SignedData', async () => {
+        const d = dissect(await BASE());
+        const der = around(...d.signedData.children.slice(0, 3).map((c) => c.bytes));
+        expect(catchError(() => addUnsignedAttribute(der, 0, TOKEN)))
+            .toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path: 'signedData.signerInfos', offset: der.length });
+    });
+
+    it('should admit exactly maxAttributes unsigned attributes, the added one included', async () => {
+        const m = await p256();
+        const der = await createSignedData(input(m, { unsignedAttributes: [encodeAttribute('2.5.4.3', [encodeInteger(1)])] }), m.signer);
+        const a = dissect(addUnsignedAttribute(der, 0, TOKEN, { limits: { maxAttributes: 2 } }));
+        expect(a.unsignedAttrs?.children).toHaveLength(2);
+    });
+
     it.each(MALFORMED_ATTRIBUTES())('should refuse an attribute that is %s', async (_label, attribute) => {
         const der = await BASE();
         expect(() => addUnsignedAttribute(der, 0, attribute))
@@ -855,6 +931,15 @@ describe('addTimeStampToken', () => {
     it('should refuse a token that is not bytes with PKI_INVALID_INPUT', async () => {
         const der = await BASE();
         expect(catchError(() => addTimeStampToken(der, 0, 'MIIB' as unknown as Uint8Array))).toMatchObject({ code: 'PKI_INVALID_INPUT' });
+    });
+
+    it('should accept a token made in another realm, as every other byte argument is', async () => {
+        const token = encodeSequence([encodeObjectIdentifier(OID.signedData), encodeInteger(42)]);
+        const foreign = runInNewContext('Uint8Array.from(source)', { source: Array.from(token) }) as Uint8Array;
+        expect(foreign instanceof Uint8Array).toBe(false);
+        const attribute = child(dissect(addTimeStampToken(await BASE(), 0, foreign)).unsignedAttrs, 0);
+        expect(readObjectIdentifier(child(attribute, 0))).toBe(OID.timeStampToken);
+        expect(hex(child(child(attribute, 1), 0).bytes)).toBe(hex(token));
     });
 
     it('should refuse a ContentInfo that is not id-signedData with PKI_CMS_CONTENT_TYPE_UNEXPECTED', () => {
