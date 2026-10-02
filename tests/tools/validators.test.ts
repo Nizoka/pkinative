@@ -6,6 +6,7 @@ import {
     FIELDS,
     SCHEMA,
     VALIDATORS,
+    checkFieldMask,
     compareRecord,
     negativeCanaries,
     parseStream,
@@ -138,5 +139,44 @@ describe('the validator registry', () => {
         for (const [name, description] of Object.entries(FIELDS)) {
             expect(description, name).toMatch(/[a-z]/);
         }
+    });
+
+    it('should pin the mask of every validator, by count and by name', () => {
+        const pinned = Object.fromEntries(VALIDATORS.map((v) => [v.id, v.fields.length]));
+        expect(pinned).toEqual({ 'windows-cryptoapi': 5, 'go-x509': 6, 'python-cryptography': 5 });
+        for (const spec of VALIDATORS) {
+            expect(new Set(spec.fields).size, spec.id).toBe(spec.fields.length);
+            for (const field of spec.fields) expect(Object.keys(FIELDS), spec.id).toContain(field);
+        }
+        expect(VALIDATORS.find((v) => v.id === 'windows-cryptoapi')?.fields).not.toContain('tbsFp256');
+        expect(VALIDATORS.find((v) => v.id === 'python-cryptography')?.fields).not.toContain('spkiKeyFp256');
+    });
+
+    it('should pin exactly the mask each validator program declares in its header', () => {
+        // The emitters are read as text: the pin and the program must move together.
+        const root = join(process.cwd(), 'scripts', 'validators');
+        const sources: Record<string, string> = {
+            'windows-cryptoapi': readFileSync(join(root, 'windows-cryptoapi.ps1'), 'utf8'),
+            'go-x509': readFileSync(join(root, 'go-x509', 'main.go'), 'utf8'),
+            'python-cryptography': readFileSync(join(root, 'python-cryptography.py'), 'utf8'),
+        };
+        for (const spec of VALIDATORS) {
+            const source = sources[spec.id];
+            expect(source, `${spec.id} has no emitter source in this test`).toBeDefined();
+            const header = /fields['"]?\s*[:=]?\s*(?:@\(|\[\]string\{|\[)([^)}\]]*)/.exec(source ?? '')?.[1] ?? '';
+            const declared = [...header.matchAll(/['"](\w+)['"]/g)].map((m) => m[1]);
+            expect(new Set(declared), spec.id).toEqual(new Set(spec.fields));
+        }
+    });
+
+    it('should fail a validator whose declared mask drifts from its pin, in either direction', () => {
+        const spec = { id: 'probe', fields: ['subjectFp256', 'tbsFp256'] };
+        expect(checkFieldMask(spec, ['tbsFp256', 'subjectFp256'])).toEqual([]);
+        const dropped = checkFieldMask(spec, ['subjectFp256']);
+        expect(dropped).toHaveLength(1);
+        expect(dropped[0]).toMatch(/no longer declares tbsFp256/);
+        const added = checkFieldMask(spec, ['subjectFp256', 'tbsFp256', 'version']);
+        expect(added).toHaveLength(1);
+        expect(added[0]).toMatch(/declares version, which its registry entry does not pin/);
     });
 });

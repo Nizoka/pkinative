@@ -13,9 +13,11 @@
  *    its own), and chasing that is endless and proves nothing. `SHA-256` of
  *    the subject's *encoded bytes* is both simpler and stricter, and every
  *    implementation can produce it.
- * 2. **A self-declared field mask.** A validator announces in its header what
- *    it can supply; only those fields are compared. A tool that cannot reach
- *    the SubjectPublicKeyInfo says so instead of being special-cased here.
+ * 2. **A declared field mask, pinned.** A validator announces in its header
+ *    what it can supply; only those fields are compared. A tool that cannot
+ *    reach the SubjectPublicKeyInfo says so instead of being special-cased
+ *    here — and its registry entry pins what it must declare, so a validator
+ *    that quietly drops a field fails instead of agreeing about less.
  * 3. **A footer that proves completeness.** A validator that stops halfway is
  *    caught by the contract itself, not by a heuristic about output length.
  * 4. **Canaries against complacency.** A positive canary every validator must
@@ -94,6 +96,12 @@ export interface ValidatorSpec {
     readonly lineage: string;
     /** `process.platform` values this validator can run on. */
     readonly platforms: readonly string[];
+    /**
+     * The field mask its header must declare, exactly. Pinned here rather than
+     * believed from the header, so a validator that stops supplying a field
+     * fails instead of agreeing about fewer things.
+     */
+    readonly fields: readonly string[];
     /** Its version string, or null when the toolchain is not installed. */
     readonly probe: () => string | null;
     /** Read `blobPath`, write NDJSON to `outPath`. */
@@ -202,6 +210,23 @@ export function compareRecord(expected: Expected, actual: CertRecord, mask: read
     return out;
 }
 
+/**
+ * Hold a validator's declared mask to the one its registry entry pins.
+ *
+ * @returns One message per field missing from, or added to, the pinned mask;
+ * empty when the two hold the same fields.
+ */
+export function checkFieldMask(spec: Pick<ValidatorSpec, 'id' | 'fields'>, declared: readonly string[]): string[] {
+    const out: string[] = [];
+    for (const field of spec.fields) {
+        if (!declared.includes(field)) out.push(`${spec.id} no longer declares ${field}, which its registry entry pins — a validator that drops a field must not agree about less in silence`);
+    }
+    for (const field of declared) {
+        if (!spec.fields.includes(field)) out.push(`${spec.id} declares ${field}, which its registry entry does not pin — pin it in the entry's fields in the same commit`);
+    }
+    return out;
+}
+
 // ── Canaries ─────────────────────────────────────────────────────────
 
 /**
@@ -270,6 +295,8 @@ export const VALIDATORS: readonly ValidatorSpec[] = [
         id: 'windows-cryptoapi',
         lineage: 'Microsoft CryptoAPI, through .NET X509Certificate2',
         platforms: ['win32'],
+        // Five fields: X509Certificate2 exposes no slice of the tbsCertificate.
+        fields: ['subjectFp256', 'issuerFp256', 'spkiKeyFp256', 'keyAlgOid', 'version'],
         probe: () => {
             const probe = run('powershell', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'], 60_000);
             return probe.status === 0 && probe.stdout.trim() !== '' ? `Windows PowerShell ${probe.stdout.trim()}` : null;
@@ -283,6 +310,7 @@ export const VALIDATORS: readonly ValidatorSpec[] = [
         id: 'go-x509',
         lineage: 'Go crypto/x509, its own ASN.1 with no C underneath',
         platforms: ['linux'],
+        fields: ['subjectFp256', 'issuerFp256', 'spkiKeyFp256', 'tbsFp256', 'keyAlgOid', 'version'],
         probe: () => {
             const probe = run('go', ['version'], 60_000);
             return probe.status === 0 ? probe.stdout.trim() : null;
@@ -298,6 +326,7 @@ export const VALIDATORS: readonly ValidatorSpec[] = [
         id: 'python-cryptography',
         lineage: 'pyca/cryptography, rust-asn1 and the cryptography-x509 crate',
         platforms: ['linux'],
+        fields: ['subjectFp256', 'issuerFp256', 'tbsFp256', 'keyAlgOid', 'version'],
         probe: () => {
             const probe = run('python3', ['-c', 'import cryptography; print(cryptography.__version__)'], 60_000);
             return probe.status === 0 ? `cryptography ${probe.stdout.trim()}` : null;

@@ -85,6 +85,7 @@ import { parseRefusalsFrozen, REFUSALS_FROZEN } from './lib/refusals-frozen.js';
 import { evaluateClauses } from './validators/rfc5280-clauses.js';
 import {
     VALIDATORS,
+    checkFieldMask,
     compareRecord,
     negativeCanaries,
     parseStream,
@@ -1226,6 +1227,13 @@ function runCrossValidators(pki: typeof Pki, certificates: ReadonlyMap<string, U
         if ('errors' in stream) {
             if (!outcome.ok) fail(`L4 ${spec.id}: the validator exited non-zero — ${outcome.stderr.slice(0, 200)}`);
             for (const message of stream.errors.slice(0, 5)) fail(`L4 ${spec.id}: ${message}`);
+            continue;
+        }
+        // The mask is pinned, not believed: a validator that stops declaring
+        // a field would otherwise stay green while comparing less.
+        const maskDrift = checkFieldMask(spec, stream.header.fields);
+        if (maskDrift.length > 0) {
+            for (const message of maskDrift) fail(`L4 ${message}`);
             continue;
         }
 
