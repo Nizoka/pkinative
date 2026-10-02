@@ -63,43 +63,43 @@
       "reason": "Message-only: verified === true has already returned, so verified !== false holds exactly when verified is undefined — the same single case as the if-true mutant at 439:13, with the same consequence: false in place of undefined, read by every consumer only as \"not true\", and worded differently in the REVOCATION_UNKNOWN message."
     },
     {
-      "id": "src/verify/verify-chain.ts:579:13:if-true",
+      "id": "src/verify/verify-chain.ts:602:13:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:688:17:if-true",
+      "id": "src/verify/verify-chain.ts:710:17:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:605:9:if-false",
+      "id": "src/verify/verify-chain.ts:628:9:if-false",
       "original": "lists.length === 0 && stapled.length === 0",
       "replacement": "false",
       "reason": "Message-only: with no list and no response, the code past the early return parses nothing, finds no list covering any certificate (mine stays empty, so the reason-mask push adds nothing) and runs no OCSP loop; what remains is the final requirement check, which pushes PKI_REASON_REVOCATION_UNKNOWN at path[0] exactly when requireRevocation is true and nothing covered path[0] — the code, path and condition of the early return's own reason, with other wording."
     },
     {
-      "id": "src/verify/verify-chain.ts:605:26:number-1",
+      "id": "src/verify/verify-chain.ts:628:26:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:605:50:number-1",
+      "id": "src/verify/verify-chain.ts:628:50:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:742:91:number+1",
+      "id": "src/verify/verify-chain.ts:779:91:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Semantic: the fallback is read only when no single response names the leaf's serial (mine is undefined). The digest then chooses how the expected CertID is computed, and a CertID matches only when its serial does too, so no answer can match under any digest and checkOcspStatus returns the same no-matching-answer verdict; _digestOf(undefined) yields SHA-1, a member of the same two-value range."
     },
     {
-      "id": "src/verify/verify-chain.ts:742:91:number-1",
+      "id": "src/verify/verify-chain.ts:779:91:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: responses[-1] is undefined, so the digest falls to SHA-1 — read only when no single response names the leaf's serial, where no CertID can match under any digest (see 727:91:number+1)."
