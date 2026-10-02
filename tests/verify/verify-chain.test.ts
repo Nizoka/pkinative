@@ -517,6 +517,18 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_INPUT_MALFORMED@ocspResponses[0]', 'PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[1]']);
     });
 
+    it('should look for a list\'s signer only among certificates named as its issuer', async () => {
+        // The list names the CA and is signed by the root's key; the root may
+        // sign lists, and its key does verify the bytes — but a list in the
+        // CA's name is the CA's to sign, so nobody entitled signed this one.
+        const { root, ica, leaf, rootKey } = await ed25519Hierarchy({ crlSign: true, rootCrlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, rootKey)],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN@crls[0]']);
+    });
+
     it('should not use, nor count as an answer, a list whose entry about another certificate is critical and unknown (§5.3)', async () => {
         const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
         const report = await verifyCertificateChain({

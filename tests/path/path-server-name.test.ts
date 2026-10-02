@@ -244,6 +244,12 @@ describe('checkServerName â€” a dns reference that spells an address (RFC 2818 Â
         { reference: ':2001:db8::1', san: V6, expected: false },
         { reference: '2001:db8::1:', san: V6, expected: false },
         { reference: '12345::', san: LEAD, expected: false },
+        // `::` standing for exactly one group, seven written around it.
+        { reference: '1:2:3::4:5:6:7', san: [0, 1, 0, 2, 0, 3, 0, 0, 0, 4, 0, 5, 0, 6, 0, 7], expected: true },
+        // A third `::` half is no address, even when the first half alone would be one.
+        { reference: '1:2:3:4:5:6:7:8::1::', san: [0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8], expected: false },
+        // One bracket is not a bracketed literal: nothing is stripped.
+        { reference: '[2001:db8::10', san: V6, expected: false },
         // Longer than any IPv6 text can be (45 characters): refused before the groups are walked.
         { reference: `${'0:'.repeat(23)}1`, san: LEAD, expected: false },
     ])('should read "$reference" as an address: matches=$expected', ({ reference, san, expected }) => {

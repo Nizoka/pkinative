@@ -488,9 +488,9 @@ export function _unknownCriticalEntryExtension(der: Uint8Array, options?: PkiPar
         const path = `tbsCertList.revokedCertificates[${String(index)}]`;
         enforceLimit(ctx.limits, 'maxRevokedCertificates', index + 1, path);
         index += 1;
-        // Bounded by the entry's own length: at most its three fields are walked.
+        // Bounded by the entry's own length. An entry without the optional
+        // third field reads as no extensions, and nothing is decoded for it.
         const field = [...walkChildren(der, entry, path)][2];
-        if (field === undefined) continue;
         for (const extension of readExtensions(der, field, ctx, `${path}.crlEntryExtensions`)) {
             if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
         }
