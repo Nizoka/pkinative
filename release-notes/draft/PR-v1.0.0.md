@@ -10,12 +10,13 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 
 - **The three-part compatibility promise** (export surface, error vocabulary, decision surface), each held by a snapshot and a rule, plus what ADR 0018 adds beyond the snapshots: option defaults, open unions, what is not promised.
 - **Security fixes found before anyone could depend on the defect:** the PBKDF2 work of a whole PKCS#12 bounded (`maxPkcs12KdfIterations`, ADR 0020); `PKI_REASON_REVOKED` only from authenticated evidence; three name-constraint bypasses closed; id-RSASSA-PSS keys held to RFC 4055. A CVE-class corpus of 43 published vulnerabilities of comparable libraries.
+- **A final review before publication (2026-10-02):** four adversarial reviewers and a verifier found 42 more — three bypasses (a trust anchor matched by its name alone; a CRL signer believed without validating under the anchors, which let a forged delta hide a revocation and a forged list satisfy `requireRevocation`), four majors (the user policy set intersected in the leaf's domain, RSA e = 1 verifying a signature made with no key, a SHA-1 timestamp imprint, a one-octet PBMAC1 key) and 22 minors — every one fixed with the test that reproduces it, and the corpora unchanged except where the fix made them agree.
 - **Decisions 1.0 could not leave open:** one entry point (ADR 0016), the runtime and toolchain policy with a patched Node.js floor (ADR 0017), error identity across the ESM and CJS builds (ADR 0021).
 - **Cross-validation made permanent:** eight foreign implementations and two linters read what pkinative writes, five of them also write what it reads, `--require-all`.
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 45 diagnostic codes · 22 named limits · 83 verify-docs rules · 18 bundle probes · 3 875 tests · 100 % statements, branches, functions and lines · 21 decision records.
+Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 82 diagnostic codes · 22 named limits · 83 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 4 604 tests · 100 % statements, branches, functions and lines · 21 decision records.
 
 Conformance:
 
@@ -25,7 +26,7 @@ Conformance:
 | L2 | 30 361 re-encoded byte for byte |
 | L3 | node:crypto 29 796/29 796; OpenSSL 4.0.0 202/202 sampled |
 | L4 | CryptoAPI 202/202 on Windows; Python cryptography and Go `crypto/x509` on Linux (CI) |
-| L5 | 25 clauses; 182 requirement sentences of §4.1–§4.2 accounted for (21 clauses, 161 excluded, 36 not yet diagnosed) |
+| L5 | 61 clauses; RFC 5280: 182 sentences of §4.1–§4.2 (57 held by a clause, 125 excluded, 0 not diagnosed); RFC 5652 50 (37 tests), 3161 38 (26), 6960 23 (13), 7292 9 (7), 7468 12 (8), every exclusion with its reason |
 | L6 | 9 158/9 208 (99.46 %) |
 | L7 | 195/203 (96.06 %) |
 | L8 | 221/224 intact, 196/204 agree with NIST |
@@ -37,6 +38,8 @@ Conformance:
 
 - New: the limit `maxPkcs12KdfIterations`; the exports `SubjectDirectoryAttributesExtension` and `DirectoryAttribute` (the extension kind `subjectDirectoryAttributes`); the option `CheckServerNameOptions.path`; five diagnostic codes; `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`.
 - Fixed: REVOKED only from authenticated, applicable evidence; URI hosts by RFC 3986 and SmtpUTF8Mailbox under rfc822Name constraints; the commonName fallback under dNSName constraints; RFC 4055 for PSS keys; RSASSA-PSS AlgorithmIdentifiers with explicit NULL; name attributes in their Appendix A string types and bounds; X.690 §8.23 string violations diagnosed; `crls[n]` reason paths; whole-millisecond timestamp bounds; `KEY_USAGE_BITS` frozen; `instanceof` across builds; the path search indexes its signature verdicts once (a 65-certificate bag went from 18 minutes to 29 s).
+- Fixed by the final review: a trust anchor is a name and a key; an off-path CRL issuer validates under the anchors with its own links; the policy set is intersected in the anchor's domain; RSA e < 3 or even refused; a SHA-1 timestamp imprint gated by `allowSha1`; PBMAC1 keys under 20 octets not verified; v1/v2 intermediates refused; an IP-literal `dns` reference read as an address; an unknown critical CRL entry extension makes the list unusable; an OCSP answer without `nextUpdate` stale, contradictory answers UNKNOWN, a delegated responder checked for revocation unless `id-pkix-ocsp-nocheck`; the reasons mask includes the distribution point's reasons; verdict reasons rooted at `crls[n]` / `ocspResponses[n]`; the implicit anchor counted against `maxChainLength`; the clock read once per call; the CRL/OCSP cursor as strict as the decoder; an indefinite child bounded by its parent; the RSASSA-PSS grammar enforced; `createCertificate` refusing a serial of 0 or over 20 octets.
+- New since the review: 37 diagnostics — `PKI_DIAG_SPKI_RSA_EXPONENT_WEAK`, `PKI_DIAG_SPKI_EC_PARAMETERS_INVALID`, `PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER`, and 34 for the RFC 5280 §4.1–§4.2 sentences the inventory had recorded as not diagnosed (RFC 3986 and RFC 4516 grammar in `core/uri.ts`); `strict: true` refuses the first `warning` and reports every `info`.
 - `api.frozen.json` moved on ADR 0015 and ADR 0020 in the rehearsal, then rebased as `stable` at 1.0.0 (284 exports, 43 reason codes).
 
 ### Tooling (scripts/)
@@ -44,6 +47,7 @@ Conformance:
 - `build-refusals-frozen.ts`; `check-ts-floor.ts` in the publish profile; the interop runner rebuilt over `scripts/lib/interop-*.ts` with ten tools, `REQUIRED_TOOLS` per platform and reviewed `TOOL_LIMITATIONS`; two new L4 validators.
 - 83 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`, `reuse-shape`, `external-links`; `skills-shape` now also fails on an undeclared skill.
 - Bundle budgets raised with the measured cause of each (`scripts/verify-bundle.ts`): `*` 272.9 KB of 280 KB.
+- Requirement inventories for RFC 5652, 3161, 6960, 7292 and 7468 (`scripts/data/rfc*-requirements.json`, `scripts/lib/rfc-requirements.ts` generalised, the L5 runner over all six); `scripts/mutate.ts` targets every executable module of `src/`; the `export-exercised`, `security-insights-parity` and extended `bench-parity` rules; the L4 validators' field masks pinned; gpgsm and keytool required on Linux, .NET's Unix gap declared.
 
 ### CI and repository (.github/, root)
 
@@ -53,6 +57,7 @@ Conformance:
 - Dependabot with a seven-day cooldown, the actions grouped, the ClusterFuzzLite image and the pinned fuzzing engine watched. brace-expansion lifted in the lockfile (three advisories published 2026-09-29, dev-only).
 - ClusterFuzzLite over eight targets. A weekly OSV-Scanner job in `audit.yml`, installed at a fixed version through the Go checksum database.
 - REUSE 3.3: `REUSE.toml` and `LICENSES/`; `reuse lint` reports 520/520 files compliant.
+- `.github/SECURITY-INSIGHTS.yml` (OpenSSF Security Insights 2.0). ADR 0010 amended: no external audit is planned, and the offer to scope one on request is withdrawn. ADR 0016 amended: `index.d.ts` crossed its trigger on the diagnostics' vocabulary, decision unchanged.
 
 ### Agent layer (.claude/, AGENTS.md, governance)
 
@@ -63,6 +68,7 @@ Conformance:
 ### Tests and conformance
 
 - `tests/security/cve-classes.test.ts` (43 classes), `tests/tools/dual-package.test.ts`, `tests/tools/exported-constants.test.ts`, `tests/tools/interop.test.ts`, `tests/conformance/guide-counts.test.ts`, `tests/tools/check-ts-floor.test.ts`; mutation testing back to 100 % on every module the fixes touched, `verify-chain.ts` (213 mutants) and `verify-timestamp.ts` (131) included — 22 reviewed equivalents in all, each with its argument in `scripts/data/mutation-equivalents.json`.
+- `tests/performance/budgets.test.ts` (a time budget at every named limit), `tests/property/repeatability.test.ts` (two runs and two builds write the same bytes), `tests/x509/x509-profile.test.ts` (the 34 profile diagnostics, each with its twin and its strict verdict), `tests/core/uri.test.ts`; `openPkcs12` under adversarial files; 59 frozen samples; 2 new benchmark files with the 1.0.0 section of `bench/RESULTS.md`; mutation at 100 % on every module the review touched, 49 argued equivalents.
 
 ### Documentation
 
@@ -73,17 +79,18 @@ Conformance:
 ## Independent audit
 
 - **Pre-publication audit (agents, 2026-09-30):** 9 auditors and 9 adversarial verifiers; 98 findings CONFIRMED or DOWNGRADED — 1 blocker, 10 major, 48 minor, 39 note — all fixed or decided on this branch. The tools it used are recorded with their versions; the cross-validation it ran by hand is now the permanent interop matrix.
+- **Final review (agents, 2026-10-02):** 4 reviewers (parsers; decision logic; crypto, encoders, CMS and keys; methodology, hardening and documentation) and 1 adversarial verifier replaying every finding; 42 findings, 0 rejected — 3 blocker, 4 major, 22 minor, 13 note — all fixed on this branch; the ledgers name the probe that reproduced each.
 - `/release-audit release-notes/v1.0.0.md v0.9.0` — PENDING (the maintainer's GO/NO-GO).
 
 ## Validation (what actually ran, on Windows 11, Node v22.17.0)
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 515.0 s` |
-| `npm run test:coverage` | 3 875 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
-| `npm run verify:bundle` | 18 probes within budget; `*` 272.9 KB of 280 KB, `openPkcs12` 101.8 KB of 104 KB |
+| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 533.5 s` |
+| `npm run test:coverage` | 4 604 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
+| `npm run verify:bundle` | 18 probes within budget; `*` 296.3 KB of 300 KB, `openPkcs12` 118.5 KB of 120 KB, `parseCertificate` 84.2 KB of 86 KB |
 | `npx tsx scripts/verify-docs.ts` | 83 rules, 0 errors, 0 warnings |
-| `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32) |
+| `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32); L5 six inventories, 0 todo |
 | `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact they read or write |
 | `npm run check:ts-floor` | TypeScript 5.0.4 compiles the declarations under node16, bundler, node10 and nodom |
 | `npm run check:package` | PASS (attw, publint, the tarball file by file) |
@@ -113,7 +120,7 @@ From here, semver applies to all three parts of the promise and to what ADR 0018
 ## Out of scope (tracked in ROADMAP.md §1.1.x)
 
 - `pkinative-cli` and `pkinative-mcp`, after 1.0.0.
-- The 36 RFC 5280 §4 requirements not yet diagnosed; id-RSASSA-PSS keys re-wrapped for Web Crypto; a PKCS#10 reader; lazy signature verification in the path search; Node.js 26 when it enters LTS.
+- The fifteen requirement sentences of RFC 5652, 3161 and 6960 decidable from the bytes and not yet diagnosed; id-RSASSA-PSS keys re-wrapped for Web Crypto; a PKCS#10 reader; lazy signature verification in the path search; Node.js 26 when it enters LTS.
 
 ## Human-in-the-loop — steps for the maintainer
 

@@ -84,7 +84,9 @@ export const PROBES: readonly Probe[] = [
     // now carries the bound no child may cross (an indefinite child held to its
     // definite parent, P-03).
     { exports: ['decodeAsn1'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
-    { exports: ['decodePem', 'encodePem'], maxBytes: 13 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
+    // Final review (2026-10-02): 13 KB → 14 KB, measured at 13.0 KB — the strict
+    // rule now reads a diagnostic's severity, in the diagnostics module PEM carries.
+    { exports: ['decodePem', 'encodePem'], maxBytes: 14 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     // 1.0.0 audit: 64 KB → 70 KB, measured at 67.7 KB — the RFC 5280 Appendix A
     // name-syntax table and its two diagnostics, the X.690 §8.23 string checks,
     // and the subjectDirectoryAttributes decoder that makes "every RFC 5280
