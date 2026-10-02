@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3699,
-      "approxTokens": 925
+      "bytes": 3707,
+      "approxTokens": 927
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 213858,
-      "approxTokens": 53465
+      "bytes": 213926,
+      "approxTokens": 53482
     },
     {
       "url": "llms-recipes.txt",
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13777,
-      "approxTokens": 3444
+      "bytes": 13797,
+      "approxTokens": 3449
     },
     {
       "title": "Use cases",
@@ -201,8 +201,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 5746,
-      "approxTokens": 1437
+      "bytes": 5766,
+      "approxTokens": 1442
     }
   ]
 }

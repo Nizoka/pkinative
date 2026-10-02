@@ -10,8 +10,8 @@ It decodes and encodes ITU-T X.690 DER (BER on request), reads and writes RFC 74
 and parses RFC 5280 X.509 certificates with every standard extension. On that foundation it verifies signatures,
 builds and validates RFC 5280 §6 paths with CRL and OCSP revocation, checks host names and key purposes, reads, builds
 and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files under PBES2, and creates
-certificates and certification requests. One build runs on every runtime with Web Crypto: CI tests Node.js 22 and 24
-on Linux, Windows and macOS, with Deno, Bun and headless Chromium smoke tests.
+certificates and certification requests. One build runs on every runtime with Web Crypto: CI tests Node.js 22
+on Linux, Windows and macOS and Node.js 24 on Linux, with Deno, Bun and headless Chromium smoke tests.
 
 It is the third library of the *native* family ([pdfnative](https://github.com/Nizoka/pdfnative), [zipnative](https://github.com/Nizoka/zipnative))
 and follows the same doctrine: one quality gate, secure-by-default parsing of hostile input, stable machine-readable error codes,
