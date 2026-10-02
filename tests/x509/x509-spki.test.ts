@@ -121,6 +121,31 @@ describe('_readSubjectPublicKeyInfo', () => {
             expect(readSpki(spki(algorithm(EC, nullValue()), bitString(point(65))))).toMatchObject({ kind: 'ec', namedCurve: undefined, curve: undefined });
         });
 
+        // P-16: RFC 5480 §2.1.1 — namedCurve only; implicitCurve and specifiedCurve MUST NOT be used.
+        it.each<[string, Uint8Array]>([
+            ['NULL parameters (implicitCurve)', algorithm(EC, nullValue())],
+            ['explicit parameters (specifiedCurve)', algorithm(EC, sequence(integer([1])))],
+            ['a namedCurve pkinative does not know (secp256k1)', ecAlgorithm('1.3.132.0.10')],
+        ])('should diagnose %s at the parameters, and decode the key regardless', (_label, alg) => {
+            const input = spki(alg, bitString(point(65)));
+            const seen: { code: string; path: string; offset: number | undefined; standard: string }[] = [];
+            const key = readSpki(input, { onDiagnostic: (d) => { seen.push({ code: d.code, path: d.path, offset: d.offset, standard: d.standard }); } });
+            expect(seen).toEqual([{ code: 'PKI_DIAG_SPKI_EC_PARAMETERS_INVALID', path: 'spki.algorithm.parameters', offset: 2 + 2 + 9, standard: 'RFC 5480 §2.1.1' }]);
+            expect(key).toMatchObject({ kind: 'ec', curve: undefined });
+        });
+
+        it.each([P256, '1.3.132.0.34', '1.3.132.0.35'])('should say nothing about the namedCurve %s', (curve) => {
+            const size = curve === P256 ? 32 : curve === '1.3.132.0.34' ? 48 : 66;
+            expect(diagnosticsOf(spki(ecAlgorithm(curve), bitString(point(1 + 2 * size))))).toEqual([]);
+        });
+
+        it('should refuse a malformed point without also diagnosing its parameters', () => {
+            const seen: string[] = [];
+            expect(() => readSpki(spki(algorithm(EC, nullValue()), bitString(point(64))), { onDiagnostic: (d) => { seen.push(d.code); } }))
+                .toThrow(expect.objectContaining({ code: 'PKI_X509_SPKI_INVALID' }));
+            expect(seen).toEqual([]);
+        });
+
         it.each<[string, Uint8Array]>([
             ['a P-256 point of 64 octets', spki(ecAlgorithm(P256), bitString(point(64)))],
             ['a P-256 compressed point of 32 octets', spki(ecAlgorithm(P256), bitString(point(32, 0x02)))],

@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3707,
-      "approxTokens": 927
+      "bytes": 3699,
+      "approxTokens": 925
     },
     {
       "url": "agent-brief.md",
@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 221307,
-      "approxTokens": 55327
+      "bytes": 213511,
+      "approxTokens": 53378
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 126457,
-      "approxTokens": 31614
+      "bytes": 126105,
+      "approxTokens": 31526
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 293369,
-      "approxTokens": 73342
+      "bytes": 293314,
+      "approxTokens": 73329
     },
     {
       "url": "data/errors.json",
@@ -42,8 +42,8 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 18546,
-      "approxTokens": 4637
+      "bytes": 19222,
+      "approxTokens": 4806
     },
     {
       "url": "data/limits.json",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 15323,
-      "approxTokens": 3831
+      "bytes": 14340,
+      "approxTokens": 3585
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13797,
-      "approxTokens": 3449
+      "bytes": 13777,
+      "approxTokens": 3444
     },
     {
       "title": "Use cases",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 81706,
-      "approxTokens": 20427
+      "bytes": 80825,
+      "approxTokens": 20206
     },
     {
       "title": "Security model",
@@ -135,7 +135,7 @@
     },
     {
       "title": "Conformance",
-      "summary": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.",
+      "summary": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.",
       "html": "guides/conformance.html",
       "markdown": "guides/conformance.md",
       "anchors": [
@@ -148,8 +148,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 44597,
-      "approxTokens": 11149
+      "bytes": 40166,
+      "approxTokens": 10042
     },
     {
       "title": "Standards",
@@ -163,8 +163,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 13462,
-      "approxTokens": 3366
+      "bytes": 11645,
+      "approxTokens": 2911
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -187,8 +187,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 24531,
-      "approxTokens": 6133
+      "bytes": 24835,
+      "approxTokens": 6209
     },
     {
       "title": "Choosing a PKI library",
@@ -201,8 +201,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 5766,
-      "approxTokens": 1442
+      "bytes": 5746,
+      "approxTokens": 1437
     }
   ]
 }

@@ -240,6 +240,23 @@ export function spkiRsaExponentWeakDiagnostic(path: string, exponent: bigint, of
 }
 
 /**
+ * An EC key whose parameters do not name a curve pkinative knows: NULL
+ * (implicitCurve) or explicit parameters (specifiedCurve), which RFC 5480
+ * §2.1.1 forbids, or a namedCurve OID outside P-256, P-384 and P-521. The key
+ * still decodes, with `curve` undefined; no signature under it is checked
+ * (`PKI_CRYPTO_KEY_UNSUPPORTED` at verification).
+ *
+ * @param namedCurve The curve OID when the parameters are one, else undefined.
+ */
+export function spkiEcParametersInvalidDiagnostic(path: string, namedCurve: string | undefined, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SPKI_EC_PARAMETERS_INVALID', 'warning', 'RFC 5480 §2.1.1',
+        namedCurve === undefined
+            ? 'the EC key parameters are not a namedCurve OBJECT IDENTIFIER; RFC 5480 forbids implicitCurve (NULL) and specifiedCurve, and no signature under this key will be checked'
+            : `the EC key names the curve ${namedCurve}, which pkinative does not know; no signature under this key will be checked`,
+        path, offset);
+}
+
+/**
  * A CRL extension whose value pkinative drops rather than reads.
  *
  * `cRLNumber`, `deltaCRLIndicator`, and an entry's `reasonCode` and

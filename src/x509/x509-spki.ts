@@ -29,7 +29,7 @@ import type {
     UnknownPublicKeyInfo,
 } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
-import { spkiRsaExponentWeakDiagnostic } from '../core/pki-diagnostics.js';
+import { spkiEcParametersInvalidDiagnostic, spkiRsaExponentWeakDiagnostic } from '../core/pki-diagnostics.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 
 const CODE = 'PKI_X509_SPKI_INVALID';
@@ -140,6 +140,13 @@ function readEc(parts: KeyParts, ctx: Asn1Context): EcPublicKeyInfo {
         if (!valid) throw certificateError(CODE, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? 'no curve'} allows`);
     } else {
         throw certificateError(CODE, parts.keyPath, parts.keyOffset, 'does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 §2.2 allows no other point form');
+    }
+    // RFC 5480 §2.1.1: implicitCurve and specifiedCurve MUST NOT be used. Like
+    // the RSA exponent, a profile concern: the key decodes with `curve`
+    // undefined, and crypto-algorithms.ts checks no signature under it. Raised
+    // after the structural checks, so a refused key is never also diagnosed.
+    if (spec === undefined) {
+        ctx.emitter.emit(spkiEcParametersInvalidDiagnostic(`${parts.keyPath.replace(/subjectPublicKey$/, 'algorithm')}.parameters`, namedCurve, parameters.offset));
     }
     const info: EcPublicKeyInfo = {
         kind: 'ec',
