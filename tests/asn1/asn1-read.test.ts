@@ -234,6 +234,11 @@ describe('readString', () => {
         expect(codeOf(() => readString(node('82 03 61 62 63'), { stringType: 'ebcdic' as unknown as 'ia5' }))).toBe('PKI_INVALID_OPTION');
     });
 
+    // P-11 (CWE-1321): an inherited key of a plain object is not a string type.
+    it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])('should refuse the inherited key %s as a stringType', (key) => {
+        expect(codeOf(() => readString(node('82 03 61 62 63'), { stringType: key as unknown as 'ia5' }))).toBe('PKI_INVALID_OPTION');
+    });
+
     it('should join a BER constructed string', () => {
         expect(readString(node('2C 06 04 01 C3 04 01 A9', BER), BER).value).toBe('é');
     });

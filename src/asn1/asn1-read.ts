@@ -446,7 +446,8 @@ export function readString(node: Asn1Node, options?: ReadStringOptions): Asn1Str
     const checked = assertNode(node, 'readString');
     const ctx = createAsn1Context(options);
     const implicitType = options?.stringType;
-    if (implicitType !== undefined && !(implicitType in STRING_TAGS)) {
+    // An own-key check: `in` would let 'toString' or '__proto__' through (CWE-1321).
+    if (implicitType !== undefined && !Object.prototype.hasOwnProperty.call(STRING_TAGS, implicitType)) {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: stringType must be one of ${Object.keys(STRING_TAGS).join(', ')}, got ${String(implicitType)}`);
     }
     return _readString(checked, ctx, implicitType, '');
