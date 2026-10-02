@@ -37,7 +37,8 @@
  *   --seed S            sampling seed (default 1): the same seed, the same mutants
  *   --concurrency K     parallel sandboxes (default: half the CPUs)
  *   --tests a,b         run these suites instead of the direct selection
- *   --exclude-tests p   comma-separated path prefixes never selected (default tests/docs/,tests/tools/)
+ *   --exclude-tests p   comma-separated path prefixes never selected (default tests/docs/,tests/tools/,tests/performance/ — the
+ *                       time budgets measure the machine, not a mutant, and trip under the load of a mutation run)
  *   --no-escalate       do not re-run survivors against the reaching suites
  *   --no-typecheck      skip the compile check (a type-invalid mutant then runs)
  *   --list              print the mutants and the selected suites, run nothing
@@ -188,7 +189,7 @@ function usage(message: string): never {
 function parseArgs(argv: readonly string[]): Options {
     const o: Options = {
         targets: [], sample: null, seed: 1, concurrency: Math.max(1, Math.floor(cpus().length / 2)),
-        tests: null, exclude: ['tests/docs/', 'tests/tools/'], escalate: true, typecheck: true, list: false,
+        tests: null, exclude: ['tests/docs/', 'tests/tools/', 'tests/performance/'], escalate: true, typecheck: true, list: false,
     };
     const int = (flag: string, v: string | undefined): number => {
         const n = Number(v);

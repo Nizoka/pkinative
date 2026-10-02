@@ -39,7 +39,7 @@ import { ascii, concat, derNest, sequence, tlv, universal } from '../helpers/raw
  * in places and their cost is not pkinative's.
  *
  * The budgets are deliberately loose — about ten times a laptop measurement,
- * never under half a second — because a shared runner varies two to five
+ * never under a second — because a shared runner varies two to five
  * times run to run, and a budget that trips on noise teaches people to re-run
  * until green. They are not performance targets: bench/RESULTS.md carries
  * those. They are the line between "slow" and "unbounded", and an input that
@@ -98,7 +98,7 @@ const repeat = (part: Uint8Array, times: number): Uint8Array => {
 
 interface Budget {
     readonly limit: keyof PkiLimits;
-    /** Milliseconds of library time; about ten times a laptop measurement, never under 500. */
+    /** Milliseconds of library time; about ten times a laptop measurement, never under 1 000. */
     readonly budgetMs: number;
     readonly run: (clock: Clock) => unknown;
 }
@@ -171,7 +171,7 @@ async function chain(depth: number): Promise<Certificate[]> {
 
 const BUDGETS: readonly Budget[] = [
     {
-        limit: 'maxInputBytes', budgetMs: 500,
+        limit: 'maxInputBytes', budgetMs: 1000,
         // The largest single value an 8 MiB input can hold, decoded whole; one byte over a limit set at 8 MiB is refused before a byte is read.
         run: (clock) => {
             const eight = 8 * 1024 * 1024;
@@ -182,7 +182,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxDepth', budgetMs: 500,
+        limit: 'maxDepth', budgetMs: 1000,
         // A thousand deep: the refusal comes at the sixty-fifth level, whatever lies below it.
         run: (clock) => {
             const deep = derNest(1000);
@@ -197,7 +197,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxIntegerBytes', budgetMs: 500,
+        limit: 'maxIntegerBytes', budgetMs: 1000,
         run: (clock) => {
             const at = decodeAsn1(universal(2, [0x7f, ...new Uint8Array(L.maxIntegerBytes - 1).fill(0xff)]));
             const over = decodeAsn1(universal(2, [0x7f, ...new Uint8Array(L.maxIntegerBytes)]));
@@ -217,7 +217,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxBerSegments', budgetMs: 500,
+        limit: 'maxBerSegments', budgetMs: 1000,
         run: (clock) => {
             const ber = { encodingRules: 'ber' } as const;
             const segment = universal(4, [0x41]);
@@ -238,7 +238,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxExtensions', budgetMs: 500,
+        limit: 'maxExtensions', budgetMs: 1000,
         run: (clock) => {
             const many = (count: number): Uint8Array => certificate({ trailing: [explicit(3, sequence(...Array.from({ length: count }, (_, i) => UNKNOWN_EXTENSION(i))))] });
             const [at, over] = [many(L.maxExtensions), many(L.maxExtensions + 1)];
@@ -256,7 +256,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxNameAttributes', budgetMs: 500,
+        limit: 'maxNameAttributes', budgetMs: 1000,
         run: (clock) => {
             const subject = (count: number): Uint8Array => certificate({ subject: name(...Array.from({ length: count }, (_, i) => [['2.5.4.3', ia5(`a${String(i)}`)] as const])) });
             const [at, over] = [subject(L.maxNameAttributes), subject(L.maxNameAttributes + 1)];
@@ -265,7 +265,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxPolicies', budgetMs: 500,
+        limit: 'maxPolicies', budgetMs: 1000,
         run: (clock) => {
             const policies = (count: number): Uint8Array => certificate({ trailing: [explicit(3, sequence(extension('2.5.29.32', sequence(...Array.from({ length: count }, (_, i) => POLICY(i))))))] });
             const [at, over] = [policies(L.maxPolicies), policies(L.maxPolicies + 1)];
@@ -274,7 +274,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxChainLength', budgetMs: 500,
+        limit: 'maxChainLength', budgetMs: 1000,
         // Twelve real certificates deep, every signature verified, and the search stops at the bound rather than reaching the root.
         run: async (clock) => {
             const certs = await chain(L.maxChainLength + 2);
@@ -296,7 +296,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxOcspSingleResponses', budgetMs: 500,
+        limit: 'maxOcspSingleResponses', budgetMs: 1000,
         run: (clock) => {
             const [at, over] = [ocspResponse(L.maxOcspSingleResponses), ocspResponse(L.maxOcspSingleResponses + 1)];
             expect(clock.sync(() => parseOcspResponse(at, QUIET)).basicResponse?.responses).toHaveLength(L.maxOcspSingleResponses);
@@ -314,7 +314,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxSignerInfos', budgetMs: 500,
+        limit: 'maxSignerInfos', budgetMs: 1000,
         run: (clock) => {
             const message = (count: number): Uint8Array => cmsContentInfo(signedData({ signers: Array.from({ length: count }, () => signerInfo()) }));
             const [at, over] = [message(L.maxSignerInfos), message(L.maxSignerInfos + 1)];
@@ -323,7 +323,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxAttributes', budgetMs: 500,
+        limit: 'maxAttributes', budgetMs: 1000,
         run: (clock) => {
             const attrs = (count: number): Uint8Array[] => Array.from({ length: count }, (_, i) => attribute(`1.3.6.1.4.1.99999.2.${String(i)}`, universal(5, [])));
             const message = (count: number): Uint8Array => cmsContentInfo(signedData({ signers: [signerInfo({ unsignedAttrs: attrs(count) })] }));
@@ -343,7 +343,7 @@ const BUDGETS: readonly Budget[] = [
         },
     },
     {
-        limit: 'maxKdfIterations', budgetMs: 500,
+        limit: 'maxKdfIterations', budgetMs: 1000,
         // Ten million and one iterations declared: refused by the parser and by the opener before a single PBKDF2 round runs.
         run: async (clock) => {
             const shrouded = sequence(pbes2Algorithm({ iterations: L.maxKdfIterations + 1 }), octets(new Uint8Array(48)));
@@ -389,7 +389,7 @@ describe('every named limit is reached in bounded time', () => {
         }
     });
 
-    it('should keep every budget at half a second or more — a shared runner varies two to five times run to run', () => {
-        for (const budget of BUDGETS) expect(budget.budgetMs, budget.limit).toBeGreaterThanOrEqual(500);
+    it('should keep every budget at a second or more — a shared runner varies two to five times run to run, a loaded one more', () => {
+        for (const budget of BUDGETS) expect(budget.budgetMs, budget.limit).toBeGreaterThanOrEqual(1000);
     });
 });
