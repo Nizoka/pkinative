@@ -805,6 +805,18 @@
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as number+1 at the same position — the subtrahend only formats the count the message quotes."
+    },
+    {
+      "id": "src/cms/tsp-response.ts:159:32:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Semantic: the range test only guards the lookup STATUSES[Number(value)], and for every value outside 0..5 that lookup is undefined anyway — a negative index, an index past the six statuses, or Infinity for an INTEGER wider than a double are not elements of the frozen array — so the same `status === undefined` refusal follows, with the same code, path and offset; the negative and the beyond-revocationNotification cases pin it."
+    },
+    {
+      "id": "src/cms/tsp-response.ts:159:41:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: as the logical flip at 159:32 — the one value the mutant lets through, 6, indexes past the end of STATUSES, the lookup is undefined and the same refusal follows ('a status beyond revocationNotification' pins code and path)."
     }
   ]
 }

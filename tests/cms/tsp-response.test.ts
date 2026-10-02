@@ -153,6 +153,12 @@ describe('parseTimeStampResponse', () => {
             expect(parsed.failInfo).toEqual(['badAlg']);
         });
 
+        it('should read no failInfo bit from the padding, whose zero bits X.690 §11.2.1 requires of DER only', () => {
+            // badAlg (bit 0), then seven unused bits of which the first is set: 1100 0000.
+            const parsed = parseTimeStampResponse(response(statusInfo(int(2), bits(0x07, 0xc0))), { ...quiet, encodingRules: 'ber' });
+            expect(parsed.failInfo).toEqual(['badAlg']);
+        });
+
         it('should refuse a declined response that still carries a token', () => {
             const error = thrown(() => parseTimeStampResponse(response(statusInfo(int(2)), TOKEN), quiet));
             expect(error).toBeInstanceOf(PkiCmsError);
@@ -163,6 +169,8 @@ describe('parseTimeStampResponse', () => {
     describe('what RFC 3161 does not define', () => {
         it.each([
             ['a response that is not a SEQUENCE', universal(17, sequence(int(0)), true), 'TimeStampResp'],
+            // A complete rejection under the SET tag: only the root tag is wrong.
+            ['a rejection under the SET tag', universal(17, statusInfo(int(2)), true), 'TimeStampResp'],
             ['an empty response', response(), 'TimeStampResp'],
             ['a response of three fields', response(statusInfo(int(0)), TOKEN, TOKEN), 'TimeStampResp'],
             ['a status that is not a SEQUENCE', response(int(0)), 'TimeStampResp.status'],
