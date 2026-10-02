@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 214943,
-      "approxTokens": 53736
+      "bytes": 215647,
+      "approxTokens": 53912
     },
     {
       "url": "llms-recipes.txt",

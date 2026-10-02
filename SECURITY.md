@@ -101,6 +101,8 @@ Security fixes stay possible within 1.x because every one found so far made pkin
 - **Conformance scores.** They are measurements, and they move when a corpus is re-pinned.
 - **Bundle sizes and performance.** They are measurements, and they move when a budget is reviewed.
 
+The promise covers what 1.x does. What it does not do — no fetching of CRLs or OCSP responses, no built-in trust store, no SCT verification, the readers and writers it does not have, the signers it does not verify — is listed in [README §Known limitations](README.md#known-limitations), and the refusals by design in [docs/adr/](docs/adr/README.md).
+
 ### Machine-readable form
 
 `docs/assets/ecosystem.json` → `contracts.compatibility` names each leg with its snapshot, its rules, its conformance levels and its records, then each policy of ADR 0016 to 0018 with its records and the registry or conformance level that holds it, and lists what is not promised, entry for entry with the section above; `contracts.support` states the runtime and compiler floors. The `contracts-shape` rule holds that block to the files, the rules, the records and this section, both ways: a snapshot or a frozen-surface rule that no leg names fails too. The snapshots move only through their generators — `scripts/build-api-frozen.ts`, `scripts/build-errors-frozen.ts` and `scripts/build-refusals-frozen.ts` — which `scripts/release-prepare.ts` runs at every release from 1.0.0, so that what a 1.x release adds becomes part of the promise.

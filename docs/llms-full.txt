@@ -167,10 +167,13 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 - **No external security audit** ([ADR 0010](docs/adr/0010-no-external-security-audit-at-1-0.md)). What stands in its place — the adversarial release audit, the conformance gate, 100 % coverage, the seeded adversarial suites — is listed in [SECURITY.md](SECURITY.md#in-place-of-an-external-audit).
 - **Coverage-guided fuzzing has not run on GitHub yet.** The ClusterFuzzLite workflow is in place; its first run needs the published repository ([SECURITY.md](SECURITY.md#verification-of-the-parser)). The seeded adversarial suites run in every gate.
 - **An `id-RSASSA-PSS` public key cannot be imported on Node.js 22**, so a certificate, list, response or message signed with one is reported `PKI_REASON_SIGNATURE_NOT_CHECKED` (`PKI_CRYPTO_KEY_UNSUPPORTED`): it fails closed, it is not verified. Keys of type `rsaEncryption` signing with RSASSA-PSS verify normally.
-- **No PKCS#10 reader.** `createCertificationRequest` writes a certification request; nothing parses one.
-- **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied.
+- **No built-in trust store, no fetching.** The caller supplies the trust anchors, and the CRLs and OCSP responses a check needs: pkinative does no network I/O ([ADR 0006](docs/adr/0006-no-network-io-in-the-engine.md)).
+- **No PKCS#10, OCSP-request or timestamp-request reader.** `createCertificationRequest`, `createOcspRequest` and `createTimeStampRequest` write them; no public function parses one.
+- **No CRL or OCSP-response writer.** pkinative reads and verifies both, and writes neither.
+- **ML-DSA signatures are not verified**, though ML-DSA keys are read; **DSA and Ed448 CMS signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)).
+- **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied. No public suffix list is embedded: a wildcard needs three labels, and registry-level policy is the caller's.
 - **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a diagnostic (refused under `strict: true`); a value past one of its other upper bounds is read as it is. TeletexString is read as Latin-1, with a diagnostic.
-- **The Certificate Transparency SCT list** is kept in its TLS encoding, not decoded.
+- **The Certificate Transparency SCT list** is kept in its TLS encoding, neither decoded nor verified.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.
 
