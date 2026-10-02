@@ -150,6 +150,8 @@ describe('encodeNameAttribute and encodeDistinguishedName', () => {
 
     it.each([
         ['not an array', 'C=US'],
+        ['an object, which is not iterable', {}],
+        ['an empty string, which iterates to nothing', ''],
         ['an array holding a non-array', ['x']],
         ['an array holding an empty RDN', [[]]],
     ])('should refuse a name that is %s', (_what, name) => {

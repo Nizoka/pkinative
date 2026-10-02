@@ -6,7 +6,7 @@ import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pk
 import type { PkiParseOptions } from '../../src/types/pki-types.js';
 import type { SubjectPublicKeyInfo } from '../../src/types/x509-types.js';
 import { algorithm, bitString, integer, nullValue, octetString, oid, rsaKey } from '../helpers/cert-builder.js';
-import { sequence } from '../helpers/raw-der-builder.js';
+import { concat, sequence, universal } from '../helpers/raw-der-builder.js';
 
 const QUIET: PkiParseOptions = { onDiagnostic: () => undefined };
 const RSA = '1.2.840.113549.1.1.1';
@@ -86,6 +86,7 @@ describe('_readSubjectPublicKeyInfo', () => {
 
         it.each<[string, Uint8Array]>([
             ['a key that is not a SEQUENCE', bitString(integer([5]))],
+            ['a key that is a SET of the two INTEGERs', bitString(universal(17, concat(integer([0x41]), integer([3])), true))],
             ['a truncated key', bitString([0x30, 0x05, 0x02])],
             ['a key of three INTEGERs', bitString(sequence(integer([5]), integer([3]), integer([1])))],
             ['a modulus that is not an INTEGER', bitString(sequence(octetString([5]), integer([3])))],
@@ -115,6 +116,10 @@ describe('_readSubjectPublicKeyInfo', () => {
 
         it('should read a point on a curve it does not name', () => {
             expect(readSpki(spki(ecAlgorithm('1.3.132.0.10'), bitString(point(65))))).toMatchObject({ namedCurve: '1.3.132.0.10', curve: undefined });
+        });
+
+        it('should read a compressed point of two octets on an unnamed curve, the shortest it can judge', () => {
+            expect(readSpki(spki(ecAlgorithm('1.3.132.0.10'), bitString([0x02, 0x01])))).toMatchObject({ pointFormat: 'compressed', curve: undefined });
         });
 
         it('should read a key whose parameters are not a named curve', () => {
@@ -153,6 +158,7 @@ describe('_readSubjectPublicKeyInfo', () => {
             ['an empty point', spki(ecAlgorithm(P256), bitString([]))],
             ['an uncompressed point of even length on an unnamed curve', spki(ecAlgorithm('1.3.132.0.10'), bitString(point(64)))],
             ['a compressed point of one octet on an unnamed curve', spki(ecAlgorithm('1.3.132.0.10'), bitString([0x02]))],
+            ['a hybrid point on an unnamed curve', spki(ecAlgorithm('1.3.132.0.10'), bitString(point(65, 0x06)))],
             ['absent parameters', spki(algorithm(EC), bitString(point(65)))],
             ['a point with unused bits', spki(ecAlgorithm(P256), bitString(point(65, 0x04, 0x10), 4))],
         ])('should refuse %s', (_, bytes) => {

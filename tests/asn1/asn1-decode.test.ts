@@ -86,6 +86,11 @@ describe('decodeAsn1 — length errors', () => {
         expect(seen).toEqual([expect.objectContaining({ code: 'PKI_DIAG_BER_CONSTRUCT_ACCEPTED', offset: 0 })]);
         expect(seen[0]?.message).toContain('non-minimal length');
     });
+
+    it('should hold the one-octet long form to 128 and above: 127 is non-minimal, 128 is not (X.690 §10.1)', () => {
+        expect(failure(() => decodeAsn1(concat([0x04, 0x81, 0x7f], new Uint8Array(127)))).code).toBe('PKI_ASN1_LENGTH_NON_MINIMAL');
+        expect(decodeAsn1(concat([0x04, 0x81, 0x80], new Uint8Array(128))).contentLength).toBe(128);
+    });
 });
 
 describe('decodeAsn1 — indefinite length and end-of-contents', () => {
@@ -100,6 +105,7 @@ describe('decodeAsn1 — indefinite length and end-of-contents', () => {
         expect(node.children).toHaveLength(1);
         const nested = decodeAsn1(hex('30 80 30 80 05 00 00 00 00 00'), { encodingRules: 'ber', onDiagnostic: () => undefined });
         expect(nested.children[0]).toMatchObject({ indefinite: true, contentLength: 2 });
+        expect(nested.children[0]?.bytes.length).toBe(6);
     });
 
     it('should report the indefinite form once per operation', () => {
@@ -221,7 +227,8 @@ describe('decodeAsn1 — limits', () => {
         const err = failure(() => decodeAsn1(derNest(65)));
         expect(err).toBeInstanceOf(PkiLimitError);
         expect(err).toMatchObject({ limit: 'maxDepth', configured: 64, observed: 65 });
-        expect(failure(() => decodeAsn1(berNest(3), { encodingRules: 'ber', limits: { maxDepth: 2 }, onDiagnostic: () => undefined }))).toMatchObject({ limit: 'maxDepth' });
+        expect(failure(() => decodeAsn1(berNest(3), { encodingRules: 'ber', limits: { maxDepth: 2 }, onDiagnostic: () => undefined }))).toMatchObject({ limit: 'maxDepth', observed: 3 });
+        expect(decodeAsn1(berNest(2), { encodingRules: 'ber', limits: { maxDepth: 2 }, onDiagnostic: () => undefined }).indefinite).toBe(true);
     });
 
     it('should enforce maxNodes and maxInputBytes', () => {

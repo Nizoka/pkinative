@@ -108,6 +108,10 @@ export interface ResolvedAlgorithm {
     readonly hash: string | undefined;
 }
 
+/** A hash AlgorithmIdentifier's parameters are absent or NULL, and the two are the same algorithm (RFC 5754 §2, RFC 4055 §2.1). */
+const hasNoHashParameters = (parameters: Asn1Node | undefined): boolean =>
+    parameters === undefined || (parameters.tagClass === 'universal' && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0);
+
 function unsupported(message: string, oid: string): PkiCryptoError {
     return new PkiCryptoError('PKI_CRYPTO_ALGORITHM_UNSUPPORTED', `pkinative: ${message} — verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
 }
@@ -181,9 +185,7 @@ function hashNameOf(algorithm: Asn1Node, oid: string): string {
     if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID) {
         throw unsupported('an RSASSA-PSS hash parameter is not an AlgorithmIdentifier', oid);
     }
-    const parameters = algorithm.children[1];
-    if (algorithm.children.length > 2 || (parameters !== undefined
-        && (parameters.tagClass !== 'universal' || parameters.tagNumber !== TAG_NULL || parameters.contentLength !== 0))) {
+    if (algorithm.children.length > 2 || !hasNoHashParameters(algorithm.children[1])) {
         throw unsupported('an RSASSA-PSS hash AlgorithmIdentifier carries parameters other than absent or NULL (RFC 4055 §2.1)', oid);
     }
     const hashOid = readObjectIdentifier(first);
@@ -366,10 +368,6 @@ const ID_ED448 = '1.3.101.113';
 
 /** `md5WithRSAEncryption` and `id-md5`: refused as inconsistent, never reported as merely unsupported. */
 const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1.4', '1.2.840.113549.2.5']);
-
-/** RFC 5754 §2: a SHA-2 AlgorithmIdentifier's parameters are absent or NULL, and the two are the same algorithm. */
-const hasNoHashParameters = (parameters: Asn1Node | undefined): boolean =>
-    parameters === undefined || (parameters.tagClass === 'universal' && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0);
 
 /**
  * Whether a SignerInfo's two algorithms contradict each other — or name one

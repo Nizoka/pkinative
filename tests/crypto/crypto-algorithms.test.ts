@@ -208,6 +208,9 @@ describe('resolveAlgorithm', () => {
             ['a hash AlgorithmIdentifier of three values', sequence(tagged(0, sequence(oid('1.3.14.3.2.26'), nullValue(), nullValue())))],
             ['an MGF1 hash with garbage parameters', sequence(tagged(1, algorithm(MGF1_OID, algorithm('1.3.14.3.2.26', universal(4, [1])))))],
             ['an MGF1 AlgorithmIdentifier of three values', sequence(tagged(1, sequence(oid(MGF1_OID), algorithm('1.3.14.3.2.26'), nullValue())))],
+            ['a hash AlgorithmIdentifier that is a SET', sequence(tagged(0, universal(17, oid('1.3.14.3.2.26'), true)))],
+            ['a hash AlgorithmIdentifier whose first field is an INTEGER', sequence(tagged(0, sequence(universal(2, [1]))))],
+            ['a hash whose parameters are an empty OCTET STRING', sequence(tagged(0, algorithm('1.3.14.3.2.26', universal(4, []))))],
         ])('should refuse RSASSA-PSS parameters with %s', (_what, params) => {
             expect(() => resolveAlgorithm(identifier(PSS, params), RSA_KEY)).toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
         });
@@ -309,6 +312,7 @@ describe('_cmsAlgorithmProblem', () => {
         ['RSASSA-PSS over SHA-384 with a SHA-256 digest', identifier(SHA256), identifier(PSS, pssParams(SHA384, 48))],
         ['Ed25519 over a SHA-256 digest', identifier(SHA256), identifier('1.3.101.112')],
         ['a digestAlgorithm whose parameters are neither absent nor NULL', identifier(SHA256, oid('1.2.3')), identifier(RSA_ENCRYPTION, nullValue())],
+        ['RSASSA-PSS without parameters over a SHA-1 digest — mandatory whatever the DEFAULTs', identifier(SHA1), identifier(PSS)],
     ])('should name the problem with %s', (_what, digest, signature) => {
         expect(_cmsAlgorithmProblem(digest, signature)).not.toBeNull();
     });
@@ -330,6 +334,8 @@ describe('_cmsAlgorithmProblem', () => {
         ['DSA, which Web Crypto does not run', SHA256, identifier('2.16.840.1.101.3.4.3.2')],
         ['Ed448, whose CMS digest is SHAKE256', SHA512, identifier('1.3.101.113')],
         ['RSASSA-PSS parameters Web Crypto cannot express', SHA256, identifier(PSS, sequence(tagged(0, algorithm(SHA256))))],
+        ['a digest Web Crypto does not compute (SHA-224) under a signature it does', SHA224, identifier('1.2.840.113549.1.1.11', nullValue())],
+        ['Ed448 over a SHA-256 digest', SHA256, identifier('1.3.101.113')],
     ])('should leave %s to resolution: unsupported is not inconsistent', (_what, digest, signature) => {
         expect(_cmsAlgorithmProblem(identifier(digest), signature)).toBeNull();
     });

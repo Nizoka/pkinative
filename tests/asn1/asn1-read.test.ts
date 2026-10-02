@@ -29,7 +29,8 @@ function codeOf(fn: () => unknown): string {
 }
 
 describe('reader arguments', () => {
-    it.each([null, undefined, 5, {}, { content: new Uint8Array(0) }])('should refuse %j as a node', (value) => {
+    it.each([null, undefined, 5, {}, { content: new Uint8Array(0) },
+        { content: 'x', children: [], tagNumber: 1 }, { content: new Uint8Array(0), children: null, tagNumber: 1 }, { content: new Uint8Array(0), children: [], tagNumber: '1' }])('should refuse %j as a node', (value) => {
         expect(codeOf(() => readBoolean(value as unknown as Asn1Node))).toBe('PKI_INVALID_INPUT');
     });
 });
@@ -210,6 +211,12 @@ describe('readString', () => {
         expect(str(19, ascii('*.example.com'), { onDiagnostic: (d) => seen.push(d) }).value).toBe('*.example.com');
         expect(seen).toEqual([expect.objectContaining({ code: 'PKI_DIAG_PRINTABLE_STRING_CHARSET' })]);
         expect(seen[0]?.message).toContain('"*"');
+    });
+
+    it('should diagnose an octet outside the alphabet in the first position, NUL included', () => {
+        const seen: PkiDiagnostic[] = [];
+        str(19, [0x00, 0x61], { onDiagnostic: (d) => seen.push(d) });
+        expect(seen).toEqual([expect.objectContaining({ code: 'PKI_DIAG_PRINTABLE_STRING_CHARSET' })]);
     });
 
     it.each([

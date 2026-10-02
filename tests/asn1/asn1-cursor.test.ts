@@ -14,6 +14,7 @@ import { readTlvHeader, walkChildren } from '../../src/asn1/asn1-cursor.js';
  */
 
 const bytes = (...values: readonly number[]): Uint8Array => Uint8Array.from(values);
+const concatBytes = (head: readonly number[], tail: Uint8Array): Uint8Array => Uint8Array.from([...head, ...tail]);
 
 describe('readTlvHeader', () => {
     it('should read a short-form header', () => {
@@ -44,6 +45,9 @@ describe('readTlvHeader', () => {
         expect(readTlvHeader(bytes(0x5f, 0x1f, 0x00), 0, 'value')).toMatchObject({ tagNumber: 31, contentStart: 3 });
         // A two-continuation form: 0x81 0x00 → 128.
         expect(readTlvHeader(bytes(0x5f, 0x81, 0x00, 0x00), 0, 'value')).toMatchObject({ tagNumber: 128 });
+        // 0x80 is refused as the first octet only, and a tag of four octets is the widest accepted.
+        expect(readTlvHeader(bytes(0x5f, 0x81, 0x80, 0x01, 0x00), 0, 'value')).toMatchObject({ tagNumber: 16385, contentStart: 5 });
+        expect(readTlvHeader(bytes(0x5f, 0x81, 0x80, 0x80, 0x01, 0x00), 0, 'value')).toMatchObject({ tagNumber: 2097153, contentStart: 6 });
     });
 
     it.each([
@@ -58,6 +62,9 @@ describe('readTlvHeader', () => {
         { name: 'a long-form length with a leading zero', data: bytes(0x04, 0x82, 0x00, 0x81), code: 'PKI_ASN1_LENGTH_INVALID' },
         { name: 'a long form used below 128', data: bytes(0x04, 0x81, 0x05, 1, 2, 3, 4, 5), code: 'PKI_ASN1_LENGTH_INVALID' },
         { name: 'content running past the input', data: bytes(0x04, 0x05, 1, 2), code: 'PKI_ASN1_TRUNCATED' },
+        { name: 'a high tag number of 31 written with a leading 0x80', data: bytes(0x5f, 0x80, 0x1f, 0x00), code: 'PKI_ASN1_TAG_INVALID' },
+        { name: 'a six-octet length beyond the input', data: bytes(0x04, 0x86, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00), code: 'PKI_ASN1_TRUNCATED' },
+        { name: 'a long form used for 127', data: concatBytes([0x04, 0x81, 0x7f], new Uint8Array(127)), code: 'PKI_ASN1_LENGTH_INVALID' },
         // P-05: the rules decodeAsn1 enforces, enforced here too (CWE-436).
         { name: 'the high-tag form for tag number 5 (X.690 §8.1.2.2)', data: bytes(0x1f, 0x05, 0x00), code: 'PKI_ASN1_TAG_INVALID' },
         { name: 'the high-tag form for tag number 30', data: bytes(0x5f, 0x1e, 0x00), code: 'PKI_ASN1_TAG_INVALID' },

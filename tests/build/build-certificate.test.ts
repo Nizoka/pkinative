@@ -212,6 +212,7 @@ describe('createCertificate', () => {
         { name: 'empty', serial: new Uint8Array(0), says: 'at least one content octet' },
         { name: 'a redundant 0x00', serial: Uint8Array.of(0x00, 0x01), says: 'shortest form' },
         { name: 'a redundant 0xff', serial: Uint8Array.of(0xff, 0x80), says: 'shortest form' },
+        { name: 'a redundant 0x00 before 0x7f', serial: Uint8Array.of(0x00, 0x7f), says: 'shortest form' },
     ])('should refuse serial octets no INTEGER can hold: $name', async ({ serial, says }) => {
         // Without this, createCertificate produces a certificate that
         // pkinative's own decoder refuses with PKI_ASN1_INTEGER_INVALID.
