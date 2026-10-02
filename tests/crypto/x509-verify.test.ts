@@ -6,7 +6,9 @@ import { decodeAsn1, encodeBitString, encodeInteger, encodeSequence, parseCertif
 import type { ExternalSigner } from '../../src/types/crypto-types.js';
 import { PkiCryptoError, PkiError } from '../../src/types/pki-errors.js';
 import type { Certificate } from '../../src/types/x509-types.js';
-import { verifyCertificateSignature, verifySelfSignature } from '../../src/crypto/x509-verify.js';
+import type { CertificateList } from '../../src/types/crl-types.js';
+import type { OcspBasicResponse } from '../../src/types/ocsp-types.js';
+import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from '../../src/crypto/x509-verify.js';
 import { canVerify } from '../../src/crypto/webcrypto.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { algorithm, bitString, certificate, ecKey, nullValue, tbsCertificate } from '../helpers/cert-builder.js';
@@ -206,6 +208,63 @@ describe('verifySelfSignature', () => {
 
     it('should reject an argument that is not a parsed certificate', async () => {
         await expect(verifySelfSignature(undefined as unknown as Certificate)).rejects.toThrow(PkiError);
+    });
+
+    describe('a certificate its own key signed, under an issuer name that is not its subject', () => {
+        // A fresh P-256 key signs both certificates, so the signature check
+        // alone answers true for each: only the name comparison separates a
+        // self-signed certificate from one that merely carries its own key.
+        const make = async (issuer?: string): Promise<Certificate> => {
+            const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as webcrypto.CryptoKeyPair;
+            const spki = new Uint8Array(await webcrypto.subtle.exportKey('spki', pair.publicKey));
+            return parseCertificate(await createCertificate({
+                serialNumber: 11n,
+                subject: [[{ type: '2.5.4.3', value: 'Subject A' }]],
+                ...(issuer === undefined ? {} : { issuer: [[{ type: '2.5.4.3', value: issuer }]] }),
+                notBefore: Date.UTC(2026, 0, 1),
+                notAfter: Date.UTC(2027, 0, 1),
+                subjectPublicKey: spki,
+            }, {
+                algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
+                produceSignature: async (data) => new Uint8Array(await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, data)),
+            }), { onDiagnostic: () => undefined });
+        };
+
+        it('should answer false although the key verifies the signature', async () => {
+            const cert = await make('Issuer B');
+            await expect(verifyCertificateSignature(cert, cert)).resolves.toBe(true);
+            await expect(verifySelfSignature(cert)).resolves.toBe(false);
+        });
+
+        it('should answer true for the same construction with the names equal', async () => {
+            await expect(verifySelfSignature(await make())).resolves.toBe(true);
+        });
+    });
+
+    describe('a value shaped like a certificate with one field wrong', () => {
+        // Each shape fails exactly one clause of the guard and passes every
+        // other, so each clause is shown to refuse on its own.
+        it.each<[string, (real: Certificate) => unknown]>([
+            ['tbsDer is an array of numbers, not a Uint8Array', (real) => ({ ...real, tbsDer: Array.from(real.tbsDer) })],
+            ['signatureAlgorithm is missing', (real) => ({ ...real, signatureAlgorithm: undefined })],
+            ['signatureAlgorithm is null', (real) => ({ ...real, signatureAlgorithm: null })],
+            ['subjectPublicKeyInfo is missing', (real) => ({ ...real, subjectPublicKeyInfo: undefined })],
+        ])('should reject with PKI_INVALID_INPUT when %s', async (_what, reshape) => {
+            const value = reshape(load('isrg-root-x1')) as Certificate;
+            await expect(verifySelfSignature(value)).rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+        });
+    });
+});
+
+describe('verifyCrlSignature and verifyOcspSignature', () => {
+    it('should reject a null CRL with PKI_INVALID_INPUT, not a TypeError', async () => {
+        await expect(verifyCrlSignature(null as unknown as CertificateList, load('isrg-root-x1')))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+    });
+
+    it('should reject a null basicResponse with PKI_INVALID_INPUT, not a TypeError', async () => {
+        await expect(verifyOcspSignature(null as unknown as OcspBasicResponse, load('isrg-root-x1')))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
 });
 
