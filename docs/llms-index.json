@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 213207,
-      "approxTokens": 53302
+      "bytes": 213375,
+      "approxTokens": 53344
     },
     {
       "url": "llms-recipes.txt",
@@ -135,7 +135,7 @@
     },
     {
       "title": "Conformance",
-      "summary": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.",
+      "summary": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.",
       "html": "guides/conformance.html",
       "markdown": "guides/conformance.md",
       "anchors": [
@@ -148,8 +148,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 40166,
-      "approxTokens": 10042
+      "bytes": 40266,
+      "approxTokens": 10067
     },
     {
       "title": "Standards",

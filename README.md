@@ -23,7 +23,7 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 - **Honest about profiles.** What real issuers get wrong — a 21-octet serial, an explicit DEFAULT, a non-critical name constraint — is a diagnostic with its RFC section, not a crash and not silence.
 - **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with the input.
 - **No cryptography it should not own.** pkinative never implements signing, key generation or arithmetic on secret material; every signature is created and verified through Web Crypto, with your key.
-- **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks every result against OpenSSL.
+- **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks the serial number, validity, CA flag and fingerprint of every parsed certificate against OpenSSL.
 - **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy.
 
 ## How it compares

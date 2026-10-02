@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Conformance — pkinative</title>
-  <meta name="description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.">
+  <meta name="description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/conformance.html">
   <meta property="og:title" content="Conformance — pkinative">
-  <meta property="og:description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.">
+  <meta property="og:description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Conformance — pkinative">
-  <meta name="twitter:description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.">
+  <meta name="twitter:description" content="pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/conformance.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/conformance.html">
@@ -59,7 +59,7 @@
       {
         "@type": "TechArticle",
         "headline": "Conformance",
-        "description": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.",
+        "description": "pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.",
         "inLanguage": "en",
         "author": {
           "@type": "Organization",
@@ -115,7 +115,7 @@
     <article id="guide-content" class="guide-content" data-md="conformance.md" data-prerendered="true">
 <h1 id="conformance">Conformance</h1>
 <blockquote>
-<p><strong>pkinative is held to corpora it did not write and to parsers it does not share code with.</strong> A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and checks every answer against OpenSSL.</p>
+<p><strong>pkinative is held to corpora it did not write and to parsers it does not share code with.</strong> A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.</p>
 </blockquote>
 <h2 id="the-corpora">The corpora <a class="heading-anchor" href="#the-corpora" aria-label="Link to this section">#</a></h2>
 <table>
@@ -157,7 +157,7 @@
 </li>
 <li><p><strong>L2 — byte identity.</strong> Every certificate re-encodes byte for byte from its decoded tree, and the boundaries of <code>tbsCertificate</code> and <code>signatureValue</code> agree with <code>scripts/lib/raw-der.ts</code>, a walker written separately that never imports <code>src/</code>.</p>
 </li>
-<li><p><strong>L3 — OpenSSL.</strong> Every parsed certificate agrees with <code>node:crypto.X509Certificate</code> on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 200 agrees with the <code>openssl</code> command-line tool — two builds, the one inside Node and the system one. What is cross-checked is the values the tool reads, never its acceptance policy: a disagreement on a serial or a fingerprint always fails, while a non-reference implementation refusing a certificate (LibreSSL on macOS) is reported as not applicable, and fails only if it reads too few to be a cross-check at all.</p>
+<li><p><strong>L3 — OpenSSL.</strong> Every parsed certificate agrees with <code>node:crypto.X509Certificate</code> on serial number, validity, CA flag and SHA-256 fingerprint, and a sample of 202 — every 148th parsed certificate — agrees on serial number and fingerprint with the <code>openssl</code> command-line tool — two builds, the one inside Node and the system one. What is cross-checked is the values the tool reads, never its acceptance policy: a disagreement on a serial or a fingerprint always fails, while a non-reference implementation refusing a certificate (LibreSSL on macOS) is reported as not applicable, and fails only if it reads too few to be a cross-check at all.</p>
 </li>
 <li><p><strong>L4 — other implementations.</strong> There is no veraPDF for the PKI: no single reference a parser can be held to. The honest equivalent is confrontation, so a sample of the corpus is read again by implementations written by other people, in other languages, and the readings must agree. What is compared is never rendered text — every implementation prints a distinguished name its own way — but SHA-256 of exact DER slices: <code>subjectFp256</code> and <code>issuerFp256</code> over the encoded subject and issuer, <code>spkiKeyFp256</code> over the public key octets, <code>tbsFp256</code> over the signed bytes, plus the exact identifiers <code>keyAlgOid</code> and <code>version</code>. Each validator declares in its output which of those it can supply, so a tool that cannot reach a field says so instead of being special-cased.</p>
 <p>Three validators, three lineages that share no code with OpenSSL or with each other. On Windows, <code>windows-cryptoapi</code> reads through CryptoAPI and supplies five fields — every one but <code>tbsFp256</code>, which <code>X509Certificate2</code> does not expose. On Linux, <code>go-x509</code> reads through Go&#39;s <code>crypto/x509</code> and supplies all six, <code>tbsFp256</code> included, from the slices Go itself read; <code>python-cryptography</code> reads through pyca/cryptography&#39;s Rust parser and supplies five — every one but <code>spkiKeyFp256</code>, because pyca exposes no slice of the key it read. On macOS none runs, and the report says so. Over the 200-certificate sample both Linux validators agree with pkinative on every certificate they read, with the positive canary agreeing and no negative canary accepted.</p>
