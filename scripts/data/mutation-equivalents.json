@@ -295,6 +295,36 @@
       "original": "signatureAlgorithm.oid === RSA_ENCRYPTION",
       "replacement": "false",
       "reason": "Semantic: rsaEncryption is not a key of SIGNATURE_BY_OID, so without the early return the shape lookup on the next line is undefined and the function returns null all the same."
+    },
+    {
+      "id": "src/crypto/crypto-signature.ts:68:22:number-1",
+      "original": "8",
+      "replacement": "7",
+      "reason": "Semantic: the extra input admitted is exactly 7 octets, which no branch can turn into a result. The long form needs 3 + content = 7 with content ≥ 0x80 and fails line 77 or 82; the short form needs content = 5, and two INTEGERs need at least 3 octets each (tag, length ≥ 1, one value octet), so the second readInteger fails at line 152, 155 or 158 and returns null. Every octet read before those checks (indices 0, 1, 2, then each INTEGER's tag and length under line 152) is inside the 7, so no RangeError either."
+    },
+    {
+      "id": "src/crypto/crypto-signature.ts:112:77:number+1",
+      "original": "2",
+      "replacement": "3",
+      "reason": "Message-only: `size * 2` here only renders the expected octet count in the PKI_API_MISUSE message; the comparison that throws is `raw.length !== size * 2` on line 110, pinned by the curve-mismatch test (code)."
+    },
+    {
+      "id": "src/crypto/crypto-signature.ts:112:77:number-1",
+      "original": "2",
+      "replacement": "1",
+      "reason": "Message-only: as number+1 at the same position — the factor only formats the message text."
+    },
+    {
+      "id": "src/crypto/crypto-signature.ts:152:14:number+1",
+      "original": "2",
+      "replacement": "3",
+      "reason": "Semantic: the extra refusal is at + 2 === der.length, an INTEGER whose tag and length are the last two octets. The original reads both (in bounds) and then returns null all the same: a length of 0 fails line 155 and any length ≥ 1 puts end past der.length at line 158. Same null, no other effect."
+    },
+    {
+      "id": "src/crypto/crypto-signature.ts:152:16:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Semantic: the same extra case as number+1 at 152:14 — at + 2 === der.length leaves no room for a value octet, so the original returns null at line 155 or 158."
     }
   ]
 }
