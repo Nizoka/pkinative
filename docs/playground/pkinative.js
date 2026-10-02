@@ -6477,34 +6477,9 @@ async function verifyCertificateChain(input) {
   const at = input.at ?? Date.now();
   const candidates = input.candidates ?? [];
   const all = [input.leaf, ...candidates, ...input.trustAnchors];
-  const bySubject = /* @__PURE__ */ new Map();
-  for (const certificate of all) {
-    const key = _hex2(certificate.subject.der);
-    bySubject.set(key, [...bySubject.get(key) ?? [], certificate]);
-  }
-  const pairs = [];
-  const walked = /* @__PURE__ */ new Set();
-  const queue = [input.leaf];
-  while (queue.length > 0) {
-    const subject = queue.pop();
-    if (walked.has(subject)) continue;
-    walked.add(subject);
-    for (const issuer of bySubject.get(_hex2(subject.issuer.der)) ?? []) {
-      if (issuer === subject) continue;
-      pairs.push([subject, issuer]);
-      queue.push(issuer);
-    }
-  }
-  const signatures = await Promise.all(pairs.map(async ([subject, issuer]) => {
-    const options = { allowSha1: input.allowSha1 === true };
-    try {
-      const valid = await verifyCertificateSignature(subject, issuer, options);
-      return { certificate: subject, issuer, verdict: valid ? "valid" : "invalid" };
-    } catch (error) {
-      const refused = _pkiError(error);
-      return { certificate: subject, issuer, verdict: "not-checked", errorCode: refused.code, detail: refused.message };
-    }
-  }));
+  const verdicts = /* @__PURE__ */ new Map();
+  await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);
+  const signatures = [...verdicts.values()];
   const report = buildCertificatePath({
     leaf: input.leaf,
     candidates,
@@ -6525,8 +6500,8 @@ async function verifyCertificateChain(input) {
   if (input.purposes !== void 0 && anchored && !alreadySaid && report.path.length > 0) {
     for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
   }
-  reasons.push(...await _checkRevocation(input, report.path, at, signatures));
-  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
+  reasons.push(...await _checkRevocation(input, report.path, at, verdicts));
+  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.size };
 }
 async function _crlSignature(crl, issuer, allowSha1) {
   try {
@@ -6563,12 +6538,14 @@ async function _signerStillGood(ctx, candidate) {
   const mine = _hex2(candidate.der);
   if (ctx.path.some((c) => _hex2(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex2(c.der) === mine)) return true;
   if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
+  const bag = ctx.input.candidates ?? [];
+  await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
   const own = buildCertificatePath({
     leaf: candidate,
-    candidates: ctx.input.candidates ?? [],
+    candidates: bag,
     trustAnchors: ctx.input.trustAnchors,
     at: ctx.at,
-    signatures: ctx.signatures,
+    signatures: [...ctx.verdicts.values()],
     limits: ctx.reading.limits ?? {}
   });
   if (!own.valid) return false;
@@ -6583,6 +6560,36 @@ async function _unrevokedOnLists(ctx, candidate) {
     if (reasons.some((reason) => STILL_GOOD_REFUSALS.has(reason.code))) return false;
   }
   return true;
+}
+async function _collectVerdicts(start, all, allowSha1, verdicts) {
+  const bySubject = /* @__PURE__ */ new Map();
+  for (const certificate of all) {
+    const key = _hex2(certificate.subject.der);
+    bySubject.set(key, [...bySubject.get(key) ?? [], certificate]);
+  }
+  const pairs = [];
+  const walked = /* @__PURE__ */ new Set();
+  const queue = [start];
+  while (queue.length > 0) {
+    const subject = queue.pop();
+    if (walked.has(subject)) continue;
+    walked.add(subject);
+    for (const issuer of bySubject.get(_hex2(subject.issuer.der)) ?? []) {
+      if (issuer === subject) continue;
+      const key = `${_hex2(subject.der)}|${_hex2(issuer.der)}`;
+      if (!verdicts.has(key)) pairs.push([key, subject, issuer]);
+      queue.push(issuer);
+    }
+  }
+  await Promise.all(pairs.map(async ([key, subject, issuer]) => {
+    try {
+      const valid = await verifyCertificateSignature(subject, issuer, { allowSha1 });
+      verdicts.set(key, { certificate: subject, issuer, verdict: valid ? "valid" : "invalid" });
+    } catch (error) {
+      const refused = _pkiError(error);
+      verdicts.set(key, { certificate: subject, issuer, verdict: "not-checked", errorCode: refused.code, detail: refused.message });
+    }
+  }));
 }
 var STILL_GOOD_REFUSALS = /* @__PURE__ */ new Set([
   "PKI_REASON_REVOKED",
@@ -6623,7 +6630,7 @@ async function _deltaFor(ctx, subject, base, signed) {
   }
   return void 0;
 }
-async function _checkRevocation(input, path, at, signatures) {
+async function _checkRevocation(input, path, at, verdicts) {
   const out = [];
   const lists = input.crls ?? [];
   const stapled = input.ocspResponses ?? [];
@@ -6645,7 +6652,7 @@ async function _checkRevocation(input, path, at, signatures) {
       out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
     }
   }
-  const signing = { input, path, at, lists: parsed, reading, signatures };
+  const signing = { input, path, at, lists: parsed, reading, verdicts };
   const signed = /* @__PURE__ */ new Map();
   for (const [position, subject] of path.entries()) {
     if (anchors.has(_hex2(subject.der))) continue;

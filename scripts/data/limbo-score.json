@@ -8,8 +8,8 @@
   },
   "totals": {
     "scored": 9208,
-    "agree": 9156,
-    "deviations": 52,
+    "agree": 9158,
+    "deviations": 50,
     "unparsed": 565,
     "skipped": 20
   },
@@ -21,14 +21,6 @@
     "crl::crlnumber-missing": {
       "expected": "FAILURE",
       "why": "RFC 5280 §5.2.3 addresses the CRL issuer, not the verifier, and what it asks for is about **sequencing lists** rather than about this certificate: `cRLNumber` is a monotonically increasing number that lets a relying party tell a newer list from an older one. The entries themselves are covered by the signature either way, so a list without a usable number still says, signed, that this serial is or is not on it — which is the question `checkRevocation` was asked. pkinative answers that question and does not invent a second one. Here the extension is absent. What it costs is the ability to detect a replayed older list, and the honest place for that is a caller who keeps the last number they saw — pkinative exposes `crl.crlNumber` precisely so they can, and holding state across fetches is not something a stateless verifier can do on their behalf."
-    },
-    "pathlen::max-chain-depth-0-exhausted": {
-      "expected": "FAILURE",
-      "why": "x509-limbo's max_chain_depth counts LOGICAL intermediates and excludes self-issued certificates; pkinative's maxChainLength is a resource bound on the certificates actually walked, counting every one. This runner maps one onto the other as max_chain_depth + 2, which is right for an ordinary hierarchy and off by one wherever the chain carries a self-issued certificate. The deviation is in the translation, not in the validator: a caller who wants x509-limbo's notion states it as a pathLenConstraint, which §6.1.4 (l) and (m) already implement exactly."
-    },
-    "pathlen::max-chain-depth-1-exhausted": {
-      "expected": "FAILURE",
-      "why": "x509-limbo's max_chain_depth counts LOGICAL intermediates and excludes self-issued certificates; pkinative's maxChainLength is a resource bound on the certificates actually walked, counting every one. This runner maps one onto the other as max_chain_depth + 2, which is right for an ordinary hierarchy and off by one wherever the chain carries a self-issued certificate. The deviation is in the translation, not in the validator: a caller who wants x509-limbo's notion states it as a pathLenConstraint, which §6.1.4 (l) and (m) already implement exactly."
     },
     "pathological::nc-dos-2": {
       "expected": "FAILURE",

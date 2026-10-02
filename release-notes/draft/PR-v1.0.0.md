@@ -26,7 +26,7 @@ Conformance:
 | L3 | node:crypto 29 796/29 796; OpenSSL 4.0.0 202/202 sampled |
 | L4 | CryptoAPI 202/202 on Windows; Python cryptography and Go `crypto/x509` on Linux (CI) |
 | L5 | 25 clauses; 182 requirement sentences of §4.1–§4.2 accounted for (21 clauses, 161 excluded, 36 not yet diagnosed) |
-| L6 | 9 156/9 208 (99.44 %) |
+| L6 | 9 158/9 208 (99.46 %) |
 | L7 | 195/203 (96.06 %) |
 | L8 | 221/224 intact, 196/204 agree with NIST |
 | Interop | 9 tools agree on every artefact they read or write, on the Windows release machine; the Linux set (GnuTLS, gpgsm, Java keytool, Python cryptography, Go, zlint, pkilint) is required in the conformance workflow |

@@ -91,7 +91,7 @@
       "evidence": [
         { "file": "src/crypto/x509-verify.ts", "text": "allowSha1: options?.allowSha1 === true" },
         { "file": "src/crypto/cms-verify.ts", "text": "if (resolved.hash === 'SHA-1' && options?.allowSha1 !== true) {" },
-        { "file": "src/verify/verify-chain.ts", "text": "const options = { allowSha1: input.allowSha1 === true };" },
+        { "file": "src/verify/verify-chain.ts", "text": "await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);" },
         { "file": "src/verify/verify-signed-data.ts", "text": "allowSha1: input.allowSha1 === true," },
         { "file": "src/verify/verify-timestamp.ts", "text": "allowSha1: input.allowSha1 === true," }
       ]

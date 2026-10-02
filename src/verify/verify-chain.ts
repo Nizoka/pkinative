@@ -290,46 +290,13 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
     const candidates = input.candidates ?? [];
     const all = [input.leaf, ...candidates, ...input.trustAnchors];
 
-    // Index by encoded subject name, then keep only what a name chain from the
-    // leaf can reach: the search walks nothing else, so a pair outside that
-    // closure cannot change an answer, and a trust store of hundreds costs the
-    // handful of verifications that name the right subjects.
-    const bySubject = new Map<string, Certificate[]>();
-    for (const certificate of all) {
-        const key = _hex(certificate.subject.der);
-        bySubject.set(key, [...(bySubject.get(key) ?? []), certificate]);
-    }
-    const pairs: Array<readonly [Certificate, Certificate]> = [];
-    const walked = new Set<Certificate>();
-    const queue: Certificate[] = [input.leaf];
-    while (queue.length > 0) {
-        const subject = queue.pop() as Certificate;
-        if (walked.has(subject)) continue;
-        walked.add(subject);
-        for (const issuer of bySubject.get(_hex(subject.issuer.der)) ?? []) {
-            // A self-signed certificate is not a link: §6 does not check a trust
-            // anchor's own signature, and following the edge would loop.
-            if (issuer === subject) continue;
-            pairs.push([subject, issuer]);
-            queue.push(issuer);
-        }
-    }
-
-    // In parallel, and before anything is decided — which is the whole reason
-    // §6 takes verdicts rather than keys.
-    const signatures: SignatureResult[] = await Promise.all(pairs.map(async ([subject, issuer]) => {
-        const options = { allowSha1: input.allowSha1 === true };
-        try {
-            const valid = await verifyCertificateSignature(subject, issuer, options);
-            return { certificate: subject, issuer, verdict: valid ? 'valid' as const : 'invalid' as const };
-        } catch (error) {
-            // A runtime that cannot decide says nothing about the signature, and
-            // so does a SHA-1 refusal. `not-checked` keeps that apart from
-            // `invalid` all the way into the report.
-            const refused = _pkiError(error);
-            return { certificate: subject, issuer, verdict: 'not-checked' as const, errorCode: refused.code, detail: refused.message };
-        }
-    }));
+    // Every link a name chain from the leaf can reach, verified once, before
+    // anything is decided — which is the whole reason §6 takes verdicts
+    // rather than keys. The map outlives the search: a CRL issuer off the
+    // path is judged later with its own links added (`_signerStillGood`).
+    const verdicts = new Map<string, SignatureResult>();
+    await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);
+    const signatures: SignatureResult[] = [...verdicts.values()];
 
     const report = buildCertificatePath({
         leaf: input.leaf,
@@ -370,9 +337,9 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
         for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
     }
 
-    reasons.push(...await _checkRevocation(input, report.path, at, signatures));
+    reasons.push(...await _checkRevocation(input, report.path, at, verdicts));
 
-    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: pairs.length };
+    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.size };
 }
 
 /**
@@ -469,12 +436,14 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     // The bag is the sender's — a TLS server's, a CMS signer's — so a
     // self-signed certificate copying the CA's name and asserting cRLSign is
     // exactly what an attacker who holds a revoked key would put there, with
-    // a list that clears it. The verdicts come from the search above: a pair
-    // it never reached has no verdict, and a signer nobody vouched for is not
-    // believed.
+    // a list that clears it. Its links are verified here, on demand: an
+    // indirect CRL issuer (§5.2.5, PKITS 4.14) is a name the leaf's own chain
+    // never reaches, and a signer nobody vouched for is not believed.
+    const bag = ctx.input.candidates ?? [];
+    await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
     const own = buildCertificatePath({
-        leaf: candidate, candidates: ctx.input.candidates ?? [], trustAnchors: ctx.input.trustAnchors, at: ctx.at,
-        signatures: ctx.signatures, limits: ctx.reading.limits ?? {},
+        leaf: candidate, candidates: bag, trustAnchors: ctx.input.trustAnchors, at: ctx.at,
+        signatures: [...ctx.verdicts.values()], limits: ctx.reading.limits ?? {},
     });
     if (!own.valid) return false;
     return await _unrevokedOnLists(ctx, candidate);
@@ -504,6 +473,51 @@ async function _unrevokedOnLists(ctx: CrlSignerContext, candidate: Certificate):
     return true;
 }
 
+/**
+ * The signature verdict of every link a name chain from `start` can reach,
+ * added to `verdicts` — computed once per pair, in parallel.
+ *
+ * Index by encoded subject name, then keep only what a name chain from
+ * `start` can reach: the search walks nothing else, so a pair outside that
+ * closure cannot change an answer, and a trust store of hundreds costs the
+ * handful of verifications that name the right subjects.
+ */
+async function _collectVerdicts(start: Certificate, all: readonly Certificate[], allowSha1: boolean, verdicts: Map<string, SignatureResult>): Promise<void> {
+    const bySubject = new Map<string, Certificate[]>();
+    for (const certificate of all) {
+        const key = _hex(certificate.subject.der);
+        bySubject.set(key, [...(bySubject.get(key) ?? []), certificate]);
+    }
+    const pairs: Array<readonly [string, Certificate, Certificate]> = [];
+    const walked = new Set<Certificate>();
+    const queue: Certificate[] = [start];
+    while (queue.length > 0) {
+        const subject = queue.pop() as Certificate;
+        if (walked.has(subject)) continue;
+        walked.add(subject);
+        for (const issuer of bySubject.get(_hex(subject.issuer.der)) ?? []) {
+            // A self-signed certificate is not a link: §6 does not check a trust
+            // anchor's own signature, and following the edge would loop.
+            if (issuer === subject) continue;
+            const key = `${_hex(subject.der)}|${_hex(issuer.der)}`;
+            if (!verdicts.has(key)) pairs.push([key, subject, issuer]);
+            queue.push(issuer);
+        }
+    }
+    await Promise.all(pairs.map(async ([key, subject, issuer]) => {
+        try {
+            const valid = await verifyCertificateSignature(subject, issuer, { allowSha1 });
+            verdicts.set(key, { certificate: subject, issuer, verdict: valid ? 'valid' : 'invalid' });
+        } catch (error) {
+            // A runtime that cannot decide says nothing about the signature, and
+            // so does a SHA-1 refusal. `not-checked` keeps that apart from
+            // `invalid` all the way into the report.
+            const refused = _pkiError(error);
+            verdicts.set(key, { certificate: subject, issuer, verdict: 'not-checked', errorCode: refused.code, detail: refused.message });
+        }
+    }));
+}
+
 /** What a list about a delegated CRL signer can say that stops it being believed. */
 const STILL_GOOD_REFUSALS: ReadonlySet<string> = /*#__PURE__*/ new Set([
     'PKI_REASON_REVOKED',
@@ -519,8 +533,8 @@ interface CrlSignerContext {
     /** Every list the caller supplied, parsed — a delegated signer may be revoked on one of them. */
     readonly lists: readonly ParsedCrl[];
     readonly reading: PkiParseOptions;
-    /** The signature verdicts of the search, for judging a signer that is not on the path (RFC 5280 §6.3.3 (f)). */
-    readonly signatures: readonly SignatureResult[];
+    /** The signature verdicts so far, by `hex(subject.der)|hex(issuer.der)`; a signer off the path adds its own links (RFC 5280 §6.3.3 (f)). */
+    readonly verdicts: Map<string, SignatureResult>;
 }
 
 /** The `keyIdentifier` a list names in its own `authorityKeyIdentifier`, if any. */
@@ -621,7 +635,7 @@ async function _deltaFor(
  * the Web PKI handles intermediates out of band — CRLSets, OneCRL — which is
  * not a decision a library gets to make for its caller.
  */
-async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number, signatures: readonly SignatureResult[]): Promise<PkiReason[]> {
+async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number, verdicts: Map<string, SignatureResult>): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const lists = input.crls ?? [];
     const stapled = input.ocspResponses ?? [];
@@ -669,7 +683,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             out.push(inputMalformedReason(refused.code, refused.message, `crls[${String(index)}]`));
         }
     }
-    const signing: CrlSignerContext = { input, path, at, lists: parsed, reading, signatures };
+    const signing: CrlSignerContext = { input, path, at, lists: parsed, reading, verdicts };
     // Whether a key entitled to sign a list did. Asked once per list rather than
     // once per certificate, because the answer is a property of the list.
     // `undefined` and `false` are different answers and `checkRevocation` words

@@ -199,11 +199,17 @@ export async function scoreCase(pki: typeof Pki, test: LimboScoreCase, cache: Sc
     // certificates have an open-ended window.
     const at = test.validation_time === null ? Date.now() : Date.parse(test.validation_time);
 
-    // x509-limbo's `max_chain_depth` counts logical intermediates; a chain is
-    // the leaf, those intermediates and the anchor.
+    // x509-limbo's `max_chain_depth` counts LOGICAL intermediates and leaves
+    // self-issued certificates out (RFC 5280 §6.1.4 (l)); pkinative's
+    // `maxChainLength` is a resource bound on every certificate actually
+    // walked, the anchor included. So a chain is the leaf, the logical
+    // intermediates, the anchor — and one more for each self-issued
+    // intermediate in the bag, which the walk passes through but the corpus
+    // does not count. That is the translation; the validator is unchanged.
+    const selfIssued = intermediates.filter((c) => Buffer.from(c.subject.der).equals(Buffer.from(c.issuer.der))).length;
     const limits = test.max_chain_depth === null
         ? { maxPathsExplored: 200 }
-        : { maxPathsExplored: 200, maxChainLength: test.max_chain_depth + 2 };
+        : { maxPathsExplored: 200, maxChainLength: test.max_chain_depth + 2 + selfIssued };
 
     // Which purpose the chain has to serve. The corpus states it twice over: in
     // `extended_key_usage` for the 14 cases that name one, and in

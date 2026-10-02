@@ -113,7 +113,7 @@
     "InvalidSeparateCertificateandCRLKeysTest20": "PKI_REASON_REVOKED",
     "InvalidURInameConstraintsTest35": "PKI_REASON_NAME_NOT_PERMITTED",
     "InvalidURInameConstraintsTest37": "PKI_REASON_NAME_EXCLUDED",
-    "InvalidUnknownCRLEntryExtensionTest8": "PKI_REASON_REVOKED",
+    "InvalidUnknownCRLEntryExtensionTest8": "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION,PKI_REASON_REVOCATION_UNKNOWN",
     "InvalidUnknownCRLExtensionTest9": "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION,PKI_REASON_REVOCATION_UNKNOWN",
     "InvalidUnknownCriticalCertificateExtensionTest2": "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION",
     "InvalidWrongCRLTest6": "PKI_REASON_REVOCATION_UNKNOWN",
