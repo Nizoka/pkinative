@@ -170,4 +170,17 @@ describe('diagnostic payload factories', () => {
             expect(entry?.standard, payload.code).toBe(payload.standard);
         }
     });
+
+    // RFC 5480 §2.1.1: two different faults share one code, and the message is
+    // the only field that tells them apart — parameters that are not a
+    // namedCurve at all, or a namedCurve OID pkinative does not know.
+    it('should tell a non-namedCurve parameter apart from an unknown curve OID in PKI_DIAG_SPKI_EC_PARAMETERS_INVALID', () => {
+        const path = 'tbsCertificate.subjectPublicKeyInfo.algorithm.parameters';
+        const notNamed = diagnostics.spkiEcParametersInvalidDiagnostic(path, undefined).message;
+        const unknown = diagnostics.spkiEcParametersInvalidDiagnostic(path, '1.3.132.0.10').message;
+        expect(notNamed).toContain('implicitCurve (NULL) and specifiedCurve');
+        expect(notNamed).not.toContain('undefined');
+        expect(unknown).toContain('the EC key names the curve 1.3.132.0.10');
+        expect(unknown).not.toContain('implicitCurve');
+    });
 });
