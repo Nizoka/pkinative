@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRevocation, parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { _unknownCriticalEntryExtension, findRevocation, parseCertificateList } from '../../src/revocation/crl-parse.js';
 import { ascii, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 
 /**
@@ -340,5 +340,42 @@ describe('findRevocation', () => {
         expect(parseCertificateList(big, quiet).entryCount).toBe(100_000);
         const last = findRevocation(big, Uint8Array.of(0x01, 0x86, 0x9f), quiet);
         expect(last?.serialNumber.hex).toBe('01869f');
+    });
+});
+
+describe('_unknownCriticalEntryExtension — RFC 5280 §5.3', () => {
+    const VENDOR = [0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, 0x07];
+    const OTHER = [0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, 0x08];
+    const OID_REASON = [0x55, 0x1d, 0x15];
+    const OID_INVALIDITY = [0x55, 0x1d, 0x18];
+    const OID_CERTIFICATE_ISSUER = [0x55, 0x1d, 0x1d];
+
+    it('should name nothing for a list without entries or without entry extensions', () => {
+        expect(_unknownCriticalEntryExtension(crl({ entries: null }), quiet)).toBeUndefined();
+        expect(_unknownCriticalEntryExtension(crl(), quiet)).toBeUndefined();
+    });
+
+    it('should name the first unprocessed critical entry extension on any entry, in encoded order', () => {
+        const der = crl({ entries: [
+            entry([0x01]),
+            entry([0x02], '260601000000Z', extension(VENDOR, universal(5, []), false)),
+            entry([0x03], '260601000000Z', extension(OTHER, universal(5, []), true), extension(VENDOR, universal(5, []), true)),
+        ] });
+        expect(_unknownCriticalEntryExtension(der, quiet)).toBe('1.3.6.1.4.1.99999.8');
+    });
+
+    it('should pass the three entry extensions §5.3 defines, critical or not', () => {
+        const der = crl({ entries: [entry([0x01], '260601000000Z',
+            extension(OID_REASON, universal(10, [0x01]), true),
+            extension(OID_INVALIDITY, universal(24, ascii('20260101000000Z')), true),
+            extension(OID_CERTIFICATE_ISSUER, sequence(tlv(2, true, 4, name('Other CA'))), true))] });
+        expect(_unknownCriticalEntryExtension(der, quiet)).toBeUndefined();
+    });
+
+    it('should stop at maxRevokedCertificates, counting every entry', () => {
+        const der = crl({ entries: [entry([0x01]), entry([0x02]), entry([0x03])] });
+        expect(_unknownCriticalEntryExtension(der, { ...quiet, limits: { maxRevokedCertificates: 3 } })).toBeUndefined();
+        expect(() => _unknownCriticalEntryExtension(der, { ...quiet, limits: { maxRevokedCertificates: 2 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxRevokedCertificates', observed: 3, configured: 2 }));
     });
 });

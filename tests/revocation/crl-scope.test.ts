@@ -563,6 +563,38 @@ describe('a list this implementation only half understands (RFC 5280 §6.3.3)', 
         const crl = buildCrl({ issuer: 'Somebody Else', extensions: [extension([0x2b, 0x06, 0x01, 0x04, 0x01, 0x8d, 0x8d, 0x1f, 0x01], universal(5, []))] });
         expect(codesFor(EE, crl)).toEqual(['PKI_REASON_REVOCATION_WRONG_ISSUER']);
     });
+
+    // RFC 5280 §5.3: a critical *entry* extension nobody here processes makes
+    // the list unusable "to determine the status of any certificates" — any,
+    // so another serial's entry counts as much as this one's.
+    const VENDOR = [0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, 0x07];
+    const VENDOR_OID = '1.3.6.1.4.1.99999.7';
+    const reasonsFor = (cert: Certificate, crlDer: Uint8Array): ReadonlyArray<readonly [string, string, boolean]> =>
+        checkRevocation({ certificate: cert, crl: parseCertificateList(crlDer, quiet), crlDer, at: AT, signatureVerified: true, ...quiet })
+            .map((reason) => [reason.code, reason.path, reason.message.includes(VENDOR_OID)] as const);
+
+    it('should refuse to use a list one of whose entries, about another certificate, carries an unknown critical extension', () => {
+        const crl = buildCrl({ entries: [entry([0x07], extension(VENDOR, universal(5, [])))] });
+        expect(reasonsFor(EE, crl)).toEqual([['PKI_REASON_UNKNOWN_CRITICAL_EXTENSION', 'crl', true]]);
+    });
+
+    it('should not report REVOKED from a list its own entry makes unusable', () => {
+        const crl = buildCrl({ entries: [entry([0x09]), entry([0x07], extension(VENDOR, universal(5, [])))] });
+        expect(reasonsFor(LISTED, crl)).toEqual([['PKI_REASON_UNKNOWN_CRITICAL_EXTENSION', 'crl', true]]);
+    });
+
+    it('should use a list whose entry extensions are unknown but not critical, or critical and processed', () => {
+        const OID_REASON = [0x55, 0x1d, 0x15];
+        expect(codesFor(EE, buildCrl({ entries: [entry([0x07], extension(VENDOR, universal(5, []), false))] }))).toEqual([]);
+        expect(codesFor(EE, buildCrl({ entries: [entry([0x07], extension(OID_REASON, universal(10, [0x01])))] }))).toEqual([]);
+        expect(codesFor(LISTED, buildCrl({ entries: [entry([0x07], extension(OID_REASON, universal(10, [0x01])))] }))).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should not walk the entries of a list about another CA', () => {
+        // The entry question is asked only of a list that would answer.
+        const crl = buildCrl({ issuer: 'Somebody Else', entries: [entry([0x07], extension(VENDOR, universal(5, [])))] });
+        expect(codesFor(EE, crl)).toEqual(['PKI_REASON_REVOCATION_WRONG_ISSUER']);
+    });
 });
 
 describe('delta CRLs (RFC 5280 §5.2.4)', () => {
@@ -642,6 +674,19 @@ describe('delta CRLs (RFC 5280 §5.2.4)', () => {
             entries: [entry([0x07], extension(OID_REASON, universal(10, [0x08])))],
         });
         expect(pair(LISTED, base(4, 0x07), foreign)).toEqual(['PKI_REASON_REVOKED']);
+    });
+
+    it('should refuse a delta one of whose entries carries an unknown critical extension (§5.3)', () => {
+        // The delta would withdraw the revocation; unusable, it is not applied
+        // and the base answers alone.
+        const unusable = buildCrl({
+            extensions: [extension(OID_CRL_NUMBER, int(6), false), extension(OID_DELTA, int(4))],
+            entries: [
+                entry([0x07], extension(OID_REASON, universal(10, [0x08]))),
+                entry([0x09], extension([0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, 0x07], universal(5, []))),
+            ],
+        });
+        expect(pair(LISTED, base(4, 0x07), unusable)).toEqual(['PKI_REASON_REVOKED']);
     });
 
     it('should refuse a delta whose signature nobody vouched for', () => {

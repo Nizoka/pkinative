@@ -451,6 +451,53 @@ export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: Fi
     return undefined;
 }
 
+/**
+ * The entry extensions RFC 5280 §5.3 defines, and the only ones this library
+ * processes: `reasonCode`, `invalidityDate` and `certificateIssuer`.
+ */
+const ENTRY_EXTENSIONS: ReadonlySet<string> = new Set([OID_CRL_REASON, OID_INVALIDITY_DATE, OID_CERTIFICATE_ISSUER]);
+
+/**
+ * The first critical entry extension on **any** entry that this library does
+ * not process, or undefined when there is none.
+ *
+ * RFC 5280 §5.3: *"If a CRL contains a critical CRL entry extension that the
+ * application cannot process, then the application MUST NOT use that CRL to
+ * determine the status of any certificates."* Any certificate, so every entry
+ * is asked, not only the one `findRevocation` stops at: a list that marks an
+ * entry with an instruction nobody here can follow — another certificate's
+ * entry included — does not mean what this library would read it to mean.
+ *
+ * Linear in the entries, as `findRevocation` is, and nearly free on the usual
+ * list: an entry without the optional extensions field is three headers and
+ * nothing decoded.
+ *
+ * @param der     The same bytes `parseCertificateList` was given.
+ * @param options The limits apply to the walk.
+ * @returns The OID of the first unprocessed critical entry extension, in encoded order.
+ * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` for a malformed entry.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
+ * @internal
+ */
+export function _unknownCriticalEntryExtension(der: Uint8Array, options?: PkiParseOptions): string | undefined {
+    const ctx = createAsn1Context(options);
+    const env = locate(der, readTlvHeader(der, 0, 'CertificateList'));
+    if (env.revoked === undefined) return undefined;
+    let index = 0;
+    for (const entry of walkChildren(der, env.revoked, 'tbsCertList.revokedCertificates')) {
+        const path = `tbsCertList.revokedCertificates[${String(index)}]`;
+        enforceLimit(ctx.limits, 'maxRevokedCertificates', index + 1, path);
+        index += 1;
+        // Bounded by the entry's own length: at most its three fields are walked.
+        const field = [...walkChildren(der, entry, path)][2];
+        if (field === undefined) continue;
+        for (const extension of readExtensions(der, field, ctx, `${path}.crlEntryExtensions`)) {
+            if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
+        }
+    }
+    return undefined;
+}
+
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;

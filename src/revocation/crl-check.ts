@@ -48,8 +48,8 @@ import type { CertificateList } from '../types/crl-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { PkiDiagnosticHandler, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
-import { findRevocation } from './crl-parse.js';
-import { _crlScopeProblem, _deltaApplies } from './crl-scope.js';
+import { _unknownCriticalEntryExtension, findRevocation, type FindRevocationOptions } from './crl-parse.js';
+import { _crlScopeProblem, _deltaApplies, type CrlScopeProblem } from './crl-scope.js';
 
 /** What to check, and everything needed to judge it. */
 export interface CheckRevocationInput {
@@ -133,9 +133,29 @@ function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefine
     if (delta === undefined || delta.signatureVerified !== true) return undefined;
     if (!_deltaApplies(input.crl, delta.crl)) return undefined;
     // Same scope, in the only sense that changes this answer: both lists have
-    // to be entitled to speak about *this* certificate.
+    // to be entitled to speak about *this* certificate — and to speak at all,
+    // which a delta with an unprocessed critical entry extension may not.
     if (_crlScopeProblem({ certificate: input.certificate, crl: delta.crl, asDelta: true }) !== null) return undefined;
+    if (_unknownCriticalEntryExtension(delta.crlDer, _lookup(input)) !== undefined) return undefined;
     return delta;
+}
+
+/** The options of every walk over the entries of the lists in `input`. */
+function _lookup(input: CheckRevocationInput): FindRevocationOptions {
+    return { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+}
+
+/**
+ * The list-level scope of `_crlScopeProblem`, then the entries: a list that
+ * would cover the certificate is still unusable when any entry carries a
+ * critical extension nothing here processes (RFC 5280 §5.3) — the same
+ * `unusable` answer, so every reader of the scope treats the two alike.
+ */
+function _scope(input: CheckRevocationInput): CrlScopeProblem | null {
+    const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+    if (scope !== null) return scope;
+    const oid = _unknownCriticalEntryExtension(input.crlDer, _lookup(input));
+    return oid === undefined ? null : { kind: 'unusable', oid };
 }
 
 /**
@@ -168,6 +188,9 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  * decided here: RFC 5280 §5.2.5 for what the list declares itself to be about,
  * §6.3.3 (b) for the agreement between the certificate's `cRLDistributionPoints`
  * and the list's own `issuingDistributionPoint`, including the indirect case.
+ * A list that would answer and carries a critical extension nothing here
+ * processes — on itself (§6.3.3) or on **any** entry (§5.3) — is
+ * `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`, and nothing it lists is evidence.
  *
  * A **delta CRL** (§5.2.4) goes in `delta`, beside the complete list it
  * describes the changes since, and the two are read as one answer: the delta
@@ -192,13 +215,15 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // list — the certificate's own CA, or a cRLIssuer it delegates to — and
     // §5.2.5 asks what the list says it is about. Names are compared encoded,
     // never rendered: two names that print the same and encode differently are
-    // two names.
-    const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+    // two names. A list that would answer is then asked whether any of its
+    // entries forbids using it at all (§5.3).
+    const scope = _scope(input);
     if (scope?.kind === 'wrong-issuer') out.push(revocationWrongIssuerReason(path));
     if (scope?.kind === 'out-of-scope') out.push(revocationOutOfScopeReason(path, scope.why));
     // The same rule §6.1.3 (f) sets for a certificate, and the same code: a
-    // critical extension nothing here recognises means the object does not mean
-    // what this implementation would take it to mean.
+    // critical extension nothing here recognises — on the list, or on any of
+    // its entries — means the object does not mean what this implementation
+    // would take it to mean.
     if (scope?.kind === 'unusable') out.push(unknownCriticalExtensionReason(path, scope.oid, 'revocation list'));
 
     if (input.signatureVerified !== true) {
@@ -220,7 +245,7 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // is refused whatever else is wrong with the list. What a listing *means*
     // is decided below: evidence only from a list that may speak.
     const serial = input.certificate.serialNumber.bytes;
-    const lookup = { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+    const lookup = _lookup(input);
     const delta = _applicableDelta(input);
     const changed = delta === undefined ? undefined : findRevocation(delta.crlDer, serial, lookup);
 
