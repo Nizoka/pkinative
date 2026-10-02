@@ -522,6 +522,58 @@ describe('buildCertificatePath — the search, step by step', () => {
         expect(real.path).toHaveLength(2);
     });
 
+    it('should end the walk at an anchor whose own issuer is in the bag', async () => {
+        // The anchor was issued under "Stop Parent", and a "Stop Parent" CA is
+        // among the candidates. An anchor is where a path ends (§6.1.1 (d)):
+        // walking on to its issuer spends the budget on paths §6 can only refuse.
+        const parent = await ca('Stop Parent', 'Nowhere', 650n);
+        const anchor = (await issue({ subject: 'Stop Anchor', issuerDer: parent.subject.der, ca: true, serial: 651n })).certificate;
+        const leaf = (await issue({ subject: 'stop.example', issuerDer: anchor.subject.der, ca: false, serial: 652n })).certificate;
+        const report = buildCertificatePath({
+            leaf, candidates: [parent], trustAnchors: [anchor], at: AT,
+            signatures: [{ certificate: leaf, verdict: 'invalid' }],
+        });
+        expect(report.valid).toBe(false);
+        // [leaf], [leaf, anchor] — never [leaf, anchor, parent].
+        expect(report.explored).toBe(2);
+        expect(report.path.map((x) => x.der)).toEqual([leaf, anchor].map((x) => x.der));
+    });
+
+    it('should end the walk at a re-issued anchor — the anchor\'s name and key in other bytes', async () => {
+        // RFC 5280 §6.1.1 (d): an anchor is a name and a key. A copy of the
+        // anchor under a new serial carries both, so it ends the path exactly
+        // as the anchor does, even though its fingerprint is not the anchor's
+        // and its issuer is in the bag.
+        const parent = await ca('Reissue Parent', 'Nowhere', 660n);
+        const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+        const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+        const anchorWith = async (serialNumber: bigint): Promise<Certificate> => parseCertificate(await createCertificate({
+            serialNumber,
+            issuerDer: parent.subject.der,
+            subject: [[{ type: '2.5.4.3', value: 'Reissued Anchor' }]],
+            notBefore: AT - DAY,
+            notAfter: AT + DAY,
+            subjectPublicKey: spki,
+            extensions: [
+                { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+                { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign']) },
+            ],
+        }, { key: pair.privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } }), quiet);
+        const anchor = await anchorWith(661n);
+        const reissued = await anchorWith(662n);
+        expect(reissued.subjectPublicKeyInfo.der).toEqual(anchor.subjectPublicKeyInfo.der);
+        expect(reissued.der).not.toEqual(anchor.der);
+        const leaf = (await issue({ subject: 'reissued.example', issuerDer: anchor.subject.der, ca: false, serial: 663n })).certificate;
+        const report = buildCertificatePath({
+            leaf, candidates: [reissued, parent], trustAnchors: [anchor], at: AT,
+            signatures: [{ certificate: leaf, verdict: 'invalid' }],
+        });
+        expect(report.valid).toBe(false);
+        // [leaf], [leaf, reissued], [leaf, anchor] — never [leaf, reissued, parent].
+        expect(report.explored).toBe(3);
+        expect(report.path.map((x) => x.der)).toEqual([leaf, reissued].map((x) => x.der));
+    });
+
     it('should find a path through the second of two anchors that share a name', async () => {
         // A key rollover in the trust store: the leaf's issuer is the second
         // anchor, and the first anchor of that name, which validation tries on
