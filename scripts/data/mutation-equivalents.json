@@ -21,16 +21,16 @@
       "reason": "Message-only: as number+1 at the same position — the divisor only formats the message text."
     },
     {
-      "id": "src/keys/key-pbes2.ts:242:118:conditional",
+      "id": "src/keys/key-pbes2.ts:244:118:conditional",
       "original": "password === null ? 'null' : typeof password",
       "replacement": "(password === null ? typeof password : 'null')",
       "reason": "Message-only: the expression names the wrong type in the PKI_INVALID_INPUT message ('got null' / 'got number'); the refusal itself, its class and its code are decided by the enclosing instanceof test."
     },
     {
-      "id": "src/keys/key-pbes2.ts:242:127:equality",
+      "id": "src/keys/key-pbes2.ts:244:127:equality",
       "original": "===",
       "replacement": "!==",
-      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 242:118."
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 244:118."
     },
     {
       "id": "src/path/path-validate.ts:281:48:relational",
