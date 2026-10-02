@@ -2724,6 +2724,15 @@ function _crlScopeProblem(input) {
   if (!fromIssuer && !delegated) return { kind: "wrong-issuer" };
   return _outOfScope(`no cRLDistributionPoints entry in the certificate is answered by it \u2014 ${problems[0]}`);
 }
+function _interimReasons(input) {
+  const idp = input.crl.issuingDistributionPoint;
+  const only = idp?.onlySomeReasons;
+  const points = getExtension(input.certificate, "crlDistributionPoints")?.points ?? [];
+  const answered = points.filter((point) => _pointProblem(point, input, idp) === null);
+  if (answered.length === 0 || answered.some((point) => point.reasons === void 0)) return only;
+  const named = new Set(answered.flatMap((point) => point.reasons));
+  return (only ?? _REASON_FLAGS).filter((reason) => named.has(reason));
+}
 function _outOfScope(why) {
   return { kind: "out-of-scope", why };
 }
@@ -3054,6 +3063,23 @@ function findRevocation(der, serial, options) {
       reason: readReason(extensions, ctx, `${path}.crlEntryExtensions.reasonCode`),
       invalidityDate: readInvalidityDate(extensions, ctx, `${path}.crlEntryExtensions.invalidityDate`)
     });
+  }
+  return void 0;
+}
+var ENTRY_EXTENSIONS = /* @__PURE__ */ new Set([OID_CRL_REASON, OID_INVALIDITY_DATE, OID_CERTIFICATE_ISSUER]);
+function _unknownCriticalEntryExtension(der, options) {
+  const ctx = createAsn1Context(options);
+  const env = locate(der, readTlvHeader(der, 0, "CertificateList"));
+  if (env.revoked === void 0) return void 0;
+  let index = 0;
+  for (const entry of walkChildren(der, env.revoked, "tbsCertList.revokedCertificates")) {
+    const path = `tbsCertList.revokedCertificates[${String(index)}]`;
+    enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, path);
+    index += 1;
+    const field = [...walkChildren(der, entry, path)][2];
+    for (const extension of readExtensions(der, field, ctx, `${path}.crlEntryExtensions`)) {
+      if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
+    }
   }
   return void 0;
 }
@@ -3422,7 +3448,7 @@ function notACaReason(path, why) {
   return _reason(
     "PKI_REASON_NOT_A_CA",
     "RFC 5280 \xA76.1.4 (k)",
-    why === "basicConstraints" ? "a certificate in the chain issued another without asserting cA in basicConstraints" : "a certificate in the chain issued another without asserting keyCertSign in keyUsage",
+    why === "basicConstraints" ? "a certificate in the chain issued another without asserting cA in basicConstraints" : why === "keyUsage" ? "a certificate in the chain issued another without asserting keyCertSign in keyUsage" : "a version 1 or 2 certificate in the chain issued another; only a version 3 intermediate can assert cA",
     path
   );
 }
@@ -3458,7 +3484,17 @@ function _applicableDelta(input) {
   if (delta === void 0 || delta.signatureVerified !== true) return void 0;
   if (!_deltaApplies(input.crl, delta.crl)) return void 0;
   if (_crlScopeProblem({ certificate: input.certificate, crl: delta.crl, asDelta: true }) !== null) return void 0;
+  if (_unknownCriticalEntryExtension(delta.crlDer, _lookup(input)) !== void 0) return void 0;
   return delta;
+}
+function _lookup(input) {
+  return { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+}
+function _scope(input) {
+  const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+  if (scope !== null) return scope;
+  const oid = _unknownCriticalEntryExtension(input.crlDer, _lookup(input));
+  return oid === void 0 ? null : { kind: "unusable", oid };
 }
 function _unverifiedRevocation(source, at, reason) {
   return `the ${source} says this certificate was revoked on ${new Date(at).toISOString()} (${reason === void 0 ? "no reason given" : `reason: ${reason}`}), but the ${source} is not authenticated, so that is a claim and not evidence`;
@@ -3466,7 +3502,7 @@ function _unverifiedRevocation(source, at, reason) {
 function checkRevocation(input) {
   const out = [];
   const path = "crl";
-  const scope = _crlScopeProblem({ certificate: input.certificate, crl: input.crl });
+  const scope = _scope(input);
   if (scope?.kind === "wrong-issuer") out.push(revocationWrongIssuerReason(path));
   if (scope?.kind === "out-of-scope") out.push(revocationOutOfScopeReason(path, scope.why));
   if (scope?.kind === "unusable") out.push(unknownCriticalExtensionReason(path, scope.oid, "revocation list"));
@@ -3479,7 +3515,7 @@ function checkRevocation(input) {
     out.push(revocationStaleReason(path, nextUpdate, input.at));
   }
   const serial = input.certificate.serialNumber.bytes;
-  const lookup = { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+  const lookup = _lookup(input);
   const delta = _applicableDelta(input);
   const changed = delta === void 0 ? void 0 : findRevocation(delta.crlDer, serial, lookup);
   const entry = changed ?? findRevocation(input.crlDer, serial, lookup);
@@ -3489,7 +3525,7 @@ function checkRevocation(input) {
     else if (scope === null) out.push(revocationUnknownReason(path, _unverifiedRevocation("list", revokedAt, entry.reason)));
     return out;
   }
-  const covered = input.crl.issuingDistributionPoint?.onlySomeReasons;
+  const covered = _interimReasons({ certificate: input.certificate, crl: input.crl });
   if (covered !== void 0) out.push(revocationPartialReason(path, covered.filter((reason) => reason !== "unused")));
   return out;
 }
@@ -4488,9 +4524,14 @@ function checkOcspStatus(input) {
     out.push(revocationUnknownReason(path, input.responderAuthorized === false ? "the signer is not authorised to answer for this CA (RFC 6960 \xA74.2.2.2)" : "nothing says the signer is authorised to answer for this CA, and a responder nobody authorised is a responder anyone can be"));
   }
   out.push(...checkNonce(basic, input, path));
-  const answer = basic.responses.find((single) => matches(single, input.expected));
+  const answers = basic.responses.filter((single) => matches(single, input.expected));
+  const answer = answers[0];
   if (answer === void 0) {
     out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
+    return out;
+  }
+  if (answers.some((other) => other.status.kind !== answer.status.kind)) {
+    out.push(revocationUnknownReason(path, "the response answers more than once about this certificate and the answers disagree on its status, so it establishes nothing"));
     return out;
   }
   out.push(...checkFreshness(answer, input, path));
@@ -4547,8 +4588,12 @@ function checkFreshness(answer, input, path) {
     out.push(revocationStaleReason(path, void 0, input.at));
   }
   const nextUpdate = answer.nextUpdate?.epochMilliseconds;
-  if (nextUpdate !== void 0 && input.at > nextUpdate + (input.staleTolerance ?? 0)) {
+  const tolerance = input.staleTolerance ?? 0;
+  if (nextUpdate !== void 0 && input.at > nextUpdate + tolerance) {
     out.push(revocationStaleReason(path, nextUpdate, input.at));
+  }
+  if (nextUpdate === void 0 && answer.status.kind !== "revoked" && input.at > answer.thisUpdate.epochMilliseconds + tolerance) {
+    out.push(revocationStaleReason(path, void 0, input.at));
   }
   return out;
 }
@@ -5125,10 +5170,11 @@ function checkSignature(certificate, context, path, issuer) {
   if (result.verdict === "invalid") return signatureInvalidReason(path);
   return signatureNotCheckedReason(path, result.errorCode ?? "PKI_CRYPTO_KEY_UNSUPPORTED", result.detail ?? "the signature could not be checked");
 }
-function checkIssuingCapability(issuer, state, path) {
+function checkIssuingCapability(issuer, state, path, anchor = false) {
   const out = [];
   const basicConstraints = getExtension(issuer, "basicConstraints");
   const keyUsage = getExtension(issuer, "keyUsage");
+  if (!anchor && issuer.version < 3) out.push(notACaReason(path, "version"));
   if (basicConstraints?.cA !== true) out.push(notACaReason(path, "basicConstraints"));
   if (keyUsage !== void 0 && !keyUsage.usages.includes("keyCertSign")) out.push(notACaReason(path, "keyUsage"));
   const selfIssued = _hex(issuer.subject.der) === _hex(issuer.issuer.der);
@@ -5166,7 +5212,7 @@ function checkNamesAgainstConstraints(certificate, names, path) {
   }
   return out;
 }
-function advancePolicies(certificate, policies, maxNodes, path) {
+function advancePolicies(certificate, policies, maxNodes, path, final) {
   const out = [];
   const asserted = getExtension(certificate, "certificatePolicies");
   if (asserted === void 0) {
@@ -5186,7 +5232,7 @@ function advancePolicies(certificate, policies, maxNodes, path) {
   const constraints = getExtension(certificate, "policyConstraints");
   const inhibitAny = getExtension(certificate, "inhibitAnyPolicy");
   const selfIssued = _hex(certificate.subject.der) === _hex(certificate.issuer.der);
-  advancePolicyCounters(policies, selfIssued, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
+  advancePolicyCounters(policies, selfIssued && !final, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
   return out;
 }
 function validateCertificatePath(input) {
@@ -5228,10 +5274,12 @@ function _validateIndexed(input, signatures) {
   };
   const walked = [];
   let anchored = false;
+  let limited = false;
   for (const [index, certificate] of input.path.entries()) {
     const path = `path[${String(index)}]`;
     if (index >= context.maxCertificates) {
       state.reasons.push(limitExceededReason(path, "maxChainLength", context.maxCertificates));
+      limited = true;
       break;
     }
     const fingerprint2 = _hex(certificate.der);
@@ -5264,10 +5312,14 @@ function _validateIndexed(input, signatures) {
     if (anchor !== void 0) {
       anchored = true;
       const path = `path[${String(walked.length)}]`;
-      const validity = checkValidity(anchor, context.at, path);
-      if (validity !== null) state.reasons.push(validity);
-      state.reasons.push(...checkCriticalExtensions(anchor, path));
-      walked.push(anchor);
+      if (walked.length >= context.maxCertificates) {
+        if (!limited) state.reasons.push(limitExceededReason(path, "maxChainLength", context.maxCertificates));
+      } else {
+        const validity = checkValidity(anchor, context.at, path);
+        if (validity !== null) state.reasons.push(validity);
+        state.reasons.push(...checkCriticalExtensions(anchor, path));
+        walked.push(anchor);
+      }
     }
   }
   if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
@@ -5282,12 +5334,12 @@ function _validateIndexed(input, signatures) {
     const issuer = walked[index];
     const below = walked[index - 1];
     const belowPath = `path[${String(index - 1)}]`;
-    state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`));
+    state.reasons.push(...checkIssuingCapability(issuer, state, `path[${String(index)}]`, context.trustAnchorKeys.has(_anchorKey(issuer))));
     const constraints = getExtension(issuer, "nameConstraints");
     if (constraints !== void 0) accumulateNameConstraints(names, constraints.permittedSubtrees, constraints.excludedSubtrees);
     const selfIssued = _hex(below.subject.der) === _hex(below.issuer.der);
     if (!selfIssued || index - 1 === 0) state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
-    state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
+    state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath, index - 1 === 0));
   }
   if (wrapUpPolicies(policies, input.initialPolicySet ?? []) === null) {
     state.reasons.push(noValidPolicyReason("path"));
@@ -5368,7 +5420,13 @@ function hexOf(bytes) {
 
 // src/path/path-server-name.ts
 var OID_COMMON_NAME = "2.5.4.3";
-function checkServerName(certificate, identity, options) {
+var DEC_OCTET = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
+var IPV4_ADDRESS = new RegExp(`^${DEC_OCTET}(?:\\.${DEC_OCTET}){3}$`);
+var NUMERIC_LABEL = /^(?:0x[0-9a-f]*|[0-9]+)$/i;
+var IPV6_GROUP = /^[0-9a-f]{1,4}$/i;
+var MAX_IPV6_TEXT = 45;
+function checkServerName(certificate, reference, options) {
+  const identity = asAddress(reference);
   const san = getExtension(certificate, "subjectAltName");
   const names = san?.names ?? [];
   const sanIsAuthoritative = names.some((name) => name.kind === "dNSName" || name.kind === "iPAddress");
@@ -5377,24 +5435,24 @@ function checkServerName(certificate, identity, options) {
     for (const name of names) {
       if (matches2(name, identity, dns)) return [];
     }
-    return [nameMismatchReason("certificate.subjectAltName", identityText(identity), listed(names))];
+    return [nameMismatchReason("certificate.subjectAltName", identityText(reference), listed(names))];
   }
   if (options?.allowCommonNameFallback !== true) {
     return [nameMismatchReason(
       "certificate.subjectAltName",
-      identityText(identity),
+      identityText(reference),
       names.length === 0 ? "the certificate carries no subjectAltName at all, and the deprecated commonName fallback was not asked for" : "the subjectAltName carries no dNSName and no iPAddress, and the deprecated commonName fallback was not asked for"
     )];
   }
   const common = commonNames(certificate);
   const matched = identity.kind === "dns" ? common.find((cn) => matchDnsName(cn, identity.value, dns)) : void 0;
   if (matched === void 0) {
-    return [nameMismatchReason("certificate.subject", identityText(identity), `commonName ${common.map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
+    return [nameMismatchReason("certificate.subject", identityText(reference), `commonName ${common.map((c) => JSON.stringify(c)).join(", ") || "(none)"}`)];
   }
   if (options.path === void 0) {
     return [nameMismatchReason(
       "certificate.subject",
-      identityText(identity),
+      identityText(reference),
       `commonName ${JSON.stringify(matched)} matches, but the commonName fallback needs options.path \u2014 the validated path \u2014 so that the dNSName name constraints of the CAs that issued the certificate apply to it`
     )];
   }
@@ -5410,6 +5468,42 @@ function constrainedCommonName(certificate, path, commonName) {
   }
   return checkName(state, { kind: "dNSName", value: commonName});
 }
+function asAddress(identity) {
+  if (identity.kind === "ip") return identity;
+  const text = identity.value.startsWith("[") && identity.value.endsWith("]") ? identity.value.slice(1, -1) : identity.value;
+  if (text.includes(":")) return { kind: "ip", value: ipv6Octets(text) ?? new Uint8Array(0) };
+  const host = stripTrailingDot(text);
+  if (!NUMERIC_LABEL.test(host.slice(host.lastIndexOf(".") + 1))) return identity;
+  return { kind: "ip", value: IPV4_ADDRESS.test(host) ? Uint8Array.from(host.split("."), Number) : new Uint8Array(0) };
+}
+function ipv6Octets(text) {
+  if (text.length > MAX_IPV6_TEXT) return null;
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const compressed = halves.length === 2;
+  const head = ipv6Words(halves[0], !compressed);
+  const tail = compressed ? ipv6Words(halves[1], true) : [];
+  if (head === null || tail === null) return null;
+  if (compressed ? head.length + tail.length > 7 : head.length !== 8) return null;
+  const words = [...head, ...Array.from({ length: 8 - head.length - tail.length }, () => 0), ...tail];
+  return Uint8Array.from(words.flatMap((word) => [word >> 8, word & 255]));
+}
+function ipv6Words(half, last) {
+  if (half === "") return [];
+  const out = [];
+  const groups = half.split(":");
+  for (const [index, group] of groups.entries()) {
+    if (last && index === groups.length - 1 && IPV4_ADDRESS.test(group)) {
+      const [a, b, c, d] = group.split(".").map(Number);
+      out.push(a * 256 + b, c * 256 + d);
+    } else if (IPV6_GROUP.test(group)) {
+      out.push(Number.parseInt(group, 16));
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
 function matches2(name, identity, dns) {
   if (identity.kind === "dns") {
     return name.kind === "dNSName" && matchDnsName(name.value, identity.value, dns);
@@ -5421,6 +5515,7 @@ function fold2(text) {
 }
 function matchDnsName(presented, reference, options) {
   if (presented === "" || presented.includes("\0") || reference === "" || reference.includes("\0")) return false;
+  if (reference.includes("*")) return false;
   const host = fold2(stripTrailingDot(reference));
   const pattern = fold2(stripTrailingDot(presented));
   if (!pattern.includes("*")) return pattern === host;
@@ -6477,14 +6572,23 @@ async function _signerStillGood(ctx, candidate) {
     limits: ctx.reading.limits ?? {}
   });
   if (!own.valid) return false;
+  return await _unrevokedOnLists(ctx, candidate);
+}
+async function _unrevokedOnLists(ctx, candidate) {
   for (const { der, crl } of ctx.lists) {
-    if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
+    const problem = _crlScopeProblem({ certificate: candidate, crl });
+    if (problem !== null && problem.kind !== "unusable") continue;
     if (await _crlSigner(ctx, crl, _hex2(crl.issuer.der), true) !== true) continue;
     const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, onDiagnostic: ctx.reading.onDiagnostic }, "crl");
-    if (reasons.some((reason) => reason.code === "PKI_REASON_REVOKED" || reason.code === "PKI_REASON_INPUT_MALFORMED")) return false;
+    if (reasons.some((reason) => STILL_GOOD_REFUSALS.has(reason.code))) return false;
   }
   return true;
 }
+var STILL_GOOD_REFUSALS = /* @__PURE__ */ new Set([
+  "PKI_REASON_REVOKED",
+  "PKI_REASON_INPUT_MALFORMED",
+  "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION"
+]);
 function _namedKeyIdentifier(crl) {
   for (const extension of crl.extensions) {
     if (extension.kind === "authorityKeyIdentifier") return extension.keyIdentifier;
@@ -6555,14 +6659,10 @@ async function _checkRevocation(input, path, at, signatures) {
         mine.push(unknownCriticalExtensionReason(`crls[${String(index)}]`, problem.oid, "revocation list"));
         continue;
       }
-      covered.add(position);
       if (!signed.has(index)) signed.set(index, await _crlSigner(signing, crl, _hex2(crl.issuer.der)));
       const signatureVerified = signed.get(index);
-      const only = crl.issuingDistributionPoint?.onlySomeReasons;
-      if (only === void 0) complete = true;
-      else for (const reason of only) reasons.add(reason);
       const delta = await _deltaFor(signing, subject, crl, signed);
-      mine.push(..._judged({
+      const judged = _judged({
         certificate: subject,
         crl,
         crlDer: der,
@@ -6571,7 +6671,17 @@ async function _checkRevocation(input, path, at, signatures) {
         ...delta === void 0 ? {} : { delta },
         limits: reading.limits,
         onDiagnostic: reading.onDiagnostic
-      }, `crls[${String(index)}]`));
+      }, `crls[${String(index)}]`);
+      const unusable = judged.filter((reason) => reason.code === "PKI_REASON_UNKNOWN_CRITICAL_EXTENSION");
+      if (unusable.length > 0) {
+        mine.push(...unusable);
+        continue;
+      }
+      covered.add(position);
+      const only = _interimReasons({ certificate: subject, crl });
+      if (only === void 0) complete = true;
+      else for (const reason of only) reasons.add(reason);
+      mine.push(...judged);
     }
     out.push(...complete || _coversEveryReason(reasons) ? mine.filter((reason) => reason.code !== "PKI_REASON_REVOCATION_PARTIAL") : mine);
   }
@@ -6582,12 +6692,12 @@ async function _checkRevocation(input, path, at, signatures) {
       const response = parseOcspResponse(der, reading);
       const basic = response.basicResponse;
       if (basic === void 0) {
-        out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, "SHA-1"), at }));
+        out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, "SHA-1"), at }).map((reason) => _rooted(reason, "ocsp", where2)));
         continue;
       }
       const mine = basic.responses.find((one) => _hex2(one.certId.serialNumber.bytes) === _hex2(input.leaf.serialNumber.bytes));
       const algorithm = _digestOf(mine?.certId.hashAlgorithm.oid ?? basic.responses[0]?.certId.hashAlgorithm.oid);
-      const authorised = issuer === void 0 ? void 0 : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
+      const authorised = issuer === void 0 ? void 0 : await _ocspSigner(basic, issuer, signing);
       covered.add(0);
       out.push(...checkOcspStatus({
         response,
@@ -6596,7 +6706,7 @@ async function _checkRevocation(input, path, at, signatures) {
         ...authorised === void 0 ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised },
         ...input.ocspNonce === void 0 ? {} : { nonce: input.ocspNonce },
         ...input.requireOcspNonce === void 0 ? {} : { requireNonce: input.requireOcspNonce }
-      }));
+      }).map((reason) => _rooted(reason, "ocsp", where2)));
     } catch (error) {
       const refused = _pkiError(error);
       out.push(inputMalformedReason(refused.code, refused.message, where2));
@@ -6609,11 +6719,14 @@ async function _checkRevocation(input, path, at, signatures) {
 }
 function _judged(check, where2) {
   try {
-    return checkRevocation(check);
+    return checkRevocation(check).map((reason) => _rooted(reason, "crl", where2));
   } catch (error) {
     const refused = _pkiError(error);
     return [inputMalformedReason(refused.code, refused.message, where2)];
   }
+}
+function _rooted(reason, from, to) {
+  return Object.freeze({ ...reason, path: `${to}${reason.path.slice(from.length)}` });
 }
 function _certId(certificate, issuer, algorithm) {
   const digest = algorithm === "SHA-256" ? sha256 : sha1;
@@ -6626,7 +6739,9 @@ function _certId(certificate, issuer, algorithm) {
 function _digestOf(oid) {
   return oid === "2.16.840.1.101.3.4.2.1" ? "SHA-256" : "SHA-1";
 }
-async function _ocspSigner(basic, issuer, at, allowSha1, reading) {
+async function _ocspSigner(basic, issuer, ctx) {
+  const { at, reading } = ctx;
+  const allowSha1 = ctx.input.allowSha1 === true;
   const direct = await _ocspSignature(basic, issuer);
   if (direct === true) return { signed: true, authorised: true };
   for (const der of basic.certificates) {
@@ -6649,8 +6764,11 @@ async function _ocspSigner(basic, issuer, at, allowSha1, reading) {
       continue;
     }
     if (!issued) continue;
+    const usage = getExtension(delegate, "keyUsage");
+    if (usage !== void 0 && !usage.usages.includes("digitalSignature")) continue;
     const signed = await _ocspSignature(basic, delegate);
-    if (signed === true) return { signed: true, authorised: true };
+    if (signed !== true) continue;
+    if (getExtension(delegate, "ocspNoCheck") !== void 0 || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true };
   }
   return { signed: direct, authorised: false };
 }
@@ -9477,6 +9595,7 @@ async function verifySignedData(input) {
   if (input.allowTrailingData !== void 0 && typeof input.allowTrailingData !== "boolean") {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: allowTrailingData must be a boolean, got ${typeof input.allowTrailingData}`);
   }
+  const now = input.at ?? Date.now();
   const quiet = { onDiagnostic: () => void 0 };
   let signedData;
   try {
@@ -9524,7 +9643,7 @@ async function verifySignedData(input) {
         ...input.crls === void 0 ? {} : { crls: input.crls },
         ...input.ocspResponses === void 0 ? {} : { ocspResponses: input.ocspResponses },
         ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
-        ...input.at === void 0 ? {} : { at: input.at },
+        at: now,
         ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
         ...input.limits === void 0 ? {} : { limits: input.limits }
       });
@@ -9539,7 +9658,7 @@ async function verifySignedData(input) {
         leaf: certificate,
         candidates,
         trustAnchors: input.trustAnchors,
-        at: _instant(input, timeStamps),
+        at: _instant(input.atTimeStamp === true, now, timeStamps),
         ...input.purposes === void 0 ? {} : { purposes: input.purposes },
         crls: [...signedData.crls, ...input.crls ?? []],
         ocspResponses: [...signedData.ocspResponses, ...input.ocspResponses ?? []],
@@ -9570,10 +9689,10 @@ async function verifySignedData(input) {
     signatureVerifications
   });
 }
-function _instant(input, stamps) {
+function _instant(atTimeStamp, now, stamps) {
   const proved = stamps.flatMap((stamp) => stamp.valid && stamp.latest !== void 0 ? [stamp.latest] : []);
-  if (input.atTimeStamp === true && proved.length > 0) return Math.min(...proved);
-  return input.at ?? Date.now();
+  if (atTimeStamp && proved.length > 0) return Math.min(...proved);
+  return now;
 }
 
 // src/core/key-oids.ts

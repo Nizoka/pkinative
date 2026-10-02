@@ -172,9 +172,9 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, so that it runs the build of the tree the site is published from, not the last npm release. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "8a0457c36cee77b4e7f16ba0090c57669411ad96d9870ef5e97b67c77327690e",
-      "bundleSha256": "4fa27e35de87f83dec3cc813a950253340c5717684789dc6f00b2b20642247d5",
-      "bytes": 471832,
+      "sourceSha256": "fdfc5d6fd5e230c9088a355e527f91dc5d2e8f433871f4ede768d38516e20190",
+      "bundleSha256": "651b4cffb6d0d492088e65691cb96904b407956895da5588e7c04d638a82b4b6",
+      "bytes": 477722,
       "maxBytes": 480000
     },
     "socialImages": [
