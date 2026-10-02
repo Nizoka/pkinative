@@ -33,14 +33,18 @@ on:
 #            tarball and hands it on with its digests. It holds no id-token:
 #            dev-dependency code never runs where a publishing token can be
 #            minted.
-#   publish  behind the `npm-publish` environment; the only job that holds
-#            id-token: write. It checks out .nvmrc and nothing else, installs
+#   publish  behind the `npm-publish` environment; the only job that can
+#            mint the npm token — it and `attest` hold id-token: write, but
+#            the Trusted Publishing entry names this environment, which
+#            `attest` never enters. It checks out .nvmrc and nothing else, installs
 #            nothing from the lockfile and runs no repository script: it
 #            verifies the handed-on tarball against the build job's digests
 #            and uploads exactly it.
 #   attest   fetches the published tarball back from the registry, checks it
 #            against the same digests and the registry signatures, writes the
-#            SBOMs, attests them and attaches them to the draft release.
+#            SBOMs, attests them and attaches them to the draft release. It
+#            holds id-token: write to sign that attestation (Sigstore), outside
+#            the `npm-publish` environment, so its token cannot publish.
 #
 # No job restores a dependency cache: setup-node v6 turns the npm cache on by
 # itself whenever package.json names npm in `packageManager`, so every
@@ -223,7 +227,9 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # The trusted half, and the only holder of id-token: write. A protected
+  # The trusted half, and the only job whose id-token can publish: `attest`
+  # holds id-token: write too, for Sigstore, but only this job enters the
+  # environment the Trusted Publishing entry names. A protected
   # environment (required reviewer) gates the token: the job cannot mint one
   # before the maintainer approves — and it is only reached once the guard
   # and the whole publish gate have passed.
