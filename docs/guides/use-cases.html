@@ -438,7 +438,7 @@ const reasons = checkRevocation({ certificate, crl, crlDer, at: Date.now(), sign
 </tr>
 <tr>
 <td><code>PKI_REASON_REVOCATION_PARTIAL</code></td>
-<td>The list declares <code>onlySomeReasons</code>, so its silence rules out only those</td>
+<td>The list declares <code>onlySomeReasons</code>, or the certificate&#39;s distribution point names <code>reasons</code>, so its silence rules out only those (their intersection, §6.3.3 (d))</td>
 </tr>
 <tr>
 <td><code>PKI_REASON_REVOCATION_UNKNOWN</code></td>

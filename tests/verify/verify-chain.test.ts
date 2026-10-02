@@ -1183,6 +1183,35 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.valid).toBe(true);
     });
 
+    it('should intersect a list with the reasons the certificate sends to its distribution point (§6.3.3 (d))', async () => {
+        // cRLDistributionPoints ::= SEQUENCE OF DistributionPoint { [0] fullName
+        // [0] { [6] URI }, [1] ReasonFlags } — keyCompromise and cACompromise
+        // only, so a list claiming every reason answers those two for this leaf.
+        const point = (reasons?: Uint8Array): Uint8Array => encodeSequence([encodeSequence([
+            encodeTlv('context', 0, true, encodeTlv('context', 0, true, encodeTlv('context', 6, false, new TextEncoder().encode('http://crl.example/ica.crl')))),
+            ...(reasons === undefined ? [] : [encodeTlv('context', 1, false, reasons)]),
+        ])]);
+        const narrow = await ed25519Hierarchy({ crlSign: true, leafPoints: point(Uint8Array.of(0x05, 0x60)) });
+        const partial = await verifyCertificateChain({
+            leaf: narrow.leaf, candidates: [narrow.ica], trustAnchors: [narrow.root], at: AT,
+            crls: [await signedCrl(narrow.ica, narrow.icaKey)], requireRevocation: true,
+        });
+        expect(partial.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_PARTIAL@crls[0]']);
+        // A second list for the other reasons adds nothing: the certificate
+        // sends only those two to this point, and the intersection is empty.
+        const both = await verifyCertificateChain({
+            leaf: narrow.leaf, candidates: [narrow.ica], trustAnchors: [narrow.root], at: AT,
+            crls: [await signedCrl(narrow.ica, narrow.icaKey), await signedCrl(narrow.ica, narrow.icaKey, { reasons: [0x07, 0x1f, 0x80] })], requireRevocation: true,
+        });
+        expect(both.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_PARTIAL@crls[0]', 'PKI_REASON_REVOCATION_PARTIAL@crls[1]']);
+        const open = await ed25519Hierarchy({ crlSign: true, leafPoints: point() });
+        const complete = await verifyCertificateChain({
+            leaf: open.leaf, candidates: [open.ica], trustAnchors: [open.root], at: AT,
+            crls: [await signedCrl(open.ica, open.icaKey)], requireRevocation: true,
+        });
+        expect(codes(complete)).toEqual([]);
+    });
+
     it('should still add up to nothing when the halves leave a gap', async () => {
         // The same two lists minus `superseded`. One reason unaccounted for is
         // one reason the certificate could have been revoked for, so the answer
@@ -1591,7 +1620,7 @@ async function issueEd25519(options: {
 }
 
 /** root → ica → leaf, all Ed25519, with the ICA's key kept so it can answer. */
-async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean; rollover?: boolean; rootCrlSign?: boolean } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate; icaKey: CryptoKeyHandle; rootKey: CryptoKeyHandle; rollover?: Certificate }> {
+async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean; rollover?: boolean; rootCrlSign?: boolean; leafPoints?: Uint8Array } = {}): Promise<{ root: Certificate; ica: Certificate; leaf: Certificate; icaKey: CryptoKeyHandle; rootKey: CryptoKeyHandle; rollover?: Certificate }> {
     const rootPair = await ed25519Key();
     const rootSpki = new Uint8Array(await crypto.subtle.exportKey('spki', rootPair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
     const rootSubject = [[{ type: '2.5.4.3', value: 'OCSP Root' }]];
@@ -1654,6 +1683,7 @@ async function ed25519Hierarchy(options: { ecdsaIca?: boolean; crlSign?: boolean
         extensions: [
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             { oid: '2.5.29.17', value: encodeSubjectAltName([{ kind: 'dNSName', value: 'leaf.example' }]) },
+            ...(options.leafPoints === undefined ? [] : [{ oid: '2.5.29.31', value: options.leafPoints }]),
         ],
     }, { key: signsLeaf.privateKey, algorithm: options.rollover === true ? { name: 'Ed25519' } as SignatureAlgorithm : icaAlgorithm });
     return { root, ica, leaf: parseCertificate(leafDer, quiet), icaKey: icaPair.privateKey, rootKey: rootPair.privateKey, ...(rollover === undefined ? {} : { rollover }) };

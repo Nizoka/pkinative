@@ -49,7 +49,7 @@ import type { PkiReason } from '../types/pki-reasons.js';
 import type { PkiDiagnosticHandler, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { _unknownCriticalEntryExtension, findRevocation, type FindRevocationOptions } from './crl-parse.js';
-import { _crlScopeProblem, _deltaApplies, type CrlScopeProblem } from './crl-scope.js';
+import { _crlScopeProblem, _deltaApplies, _interimReasons, type CrlScopeProblem } from './crl-scope.js';
 
 /** What to check, and everything needed to judge it. */
 export interface CheckRevocationInput {
@@ -291,7 +291,11 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // up: §6.3.3 accumulates these into `reasons_mask`, and two lists that each
     // cover half answer completely between them. Only a caller holding both can
     // see that, so this says what it ruled out and leaves the addition to them.
-    const covered = input.crl.issuingDistributionPoint?.onlySomeReasons;
+    //
+    // What the list covers **for this certificate** is §6.3.3 (d)'s interim
+    // mask: its own onlySomeReasons, intersected with the reasons of the
+    // certificate's distribution point it answers.
+    const covered = _interimReasons({ certificate: input.certificate, crl: input.crl });
     if (covered !== undefined) out.push(revocationPartialReason(path, covered.filter((reason) => reason !== 'unused')));
     return out;
 }

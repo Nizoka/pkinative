@@ -393,7 +393,7 @@ It takes a `signatureVerified` boolean rather than a key, which is what keeps it
 | `PKI_REASON_REVOCATION_STALE` | No `nextUpdate`, or it has passed beyond your `staleTolerance` |
 | `PKI_REASON_REVOCATION_WRONG_ISSUER` | The list names another CA, compared by encoded name |
 | `PKI_REASON_REVOCATION_OUT_OF_SCOPE` | The right CA's **wrong list** — its `issuingDistributionPoint` excludes this certificate |
-| `PKI_REASON_REVOCATION_PARTIAL` | The list declares `onlySomeReasons`, so its silence rules out only those |
+| `PKI_REASON_REVOCATION_PARTIAL` | The list declares `onlySomeReasons`, or the certificate's distribution point names `reasons`, so its silence rules out only those (their intersection, §6.3.3 (d)) |
 | `PKI_REASON_REVOCATION_UNKNOWN` | No evidence either way |
 
 **`UNKNOWN` is not `[]`, and that distinction is the point.** A missing or unsigned list is an absence of evidence. Reporting it as "not revoked" would make the soft-fail decision on your behalf, invisibly. If you want soft-fail, you write it — `staleTolerance` is the same idea for a lapsed list: a number you chose, not a default that chose for you.

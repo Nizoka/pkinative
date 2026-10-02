@@ -90,7 +90,7 @@
     {
       "code": "PKI_REASON_REVOCATION_PARTIAL",
       "since": "0.5.0",
-      "returnedWhen": "The list declares onlySomeReasons, so the certificate's absence from it rules out those revocation reasons and no others.",
+      "returnedWhen": "The list declares onlySomeReasons, or the certificate's distribution point the list answers names reasons, so the certificate's absence from it rules out those revocation reasons (their intersection, RFC 5280 §6.3.3 (d)) and no others.",
       "remedy": "Supply the other lists the CA publishes for the remaining reasons. verifyCertificateChain accumulates them (RFC 5280 §6.3.3 reasons_mask) and drops this once the union is complete.",
       "standard": "RFC 5280 §5.2.5"
     },

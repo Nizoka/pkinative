@@ -56,7 +56,7 @@ import type { DeltaCrlInput, CheckRevocationInput } from '../revocation/crl-chec
 import { checkOcspStatus } from '../revocation/ocsp-check.js';
 import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
-import { _crlScopeProblem, _deltaApplies } from '../revocation/crl-scope.js';
+import { _crlScopeProblem, _deltaApplies, _interimReasons } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
 import { assertBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
@@ -737,7 +737,9 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 continue;
             }
             covered.add(position);
-            const only = crl.issuingDistributionPoint?.onlySomeReasons;
+            // §6.3.3 (d): the list's onlySomeReasons, intersected with the
+            // reasons of the certificate's own distribution point it answers.
+            const only = _interimReasons({ certificate: subject, crl });
             if (only === undefined) complete = true;
             else for (const reason of only) reasons.add(reason);
             mine.push(...judged);

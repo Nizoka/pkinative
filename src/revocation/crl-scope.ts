@@ -232,6 +232,37 @@ export function _crlScopeProblem(input: CrlScopeInput): CrlScopeProblem | null {
     return _outOfScope(`no cRLDistributionPoints entry in the certificate is answered by it — ${problems[0] as string}`);
 }
 
+/**
+ * §6.3.3 (d): the reasons a list that covers this certificate answers for it
+ * — its `interim_reasons_mask`.
+ *
+ * Two parties restrict it, and the RFC takes the intersection: the list, by
+ * its `issuingDistributionPoint` `onlySomeReasons`, and the certificate, by
+ * the `reasons` of the distribution point the list answers. A certificate
+ * that sends keyCompromise to one point and everything else to another has
+ * said a list answering at the first point covers keyCompromise and nothing
+ * more, even when the list itself claims every reason. Several points the
+ * list answers add up (their union); a point with no `reasons`, or a
+ * certificate with no distribution point at all, restricts nothing.
+ *
+ * Asked only of a list `_crlScopeProblem` found covering the certificate.
+ *
+ * @param input See {@link CrlScopeInput}.
+ * @returns The reasons covered, or `undefined` for every reason.
+ * @internal
+ */
+export function _interimReasons(input: CrlScopeInput): readonly ReasonFlag[] | undefined {
+    const idp = input.crl.issuingDistributionPoint;
+    const only = idp?.onlySomeReasons;
+    // Bounded by the certificate's distribution points, which the extension
+    // reader bounded by `maxGeneralNames`.
+    const points = getExtension(input.certificate, 'crlDistributionPoints')?.points ?? [];
+    const answered = points.filter((point) => _pointProblem(point, input, idp) === null);
+    if (answered.length === 0 || answered.some((point) => point.reasons === undefined)) return only;
+    const named = new Set(answered.flatMap((point) => point.reasons as readonly ReasonFlag[]));
+    return (only ?? _REASON_FLAGS).filter((reason) => named.has(reason));
+}
+
 function _outOfScope(why: string): CrlScopeProblem {
     return { kind: 'out-of-scope', why };
 }

@@ -54,10 +54,12 @@ const directoryName = (value: string): Uint8Array => tlv(2, true, 4, nameOf(valu
 const fullName = (...names: readonly Uint8Array[]): Uint8Array => tlv(2, true, 0, tlv(2, true, 0, concat(...names)));
 
 /** One `DistributionPoint`, for a certificate's `cRLDistributionPoints`. */
-function distributionPoint(options: { readonly at?: string; readonly name?: Uint8Array; readonly issuedBy?: string } = {}): Uint8Array {
+function distributionPoint(options: { readonly at?: string; readonly name?: Uint8Array; readonly issuedBy?: string; readonly reasons?: readonly number[] } = {}): Uint8Array {
     return sequence(
         ...(options.at === undefined ? [] : [fullName(uri(options.at))]),
         ...(options.name === undefined ? [] : [fullName(options.name)]),
+        // `reasons [1] ReasonFlags`, IMPLICIT: the BIT STRING content, unused-bit count first.
+        ...(options.reasons === undefined ? [] : [tlv(2, false, 1, options.reasons)]),
         ...(options.issuedBy === undefined ? [] : [tlv(2, true, 2, directoryName(options.issuedBy))]),
     );
 }
@@ -747,5 +749,49 @@ describe('onlySomeReasons (RFC 5280 §5.2.5)', () => {
         const listed = await certificate({ serial: 7n });
         const crl = buildCrl({ extensions: [extension(OID_IDP, idp({ onlySomeReasons: [0x06, 0x40] }))] });
         expect(codesFor(listed, crl)).toEqual(['PKI_REASON_REVOKED']);
+    });
+});
+
+describe('the certificate’s own distribution point reasons (RFC 5280 §6.3.3 (d))', () => {
+    // keyCompromise | cACompromise, and cACompromise | affiliationChanged.
+    const KEY_AND_CA = [0x05, 0x60];
+    const CA_AND_AFFILIATION = [0x04, 0x30];
+    const partial = (cert: Certificate, crlDer: Uint8Array): ReadonlyArray<readonly [string, boolean, boolean, boolean]> =>
+        checkRevocation({ certificate: cert, crl: parseCertificateList(crlDer, quiet), crlDer, at: AT, signatureVerified: true, ...quiet })
+            .map((reason) => [reason.code, reason.message.includes('keyCompromise'), reason.message.includes('cACompromise'), reason.message.includes('affiliationChanged')] as const);
+
+    it('should cover only the reasons the certificate sends to the point, when the list claims every reason', async () => {
+        const cert = await certificate({ serial: 9n, points: [distributionPoint({ at: 'http://crl.example/a.crl', reasons: KEY_AND_CA })] });
+        expect(partial(cert, buildCrl())).toEqual([['PKI_REASON_REVOCATION_PARTIAL', true, true, false]]);
+    });
+
+    it('should intersect them with the list’s onlySomeReasons', async () => {
+        const cert = await certificate({ serial: 9n, points: [distributionPoint({ at: 'http://crl.example/a.crl', reasons: KEY_AND_CA })] });
+        const crl = buildCrl({ extensions: [extension(OID_IDP, idp({ at: 'http://crl.example/a.crl', onlySomeReasons: CA_AND_AFFILIATION }))] });
+        expect(partial(cert, crl)).toEqual([['PKI_REASON_REVOCATION_PARTIAL', false, true, false]]);
+    });
+
+    it('should add up the points the list answers, and restrict nothing when one of them names no reasons', async () => {
+        const two = await certificate({ serial: 9n, points: [
+            distributionPoint({ at: 'http://crl.example/a.crl', reasons: KEY_AND_CA }),
+            distributionPoint({ at: 'http://crl.example/b.crl', reasons: CA_AND_AFFILIATION }),
+        ] });
+        expect(partial(two, buildCrl())).toEqual([['PKI_REASON_REVOCATION_PARTIAL', true, true, true]]);
+        const open = await certificate({ serial: 9n, points: [
+            distributionPoint({ at: 'http://crl.example/a.crl', reasons: KEY_AND_CA }),
+            distributionPoint({ at: 'http://crl.example/b.crl' }),
+        ] });
+        expect(partial(open, buildCrl())).toEqual([]);
+    });
+
+    it('should not count a point the list does not answer', async () => {
+        // The list names point a; point b, which names no reasons, is not this
+        // list's to cover, so it does not open the mask.
+        const cert = await certificate({ serial: 9n, points: [
+            distributionPoint({ at: 'http://crl.example/a.crl', reasons: KEY_AND_CA }),
+            distributionPoint({ at: 'http://crl.example/b.crl' }),
+        ] });
+        const crl = buildCrl({ extensions: [extension(OID_IDP, idp({ at: 'http://crl.example/a.crl' }))] });
+        expect(partial(cert, crl)).toEqual([['PKI_REASON_REVOCATION_PARTIAL', true, true, false]]);
     });
 });
