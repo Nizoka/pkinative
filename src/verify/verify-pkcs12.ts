@@ -32,7 +32,7 @@
  * @module verify/verify-pkcs12
  */
 
-import { assertBytes, bytesEqual } from '../core/bytes.js';
+import { assertBytes, bytesEqual, isBytes } from '../core/bytes.js';
 import { enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import {
     inputMalformedReason,
@@ -330,7 +330,7 @@ function _charge(budget: _KdfBudget, iterations: number, path: string): void {
 /** The password, refused before anything is read when it cannot be one. */
 function _password(options: OpenPkcs12Options | undefined): Uint8Array | string {
     const password = (options as { readonly password?: unknown } | undefined)?.password;
-    if (typeof password !== 'string' && !(password instanceof Uint8Array)) {
+    if (typeof password !== 'string' && !isBytes(password)) {
         throw new PkiError('PKI_INVALID_OPTION', 'pkinative: openPkcs12 needs options.password, as a string or a Uint8Array — an empty string is a password, undefined is not');
     }
     return password;

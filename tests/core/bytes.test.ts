@@ -1,6 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { assertBytes, bytesEqual, concatBytes, toHex } from '../../src/core/bytes.js';
+import { runInNewContext } from 'node:vm';
+import { assertBytes, bytesEqual, concatBytes, isBytes, toHex } from '../../src/core/bytes.js';
 import { PkiError } from '../../src/types/pki-errors.js';
+
+describe('isBytes', () => {
+    it('should accept a Uint8Array from this realm, a Buffer, and a Uint8Array another realm created', () => {
+        expect(isBytes(Uint8Array.of(1))).toBe(true);
+        expect(isBytes(Buffer.from([1]))).toBe(true);
+        // `instanceof Uint8Array` is false for this one: the vm context has its
+        // own constructor. The bytes are bytes all the same.
+        const foreign = runInNewContext('new Uint8Array([1, 2, 3])') as unknown;
+        expect(foreign instanceof Uint8Array).toBe(false);
+        expect(isBytes(foreign)).toBe(true);
+    });
+
+    it('should refuse every other view, buffer or array', () => {
+        for (const value of [new Uint16Array(1), new Int8Array(1), new DataView(new ArrayBuffer(1)), new ArrayBuffer(1), [1], 'AQ==', null, undefined, 1]) {
+            expect(isBytes(value)).toBe(false);
+        }
+    });
+});
 
 describe('assertBytes', () => {
     it('should return a Uint8Array and a Node Buffer unchanged', () => {

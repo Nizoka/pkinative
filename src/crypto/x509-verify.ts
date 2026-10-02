@@ -26,7 +26,7 @@
  * @module crypto/x509-verify
  */
 
-import { bytesEqual } from '../core/bytes.js';
+import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { OcspBasicResponse } from '../types/ocsp-types.js';
@@ -240,7 +240,7 @@ export async function verifyCrlSignature(
     issuer: Certificate,
     options?: VerifyCertificateSignatureOptions,
 ): Promise<boolean> {
-    if (typeof crl !== 'object' || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
+    if (typeof crl !== 'object' || crl === null || !isBytes(crl.tbsDer)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes');
     }
     const signer = assertCertificate(issuer, 'issuer');
@@ -273,7 +273,7 @@ export async function verifyCrlSignature(
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  */
 export async function verifyOcspSignature(basicResponse: OcspBasicResponse, responder: Certificate): Promise<boolean> {
-    if (typeof basicResponse !== 'object' || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
+    if (typeof basicResponse !== 'object' || basicResponse === null || !isBytes(basicResponse.tbsDer)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: basicResponse must come from parseOcspResponse(), not raw bytes — and a response whose status is not successful has none');
     }
     const signer = assertCertificate(responder, 'responder');
@@ -308,7 +308,7 @@ export async function verifySelfSignature(certificate: Certificate, options?: Ve
 function assertCertificate(value: unknown, what: string): Certificate {
     const candidate = value as Partial<Certificate> | null;
     if (typeof value !== 'object' || candidate === null
-        || !(candidate.tbsDer instanceof Uint8Array)
+        || !isBytes(candidate.tbsDer)
         || typeof candidate.signatureAlgorithm !== 'object' || candidate.signatureAlgorithm === null
         || typeof candidate.subjectPublicKeyInfo !== 'object' || candidate.subjectPublicKeyInfo === null) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what} must be a certificate from parseCertificate — pass the parsed value, not its DER`);

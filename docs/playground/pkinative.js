@@ -364,8 +364,11 @@ function* walkChildren(data, parent, path) {
 }
 
 // src/core/bytes.ts
+function isBytes(value) {
+  return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]";
+}
 function assertBytes(input, what) {
-  if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === "[object Uint8Array]") {
+  if (isBytes(input)) {
     return input;
   }
   throw new PkiError(
@@ -1708,7 +1711,7 @@ function encodeUtf8(text) {
 // src/asn1/asn1-read.ts
 function assertNode(node, reader) {
   const candidate = node;
-  if (typeof node !== "object" || candidate === null || !(candidate.content instanceof Uint8Array) || !Array.isArray(candidate.children) || typeof candidate.tagNumber !== "number") {
+  if (typeof node !== "object" || candidate === null || !isBytes(candidate.content) || !Array.isArray(candidate.children) || typeof candidate.tagNumber !== "number") {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${reader} expects a node returned by decodeAsn1, got ${node === null ? "null" : typeof node}`);
   }
   return node;
@@ -3633,6 +3636,12 @@ function readExtensions(der, field, ctx, path) {
     if (oidNode === void 0 || valueNode === void 0 || node.children.length < 2) {
       throw crlError(where2, entry.offset, "is not an Extension");
     }
+    if (valueNode.tagClass !== "universal" || valueNode.tagNumber !== 4) {
+      throw crlError(`${where2}.extnValue`, valueNode.offset, "is not an OCTET STRING, the extnValue RFC 5280 \xA74.1 defines");
+    }
+    if (criticalNode !== void 0 && (criticalNode.tagClass !== "universal" || criticalNode.tagNumber !== 1 || criticalNode.contentLength !== 1)) {
+      throw crlError(`${where2}.critical`, criticalNode.offset, "is not a BOOLEAN, the critical flag RFC 5280 \xA74.1 defines");
+    }
     const start = valueNode.offset + valueNode.headerLength;
     const oid = readObjectIdentifier(oidNode);
     const critical = criticalNode !== void 0 && criticalNode.content[0] !== 0;
@@ -4500,7 +4509,7 @@ function nameStringType(type, value, requested) {
 }
 function encodeNameAttribute(attribute) {
   const { type, value, stringType } = attribute;
-  const encoded = value instanceof Uint8Array ? value : typeof value === "string" ? encodeString(nameStringType(type, value, stringType), value) : null;
+  const encoded = isBytes(value) ? value : typeof value === "string" ? encodeString(nameStringType(type, value, stringType), value) : null;
   if (encoded === null) {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
   }
@@ -4879,7 +4888,7 @@ function createOcspRequest(certificate, issuer, options) {
   const fields = [requestList];
   const nonce = options?.nonce;
   if (nonce !== void 0) {
-    if (!(nonce instanceof Uint8Array)) {
+    if (!isBytes(nonce)) {
       throw new PkiError("PKI_INVALID_INPUT", "pkinative: the OCSP nonce must be a Uint8Array of random bytes \u2014 pkinative generates none, so this is yours to produce with crypto.getRandomValues");
     }
     fields.push(encodeTlv("context", 2, true, encodeSequence([
@@ -4892,7 +4901,7 @@ function createOcspRequest(certificate, issuer, options) {
   return encodeSequence([encodeSequence(fields)]);
 }
 function assertParsed(value, what) {
-  if (typeof value !== "object" || value === null || !(value.der instanceof Uint8Array)) {
+  if (typeof value !== "object" || value === null || !isBytes(value.der)) {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a Certificate from parseCertificate(), not raw bytes`);
   }
 }
@@ -5128,6 +5137,12 @@ function readExtensions2(der, field, ctx, path) {
       throw ocspError(where2, entry.offset, "is not an Extension");
     }
     const criticalNode = node.children.length === 3 ? node.children[1] : void 0;
+    if (valueNode.tagClass !== "universal" || valueNode.tagNumber !== 4) {
+      throw ocspError(`${where2}.extnValue`, valueNode.offset, "is not an OCTET STRING, the extnValue RFC 5280 \xA74.1 defines");
+    }
+    if (criticalNode !== void 0 && (criticalNode.tagClass !== "universal" || criticalNode.tagNumber !== 1 || criticalNode.contentLength !== 1)) {
+      throw ocspError(`${where2}.critical`, criticalNode.offset, "is not a BOOLEAN, the critical flag RFC 5280 \xA74.1 defines");
+    }
     const start = valueNode.offset + valueNode.headerLength;
     out.push(_decodeExtension(
       der.subarray(0, start + valueNode.contentLength),
@@ -6695,14 +6710,14 @@ async function verifySignedStructure(signed, signer, options) {
   return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
 }
 async function verifyCrlSignature(crl, issuer, options) {
-  if (typeof crl !== "object" || crl === null || !(crl.tbsDer instanceof Uint8Array)) {
+  if (typeof crl !== "object" || crl === null || !isBytes(crl.tbsDer)) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
   }
   const signer = assertCertificate(issuer, "issuer");
   return verifySignedStructure(crl, signer, resolveOptions(options));
 }
 async function verifyOcspSignature(basicResponse, responder) {
-  if (typeof basicResponse !== "object" || basicResponse === null || !(basicResponse.tbsDer instanceof Uint8Array)) {
+  if (typeof basicResponse !== "object" || basicResponse === null || !isBytes(basicResponse.tbsDer)) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
   }
   const signer = assertCertificate(responder, "responder");
@@ -6715,7 +6730,7 @@ async function verifySelfSignature(certificate, options) {
 }
 function assertCertificate(value, what) {
   const candidate = value;
-  if (typeof value !== "object" || candidate === null || !(candidate.tbsDer instanceof Uint8Array) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
+  if (typeof value !== "object" || candidate === null || !isBytes(candidate.tbsDer) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
     throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
   }
   return value;
@@ -7091,7 +7106,7 @@ function parseCertificate(der, options) {
 function _assertCertificates(values, what) {
   for (const [index, value] of values.entries()) {
     const candidate = value;
-    if (typeof value !== "object" || candidate === null || !(candidate.der instanceof Uint8Array) || !(candidate.subject?.der instanceof Uint8Array) || !(candidate.issuer?.der instanceof Uint8Array) || !Array.isArray(candidate.extensions)) {
+    if (typeof value !== "object" || candidate === null || !isBytes(candidate.der) || !isBytes(candidate.subject?.der) || !isBytes(candidate.issuer?.der) || !Array.isArray(candidate.extensions)) {
       throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what}[${String(index)}] must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
     }
   }
@@ -9156,14 +9171,14 @@ async function verifySignerInfoSignature(signerInfo, signer, options) {
 }
 function assertSignerInfo(value) {
   const candidate = value;
-  if (typeof value !== "object" || candidate === null || !(candidate.signature instanceof Uint8Array) || typeof candidate.digestAlgorithm !== "object" || candidate.digestAlgorithm === null || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null) {
+  if (typeof value !== "object" || candidate === null || !isBytes(candidate.signature) || typeof candidate.digestAlgorithm !== "object" || candidate.digestAlgorithm === null || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: signerInfo must be an entry of parseSignedData().signerInfos \u2014 pass the parsed value, not its DER");
   }
   return value;
 }
 function assertCertificate2(value) {
   const candidate = value;
-  if (typeof value !== "object" || candidate === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null || !(candidate.subjectPublicKeyInfo.der instanceof Uint8Array)) {
+  if (typeof value !== "object" || candidate === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null || !isBytes(candidate.subjectPublicKeyInfo.der)) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: signer must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER");
   }
   return value;
@@ -9475,10 +9490,8 @@ function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options)
   return encodeSequence([der.subarray(contentTypeField.offset, contentTypeField.end), encodeExplicit(0, newSignedData)]);
 }
 function addTimeStampToken(signedDataDer, signerIndex, tokenDer, options) {
-  if (!(tokenDer instanceof Uint8Array)) {
-    throw new PkiError("PKI_INVALID_INPUT", "pkinative: tokenDer must be the TimeStampToken bytes \u2014 the tokenDer of a parsed TimeStampResponse");
-  }
-  return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [tokenDer]), options);
+  const token = assertBytes(tokenDer, "tokenDer");
+  return addUnsignedAttribute(signedDataDer, signerIndex, encodeAttribute(OID_ATTR_TIMESTAMP_TOKEN, [token]), options);
 }
 
 // src/cms/tsp-tst-info.ts
@@ -9635,6 +9648,9 @@ function readExtensions4(der, field, ctx, path) {
     if (entry.tagClass !== "universal" || entry.tagNumber !== 16 || entry.children.length < 2 || entry.children.length > 3 || oidNode === void 0 || valueNode === void 0) {
       throw _tspError(where2, entry.offset, "is not an Extension");
     }
+    if (valueNode.tagClass !== "universal" || valueNode.tagNumber !== 4) {
+      throw _tspError(`${where2}.extnValue`, valueNode.offset, "is not an OCTET STRING, the extnValue RFC 5280 \xA74.1 defines");
+    }
     const criticalNode = entry.children.length === 3 ? entry.children[1] : void 0;
     const start = valueNode.offset + valueNode.headerLength;
     out.push(_viaX509(where2, entry.offset, () => _decodeExtension(
@@ -9774,7 +9790,7 @@ var HASHES = /* @__PURE__ */ Object.freeze({
 });
 var NULL_PARAMETERS2 = /* @__PURE__ */ encodeTlv("universal", 5, false, new Uint8Array(0));
 function createTimeStampRequest(hash, options) {
-  if (!(hash instanceof Uint8Array)) {
+  if (!isBytes(hash)) {
     throw new PkiError("PKI_INVALID_INPUT", "pkinative: the hash to timestamp must be a Uint8Array \u2014 hash the data first, with the algorithm you name in hashAlgorithm");
   }
   const name = options?.hashAlgorithm ?? "SHA-256";
@@ -10534,7 +10550,7 @@ function _requirePbes2(encryption, path, offset) {
 }
 function _passwordOctets(password) {
   if (typeof password !== "string") {
-    if (!(password instanceof Uint8Array)) {
+    if (!isBytes(password)) {
       throw new PkiError("PKI_INVALID_INPUT", `pkinative: the password must be a string or a Uint8Array, got ${password === null ? "null" : typeof password}`);
     }
     return { octets: password, wipe: () => void 0 };
@@ -11182,7 +11198,7 @@ function _charge(budget, iterations, path) {
 }
 function _password(options) {
   const password = options?.password;
-  if (typeof password !== "string" && !(password instanceof Uint8Array)) {
+  if (typeof password !== "string" && !isBytes(password)) {
     throw new PkiError("PKI_INVALID_OPTION", "pkinative: openPkcs12 needs options.password, as a string or a Uint8Array \u2014 an empty string is a password, undefined is not");
   }
   return password;

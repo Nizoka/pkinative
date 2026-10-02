@@ -349,6 +349,15 @@ function readExtensions(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
             throw ocspError(where, entry.offset, 'is not an Extension');
         }
         const criticalNode = node.children.length === 3 ? node.children[1] : undefined;
+        // `extnValue OCTET STRING` and `critical BOOLEAN` (RFC 5280 §4.1): any
+        // other tag is not the wrapper the value is read out of, whatever its
+        // content looks like — read as the certificate parser reads them.
+        if (valueNode.tagClass !== 'universal' || valueNode.tagNumber !== 4) {
+            throw ocspError(`${where}.extnValue`, valueNode.offset, 'is not an OCTET STRING, the extnValue RFC 5280 §4.1 defines');
+        }
+        if (criticalNode !== undefined && (criticalNode.tagClass !== 'universal' || criticalNode.tagNumber !== 1 || criticalNode.contentLength !== 1)) {
+            throw ocspError(`${where}.critical`, criticalNode.offset, 'is not a BOOLEAN, the critical flag RFC 5280 §4.1 defines');
+        }
         // In place, from a view that ends where the extnValue ends, starting at
         // its content — the only way the reader can tell trailing octets inside
         // the value from a well-formed one. The CRL parser shipped this wrong in

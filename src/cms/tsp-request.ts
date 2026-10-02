@@ -12,7 +12,7 @@
  * @module cms/tsp-request
  */
 
-import { assertBytes } from '../core/bytes.js';
+import { assertBytes, isBytes } from '../core/bytes.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { encodeBoolean, encodeInteger, encodeObjectIdentifier, encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
@@ -100,7 +100,7 @@ export interface CreateTimeStampRequestOptions {
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed `policy`.
  */
 export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeStampRequestOptions): Uint8Array {
-    if (!(hash instanceof Uint8Array)) {
+    if (!isBytes(hash)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the hash to timestamp must be a Uint8Array — hash the data first, with the algorithm you name in hashAlgorithm');
     }
     const name = options?.hashAlgorithm ?? 'SHA-256';

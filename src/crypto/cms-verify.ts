@@ -21,6 +21,7 @@ import type { Certificate } from '../types/x509-types.js';
 import { _cmsAlgorithmProblem, _importRefusal, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
+import { isBytes } from '../core/bytes.js';
 
 /** Options of {@link verifySignerInfoSignature}. */
 export interface VerifySignerInfoSignatureOptions {
@@ -133,7 +134,7 @@ export async function verifySignerInfoSignature(
 function assertSignerInfo(value: unknown): SignerInfo {
     const candidate = value as Partial<SignerInfo> | null;
     if (typeof value !== 'object' || candidate === null
-        || !(candidate.signature instanceof Uint8Array)
+        || !isBytes(candidate.signature)
         || typeof candidate.digestAlgorithm !== 'object' || candidate.digestAlgorithm === null
         || typeof candidate.signatureAlgorithm !== 'object' || candidate.signatureAlgorithm === null) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: signerInfo must be an entry of parseSignedData().signerInfos — pass the parsed value, not its DER');
@@ -145,7 +146,7 @@ function assertCertificate(value: unknown): Certificate {
     const candidate = value as Partial<Certificate> | null;
     if (typeof value !== 'object' || candidate === null
         || typeof candidate.subjectPublicKeyInfo !== 'object' || candidate.subjectPublicKeyInfo === null
-        || !(candidate.subjectPublicKeyInfo.der instanceof Uint8Array)) {
+        || !isBytes(candidate.subjectPublicKeyInfo.der)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: signer must be a certificate from parseCertificate — pass the parsed value, not its DER');
     }
     return value as Certificate;

@@ -15,9 +15,22 @@ import { PkiError } from '../types/pki-errors.js';
  *
  * @throws {PkiError} `PKI_INVALID_INPUT` when the value is not a Uint8Array.
  */
+/**
+ * Whether `value` is a `Uint8Array` from **any** realm. `instanceof` is bound
+ * to one realm's constructor, so a buffer made in a `vm` context, an iframe
+ * or a worker fails it while being exactly what the function was given to
+ * read; the view check and the brand are what the bytes themselves say.
+ *
+ * @param value Anything a caller passed.
+ * @returns True when `value` is a `Uint8Array`, whichever realm created it.
+ */
+export function isBytes(value: unknown): value is Uint8Array {
+    return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === '[object Uint8Array]';
+}
+
 export function assertBytes(input: unknown, what: string): Uint8Array {
-    if (ArrayBuffer.isView(input) && Object.prototype.toString.call(input) === '[object Uint8Array]') {
-        return input as Uint8Array;
+    if (isBytes(input)) {
+        return input;
     }
     throw new PkiError('PKI_INVALID_INPUT',
         `pkinative: ${what} must be a Uint8Array, got ${input === null ? 'null' : typeof input} — decode PEM text with decodePem() first`);

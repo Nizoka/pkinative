@@ -17,7 +17,7 @@
  * @module asn1/asn1-read
  */
 
-import { byteView, concatBytes } from '../core/bytes.js';
+import { byteView, concatBytes, isBytes } from '../core/bytes.js';
 import { printableStringCharsetDiagnostic, stringEscapeSequenceDiagnostic, stringSignatureDiagnostic, teletexAsLatin1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import {
@@ -56,7 +56,7 @@ import {
  */
 export function assertNode(node: unknown, reader: string): Asn1Node {
     const candidate = node as Partial<Asn1Node> | null;
-    if (typeof node !== 'object' || candidate === null || !(candidate.content instanceof Uint8Array)
+    if (typeof node !== 'object' || candidate === null || !isBytes(candidate.content)
         || !Array.isArray(candidate.children) || typeof candidate.tagNumber !== 'number') {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${reader} expects a node returned by decodeAsn1, got ${node === null ? 'null' : typeof node}`);
     }

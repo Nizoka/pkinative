@@ -379,3 +379,21 @@ describe('_unknownCriticalEntryExtension — RFC 5280 §5.3', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxRevokedCertificates', observed: 3, configured: 2 }));
     });
 });
+
+describe('the shape of a CRL extension (RFC 5280 §4.1)', () => {
+    // The TSTInfo reader had read any tag as the extnValue; the CRL and OCSP
+    // readers shared the gap. An extnValue that is not an OCTET STRING, or a
+    // critical flag that is not a BOOLEAN, is not the structure the value is
+    // read out of, whatever its content looks like.
+    const crlNumber = universal(6, [0x55, 0x1d, 0x14]);
+
+    it('should refuse an extnValue that is not an OCTET STRING', () => {
+        const der = crl({ crlExtensions: [sequence(crlNumber, int(0x2a))] });
+        expect(() => parseCertificateList(der)).toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertList.crlExtensions[0].extnValue' }));
+    });
+
+    it('should refuse a critical flag that is not a BOOLEAN', () => {
+        const der = crl({ crlExtensions: [sequence(crlNumber, int(0x01), universal(4, [...int(0x2a)]))] });
+        expect(() => parseCertificateList(der)).toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertList.crlExtensions[0].critical' }));
+    });
+});

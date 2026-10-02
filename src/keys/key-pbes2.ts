@@ -35,6 +35,7 @@ import type { Pbes2Parameters, PasswordEncryption, Pbkdf2Prf } from '../types/ke
 import { PkiError, PkiKeyError, type PkiKeyErrorCode } from '../types/pki-errors.js';
 import type { CryptoKeyHandle, DerivedKeyParams } from '../types/webcrypto.js';
 import type { AlgorithmIdentifier } from '../types/x509-types.js';
+import { isBytes } from '../core/bytes.js';
 
 // ── Errors and fields ──
 
@@ -240,7 +241,7 @@ export function _requirePbes2(encryption: PasswordEncryption, path: string, offs
  */
 export function _passwordOctets(password: Uint8Array | string): { readonly octets: Uint8Array; readonly wipe: () => void } {
     if (typeof password !== 'string') {
-        if (!(password instanceof Uint8Array)) {
+        if (!isBytes(password)) {
             throw new PkiError('PKI_INVALID_INPUT', `pkinative: the password must be a string or a Uint8Array, got ${password === null ? 'null' : typeof password}`);
         }
         return { octets: password, wipe: (): void => undefined };

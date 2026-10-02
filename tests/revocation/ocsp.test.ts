@@ -329,6 +329,22 @@ describe('parseOcspResponse — extensions and every structural refusal', () => 
         expect(response.basicResponse?.extensions[0]?.oid).toBe('1.3.6.1.5.5.7.48.1.2');
     });
 
+    it('should refuse an extnValue that is not an OCTET STRING (RFC 5280 §4.1)', () => {
+        // The TSTInfo reader had read any tag as the extnValue; this reader and
+        // the CRL parser shared the gap.
+        const nonceOid = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x02]);
+        const tbs = tbsOf(BY_KEY, gen('20260501000000Z'), sequence(single()), tlv(2, true, 1, sequence(sequence(nonceOid, universal(2, [0x01])))));
+        expect(() => parseOcspResponse(basicOf(tbs, ALG_ED25519, SIG), quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: expect.stringMatching(/Extensions\[0\]\.extnValue$/) }));
+    });
+
+    it('should refuse a critical flag that is not a BOOLEAN (RFC 5280 §4.1)', () => {
+        const nonceOid = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x02]);
+        const tbs = tbsOf(BY_KEY, gen('20260501000000Z'), sequence(single()), tlv(2, true, 1, sequence(sequence(nonceOid, universal(2, [0x01]), universal(4, [0x04, 0x01, 0x07])))));
+        expect(() => parseOcspResponse(basicOf(tbs, ALG_ED25519, SIG), quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: expect.stringMatching(/Extensions\[0\]\.critical$/) }));
+    });
+
     it('should decode a recognised extension in place, as the CRL parser learned to', () => {
         // The nonce is unknown to the certificate extension reader, so it is
         // never decoded and never exercises the decoding path. A recognised one

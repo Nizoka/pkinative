@@ -3,25 +3,25 @@
   "schema": 1,
   "equivalents": [
     {
-      "id": "src/keys/key-pbes2.ts:201:97:number+1",
+      "id": "src/keys/key-pbes2.ts:202:97:number+1",
       "original": "8",
       "replacement": "9",
       "reason": "Message-only: `keyBits / 8` only renders the octet count the cipher needs in the PKI_KEY_STRUCTURE_INVALID message; the comparison that throws is on line 199 and is pinned by the keyLength range and contradiction tests (code, path and offset)."
     },
     {
-      "id": "src/keys/key-pbes2.ts:201:97:number-1",
+      "id": "src/keys/key-pbes2.ts:202:97:number-1",
       "original": "8",
       "replacement": "7",
       "reason": "Message-only: as number+1 at the same position — the divisor only formats the message text."
     },
     {
-      "id": "src/keys/key-pbes2.ts:244:118:conditional",
+      "id": "src/keys/key-pbes2.ts:245:118:conditional",
       "original": "password === null ? 'null' : typeof password",
       "replacement": "(password === null ? typeof password : 'null')",
       "reason": "Message-only: the expression names the wrong type in the PKI_INVALID_INPUT message ('got null' / 'got number'); the refusal itself, its class and its code are decided by the enclosing instanceof test."
     },
     {
-      "id": "src/keys/key-pbes2.ts:244:127:equality",
+      "id": "src/keys/key-pbes2.ts:245:127:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 242:118."
@@ -477,10 +477,10 @@
       "reason": "Semantic: the only code unit the mutant adds to the lone-low-surrogate branch is 0xDBFF, which the preceding high-surrogate branch (cp >= 0xd800 && cp <= 0xdbff) has already taken; this else-if never sees it."
     },
     {
-      "id": "src/core/bytes.ts:73:23:relational",
+      "id": "src/core/bytes.ts:86:23:relational",
       "original": "<",
       "replacement": "<=",
-      "reason": "Semantic: line 72 has already returned false unless a.length === b.length, so the one extra comparison is a[a.length] !== b[b.length], undefined against undefined, which is false; the loop ends and returns true exactly as the original does."
+      "reason": "Semantic: the length check above has already returned false unless a.length === b.length, so the one extra comparison is a[a.length] !== b[b.length], undefined against undefined, which is false; the loop ends and returns true exactly as the original does."
     },
     {
       "id": "src/hash/fingerprint.ts:66:9:if-true",

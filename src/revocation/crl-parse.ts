@@ -298,6 +298,15 @@ function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1
         if (oidNode === undefined || valueNode === undefined || node.children.length < 2) {
             throw crlError(where, entry.offset, 'is not an Extension');
         }
+        // `extnValue OCTET STRING` and `critical BOOLEAN` (RFC 5280 §4.1): any
+        // other tag is not the wrapper the value is read out of, whatever its
+        // content looks like — read as the certificate parser reads them.
+        if (valueNode.tagClass !== 'universal' || valueNode.tagNumber !== 4) {
+            throw crlError(`${where}.extnValue`, valueNode.offset, 'is not an OCTET STRING, the extnValue RFC 5280 §4.1 defines');
+        }
+        if (criticalNode !== undefined && (criticalNode.tagClass !== 'universal' || criticalNode.tagNumber !== 1 || criticalNode.contentLength !== 1)) {
+            throw crlError(`${where}.critical`, criticalNode.offset, 'is not a BOOLEAN, the critical flag RFC 5280 §4.1 defines');
+        }
         // `_decodeExtension` decodes the value **in place**, from a buffer that
         // ends where the value ends: that is how it can tell a value with
         // trailing octets inside its extnValue from a well-formed one. So it

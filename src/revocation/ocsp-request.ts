@@ -32,6 +32,7 @@ import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { Certificate } from '../types/x509-types.js';
+import { isBytes } from '../core/bytes.js';
 
 /** The digests RFC 6960 §4.3 lets a `CertID` use. */
 export type OcspHashAlgorithm = 'SHA-1' | 'SHA-256';
@@ -131,7 +132,7 @@ export function createOcspRequest(certificate: Certificate, issuer: Certificate,
     const fields: Uint8Array[] = [requestList];
     const nonce = options?.nonce;
     if (nonce !== undefined) {
-        if (!(nonce instanceof Uint8Array)) {
+        if (!isBytes(nonce)) {
             throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the OCSP nonce must be a Uint8Array of random bytes — pkinative generates none, so this is yours to produce with crypto.getRandomValues');
         }
         // requestExtensions [2] EXPLICIT Extensions, holding id-pkix-ocsp-nonce
@@ -150,7 +151,7 @@ export function createOcspRequest(certificate: Certificate, issuer: Certificate,
 }
 
 function assertParsed(value: unknown, what: string): void {
-    if (typeof value !== 'object' || value === null || !((value as Certificate).der instanceof Uint8Array)) {
+    if (typeof value !== 'object' || value === null || !isBytes((value as Certificate).der)) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what} must be a Certificate from parseCertificate(), not raw bytes`);
     }
 }

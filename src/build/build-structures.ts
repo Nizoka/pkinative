@@ -28,7 +28,7 @@ import {
     encodeString,
     encodeTime,
 } from '../asn1/asn1-encode.js';
-import { assertBytes } from '../core/bytes.js';
+import { assertBytes, isBytes } from '../core/bytes.js';
 import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import type { ExtensionDescription, NameAttribute, NameDescription, PkiBuildOptions } from '../types/build-types.js';
@@ -118,7 +118,7 @@ function nameStringType(type: string, value: string, requested: NameAttribute['s
  */
 export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
     const { type, value, stringType } = attribute;
-    const encoded = value instanceof Uint8Array
+    const encoded = isBytes(value)
         ? value
         : typeof value === 'string'
             ? encodeString(nameStringType(type, value, stringType), value)

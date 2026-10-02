@@ -43,6 +43,18 @@ describe('the repository', () => {
     it('should document exactly the enforced layer table in AGENTS.md', () => {
         expect(checkLayerParity(readFileSync(join(ROOT, 'AGENTS.md'), 'utf8'))).toEqual([]);
     });
+
+    it('should test bytes with isBytes, never with a realm-bound instanceof', () => {
+        // `x instanceof Uint8Array` is false for a Uint8Array another realm made
+        // (a vm context, an iframe, a worker), and refused a token, a nonce or a
+        // password that was exactly what the caller meant. `isBytes` in
+        // core/bytes.ts reads the view and its brand instead, and is the one
+        // place the word may appear.
+        const offenders = Object.entries(sourceTree())
+            .filter(([path, source]) => path !== 'src/core/bytes.ts' && /instanceof Uint8Array/.test(source))
+            .map(([path]) => path);
+        expect(offenders).toEqual([]);
+    });
 });
 
 describe('layerOf', () => {

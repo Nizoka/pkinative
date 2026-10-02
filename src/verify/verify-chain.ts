@@ -58,7 +58,7 @@ import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies, _interimReasons } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
-import { assertBytes } from '../core/bytes.js';
+import { assertBytes, isBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { BuildCertificatePathReport } from '../path/path-build.js';
@@ -198,9 +198,9 @@ export function _assertCertificates(values: readonly unknown[], what: string): v
     for (const [index, value] of values.entries()) {
         const candidate = value as Partial<Certificate> | null;
         if (typeof value !== 'object' || candidate === null
-            || !(candidate.der instanceof Uint8Array)
-            || !(candidate.subject?.der instanceof Uint8Array)
-            || !(candidate.issuer?.der instanceof Uint8Array)
+            || !isBytes(candidate.der)
+            || !isBytes(candidate.subject?.der)
+            || !isBytes(candidate.issuer?.der)
             || !Array.isArray(candidate.extensions)) {
             throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what}[${String(index)}] must be a certificate from parseCertificate — pass the parsed value, not its DER`);
         }
