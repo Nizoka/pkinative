@@ -18,6 +18,8 @@
  *   - `class` appears only in the error module;
  *   - `console` appears only in the diagnostics module;
  *   - no runtime escape hatch (`eval`, `Function`, `fetch`, `process`, …);
+ *   - a bare `catch {}` only in the capability probes of BARE_CATCH_PROBES,
+ *     each opening with a `// capability probe:` comment;
  *   - every Web Crypto key operation — called or declared — is named only by
  *     the modules `KEY_OPERATION_POLICY` allows, and five of them by nobody,
  *     ever; the host object itself has one door.
@@ -164,6 +166,20 @@ export const WEBCRYPTO_HOST_MODULES: ReadonlySet<string> = new Set([
     'src/hash/fingerprint.ts',
 ]);
 
+/**
+ * The modules allowed a bare `catch {}`, and why. A catch that binds nothing
+ * cannot rethrow what it did not expect, so it is admitted only where every
+ * error means the same thing: a capability probe, or a host call that fails
+ * closed. The block opens with a `// capability probe: …` comment saying why.
+ * Everywhere else a catch binds the error and passes it through `_pkiError`
+ * (`src/core/pki-error-guard.ts`), so a bug is never swallowed as a fact about
+ * the input.
+ */
+export const BARE_CATCH_PROBES: ReadonlyMap<string, string> = new Map([
+    ['src/crypto/webcrypto.ts', 'verifySignature and verifyMac: whatever the host throws is a refusal, and verification fails closed'],
+    ['src/hash/fingerprint.ts', 'computeFingerprintAsync: a host that refuses a digest falls back to the pure-TypeScript hash, which agrees'],
+]);
+
 function finding(file: string, line: number, message: string): Finding {
     return { severity: 'error', file, line, message };
 }
@@ -251,6 +267,12 @@ function inspectModule(path: string, text: string): ModuleFacts {
             }
         } else if (ts.isElementAccessExpression(node) && isGlobalThis(node.expression)) {
             findings.push(finding(path, lineAt(node), 'computed `globalThis[…]` access is forbidden in src/ — name a global statically so the architecture test can check it'));
+        } else if (ts.isCatchClause(node) && node.variableDeclaration === undefined) {
+            if (!BARE_CATCH_PROBES.has(path)) {
+                findings.push(finding(path, lineAt(node), `a bare \`catch {}\` is allowed only in the capability probes of BARE_CATCH_PROBES — bind the error and pass it through _pkiError, so a bug is not swallowed as a fact about the input`));
+            } else if (!/^\{\s*\/\/ capability probe: \S/.test(node.block.getText(source))) {
+                findings.push(finding(path, lineAt(node), 'a bare `catch {}` opens with a `// capability probe: …` comment saying why every error it swallows means the same thing'));
+            }
         } else if ((ts.isClassDeclaration(node) || ts.isClassExpression(node)) && path !== ERRORS_MODULE) {
             findings.push(finding(path, lineAt(node), `\`class\` is forbidden outside ${ERRORS_MODULE} — use a closure factory returning an interface`));
         } else if (ts.isIdentifier(node) && !isPropertyName(node)) {

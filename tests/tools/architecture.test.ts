@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
+    BARE_CATCH_PROBES,
     DIAGNOSTICS_MODULE,
     ERRORS_MODULE,
     LAYERS,
@@ -184,6 +185,25 @@ describe('checkArchitecture', () => {
         expect(messages({ ...base, 'src/core/reader.ts': 'export class Reader {}\n' })).toEqual([expect.stringContaining('`class` is forbidden')]);
         expect(messages({ ...base, 'src/core/reader.ts': 'export const Reader = class {};\n' })).toEqual([expect.stringContaining('`class` is forbidden')]);
         expect(checkArchitecture({ ...base, [ERRORS_MODULE]: 'export class PkiError extends Error {}\n' })).toEqual([]);
+    });
+
+    it('should refuse a bare catch outside BARE_CATCH_PROBES, and require the probe comment inside it', () => {
+        // A catch that binds nothing cannot rethrow a TypeError: outside a
+        // capability probe it would swallow a bug as a fact about the input.
+        const bare = 'export const f = (g: () => void): boolean => { try { g(); return true; } catch { return false; } };\n';
+        const probe = 'export const f = (g: () => void): boolean => { try { g(); return true; } catch {\n    // capability probe: every error means unavailable.\n    return false;\n} };\n';
+        const bound = "import { _pkiError } from './guard.js';\nexport const f = (g: () => void): boolean => { try { g(); return true; } catch (error) { _pkiError(error); return false; } };\n";
+        expect(messages({ ...base, 'src/core/probe.ts': probe })).toEqual([expect.stringContaining('a bare `catch {}` is allowed only in the capability probes of BARE_CATCH_PROBES')]);
+        expect(checkArchitecture({ ...base, 'src/hash/fingerprint.ts': probe })).toEqual([]);
+        expect(messages({ ...base, 'src/hash/fingerprint.ts': bare })).toEqual([expect.stringContaining('opens with a `// capability probe: …` comment')]);
+        expect(checkArchitecture({ ...base, 'src/core/guard.ts': 'export const _pkiError = (e: unknown): unknown => e;\n', 'src/core/probe.ts': bound })).toEqual([]);
+    });
+
+    it('should list only files that exist, each with its reason', () => {
+        for (const [path, reason] of BARE_CATCH_PROBES) {
+            expect(statSync(join(ROOT, path)).isFile()).toBe(true);
+            expect(reason.length).toBeGreaterThan(20);
+        }
     });
 
     it('should refuse console outside the diagnostics module, and ignore the word in a string or a property name', () => {

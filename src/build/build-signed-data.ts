@@ -37,6 +37,7 @@ import {
 import { decodeOid } from '../asn1/asn1-oid.js';
 import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
 import { assertBytes, byteView, bytesEqual, concatBytes } from '../core/bytes.js';
+import { _pkiError } from '../core/pki-error-guard.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import { computeFingerprintAsync } from '../hash/fingerprint.js';
 import type { TagClass } from '../types/asn1-types.js';
@@ -211,7 +212,10 @@ function attributeType(der: unknown, what: string): string {
     let type: string | null;
     try {
         type = readAttributeType(bytes);
-    } catch {
+    } catch (error) {
+        // A PkiError is the bytes' fault and becomes the one misuse below;
+        // anything else is a bug and goes on as one.
+        _pkiError(error);
         type = null;
     }
     if (type === null) {
@@ -228,7 +232,8 @@ function bagEntryVersion(der: Uint8Array, what: string, choices: ReadonlyMap<num
     let header: TlvHeader | null;
     try {
         header = readTlvHeader(der, 0, what);
-    } catch {
+    } catch (error) {
+        _pkiError(error);
         header = null;
     }
     const version = header !== null && header.end === der.length ? choices.get(byteView(der).getUint8(0)) : undefined;

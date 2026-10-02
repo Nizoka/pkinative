@@ -22,6 +22,7 @@
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
 import { TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { _pkiError } from '../core/pki-error-guard.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
@@ -424,7 +425,10 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
             // An empty SEQUENCE is legal and means the RFC 4055 defaults —
             // SHA-1 — so it is consistent only with a SHA-1 digest.
             pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
-        } catch {
+        } catch (error) {
+            // Parameters that cannot be read are the resolver's to refuse,
+            // with its own code; a non-PkiError is a bug and goes on as one.
+            _pkiError(error);
             return null;
         }
         return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;

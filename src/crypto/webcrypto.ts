@@ -123,6 +123,7 @@ export async function verifySignature(key: CryptoKeyHandle, params: VerifyParams
     try {
         return await subtle.verify(params, key, signature, data);
     } catch {
+        // capability probe: whatever the host throws (OperationError, DataError, TypeError) is its refusal to verify, and refusal fails closed.
         return false;
     }
 }
@@ -328,6 +329,7 @@ export async function verifyMac(key: CryptoKeyHandle, mac: Uint8Array, data: Uin
     try {
         return await subtle.verify({ name: 'HMAC' }, key, mac, data);
     } catch {
+        // capability probe: whatever the host throws is its refusal to check the MAC, and refusal fails closed.
         return false;
     }
 }

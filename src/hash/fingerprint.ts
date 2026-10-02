@@ -67,8 +67,7 @@ export async function computeFingerprintAsync(der: Uint8Array, algorithm: Finger
         try {
             return new Uint8Array(await (subtle as SubtleDigest).digest(algorithm, bytes));
         } catch {
-            // A host that exposes Web Crypto but refuses the algorithm or the
-            // input (some embedded runtimes lack SHA-1): the pure path agrees.
+            // capability probe: a host that exposes Web Crypto but refuses the algorithm or the input (some embedded runtimes lack SHA-1) falls back to the pure path, which agrees.
         }
     }
     return hash(bytes);

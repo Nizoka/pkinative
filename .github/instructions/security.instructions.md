@@ -20,6 +20,10 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
   failure, and a thrown error never carries a merely pedantic concern.
 - **Every thrown value is a `PkiError` subclass** with a stable `code` and a message that starts with
   `pkinative: ` and names the remedy. A `TypeError` escaping from malformed input is a bug.
+- **A catch binds the error and passes it through `_pkiError`** (`src/core/pki-error-guard.ts`), which rethrows
+  anything but a `PkiError`. A bare `catch {}` is allowed only in a capability probe listed in `BARE_CATCH_PROBES`
+  (`scripts/lib/architecture.ts`) with its reason, opening with a `// capability probe: …` comment;
+  `tests/tools/architecture.test.ts` enforces both from the syntax tree.
 - **No object keys from input.** Decoded names and OIDs go into arrays or `Map`s, never into plain object keys
   (prototype pollution, CWE-1321).
 - **No secret-dependent cryptography, ever.** `src/` holds no modular exponentiation, no elliptic-curve scalar
