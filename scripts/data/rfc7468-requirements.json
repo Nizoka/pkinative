@@ -1,0 +1,107 @@
+{
+  "$comment": "Every requirement sentence (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED) of RFC 7468 §2 to §5 and their subsections (general considerations, the ABNF, the guide and certificates), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. The inventory is of RFC 7468 as published.",
+  "rfc": "RFC 7468",
+  "sha256": "0b2c3c2087cc0b099789c90e61c0208e87b25793f0ce40090979e8c734b3d989",
+  "errata": [
+    {
+      "id": 4508,
+      "section": "3",
+      "type": "Technical",
+      "decision": "Verified. Rewrites the §3 ABNF so that \"BEGIN\" and \"END\" are matched case-sensitively (%x42.45.47.49.4E). ABNF carries no RFC 2119 keyword and is not extracted; decodePem already matches both in upper case only; not pinned."
+    }
+  ],
+  "requirements": {
+    "2-1-ede4d1f0": {
+      "section": "2",
+      "text": "Data before the encapsulation boundaries are permitted, and parsers MUST NOT malfunction when processing such data.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should ignore explanatory text, and report every block with its offset",
+      "why": "Text before, between and after the blocks is skipped and every block is still found at its offset; nothing outside the boundaries affects the decode."
+    },
+    "2-2-d8fe3e36": {
+      "section": "2",
+      "text": "Furthermore, parsers SHOULD ignore whitespace and other non-base64 characters and MUST handle different newline conventions.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should accept CRLF and CR line endings",
+      "why": "LF, CRLF and CR decode the same block. The SHOULD on whitespace is a recorded deviation: strict mode refuses it, lax mode accepts it with PKI_DIAG_PEM_LAX_ACCEPTED, and neither ignores other non-base64 characters."
+    },
+    "2-3-92103571": {
+      "section": "2",
+      "text": "Generators MUST put the same label on the \"-----END \" line (post-encapsulation boundary) as the corresponding \"-----BEGIN \" line.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should write the strict RFC 7468 form with LF line endings",
+      "why": "encodePem writes the label it was given on the BEGIN and on the END line alike; the test checks both the TEST and the CERTIFICATE pair."
+    },
+    "2-4-4ee189f1": {
+      "section": "2",
+      "text": "Parsers MUST handle non-conforming data gracefully.",
+      "status": "test",
+      "file": "tests/fuzzing/pem-malformed.test.ts",
+      "test": "should end 10 000 seeded mutations of a two-block text in blocks or a PkiError, in both modes",
+      "why": "Ten thousand seeded mutations end in decoded blocks or a typed PkiError, in strict and in lax mode: non-conforming text never crashes the decoder."
+    },
+    "2-5-9bbdb083": {
+      "section": "2",
+      "text": "Empty space can appear between the pre-encapsulation boundary and the base64, but generators SHOULD NOT emit such any such spacing.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should write the strict RFC 7468 form with LF line endings",
+      "why": "The test compares encodePem's output byte for byte with the BEGIN line, a newline and the base64: no space or blank line follows the boundary."
+    },
+    "2-6-56cc247a": {
+      "section": "2",
+      "text": "Generators MUST wrap the base64-encoded lines so that each line consists of exactly 64 characters except for the final line, which will encode the remainder of the data (within the 64-character line boundary), and they MUST NOT emit extraneous whitespace.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should write the strict RFC 7468 form with LF line endings",
+      "why": "Every base64 line but the last is exactly 64 characters, and the short output is compared whole, so no trailing or extra whitespace can hide in it."
+    },
+    "3-1-8150bde3": {
+      "section": "3",
+      "text": "New implementations SHOULD emit the strict format (Figure 3) specified above.",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should encode an empty payload as a block without body lines",
+      "why": "encodePem emits only the strict form of Figure 3 — LF endings, no headers, no blank line — down to the empty payload, whose output this test compares whole."
+    },
+    "5.1-1-1f8209c8": {
+      "section": "5.1",
+      "text": "The encoded data MUST be a BER (DER strongly preferred; see Appendix B) encoded ASN.1 Certificate structure as described in Section 4 of [RFC5280].",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "decodePem does not look inside a payload by its label: README, 'What pkinative will NOT do', rules out PEM parsing inside the certificate parser, and parseCertificate refuses bytes that are not a Certificate."
+    },
+    "5.1-2-09e273a4": {
+      "section": "5.1",
+      "text": "Generators conforming to this document MUST generate \"CERTIFICATE\" labels and MUST NOT generate \"X509 CERTIFICATE\" or \"X.509 CERTIFICATE\" labels.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "The label is encodePem's argument: pkinative writes whatever label the ABNF admits, and choosing CERTIFICATE over the legacy X509 CERTIFICATE is the calling application's choice."
+    },
+    "5.1-3-a2583b29": {
+      "section": "5.1",
+      "text": "Parsers SHOULD NOT treat \"X509 CERTIFICATE\" or \"X.509 CERTIFICATE\" as equivalent to \"CERTIFICATE\", but a valid exception may be for backwards compatibility (potentially together with a warning).",
+      "status": "test",
+      "file": "tests/pem/pem.test.ts",
+      "test": "should ignore explanatory text, and report every block with its offset",
+      "why": "A block labelled X.509 CERTIFICATE is reported under that exact label beside a CERTIFICATE block, never normalised to it."
+    },
+    "5.2-1-311e542c": {
+      "section": "5.2",
+      "text": "If emitted, such text SHOULD be related to the certificate, such as providing a textual representation of key data elements in the certificate.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether explanatory text is related to the certificate is a judgement about meaning; decodePem skips that text whatever it says."
+    },
+    "5.3-1-68fbdef6": {
+      "section": "5.3",
+      "text": "To promote interoperability and to separate DER encodings from textual encodings, the extension \".crt\" SHOULD be used for the textual encoding of a certificate.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "A file name is not in the bytes, and pkinative reads no files (ADR 0006); the extension is the business of whoever names the file."
+    }
+  }
+}

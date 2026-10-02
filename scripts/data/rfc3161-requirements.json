@@ -1,0 +1,313 @@
+{
+  "$comment": "Every requirement sentence (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED) of RFC 3161 §2.3 and §2.4 with its subsections (the TSA's certificate, the request and the response), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. RFC 3161 puts one space after a section number (`2.4.2. Response Format`) and sometimes one space between sentences; the extractor reads the headings and splits only on its fixed typography, so a few entries hold two sentences. RFC 3161 is updated by RFC 5816 (ESSCertIDv2); the inventory is of RFC 3161 as published.",
+  "rfc": "RFC 3161",
+  "sha256": "39fd17644ff2d654bc83814a78b1c5b5e7517f496741f34ead5064943eb98240",
+  "errata": [
+    {
+      "id": 2931,
+      "section": "2.4.2",
+      "type": "Technical",
+      "decision": "Verified. Prefixes and terminates the comment lines of the PKIStatus definition in the §2.4.2 module with \"--\", as ASN.1:1988 requires. ASN.1 is not extracted, and the prose rules on status and token are unchanged; not pinned."
+    },
+    {
+      "id": 2932,
+      "section": "2.4.2",
+      "type": "Technical",
+      "decision": "Verified. Terminates the comment after systemFailure (25) in the PKIFailureInfo definition with \"--\". ASN.1 syntax only, not extracted; the failure bits pkinative names are unchanged; not pinned."
+    }
+  ],
+  "requirements": {
+    "2.3-1-03df59e0": {
+      "section": "2.3",
+      "text": "The TSA MUST sign each time-stamp message with a key reserved specifically for that purpose.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Which key the TSA reserves for stamping is its key management; what the bytes show is the certificate's extended key usage, which the next sentence constrains and pkinative checks."
+    },
+    "2.3-2-6fd3b738": {
+      "section": "2.3",
+      "text": "The corresponding certificate MUST contain only one instance of the extended key usage field extension as defined in [RFC2459] Section 4.2.1.13 with KeyPurposeID having value:",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a TSA certificate with %s as PURPOSE_NOT_PERMITTED, once",
+      "why": "A TSA certificate with no extKeyUsage, one without timestamping, or timestamping among other purposes is PURPOSE_NOT_PERMITTED; only id-kp-timeStamping alone passes."
+    },
+    "2.3-3-1e1fd3c2": {
+      "section": "2.3",
+      "text": "This extension MUST be critical.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a TSA certificate with %s as PURPOSE_NOT_PERMITTED, once",
+      "why": "The row 'a non-critical extKeyUsage' is PURPOSE_NOT_PERMITTED by default; allowNonCriticalTimeStampingEku is the caller's explicit waiver, tested beside it."
+    },
+    "2.4.1-1-c92852a4": {
+      "section": "2.4.1",
+      "text": "The messageImprint field SHOULD contain the hash of the datum to be time-stamped.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token over other data as TSP_IMPRINT_MISMATCH, and establish no time",
+      "why": "Given the data, pkinative hashes it under the imprint's own algorithm and requires the messageImprint to be that hash; a token over other data establishes no time."
+    },
+    "2.4.1-2-3ae8975c": {
+      "section": "2.4.1",
+      "text": "Its length MUST match the length of the hash value for that algorithm (e.g., 20 bytes for SHA-1 or 16 bytes for MD5).",
+      "status": "test",
+      "file": "tests/cms/tsp-request.test.ts",
+      "test": "should refuse a hash that is not as long as its algorithm",
+      "why": "createTimeStampRequest refuses an imprint whose length is not its algorithm's output length; parseTstInfo refuses a truncated imprint in the token the same way."
+    },
+    "2.4.1-3-0b574611": {
+      "section": "2.4.1",
+      "text": "The hash algorithm indicated in the hashAlgorithm field SHOULD be a known hash algorithm (one-way and collision resistant).",
+      "status": "test",
+      "file": "tests/cms/tsp-request.test.ts",
+      "test": "should refuse SHA-1 by name",
+      "why": "createTimeStampRequest writes SHA-2 imprints only and refuses SHA-1 by name, the hash that no longer meets the collision-resistance this sentence asks for."
+    },
+    "2.4.1-4-18ed571f": {
+      "section": "2.4.1",
+      "text": "That means that it SHOULD be one-way and collision resistant.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should not count the token as evidence without allowSha1, whatever was stamped",
+      "why": "On the reading side, a token whose imprint is SHA-1 is not counted as evidence unless the caller passes allowSha1: a hash that is not collision resistant binds nothing."
+    },
+    "2.4.1-5-da370a4f": {
+      "section": "2.4.1",
+      "text": "The Time Stamp Authority SHOULD check whether or not the given hash algorithm is known to be \"sufficient\" (based on the current state of knowledge in cryptanalysis and the current state of the art in computational resources, for example).",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Asks the TSA to judge the hash algorithm before it stamps; pkinative is never the TSA, and the TSA's refusal reaches it only as a status it reads."
+    },
+    "2.4.1-6-eaf9fdfb": {
+      "section": "2.4.1",
+      "text": "If the TSA does not recognize the hash algorithm or knows that the hash algorithm is weak (a decision left to the discretion of each individual TSA), then the TSA SHOULD refuse to provide the time-stamp token by returning a pkiStatusInfo of 'bad_alg'.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Tells the TSA how to decline a weak or unknown algorithm; pkinative reads and names the badAlg failure bit, but issuing it is the TSA's decision."
+    },
+    "2.4.1-7-fc2c8f51": {
+      "section": "2.4.1",
+      "text": "The reqPolicy field, if included, indicates the TSA policy under which the TimeStampToken SHOULD be provided.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token issued under another policy than the one requested",
+      "why": "When the request names a policy, a token issued under another one is TSP_REQUEST_MISMATCH at tstInfo.policy."
+    },
+    "2.4.1-8-c4c49d16": {
+      "section": "2.4.1",
+      "text": "In such a case the same nonce value MUST be included in the response, otherwise the response shall be rejected.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token that echoes %s as TSP_REQUEST_MISMATCH",
+      "why": "A request carrying a nonce makes a token echoing another nonce, or none, a TSP_REQUEST_MISMATCH at tstInfo.nonce — the rejection the sentence asks of the requester."
+    },
+    "2.4.1-9-bffb67df": {
+      "section": "2.4.1",
+      "text": "If the certReq field is present and set to true, the TSA's public key certificate that is referenced by the ESSCertID identifier inside a SigningCertificate attribute in the response MUST be provided by the TSA in the certificates field from the SignedData structure in that response.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "With certReq TRUE in the request, a token lacking the TSA certificate is still verified against certificates the caller passes, and nothing is said; the request and the token together decide it."
+    },
+    "2.4.1-10-a3626a88": {
+      "section": "2.4.1",
+      "text": "If the certReq field is missing or if the certReq field is present and set to false then the certificates field from the SignedData structure MUST not be present in the response.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "With certReq FALSE or absent, a token that carries certificates anyway is read without a word, though comparing the request with the token's certificate set decides it."
+    },
+    "2.4.1-11-b69c46d6": {
+      "section": "2.4.1",
+      "text": "If an extension, whether it is marked critical or not critical, is used by a requester but is not recognized by a time-stamping server, the server SHALL not issue a token and SHALL return a failure (unacceptedExtension).",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "What a time-stamping server does with a request extension it does not recognise; pkinative writes no request extension, and reads unacceptedExtension only as a failure bit."
+    },
+    "2.4.2-1-f458f676": {
+      "section": "2.4.2",
+      "text": "When the status contains the value zero or one, a TimeStampToken MUST be present.",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "should refuse a grant without a token (RFC 3161 §2.4.2)",
+      "why": "A granted or grantedWithMods status with no TimeStampToken beside it is refused as PKI_CMS_STRUCTURE_INVALID by parseTimeStampResponse."
+    },
+    "2.4.2-2-eb5d67b2": {
+      "section": "2.4.2",
+      "text": "When status contains a value other than zero or one, a TimeStampToken MUST NOT be present.",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "should refuse a declined response that still carries a token",
+      "why": "A rejection status with a token beside it is refused as PKI_CMS_STRUCTURE_INVALID at TimeStampResp, rather than the token being read."
+    },
+    "2.4.2-3-87d01636": {
+      "section": "2.4.2",
+      "text": "One of the following values MUST be contained in status:",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "what RFC 3161 does not define",
+      "why": "Its rows 'a status beyond revocationNotification' and 'a negative status' are refused with PKI_CMS_STRUCTURE_INVALID: only the six PKIStatus values listed are read."
+    },
+    "2.4.2-4-57070266": {
+      "section": "2.4.2",
+      "text": "Compliant servers SHOULD NOT produce any other values. Compliant clients MUST generate an error if values it does not understand are present.",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "what RFC 3161 does not define",
+      "why": "A PKIStatus a client does not understand must be an error, and parseTimeStampResponse throws PKI_CMS_STRUCTURE_INVALID for status 6, one row of this table; the servers' half is theirs."
+    },
+    "2.4.2-5-e7cb335a": {
+      "section": "2.4.2",
+      "text": "These are the only values of PKIFailureInfo that SHALL be supported.",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "should name the failure bit %s",
+      "why": "Each PKIFailureInfo bit RFC 3161 lists, badAlg to systemFailure, is read and named, and a row of the structural table refuses any other bit."
+    },
+    "2.4.2-6-57070266": {
+      "section": "2.4.2",
+      "text": "Compliant servers SHOULD NOT produce any other values. Compliant clients MUST generate an error if values it does not understand are present.",
+      "status": "test",
+      "file": "tests/cms/tsp-response.test.ts",
+      "test": "what RFC 3161 does not define",
+      "why": "Said again of PKIFailureInfo: the row 'a failInfo bit RFC 3161 does not name' is refused with PKI_CMS_STRUCTURE_INVALID rather than ignored."
+    },
+    "2.4.2-7-d23446e0": {
+      "section": "2.4.2",
+      "text": "It is defined as a ContentInfo ([CMS]) and SHALL encapsulate a signed data content type.",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should refuse enveloped-data by name",
+      "why": "parseTimeStampToken reads the token's ContentInfo through parseSignedData, which refuses every content type but signed-data by name; this test refuses enveloped-data."
+    },
+    "2.4.2-8-30e96dee": {
+      "section": "2.4.2",
+      "text": "The eContent SHALL be the DER-encoded value of TSTInfo.",
+      "status": "test",
+      "file": "tests/cms/tsp-tst-info.test.ts",
+      "test": "should read DER even when the caller asked for BER",
+      "why": "The TSTInfo is read as DER whatever encodingRules says: an indefinite-length TSTInfo is PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN under BER as well."
+    },
+    "2.4.2-9-41cde31d": {
+      "section": "2.4.2",
+      "text": "The time-stamp token MUST NOT contain any signatures other than the signature of the TSA.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token with a second signer as TSP_TOKEN_INVALID, and still judge the first",
+      "why": "A token whose SignedData carries a second SignerInfo is TSP_TOKEN_INVALID at signerInfos; one signature, the TSA's, is all a token may hold."
+    },
+    "2.4.2-10-09f4f067": {
+      "section": "2.4.2",
+      "text": "The certificate identifier (ESSCertID) of the TSA certificate MUST be included as a signerInfo attribute inside a SigningCertificate attribute.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should require the signing-certificate binding RFC 5816 makes mandatory for a TSA",
+      "why": "A token without a signingCertificate or signingCertificateV2 signed attribute is CMS_ATTRIBUTE_INVALID at signedAttrs.signingCertificate, whatever else checks out."
+    },
+    "2.4.2-11-32386fcd": {
+      "section": "2.4.2",
+      "text": "Conforming time-stamping servers MUST be able to provide version 1 time-stamp tokens.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "What a server must be able to issue; pkinative issues no tokens, and as a reader accepts version 1 only, refusing any other with PKI_CMS_VERSION_UNSUPPORTED."
+    },
+    "2.4.2-12-ee35474e": {
+      "section": "2.4.2",
+      "text": "Among the optional fields, only the nonce field MUST be supported.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Of the optional TSTInfo fields, a server must support only the nonce; pkinative reads every optional field and is not the server this sentence addresses."
+    },
+    "2.4.2-13-b3d69de5": {
+      "section": "2.4.2",
+      "text": "Conforming time-stamping requesters MUST be able to recognize version 1 time-stamp tokens with all the optional fields present, but are not mandated to understand the semantics of any extension, if present.",
+      "status": "test",
+      "file": "tests/cms/tsp-tst-info.test.ts",
+      "test": "should read every field when all are present",
+      "why": "A version 1 TSTInfo with accuracy, ordering, nonce, tsa and extensions all present is read field by field, the meaning of its extensions left to the caller."
+    },
+    "2.4.2-14-4799d4c4": {
+      "section": "2.4.2",
+      "text": "The policy field MUST indicate the TSA's policy under which the response was produced.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "That the policy OID names the policy the TSA actually followed is the TSA's own statement; only its agreement with the request can be checked, which the next sentence holds."
+    },
+    "2.4.2-15-2d87e100": {
+      "section": "2.4.2",
+      "text": "If a similar field was present in the TimeStampReq, then it MUST have the same value, otherwise an error (unacceptedPolicy) MUST be returned.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token issued under another policy than the one requested",
+      "why": "Seen from the token: a policy the request named and the token does not repeat is reported TSP_REQUEST_MISMATCH, standing in for the unacceptedPolicy the TSA owed."
+    },
+    "2.4.2-16-b97ce852": {
+      "section": "2.4.2",
+      "text": "The messageImprint MUST have the same value as the similar field in TimeStampReq, provided that the size of the hash value matches the expected size of the hash algorithm identified in hashAlgorithm.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a request whose hash differs under the same algorithm",
+      "why": "The token's messageImprint must equal the request's; a request whose hash differs under the same algorithm is reported as a mismatch, never as a valid stamp."
+    },
+    "2.4.2-17-45403c63": {
+      "section": "2.4.2",
+      "text": "It MUST be unique for each TimeStampToken issued by a given TSA (i.e., the TSA name and serial number identify a unique TimeStampToken).",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Uniqueness of serial numbers holds across every token one TSA issues; a single token cannot show it, and pkinative keeps no register of the tokens it has read."
+    },
+    "2.4.2-18-2944d082": {
+      "section": "2.4.2",
+      "text": "It should be noticed that the property MUST be preserved even after a possible interruption (e.g., crash) of the service.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Asks the TSA to keep its serial numbers unique through a crash — an operational duty of the service, and nothing a token's bytes record."
+    },
+    "2.4.2-19-926cc87f": {
+      "section": "2.4.2",
+      "text": "GeneralizedTime values MUST include seconds.",
+      "status": "test",
+      "file": "tests/cms/tsp-tst-info.test.ts",
+      "test": "should refuse a genTime %s, even when the caller asked for BER (RFC 3161 §2.4.2)",
+      "why": "Its row 'without seconds' refuses 202609281200Z with PKI_ASN1_TIME_INVALID, under BER as under DER."
+    },
+    "2.4.2-20-77c05083": {
+      "section": "2.4.2",
+      "text": "However, when there is no need to have a precision better than the second, then GeneralizedTime with a precision limited to one second SHOULD be used (as in [RFC 2459]).",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Advises the TSA on the precision to write when it needs no better than a second; pkinative reads any precision the encoding allows, fractions included."
+    },
+    "2.4.2-21-2f3cf7d5": {
+      "section": "2.4.2",
+      "text": "The encoding MUST terminate with a \"Z\" (which means \"Zulu\" time). The decimal point element, if present, MUST be the point option \".\". The fractional-seconds elements, if present, MUST omit all trailing 0's; if the elements correspond to 0, they MUST be wholly omitted, and the decimal point element also MUST be omitted.",
+      "status": "test",
+      "file": "tests/cms/tsp-tst-info.test.ts",
+      "test": "should refuse a genTime %s, even when the caller asked for BER (RFC 3161 §2.4.2)",
+      "why": "Its other rows: an offset instead of Z, a comma for the decimal point and a trailing zero in the fraction are each refused with PKI_ASN1_TIME_INVALID, even under BER."
+    },
+    "2.4.2-22-03b246ec": {
+      "section": "2.4.2",
+      "text": "If either seconds, millis or micros is missing, then a value of zero MUST be taken for the missing field.",
+      "status": "test",
+      "file": "tests/cms/tsp-tst-info.test.ts",
+      "test": "should read an accuracy of whole seconds only, the missing fields counting as zero",
+      "why": "An Accuracy holding only seconds, and an empty one, are read with the missing millis, micros and seconds as 0 — the value that then widens the time window."
+    },
+    "2.4.2-23-a06613b0": {
+      "section": "2.4.2",
+      "text": "The nonce field MUST be present if it was present in the TimeStampReq. In such a case it MUST equal the value provided in the TimeStampReq structure.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token that echoes %s as TSP_REQUEST_MISMATCH",
+      "why": "Both rows: against a request that sent nonce 42, a token echoing none and one echoing 43 are each TSP_REQUEST_MISMATCH at tstInfo.nonce."
+    },
+    "2.4.2-24-dd9ae177": {
+      "section": "2.4.2",
+      "text": "If present, it MUST correspond to one of the subject names included in the certificate that is to be used to verify the token.",
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "the tsa name in the TSTInfo",
+      "why": "A tsa name that is neither the signing certificate's subject nor among its subjectAltName is TSP_TOKEN_INVALID at tstInfo.tsa; the subject and a SAN entry both pass."
+    }
+  }
+}

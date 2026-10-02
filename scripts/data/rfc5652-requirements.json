@@ -1,0 +1,395 @@
+{
+  "$comment": "Every requirement sentence (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED) of RFC 5652 §5 and its subsections (SignedData) and §11.1–§11.4 (the content-type, message-digest, signing-time and countersignature attributes), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. RFC 5652 is updated by RFC 8933 and RFC 9629; the inventory is of RFC 5652 as published. The sentences about AuthenticatedData are excluded as not-implemented: pkinative opens no recipient-addressed content.",
+  "rfc": "RFC 5652",
+  "sha256": "dbd209ae7844031f51722c4d9e2d1fa3fff3081319851d581f914f5f0147f918",
+  "errata": [],
+  "requirements": {
+    "5.1-1-f166a403": {
+      "section": "5.1",
+      "text": "The version MUST be assigned as follows:",
+      "status": "test",
+      "file": "tests/build/build-signed-data.test.ts",
+      "test": "should compute the version from the bag: %s (RFC 5652 §5.1)",
+      "why": "createSignedData assigns the SignedData version from what it writes — 1, 3, 4 or 5 by the certificate and revocation choices in the bag — and each assignment is one row of the test."
+    },
+    "5.1-2-a0038d19": {
+      "section": "5.1",
+      "text": "IF ((certificates is present) AND (any certificates with a type of other are present)) OR ((crls is present) AND (any crls with a type of other are present)) THEN version MUST be 5 ELSE IF (certificates is present) AND (any version 2 attribute certificates are present) THEN version MUST be 4 ELSE IF ((certificates is present) AND (any version 1 attribute certificates are present)) OR (any SignerInfo structures are version 3) OR (encapContentInfo eContentType is other than id-data) THEN version MUST be 3 ELSE version MUST be 1",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose %s declared with the wrong version, and return the declared one",
+      "why": "parseSignedData derives the version each branch of the rule calls for from what the message carries, and emits PKI_DIAG_CMS_VERSION_MISMATCH when the declared one differs; the rows walk every branch."
+    },
+    "5.1-3-d2a5a0bc": {
+      "section": "5.1",
+      "text": "Since each signer can employ a different digital signature technique, and future specifications could update the syntax, all implementations MUST gracefully handle unimplemented versions of SignerInfo.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to implementations. pkinative answers it with a typed refusal, PKI_CMS_VERSION_UNSUPPORTED for the whole message, rather than by skipping that signer: never a crash, but not the skip the sentence has in mind."
+    },
+    "5.1-4-bbe6acaf": {
+      "section": "5.1",
+      "text": "Further, since all implementations will not support every possible signature algorithm, all implementations MUST gracefully handle unimplemented signature algorithms when they are encountered.",
+      "status": "test",
+      "file": "tests/verify/verify-signed-data.test.ts",
+      "test": "should report a content digest pkinative does not compute as SIGNATURE_NOT_CHECKED, never as a mismatch",
+      "why": "An algorithm pkinative does not implement ends as PKI_REASON_SIGNATURE_NOT_CHECKED on that signer, never as an exception or a forged signature; the test drives that path with a digest algorithm pkinative does not compute."
+    },
+    "5.2-1-66010a12": {
+      "section": "5.2",
+      "text": "In this case, the content type within the EncapsulatedContentInfo value being \"signed\" MUST be id-data (as defined in Section 4), and the content field of the EncapsulatedContentInfo value MUST be omitted.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A SignedData with no signer whose eContentType is not id-data, or that still carries eContent, is read without a word; both halves are decidable from the message."
+    },
+    "5.3-1-319cb90b": {
+      "section": "5.3",
+      "text": "If the SignerIdentifier is the CHOICE issuerAndSerialNumber, then the version MUST be 1.",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a SignerInfo version that does not match its sid",
+      "why": "A SignerInfo naming its signer by issuerAndSerialNumber under version 3 is read with PKI_DIAG_CMS_VERSION_MISMATCH, which is exactly what the test builds and expects."
+    },
+    "5.3-2-8f225297": {
+      "section": "5.3",
+      "text": "If the SignerIdentifier is subjectKeyIdentifier, then the version MUST be 3.",
+      "status": "test",
+      "file": "tests/build/build-signed-data.test.ts",
+      "test": "should identify the signer by subjectKeyIdentifier as [0] primitive, making both versions 3",
+      "why": "createSignedData writes SignerInfo version 3 whenever it names the signer by subjectKeyIdentifier; on the reading side the mismatch diagnostic is tested from the issuerAndSerialNumber side."
+    },
+    "5.3-3-9534f76b": {
+      "section": "5.3",
+      "text": "Implementations MUST support the reception of the issuerAndSerialNumber and subjectKeyIdentifier forms of SignerIdentifier.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "_signerCandidates",
+      "why": "Both forms of SignerIdentifier resolve to the signer's certificate — issuer and serial compared as bytes, and the subjectKeyIdentifier extension — each a case of this describe."
+    },
+    "5.3-4-ae1ced8c": {
+      "section": "5.3",
+      "text": "However, subjectKeyIdentifier MUST be used to refer to a public key contained in a non-X.509 certificate.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Constrains the signer's choice of identifier for a key held in a certificate that is not X.509; pkinative resolves signers among X.509 certificates only, so it never meets the case."
+    },
+    "5.3-5-8abfe641": {
+      "section": "5.3",
+      "text": "The message digest algorithm SHOULD be among those listed in the digestAlgorithms field of the associated SignerData.",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a signer digest algorithm missing from digestAlgorithms",
+      "why": "A signer whose digestAlgorithm SignedData.digestAlgorithms does not list is read with PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED, the diagnostic this test expects."
+    },
+    "5.3-6-8628100d": {
+      "section": "5.3",
+      "text": "The field is optional, but it MUST be present if the content type of the EncapsulatedContentInfo value being signed is not id-data.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should require signed attributes for any other content type",
+      "why": "A signer without signed attributes over content that is not id-data is a PKI_REASON_CMS_ATTRIBUTE_INVALID; the test sets the content type to TSTInfo and drops the attributes."
+    },
+    "5.3-7-19f9b007": {
+      "section": "5.3",
+      "text": "SignedAttributes MUST be DER encoded, even if the rest of the structure is BER encoded.",
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "signed attributes — DER even under BER (RFC 5652 §5.3)",
+      "why": "Under encodingRules 'ber' the signed attributes are still refused for an indefinite length, a non-minimal length or a constructed string. A non-DER time inside them is the exception: it is read with PKI_DIAG_BER_CONSTRUCT_ACCEPTED instead."
+    },
+    "5.3-8-4a56d757": {
+      "section": "5.3",
+      "text": "If the field is present, it MUST contain, at a minimum, the following two attributes:",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "_signerAttributeReasons",
+      "why": "When signed attributes are present, a missing contentType and a missing messageDigest are each a PKI_REASON_CMS_ATTRIBUTE_INVALID; two cases of this describe drop one each."
+    },
+    "5.3-9-a6e10a3c": {
+      "section": "5.3",
+      "text": "However, the content-type attribute MUST NOT be used as part of a countersignature unsigned attribute as defined in Section 11.4.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "The signed attributes inside a countersignature value are carried unparsed — countersignatures are kept, not verified — so a content-type attribute there is never looked for, though the bytes show it."
+    },
+    "5.5-1-d9430bdf": {
+      "section": "5.5",
+      "text": "The signature value generated by the signer MUST be encoded as an OCTET STRING and carried in the signature field.",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "parseSignedData — structures RFC 5652 does not define",
+      "why": "Its row 'a signature that is a BIT STRING' is refused with PKI_CMS_STRUCTURE_INVALID at signerInfos[0].signature: only an OCTET STRING is read as the signature value."
+    },
+    "5.6-1-22f17782": {
+      "section": "5.6",
+      "text": "The recipient MUST NOT rely on any message digest values computed by the originator.",
+      "status": "test",
+      "file": "tests/verify/verify-signed-data.test.ts",
+      "test": "should report altered content as CMS_DIGEST_MISMATCH",
+      "why": "pkinative hashes the content itself and only ever compares the result with messageDigest, so altered content under an intact messageDigest is CMS_DIGEST_MISMATCH rather than believed."
+    },
+    "5.6-2-2cecedd7": {
+      "section": "5.6",
+      "text": "If the SignedData signerInfo includes signedAttributes, then the content message digest MUST be calculated as described in Section 5.4.",
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should join a segmented eContent (RFC 4134 §3.1)",
+      "why": "§5.4 digests the value octets of eContent, not its tags or segment headers; a BER eContent in segments is joined into exactly those octets, which are what verifySignedData hashes."
+    },
+    "5.6-3-7a795138": {
+      "section": "5.6",
+      "text": "For the signature to be valid, the message digest value calculated by the recipient MUST be the same as the value of the messageDigest attribute included in the signedAttributes of the SignedData signerInfo.",
+      "status": "test",
+      "file": "tests/verify/verify-signed-data.test.ts",
+      "test": "should report a digest of other content as CMS_DIGEST_MISMATCH",
+      "why": "The digest the recipient holds must equal the messageDigest attribute; a caller-supplied digest of other content differs from it and is reported CMS_DIGEST_MISMATCH."
+    },
+    "5.6-4-96603a8b": {
+      "section": "5.6",
+      "text": "If the SignedData signerInfo includes signedAttributes, then the content-type attribute value MUST match the SignedData encapContentInfo eContentType value.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a contentType that names another type than the content",
+      "why": "A content-type attribute naming another type than encapContentInfo.eContentType is a PKI_REASON_CMS_ATTRIBUTE_INVALID; the test sets the attribute to TSTInfo over id-data."
+    },
+    "11.1-1-326afec8": {
+      "section": "11.1",
+      "text": "The content-type attribute type MUST be present whenever signed attributes are present in signed-data or authenticated attributes present in authenticated-data.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should require a contentType attribute",
+      "why": "Signed attributes without a content-type attribute are a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.contentType; the authenticated-data half of the sentence concerns a type pkinative does not open."
+    },
+    "11.1-2-9e809c3a": {
+      "section": "11.1",
+      "text": "The content-type attribute value MUST match the encapContentInfo eContentType value in the signed-data or authenticated-data.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a contentType that names another type than the content",
+      "why": "The §11.1 statement of the §5.6 comparison: the attribute value is held to eContentType and a difference is refused; authenticated-data is not read."
+    },
+    "11.1-3-75f79619": {
+      "section": "11.1",
+      "text": "The content-type attribute MUST be a signed attribute or an authenticated attribute; it MUST NOT be an unsigned attribute, unauthenticated attribute, or unprotected attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a %s found among the unsigned attributes (RFC 5652 §11.1, §11.3)",
+      "why": "Its contentType row puts a content-type attribute among the unsigned attributes and expects PKI_REASON_CMS_ATTRIBUTE_INVALID at unsignedAttrs; the other attribute kinds named belong to types pkinative does not read."
+    },
+    "11.1-4-74f514dd": {
+      "section": "11.1",
+      "text": "Even though the syntax is defined as a SET OF AttributeValue, a content-type attribute MUST have a single attribute value; zero or multiple instances of AttributeValue are not permitted.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "Its contentType row gives the attribute no value, then two values, and each is a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.contentType."
+    },
+    "11.1-5-608aa8e7": {
+      "section": "11.1",
+      "text": "The SignedAttributes in a signerInfo MUST NOT include multiple instances of the content-type attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "Its contentType row also repeats the attribute among the signed attributes, which is a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.contentType."
+    },
+    "11.1-6-580ef7a2": {
+      "section": "11.1",
+      "text": "Similarly, the AuthAttributes in an AuthenticatedData MUST NOT include multiple instances of the content-type attribute.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "AuthAttributes exist only in AuthenticatedData, which pkinative does not open: docs/data/errors.json records under PKI_CMS_CONTENT_TYPE_UNEXPECTED that authenticated data is addressed to a recipient key and not implemented, in any version."
+    },
+    "11.2-1-44112cd4": {
+      "section": "11.2",
+      "text": "Within signed-data, the message-digest signed attribute type MUST be present when there are any signed attributes present.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should require a messageDigest attribute, without which the signature binds no content",
+      "why": "Signed attributes without a message-digest attribute are a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.messageDigest, the one reason the test expects."
+    },
+    "11.2-2-162dcd54": {
+      "section": "11.2",
+      "text": "Within authenticated-data, the message-digest authenticated attribute type MUST be present when there are any authenticated attributes present.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The authenticated-data twin of the signed-data rule; AuthenticatedData is refused unopened with PKI_CMS_CONTENT_TYPE_UNEXPECTED, whose entry in docs/data/errors.json says pkinative opens no recipient-addressed content."
+    },
+    "11.2-3-245cc345": {
+      "section": "11.2",
+      "text": "The message-digest attribute MUST be a signed attribute or an authenticated attribute; it MUST NOT be an unsigned attribute, unauthenticated attribute, or unprotected attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse an attribute that means something only when signed, found unsigned",
+      "why": "A message-digest attribute among the unsigned attributes is a PKI_REASON_CMS_ATTRIBUTE_INVALID, with signed attributes beside it and without them."
+    },
+    "11.2-4-4d2bc351": {
+      "section": "11.2",
+      "text": "A message-digest attribute MUST have a single attribute value, even though the syntax is defined as a SET OF AttributeValue.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "Its messageDigest row gives the attribute no value and then two values; each is a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.messageDigest."
+    },
+    "11.2-5-10c92fbd": {
+      "section": "11.2",
+      "text": "There MUST NOT be zero or multiple instances of AttributeValue present.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "Zero values and two values in one message-digest attribute are both refused, by the same messageDigest row that holds the single-value sentence before this one."
+    },
+    "11.2-6-5b48eab9": {
+      "section": "11.2",
+      "text": "The SignedAttributes in a signerInfo MUST include only one instance of the message-digest attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a repeated messageDigest, which is not a slip but the shape of an attack",
+      "why": "A second message-digest attribute among the signed attributes is a PKI_REASON_CMS_ATTRIBUTE_INVALID; the parser also leaves signer.messageDigest undefined rather than pick one."
+    },
+    "11.2-7-3751b030": {
+      "section": "11.2",
+      "text": "Similarly, the AuthAttributes in an AuthenticatedData MUST include only one instance of the message-digest attribute.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Concerns AuthAttributes, a field of AuthenticatedData; pkinative reads SignedData only and refuses the other content types by name, as PKI_CMS_CONTENT_TYPE_UNEXPECTED in docs/data/errors.json records."
+    },
+    "11.3-1-52420b20": {
+      "section": "11.3",
+      "text": "The signing-time attribute MUST be a signed attribute or an authenticated attribute; it MUST NOT be an unsigned attribute, unauthenticated attribute, or unprotected attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a %s found among the unsigned attributes (RFC 5652 §11.1, §11.3)",
+      "why": "Its signingTime row puts a signing-time attribute among the unsigned attributes and expects PKI_REASON_CMS_ATTRIBUTE_INVALID; createSignedData refuses to write one there as well."
+    },
+    "11.3-2-35c88191": {
+      "section": "11.3",
+      "text": "Dates between 1 January 1950 and 31 December 2049 (inclusive) MUST be encoded as UTCTime.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A received signing time between 1950 and 2049 encoded as GeneralizedTime is read without a diagnostic, unlike a certificate validity date (PKI_DIAG_GENERALIZED_TIME_BEFORE_2050); createSignedData itself writes UTCTime for those years."
+    },
+    "11.3-3-03c882bf": {
+      "section": "11.3",
+      "text": "Any dates with year values before 1950 or after 2049 MUST be encoded as GeneralizedTime.",
+      "status": "test",
+      "file": "tests/build/build-signed-data.test.ts",
+      "test": "should encode %s, in whole seconds (RFC 5652 §11.3)",
+      "why": "A received UTCTime cannot name a year outside 1950–2049, so only a writer can break this; createSignedData writes GeneralizedTime for 2050 and for 1949, two rows of the test."
+    },
+    "11.3-4-9257b760": {
+      "section": "11.3",
+      "text": "UTCTime values MUST be expressed in Coordinated Universal Time (formerly known as Greenwich Mean Time (GMT) and Zulu clock time) and MUST include seconds (i.e., times are YYMMDDHHMMSSZ), even where the number of seconds is zero.",
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "should refuse a signingTime that is %s, and read it under BER only with the BER diagnostic",
+      "why": "Its UTCTime rows: without seconds, or with an offset instead of Z, the signing time is refused at signedAttrs.signingTime under DER, and under BER read only with PKI_DIAG_BER_CONSTRUCT_ACCEPTED."
+    },
+    "11.3-5-edab428b": {
+      "section": "11.3",
+      "text": "Midnight MUST be represented as \"YYMMDD000000Z\".",
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "should refuse a signingTime that writes midnight as hour 24, under DER and BER alike",
+      "why": "Hour 24 is not a time pkinative reads, so midnight written 240000 is refused at signedAttrs.signingTime in both encoding modes, leaving 000000 the only spelling."
+    },
+    "11.3-6-b884ffcc": {
+      "section": "11.3",
+      "text": "Century information is implicit, and the century MUST be determined as follows:",
+      "status": "test",
+      "file": "tests/asn1/asn1-time.test.ts",
+      "test": "should apply the RFC 5280 pivot: 50–99 are 1950–1999, 00–49 are 2000–2049",
+      "why": "A signing time is read by the same time reader as a certificate date, and this test pins that reader's century rule at both edges of each half."
+    },
+    "11.3-7-af5530ef": {
+      "section": "11.3",
+      "text": "Where YY is greater than or equal to 50, the year MUST be interpreted as 19YY; and",
+      "status": "test",
+      "file": "tests/asn1/asn1-time.test.ts",
+      "test": "should apply the RFC 5280 pivot: 50–99 are 1950–1999, 00–49 are 2000–2049",
+      "why": "YY of 50 to 99 is read as 19YY: 500101000000Z is 1950 and 991231235959Z is 1999 in this test of the reader signingTime goes through."
+    },
+    "11.3-8-53389d94": {
+      "section": "11.3",
+      "text": "Where YY is less than 50, the year MUST be interpreted as 20YY.",
+      "status": "test",
+      "file": "tests/asn1/asn1-time.test.ts",
+      "test": "should apply the RFC 5280 pivot: 50–99 are 1950–1999, 00–49 are 2000–2049",
+      "why": "YY below 50 is read as 20YY: 000101000000Z is 2000 and 491231235959Z is 2049 here, and the signingTime test reads 260301120000Z as 2026."
+    },
+    "11.3-9-c5a5de36": {
+      "section": "11.3",
+      "text": "GeneralizedTime values MUST be expressed in Coordinated Universal Time and MUST include seconds (i.e., times are YYYYMMDDHHMMSSZ), even where the number of seconds is zero.",
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "should refuse a signingTime that is %s, and read it under BER only with the BER diagnostic",
+      "why": "Its GeneralizedTime rows: without seconds, or with an offset instead of Z, it is refused under DER and read under BER only with PKI_DIAG_BER_CONSTRUCT_ACCEPTED."
+    },
+    "11.3-10-4548f473": {
+      "section": "11.3",
+      "text": "GeneralizedTime values MUST NOT include fractional seconds.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A GeneralizedTime signing time with fractional seconds is read silently to the millisecond; a certificate gets PKI_DIAG_GENERALIZED_TIME_FRACTION for the same thing, a signing time gets nothing. createSignedData writes whole seconds."
+    },
+    "11.3-11-1afaa18b": {
+      "section": "11.3",
+      "text": "A signing-time attribute MUST have a single attribute value, even though the syntax is defined as a SET OF AttributeValue.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "Its signingTime row: a signing-time attribute with no value, or with two values, is a PKI_REASON_CMS_ATTRIBUTE_INVALID at signedAttrs.signingTime."
+    },
+    "11.3-12-10c92fbd": {
+      "section": "11.3",
+      "text": "There MUST NOT be zero or multiple instances of AttributeValue present.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "The zero-or-many rule for signing-time values, refused by the same signingTime row as the sentence before it; one value is the only shape that passes."
+    },
+    "11.3-13-7d97db52": {
+      "section": "11.3",
+      "text": "The SignedAttributes in a signerInfo MUST NOT include multiple instances of the signing-time attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)",
+      "why": "The signingTime row also repeats the attribute: two signing-time attributes in one signer's signed attributes are a PKI_REASON_CMS_ATTRIBUTE_INVALID."
+    },
+    "11.3-14-a40beb8d": {
+      "section": "11.3",
+      "text": "Similarly, the AuthAttributes in an AuthenticatedData MUST NOT include multiple instances of the signing-time attribute.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The AuthenticatedData twin of the rule before it; that content type is refused unopened (PKI_CMS_CONTENT_TYPE_UNEXPECTED in docs/data/errors.json), so there are no AuthAttributes to count."
+    },
+    "11.4-1-740bb662": {
+      "section": "11.4",
+      "text": "The countersignature attribute MUST be an unsigned attribute; it MUST NOT be a signed attribute, an authenticated attribute, an unauthenticated attribute, or an unprotected attribute.",
+      "status": "test",
+      "file": "tests/cms/cms-check.test.ts",
+      "test": "should refuse a countersignature among the signed attributes",
+      "why": "A countersignature among the signed attributes is a PKI_REASON_CMS_ATTRIBUTE_INVALID, and a sibling test lets one sit unsigned; the other attribute kinds named belong to types pkinative does not read."
+    },
+    "11.4-2-90a9a875": {
+      "section": "11.4",
+      "text": "The signedAttributes field MUST NOT contain a content-type attribute; there is no content type for countersignatures.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A countersignature's own SignerInfo is carried unparsed, so a content-type attribute among its signed attributes goes unseen, though it is in the bytes of the message."
+    },
+    "11.4-3-be365987": {
+      "section": "11.4",
+      "text": "The signedAttributes field MUST contain a message-digest attribute if it contains any other attributes.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "Whether a countersignature's signed attributes include a message-digest attribute is decidable from its SignerInfo, which pkinative carries without reading."
+    },
+    "11.4-4-e9e9acb1": {
+      "section": "11.4",
+      "text": "The syntax is defined as a SET OF AttributeValue, and there MUST be one or more instances of AttributeValue present.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "A countersignature attribute with an empty SET of values is kept as received, like any attribute with no value; §11.4 asks for at least one and nothing says otherwise."
+    }
+  }
+}

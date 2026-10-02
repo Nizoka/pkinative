@@ -1,0 +1,78 @@
+{
+  "$comment": "Every requirement sentence of RFC 7292 §4 and §5 with their subsections (the PFX PDU and its use), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. RFC 7292 republishes PKCS #12 v1.1 and does not cite RFC 2119: its normative words are the lower-case \"shall\" and \"should\" of the PKCS series, so this RFC alone is read with anyCase (RfcInventorySpec.anyCase), and an upper-case-only reading finds no sentence at all. Appendix B (the password-based KDF) is not inventoried: parseSections reads numbered sections only and stops at an \"Appendix X.\" heading, and pkinative refuses that KDF anyway (ADR 0002). RFC 7292 is updated by RFC 9579 (PBMAC1) and RFC 9879; the inventory is of RFC 7292 as published.",
+  "rfc": "RFC 7292",
+  "sha256": "168ce6749ac36f9a03c105e29b968ebe6f0d77cefce0200857f1d82d7de6cbad",
+  "errata": [],
+  "requirements": {
+    "4-1-7ff8303b": {
+      "section": "4",
+      "text": "The version shall be v3 for this version of this document.",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should refuse a version other than 3 with PKI_KEY_VERSION_UNSUPPORTED",
+      "why": "A PFX whose version is not 3 is refused with PKI_KEY_VERSION_UNSUPPORTED before anything inside it is read."
+    },
+    "4.1-1-9f20e7b4": {
+      "section": "4.1",
+      "text": "As mentioned, the contentType field of authSafe shall be of type data or signedData.",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should refuse an authSafe of another content type",
+      "why": "An authSafe whose contentType is neither data nor signedData is refused; signedData itself is then refused as public-key integrity mode, under its own code."
+    },
+    "4.1-2-d201e16d": {
+      "section": "4.1",
+      "text": "The content field of the authSafe shall, either directly (data case) or indirectly (signedData case), contain a BER-encoded value of type AuthenticatedSafe.",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should refuse an AuthenticatedSafe that is not a SEQUENCE",
+      "why": "The authSafe content must hold an encoded AuthenticatedSafe, and octets that are not a SEQUENCE OF ContentInfo are refused."
+    },
+    "5.1-1-d3ee4e87": {
+      "section": "5.1",
+      "text": "The contents of the Data OCTET STRING shall be a BER-encoding of SC_i (including tag, length, and value octets).",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should refuse a SafeContents that is not a SEQUENCE",
+      "why": "A data entry of the AuthenticatedSafe must hold an encoded SafeContents, and an OCTET STRING whose contents are not a SEQUENCE is refused."
+    },
+    "5.1-2-ac219712": {
+      "section": "5.1",
+      "text": "The encryptedContentInfo field of CI_i has its contentType field set to data and its encryptedContent field set to the encryption of the BER-encoding of SC_i (note that the tag and length octets shall be present).",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should refuse decrypted content that is not a SafeContents",
+      "why": "What an encrypted entry decrypts to must be the full encoding of a SafeContents, tag and length included; anything else is refused after decryption."
+    },
+    "5.1-3-15334433": {
+      "section": "5.1",
+      "text": "The contents of the Data OCTET STRING shall be a BER-encoding of the AuthenticatedSafe value (including tag, length, and value octets).",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should read a BER PFX with indefinite lengths and a segmented authSafe, as Windows writes it",
+      "why": "The authSafe OCTET STRING holds a BER encoding of the AuthenticatedSafe, which may arrive in segments; under encodingRules 'ber' they are joined and read."
+    },
+    "5.2-1-b9041f70": {
+      "section": "5.2",
+      "text": "In general, when an application imports keys, etc., from a PFX, it should ignore any object identifiers that it is not familiar with.",
+      "status": "test",
+      "file": "tests/keys/key-pkcs12.test.ts",
+      "test": "should keep a bag of an unknown type as unknown",
+      "why": "A SafeBag whose type pkinative does not know is kept with kind 'unknown' and its bytes, neither refused nor interpreted."
+    },
+    "5.2-2-50319ff3": {
+      "section": "5.2",
+      "text": "The behavior of the application when such an item is encountered may depend on what the item is (i.e., it may be that a PKCS #8-shrouded private key and a CRL should be treated differently here).",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Leaves to the importing application how to treat each kind of item; pkinative reports every bag with its kind and lets the caller decide what to do with it."
+    },
+    "5.2-3-78984f04": {
+      "section": "5.2",
+      "text": "Appropriate behavior may be to ask the user what action should be taken for this item.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Whether to ask the user is an application's interface decision; a library with no user interface has nobody to ask."
+    }
+  }
+}

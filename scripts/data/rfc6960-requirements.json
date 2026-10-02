@@ -1,0 +1,189 @@
+{
+  "$comment": "Every requirement sentence (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED) of RFC 6960 §4.1 and §4.2 with their subsections (request and response syntax, the authorised responder of §4.2.2.2), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason. RFC 6960 is updated by RFC 8954 (the nonce) and RFC 9654; the inventory is of RFC 6960 as published.",
+  "rfc": "RFC 6960",
+  "sha256": "7e63ffa1ea2ce2737d9aaf895a63776e9105ddbdfc97b8ae4029e3e825b4cdea",
+  "errata": [
+    {
+      "id": 6167,
+      "section": "4.2.1",
+      "type": "Technical",
+      "decision": "Verified. Rewrites the KeyHash comment of the §4.2.1 module: the SHA-1 of the value of the subjectPublicKey BIT STRING, without tag, length and unused-bits octet. An ASN.1 comment, not extracted; encodeOcspCertId already hashes those bits, and responderID byKey is not compared (4.2.2.3-2); not pinned."
+    }
+  ],
+  "requirements": {
+    "4.1.2-1-c0df7a01": {
+      "section": "4.1.2",
+      "text": "The critical flag SHOULD NOT be set for any of them.",
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should wrap a nonce in two OCTET STRINGs, which is what a responder reads",
+      "why": "The only request extension createOcspRequest writes is the nonce, and the test reads it as exactly the OID then the value — no critical BOOLEAN between them."
+    },
+    "4.1.2-2-564091b4": {
+      "section": "4.1.2",
+      "text": "Unrecognized extensions MUST be ignored (unless they have the critical flag set and are not understood).",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Tells the responder how to treat request extensions it does not know; pkinative never answers requests and parses none, as README's Known limitations records."
+    },
+    "4.1.2-3-2059ffee": {
+      "section": "4.1.2",
+      "text": "If the request is signed, the requestor SHALL specify its name in the requestorName field.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "createOcspRequest writes unsigned requests only, and README's Known limitations records that pkinative has no OCSP-request reader, so there is no requestorName to write or to read."
+    },
+    "4.2.1-1-cc6f7a44": {
+      "section": "4.2.1",
+      "text": "OCSP responders SHALL be capable of producing responses of the id-pkix-ocsp-basic response type.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "A capability required of responders; pkinative writes no OCSP response at all — README, Known limitations: no CRL or OCSP-response writer."
+    },
+    "4.2.1-2-015636ab": {
+      "section": "4.2.1",
+      "text": "Correspondingly, OCSP clients SHALL be capable of receiving and processing responses of the id-pkix-ocsp-basic response type.",
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should read a successful response with one good answer",
+      "why": "parseOcspResponse reads an id-pkix-ocsp-basic response down to its single answer; a response type other than basic is refused rather than read as no answer."
+    },
+    "4.2.1-3-3cbdffe4": {
+      "section": "4.2.1",
+      "text": "The value for response SHALL be the DER encoding of BasicOCSPResponse.",
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should refuse a BasicOCSPResponse that is not DER, under any encodingRules (RFC 6960 §4.2.1)",
+      "why": "A BasicOCSPResponse holding a long-form length where DER requires the short form is refused with PKI_ASN1_LENGTH_INVALID, and under encodingRules 'ber' too."
+    },
+    "4.2.1-4-490860b4": {
+      "section": "4.2.1",
+      "text": "The value for signature SHALL be computed on the hash of the DER encoding of ResponseData.",
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should verify a response that was really signed, and refuse it under another key",
+      "why": "verifyOcspSignature checks the signature over the DER of ResponseData exactly as received; the test signs those bytes, verifies them, and fails them under another key."
+    },
+    "4.2.1-5-0f5ff96c": {
+      "section": "4.2.1",
+      "text": "If no certificates are included, then certs SHOULD be absent.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An empty certs field is accepted silently — a test says so — though the sentence asks for the field to be absent; telling the two apart costs one comparison."
+    },
+    "4.2.2.1-1-224ace0f": {
+      "section": "4.2.2.1",
+      "text": "Responses whose nextUpdate value is earlier than the local system time value SHOULD be considered unreliable.",
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should report STALE once nextUpdate has passed, and accept an explicit tolerance",
+      "why": "A response whose nextUpdate is before the checking time is reported stale unless the caller grants a tolerance; it is never taken as current."
+    },
+    "4.2.2.1-2-d369e59a": {
+      "section": "4.2.2.1",
+      "text": "Responses whose thisUpdate time is later than the local system time SHOULD be considered unreliable.",
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should refuse a thisUpdate well in the future, within a clock-skew allowance",
+      "why": "A thisUpdate later than the checking time, beyond a one-minute clock-skew allowance, is refused rather than believed; a sibling test pins the minute."
+    },
+    "4.2.2.2-1-5c1d2dbd": {
+      "section": "4.2.2.2",
+      "text": "Therefore, a certificate's issuer MUST do one of the following:",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Lists what the CA must do to authorise responses — sign them, delegate, or rely on a responder the client trusts; the client's side, rejecting anything else, is the last sentence of §4.2.2.2."
+    },
+    "4.2.2.2-2-0685b46c": {
+      "section": "4.2.2.2",
+      "text": "OCSP signing delegation SHALL be designated by the inclusion of id-kp-OCSPSigning in an extended key usage certificate extension included in the OCSP response signer's certificate.",
+      "status": "test",
+      "file": "tests/verify/verify-chain.test.ts",
+      "test": "should believe a delegate the CA actually issued and marked as a responder",
+      "why": "A delegate the CA issued with id-kp-OCSPSigning in its extKeyUsage is recognised as designated, and its answer about the leaf counts."
+    },
+    "4.2.2.2-3-3f90a343": {
+      "section": "4.2.2.2",
+      "text": "This certificate MUST be issued directly by the CA that is identified in the request.",
+      "status": "test",
+      "file": "tests/verify/verify-chain.test.ts",
+      "test": "should refuse a delegate that names another issuer, even signed by the key of the CA",
+      "why": "A delegate whose issuer name is not the CA's is refused even when the CA's key signed it: issued directly by the CA means the name and the key both."
+    },
+    "4.2.2.2-4-75694dfb": {
+      "section": "4.2.2.2",
+      "text": "The CA SHOULD use the same issuing key to issue a delegation certificate as that used to sign the certificate being checked for revocation.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Asks the CA to issue delegation certificates under the same key that signed the checked certificate; that is CA practice, and the next sentence is how a client holds it to it."
+    },
+    "4.2.2.2-5-db78e837": {
+      "section": "4.2.2.2",
+      "text": "Systems relying on OCSP responses MUST recognize a delegation certificate as being issued by the CA that issued the certificate in question only if the delegation certificate and the certificate being checked for revocation were signed by the same key.",
+      "status": "test",
+      "file": "tests/verify/verify-chain.test.ts",
+      "test": "should refuse a responder that nominated itself",
+      "why": "A delegate naming the CA as issuer but signed by another key is refused: pkinative verifies the delegate's signature with the key of the CA that issued the checked certificate."
+    },
+    "4.2.2.2-6-2a7d13c7": {
+      "section": "4.2.2.2",
+      "text": "Systems or applications that rely on OCSP responses MUST be capable of detecting and enforcing the use of the id-kp-OCSPSigning value as described above.",
+      "status": "test",
+      "file": "tests/verify/verify-chain.test.ts",
+      "test": "should refuse a delegate the CA issued without the purpose",
+      "why": "A certificate the right CA issued, signing the response without id-kp-OCSPSigning, is not believed: the purpose is enforced, not merely read."
+    },
+    "4.2.2.2-7-31a8733a": {
+      "section": "4.2.2.2",
+      "text": "They MUST reject the response if the certificate required to validate the signature on the response does not meet at least one of the following criteria:",
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should report UNKNOWN when nothing says the responder is authorised",
+      "why": "A response whose signer meets none of the criteria is REVOCATION_UNKNOWN in checkOcspStatus, never REVOKED or good on that signer's word."
+    },
+    "4.2.2.2.1-1-ca07eefd": {
+      "section": "4.2.2.2.1",
+      "text": "This SHOULD be a non-critical extension.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An id-pkix-ocsp-nocheck extension marked critical is read without a diagnostic, though the flag is right there in the delegate certificate's bytes."
+    },
+    "4.2.2.2.1-2-bea22ad1": {
+      "section": "4.2.2.2.1",
+      "text": "The value of the extension SHALL be NULL.",
+      "status": "test",
+      "file": "tests/x509/x509-extensions.test.ts",
+      "test": "SCT list and ocspNoCheck",
+      "why": "Its ocspNoCheck rows refuse a value that is not NULL, and a NULL with content, as PKI_X509_EXTENSION_MALFORMED; an empty NULL is read."
+    },
+    "4.2.2.3-1-11c376b3": {
+      "section": "4.2.2.3",
+      "text": "o the version of the response syntax, which MUST be v1 (value is 0) for this version of the basic response syntax;",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "An explicit version field in ResponseData is skipped unread — a test says so — so a response declaring v2 is read as v1 without a word."
+    },
+    "4.2.2.3-2-9bc719a1": {
+      "section": "4.2.2.3",
+      "text": "Therefore, the information MUST correspond to the certificate that was used to sign the response.",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "responderID is read but never compared with the certificate that verified the signature, so a byName or byKey naming another responder passes, though both are in hand."
+    },
+    "4.2.2.3-3-13154854": {
+      "section": "4.2.2.3",
+      "text": "The response MUST include a SingleResponse for each certificate in the request.",
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should report MISMATCH when the response carries no answers at all",
+      "why": "pkinative asks about one certificate, and a response without a SingleResponse for it — none at all, or only others' — is REVOCATION_MISMATCH."
+    },
+    "4.2.2.3-4-f1369f55": {
+      "section": "4.2.2.3",
+      "text": "The response SHOULD NOT include any additional SingleResponse elements, but, for example, OCSP responders that pre-generate status responses might include additional SingleResponse elements if necessary to improve response pre-generation performance or cache efficiency (according to [RFC5019], Section 2.2.1).",
+      "status": "excluded",
+      "reason": "not-diagnosed",
+      "why": "Extra SingleResponse elements are tolerated — the right answer is found among several — with no diagnostic, though counting them against the one certificate asked about would tell."
+    }
+  }
+}
