@@ -481,6 +481,12 @@
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: line 72 has already returned false unless a.length === b.length, so the one extra comparison is a[a.length] !== b[b.length], undefined against undefined, which is false; the loop ends and returns true exactly as the original does."
+    },
+    {
+      "id": "src/hash/fingerprint.ts:66:9:if-true",
+      "original": "subtle !== undefined && typeof subtle.digest === 'function'",
+      "replacement": "true",
+      "reason": "Semantic: the guard only spares a throw that the try/catch below it already absorbs. When subtle is undefined, or its digest is not a function, the forced call raises a TypeError inside the try block, the catch swallows it, and the function returns hash(bytes) — the pure-path result the guard would have chosen. A host whose digest is a function takes the same path with or without the mutant."
     }
   ]
 }

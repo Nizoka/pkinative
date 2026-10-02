@@ -39,6 +39,18 @@ describe('computeFingerprintAsync', () => {
         expect(hex(await computeFingerprintAsync(DER, algorithm))).toBe(expected(algorithm));
     });
 
+    // The contract is "through Web Crypto when available": equal bytes alone
+    // cannot tell the two paths apart, so the host's digest is observed.
+    it.each(Object.keys(NODE_NAMES) as FingerprintAlgorithm[])('should hand %s to the host digest when Web Crypto offers one', async (algorithm) => {
+        const subtle = globalThis.crypto.subtle;
+        const digest = vi.fn((name: string, data: Uint8Array): Promise<ArrayBuffer> => subtle.digest(name, data));
+        vi.stubGlobal('crypto', { subtle: { digest } });
+        expect(hex(await computeFingerprintAsync(DER, algorithm))).toBe(expected(algorithm));
+        expect(digest).toHaveBeenCalledTimes(1);
+        expect(digest.mock.calls[0]?.[0]).toBe(algorithm);
+        expect(hex(digest.mock.calls[0]?.[1] ?? new Uint8Array(0))).toBe(hex(DER));
+    });
+
     it('should fall back to the pure path on a host without Web Crypto', async () => {
         vi.stubGlobal('crypto', undefined);
         expect(hex(await computeFingerprintAsync(DER, 'SHA-256'))).toBe(expected('SHA-256'));
