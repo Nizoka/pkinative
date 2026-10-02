@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     decodeAsn1,
+    encodeBoolean,
     encodeEnumerated,
     encodeExplicit,
     encodeImplicit,
@@ -109,6 +110,14 @@ describe('encodeImplicit', () => {
     it('should refuse an input that is not bytes', () => {
         expect(() => encodeImplicit(0, null as unknown as Uint8Array)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
+
+    it('should keep a primitive type with an odd tag number primitive', () => {
+        // IssuingDistributionPoint onlyContainsUserCerts is [1] IMPLICIT BOOLEAN (RFC 5280 §5.2.5):
+        // the identifier 01 has its low bit set, which is not the constructed bit 0x20.
+        const tagged = encodeImplicit(1, encodeBoolean(true));
+        expect(hex(tagged)).toBe('8101ff');
+        expect(decodeAsn1(tagged).constructed).toBe(false);
+    });
 });
 
 describe('encodeNamedBits', () => {
@@ -140,9 +149,18 @@ describe('encodeNamedBits', () => {
         expect(hex(read.bytes)).toBe('84');
     });
 
+    it('should accept position 65535, the ceiling, in the last bit of an 8192-octet string', () => {
+        const read = readBitString(decodeAsn1(encodeNamedBits([65535])));
+        expect(read.unusedBits).toBe(0);
+        expect(read.bytes.length).toBe(8192);
+        expect(read.bytes[8191]).toBe(0x01);
+        expect(read.bytes.subarray(0, 8191).every((b) => b === 0)).toBe(true);
+    });
+
     it.each([
         ['a fraction', 1.5],
         ['a negative position', -1],
+        ['the first position past the ceiling', 65536],
         ['a position past the ceiling', 70000],
     ])('should refuse %s', (_what, bit) => {
         expect(() => encodeNamedBits([bit])).toThrow(expect.objectContaining({ code: 'PKI_ASN1_VALUE_OUT_OF_RANGE' }));
