@@ -511,6 +511,18 @@
       "original": "64",
       "replacement": "65",
       "reason": "Semantic: as 48:28 relational — the bound 65 adds the single step j = 64, whose write to w[64] lies past the 64-word Uint32Array and is discarded."
+    },
+    {
+      "id": "src/hash/sha512.ts:78:28:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one extra schedule step, j = 80, reads words 64, 65, 73 and 78 (all within the 80-word arrays), overwrites the scratch pair t and writes wh[80] and wl[80], indexes past the end of their Uint32Arrays that are discarded. The scratch t is next written by add(t, hH, hL, …) at round 0, whose inputs do not include t, before anything reads it; add assigns both t[0] and t[1]."
+    },
+    {
+      "id": "src/hash/sha512.ts:78:30:number+1",
+      "original": "80",
+      "replacement": "81",
+      "reason": "Semantic: as 78:28 relational — the bound 81 adds the single step j = 80, whose writes past the 80-word arrays are discarded and whose scratch t is overwritten at round 0 before it is read."
     }
   ]
 }
