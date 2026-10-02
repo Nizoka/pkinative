@@ -173,6 +173,97 @@ function enforceLimit(limits, limit, observed, context) {
   }
 }
 
+// src/asn1/asn1-tags.ts
+var TAG_BOOLEAN = 1;
+var TAG_INTEGER = 2;
+var TAG_BIT_STRING = 3;
+var TAG_OCTET_STRING = 4;
+var TAG_NULL = 5;
+var TAG_OID = 6;
+var TAG_ENUMERATED = 10;
+var TAG_UTF8_STRING = 12;
+var TAG_SEQUENCE = 16;
+var TAG_SET = 17;
+var TAG_NUMERIC_STRING = 18;
+var TAG_PRINTABLE_STRING = 19;
+var TAG_TELETEX_STRING = 20;
+var TAG_IA5_STRING = 22;
+var TAG_UTC_TIME = 23;
+var TAG_GENERALIZED_TIME = 24;
+var TAG_VISIBLE_STRING = 26;
+var TAG_UNIVERSAL_STRING = 28;
+var TAG_BMP_STRING = 30;
+var TAG_CLASSES = ["universal", "application", "context", "private"];
+function tagClassOf(identifier) {
+  const bits = identifier & 192;
+  if (bits === 0) return "universal";
+  if (bits === 64) return "application";
+  if (bits === 128) return "context";
+  return "private";
+}
+var STRING_TAGS = {
+  utf8: TAG_UTF8_STRING,
+  numeric: TAG_NUMERIC_STRING,
+  printable: TAG_PRINTABLE_STRING,
+  teletex: TAG_TELETEX_STRING,
+  ia5: TAG_IA5_STRING,
+  visible: TAG_VISIBLE_STRING,
+  universal: TAG_UNIVERSAL_STRING,
+  bmp: TAG_BMP_STRING
+};
+var NAMES = {
+  0: "end-of-contents",
+  1: "BOOLEAN",
+  2: "INTEGER",
+  3: "BIT STRING",
+  4: "OCTET STRING",
+  5: "NULL",
+  6: "OBJECT IDENTIFIER",
+  7: "ObjectDescriptor",
+  8: "EXTERNAL",
+  9: "REAL",
+  10: "ENUMERATED",
+  11: "EMBEDDED PDV",
+  12: "UTF8String",
+  13: "RELATIVE-OID",
+  14: "TIME",
+  16: "SEQUENCE",
+  17: "SET",
+  18: "NumericString",
+  19: "PrintableString",
+  20: "TeletexString",
+  21: "VideotexString",
+  22: "IA5String",
+  23: "UTCTime",
+  24: "GeneralizedTime",
+  25: "GraphicString",
+  26: "VisibleString",
+  27: "GeneralString",
+  28: "UniversalString",
+  29: "CHARACTER STRING",
+  30: "BMPString"
+};
+function isPrimitiveOnly(tagNumber) {
+  return tagNumber === 1 || tagNumber === 2 || tagNumber === 5 || tagNumber === 6 || tagNumber === 9 || tagNumber === 10 || tagNumber === 13 || tagNumber === 14;
+}
+function isConstructedOnly(tagNumber) {
+  return tagNumber === 8 || tagNumber === 11 || tagNumber === 16 || tagNumber === 17 || tagNumber === 29;
+}
+function isStringTag(tagNumber) {
+  return tagNumber === 3 || tagNumber === 4 || tagNumber === 7 || tagNumber === 12 || tagNumber >= 18 && tagNumber <= 28 || tagNumber === 30;
+}
+function stringTypeOfTag(tagNumber) {
+  for (const type of Object.keys(STRING_TAGS)) {
+    if (STRING_TAGS[type] === tagNumber) return type;
+  }
+  return void 0;
+}
+function tagLabel(tagClass, tagNumber) {
+  if (tagClass === "universal") return NAMES[tagNumber] ?? `[UNIVERSAL ${tagNumber}]`;
+  if (tagClass === "context") return `[${tagNumber}]`;
+  return `[${tagClass.toUpperCase()} ${tagNumber}]`;
+}
+
 // src/asn1/asn1-cursor.ts
 var CLASSES = ["universal", "application", "context", "private"];
 function readTlvHeader(data, offset, path) {
@@ -202,6 +293,20 @@ function readTlvHeader(data, offset, path) {
       tagNumber = tagNumber << 7 | byte & 127;
       at += 1;
       if ((byte & 128) === 0) break;
+    }
+    if (tagNumber < 31) {
+      throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} writes tag number ${String(tagNumber)} in the high-tag-number form, which X.690 \xA78.1.2.2 reserves for numbers of 31 and above`, offset);
+    }
+  }
+  if (tagClass === "universal") {
+    if (tagNumber === 0) {
+      throw new PkiEncodingError("PKI_ASN1_EOC_UNEXPECTED", `pkinative: ${path} holds an end-of-contents marker where a value belongs (X.690 \xA78.1.5) \u2014 the input is corrupt`, offset);
+    }
+    if (constructed ? isPrimitiveOnly(tagNumber) : isConstructedOnly(tagNumber)) {
+      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is a universal type ${String(tagNumber)} in the ${constructed ? "constructed" : "primitive"} form, which X.690 never uses for it \u2014 the input is corrupt`, offset);
+    }
+    if (constructed && isStringTag(tagNumber)) {
+      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN", `pkinative: ${path} is a string in constructed form, which DER forbids (X.690 \xA710.2) and this cursor never accepts`, offset);
     }
   }
   const lengthByte = data[at];
@@ -242,6 +347,9 @@ function readTlvHeader(data, offset, path) {
   return { tagClass, tagNumber, constructed, offset, contentStart: at, length, end };
 }
 function* walkChildren(data, parent, path) {
+  if (!parent.constructed) {
+    throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is primitive, so its content is octets and not values to walk \u2014 the structure expects the constructed form here`, parent.offset);
+  }
   let at = parent.contentStart;
   let index = 0;
   while (at < parent.end) {
@@ -525,6 +633,16 @@ function spkiRsaExponentWeakDiagnostic(path, exponent, offset) {
     offset
   );
 }
+function spkiEcParametersInvalidDiagnostic(path, namedCurve, offset) {
+  return _diagnostic(
+    "PKI_DIAG_SPKI_EC_PARAMETERS_INVALID",
+    "warning",
+    "RFC 5480 \xA72.1.1",
+    namedCurve === void 0 ? "the EC key parameters are not a namedCurve OBJECT IDENTIFIER; RFC 5480 forbids implicitCurve (NULL) and specifiedCurve, and no signature under this key will be checked" : `the EC key names the curve ${namedCurve}, which pkinative does not know; no signature under this key will be checked`,
+    path,
+    offset
+  );
+}
 function crlExtensionMalformedDiagnostic(path, name, detail, offset) {
   return _diagnostic(
     "PKI_DIAG_CRL_EXTENSION_MALFORMED",
@@ -715,6 +833,16 @@ function dnsNameNotPreferredSyntaxDiagnostic(name, path) {
     void 0
   );
 }
+function generalNameControlCharacterDiagnostic(kind, name, path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `the ${kind} ${JSON.stringify(name)} contains a control character; no name syntax admits one, and a consumer that stops at NUL reads a different name than the one compared`,
+    path,
+    offset
+  );
+}
 function akiMissingDiagnostic() {
   return _diagnostic(
     "PKI_DIAG_AKI_MISSING",
@@ -823,97 +951,6 @@ function noteBer(ctx, construct, offset) {
   if (ctx.berReported.has(construct)) return;
   ctx.berReported.add(construct);
   ctx.emitter.emit(berConstructAcceptedDiagnostic(construct, offset));
-}
-
-// src/asn1/asn1-tags.ts
-var TAG_BOOLEAN = 1;
-var TAG_INTEGER = 2;
-var TAG_BIT_STRING = 3;
-var TAG_OCTET_STRING = 4;
-var TAG_NULL = 5;
-var TAG_OID = 6;
-var TAG_ENUMERATED = 10;
-var TAG_UTF8_STRING = 12;
-var TAG_SEQUENCE = 16;
-var TAG_SET = 17;
-var TAG_NUMERIC_STRING = 18;
-var TAG_PRINTABLE_STRING = 19;
-var TAG_TELETEX_STRING = 20;
-var TAG_IA5_STRING = 22;
-var TAG_UTC_TIME = 23;
-var TAG_GENERALIZED_TIME = 24;
-var TAG_VISIBLE_STRING = 26;
-var TAG_UNIVERSAL_STRING = 28;
-var TAG_BMP_STRING = 30;
-var TAG_CLASSES = ["universal", "application", "context", "private"];
-function tagClassOf(identifier) {
-  const bits = identifier & 192;
-  if (bits === 0) return "universal";
-  if (bits === 64) return "application";
-  if (bits === 128) return "context";
-  return "private";
-}
-var STRING_TAGS = {
-  utf8: TAG_UTF8_STRING,
-  numeric: TAG_NUMERIC_STRING,
-  printable: TAG_PRINTABLE_STRING,
-  teletex: TAG_TELETEX_STRING,
-  ia5: TAG_IA5_STRING,
-  visible: TAG_VISIBLE_STRING,
-  universal: TAG_UNIVERSAL_STRING,
-  bmp: TAG_BMP_STRING
-};
-var NAMES = {
-  0: "end-of-contents",
-  1: "BOOLEAN",
-  2: "INTEGER",
-  3: "BIT STRING",
-  4: "OCTET STRING",
-  5: "NULL",
-  6: "OBJECT IDENTIFIER",
-  7: "ObjectDescriptor",
-  8: "EXTERNAL",
-  9: "REAL",
-  10: "ENUMERATED",
-  11: "EMBEDDED PDV",
-  12: "UTF8String",
-  13: "RELATIVE-OID",
-  14: "TIME",
-  16: "SEQUENCE",
-  17: "SET",
-  18: "NumericString",
-  19: "PrintableString",
-  20: "TeletexString",
-  21: "VideotexString",
-  22: "IA5String",
-  23: "UTCTime",
-  24: "GeneralizedTime",
-  25: "GraphicString",
-  26: "VisibleString",
-  27: "GeneralString",
-  28: "UniversalString",
-  29: "CHARACTER STRING",
-  30: "BMPString"
-};
-function isPrimitiveOnly(tagNumber) {
-  return tagNumber === 1 || tagNumber === 2 || tagNumber === 5 || tagNumber === 6 || tagNumber === 9 || tagNumber === 10 || tagNumber === 13 || tagNumber === 14;
-}
-function isConstructedOnly(tagNumber) {
-  return tagNumber === 8 || tagNumber === 11 || tagNumber === 16 || tagNumber === 17 || tagNumber === 29;
-}
-function isStringTag(tagNumber) {
-  return tagNumber === 3 || tagNumber === 4 || tagNumber === 7 || tagNumber === 12 || tagNumber >= 18 && tagNumber <= 28 || tagNumber === 30;
-}
-function stringTypeOfTag(tagNumber) {
-  for (const type of Object.keys(STRING_TAGS)) {
-    if (STRING_TAGS[type] === tagNumber) return type;
-  }
-  return void 0;
-}
-function tagLabel(tagClass, tagNumber) {
-  if (tagClass === "universal") return NAMES[tagNumber] ?? `[UNIVERSAL ${tagNumber}]`;
-  if (tagClass === "context") return `[${tagNumber}]`;
-  return `[${tagClass.toUpperCase()} ${tagNumber}]`;
 }
 
 // src/asn1/asn1-decode.ts
@@ -1061,9 +1098,15 @@ function decodeValueIn(view, data, start, ctx) {
       let closed = null;
       if (top.contentEnd !== null && pos === top.contentEnd) {
         closed = makeNode(data, top.tagClass, top.tagNumber, true, top.offset, top.headerLength, top.contentStart, pos, pos, false, top.children);
-      } else if (top.contentEnd === null && pos + 1 < data.length && data[pos] === 0 && data[pos + 1] === 0) {
+      } else if (top.contentEnd === null && pos + 1 < top.bound && data[pos] === 0 && data[pos + 1] === 0) {
         closed = makeNode(data, top.tagClass, top.tagNumber, true, top.offset, top.headerLength, top.contentStart, pos, pos + 2, true, top.children);
         pos += 2;
+      } else if (top.contentEnd === null && !top.boundIsInput && pos + 2 > top.bound) {
+        throw new PkiEncodingError(
+          "PKI_ASN1_LENGTH_OVERFLOW",
+          `pkinative: the indefinite-length ${tagLabel(top.tagClass, top.tagNumber)} at offset ${top.offset} has no end-of-contents marker before its enclosing value ends at offset ${top.bound} \u2014 the input is corrupt or crafted`,
+          top.offset
+        );
       } else if (top.contentEnd === null && pos >= data.length) {
         throw new PkiEncodingError(
           "PKI_ASN1_TRUNCATED",
@@ -1079,8 +1122,8 @@ function decodeValueIn(view, data, start, ctx) {
         continue;
       }
     }
-    const end = top?.contentEnd ?? data.length;
-    const endIsInput = top === void 0 || top.contentEnd === null;
+    const end = top === void 0 ? data.length : top.bound;
+    const endIsInput = top === void 0 || top.boundIsInput;
     const header = readHeader(view, pos, end, endIsInput, ctx);
     const label = tagLabel(header.tagClass, header.tagNumber);
     if (header.tagClass === "universal" && header.tagNumber === 0) {
@@ -1121,7 +1164,7 @@ function decodeValueIn(view, data, start, ctx) {
     const contentStart = pos + header.headerLength;
     if (header.length === null) {
       enforceLimit(ctx.limits, "maxDepth", frames.length + 1, "the nesting depth");
-      frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd: null, children: [] });
+      frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd: null, bound: end, boundIsInput: endIsInput, children: [] });
       pos = contentStart;
       continue;
     }
@@ -1142,7 +1185,7 @@ function decodeValueIn(view, data, start, ctx) {
     }
     if (header.constructed) {
       enforceLimit(ctx.limits, "maxDepth", frames.length + 1, "the nesting depth");
-      frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd, children: [] });
+      frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd, bound: contentEnd, boundIsInput: false, children: [] });
       pos = contentStart;
       continue;
     }
@@ -1645,7 +1688,7 @@ function readString(node, options) {
   const checked = assertNode(node, "readString");
   const ctx = createAsn1Context(options);
   const implicitType = options?.stringType;
-  if (implicitType !== void 0 && !(implicitType in STRING_TAGS)) {
+  if (implicitType !== void 0 && !Object.prototype.hasOwnProperty.call(STRING_TAGS, implicitType)) {
     throw new PkiError("PKI_INVALID_OPTION", `pkinative: stringType must be one of ${Object.keys(STRING_TAGS).join(", ")}, got ${String(implicitType)}`);
   }
   return _readString(checked, ctx, implicitType, "");
@@ -2086,6 +2129,13 @@ function _readRelativeDistinguishedName(node, ctx, path) {
 
 // src/x509/x509-general-name.ts
 var CODE2 = "PKI_X509_GENERAL_NAME_INVALID";
+function hasControlCharacter(value) {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
 function isPreferredName(value) {
   const labels = value.split(".");
   return labels.every((label, index) => {
@@ -2163,9 +2213,10 @@ function _readGeneralName(node, ctx, path, inNameConstraints) {
     case 6: {
       const value = decodeAsciiSubset(stringContent(node, ctx, TAG_OCTET_STRING, "IA5String"), isIa5Octet);
       if (value === null) {
-        throw certificateError(CODE2, path, node.offset, "contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5");
+        throw certificateError(CODE2, path, node.offset, "contains an octet above 0x7F; IA5String names are ASCII, and pkinative performs no IDNA processing: write an internationalized name as A-labels (xn--\u2026)");
       }
       const kind = node.tagNumber === 1 ? "rfc822Name" : node.tagNumber === 2 ? "dNSName" : "uniformResourceIdentifier";
+      if (hasControlCharacter(value)) ctx.emitter.emit(generalNameControlCharacterDiagnostic(kind, value, path, node.offset));
       if (kind === "dNSName" && !isPreferredName(value)) ctx.emitter.emit(dnsNameNotPreferredSyntaxDiagnostic(value, path));
       const name = { kind, value, der };
       return Object.freeze(name);
@@ -3984,11 +4035,15 @@ function encodeSubjectKeyIdentifier(keyIdentifier) {
 function encodeAuthorityKeyIdentifier(keyIdentifier) {
   return encodeSequence([encodeImplicit(0, encodeOctetString(assertBytes(keyIdentifier, "authorityKeyIdentifier")))]);
 }
+var TEXT_NAME_TAGS = /* @__PURE__ */ new Map([
+  ["rfc822Name", 1],
+  ["dNSName", 2],
+  ["uniformResourceIdentifier", 6]
+]);
 function encodeSubjectAltName(names) {
   if (names.length === 0) {
     throw new PkiError("PKI_API_MISUSE", "pkinative: a subjectAltName with no name is refused by RFC 5280 \xA74.2.1.6 \u2014 omit the extension instead");
   }
-  const tags = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
   return encodeSequence(names.map((name) => {
     if (name.kind === "directoryNameDer") return encodeExplicit(4, assertBytes(name.value, "directoryName"));
     if (name.kind === "iPAddress") {
@@ -3999,7 +4054,7 @@ function encodeSubjectAltName(names) {
       return encodeImplicit(7, encodeOctetString(address));
     }
     if (name.kind === "registeredID") return encodeImplicit(8, encodeObjectIdentifier(name.value));
-    const tag = tags[name.kind];
+    const tag = TEXT_NAME_TAGS.get(name.kind);
     if (tag === void 0) {
       throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${String(name.kind)} is not a GeneralName form this encoder writes \u2014 pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
     }
@@ -5580,6 +5635,7 @@ var SIGNATURE_BY_OID = /* @__PURE__ */ new Map([
   ["1.3.101.112", { family: "ed25519" }],
   ["1.3.101.113", { family: "ed448" }]
 ]);
+var hasNoHashParameters = (parameters) => parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
 function unsupported(message, oid) {
   return new PkiCryptoError("PKI_CRYPTO_ALGORITHM_UNSUPPORTED", `pkinative: ${message} \u2014 verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
 }
@@ -5591,14 +5647,20 @@ function readPssParams(parameters, oid) {
     if (parameters.tagClass !== "universal" || parameters.tagNumber !== TAG_SEQUENCE) {
       throw unsupported("the RSASSA-PSS parameters are not a SEQUENCE", oid);
     }
+    let previous = -1;
     for (const field of parameters.children) {
-      if (field.tagClass !== "context") continue;
+      if (field.tagClass !== "context" || field.tagNumber > 3 || field.tagNumber <= previous) {
+        throw unsupported("the RSASSA-PSS parameters hold a field other than [0] to [3], each at most once and in order (RFC 4055 \xA73.1)", oid);
+      }
+      previous = field.tagNumber;
+      if (field.children.length !== 1) {
+        throw unsupported(`the RSASSA-PSS field [${String(field.tagNumber)}] is not one value under an explicit tag (RFC 4055 \xA73.1)`, oid);
+      }
       const inner = field.children[0];
-      if (inner === void 0) continue;
       if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
       else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
-      else if (field.tagNumber === 2) saltLength = readSmallInteger(inner);
-      else if (field.tagNumber === 3 && readSmallInteger(inner) !== 1) {
+      else if (field.tagNumber === 2) saltLength = pssInteger(inner, "saltLength", oid);
+      else if (pssInteger(inner, "trailerField", oid) !== 1) {
         throw unsupported("the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines", oid);
       }
     }
@@ -5610,10 +5672,19 @@ function readPssParams(parameters, oid) {
   if (saltLength < 0) throw unsupported("the RSASSA-PSS salt length is negative", oid);
   return { hash, saltLength };
 }
+function pssInteger(node, what, oid) {
+  if (node.tagClass !== "universal" || node.tagNumber !== TAG_INTEGER) {
+    throw unsupported(`the RSASSA-PSS ${what} is not an INTEGER`, oid);
+  }
+  return readSmallInteger(node);
+}
 function hashNameOf(algorithm, oid) {
   const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
   if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
     throw unsupported("an RSASSA-PSS hash parameter is not an AlgorithmIdentifier", oid);
+  }
+  if (algorithm.children.length > 2 || !hasNoHashParameters(algorithm.children[1])) {
+    throw unsupported("an RSASSA-PSS hash AlgorithmIdentifier carries parameters other than absent or NULL (RFC 4055 \xA72.1)", oid);
   }
   const hashOid = readObjectIdentifier(first);
   const name = HASH_BY_OID.get(hashOid);
@@ -5622,7 +5693,7 @@ function hashNameOf(algorithm, oid) {
 }
 function mgf1HashOf(algorithm, oid) {
   const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
-  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
+  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID || algorithm.children.length > 2) {
     throw unsupported("the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier", oid);
   }
   if (readObjectIdentifier(first) !== "1.2.840.113549.1.1.8") {
@@ -5690,7 +5761,6 @@ var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
 var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
 var ID_ED448 = "1.3.101.113";
 var MD5_OIDS = /* @__PURE__ */ new Set(["1.2.840.113549.1.1.4", "1.2.840.113549.2.5"]);
-var hasNoHashParameters = (parameters) => parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
 function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
   if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
     return "MD5 is refused: its collisions have been practical since 2004";
@@ -5714,7 +5784,8 @@ function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
     let pssHash;
     try {
       pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
-    } catch {
+    } catch (error) {
+      _pkiError(error);
       return null;
     }
     return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
@@ -6168,6 +6239,9 @@ function readEc(parts, ctx) {
     if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
   } else {
     throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 \xA72.2 allows no other point form");
+  }
+  if (spec === void 0) {
+    ctx.emitter.emit(spkiEcParametersInvalidDiagnostic(`${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, namedCurve, parameters.offset));
   }
   const info = {
     kind: "ec",
@@ -7880,10 +7954,14 @@ function encodeSignatureAlgorithm(signer) {
     encodeExplicit(2, encodeInteger(resolved.pss.saltLength))
   ]));
 }
+var SERIAL_BOUND = 1n << 159n;
 function encodeSerial(serial) {
   if (typeof serial === "bigint") {
-    if (serial < 0n) {
-      throw new PkiError("PKI_API_MISUSE", "pkinative: a certificate serial number must be positive (RFC 5280 \xA74.1.2.2) \u2014 a negative serial is refused by most relying parties");
+    if (serial <= 0n) {
+      throw new PkiError("PKI_API_MISUSE", "pkinative: a certificate serial number must be positive (RFC 5280 \xA74.1.2.2) \u2014 zero and negative serials are refused by many relying parties");
+    }
+    if (serial >= SERIAL_BOUND) {
+      throw new PkiError("PKI_API_MISUSE", "pkinative: a certificate serial number must fit in 20 octets (RFC 5280 \xA74.1.2.2), so a positive bigint must be below 2^159 \u2014 CA/Browser Forum serials are 64 to 159 random bits");
     }
     return encodeInteger(serial);
   }
@@ -8546,7 +8624,8 @@ function attributeType(der, what) {
   let type;
   try {
     type = readAttributeType(bytes);
-  } catch {
+  } catch (error) {
+    _pkiError(error);
     type = null;
   }
   if (type === null) {
@@ -8558,7 +8637,8 @@ function bagEntryVersion(der, what, choices) {
   let header;
   try {
     header = readTlvHeader(der, 0, what);
-  } catch {
+  } catch (error) {
+    _pkiError(error);
     header = null;
   }
   const version = header !== null && header.end === der.length ? choices.get(byteView(der).getUint8(0)) : void 0;

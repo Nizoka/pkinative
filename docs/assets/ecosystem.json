@@ -145,7 +145,7 @@
     "bundle": {
       "$comment": "Byte budgets for what dist/ ships, enforced by the bundle-check gate step. verify:bundle budgets the re-minified bundle and says nothing about the shipped files. The source maps ship on purpose (tsup.config.ts sourcemap: true): a parsing library's stack traces are worth 2.6x the code when the source is MIT and already public. Every file of dist/ must have an entry, and raising one is a reviewed diff. Raised twice at 0.3.0, once per half of the milestone: for the crypto layer, measured 170281/171452/80501/80501/472771/472774; then for the build layer, measured 188455/190308/109647/109647/535650/535653. The declaration files grew 36 % against 11 % for the code, which is the surface the byte budget cannot see and declared.typeSurface can. Raised again at 0.5.0 for revocation and OCSP, measured 247184/249342/157003/157003/736695/736698 at +12 %. The declaration files are the fastest-growing artefact and declared.typeSurface is what makes that visible: 197 exports now, 115 of them types. Raised once more at 0.5.0 for the purpose check and the verify layer, measured 270984/273327/182552/182552/841166/841169 at +10 %. dist/index.d.ts is now 182552 bytes: the 1.0 trigger written down in the plan is 200000, past which subpath exports get reconsidered as a whole rather than one at a time. Raised at 0.7.0 for CMS and RFC 3161, measured 389073/391794/258879/258879/1241462/1241465 at +43 %: the largest rise so far, for a whole subsystem with its parser, builder and two verdicts. dist/index.d.ts has now passed that 200000 trigger. The decision stays where the plan put it, at 1.0 and for the whole partition at once: a subpath added now would freeze a module split before keys/ exists. Raised at 0.8.0 for PKCS#8 and PKCS#12, measured 445030/448014/294325/294325/1407559/1407562 at +14 %: keys/ now exists, so the partition the 1.0 decision will weigh is complete. At 1.0.0 dist/index.d.ts measures 307592 bytes; ADR 0016 makes this budget the next review trigger. The source maps were raised at 1.0.0 to 1530000, measured 1495196/1495199 after the pre-publication audit fixes; they ship on purpose and track the code they map.",
       "dist/index.js": {
-        "maxBytes": 480000
+        "maxBytes": 490000
       },
       "dist/index.cjs": {
         "maxBytes": 473000
@@ -172,10 +172,10 @@
       "$comment": "The playground runs a byte-for-byte copy of dist/index.js, so that it runs the build of the tree the site is published from, not the last npm release. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030.",
       "source": "dist/index.js",
       "target": "docs/playground/pkinative.js",
-      "sourceSha256": "c8b4afa03e4a6dcf6ffcd2c0fc354e6590be267387eaa86574fd75d7b1df417c",
-      "bundleSha256": "2717e24bf4233657b50a08a5b53ffee65a54812d86f67ca2c1f3cd4c21693f54",
-      "bytes": 478159,
-      "maxBytes": 480000
+      "sourceSha256": "3b3fade79ba5aad858842283a7362f68aa9db3b6dc4e27cf8e5c6ae213f6d816",
+      "bundleSha256": "90b2cb36136b9a004111e9d93b59cd395e7d290d25e729328dd45e3afd17468e",
+      "bytes": 482904,
+      "maxBytes": 490000
     },
     "socialImages": [
       {
