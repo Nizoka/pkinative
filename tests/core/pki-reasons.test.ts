@@ -205,6 +205,11 @@ describe('validation reasons', () => {
     it('should say what a TSA declined with, and stay quiet about what it did not say', () => {
         expect(tspNotGrantedReason('status', 'waiting', [], []).message).not.toContain('It said');
         expect(tspNotGrantedReason('status', 'rejection', ['no'], ['badAlg']).message).toContain('badAlg');
+        // RFC 3161 §2.4.2: statusString and failInfo are both OPTIONAL. Each absent
+        // one leaves no trace — no empty quotation, no empty failure list.
+        expect(tspNotGrantedReason('status', 'waiting', [], []).message).toBe('the timestamp authority answered waiting and issued no token.');
+        expect(tspNotGrantedReason('status', 'rejection', ['no'], []).message).toBe('the timestamp authority answered rejection and issued no token. It said: "no".');
+        expect(tspNotGrantedReason('status', 'rejection', [], ['badAlg']).message).toBe('the timestamp authority answered rejection and issued no token. Failure: badAlg.');
     });
 
     it('should be frozen, so a report cannot be edited after it is returned', () => {
