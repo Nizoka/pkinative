@@ -495,6 +495,28 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(paths.some((p) => p.startsWith('PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crls[1]'))).toBe(true);
     });
 
+    it('should name the list and the response each verdict came from, not crl and ocsp', async () => {
+        // checkRevocation and checkOcspStatus root their reasons at their one
+        // input; the composition holds several and must say which spoke.
+        const { root, ica, leaf, icaKey, rootKey } = await ed25519Hierarchy({ crlSign: true, rootCrlSign: true });
+        const revoked = encodeExplicit(1, encodeTime(AT - 30 * DAY, 'GeneralizedTime'), { tagClass: 'context' });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(root, rootKey), await signedCrl(ica, icaKey, { revoked: leaf })],
+            ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, status: revoked })],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOKED@crls[1]', 'PKI_REASON_REVOKED@ocspResponses[0]']);
+    });
+
+    it('should name the response that declined, too', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            ocspResponses: [Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x01), await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, statusCode: 3 })],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_INPUT_MALFORMED@ocspResponses[0]', 'PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[1]']);
+    });
+
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
         // Signed over SHA-1, whose collisions have been practical since 2017.
         // Neither boolean is honest, so verifyCertificateSignature throws — and

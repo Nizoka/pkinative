@@ -730,7 +730,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             // has nowhere to put one — so there is nothing to match against and
             // `checkOcspStatus` reports the status the responder gave.
             if (basic === undefined) {
-                out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, 'SHA-1'), at }));
+                out.push(...checkOcspStatus({ response, expected: _certId(input.leaf, issuer, 'SHA-1'), at }).map((reason) => _rooted(reason, 'ocsp', where)));
                 continue;
             }
             // The digest the responder used, taken from its answer about **our**
@@ -751,7 +751,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised }),
                 ...(input.ocspNonce === undefined ? {} : { nonce: input.ocspNonce }),
                 ...(input.requireOcspNonce === undefined ? {} : { requireNonce: input.requireOcspNonce }),
-            }));
+            }).map((reason) => _rooted(reason, 'ocsp', where)));
         } catch (error) {
             const refused = _pkiError(error);
             out.push(inputMalformedReason(refused.code, refused.message, where));
@@ -786,14 +786,29 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
  * would have been thrown travels in `errorCode`, as it does for a list that
  * does not parse at all. When a delta is paired with the base, the walk that
  * failed may be the delta's; the thrown message names the field either way.
+ *
+ * Every verdict is re-rooted at `where` too: `checkRevocation` names its one
+ * input `crl`, and a report over several lists has to say which.
  */
 function _judged(check: CheckRevocationInput, where: string): readonly PkiReason[] {
     try {
-        return checkRevocation(check);
+        return checkRevocation(check).map((reason) => _rooted(reason, 'crl', where));
     } catch (error) {
         const refused = _pkiError(error);
         return [inputMalformedReason(refused.code, refused.message, where)];
     }
+}
+
+/**
+ * A reason a primitive rooted at its own single input — `crl` for
+ * `checkRevocation`, `ocsp` for `checkOcspStatus` — re-rooted at the member
+ * of the caller's input it is about (`crls[2]`, `ocspResponses[0]`), any
+ * suffix kept. A new frozen reason: the primitive's own is frozen, and a
+ * caller holding several lists needs to know which one spoke.
+ */
+function _rooted(reason: PkiReason, from: 'crl' | 'ocsp', to: string): PkiReason {
+    // Both primitives root every reason at their input, so the prefix is always there.
+    return Object.freeze({ ...reason, path: `${to}${reason.path.slice(from.length)}` });
 }
 
 /** The three values RFC 6960 §4.1.1 binds an answer to, under one digest. */
