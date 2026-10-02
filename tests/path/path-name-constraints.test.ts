@@ -11,13 +11,13 @@ import {
     ipMatches,
     nameText,
     subtreeCovers,
-    uriHost,
     uriMatches,
     subtreeCoversWildcard,
     wellFormedName,
     wildcardMeetsSubtree,
     type NameConstraintState,
 } from '../../src/path/path-name-constraints.js';
+import { uriHost } from '../../src/core/uri.js';
 import type { Asn1Node } from '../../src/types/asn1-types.js';
 import type { DistinguishedName, GeneralName, GeneralSubtree } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';

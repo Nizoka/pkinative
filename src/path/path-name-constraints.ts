@@ -70,6 +70,7 @@
 
 import { toHex } from '../core/bytes.js';
 import { decodeUtf8 } from '../core/text.js';
+import { uriHost } from '../core/uri.js';
 import type { Asn1Node, Asn1StringType } from '../types/asn1-types.js';
 import type { AttributeTypeAndValue, DistinguishedName, GeneralName, GeneralSubtree, RelativeDistinguishedName } from '../types/x509-types.js';
 
@@ -183,57 +184,6 @@ export function uriMatches(constraint: string, uri: string): boolean {
     if (c === '') return true;
     if (c.startsWith('.')) return h.endsWith(c);
     return h === c;
-}
-
-/** RFC 3986 §3.1 `scheme ":"`, followed by the `"//"` that opens an authority (§3.2). */
-const URI_SCHEME_AND_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
-/** Every character RFC 3986 §2 lets a URI hold — reserved, unreserved, and `%` only as `pct-encoded`. */
-const URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
-/** RFC 3986 §3.2.1 `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )` — no `@`. */
-const URI_USERINFO = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:]|%[0-9A-Fa-f]{2})*$/;
-/**
- * RFC 3986 §3.2.2 `reg-name`, **without** `pct-encoded`: RFC 5280 §4.2.1.6 asks
- * for a fully qualified domain name as the host, and a percent in a host is a
- * name that each decoder reads differently.
- */
-const URI_REG_NAME = /^[A-Za-z0-9\-._~!$&'()*+,;=]+$/;
-/** RFC 3986 §3.2.2 `IP-literal` as an IPv6 address: hex digits, colons and dots — no zone, no `IPvFuture`. */
-const URI_IP_LITERAL = /^\[[0-9A-Fa-f:.]+\]$/;
-/** RFC 3986 §3.2.3 `":" port`, or nothing. */
-const URI_PORT = /^(?::[0-9]*)?$/;
-
-/**
- * The host of a URI, or null when there is no authority to constrain or the
- * authority is not RFC 3986's.
- *
- * Read by the grammar, not cut at the last `@`: `https://evil.test\@good.example.com/`
- * is not a URI (a backslash is no URI character), and a WHATWG parser reads its
- * host as `evil.test` where cutting reads `good.example.com` — a constraint
- * checked against a host the client never connects to (CWE-436). So every
- * character must be one RFC 3986 allows, the userinfo holds no `@`, the host is
- * a `reg-name` without percent-encoding or an IPv6 literal, and anything after
- * the host is a port. Anything else has no host both sides agree on, and a
- * constrained URI form refuses it.
- */
-export function uriHost(uri: string): string | null {
-    const scheme = URI_SCHEME_AND_AUTHORITY.exec(uri);
-    if (scheme === null || !URI_CHARACTERS.test(uri)) return null;
-    // The authority runs to the first "/", "?" or "#", or to the end.
-    const authority = uri.slice(scheme[0].length).split(/[/?#]/, 1)[0] as string;
-    // Userinfo is everything before the first "@", and holds no "@" itself:
-    // a second one lands in the host, which refuses it.
-    const at = authority.indexOf('@');
-    if (!URI_USERINFO.test(authority.slice(0, Math.max(at, 0)))) return null;
-    const hostAndPort = authority.slice(at + 1);
-    if (hostAndPort.startsWith('[')) {
-        // An IPv6 literal keeps its brackets, which never match a
-        // dNSName-style constraint, and is not split on its own colons.
-        const close = hostAndPort.indexOf(']') + 1;
-        const literal = hostAndPort.slice(0, close);
-        return URI_IP_LITERAL.test(literal) && URI_PORT.test(hostAndPort.slice(close)) ? literal : null;
-    }
-    const host = hostAndPort.split(':', 1)[0] as string;
-    return URI_REG_NAME.test(host) && URI_PORT.test(hostAndPort.slice(host.length)) ? host : null;
 }
 
 /**
