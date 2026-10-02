@@ -33,6 +33,7 @@ const lengthOf = (body: Uint8Array): number[] => (body.length < 0x80 ? [body.len
 
 const SHA256 = '2.16.840.1.101.3.4.2.1';
 const PSS = '1.2.840.113549.1.1.10';
+const MGF1_OID = '1.2.840.113549.1.1.8';
 
 describe('resolveAlgorithm', () => {
     it.each([
@@ -186,14 +187,40 @@ describe('resolveAlgorithm', () => {
                 .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', message: expect.stringContaining('maskGenAlgorithm is not an AlgorithmIdentifier') }));
         });
 
-        it('should ignore a field that is neither a context tag nor one it knows', () => {
-            const params = sequence(nullValue(), tagged(7, universal(2, [1])), tagged(2, universal(2, [48])));
-            expect(resolveAlgorithm(identifier(PSS, params), RSA_KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 48 });
+        // C-06 (CWE-436): RSASSA-PSS-params is SEQUENCE { [0]? [1]? [2]? [3]? },
+        // each once, in order, each one value under an explicit tag; a hash
+        // AlgorithmIdentifier's parameters are absent or NULL (RFC 4055 §2.1, §3.1).
+        it.each<[string, Uint8Array]>([
+            ['a universal child before the fields', sequence(nullValue(), tagged(2, universal(2, [48])))],
+            ['a universal child after the fields', sequence(tagged(2, universal(2, [48])), nullValue())],
+            ['a context tag beyond [3]', sequence(tagged(4, universal(2, [1])))],
+            ['an application-class tag', sequence(concat([0x62, 0x03], universal(2, [48])))],
+            ['a repeated [2], whose last value would win', sequence(tagged(2, universal(2, [32])), tagged(2, universal(2, [0])))],
+            ['[2] before [0]', sequence(tagged(2, universal(2, [32])), tagged(0, algorithm(SHA256)))],
+            ['[3] before [2]', sequence(tagged(3, universal(2, [1])), tagged(2, universal(2, [20])))],
+            ['an empty [0], which would read as SHA-1', sequence(concat([0xa0, 0x00]))],
+            ['a primitive [2]', sequence(concat([0x82, 0x01, 0x20]))],
+            ['a [2] holding two values', sequence(tagged(2, universal(2, [32]), universal(2, [32])))],
+            ['a salt length that is not an INTEGER', sequence(tagged(2, universal(4, [32])))],
+            ['a trailerField that is not an INTEGER', sequence(tagged(3, universal(4, [1])))],
+            ['a hash with parameters other than NULL', sequence(tagged(0, algorithm('1.3.14.3.2.26', universal(2, [0]))))],
+            ['a hash with a NULL that has content', sequence(tagged(0, algorithm('1.3.14.3.2.26', universal(5, [0]))))],
+            ['a hash AlgorithmIdentifier of three values', sequence(tagged(0, sequence(oid('1.3.14.3.2.26'), nullValue(), nullValue())))],
+            ['an MGF1 hash with garbage parameters', sequence(tagged(1, algorithm(MGF1_OID, algorithm('1.3.14.3.2.26', universal(4, [1])))))],
+            ['an MGF1 AlgorithmIdentifier of three values', sequence(tagged(1, sequence(oid(MGF1_OID), algorithm('1.3.14.3.2.26'), nullValue())))],
+        ])('should refuse RSASSA-PSS parameters with %s', (_what, params) => {
+            expect(() => resolveAlgorithm(identifier(PSS, params), RSA_KEY)).toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
         });
 
-        it('should ignore an empty context tag rather than read past it', () => {
-            const params = sequence(concat([0xa0, 0x00]), tagged(2, universal(2, [24])));
-            expect(resolveAlgorithm(identifier(PSS, params), RSA_KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 24 });
+        it('should read every field in order, with the hash parameters NULL as well as absent', () => {
+            const params = sequence(
+                tagged(0, algorithm(SHA256, nullValue())),
+                tagged(1, algorithm(MGF1_OID, algorithm(SHA256))),
+                tagged(2, universal(2, [32])),
+                tagged(3, universal(2, [1])),
+            );
+            expect(resolveAlgorithm(identifier(PSS, params), RSA_KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 32 });
+            expect(resolveAlgorithm(identifier(PSS, sequence(tagged(3, universal(2, [1])))), RSA_KEY)?.verifyParams).toEqual({ name: 'RSA-PSS', saltLength: 20 });
         });
 
         it.each([

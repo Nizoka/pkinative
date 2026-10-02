@@ -21,7 +21,7 @@
 
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
-import { TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
@@ -120,6 +120,11 @@ function unsupported(message: string, oid: string): PkiCryptoError {
  * anything else, so a certificate specifying another MGF, or MGF1 over a
  * different digest, is refused rather than verified under parameters it did
  * not choose.
+ *
+ * The grammar is held exactly — `[0]` to `[3]`, each at most once and in
+ * that order, each one value under an explicit tag — because a reader that
+ * skips a stray child or lets a repeated field win reads parameters another
+ * verifier reads differently (CWE-436).
  */
 function readPssParams(parameters: Asn1Node | undefined, oid: string): { hash: string; saltLength: number } {
     let hash = 'SHA-1';
@@ -130,14 +135,21 @@ function readPssParams(parameters: Asn1Node | undefined, oid: string): { hash: s
         if (parameters.tagClass !== 'universal' || parameters.tagNumber !== TAG_SEQUENCE) {
             throw unsupported('the RSASSA-PSS parameters are not a SEQUENCE', oid);
         }
+        let previous = -1;
         for (const field of parameters.children) {
-            if (field.tagClass !== 'context') continue;
-            const inner = field.children[0];
-            if (inner === undefined) continue;
+            if (field.tagClass !== 'context' || field.tagNumber > 3 || field.tagNumber <= previous) {
+                throw unsupported('the RSASSA-PSS parameters hold a field other than [0] to [3], each at most once and in order (RFC 4055 §3.1)', oid);
+            }
+            previous = field.tagNumber;
+            // A primitive tag has no children, so this also refuses one.
+            if (field.children.length !== 1) {
+                throw unsupported(`the RSASSA-PSS field [${String(field.tagNumber)}] is not one value under an explicit tag (RFC 4055 §3.1)`, oid);
+            }
+            const inner = field.children[0] as Asn1Node;
             if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
             else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
-            else if (field.tagNumber === 2) saltLength = readSmallInteger(inner);
-            else if (field.tagNumber === 3 && readSmallInteger(inner) !== 1) {
+            else if (field.tagNumber === 2) saltLength = pssInteger(inner, 'saltLength', oid);
+            else if (pssInteger(inner, 'trailerField', oid) !== 1) {
                 throw unsupported('the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines', oid);
             }
         }
@@ -151,11 +163,27 @@ function readPssParams(parameters: Asn1Node | undefined, oid: string): { hash: s
     return { hash, saltLength };
 }
 
-/** The Web Crypto hash name of an AlgorithmIdentifier SEQUENCE. */
+/** The saltLength or trailerField INTEGER of RSASSA-PSS-params. */
+function pssInteger(node: Asn1Node, what: string, oid: string): number {
+    if (node.tagClass !== 'universal' || node.tagNumber !== TAG_INTEGER) {
+        throw unsupported(`the RSASSA-PSS ${what} is not an INTEGER`, oid);
+    }
+    return readSmallInteger(node);
+}
+
+/**
+ * The Web Crypto hash name of an AlgorithmIdentifier SEQUENCE, whose
+ * parameters are absent or NULL (RFC 4055 §2.1) — never anything else.
+ */
 function hashNameOf(algorithm: Asn1Node, oid: string): string {
     const first = algorithm.tagClass === 'universal' && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : undefined;
     if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID) {
         throw unsupported('an RSASSA-PSS hash parameter is not an AlgorithmIdentifier', oid);
+    }
+    const parameters = algorithm.children[1];
+    if (algorithm.children.length > 2 || (parameters !== undefined
+        && (parameters.tagClass !== 'universal' || parameters.tagNumber !== TAG_NULL || parameters.contentLength !== 0))) {
+        throw unsupported('an RSASSA-PSS hash AlgorithmIdentifier carries parameters other than absent or NULL (RFC 4055 §2.1)', oid);
     }
     const hashOid = readObjectIdentifier(first);
     const name = HASH_BY_OID.get(hashOid);
@@ -166,7 +194,7 @@ function hashNameOf(algorithm: Asn1Node, oid: string): string {
 /** MGF1's digest, from `id-mgf1` with an AlgorithmIdentifier parameter. */
 function mgf1HashOf(algorithm: Asn1Node, oid: string): string {
     const first = algorithm.tagClass === 'universal' && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : undefined;
-    if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID) {
+    if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID || algorithm.children.length > 2) {
         throw unsupported('the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier', oid);
     }
     if (readObjectIdentifier(first) !== '1.2.840.113549.1.1.8') {
