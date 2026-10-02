@@ -87,7 +87,7 @@ function build(parts: ResponseParts = {}): Uint8Array {
     return sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...basic]))));
 }
 
-const check = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): readonly { code: string; message: string }[] =>
+const check = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): readonly { code: string; message: string; path: string }[] =>
     checkOcspStatus({
         response: parseOcspResponse(der, quiet),
         expected: EXPECTED,

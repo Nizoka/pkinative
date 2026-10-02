@@ -1401,11 +1401,17 @@ function concat(...parts: readonly Uint8Array[]): Uint8Array {
     return out;
 }
 
-/** One `SingleResponse` about `R12` under `ROOT`. */
+/**
+ * One `SingleResponse` about `R12` under `ROOT`, current for a week. The
+ * `nextUpdate` is what keeps the answer fresh after its `thisUpdate`: without
+ * one, RFC 6960 §4.2.2.1 says newer information is available all the time,
+ * and `checkOcspStatus` calls the answer stale as soon as it is older.
+ */
 const single = (status: Uint8Array, id?: Uint8Array): Uint8Array => encodeSequence([
     id ?? encodeOcspCertId(R12, ROOT),
     status,
     encodeTime(PRODUCED_AT, 'GeneralizedTime'),
+    encodeTlv('context', 0, true, encodeTime(PRODUCED_AT + 7 * 86_400_000, 'GeneralizedTime')),
 ]);
 
 /** How the caller signs: bound once, so nothing here needs a key type. */

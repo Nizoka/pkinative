@@ -24,8 +24,8 @@
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 126105,
-      "approxTokens": 31526
+      "bytes": 126457,
+      "approxTokens": 31614
     },
     {
       "url": "assets/api.json",
