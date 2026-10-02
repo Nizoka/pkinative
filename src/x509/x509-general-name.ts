@@ -2,8 +2,10 @@
  * pkinative — GeneralName
  * =======================
  * RFC 5280 §4.2.1.6, under the implicit tagging of the PKIX1Implicit88
- * module. IA5String names must be ASCII: internationalized names are not
- * converted before 0.5, so non-ASCII octets are refused rather than guessed.
+ * module. IA5String names must be ASCII: pkinative performs no IDNA
+ * processing, so a non-ASCII octet is refused rather than guessed, and an
+ * internationalized name written as A-labels (`xn--…`) is kept and compared
+ * as written. A NUL or another control character is kept and diagnosed.
  * An iPAddress is 4 or 16 octets, and 8 or 32 (address and mask) in name
  * constraints (§4.2.1.10).
  *
@@ -15,7 +17,7 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { stringContent } from '../asn1/asn1-read.js';
 import { TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, tagLabel } from '../asn1/asn1-tags.js';
 import { byteView } from '../core/bytes.js';
-import { dnsNameNotPreferredSyntaxDiagnostic } from '../core/pki-diagnostics.js';
+import { dnsNameNotPreferredSyntaxDiagnostic, generalNameControlCharacterDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import { decodeAsciiSubset, isIa5Octet } from '../core/text.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -32,6 +34,18 @@ import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readName } from './x509-name.js';
 
 const CODE = 'PKI_X509_GENERAL_NAME_INVALID';
+
+/**
+ * Whether a name holds a C0 control (U+0000 to U+001F) or DEL. The string is
+ * already bounded by the decoded value it came from.
+ */
+function hasControlCharacter(value: string): boolean {
+    for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code < 0x20 || code === 0x7f) return true;
+    }
+    return false;
+}
 
 /**
  * RFC 1034 §3.5 preferred name syntax: labels of letters, digits and hyphens,
@@ -136,9 +150,12 @@ export function _readGeneralName(node: Asn1Node, ctx: Asn1Context, path: string,
         case 6: {
             const value = decodeAsciiSubset(stringContent(node, ctx, TAG_OCTET_STRING, 'IA5String'), isIa5Octet);
             if (value === null) {
-                throw certificateError(CODE, path, node.offset, 'contains an octet above 0x7F; IA5String names are ASCII, and internationalized names are not decoded before 0.5');
+                throw certificateError(CODE, path, node.offset, 'contains an octet above 0x7F; IA5String names are ASCII, and pkinative performs no IDNA processing: write an internationalized name as A-labels (xn--…)');
             }
             const kind: TextGeneralName['kind'] = node.tagNumber === 1 ? 'rfc822Name' : node.tagNumber === 2 ? 'dNSName' : 'uniformResourceIdentifier';
+            // No name syntax admits a control character, and one that stops a C
+            // string at NUL makes a display read another name (CVE-2009-2408).
+            if (hasControlCharacter(value)) ctx.emitter.emit(generalNameControlCharacterDiagnostic(kind, value, path, node.offset));
             // §4.2.1.6 asks a dNSName to use RFC 1034's preferred name syntax.
             // Real certificates carry underscores, which DNS resolves, so this is
             // a diagnostic and not a refusal — and nothing normalises the name, so

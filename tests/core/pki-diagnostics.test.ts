@@ -101,6 +101,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_SKI_MISSING', diagnostics.skiMissingDiagnostic()],
         ['PKI_DIAG_COMMON_NAME_NOT_IN_SAN', diagnostics.commonNameNotInSanDiagnostic('notinsan.example.com')],
         ['PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX', diagnostics.dnsNameNotPreferredSyntaxDiagnostic('under_score.example.com', 'tbsCertificate.extensions.subjectAltName[0]')],
+        ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER', diagnostics.generalNameControlCharacterDiagnostic('rfc822Name', 'a@b.example\u0000x', 'tbsCertificate.extensions.subjectAltName[0]', 250)],
         ['PKI_DIAG_AKI_ISSUER_SERIAL_UNPAIRED', diagnostics.akiIssuerSerialUnpairedDiagnostic()],
         ['PKI_DIAG_POLICY_DUPLICATE', diagnostics.policyDuplicateDiagnostic('2.23.140.1.2.1')],
         ['PKI_DIAG_POLICY_CONSTRAINTS_EMPTY', diagnostics.policyConstraintsEmptyDiagnostic()],

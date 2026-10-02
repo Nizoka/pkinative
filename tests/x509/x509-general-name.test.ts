@@ -43,6 +43,31 @@ describe('_readGeneralName', () => {
             expect(codeOf(() => readGeneralName(context(2, false, [0x63, 0xc3, 0xa9])))).toBe('PKI_X509_GENERAL_NAME_INVALID');
         });
 
+        // P-18: RFC 5280 §4.2.1.6 — the CVE-2009-2408 class, a name a C string truncates at NUL.
+        it.each<[number, string, number[], string[]]>([
+            [1, 'rfc822Name', [...ascii('a@b.com'), 0x00, ...ascii('x')], ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER']],
+            [6, 'uniformResourceIdentifier', [...ascii('http://a.com/'), 0x0a, ...ascii('x')], ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER']],
+            [2, 'dNSName', [...ascii('a.com'), 0x00, ...ascii('.evil.com')], ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER', 'PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX']],
+            [1, 'rfc822Name', [...ascii('a@b.com'), 0x1f], ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER']],
+            [6, 'uniformResourceIdentifier', [...ascii('http://a.com/'), 0x7f], ['PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER']],
+        ])('should diagnose a control character in [%i] %s, at the name, and keep the value', (tag, kind, octets, codes) => {
+            const seen: { code: string; path: string; offset: number | undefined }[] = [];
+            const parsed = readGeneralName(context(tag, false, octets), false, { onDiagnostic: (d) => { seen.push({ code: d.code, path: d.path, offset: d.offset }); } });
+            expect(parsed).toMatchObject({ kind, value: String.fromCharCode(...octets) });
+            expect(seen.map((d) => d.code)).toEqual(codes);
+            expect(seen[0]).toMatchObject({ path: 'name', offset: 0 });
+        });
+
+        it.each<[number, string]>([
+            [1, 'user@example.com'],
+            [6, 'http://a.com/~ x'],
+            [2, 'example.com'],
+        ])('should say nothing about [%i] %s, whose characters are all printable (0x20 and 0x7E included)', (tag, value) => {
+            const seen: string[] = [];
+            readGeneralName(context(tag, false, ascii(value)), false, { onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(seen).toEqual([]);
+        });
+
         it('should join a constructed name under BER and refuse it under DER', () => {
             const bytes = context(2, true, concat(octetString(ascii('a.')), octetString(ascii('com'))));
             expect(readGeneralName(bytes, false, { encodingRules: 'ber', onDiagnostic: () => undefined })).toMatchObject({ value: 'a.com' });

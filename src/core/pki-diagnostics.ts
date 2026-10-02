@@ -392,6 +392,18 @@ export function dnsNameNotPreferredSyntaxDiagnostic(name: string, path: string):
         path, undefined);
 }
 
+/**
+ * A NUL, another C0 control or DEL inside a dNSName, an rfc822Name or a
+ * uniformResourceIdentifier. None of their syntaxes admits one; a display or
+ * log consumer that stops at NUL reads a different name than the one matched
+ * (the CVE-2009-2408 class). The name is kept and compared literally.
+ */
+export function generalNameControlCharacterDiagnostic(kind: string, name: string, path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_GENERAL_NAME_CONTROL_CHARACTER', 'warning', 'RFC 5280 §4.2.1.6',
+        `the ${kind} ${JSON.stringify(name)} contains a control character; no name syntax admits one, and a consumer that stops at NUL reads a different name than the one compared`,
+        path, offset);
+}
+
 export function akiMissingDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_AKI_MISSING', 'warning', 'RFC 5280 §4.2.1.1',
         'authorityKeyIdentifier is absent from a certificate that names another subject as its issuer; RFC 5280 requires conforming CAs to include it, and without it a path builder must try every candidate issuer by name',
