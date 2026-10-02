@@ -82,17 +82,18 @@ export interface ExtensionDescription {
 /** What a certificate is built from. */
 export interface CertificateDescription {
     /**
-     * The serial. A `bigint` is encoded as a positive INTEGER, minimally.
-     * A `Uint8Array` is used as the content octets unchanged, so an existing
-     * serial can be reproduced byte for byte; it must still be a valid DER
-     * INTEGER — non-empty and in the shortest form — or `PKI_API_MISUSE` is
-     * thrown.
+     * The serial. A `bigint` is encoded as a positive INTEGER, minimally,
+     * and must be what RFC 5280 §4.1.2.2 asks for: at least 1 and below
+     * 2^159, so that its INTEGER holds at most 20 octets — otherwise
+     * `PKI_API_MISUSE` is thrown. A `Uint8Array` is used as the content
+     * octets unchanged, so an existing serial can be reproduced byte for
+     * byte; it must still be a valid DER INTEGER — non-empty and in the
+     * shortest form — or `PKI_API_MISUSE` is thrown.
      *
-     * What is **not** policed here is conformance: RFC 5280 §4.1.2.2 asks
-     * for a positive serial of at most 20 octets, and a value outside that
-     * is reported by `parseCertificate` as `PKI_DIAG_SERIAL_NOT_POSITIVE` or
-     * `PKI_DIAG_SERIAL_TOO_LONG` when the certificate is read back — which
-     * is the one place in the library that judges conformance.
+     * What the byte form does **not** police is conformance: a zero, negative
+     * or longer serial reproduced from an existing certificate is written,
+     * and reported by `parseCertificate` as `PKI_DIAG_SERIAL_NOT_POSITIVE` or
+     * `PKI_DIAG_SERIAL_TOO_LONG` when the certificate is read back.
      *
      * A serial should carry at least 64 bits of entropy (CA/Browser Forum
      * BR §7.1): generate it with `crypto.getRandomValues`, not a counter.

@@ -66,11 +66,23 @@ export function encodeSignatureAlgorithm(signer: Signer): Uint8Array {
     ]));
 }
 
+/**
+ * The first positive serial whose INTEGER needs 21 content octets: below it,
+ * the magnitude fits in 159 bits and the sign octet makes 20 at most.
+ */
+const SERIAL_BOUND = 1n << 159n;
+
 /** The serial as an INTEGER, from a bigint or from content octets. */
 function encodeSerial(serial: bigint | Uint8Array): Uint8Array {
     if (typeof serial === 'bigint') {
-        if (serial < 0n) {
-            throw new PkiError('PKI_API_MISUSE', 'pkinative: a certificate serial number must be positive (RFC 5280 §4.1.2.2) — a negative serial is refused by most relying parties');
+        // RFC 5280 §4.1.2.2: positive, and at most 20 octets. A bigint is a
+        // value the builder encodes, so it is held to the profile its own
+        // parser diagnoses (PKI_DIAG_SERIAL_NOT_POSITIVE, PKI_DIAG_SERIAL_TOO_LONG).
+        if (serial <= 0n) {
+            throw new PkiError('PKI_API_MISUSE', 'pkinative: a certificate serial number must be positive (RFC 5280 §4.1.2.2) — zero and negative serials are refused by many relying parties');
+        }
+        if (serial >= SERIAL_BOUND) {
+            throw new PkiError('PKI_API_MISUSE', 'pkinative: a certificate serial number must fit in 20 octets (RFC 5280 §4.1.2.2), so a positive bigint must be below 2^159 — CA/Browser Forum serials are 64 to 159 random bits');
         }
         return encodeInteger(serial);
     }
@@ -184,7 +196,7 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  *   `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
  * @param options     See {@link PkiBuildOptions}.
  * @returns The complete certificate, in DER.
- * @throws {PkiError} `PKI_API_MISUSE` for a negative or malformed serial, an
+ * @throws {PkiError} `PKI_API_MISUSE` for a bigint serial outside 1 to 2^159 − 1, a malformed one, an
  *   inverted validity window, a duplicated extension, or an `ExternalSigner`
  *   that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a
  *   malformed name or a non-`Uint8Array` where DER is expected.

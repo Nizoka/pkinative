@@ -171,6 +171,30 @@ describe('createCertificate', () => {
             .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('positive') }));
     });
 
+    // C-05: RFC 5280 §4.1.2.2 — positive, at most 20 content octets; the
+    // builder never writes a bigint serial its own parser diagnoses.
+    it.each([
+        { name: 'zero', serial: 0n },
+        { name: '2^159, whose sign octet makes 21 content octets', serial: 2n ** 159n },
+        { name: '2^160', serial: 2n ** 160n },
+    ])('should refuse a bigint serial of $name', async ({ serial }) => {
+        const m = await P256();
+        await expect(createCertificate(root(m, { serialNumber: serial }), m.signer))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
+    });
+
+    it.each([
+        { name: '1', serial: 1n, octets: 1 },
+        { name: '2^159 − 1, the largest that fits in 20 octets', serial: 2n ** 159n - 1n, octets: 20 },
+        { name: '2^151, whose high bit needs the sign octet', serial: 2n ** 151n, octets: 20 },
+    ])('should write a bigint serial of $name, which reads back with no diagnostic', async ({ serial, octets }) => {
+        const m = await P256();
+        const codes: string[] = [];
+        const cert = parseCertificate(await createCertificate(root(m, { serialNumber: serial }), m.signer), { onDiagnostic: (d) => { codes.push(d.code); } });
+        expect(cert.serialNumber.hex.length / 2).toBe(octets);
+        expect(codes.filter((c) => c.startsWith('PKI_DIAG_SERIAL_'))).toEqual([]);
+    });
+
     it('should carry a negative serial given as octets, and let the parser diagnose it', async () => {
         // The byte form exists to reproduce an existing serial exactly, so a
         // non-conforming one goes through — and comes back as a diagnostic,
