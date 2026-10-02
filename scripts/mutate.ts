@@ -99,8 +99,6 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/cms/tsp-tst-info.ts' },
     { file: 'src/core/base64.ts' },
     { file: 'src/core/bytes.ts' },
-    { file: 'src/core/cms-oids.ts' },
-    { file: 'src/core/key-oids.ts' },
     { file: 'src/core/name-oids.ts' },
     { file: 'src/core/pki-diagnostics.ts' },
     { file: 'src/core/pki-error-guard.ts' },
@@ -166,6 +164,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
 export const EXCLUDED_FROM_MUTATION: ReadonlyArray<{ readonly pattern: RegExp; readonly reason: string }> = [
     { pattern: /^src\/index\.ts$/, reason: 're-exports only: no expression to mutate' },
     { pattern: /^src\/oid\/oid-registry\.ts$/, reason: 'data: the OID name table; the one function that reads it, oid-names.ts, is a target' },
+    { pattern: /^src\/core\/(cms|key)-oids\.ts$/, reason: 'data: OID string constants only, where no operator applies (a full pass enumerated 0 mutants); name-oids.ts stays a target because it carries numeric bounds' },
     { pattern: /^src\/types\/(?!pki-errors\.ts$)[^/]+\.ts$/, reason: 'type declarations only; pki-errors.ts, which carries the brand and the class hierarchy, is a target' },
 ];
 
