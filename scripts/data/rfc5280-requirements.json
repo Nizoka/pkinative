@@ -340,9 +340,8 @@
     "4.1.2.8-3-2b9ae9c8": {
       "section": "4.1.2.8",
       "text": "CAs conforming to this profile MUST NOT generate certificates with unique identifiers.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "Any unique identifier in a certificate violates it, and pkinative is silent unless the version is 1; PKI_DIAG_UNIQUE_ID_REQUIRES_V2 covers only that case."
+      "status": "clause",
+      "clause": "4.1.2.8-no-unique-ids"
     },
     "4.1.2.8-4-e29cd3e1": {
       "section": "4.1.2.8",
@@ -430,9 +429,8 @@
     "4.2.1.1-4-e6136f60": {
       "section": "4.2.1.1",
       "text": "Conforming CAs MUST mark this extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical authorityKeyIdentifier is visible in the bytes; pkinative reads it either way and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.1-aki-not-critical"
     },
     "4.2.1.2-1-c3a9018b": {
       "section": "4.2.1.2",
@@ -457,9 +455,8 @@
     "4.2.1.2-4-7da2f617": {
       "section": "4.2.1.2",
       "text": "To assist applications in identifying the appropriate end entity certificate, this extension SHOULD be included in all end entity certificates.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A missing subjectKeyIdentifier in an end-entity certificate is visible; pkinative reports the CA case only, because this SHOULD on the commonest certificate shape would be noise."
+      "status": "clause",
+      "clause": "4.2.1.2-ski-in-end-entity"
     },
     "4.2.1.2-5-c07c989c": {
       "section": "4.2.1.2",
@@ -478,9 +475,8 @@
     "4.2.1.2-7-e6136f60": {
       "section": "4.2.1.2",
       "text": "Conforming CAs MUST mark this extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical subjectKeyIdentifier is visible in the bytes; pkinative reads it either way and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.2-ski-not-critical"
     },
     "4.2.1.3-1-93081bca": {
       "section": "4.2.1.3",
@@ -492,9 +488,8 @@
     "4.2.1.3-2-4e5b7a4e": {
       "section": "4.2.1.3",
       "text": "When present, conforming CAs SHOULD mark this extension as critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A non-critical keyUsage is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.3-key-usage-critical"
     },
     "4.2.1.3-3-fcef9967": {
       "section": "4.2.1.3",
@@ -538,9 +533,8 @@
     "4.2.1.4-3-d6629888": {
       "section": "4.2.1.4",
       "text": "When qualifiers are used with the special policy anyPolicy, they MUST be limited to the qualifiers identified in this section.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A qualifier other than CPS pointer or user notice on anyPolicy is visible in the bytes; pkinative decodes the qualifiers and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.4-any-policy-qualifiers"
     },
     "4.2.1.4-4-9c534ecc": {
       "section": "4.2.1.4",
@@ -552,37 +546,32 @@
     "4.2.1.4-5-a03b7601": {
       "section": "4.2.1.4",
       "text": "Conforming CAs SHOULD NOT use the noticeRef option.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A noticeRef in a user notice is visible in the bytes; pkinative decodes it and reports nothing for this SHOULD NOT."
+      "status": "clause",
+      "clause": "4.2.1.4-no-notice-ref"
     },
     "4.2.1.4-6-821d7251": {
       "section": "4.2.1.4",
       "text": "Conforming CAs SHOULD use the UTF8String encoding for explicitText, but MAY use IA5String.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An explicitText in a string type other than UTF8String is visible; pkinative reports nothing for this SHOULD (IA5String is its own MAY)."
+      "status": "clause",
+      "clause": "4.2.1.4-explicit-text-utf8"
     },
     "4.2.1.4-7-3e082db0": {
       "section": "4.2.1.4",
       "text": "Conforming CAs MUST NOT encode explicitText as VisibleString or BMPString.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An explicitText in VisibleString or BMPString is visible in the bytes; pkinative decodes both, since DisplayText permits them, and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.4-explicit-text-not-visible-or-bmp"
     },
     "4.2.1.4-8-b83b92de": {
       "section": "4.2.1.4",
       "text": "The explicitText string SHOULD NOT include any control characters (e.g., U+0000 to U+001F and U+007F to U+009F).",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A control character in an explicitText is visible in the decoded string; pkinative reports nothing for this SHOULD NOT."
+      "status": "clause",
+      "clause": "4.2.1.4-explicit-text-no-control"
     },
     "4.2.1.4-9-3b349fce": {
       "section": "4.2.1.4",
       "text": "When the UTF8String encoding is used, all character sequences SHOULD be normalized according to Unicode normalization form C (NFC) [NFC].",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "Whether a UTF8String explicitText is in NFC is decidable by normalising it; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.4-explicit-text-nfc"
     },
     "4.2.1.4-10-f5beb392": {
       "section": "4.2.1.4",
@@ -601,9 +590,8 @@
     "4.2.1.5-1-6cd21090": {
       "section": "4.2.1.5",
       "text": "Each issuerDomainPolicy named in the policy mappings extension SHOULD also be asserted in a certificate policies extension in the same certificate.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An issuerDomainPolicy absent from the same certificate's certificatePolicies is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.5-mapped-policy-asserted"
     },
     "4.2.1.5-2-3f3f4605": {
       "section": "4.2.1.5",
@@ -615,9 +603,8 @@
     "4.2.1.5-3-d91cb4c3": {
       "section": "4.2.1.5",
       "text": "Conforming CAs SHOULD mark this extension as critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A non-critical policyMappings is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.5-policy-mappings-critical"
     },
     "4.2.1.6-1-78a478ac": {
       "section": "4.2.1.6",
@@ -649,9 +636,8 @@
     "4.2.1.6-5-277dc3dd": {
       "section": "4.2.1.6",
       "text": "When including the subjectAltName extension in a certificate that has a non-empty subject distinguished name, conforming CAs SHOULD mark the subjectAltName extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical subjectAltName beside a non-empty subject is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.6-san-not-critical-with-subject"
     },
     "4.2.1.6-6-fe517748": {
       "section": "4.2.1.6",
@@ -719,23 +705,20 @@
     "4.2.1.6-15-c5f09438": {
       "section": "4.2.1.6",
       "text": "The name MUST NOT be a relative URI, and it MUST follow the URI syntax and encoding rules specified in [RFC3986].",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A relative or ill-formed URI in a uniformResourceIdentifier is decidable by RFC 3986 syntax; pkinative reads the IA5String and checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.1.6-uri-absolute"
     },
     "4.2.1.6-16-67d8c41c": {
       "section": "4.2.1.6",
       "text": "The name MUST include both a scheme (e.g., \"http\" or \"ftp\") and a scheme-specific-part.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A URI without a scheme is visible in the string; pkinative checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.1.6-uri-scheme-and-part"
     },
     "4.2.1.6-17-6a9fe9bc": {
       "section": "4.2.1.6",
       "text": "URIs that include an authority ([RFC3986], Section 3.2) MUST include a fully qualified domain name or IP address as the host.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A URI authority whose host is neither a fully qualified name nor an IP address is decidable by syntax; pkinative checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.1.6-uri-host-fqdn-or-ip"
     },
     "4.2.1.6-18-5374eafb": {
       "section": "4.2.1.6",
@@ -753,9 +736,8 @@
     "4.2.1.6-20-cfb1143a": {
       "section": "4.2.1.6",
       "text": "Unlike the subject field, conforming CAs MUST NOT issue certificates with subjectAltNames containing empty GeneralName fields.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An empty GeneralName is visible; pkinative reports an empty dNSName through PKI_DIAG_DNS_NAME_NOT_PREFERRED_SYNTAX and is silent on an empty rfc822Name or uniformResourceIdentifier."
+      "status": "clause",
+      "clause": "4.2.1.6-no-empty-general-name"
     },
     "4.2.1.7-1-0a3bde30": {
       "section": "4.2.1.7",
@@ -767,9 +749,8 @@
     "4.2.1.7-2-0a2ba467": {
       "section": "4.2.1.7",
       "text": "Where present, conforming CAs SHOULD mark this extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical issuerAltName is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.7-ian-not-critical"
     },
     "4.2.1.8-1-e6136f60": {
       "section": "4.2.1.8",
@@ -854,9 +835,8 @@
     "4.2.1.10-7-18606ab7": {
       "section": "4.2.1.10",
       "text": "Within this profile, the minimum and maximum fields are not used with any name forms, thus, the minimum MUST be zero, and maximum MUST be absent.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A non-zero minimum or a present maximum is visible in the bytes; pkinative reports only an explicit minimum of 0 (PKI_DIAG_DEFAULT_ENCODED) and is silent on either."
+      "status": "clause",
+      "clause": "4.2.1.10-no-min-max"
     },
     "4.2.1.10-8-cb9aae8b": {
       "section": "4.2.1.10",
@@ -868,9 +848,8 @@
     "4.2.1.10-9-a693ebbd": {
       "section": "4.2.1.10",
       "text": "The constraint MUST be specified as a fully qualified domain name and MAY specify a host or a domain.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A uniformResourceIdentifier constraint that is not a fully qualified domain name is decidable by syntax; pkinative reads it and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.10-uri-constraint-fqdn"
     },
     "4.2.1.10-10-d84bd0a8": {
       "section": "4.2.1.10",
@@ -1006,9 +985,8 @@
     "4.2.1.12-3-3cdd015c": {
       "section": "4.2.1.12",
       "text": "Conforming CAs SHOULD NOT mark this extension as critical if the anyExtendedKeyUsage KeyPurposeId is present.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical extendedKeyUsage holding anyExtendedKeyUsage is visible in the bytes; pkinative reports nothing for this SHOULD NOT."
+      "status": "clause",
+      "clause": "4.2.1.12-any-eku-not-critical"
     },
     "4.2.1.12-4-6cd1de1f": {
       "section": "4.2.1.12",
@@ -1027,16 +1005,14 @@
     "4.2.1.13-1-2fb3d2df": {
       "section": "4.2.1.13",
       "text": "The extension SHOULD be non-critical, but this profile RECOMMENDS support for this extension by CAs and applications.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical cRLDistributionPoints is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.13-crl-dp-not-critical"
     },
     "4.2.1.13-2-70adaa71": {
       "section": "4.2.1.13",
       "text": "While each of these fields is optional, a DistributionPoint MUST NOT consist of only the reasons field; either distributionPoint or cRLIssuer MUST be present.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A DistributionPoint holding only reasons is visible in the bytes; pkinative decodes it and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.13-dp-not-reasons-only"
     },
     "4.2.1.13-3-2ea487c3": {
       "section": "4.2.1.13",
@@ -1076,30 +1052,26 @@
     "4.2.1.13-8-3001716d": {
       "section": "4.2.1.13",
       "text": "When the LDAP URI scheme [RFC4516] is used, the URI MUST include a <dn> field containing the distinguished name of the entry holding the CRL, MUST include a single <attrdesc> that contains an appropriate attribute description for the attribute that holds the CRL [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=example%20CA,dc=example,dc=com? certificateRevocationList;binary>).",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "The <dn> and <attrdesc> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.1.13-ldap-uri-dn-and-attrdesc"
     },
     "4.2.1.13-9-89461a05": {
       "section": "4.2.1.13",
       "text": "When present, DistributionPointName SHOULD include at least one LDAP or HTTP URI.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A DistributionPointName with no LDAP or HTTP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.1.13-http-or-ldap-uri"
     },
     "4.2.1.13-10-72ca55d5": {
       "section": "4.2.1.13",
       "text": "Conforming CAs SHOULD NOT use nameRelativeToCRLIssuer to specify distribution point names.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A nameRelativeToCRLIssuer is visible in the bytes; pkinative decodes it and reports nothing for this SHOULD NOT."
+      "status": "clause",
+      "clause": "4.2.1.13-no-relative-name"
     },
     "4.2.1.13-11-4ebd3832": {
       "section": "4.2.1.13",
       "text": "The DistributionPointName MUST NOT use the nameRelativeToCRLIssuer alternative when cRLIssuer contains more than one distinguished name.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A nameRelativeToCRLIssuer beside a cRLIssuer holding several names is visible in the bytes; pkinative decodes both and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.13-relative-name-one-issuer"
     },
     "4.2.1.13-12-ca876525": {
       "section": "4.2.1.13",
@@ -1139,23 +1111,20 @@
     "4.2.1.14-1-a991ab89": {
       "section": "4.2.1.14",
       "text": "Conforming CAs MUST mark this extension as critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A non-critical inhibitAnyPolicy is visible in the bytes; pkinative enforces it either way and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.14-inhibit-any-policy-critical"
     },
     "4.2.1.15-1-2aa81ece": {
       "section": "4.2.1.15",
       "text": "The extension MUST be marked as non-critical by conforming CAs.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical freshestCRL is visible in the bytes; pkinative decodes it and reports nothing."
+      "status": "clause",
+      "clause": "4.2.1.15-freshest-crl-not-critical"
     },
     "4.2.2.1-1-e6136f60": {
       "section": "4.2.2.1",
       "text": "Conforming CAs MUST mark this extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical authorityInfoAccess is visible in the bytes; pkinative decodes it and reports nothing."
+      "status": "clause",
+      "clause": "4.2.2.1-aia-not-critical"
     },
     "4.2.2.1-2-66b3e129": {
       "section": "4.2.2.1",
@@ -1167,9 +1136,8 @@
     "4.2.2.1-3-652dc15d": {
       "section": "4.2.2.1",
       "text": "The LDAP URI [RFC4516] MUST include a <dn> field containing the distinguished name of the entry holding the certificates, MUST include an <attributes> field that lists appropriate attribute descriptions for the attributes that hold the DER encoded certificates or cross-certificate pairs [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=CA, dc=example,dc=com?cACertificate;binary,crossCertificatePair;binary>).",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "The <dn> and <attributes> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.2.1-ldap-uri-dn-and-attributes"
     },
     "4.2.2.1-4-2f77e249": {
       "section": "4.2.2.1",
@@ -1202,16 +1170,14 @@
     "4.2.2.1-8-775acbe2": {
       "section": "4.2.2.1",
       "text": "When the id-ad-caIssuers accessMethod is used, at least one instance SHOULD specify an accessLocation that is an HTTP [RFC2616] or LDAP [RFC4516] URI.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An id-ad-caIssuers set with no HTTP or LDAP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.2.1-ca-issuers-http-or-ldap"
     },
     "4.2.2.2-1-e6136f60": {
       "section": "4.2.2.2",
       "text": "Conforming CAs MUST mark this extension as non-critical.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A critical subjectInfoAccess is visible in the bytes; pkinative decodes it and reports nothing."
+      "status": "clause",
+      "clause": "4.2.2.2-sia-not-critical"
     },
     "4.2.2.2-2-66b3e129": {
       "section": "4.2.2.2",
@@ -1223,9 +1189,8 @@
     "4.2.2.2-3-652dc15d": {
       "section": "4.2.2.2",
       "text": "The LDAP URI [RFC4516] MUST include a <dn> field containing the distinguished name of the entry holding the certificates, MUST include an <attributes> field that lists appropriate attribute descriptions for the attributes that hold the DER encoded certificates or cross-certificate pairs [RFC4523], and SHOULD include a <host> (e.g., <ldap://ldap.example.com/cn=CA, dc=example,dc=com?cACertificate;binary,crossCertificatePair;binary>).",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "The <dn> and <attributes> fields of an LDAP URI are decidable by RFC 4516 syntax; pkinative checks no URI syntax."
+      "status": "clause",
+      "clause": "4.2.2.2-ldap-uri-dn-and-attributes"
     },
     "4.2.2.2-4-2f77e249": {
       "section": "4.2.2.2",
@@ -1258,9 +1223,8 @@
     "4.2.2.2-8-4cfb8e87": {
       "section": "4.2.2.2",
       "text": "When the id-ad-caRepository accessMethod is used, at least one instance SHOULD specify an accessLocation that is an HTTP [RFC2616] or LDAP [RFC4516] URI.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An id-ad-caRepository set with no HTTP or LDAP URI is visible in the bytes; pkinative reports nothing for this SHOULD."
+      "status": "clause",
+      "clause": "4.2.2.2-ca-repository-http-or-ldap"
     },
     "4.2.2.2-9-87c0d75e": {
       "section": "4.2.2.2",

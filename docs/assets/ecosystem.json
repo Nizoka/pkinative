@@ -206,9 +206,9 @@
     "rfc5280": {
       "commit": "a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d",
       "requirements": 182,
-      "clauses": 21,
+      "clauses": 57,
       "tests": 0,
-      "excluded": 161
+      "excluded": 125
     },
     "rfc5652": {
       "commit": "dbd209ae7844031f51722c4d9e2d1fa3fff3081319851d581f914f5f0147f918",

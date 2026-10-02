@@ -84,6 +84,39 @@ const POLICY_CONSTRAINTS = [0x55, 0x1d, 0x24];
 const AKI = [0x55, 0x1d, 0x23];
 const SKI = [0x55, 0x1d, 0x0e];
 
+const IAN = [0x55, 0x1d, 0x12];
+const CRL_DP = [0x55, 0x1d, 0x1f];
+const POLICY_MAPPINGS = [0x55, 0x1d, 0x21];
+const EKU = [0x55, 0x1d, 0x25];
+const FRESHEST_CRL = [0x55, 0x1d, 0x2e];
+const INHIBIT_ANY_POLICY = [0x55, 0x1d, 0x36];
+const AIA = [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01];
+const SIA = [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x0b];
+const ANY_POLICY = universal(6, [0x55, 0x1d, 0x20, 0x00]);
+const POLICY_A = universal(6, [0x2a, 0x03]);
+const POLICY_B = universal(6, [0x2a, 0x04]);
+const QUALIFIER_CPS = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x02, 0x01]);
+const QUALIFIER_UNOTICE = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x02, 0x02]);
+const CA_ISSUERS = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02]);
+const CA_REPOSITORY = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x05]);
+const ANY_EKU = universal(6, [0x55, 0x1d, 0x25, 0x00]);
+const SERVER_AUTH = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01]);
+
+const uri = (text: string): Uint8Array => tlv(2, false, 6, ascii(text));
+const dnsName = (text: string): Uint8Array => tlv(2, false, 2, ascii(text));
+const directory = (cn: string): Uint8Array => tlv(2, true, 4, name(rdn(attribute(OID_CN, cn))));
+/** certificatePolicies holding one policy with one user notice of the given parts. */
+const notice = (...parts: readonly Uint8Array[]): Uint8Array =>
+    extension(CERTIFICATE_POLICIES, sequence(sequence(POLICY_A, sequence(sequence(QUALIFIER_UNOTICE, sequence(...parts))))));
+/** A DistributionPoint naming its CRL by fullName. */
+const byFullName = (...names: readonly Uint8Array[]): Uint8Array => sequence(tlv(2, true, 0, tlv(2, true, 0, concat(...names))));
+const RELATIVE = tlv(2, true, 0, tlv(2, true, 1, sequence(OID_CN, universal(12, ascii('crl')))));
+const crlIssuers = (...names: readonly Uint8Array[]): Uint8Array => tlv(2, true, 2, concat(...names));
+const access = (method: Uint8Array, location: string): Uint8Array => sequence(sequence(method, uri(location)));
+const subtree = (base: Uint8Array, ...bounds: readonly Uint8Array[]): Uint8Array => sequence(tlv(2, true, 0, sequence(base, ...bounds)));
+const bmp = (text: string): Uint8Array => universal(30, [...text].flatMap((c) => [0, c.charCodeAt(0)]));
+const utf8Text = (text: string): Uint8Array => universal(12, new TextEncoder().encode(text));
+
 /** BasicConstraints { cA TRUE }. */
 const CA_TRUE = sequence(universal(1, [0xff]));
 /** NameConstraints { permittedSubtrees [0] { GeneralSubtree { dNSName "example.com" } } }. */
@@ -234,6 +267,189 @@ const CASES: readonly Case[] = [
         id: '4.2.1.2-ski-present-in-ca',
         fails: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true)] }),
         passes: certificate({ extensions: [extension(BASIC_CONSTRAINTS, CA_TRUE, true), extension(SKI, universal(4, [0x01, 0x02, 0x03]))] }),
+    },
+
+    // ── Since 1.0: the sentences recorded as not-diagnosed until then ──
+    {
+        id: '4.1.2.8-no-unique-ids',
+        // A unique identifier at v2 is well placed and still forbidden.
+        fails: certificate({ version: tlv(2, true, 0, universal(2, [1])), uniqueId: tlv(2, false, 2, [0x00, 0xff]) }),
+        passes: certificate(),
+    },
+    {
+        id: '4.2.1.1-aki-not-critical',
+        fails: certificate({ extensions: [extension(AKI, sequence(tlv(2, false, 0, [0x01])), true)] }),
+        passes: certificate({ extensions: [extension(AKI, sequence(tlv(2, false, 0, [0x01])))] }),
+    },
+    {
+        id: '4.2.1.2-ski-in-end-entity',
+        fails: certificate({ extensions: [extension(AKI, sequence(tlv(2, false, 0, [0x01])))] }),
+        passes: certificate({ extensions: [extension(SKI, universal(4, [0x01]))] }),
+    },
+    {
+        id: '4.2.1.2-ski-not-critical',
+        fails: certificate({ extensions: [extension(SKI, universal(4, [0x01]), true)] }),
+        passes: certificate({ extensions: [extension(SKI, universal(4, [0x01]))] }),
+    },
+    {
+        id: '4.2.1.3-key-usage-critical',
+        fails: certificate({ extensions: [extension(KEY_USAGE, universal(3, [0x07, 0x80]))] }),
+        passes: certificate({ extensions: [extension(KEY_USAGE, universal(3, [0x07, 0x80]), true)] }),
+    },
+    {
+        id: '4.2.1.4-any-policy-qualifiers',
+        fails: certificate({ extensions: [extension(CERTIFICATE_POLICIES, sequence(sequence(ANY_POLICY, sequence(sequence(universal(6, [0x2a, 0x05]), universal(12, ascii('x')))))))] }),
+        passes: certificate({ extensions: [extension(CERTIFICATE_POLICIES, sequence(sequence(ANY_POLICY, sequence(sequence(QUALIFIER_CPS, universal(22, ascii('http://cps.example/')))))))] }),
+    },
+    {
+        id: '4.2.1.4-no-notice-ref',
+        fails: certificate({ extensions: [notice(sequence(utf8Text('Org'), sequence(universal(2, [1]))), utf8Text('text'))] }),
+        passes: certificate({ extensions: [notice(utf8Text('text'))] }),
+    },
+    {
+        id: '4.2.1.4-explicit-text-utf8',
+        fails: certificate({ extensions: [notice(bmp('text'))] }),
+        passes: certificate({ extensions: [notice(universal(22, ascii('text')))] }),
+    },
+    {
+        id: '4.2.1.4-explicit-text-not-visible-or-bmp',
+        fails: certificate({ extensions: [notice(universal(26, ascii('text')))] }),
+        passes: certificate({ extensions: [notice(utf8Text('text'))] }),
+    },
+    {
+        id: '4.2.1.4-explicit-text-no-control',
+        fails: certificate({ extensions: [notice(utf8Text('te\u0085xt'))] }),
+        passes: certificate({ extensions: [notice(utf8Text('te xt'))] }),
+    },
+    {
+        id: '4.2.1.4-explicit-text-nfc',
+        fails: certificate({ extensions: [notice(utf8Text('é'))] }),
+        passes: certificate({ extensions: [notice(utf8Text('é'))] }),
+    },
+    {
+        id: '4.2.1.5-mapped-policy-asserted',
+        fails: certificate({ extensions: [extension(CERTIFICATE_POLICIES, sequence(sequence(POLICY_B))), extension(POLICY_MAPPINGS, sequence(sequence(POLICY_A, POLICY_B)), true)] }),
+        passes: certificate({ extensions: [extension(CERTIFICATE_POLICIES, sequence(sequence(POLICY_A))), extension(POLICY_MAPPINGS, sequence(sequence(POLICY_A, POLICY_B)), true)] }),
+    },
+    {
+        id: '4.2.1.5-policy-mappings-critical',
+        fails: certificate({ extensions: [extension(POLICY_MAPPINGS, sequence(sequence(POLICY_A, POLICY_B)))] }),
+        passes: certificate({ extensions: [extension(POLICY_MAPPINGS, sequence(sequence(POLICY_A, POLICY_B)), true)] }),
+    },
+    {
+        id: '4.2.1.6-san-not-critical-with-subject',
+        fails: certificate({ extensions: [extension(SAN, sequence(dnsName('a.example')), true)] }),
+        passes: certificate({ extensions: [extension(SAN, sequence(dnsName('a.example')))] }),
+    },
+    {
+        id: '4.2.1.6-uri-absolute',
+        fails: certificate({ extensions: [extension(SAN, sequence(uri('https://a.example/x y')))] }),
+        passes: certificate({ extensions: [extension(IAN, sequence(uri('https://[2001:db8::1]:8443/x%20y?q#f')))] }),
+    },
+    {
+        id: '4.2.1.6-uri-scheme-and-part',
+        fails: certificate({ extensions: [extension(IAN, sequence(uri('urn:')))] }),
+        passes: certificate({ extensions: [extension(SAN, sequence(uri('urn:x')))] }),
+    },
+    {
+        id: '4.2.1.6-uri-host-fqdn-or-ip',
+        fails: certificate({ extensions: [extension(SAN, sequence(uri('https://under_score.example/')))] }),
+        passes: certificate({ extensions: [extension(SAN, sequence(uri('https://192.0.2.1/'), uri('https://a.example:8443/')))] }),
+    },
+    {
+        id: '4.2.1.6-no-empty-general-name',
+        fails: certificate({ extensions: [extension(SAN, sequence(dnsName('a.example'), tlv(2, true, 4, sequence())))] }),
+        passes: certificate({ extensions: [extension(SAN, sequence(dnsName('a.example'), directory('a')))] }),
+    },
+    {
+        id: '4.2.1.7-ian-not-critical',
+        fails: certificate({ extensions: [extension(IAN, sequence(dnsName('a.example')), true)] }),
+        passes: certificate({ extensions: [extension(IAN, sequence(dnsName('a.example')))] }),
+    },
+    {
+        id: '4.2.1.10-no-min-max',
+        fails: certificate({ extensions: [extension(NAME_CONSTRAINTS, subtree(dnsName('example.com'), tlv(2, false, 1, [0x02])), true)] }),
+        passes: certificate({ extensions: [extension(NAME_CONSTRAINTS, subtree(dnsName('example.com')), true)] }),
+    },
+    {
+        id: '4.2.1.10-uri-constraint-fqdn',
+        fails: certificate({ extensions: [extension(NAME_CONSTRAINTS, subtree(uri('https://example.com/')), true)] }),
+        passes: certificate({ extensions: [extension(NAME_CONSTRAINTS, subtree(uri('.example.com')), true)] }),
+    },
+    {
+        id: '4.2.1.12-any-eku-not-critical',
+        fails: certificate({ extensions: [extension(EKU, sequence(SERVER_AUTH, ANY_EKU), true)] }),
+        passes: certificate({ extensions: [extension(EKU, sequence(SERVER_AUTH, ANY_EKU))] }),
+    },
+    {
+        id: '4.2.1.13-crl-dp-not-critical',
+        fails: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('http://crl.example/a.crl'))), true)] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('http://crl.example/a.crl'))))] }),
+    },
+    {
+        id: '4.2.1.13-dp-not-reasons-only',
+        fails: certificate({ extensions: [extension(CRL_DP, sequence(sequence(tlv(2, false, 1, [0x06, 0x40]))))] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(sequence(tlv(2, false, 1, [0x06, 0x40]), crlIssuers(directory('crl')))))] }),
+    },
+    {
+        id: '4.2.1.13-ldap-uri-dn-and-attrdesc',
+        fails: certificate({ extensions: [extension(FRESHEST_CRL, sequence(byFullName(uri('ldap://ldap.example/cn=CA?a,b'))))] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('ldap://ldap.example/cn=CA?certificateRevocationList;binary'))))] }),
+    },
+    {
+        id: '4.2.1.13-http-or-ldap-uri',
+        fails: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('https://crl.example/a.crl'))))] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('HTTP://crl.example/a.crl'))))] }),
+    },
+    {
+        id: '4.2.1.13-no-relative-name',
+        fails: certificate({ extensions: [extension(CRL_DP, sequence(sequence(RELATIVE, crlIssuers(directory('crl')))))] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(byFullName(uri('http://crl.example/a.crl'))))] }),
+    },
+    {
+        id: '4.2.1.13-relative-name-one-issuer',
+        fails: certificate({ extensions: [extension(CRL_DP, sequence(sequence(RELATIVE, crlIssuers(directory('a'), directory('b')))))] }),
+        passes: certificate({ extensions: [extension(CRL_DP, sequence(sequence(RELATIVE, crlIssuers(directory('a'), dnsName('b.example')))))] }),
+    },
+    {
+        id: '4.2.1.14-inhibit-any-policy-critical',
+        fails: certificate({ extensions: [extension(INHIBIT_ANY_POLICY, universal(2, [0x00]))] }),
+        passes: certificate({ extensions: [extension(INHIBIT_ANY_POLICY, universal(2, [0x00]), true)] }),
+    },
+    {
+        id: '4.2.1.15-freshest-crl-not-critical',
+        fails: certificate({ extensions: [extension(FRESHEST_CRL, sequence(byFullName(uri('http://crl.example/d.crl'))), true)] }),
+        passes: certificate({ extensions: [extension(FRESHEST_CRL, sequence(byFullName(uri('http://crl.example/d.crl'))))] }),
+    },
+    {
+        id: '4.2.2.1-aia-not-critical',
+        fails: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'http://ca.example/ca.cer'), true)] }),
+        passes: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'http://ca.example/ca.cer'))] }),
+    },
+    {
+        id: '4.2.2.1-ldap-uri-dn-and-attributes',
+        fails: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'ldap://ldap.example/cn=CA'))] }),
+        passes: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'ldap://ldap.example/cn=CA?cACertificate;binary,crossCertificatePair;binary'))] }),
+    },
+    {
+        id: '4.2.2.1-ca-issuers-http-or-ldap',
+        fails: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'https://ca.example/ca.cer'))] }),
+        passes: certificate({ extensions: [extension(AIA, access(CA_ISSUERS, 'http://ca.example/ca.cer'))] }),
+    },
+    {
+        id: '4.2.2.2-sia-not-critical',
+        fails: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'http://ca.example/r.p7c'), true)] }),
+        passes: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'http://ca.example/r.p7c'))] }),
+    },
+    {
+        id: '4.2.2.2-ldap-uri-dn-and-attributes',
+        fails: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'ldap://ldap.example/?cACertificate'))] }),
+        passes: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'ldap://ldap.example/cn=CA?cACertificate'))] }),
+    },
+    {
+        id: '4.2.2.2-ca-repository-http-or-ldap',
+        fails: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'ldaps://ldap.example/cn=CA?cACertificate'))] }),
+        passes: certificate({ extensions: [extension(SIA, access(CA_REPOSITORY, 'ldap://ldap.example/cn=CA?cACertificate'))] }),
     },
 ];
 
