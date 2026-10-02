@@ -475,6 +475,12 @@
       "original": "0xdc00",
       "replacement": "56319",
       "reason": "Semantic: the only code unit the mutant adds to the lone-low-surrogate branch is 0xDBFF, which the preceding high-surrogate branch (cp >= 0xd800 && cp <= 0xdbff) has already taken; this else-if never sees it."
+    },
+    {
+      "id": "src/core/bytes.ts:73:23:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: line 72 has already returned false unless a.length === b.length, so the one extra comparison is a[a.length] !== b[b.length], undefined against undefined, which is false; the loop ends and returns true exactly as the original does."
     }
   ]
 }
