@@ -2,7 +2,12 @@
  * pkinative — Extension dispatcher
  * ================================
  * One decoder per recognised extension OID. The extension value is decoded
- * in place, so every offset stays absolute in the certificate. A recognised
+ * in place, so every offset stays absolute in the certificate — with one
+ * exception: under `encodingRules: 'ber'`, an extnValue in the constructed
+ * (segmented) form is joined into a copy and decoded there, and the offsets
+ * of the errors and diagnostics inside it count from the first octet of the
+ * joined content, not from the certificate. The segment headers between the
+ * pieces leave no single shift that would map one onto the other. A recognised
  * extension whose value does not match its ASN.1 definition throws
  * `PKI_X509_EXTENSION_MALFORMED`; an unrecognised one is kept as
  * `kind: 'unknown'`, with a diagnostic when it is critical.

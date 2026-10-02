@@ -554,6 +554,15 @@ describe('extensions in parseCertificate', () => {
         const cert = parseCertificate(certificate({ trailing: [explicit(3, sequence(segmented))] }), { encodingRules: 'ber', onDiagnostic: () => undefined });
         expect(getExtension(cert, 'basicConstraints')?.cA).toBe(true);
     });
+
+    it('should count error offsets inside a segmented extnValue from the joined content (P-07, documented)', () => {
+        // Joined: 30 03 04 01 00 — a basicConstraints SEQUENCE holding an OCTET STRING.
+        const segments = concat(octetString([0x30, 0x03]), octetString([0x04, 0x01, 0x00]));
+        const input = certificate({ trailing: [explicit(3, sequence(sequence(oid(OID.basicConstraints), tlv(0, true, 4, segments))))] });
+        const error = thrown(() => parseCertificate(input, { encodingRules: 'ber', onDiagnostic: () => undefined }));
+        expect(error).toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', path: 'tbsCertificate.extensions[0].pathLenConstraint', offset: 2 });
+        expect(indexOf(input, segments)).toBeGreaterThan(100);
+    });
 });
 
 function indexOf(haystack: Uint8Array, needle: Uint8Array): number {

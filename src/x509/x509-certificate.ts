@@ -240,7 +240,8 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
             const extension: RawExtension = { kind: 'raw', oid, critical, valueDer };
             extensions.push(Object.freeze(extension));
         } else if (valueNode.constructed) {
-            // A BER segmented extnValue was joined into a copy: decode the copy.
+            // A BER segmented extnValue was joined into a copy: decode the copy. Offsets
+            // inside it count from the joined content (documented in x509-extensions.ts).
             extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
         } else {
             const start = valueNode.offset + valueNode.headerLength;
