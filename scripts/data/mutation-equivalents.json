@@ -499,6 +499,18 @@
       "original": "80",
       "replacement": "81",
       "reason": "Semantic: as 35:28 relational — the bound 81 adds the single step j = 80, whose write to w[80] lies past the 80-word Uint32Array and is discarded."
+    },
+    {
+      "id": "src/hash/sha256.ts:48:28:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one extra schedule step, j = 64, reads w[49], w[62], w[48] and w[57] (all within the 64-word array) and writes w[64], an index past the end of the Uint32Array that is discarded (ECMA-262 TypedArraySetElement); s0, s1 and x, y are block-scoped and the rounds read only w[0..63]."
+    },
+    {
+      "id": "src/hash/sha256.ts:48:30:number+1",
+      "original": "64",
+      "replacement": "65",
+      "reason": "Semantic: as 48:28 relational — the bound 65 adds the single step j = 64, whose write to w[64] lies past the 64-word Uint32Array and is discarded."
     }
   ]
 }
