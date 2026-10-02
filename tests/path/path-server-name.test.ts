@@ -244,6 +244,8 @@ describe('checkServerName â€” a dns reference that spells an address (RFC 2818 Â
         { reference: ':2001:db8::1', san: V6, expected: false },
         { reference: '2001:db8::1:', san: V6, expected: false },
         { reference: '12345::', san: LEAD, expected: false },
+        // Longer than any IPv6 text can be (45 characters): refused before the groups are walked.
+        { reference: `${'0:'.repeat(23)}1`, san: LEAD, expected: false },
     ])('should read "$reference" as an address: matches=$expected', ({ reference, san, expected }) => {
         const reasons = checkServerName(certificate({ names: [ip(san), dns(reference)] }), host(reference));
         expect(codes(reasons)).toEqual(expected ? [] : ['PKI_REASON_NAME_MISMATCH']);
