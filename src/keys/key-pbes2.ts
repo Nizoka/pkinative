@@ -228,9 +228,11 @@ export function _requirePbes2(encryption: PasswordEncryption, path: string, offs
 /**
  * The password as octets, and a way to wipe this function's copy.
  *
- * A string is encoded as UTF-8, which is what OpenSSL writes and RFC 9579
- * specifies for PKCS#12 under PBES2 — **not** the BMPString of RFC 7292
- * Appendix B, which belongs to the KDF pkinative does not implement. A
+ * A string is encoded as UTF-8. That is an interoperability choice, not a
+ * quotation: UTF-8 octets are what OpenSSL 3.4 and later write under PBES2
+ * and PBMAC1, and what pkinative derives from and verifies — **not** the
+ * NUL-terminated BMPString of RFC 7292 Appendix B, which belongs to the KDF
+ * pkinative does not implement. A
  * `Uint8Array` is used as given, for a file written with another encoding,
  * and is never modified: it is the caller's to wipe.
  *

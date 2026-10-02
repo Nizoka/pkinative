@@ -443,8 +443,10 @@ export function _keysKdfIterations(bags: readonly SafeBag[]): number {
  * Check a PKCS#12 MAC under RFC 9579 PBMAC1: derive the HMAC key with
  * PBKDF2 from the password, and verify the HMAC over `authenticatedSafe`.
  *
- * A string password is encoded as UTF-8, as RFC 9579 specifies; pass a
- * `Uint8Array` for a file written with another encoding. This function's own
+ * A string password is encoded as UTF-8, an interoperability choice: it is
+ * what OpenSSL 3.4 and later write under PBMAC1, and what pkinative verifies.
+ * Pass a `Uint8Array` for a file written with another encoding (such as a
+ * NUL-terminated BMPString). This function's own
  * copy of the password is wiped once the host has it.
  *
  * ```ts

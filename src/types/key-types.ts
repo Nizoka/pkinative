@@ -126,8 +126,8 @@ export interface ImportPrivateKeyOptions extends PkiParseOptions {
  */
 export interface DecryptPrivateKeyOptions extends PkiParseOptions {
     /**
-     * The password. A string is encoded as UTF-8, which is what OpenSSL and
-     * RFC 9579 use under PBES2; a `Uint8Array` is used as given, for a file
+     * The password. A string is encoded as UTF-8, which is what OpenSSL 3.4
+     * and later write under PBES2; a `Uint8Array` is used as given, for a file
      * written with another encoding, and is never modified or kept.
      */
     readonly password: Uint8Array | string;
