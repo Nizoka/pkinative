@@ -349,6 +349,84 @@
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 194:119."
+    },
+    {
+      "id": "src/core/base64.ts:20:23:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one extra iteration reads ALPHABET.charCodeAt(64), which is NaN; a write to an Int16Array at the key NaN is not a valid integer index and is discarded (ECMA-262 TypedArraySetElement), so REVERSE holds the same 128 entries."
+    },
+    {
+      "id": "src/core/base64.ts:29:14:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one new case is c === 128, where REVERSE[128] lies past the 128-entry table, reads undefined, and `?? -1` yields the -1 the original's else branch returns."
+    },
+    {
+      "id": "src/core/base64.ts:29:16:number+1",
+      "original": "128",
+      "replacement": "129",
+      "reason": "Semantic: as the relational mutant at 29:14 — c === 128 reads undefined past the 128-entry table and `?? -1` gives -1; every c >= 129 still takes the -1 branch."
+    },
+    {
+      "id": "src/core/base64.ts:29:16:number-1",
+      "original": "128",
+      "replacement": "127",
+      "reason": "Semantic: the one changed case is c === 127 (DEL), which the original looks up as REVERSE[127] — -1, DEL is not in the alphabet — and the mutant maps to -1 directly."
+    },
+    {
+      "id": "src/core/base64.ts:36:9:if-false",
+      "original": "text.length % 4 !== 0",
+      "replacement": "false",
+      "reason": "Semantic: a text of 4k + r characters (r = 1..3) then reaches its last quad short of characters, `last` (i + 4 === text.length) is never true, so the fourth sextet is read past the end: charCodeAt returns NaN, `NaN < 128` is false, _sextet returns -1 and the function returns null — the original's answer. The output array is sized from a fraction (at worst -0.25 or -0.5, for '=' and '=='), which ToIndex truncates to a valid length, so nothing throws first."
+    },
+    {
+      "id": "src/core/base64.ts:37:9:if-false",
+      "original": "text.length === 0",
+      "replacement": "false",
+      "reason": "Semantic: the empty text then takes the general path — charCodeAt(-1) is NaN so padding stays 0, the output is new Uint8Array(0), the loop does not run — and returns an empty Uint8Array, the same value."
+    },
+    {
+      "id": "src/core/base64.ts:37:25:number+1",
+      "original": "0",
+      "replacement": "1",
+      "reason": "Semantic: line 36 has already returned for every length not divisible by four, so `text.length === 1` is never true; only the empty text changes path, and the general path returns the same empty Uint8Array (see 37:9 if-false)."
+    },
+    {
+      "id": "src/core/base64.ts:37:25:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Semantic: a length is never -1; only the empty text changes path, and the general path returns the same empty Uint8Array (see 37:9 if-false)."
+    },
+    {
+      "id": "src/core/base64.ts:53:13:if-true",
+      "original": "!(last && padding === 2)",
+      "replacement": "true",
+      "reason": "Semantic: the only added write is in the last quad when padding === 2, where out — sized (text.length / 4) * 3 - padding — has one octet left; the forced second write lands at index out.length, past the end of a Uint8Array, and is discarded (ECMA-262 TypedArraySetElement). `at` is not read after the loop, so the returned bytes are identical."
+    },
+    {
+      "id": "src/core/base64.ts:53:35:number+1",
+      "original": "2",
+      "replacement": "3",
+      "reason": "Semantic: padding is 0, 1 or 2, so `padding === 3` is never true and the second write is always attempted — the same discarded write past out.length as 53:13 if-true."
+    },
+    {
+      "id": "src/core/base64.ts:54:13:if-true",
+      "original": "!(last && padding >= 1)",
+      "replacement": "true",
+      "reason": "Semantic: the only added write is in the last quad when padding is 1 or 2, where out has exactly two or one octet(s) for that quad; the forced third write lands at index out.length and is discarded, as at 53:13 if-true."
+    },
+    {
+      "id": "src/core/base64.ts:54:31:relational",
+      "original": ">=",
+      "replacement": ">",
+      "reason": "Semantic: the changed case is padding === 1, where the mutant attempts the third write of the last quad at index out.length — past the end of the exactly sized Uint8Array, discarded (see 53:13 if-true)."
+    },
+    {
+      "id": "src/core/base64.ts:54:34:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Semantic: as 54:31 relational — only padding === 1 changes, and the extra third write lands past out.length and is discarded."
     }
   ]
 }

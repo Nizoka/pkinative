@@ -43,4 +43,19 @@ describe('decodeBase64 strictness', () => {
     ])('should refuse %s', (_label, text) => {
         expect(decodeBase64(text)).toBeNull();
     });
+
+    // RFC 4648 §3.3: a character outside the alphabet is refused wherever it
+    // stands. Each position of a quad is read by its own sextet, and each
+    // sextet has its own test against the not-in-alphabet marker; the other
+    // three characters are valid ('Zm9v' is "foo"), so only that one test
+    // stands between the input and three decoded octets.
+    it.each([
+        ['first', '*m9v'],
+        ['second', 'Z*9v'],
+        ['third', 'Zm*v'],
+        ['fourth', 'Zm9*'],
+    ])('should refuse a character outside the alphabet in the %s position of a quad (RFC 4648 §3.3)', (_position, text) => {
+        expect(decodeBase64(text)).toBeNull();
+        expect(decodeBase64(`Zm9v${text}`)).toBeNull();
+    });
 });
