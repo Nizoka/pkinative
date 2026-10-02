@@ -325,6 +325,30 @@
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: the same extra case as number+1 at 152:14 — at + 2 === der.length leaves no room for a value octet, so the original returns null at line 155 or 158."
+    },
+    {
+      "id": "src/keys/key-import.ts:101:150:conditional",
+      "original": "algorithm === null ? 'null' : typeof algorithm",
+      "replacement": "(algorithm === null ? typeof algorithm : 'null')",
+      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message ('got null' / 'got string'); the refusal, its class and its code are decided by the enclosing `typeof algorithm !== 'object' || algorithm === null` test on line 99."
+    },
+    {
+      "id": "src/keys/key-import.ts:101:160:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 101:150."
+    },
+    {
+      "id": "src/keys/key-import.ts:194:119:conditional",
+      "original": "password === null ? 'null' : typeof password",
+      "replacement": "(password === null ? typeof password : 'null')",
+      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message; the refusal, its class and its code are decided by the string / Uint8Array test on line 193 — the twin of the key-pbes2.ts:244:118 entry."
+    },
+    {
+      "id": "src/keys/key-import.ts:194:128:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 194:119."
     }
   ]
 }
