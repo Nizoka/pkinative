@@ -29,7 +29,7 @@ Conformance:
 | L6 | 9 156/9 208 (99.44 %) |
 | L7 | 195/203 (96.06 %) |
 | L8 | 221/224 intact, 196/204 agree with NIST |
-| Interop | 9 tools agree on every artefact, both directions, on the Windows release machine; the Linux set (GnuTLS, gpgsm, Java keytool, Python cryptography, Go, zlint, pkilint) is required in the conformance workflow |
+| Interop | 9 tools agree on every artefact they read or write, on the Windows release machine; the Linux set (GnuTLS, gpgsm, Java keytool, Python cryptography, Go, zlint, pkilint) is required in the conformance workflow |
 
 ## Changes
 
@@ -84,7 +84,7 @@ Conformance:
 | `npm run verify:bundle` | 18 probes within budget; `*` 272.9 KB of 280 KB, `openPkcs12` 101.8 KB of 104 KB |
 | `npx tsx scripts/verify-docs.ts` | 83 rules, 0 errors, 0 warnings |
 | `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32) |
-| `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact, in both directions |
+| `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact they read or write |
 | `npm run check:ts-floor` | TypeScript 5.0.4 compiles the declarations under node16, bundler, node10 and nodom |
 | `npm run check:package` | PASS (attw, publint, the tarball file by file) |
 | `npm run smoke:install` | PASS: ESM and CJS load from the packed tarball |

@@ -184,7 +184,7 @@ async function main(): Promise<number> {
     } else if (failed) {
         stdout.write(`run-interop: ${String(requiredSkips.length)} required tool(s) or case(s) unavailable on ${platform} and --require-all was given — REQUIRED_TOOLS says this platform must run them.\n`);
     } else {
-        stdout.write(`run-interop: ${String(toolsRun)} tool(s) agree on every artefact, in both directions${requiredSkips.length + skips.length > 0 ? `, ${String(requiredSkips.length + skips.length)} skipped` : ''}${requireAll ? ' (--require-all)' : ''}.\n`);
+        stdout.write(`run-interop: ${String(toolsRun)} tool(s) agree on every artefact they read or write${requiredSkips.length + skips.length > 0 ? `, ${String(requiredSkips.length + skips.length)} skipped` : ''}${requireAll ? ' (--require-all)' : ''}.\n`);
     }
     return failed ? 1 : 0;
 }
