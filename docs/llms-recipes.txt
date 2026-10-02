@@ -639,6 +639,9 @@ export default async function run(): Promise<Record<string, string>> {
     // createCertificate takes SPKI DER instead of a CryptoKey.
     const caKeyBits = readBitString(decodeAsn1(ca.spki).children[1] as Asn1Node);
     const caKeyId = computeKeyIdentifier(caKeyBits.bytes);
+    // The leaf names its own key too: RFC 5280 §4.2.1.2 asks every end-entity
+    // certificate for one (PKI_DIAG_SKI_MISSING_END_ENTITY reports it absent).
+    const leafKeyId = computeKeyIdentifier(readBitString(decodeAsn1(leaf.spki).children[1] as Asn1Node).bytes);
 
     // An iPAddress takes BYTES, in network byte order, not text — the same
     // rule as `issuerDer`, applied to a value that must be exact. '2001:db8::1'
@@ -684,6 +687,7 @@ export default async function run(): Promise<Record<string, string>> {
             { oid: '2.5.29.37', value: encodeExtendedKeyUsage(['1.3.6.1.5.5.7.3.1']) },
             { oid: '2.5.29.17', value: encodeSubjectAltName(names) },
             { oid: '2.5.29.35', value: encodeAuthorityKeyIdentifier(caKeyId) },
+            { oid: '2.5.29.14', value: encodeSubjectKeyIdentifier(leafKeyId) },
         ],
     }, ca.signer);
     const cert = parseCertificate(leafDer, quiet);

@@ -11,7 +11,22 @@ import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBitString } from '../asn1/asn1-read.js';
 import { TAG_OID } from '../asn1/asn1-tags.js';
+import {
+    aiaCriticalDiagnostic,
+    caIssuersNoHttpOrLdapUriDiagnostic,
+    caRepositoryNoHttpOrLdapUriDiagnostic,
+    crlDistributionPointsCriticalDiagnostic,
+    distributionPointLdapUriIncompleteDiagnostic,
+    distributionPointNoHttpOrLdapUriDiagnostic,
+    distributionPointRelativeNameAmbiguousDiagnostic,
+    distributionPointRelativeNameDiagnostic,
+    distributionPointWithoutNameDiagnostic,
+    freshestCrlCriticalDiagnostic,
+    infoAccessLdapUriIncompleteDiagnostic,
+    siaCriticalDiagnostic,
+} from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
+import { isHttpOrLdapUri, ldapUrlFields } from '../core/uri.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import type {
     AccessDescription,
@@ -37,6 +52,9 @@ import {
 import { expectUniversalField } from './x509-fields.js';
 import { _readGeneralName, _readGeneralNameList } from './x509-general-name.js';
 import { _readRelativeDistinguishedName } from './x509-name.js';
+
+const OID_CA_ISSUERS = '1.3.6.1.5.5.7.48.2';
+const OID_CA_REPOSITORY = '1.3.6.1.5.5.7.48.5';
 
 /**
  * The `ReasonFlags` bit names of RFC 5280 §4.2.1.13, shared with the
@@ -112,15 +130,55 @@ function readDistributionPoints(input: ExtensionInput): readonly DistributionPoi
     return Object.freeze(seq.children.map((child, i) => readDistributionPoint(child, ctx, `${path}[${i}]`)));
 }
 
+/**
+ * RFC 5280 §4.2.1.13 on each DistributionPoint — of cRLDistributionPoints,
+ * and of freshestCRL, whose syntax §4.2.1.15 makes the same: a name or a CRL
+ * issuer to locate the CRL by; an LDAP URI with its `<dn>` and one
+ * `<attrdesc>`; an http or ldap URI among the names; and no
+ * nameRelativeToCRLIssuer, least of all beside several CRL issuers.
+ */
+function emitDistributionPointDiagnostics(ctx: Asn1Context, points: readonly DistributionPoint[], extension: string): void {
+    points.forEach((point, i) => {
+        const at = `tbsCertificate.extensions.${extension}[${String(i)}]`;
+        const named = point.fullName !== undefined || point.nameRelativeToCRLIssuer !== undefined;
+        if (!named && point.cRLIssuer === undefined) ctx.emitter.emit(distributionPointWithoutNameDiagnostic(at));
+        if (!named) return;
+        const namePath = `${at}.distributionPoint`;
+        const fullName = point.fullName ?? [];
+        fullName.forEach((name, k) => {
+            if (name.kind !== 'uniformResourceIdentifier') return;
+            const ldap = ldapUrlFields(name.value);
+            if (ldap === null) return;
+            const attributes = ldap.attributes ?? '';
+            if (ldap.dn === undefined || ldap.dn === '' || attributes === '' || attributes.includes(',')) {
+                ctx.emitter.emit(distributionPointLdapUriIncompleteDiagnostic(name.value, `${namePath}.fullName[${String(k)}]`));
+            }
+        });
+        if (!fullName.some((name) => name.kind === 'uniformResourceIdentifier' && isHttpOrLdapUri(name.value))) {
+            ctx.emitter.emit(distributionPointNoHttpOrLdapUriDiagnostic(namePath));
+        }
+        if (point.nameRelativeToCRLIssuer === undefined) return;
+        ctx.emitter.emit(distributionPointRelativeNameDiagnostic(namePath));
+        const issuers = (point.cRLIssuer ?? []).filter((name) => name.kind === 'directoryName').length;
+        if (issuers > 1) ctx.emitter.emit(distributionPointRelativeNameAmbiguousDiagnostic(at));
+    });
+}
+
 /** @internal */
 export function decodeCrlDistributionPoints(input: ExtensionInput): CrlDistributionPointsExtension {
-    const extension: CrlDistributionPointsExtension = { ...baseOf(input), kind: 'crlDistributionPoints', points: readDistributionPoints(input) };
+    const points = readDistributionPoints(input);
+    emitDistributionPointDiagnostics(input.ctx, points, 'cRLDistributionPoints');
+    if (input.critical) input.ctx.emitter.emit(crlDistributionPointsCriticalDiagnostic());
+    const extension: CrlDistributionPointsExtension = { ...baseOf(input), kind: 'crlDistributionPoints', points };
     return Object.freeze(extension);
 }
 
 /** @internal */
 export function decodeFreshestCrl(input: ExtensionInput): FreshestCrlExtension {
-    const extension: FreshestCrlExtension = { ...baseOf(input), kind: 'freshestCRL', points: readDistributionPoints(input) };
+    const points = readDistributionPoints(input);
+    emitDistributionPointDiagnostics(input.ctx, points, 'freshestCRL');
+    if (input.critical) input.ctx.emitter.emit(freshestCrlCriticalDiagnostic());
+    const extension: FreshestCrlExtension = { ...baseOf(input), kind: 'freshestCRL', points };
     return Object.freeze(extension);
 }
 
@@ -143,14 +201,46 @@ function readAccessDescriptions(input: ExtensionInput): readonly AccessDescripti
     }));
 }
 
+/**
+ * RFC 5280 §4.2.2.1 for `id-ad-caIssuers` and §4.2.2.2 for
+ * `id-ad-caRepository`, in the same words: an LDAP URI names its `<dn>` and
+ * its `<attributes>`, and at least one location is an http or ldap URI.
+ *
+ * @returns False when `method` appears and none of its locations is an http
+ *   or ldap URI — the SHOULD of both sections — and true otherwise.
+ */
+function emitAccessLocationDiagnostics(ctx: Asn1Context, descriptions: readonly AccessDescription[], method: string, extension: string): boolean {
+    let listed = false;
+    let fetchable = false;
+    for (let i = 0; i < descriptions.length; i++) {
+        const description = descriptions[i] as AccessDescription;
+        if (description.accessMethod !== method) continue;
+        listed = true;
+        const location = description.accessLocation;
+        if (location.kind !== 'uniformResourceIdentifier') continue;
+        if (isHttpOrLdapUri(location.value)) fetchable = true;
+        const ldap = ldapUrlFields(location.value);
+        if (ldap !== null && (ldap.dn === undefined || ldap.dn === '' || ldap.attributes === undefined || ldap.attributes === '')) {
+            ctx.emitter.emit(infoAccessLdapUriIncompleteDiagnostic(location.value, `tbsCertificate.extensions.${extension}[${String(i)}].accessLocation`));
+        }
+    }
+    return fetchable || !listed;
+}
+
 /** @internal */
 export function decodeAuthorityInfoAccess(input: ExtensionInput): AuthorityInfoAccessExtension {
-    const extension: AuthorityInfoAccessExtension = { ...baseOf(input), kind: 'authorityInfoAccess', descriptions: readAccessDescriptions(input) };
+    const descriptions = readAccessDescriptions(input);
+    if (!emitAccessLocationDiagnostics(input.ctx, descriptions, OID_CA_ISSUERS, 'authorityInfoAccess')) input.ctx.emitter.emit(caIssuersNoHttpOrLdapUriDiagnostic());
+    if (input.critical) input.ctx.emitter.emit(aiaCriticalDiagnostic());
+    const extension: AuthorityInfoAccessExtension = { ...baseOf(input), kind: 'authorityInfoAccess', descriptions };
     return Object.freeze(extension);
 }
 
 /** @internal */
 export function decodeSubjectInfoAccess(input: ExtensionInput): SubjectInfoAccessExtension {
-    const extension: SubjectInfoAccessExtension = { ...baseOf(input), kind: 'subjectInfoAccess', descriptions: readAccessDescriptions(input) };
+    const descriptions = readAccessDescriptions(input);
+    if (!emitAccessLocationDiagnostics(input.ctx, descriptions, OID_CA_REPOSITORY, 'subjectInfoAccess')) input.ctx.emitter.emit(caRepositoryNoHttpOrLdapUriDiagnostic());
+    if (input.critical) input.ctx.emitter.emit(siaCriticalDiagnostic());
+    const extension: SubjectInfoAccessExtension = { ...baseOf(input), kind: 'subjectInfoAccess', descriptions };
     return Object.freeze(extension);
 }

@@ -9,15 +9,29 @@
  * @module x509/x509-ext-identifiers
  */
 
+import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readInteger, _readOctetString } from '../asn1/asn1-read.js';
 import { TAG_NULL, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
 import { toHex } from '../core/bytes.js';
-import { akiIssuerSerialUnpairedDiagnostic, sanEmptyDiagnostic, subjectDirectoryAttributesCriticalDiagnostic } from '../core/pki-diagnostics.js';
+import {
+    akiCriticalDiagnostic,
+    akiIssuerSerialUnpairedDiagnostic,
+    altNameGeneralNameEmptyDiagnostic,
+    altNameUriHostInvalidDiagnostic,
+    altNameUriInvalidDiagnostic,
+    altNameUriSchemeMissingDiagnostic,
+    issuerAltNameCriticalDiagnostic,
+    sanEmptyDiagnostic,
+    skiCriticalDiagnostic,
+    subjectDirectoryAttributesCriticalDiagnostic,
+} from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
+import { isFqdnOrIpHost, isUri, uriAuthorityHost, uriScheme } from '../core/uri.js';
 import type {
     AuthorityKeyIdentifierExtension,
     DirectoryAttribute,
+    GeneralName,
     IssuerAltNameExtension,
     OcspNoCheckExtension,
     SerialNumber,
@@ -34,6 +48,7 @@ import { _readGeneralNameList, _readGeneralNames } from './x509-general-name.js'
 export function decodeSubjectKeyIdentifier(input: ExtensionInput): SubjectKeyIdentifierExtension {
     const { node, ctx, path } = input;
     const keyIdentifier = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
+    if (input.critical) ctx.emitter.emit(skiCriticalDiagnostic());
     const extension: SubjectKeyIdentifierExtension = { ...baseOf(input), kind: 'subjectKeyIdentifier', keyIdentifier };
     return Object.freeze(extension);
 }
@@ -56,13 +71,55 @@ export function decodeAuthorityKeyIdentifier(input: ExtensionInput): AuthorityKe
         authorityCertSerialNumber,
     };
     if ((issuerNode === undefined) !== (serialNode === undefined)) ctx.emitter.emit(akiIssuerSerialUnpairedDiagnostic());
+    if (input.critical) ctx.emitter.emit(akiCriticalDiagnostic());
     return Object.freeze(extension);
+}
+
+/** Whether a GeneralName holds nothing: an empty string, a Name without an RDN, an empty x400Address or ediPartyName. */
+function isEmptyName(name: GeneralName): boolean {
+    switch (name.kind) {
+        case 'rfc822Name':
+        case 'dNSName':
+        case 'uniformResourceIdentifier':
+            return name.value === '';
+        case 'directoryName':
+            return name.name.rdns.length === 0;
+        case 'x400Address':
+        case 'ediPartyName':
+            return name.value.contentLength === 0;
+        default:
+            // An otherName has a type-id, an iPAddress 4 or 16 octets and a
+            // registeredID an arc: the decoder has refused any of them empty.
+            return false;
+    }
+}
+
+/**
+ * RFC 5280 §4.2.1.6 on the content of each name — and §4.2.1.7, which encodes
+ * issuer alternative names *"as in 4.2.1.6"*. A URI is judged by the RFC 3986
+ * grammar of core/uri.ts, the one name constraints read its host with; it is
+ * kept and compared literally whatever the verdict.
+ */
+function emitAltNameDiagnostics(names: readonly GeneralName[], ctx: Asn1Context, extension: string): void {
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i] as GeneralName;
+        const at = `tbsCertificate.extensions.${extension}[${String(i)}]`;
+        if (isEmptyName(name)) ctx.emitter.emit(altNameGeneralNameEmptyDiagnostic(name.kind, at));
+        if (name.kind !== 'uniformResourceIdentifier') continue;
+        const uri = name.value;
+        if (!isUri(uri)) ctx.emitter.emit(altNameUriInvalidDiagnostic(uri, at));
+        const scheme = uriScheme(uri);
+        if (scheme === null || scheme.specific === '') ctx.emitter.emit(altNameUriSchemeMissingDiagnostic(uri, at));
+        const host = uriAuthorityHost(uri);
+        if (host !== null && !isFqdnOrIpHost(host)) ctx.emitter.emit(altNameUriHostInvalidDiagnostic(uri, at));
+    }
 }
 
 /** @internal */
 export function decodeSubjectAltName(input: ExtensionInput): SubjectAltNameExtension {
     const names = _readGeneralNames(input.node, input.ctx, input.path, false);
     if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+    emitAltNameDiagnostics(names, input.ctx, 'subjectAltName');
     const extension: SubjectAltNameExtension = { ...baseOf(input), kind: 'subjectAltName', names };
     return Object.freeze(extension);
 }
@@ -71,6 +128,8 @@ export function decodeSubjectAltName(input: ExtensionInput): SubjectAltNameExten
 export function decodeIssuerAltName(input: ExtensionInput): IssuerAltNameExtension {
     const names = _readGeneralNames(input.node, input.ctx, input.path, false);
     if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+    emitAltNameDiagnostics(names, input.ctx, 'issuerAltName');
+    if (input.critical) input.ctx.emitter.emit(issuerAltNameCriticalDiagnostic());
     const extension: IssuerAltNameExtension = { ...baseOf(input), kind: 'issuerAltName', names };
     return Object.freeze(extension);
 }

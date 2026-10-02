@@ -83,7 +83,8 @@ const ANSWERS: readonly KnownAnswer[] = [
         sha256: '180516f0a03e4893d234a28f3ad28921bc35d1b12bd35134847240dafb715a11',
         subjectKeyId: '9b1f5eeded043385e4f7bc623c5975b90bc8bb3b', authorityKeyId: undefined,
         usages: ['keyAgreement'], ca: false, pathLen: undefined,
-        diagnostics: ['PKI_DIAG_DEFAULT_ENCODED', 'PKI_DIAG_DEFAULT_ENCODED', 'PKI_DIAG_DEFAULT_ENCODED'],
+        // The second DEFAULT is keyUsage's critical flag written out as FALSE.
+        diagnostics: ['PKI_DIAG_DEFAULT_ENCODED', 'PKI_DIAG_DEFAULT_ENCODED', 'PKI_DIAG_KEY_USAGE_NOT_CRITICAL', 'PKI_DIAG_DEFAULT_ENCODED'],
     },
 ];
 

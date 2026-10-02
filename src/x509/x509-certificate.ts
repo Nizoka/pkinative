@@ -41,10 +41,14 @@ import {
     nameConstraintsInEndEntityDiagnostic,
     generalizedTimeBefore2050Diagnostic,
     generalizedTimeFractionDiagnostic,
+    policyMappingNotAssertedDiagnostic,
+    sanCriticalDiagnostic,
     serialNotPositiveDiagnostic,
     serialTooLongDiagnostic,
     skiMissingDiagnostic,
+    skiMissingEndEntityDiagnostic,
     signatureAlgorithmMismatchDiagnostic,
+    uniqueIdPresentDiagnostic,
     uniqueIdRequiresV2Diagnostic,
     validityInvertedDiagnostic,
 } from '../core/pki-diagnostics.js';
@@ -65,6 +69,8 @@ const OID_KEY_USAGE = '2.5.29.15';
 const OID_NAME_CONSTRAINTS = '2.5.29.30';
 const OID_SUBJECT_KEY_IDENTIFIER = '2.5.29.14';
 const OID_AUTHORITY_KEY_IDENTIFIER = '2.5.29.35';
+const OID_CERTIFICATE_POLICIES = '2.5.29.32';
+const OID_POLICY_MAPPINGS = '2.5.29.33';
 const OID_COMMON_NAME = '2.5.4.3';
 
 /**
@@ -111,8 +117,8 @@ function emitProfileDiagnostics(
     // §4.2.1.1 exempts a certificate that names nobody above it — a self-signed
     // root has no authority to identify — and equal encoded names is how that is
     // visible without a key operation. §4.2.1.2 requires the subject identifier
-    // of **CA certificates**; for an end entity it is a SHOULD, and reporting a
-    // SHOULD on the commonest shape in existence would be chatter.
+    // of **CA certificates** (a `warning`); for an end entity it is a SHOULD,
+    // reported apart as an `info` (below).
     //
     // Neither is a verdict: the field is an opaque hint a path builder uses to
     // order its candidates, and `buildCertificatePath` works by name, so a
@@ -121,11 +127,32 @@ function emitProfileDiagnostics(
     // an extension — RFC 5280 §4.1.2.1 ties the field to the version — so
     // reporting one as missing would be reporting the format rather than a
     // choice the issuer made.
+    //
+    // The end-entity SHOULD is its own code, as an `info`: RFC 5280 §4.2.1.2
+    // recommends the identifier, the CA/Browser Forum Baseline Requirements now
+    // advise against it in subscriber certificates, and the severity is how a
+    // caller tells a profile choice from a defect. A basicConstraints left
+    // undecoded (`decodeExtensions: false`) says nothing about cA, so the
+    // end-entity case is not judged against it.
     if (version === 3) {
         if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === undefined) {
             ctx.emitter.emit(akiMissingDiagnostic());
         }
-        if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === undefined) ctx.emitter.emit(skiMissingDiagnostic());
+        const hasSki = find(OID_SUBJECT_KEY_IDENTIFIER) !== undefined;
+        if (isCa && !hasSki) ctx.emitter.emit(skiMissingDiagnostic());
+        if (!isCa && !hasSki && (basicConstraints === undefined || basicConstraints.kind === 'basicConstraints')) {
+            ctx.emitter.emit(skiMissingEndEntityDiagnostic());
+        }
+    }
+
+    // §4.2.1.5: each mapped issuer-domain policy is one the certificate asserts.
+    const mappings = find(OID_POLICY_MAPPINGS);
+    if (mappings?.kind === 'policyMappings') {
+        const policies = find(OID_CERTIFICATE_POLICIES);
+        const asserted = new Set(policies?.kind === 'certificatePolicies' ? policies.policies.map((p) => p.policyIdentifier) : []);
+        for (const oid of new Set(mappings.mappings.map((m) => m.issuerDomainPolicy))) {
+            if (!asserted.has(oid)) ctx.emitter.emit(policyMappingNotAssertedDiagnostic(oid));
+        }
     }
     if (!isCa && find(OID_NAME_CONSTRAINTS) !== undefined) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
 
@@ -334,10 +361,14 @@ export function parseCertificate(der: Uint8Array, options?: ParseCertificateOpti
         else subjectUniqueId = id;
     }
     if ((issuerUniqueId !== undefined || subjectUniqueId !== undefined) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
+    // §4.1.2.8: the field is deprecated at every version, not only misplaced at v1.
+    if (issuerUniqueId !== undefined) ctx.emitter.emit(uniqueIdPresentDiagnostic('tbsCertificate.issuerUniqueID'));
+    if (subjectUniqueId !== undefined) ctx.emitter.emit(uniqueIdPresentDiagnostic('tbsCertificate.subjectUniqueID'));
     if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
-    if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
-        ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
-    }
+    const san = extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME);
+    if (subject.rdns.length === 0 && san?.critical !== true) ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
+    // §4.2.1.6: critical only when the identity lives in the extension alone.
+    if (subject.rdns.length !== 0 && san?.critical === true) ctx.emitter.emit(sanCriticalDiagnostic());
     emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
 
     const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, 'signatureAlgorithm', STRUCTURE, cert.offset);

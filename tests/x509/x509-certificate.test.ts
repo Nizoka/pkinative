@@ -399,13 +399,13 @@ describe('parseCertificate', () => {
         it('should report an empty subject with a non-critical subjectAltName', () => {
             // The AKI is absent from this minimal trailing, and §4.2.1.1 asks
             // for one on any certificate that names another subject as issuer.
-            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN)))];
+            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN), SUBJECT_KEY_ID))];
             expect(diagnosticsOf(certificate({ subject: name(), trailing })))
                 .toEqual(['PKI_DIAG_EMPTY_SUBJECT_SAN_NOT_CRITICAL', 'PKI_DIAG_AKI_MISSING']);
         });
 
         it('should accept an empty subject with a critical subjectAltName', () => {
-            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN, true), AUTHORITY_KEY_ID))];
+            const trailing = [explicit(3, sequence(extension('2.5.29.17', SAN, true), AUTHORITY_KEY_ID, SUBJECT_KEY_ID))];
             expect(diagnosticsOf(certificate({ subject: name(), trailing }))).toEqual([]);
         });
     });
@@ -417,11 +417,13 @@ describe('parseCertificate', () => {
             const cert = parseCertificate(certificate({ version: V2, trailing: [context(1, false, [0x00, 0xaa]), context(2, false, [0x04, 0xb0])] }));
             expect([...(cert.issuerUniqueId?.bytes ?? [])]).toEqual([0xaa]);
             expect(cert.subjectUniqueId).toMatchObject({ unusedBits: 4 });
-            expect(cert.diagnostics).toEqual([]);
+            // Read, and reported: §4.1.2.8 forbids conforming CAs to generate either.
+            expect(cert.diagnostics.map((d) => d.path)).toEqual(['tbsCertificate.issuerUniqueID', 'tbsCertificate.subjectUniqueID']);
+            expect(cert.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_UNIQUE_ID_PRESENT', 'PKI_DIAG_UNIQUE_ID_PRESENT']);
         });
 
         it('should report unique identifiers in a v1 certificate', () => {
-            expect(diagnosticsOf(certificate({ version: null, trailing: [context(1, false, [0x00, 0xaa])] }))).toEqual(['PKI_DIAG_UNIQUE_ID_REQUIRES_V2']);
+            expect(diagnosticsOf(certificate({ version: null, trailing: [context(1, false, [0x00, 0xaa])] }))).toEqual(['PKI_DIAG_UNIQUE_ID_REQUIRES_V2', 'PKI_DIAG_UNIQUE_ID_PRESENT']);
         });
 
         it.each<[string, readonly Uint8Array[]]>([

@@ -3,7 +3,8 @@
  * =============================
  * certificatePolicies with CPS and user notice qualifiers, and
  * policyMappings (RFC 5280 §4.2.1.4, §4.2.1.5). A policy listed twice is a
- * diagnostic; qualifiers of other types are kept undecoded.
+ * diagnostic, and so is each qualifier sentence of §4.2.1.4 the issuer
+ * breaks; qualifiers of other types are kept undecoded.
  *
  * @module x509/x509-ext-policies
  */
@@ -12,7 +13,15 @@ import type { Asn1Context } from '../asn1/asn1-context.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readInteger, _readString } from '../asn1/asn1-read.js';
 import { TAG_INTEGER, TAG_OID, TAG_SEQUENCE, stringTypeOfTag, tagLabel } from '../asn1/asn1-tags.js';
-import { policyDuplicateDiagnostic } from '../core/pki-diagnostics.js';
+import {
+    anyPolicyQualifierDiagnostic,
+    explicitTextControlCharacterDiagnostic,
+    explicitTextNotNfcDiagnostic,
+    explicitTextStringTypeDiagnostic,
+    noticeRefUsedDiagnostic,
+    policyDuplicateDiagnostic,
+    policyMappingsNotCriticalDiagnostic,
+} from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, Asn1String, Asn1StringType } from '../types/asn1-types.js';
 import type {
@@ -31,6 +40,7 @@ import { expectUniversalField } from './x509-fields.js';
 
 const OID_CPS = '1.3.6.1.5.5.7.2.1';
 const OID_USER_NOTICE = '1.3.6.1.5.5.7.2.2';
+const OID_ANY_POLICY = '2.5.29.32.0';
 const DISPLAY_TEXT: ReadonlySet<Asn1StringType> = /*#__PURE__*/ new Set<Asn1StringType>(['ia5', 'visible', 'bmp', 'utf8']);
 
 function readOid(node: Asn1Node | undefined, ctx: Asn1Context, path: string, parentOffset: number): string {
@@ -114,6 +124,39 @@ function readPolicy(node: Asn1Node, ctx: Asn1Context, path: string): PolicyInfor
     return Object.freeze(policy);
 }
 
+/** U+0000 to U+001F and U+007F to U+009F, the control characters §4.2.1.4 names. */
+function hasControlCharacter(text: string): boolean {
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
+    }
+    return false;
+}
+
+/**
+ * RFC 5280 §4.2.1.4 on the qualifiers: only the CPS pointer and the user
+ * notice with anyPolicy; no noticeRef; an explicitText in UTF8String (or
+ * IA5String), without control characters, and in NFC when it is UTF8String.
+ * Each is a sentence addressed to the issuing CA, so each is reported and
+ * nothing is refused: the text is kept as decoded.
+ */
+function emitQualifierDiagnostics(ctx: Asn1Context, policy: PolicyInformation, policyPath: string): void {
+    policy.qualifiers.forEach((qualifier, j) => {
+        const at = `${policyPath}.policyQualifiers[${String(j)}]`;
+        if (policy.policyIdentifier === OID_ANY_POLICY && qualifier.kind === 'unknown') ctx.emitter.emit(anyPolicyQualifierDiagnostic(qualifier.oid, at));
+        if (qualifier.kind !== 'userNotice') return;
+        if (qualifier.noticeRef !== undefined) ctx.emitter.emit(noticeRefUsedDiagnostic(`${at}.noticeRef`));
+        const text = qualifier.explicitText;
+        if (text === undefined) return;
+        const textPath = `${at}.explicitText`;
+        if (text.stringType === 'visible' || text.stringType === 'bmp') {
+            ctx.emitter.emit(explicitTextStringTypeDiagnostic(text.stringType === 'bmp' ? 'BMPString' : 'VisibleString', textPath));
+        }
+        if (hasControlCharacter(text.value)) ctx.emitter.emit(explicitTextControlCharacterDiagnostic(textPath));
+        if (text.stringType === 'utf8' && text.value.normalize('NFC') !== text.value) ctx.emitter.emit(explicitTextNotNfcDiagnostic(textPath));
+    });
+}
+
 /** @internal */
 export function decodeCertificatePolicies(input: ExtensionInput): CertificatePoliciesExtension {
     const { node, ctx, path } = input;
@@ -126,6 +169,7 @@ export function decodeCertificatePolicies(input: ExtensionInput): CertificatePol
         if (seen.has(policy.policyIdentifier)) ctx.emitter.emit(policyDuplicateDiagnostic(policy.policyIdentifier));
         seen.add(policy.policyIdentifier);
     }
+    policies.forEach((policy, i) => emitQualifierDiagnostics(ctx, policy, `tbsCertificate.extensions.certificatePolicies[${String(i)}]`));
     const extension: CertificatePoliciesExtension = { ...baseOf(input), kind: 'certificatePolicies', policies: Object.freeze(policies) };
     return Object.freeze(extension);
 }
@@ -145,6 +189,7 @@ export function decodePolicyMappings(input: ExtensionInput): PolicyMappingsExten
             subjectDomainPolicy: readOid(pair.children[1], ctx, `${mappingPath}.subjectDomainPolicy`, pair.offset),
         });
     });
+    if (!input.critical) ctx.emitter.emit(policyMappingsNotCriticalDiagnostic());
     const extension: PolicyMappingsExtension = { ...baseOf(input), kind: 'policyMappings', mappings: Object.freeze(mappings) };
     return Object.freeze(extension);
 }

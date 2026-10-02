@@ -903,6 +903,346 @@ function defaultEncodedDiagnostic(path, value, offset) {
     offset
   );
 }
+function uniqueIdPresentDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_UNIQUE_ID_PRESENT",
+    "warning",
+    "RFC 5280 \xA74.1.2.8",
+    "the certificate carries a unique identifier; RFC 5280 forbids conforming CAs to generate one, and no relying party gives it a meaning",
+    path,
+    void 0
+  );
+}
+function akiCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_AKI_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.1",
+    "authorityKeyIdentifier is marked critical; RFC 5280 requires conforming CAs to mark it non-critical",
+    "tbsCertificate.extensions.authorityKeyIdentifier",
+    void 0
+  );
+}
+function skiCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SKI_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.2",
+    "subjectKeyIdentifier is marked critical; RFC 5280 requires conforming CAs to mark it non-critical",
+    "tbsCertificate.extensions.subjectKeyIdentifier",
+    void 0
+  );
+}
+function skiMissingEndEntityDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SKI_MISSING_END_ENTITY",
+    "info",
+    "RFC 5280 \xA74.2.1.2",
+    "subjectKeyIdentifier is absent from an end-entity certificate; RFC 5280 says it should be included, though the CA/Browser Forum now advises against it in subscriber certificates",
+    "tbsCertificate.extensions",
+    void 0
+  );
+}
+function keyUsageNotCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_KEY_USAGE_NOT_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.3",
+    "keyUsage is not marked critical; RFC 5280 says conforming CAs should mark it critical, so that a verifier which does not process it refuses the certificate rather than ignore the restriction",
+    "tbsCertificate.extensions.keyUsage",
+    void 0
+  );
+}
+function anyPolicyQualifierDiagnostic(oid, path) {
+  return _diagnostic(
+    "PKI_DIAG_ANY_POLICY_QUALIFIER",
+    "warning",
+    "RFC 5280 \xA74.2.1.4",
+    `anyPolicy carries the qualifier ${oid}; with anyPolicy, RFC 5280 limits qualifiers to the CPS pointer and the user notice`,
+    path,
+    void 0
+  );
+}
+function noticeRefUsedDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_NOTICE_REF_USED",
+    "info",
+    "RFC 5280 \xA74.2.1.4",
+    "a user notice uses noticeRef; RFC 5280 says conforming CAs should not, since a relying party can rarely resolve it to text",
+    path,
+    void 0
+  );
+}
+function explicitTextStringTypeDiagnostic(type, path) {
+  return _diagnostic(
+    "PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE",
+    "warning",
+    "RFC 5280 \xA74.2.1.4",
+    `a user notice's explicitText is a ${type}; RFC 5280 forbids VisibleString and BMPString there and asks for UTF8String (or IA5String)`,
+    path,
+    void 0
+  );
+}
+function explicitTextControlCharacterDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_EXPLICIT_TEXT_CONTROL_CHARACTER",
+    "info",
+    "RFC 5280 \xA74.2.1.4",
+    "a user notice's explicitText contains a control character (U+0000 to U+001F or U+007F to U+009F), which RFC 5280 says it should not; the text is kept as decoded",
+    path,
+    void 0
+  );
+}
+function explicitTextNotNfcDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_EXPLICIT_TEXT_NOT_NFC",
+    "info",
+    "RFC 5280 \xA74.2.1.4",
+    "a UTF8String explicitText is not in Unicode normalization form C, which RFC 5280 says it should be; the text is kept as decoded, so two spellings of it compare unequal",
+    path,
+    void 0
+  );
+}
+function policyMappingNotAssertedDiagnostic(oid) {
+  return _diagnostic(
+    "PKI_DIAG_POLICY_MAPPING_NOT_ASSERTED",
+    "info",
+    "RFC 5280 \xA74.2.1.5",
+    `policyMappings maps the issuerDomainPolicy ${oid}, which the certificate's certificatePolicies does not assert; RFC 5280 says it should`,
+    "tbsCertificate.extensions.policyMappings",
+    void 0
+  );
+}
+function policyMappingsNotCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_POLICY_MAPPINGS_NOT_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.5",
+    "policyMappings is not marked critical; RFC 5280 says conforming CAs should mark it critical",
+    "tbsCertificate.extensions.policyMappings",
+    void 0
+  );
+}
+function sanCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SAN_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.6",
+    "subjectAltName is marked critical while the subject is not empty; RFC 5280 says conforming CAs should then mark it non-critical",
+    "tbsCertificate.extensions.subjectAltName",
+    void 0
+  );
+}
+function altNameUriInvalidDiagnostic(uri, path) {
+  return _diagnostic(
+    "PKI_DIAG_ALT_NAME_URI_INVALID",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `the uniformResourceIdentifier ${JSON.stringify(uri)} is not an absolute URI by the RFC 3986 grammar; RFC 5280 forbids a relative or ill-formed one, and two URI parsers may read it two ways`,
+    path,
+    void 0
+  );
+}
+function altNameUriSchemeMissingDiagnostic(uri, path) {
+  return _diagnostic(
+    "PKI_DIAG_ALT_NAME_URI_SCHEME_MISSING",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `the uniformResourceIdentifier ${JSON.stringify(uri)} lacks a scheme or a scheme-specific part; RFC 5280 requires both`,
+    path,
+    void 0
+  );
+}
+function altNameUriHostInvalidDiagnostic(uri, path) {
+  return _diagnostic(
+    "PKI_DIAG_ALT_NAME_URI_HOST_INVALID",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `the uniformResourceIdentifier ${JSON.stringify(uri)} has an authority whose host is neither a fully qualified domain name nor an IP address, which RFC 5280 requires`,
+    path,
+    void 0
+  );
+}
+function altNameGeneralNameEmptyDiagnostic(kind, path) {
+  return _diagnostic(
+    "PKI_DIAG_ALT_NAME_GENERAL_NAME_EMPTY",
+    "warning",
+    "RFC 5280 \xA74.2.1.6",
+    `an alternative name holds an empty ${kind}; RFC 5280 forbids empty GeneralName fields, and an empty name identifies nothing`,
+    path,
+    void 0
+  );
+}
+function issuerAltNameCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_ISSUER_ALT_NAME_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.7",
+    "issuerAltName is marked critical; RFC 5280 says conforming CAs should mark it non-critical",
+    "tbsCertificate.extensions.issuerAltName",
+    void 0
+  );
+}
+function nameConstraintsMinMaxDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_NAME_CONSTRAINTS_MIN_MAX",
+    "warning",
+    "RFC 5280 \xA74.2.1.10",
+    "a GeneralSubtree sets a non-zero minimum or a maximum; RFC 5280 requires minimum 0 and no maximum, and path validation never treats such a subtree as covering a name",
+    path,
+    void 0
+  );
+}
+function nameConstraintsUriNotFqdnDiagnostic(constraint, path) {
+  return _diagnostic(
+    "PKI_DIAG_NAME_CONSTRAINTS_URI_NOT_FQDN",
+    "warning",
+    "RFC 5280 \xA74.2.1.10",
+    `the uniformResourceIdentifier constraint ${JSON.stringify(constraint)} is not a fully qualified domain name (with a leading period for a domain), which RFC 5280 requires; it is still matched against the host of each URI`,
+    path,
+    void 0
+  );
+}
+function ekuAnyCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_EKU_ANY_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.12",
+    "extKeyUsage is marked critical and contains anyExtendedKeyUsage; RFC 5280 says conforming CAs should not mark it critical then",
+    "tbsCertificate.extensions.extKeyUsage",
+    void 0
+  );
+}
+function crlDistributionPointsCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_CRL_DISTRIBUTION_POINTS_CRITICAL",
+    "info",
+    "RFC 5280 \xA74.2.1.13",
+    "cRLDistributionPoints is marked critical; RFC 5280 says the extension should be non-critical",
+    "tbsCertificate.extensions.cRLDistributionPoints",
+    void 0
+  );
+}
+function distributionPointWithoutNameDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_DISTRIBUTION_POINT_WITHOUT_NAME",
+    "warning",
+    "RFC 5280 \xA74.2.1.13",
+    "a DistributionPoint has neither distributionPoint nor cRLIssuer; RFC 5280 requires one of them, and without either it locates no CRL",
+    path,
+    void 0
+  );
+}
+function distributionPointLdapUriIncompleteDiagnostic(uri, path) {
+  return _diagnostic(
+    "PKI_DIAG_DISTRIBUTION_POINT_LDAP_URI_INCOMPLETE",
+    "warning",
+    "RFC 5280 \xA74.2.1.13",
+    `the LDAP URI ${JSON.stringify(uri)} lacks a <dn> or a single <attrdesc>; RFC 5280 requires both, to name the entry and the attribute that hold the CRL`,
+    path,
+    void 0
+  );
+}
+function distributionPointNoHttpOrLdapUriDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_DISTRIBUTION_POINT_NO_HTTP_OR_LDAP_URI",
+    "info",
+    "RFC 5280 \xA74.2.1.13",
+    "a DistributionPointName includes no HTTP or LDAP URI; RFC 5280 says it should include at least one, the two schemes a relying party is expected to fetch",
+    path,
+    void 0
+  );
+}
+function distributionPointRelativeNameDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_DISTRIBUTION_POINT_RELATIVE_NAME",
+    "info",
+    "RFC 5280 \xA74.2.1.13",
+    "a distribution point is named by nameRelativeToCRLIssuer; RFC 5280 says conforming CAs should not use it",
+    path,
+    void 0
+  );
+}
+function distributionPointRelativeNameAmbiguousDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_DISTRIBUTION_POINT_RELATIVE_NAME_AMBIGUOUS",
+    "warning",
+    "RFC 5280 \xA74.2.1.13",
+    "a distribution point uses nameRelativeToCRLIssuer while cRLIssuer holds more than one distinguished name; RFC 5280 forbids it, since the name is relative to none of them in particular",
+    path,
+    void 0
+  );
+}
+function inhibitAnyPolicyNotCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_INHIBIT_ANY_POLICY_NOT_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.14",
+    "inhibitAnyPolicy is not marked critical; RFC 5280 requires conforming CAs to mark it critical (pkinative enforces it either way)",
+    "tbsCertificate.extensions.inhibitAnyPolicy",
+    void 0
+  );
+}
+function freshestCrlCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_FRESHEST_CRL_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.1.15",
+    "freshestCRL is marked critical; RFC 5280 requires conforming CAs to mark it non-critical",
+    "tbsCertificate.extensions.freshestCRL",
+    void 0
+  );
+}
+function aiaCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_AIA_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.2.1",
+    "authorityInfoAccess is marked critical; RFC 5280 requires conforming CAs to mark it non-critical",
+    "tbsCertificate.extensions.authorityInfoAccess",
+    void 0
+  );
+}
+function siaCriticalDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_SIA_CRITICAL",
+    "warning",
+    "RFC 5280 \xA74.2.2.2",
+    "subjectInfoAccess is marked critical; RFC 5280 requires conforming CAs to mark it non-critical",
+    "tbsCertificate.extensions.subjectInfoAccess",
+    void 0
+  );
+}
+function infoAccessLdapUriIncompleteDiagnostic(uri, path) {
+  return _diagnostic(
+    "PKI_DIAG_INFO_ACCESS_LDAP_URI_INCOMPLETE",
+    "warning",
+    "RFC 5280 \xA74.2.2.1, \xA74.2.2.2",
+    `the LDAP URI ${JSON.stringify(uri)} lacks a <dn> or an <attributes> field; RFC 5280 requires both, to name the entry and the attributes that hold the certificates`,
+    path,
+    void 0
+  );
+}
+function caIssuersNoHttpOrLdapUriDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_CA_ISSUERS_NO_HTTP_OR_LDAP_URI",
+    "info",
+    "RFC 5280 \xA74.2.2.1",
+    "no id-ad-caIssuers access location is an HTTP or LDAP URI; RFC 5280 says at least one should be",
+    "tbsCertificate.extensions.authorityInfoAccess",
+    void 0
+  );
+}
+function caRepositoryNoHttpOrLdapUriDiagnostic() {
+  return _diagnostic(
+    "PKI_DIAG_CA_REPOSITORY_NO_HTTP_OR_LDAP_URI",
+    "info",
+    "RFC 5280 \xA74.2.2.2",
+    "no id-ad-caRepository access location is an HTTP or LDAP URI; RFC 5280 says at least one should be",
+    "tbsCertificate.extensions.subjectInfoAccess",
+    void 0
+  );
+}
 function berConstructAcceptedDiagnostic(construct, offset) {
   return _diagnostic(
     "PKI_DIAG_BER_CONSTRUCT_ACCEPTED",
@@ -1987,6 +2327,124 @@ function _readAlgorithmIdentifier(node, ctx, path, code, parentOffset) {
   return Object.freeze(algorithm);
 }
 
+// src/core/uri.ts
+var UNRESERVED_SUB_DELIMS = "A-Za-z0-9\\-._~!$&'()*+,;=";
+var PATH = /* @__PURE__ */ new RegExp(`^(?:[${UNRESERVED_SUB_DELIMS}:@/]|%[0-9A-Fa-f]{2})*$`);
+var QUERY = /* @__PURE__ */ new RegExp(`^(?:[${UNRESERVED_SUB_DELIMS}:@/?]|%[0-9A-Fa-f]{2})*$`);
+var USERINFO = /* @__PURE__ */ new RegExp(`^(?:[${UNRESERVED_SUB_DELIMS}:]|%[0-9A-Fa-f]{2})*$`);
+var REG_NAME = /* @__PURE__ */ new RegExp(`^(?:[${UNRESERVED_SUB_DELIMS}]|%[0-9A-Fa-f]{2})*$`);
+var IP_FUTURE = /* @__PURE__ */ new RegExp(`^[vV][0-9A-Fa-f]+\\.[${UNRESERVED_SUB_DELIMS}:]+$`);
+var SCHEME = /^([A-Za-z][A-Za-z0-9+.-]*):/;
+var PORT = /^[0-9]*$/;
+var IPV4 = /^(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$/;
+var H16 = /^[0-9A-Fa-f]{1,4}$/;
+function _isIpv4(text) {
+  return IPV4.test(text);
+}
+function _isIpv6(text) {
+  let groups = text;
+  const lastColon = groups.lastIndexOf(":");
+  const tail = groups.slice(lastColon + 1);
+  if (tail.includes(".")) {
+    if (lastColon < 0 || !_isIpv4(tail)) return false;
+    groups = `${groups.slice(0, lastColon + 1)}0:0`;
+  }
+  const halves = groups.split("::");
+  if (halves.length > 2) return false;
+  const fields = halves.flatMap((half) => half === "" ? [] : half.split(":"));
+  if (!fields.every((field) => H16.test(field))) return false;
+  return halves.length === 2 ? fields.length <= 7 : fields.length === 8;
+}
+function _split(uri) {
+  const scheme = SCHEME.exec(uri);
+  if (scheme === null) return null;
+  let rest = uri.slice(scheme[0].length);
+  const hash = rest.indexOf("#");
+  const fragment = hash < 0 ? "" : rest.slice(hash + 1);
+  if (hash >= 0) rest = rest.slice(0, hash);
+  const question = rest.indexOf("?");
+  const query = question < 0 ? "" : rest.slice(question + 1);
+  if (question >= 0) rest = rest.slice(0, question);
+  if (!rest.startsWith("//")) return { scheme: scheme[1], authority: null, path: rest, query, fragment };
+  const slash = rest.indexOf("/", 2);
+  const end = slash < 0 ? rest.length : slash;
+  return { scheme: scheme[1], authority: rest.slice(2, end), path: rest.slice(end), query, fragment };
+}
+function _authorityHost(authority) {
+  const at = authority.indexOf("@");
+  const userinfo = authority.slice(0, Math.max(at, 0));
+  const hostAndPort = authority.slice(at + 1);
+  if (hostAndPort.startsWith("[")) {
+    const close = hostAndPort.indexOf("]") + 1;
+    const after = hostAndPort.slice(close);
+    if (close === 0 || after !== "" && !after.startsWith(":")) return { userinfo, host: hostAndPort, port: "" };
+    return { userinfo, host: hostAndPort.slice(0, close), port: after.slice(1) };
+  }
+  const colon = hostAndPort.indexOf(":");
+  return colon < 0 ? { userinfo, host: hostAndPort, port: "" } : { userinfo, host: hostAndPort.slice(0, colon), port: hostAndPort.slice(colon + 1) };
+}
+function isUri(text) {
+  const parts = _split(text);
+  if (parts === null || !PATH.test(parts.path) || !QUERY.test(parts.query) || !QUERY.test(parts.fragment)) return false;
+  if (parts.authority === null) return true;
+  const { userinfo, host, port } = _authorityHost(parts.authority);
+  if (!USERINFO.test(userinfo) || !PORT.test(port)) return false;
+  if (host.startsWith("[")) {
+    const literal = host.slice(1, -1);
+    return host.endsWith("]") && (_isIpv6(literal) || IP_FUTURE.test(literal));
+  }
+  return REG_NAME.test(host);
+}
+function uriScheme(text) {
+  const scheme = SCHEME.exec(text);
+  return scheme === null ? null : { scheme: scheme[1], specific: text.slice(scheme[0].length) };
+}
+function isFqdn(host) {
+  if (host.length === 0 || host.length > 253) return false;
+  return host.split(".").every((label) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label));
+}
+function uriAuthorityHost(uri) {
+  const authority = _split(uri)?.authority;
+  return authority === void 0 || authority === null ? null : _authorityHost(authority).host;
+}
+function isFqdnOrIpHost(host) {
+  if (host.startsWith("[") && host.endsWith("]")) return _isIpv6(host.slice(1, -1));
+  return _isIpv4(host) || isFqdn(host);
+}
+var URI_SCHEME_AND_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
+var URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+var URI_USERINFO = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:]|%[0-9A-Fa-f]{2})*$/;
+var URI_REG_NAME = /^[A-Za-z0-9\-._~!$&'()*+,;=]+$/;
+var URI_IP_LITERAL = /^\[[0-9A-Fa-f:.]+\]$/;
+var URI_PORT = /^(?::[0-9]*)?$/;
+function uriHost(uri) {
+  const scheme = URI_SCHEME_AND_AUTHORITY.exec(uri);
+  if (scheme === null || !URI_CHARACTERS.test(uri)) return null;
+  const authority = uri.slice(scheme[0].length).split(/[/?#]/, 1)[0];
+  const at = authority.indexOf("@");
+  if (!URI_USERINFO.test(authority.slice(0, Math.max(at, 0)))) return null;
+  const hostAndPort = authority.slice(at + 1);
+  if (hostAndPort.startsWith("[")) {
+    const close = hostAndPort.indexOf("]") + 1;
+    const literal = hostAndPort.slice(0, close);
+    return URI_IP_LITERAL.test(literal) && URI_PORT.test(hostAndPort.slice(close)) ? literal : null;
+  }
+  const host = hostAndPort.split(":", 1)[0];
+  return URI_REG_NAME.test(host) && URI_PORT.test(hostAndPort.slice(host.length)) ? host : null;
+}
+function ldapUrlFields(text) {
+  const scheme = uriScheme(text);
+  if (scheme?.scheme.toLowerCase() !== "ldap" || !scheme.specific.startsWith("//")) return null;
+  const slash = scheme.specific.indexOf("/", 2);
+  if (slash < 0) return { dn: void 0, attributes: void 0 };
+  const [dn, attributes] = scheme.specific.slice(slash + 1).split("?");
+  return { dn, attributes };
+}
+function isHttpOrLdapUri(text) {
+  const scheme = uriScheme(text)?.scheme.toLowerCase();
+  return scheme === "http" || scheme === "ldap";
+}
+
 // src/x509/x509-ext-shared.ts
 var MALFORMED = "PKI_X509_EXTENSION_MALFORMED";
 function baseOf(input) {
@@ -2262,6 +2720,7 @@ function _readGeneralNameList(container, ctx, path, inNameConstraints) {
 }
 
 // src/x509/x509-ext-constraints.ts
+var OID_ANY_EXTENDED_KEY_USAGE = "2.5.29.37.0";
 var KEY_USAGES = [
   "digitalSignature",
   "nonRepudiation",
@@ -2308,6 +2767,7 @@ function decodeKeyUsage(input) {
   const bits = _readBitString(bitsNode, ctx);
   const usages = readNamedBits(bits, KEY_USAGES, ctx, path, bitsNode.offset);
   if (usages.length === 0) ctx.emitter.emit(keyUsageEmptyDiagnostic());
+  if (!input.critical) ctx.emitter.emit(keyUsageNotCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "keyUsage", usages: Object.freeze(usages), bits };
   return Object.freeze(extension);
 }
@@ -2316,6 +2776,7 @@ function decodeExtendedKeyUsage(input) {
   const seq = expectSequence(node, path, node.offset);
   expectNonEmpty(seq, path, "KeyPurposeId");
   const purposes = seq.children.map((child, i) => _readObjectIdentifier(expectUniversalField(child, TAG_OID, `${path}[${i}]`, MALFORMED, seq.offset), ctx));
+  if (input.critical && purposes.includes(OID_ANY_EXTENDED_KEY_USAGE)) ctx.emitter.emit(ekuAnyCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "extendedKeyUsage", purposes: Object.freeze(purposes) };
   return Object.freeze(extension);
 }
@@ -2358,7 +2819,21 @@ function decodeNameConstraints(input) {
     excludedSubtrees
   };
   if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
+  emitSubtreeDiagnostics(ctx, permittedSubtrees, "permittedSubtrees");
+  emitSubtreeDiagnostics(ctx, excludedSubtrees, "excludedSubtrees");
   return Object.freeze(extension);
+}
+function emitSubtreeDiagnostics(ctx, subtrees, field) {
+  if (subtrees === void 0) return;
+  for (let i = 0; i < subtrees.length; i++) {
+    const subtree = subtrees[i];
+    const at = `tbsCertificate.extensions.nameConstraints.${field}[${String(i)}]`;
+    if (subtree.minimum !== 0 || subtree.maximum !== void 0) ctx.emitter.emit(nameConstraintsMinMaxDiagnostic(at));
+    const base = subtree.base;
+    if (base.kind === "uniformResourceIdentifier" && !isFqdn(base.value.startsWith(".") ? base.value.slice(1) : base.value)) {
+      ctx.emitter.emit(nameConstraintsUriNotFqdnDiagnostic(base.value, `${at}.base`));
+    }
+  }
 }
 function decodePolicyConstraints(input) {
   const { node, ctx, path } = input;
@@ -2377,11 +2852,14 @@ function decodePolicyConstraints(input) {
 function decodeInhibitAnyPolicy(input) {
   const { node, ctx, path } = input;
   const skipCerts = readCount(expectUniversalField(node, TAG_INTEGER, path, MALFORMED, node.offset), ctx, path);
+  if (!input.critical) ctx.emitter.emit(inhibitAnyPolicyNotCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "inhibitAnyPolicy", skipCerts };
   return Object.freeze(extension);
 }
 
 // src/x509/x509-ext-distribution.ts
+var OID_CA_ISSUERS = "1.3.6.1.5.5.7.48.2";
+var OID_CA_REPOSITORY = "1.3.6.1.5.5.7.48.5";
 var _REASON_FLAGS = Object.freeze([
   "unused",
   "keyCompromise",
@@ -2426,12 +2904,44 @@ function readDistributionPoints(input) {
   enforceLimit(ctx.limits, "maxGeneralNames", seq.children.length, `the distribution points of ${path}`);
   return Object.freeze(seq.children.map((child, i) => readDistributionPoint(child, ctx, `${path}[${i}]`)));
 }
+function emitDistributionPointDiagnostics(ctx, points, extension) {
+  points.forEach((point, i) => {
+    const at = `tbsCertificate.extensions.${extension}[${String(i)}]`;
+    const named = point.fullName !== void 0 || point.nameRelativeToCRLIssuer !== void 0;
+    if (!named && point.cRLIssuer === void 0) ctx.emitter.emit(distributionPointWithoutNameDiagnostic(at));
+    if (!named) return;
+    const namePath = `${at}.distributionPoint`;
+    const fullName = point.fullName ?? [];
+    fullName.forEach((name, k) => {
+      if (name.kind !== "uniformResourceIdentifier") return;
+      const ldap = ldapUrlFields(name.value);
+      if (ldap === null) return;
+      const attributes = ldap.attributes ?? "";
+      if (ldap.dn === void 0 || ldap.dn === "" || attributes === "" || attributes.includes(",")) {
+        ctx.emitter.emit(distributionPointLdapUriIncompleteDiagnostic(name.value, `${namePath}.fullName[${String(k)}]`));
+      }
+    });
+    if (!fullName.some((name) => name.kind === "uniformResourceIdentifier" && isHttpOrLdapUri(name.value))) {
+      ctx.emitter.emit(distributionPointNoHttpOrLdapUriDiagnostic(namePath));
+    }
+    if (point.nameRelativeToCRLIssuer === void 0) return;
+    ctx.emitter.emit(distributionPointRelativeNameDiagnostic(namePath));
+    const issuers = (point.cRLIssuer ?? []).filter((name) => name.kind === "directoryName").length;
+    if (issuers > 1) ctx.emitter.emit(distributionPointRelativeNameAmbiguousDiagnostic(at));
+  });
+}
 function decodeCrlDistributionPoints(input) {
-  const extension = { ...baseOf(input), kind: "crlDistributionPoints", points: readDistributionPoints(input) };
+  const points = readDistributionPoints(input);
+  emitDistributionPointDiagnostics(input.ctx, points, "cRLDistributionPoints");
+  if (input.critical) input.ctx.emitter.emit(crlDistributionPointsCriticalDiagnostic());
+  const extension = { ...baseOf(input), kind: "crlDistributionPoints", points };
   return Object.freeze(extension);
 }
 function decodeFreshestCrl(input) {
-  const extension = { ...baseOf(input), kind: "freshestCRL", points: readDistributionPoints(input) };
+  const points = readDistributionPoints(input);
+  emitDistributionPointDiagnostics(input.ctx, points, "freshestCRL");
+  if (input.critical) input.ctx.emitter.emit(freshestCrlCriticalDiagnostic());
+  const extension = { ...baseOf(input), kind: "freshestCRL", points };
   return Object.freeze(extension);
 }
 function readAccessDescriptions(input) {
@@ -2452,12 +2962,35 @@ function readAccessDescriptions(input) {
     });
   }));
 }
+function emitAccessLocationDiagnostics(ctx, descriptions, method, extension) {
+  let listed2 = false;
+  let fetchable = false;
+  for (let i = 0; i < descriptions.length; i++) {
+    const description = descriptions[i];
+    if (description.accessMethod !== method) continue;
+    listed2 = true;
+    const location = description.accessLocation;
+    if (location.kind !== "uniformResourceIdentifier") continue;
+    if (isHttpOrLdapUri(location.value)) fetchable = true;
+    const ldap = ldapUrlFields(location.value);
+    if (ldap !== null && (ldap.dn === void 0 || ldap.dn === "" || ldap.attributes === void 0 || ldap.attributes === "")) {
+      ctx.emitter.emit(infoAccessLdapUriIncompleteDiagnostic(location.value, `tbsCertificate.extensions.${extension}[${String(i)}].accessLocation`));
+    }
+  }
+  return fetchable || !listed2;
+}
 function decodeAuthorityInfoAccess(input) {
-  const extension = { ...baseOf(input), kind: "authorityInfoAccess", descriptions: readAccessDescriptions(input) };
+  const descriptions = readAccessDescriptions(input);
+  if (!emitAccessLocationDiagnostics(input.ctx, descriptions, OID_CA_ISSUERS, "authorityInfoAccess")) input.ctx.emitter.emit(caIssuersNoHttpOrLdapUriDiagnostic());
+  if (input.critical) input.ctx.emitter.emit(aiaCriticalDiagnostic());
+  const extension = { ...baseOf(input), kind: "authorityInfoAccess", descriptions };
   return Object.freeze(extension);
 }
 function decodeSubjectInfoAccess(input) {
-  const extension = { ...baseOf(input), kind: "subjectInfoAccess", descriptions: readAccessDescriptions(input) };
+  const descriptions = readAccessDescriptions(input);
+  if (!emitAccessLocationDiagnostics(input.ctx, descriptions, OID_CA_REPOSITORY, "subjectInfoAccess")) input.ctx.emitter.emit(caRepositoryNoHttpOrLdapUriDiagnostic());
+  if (input.critical) input.ctx.emitter.emit(siaCriticalDiagnostic());
+  const extension = { ...baseOf(input), kind: "subjectInfoAccess", descriptions };
   return Object.freeze(extension);
 }
 
@@ -2465,6 +2998,7 @@ function decodeSubjectInfoAccess(input) {
 function decodeSubjectKeyIdentifier(input) {
   const { node, ctx, path } = input;
   const keyIdentifier = _readOctetString(expectUniversalField(node, TAG_OCTET_STRING, path, MALFORMED, node.offset), ctx);
+  if (input.critical) ctx.emitter.emit(skiCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "subjectKeyIdentifier", keyIdentifier };
   return Object.freeze(extension);
 }
@@ -2485,17 +3019,50 @@ function decodeAuthorityKeyIdentifier(input) {
     authorityCertSerialNumber
   };
   if (issuerNode === void 0 !== (serialNode === void 0)) ctx.emitter.emit(akiIssuerSerialUnpairedDiagnostic());
+  if (input.critical) ctx.emitter.emit(akiCriticalDiagnostic());
   return Object.freeze(extension);
+}
+function isEmptyName(name) {
+  switch (name.kind) {
+    case "rfc822Name":
+    case "dNSName":
+    case "uniformResourceIdentifier":
+      return name.value === "";
+    case "directoryName":
+      return name.name.rdns.length === 0;
+    case "x400Address":
+    case "ediPartyName":
+      return name.value.contentLength === 0;
+    default:
+      return false;
+  }
+}
+function emitAltNameDiagnostics(names, ctx, extension) {
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    const at = `tbsCertificate.extensions.${extension}[${String(i)}]`;
+    if (isEmptyName(name)) ctx.emitter.emit(altNameGeneralNameEmptyDiagnostic(name.kind, at));
+    if (name.kind !== "uniformResourceIdentifier") continue;
+    const uri = name.value;
+    if (!isUri(uri)) ctx.emitter.emit(altNameUriInvalidDiagnostic(uri, at));
+    const scheme = uriScheme(uri);
+    if (scheme === null || scheme.specific === "") ctx.emitter.emit(altNameUriSchemeMissingDiagnostic(uri, at));
+    const host = uriAuthorityHost(uri);
+    if (host !== null && !isFqdnOrIpHost(host)) ctx.emitter.emit(altNameUriHostInvalidDiagnostic(uri, at));
+  }
 }
 function decodeSubjectAltName(input) {
   const names = _readGeneralNames(input.node, input.ctx, input.path, false);
   if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+  emitAltNameDiagnostics(names, input.ctx, "subjectAltName");
   const extension = { ...baseOf(input), kind: "subjectAltName", names };
   return Object.freeze(extension);
 }
 function decodeIssuerAltName(input) {
   const names = _readGeneralNames(input.node, input.ctx, input.path, false);
   if (names.length === 0) input.ctx.emitter.emit(sanEmptyDiagnostic(input.path));
+  emitAltNameDiagnostics(names, input.ctx, "issuerAltName");
+  if (input.critical) input.ctx.emitter.emit(issuerAltNameCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "issuerAltName", names };
   return Object.freeze(extension);
 }
@@ -2538,6 +3105,7 @@ function decodeSubjectDirectoryAttributes(input) {
 // src/x509/x509-ext-policies.ts
 var OID_CPS = "1.3.6.1.5.5.7.2.1";
 var OID_USER_NOTICE = "1.3.6.1.5.5.7.2.2";
+var OID_ANY_POLICY = "2.5.29.32.0";
 var DISPLAY_TEXT = /* @__PURE__ */ new Set(["ia5", "visible", "bmp", "utf8"]);
 function readOid(node, ctx, path, parentOffset) {
   return _readObjectIdentifier(expectUniversalField(node, TAG_OID, path, MALFORMED, parentOffset), ctx);
@@ -2612,6 +3180,29 @@ function readPolicy(node, ctx, path) {
   const policy = { policyIdentifier, qualifiers: Object.freeze(qualifiers) };
   return Object.freeze(policy);
 }
+function hasControlCharacter2(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code >= 127 && code <= 159) return true;
+  }
+  return false;
+}
+function emitQualifierDiagnostics(ctx, policy, policyPath) {
+  policy.qualifiers.forEach((qualifier, j) => {
+    const at = `${policyPath}.policyQualifiers[${String(j)}]`;
+    if (policy.policyIdentifier === OID_ANY_POLICY && qualifier.kind === "unknown") ctx.emitter.emit(anyPolicyQualifierDiagnostic(qualifier.oid, at));
+    if (qualifier.kind !== "userNotice") return;
+    if (qualifier.noticeRef !== void 0) ctx.emitter.emit(noticeRefUsedDiagnostic(`${at}.noticeRef`));
+    const text = qualifier.explicitText;
+    if (text === void 0) return;
+    const textPath = `${at}.explicitText`;
+    if (text.stringType === "visible" || text.stringType === "bmp") {
+      ctx.emitter.emit(explicitTextStringTypeDiagnostic(text.stringType === "bmp" ? "BMPString" : "VisibleString", textPath));
+    }
+    if (hasControlCharacter2(text.value)) ctx.emitter.emit(explicitTextControlCharacterDiagnostic(textPath));
+    if (text.stringType === "utf8" && text.value.normalize("NFC") !== text.value) ctx.emitter.emit(explicitTextNotNfcDiagnostic(textPath));
+  });
+}
 function decodeCertificatePolicies(input) {
   const { node, ctx, path } = input;
   const seq = expectSequence(node, path, node.offset);
@@ -2623,6 +3214,7 @@ function decodeCertificatePolicies(input) {
     if (seen.has(policy.policyIdentifier)) ctx.emitter.emit(policyDuplicateDiagnostic(policy.policyIdentifier));
     seen.add(policy.policyIdentifier);
   }
+  policies.forEach((policy, i) => emitQualifierDiagnostics(ctx, policy, `tbsCertificate.extensions.certificatePolicies[${String(i)}]`));
   const extension = { ...baseOf(input), kind: "certificatePolicies", policies: Object.freeze(policies) };
   return Object.freeze(extension);
 }
@@ -2640,6 +3232,7 @@ function decodePolicyMappings(input) {
       subjectDomainPolicy: readOid(pair.children[1], ctx, `${mappingPath}.subjectDomainPolicy`, pair.offset)
     });
   });
+  if (!input.critical) ctx.emitter.emit(policyMappingsNotCriticalDiagnostic());
   const extension = { ...baseOf(input), kind: "policyMappings", mappings: Object.freeze(mappings) };
   return Object.freeze(extension);
 }
@@ -4721,27 +5314,6 @@ function uriMatches(constraint, uri) {
   if (c.startsWith(".")) return h.endsWith(c);
   return h === c;
 }
-var URI_SCHEME_AND_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
-var URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
-var URI_USERINFO = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:]|%[0-9A-Fa-f]{2})*$/;
-var URI_REG_NAME = /^[A-Za-z0-9\-._~!$&'()*+,;=]+$/;
-var URI_IP_LITERAL = /^\[[0-9A-Fa-f:.]+\]$/;
-var URI_PORT = /^(?::[0-9]*)?$/;
-function uriHost(uri) {
-  const scheme = URI_SCHEME_AND_AUTHORITY.exec(uri);
-  if (scheme === null || !URI_CHARACTERS.test(uri)) return null;
-  const authority = uri.slice(scheme[0].length).split(/[/?#]/, 1)[0];
-  const at = authority.indexOf("@");
-  if (!URI_USERINFO.test(authority.slice(0, Math.max(at, 0)))) return null;
-  const hostAndPort = authority.slice(at + 1);
-  if (hostAndPort.startsWith("[")) {
-    const close = hostAndPort.indexOf("]") + 1;
-    const literal = hostAndPort.slice(0, close);
-    return URI_IP_LITERAL.test(literal) && URI_PORT.test(hostAndPort.slice(close)) ? literal : null;
-  }
-  const host = hostAndPort.split(":", 1)[0];
-  return URI_REG_NAME.test(host) && URI_PORT.test(hostAndPort.slice(host.length)) ? host : null;
-}
 function ipMatches(constraintBytes, nameBytes) {
   const width = nameBytes.length;
   if (constraintBytes.length !== width * 2) return false;
@@ -6292,6 +6864,8 @@ var OID_KEY_USAGE = "2.5.29.15";
 var OID_NAME_CONSTRAINTS = "2.5.29.30";
 var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
 var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
+var OID_CERTIFICATE_POLICIES = "2.5.29.32";
+var OID_POLICY_MAPPINGS = "2.5.29.33";
 var OID_COMMON_NAME2 = "2.5.4.3";
 function looksLikeHost(value) {
   if (value === "" || /[\s/=,]/.test(value)) return false;
@@ -6305,7 +6879,19 @@ function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
     if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
       ctx.emitter.emit(akiMissingDiagnostic());
     }
-    if (isCa && find(OID_SUBJECT_KEY_IDENTIFIER) === void 0) ctx.emitter.emit(skiMissingDiagnostic());
+    const hasSki = find(OID_SUBJECT_KEY_IDENTIFIER) !== void 0;
+    if (isCa && !hasSki) ctx.emitter.emit(skiMissingDiagnostic());
+    if (!isCa && !hasSki && (basicConstraints === void 0 || basicConstraints.kind === "basicConstraints")) {
+      ctx.emitter.emit(skiMissingEndEntityDiagnostic());
+    }
+  }
+  const mappings = find(OID_POLICY_MAPPINGS);
+  if (mappings?.kind === "policyMappings") {
+    const policies = find(OID_CERTIFICATE_POLICIES);
+    const asserted = new Set(policies?.kind === "certificatePolicies" ? policies.policies.map((p) => p.policyIdentifier) : []);
+    for (const oid of new Set(mappings.mappings.map((m) => m.issuerDomainPolicy))) {
+      if (!asserted.has(oid)) ctx.emitter.emit(policyMappingNotAssertedDiagnostic(oid));
+    }
   }
   if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
   const keyUsage = find(OID_KEY_USAGE);
@@ -6478,10 +7064,12 @@ function parseCertificate(der, options) {
     else subjectUniqueId = id;
   }
   if ((issuerUniqueId !== void 0 || subjectUniqueId !== void 0) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
+  if (issuerUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.issuerUniqueID"));
+  if (subjectUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.subjectUniqueID"));
   if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
-  if (subject.rdns.length === 0 && extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME)?.critical !== true) {
-    ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
-  }
+  const san = extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME);
+  if (subject.rdns.length === 0 && san?.critical !== true) ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
+  if (subject.rdns.length !== 0 && san?.critical === true) ctx.emitter.emit(sanCriticalDiagnostic());
   emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
   const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
   if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {

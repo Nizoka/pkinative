@@ -121,11 +121,11 @@ describe('decodeExtensionValue', () => {
         });
 
         it('should report a key usage that asserts no bit', () => {
-            expect(diagnosticsOf(OID.keyUsage, bitString([]))).toEqual(['PKI_DIAG_KEY_USAGE_EMPTY']);
+            expect(diagnosticsOf(OID.keyUsage, bitString([]), true)).toEqual(['PKI_DIAG_KEY_USAGE_EMPTY']);
         });
 
         it('should report a trailing zero bit', () => {
-            expect(diagnosticsOf(OID.keyUsage, bitString([0x80]))).toEqual(['PKI_DIAG_NAMED_BITS_TRAILING_ZERO']);
+            expect(diagnosticsOf(OID.keyUsage, bitString([0x80]), true)).toEqual(['PKI_DIAG_NAMED_BITS_TRAILING_ZERO']);
         });
 
         it.each<[string, Uint8Array]>([

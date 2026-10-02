@@ -14,13 +14,19 @@ import type { Asn1Context } from '../asn1/asn1-context.js';
 import {
     defaultEncodedDiagnostic,
     basicConstraintsNotCriticalDiagnostic,
+    ekuAnyCriticalDiagnostic,
+    inhibitAnyPolicyNotCriticalDiagnostic,
     keyUsageEmptyDiagnostic,
+    keyUsageNotCriticalDiagnostic,
+    nameConstraintsMinMaxDiagnostic,
     nameConstraintsNotCriticalDiagnostic,
+    nameConstraintsUriNotFqdnDiagnostic,
     policyConstraintsNotCriticalDiagnostic,
     pathLenWithoutCaDiagnostic,
     policyConstraintsEmptyDiagnostic,
 } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
+import { isFqdn } from '../core/uri.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import type {
     BasicConstraintsExtension,
@@ -45,6 +51,8 @@ import {
 } from './x509-ext-shared.js';
 import { expectUniversalField } from './x509-fields.js';
 import { _readGeneralName } from './x509-general-name.js';
+
+const OID_ANY_EXTENDED_KEY_USAGE = '2.5.29.37.0';
 
 const KEY_USAGES: readonly KeyUsageName[] = [
     'digitalSignature',
@@ -101,6 +109,7 @@ export function decodeKeyUsage(input: ExtensionInput): KeyUsageExtension {
     const bits = _readBitString(bitsNode, ctx);
     const usages = readNamedBits(bits, KEY_USAGES, ctx, path, bitsNode.offset);
     if (usages.length === 0) ctx.emitter.emit(keyUsageEmptyDiagnostic());
+    if (!input.critical) ctx.emitter.emit(keyUsageNotCriticalDiagnostic());
     const extension: KeyUsageExtension = { ...baseOf(input), kind: 'keyUsage', usages: Object.freeze(usages), bits };
     return Object.freeze(extension);
 }
@@ -111,6 +120,7 @@ export function decodeExtendedKeyUsage(input: ExtensionInput): ExtendedKeyUsageE
     const seq = expectSequence(node, path, node.offset);
     expectNonEmpty(seq, path, 'KeyPurposeId');
     const purposes = seq.children.map((child, i) => _readObjectIdentifier(expectUniversalField(child, TAG_OID, `${path}[${i}]`, MALFORMED, seq.offset), ctx));
+    if (input.critical && purposes.includes(OID_ANY_EXTENDED_KEY_USAGE)) ctx.emitter.emit(ekuAnyCriticalDiagnostic());
     const extension: ExtendedKeyUsageExtension = { ...baseOf(input), kind: 'extendedKeyUsage', purposes: Object.freeze(purposes) };
     return Object.freeze(extension);
 }
@@ -164,7 +174,29 @@ export function decodeNameConstraints(input: ExtensionInput): NameConstraintsExt
         excludedSubtrees,
     };
     if (!input.critical) ctx.emitter.emit(nameConstraintsNotCriticalDiagnostic());
+    emitSubtreeDiagnostics(ctx, permittedSubtrees, 'permittedSubtrees');
+    emitSubtreeDiagnostics(ctx, excludedSubtrees, 'excludedSubtrees');
     return Object.freeze(extension);
+}
+
+/**
+ * RFC 5280 §4.2.1.10 on each GeneralSubtree: no bounds, and a URI constraint
+ * that is a fully qualified domain name — a host, or a domain written with
+ * one leading period. Path validation already refuses to let a bounded
+ * subtree cover a name, and matches a URI constraint against the host as
+ * written; these report what the issuer wrote.
+ */
+function emitSubtreeDiagnostics(ctx: Asn1Context, subtrees: readonly GeneralSubtree[] | undefined, field: string): void {
+    if (subtrees === undefined) return;
+    for (let i = 0; i < subtrees.length; i++) {
+        const subtree = subtrees[i] as GeneralSubtree;
+        const at = `tbsCertificate.extensions.nameConstraints.${field}[${String(i)}]`;
+        if (subtree.minimum !== 0 || subtree.maximum !== undefined) ctx.emitter.emit(nameConstraintsMinMaxDiagnostic(at));
+        const base = subtree.base;
+        if (base.kind === 'uniformResourceIdentifier' && !isFqdn(base.value.startsWith('.') ? base.value.slice(1) : base.value)) {
+            ctx.emitter.emit(nameConstraintsUriNotFqdnDiagnostic(base.value, `${at}.base`));
+        }
+    }
 }
 
 /** @internal */
@@ -190,6 +222,8 @@ export function decodePolicyConstraints(input: ExtensionInput): PolicyConstraint
 export function decodeInhibitAnyPolicy(input: ExtensionInput): InhibitAnyPolicyExtension {
     const { node, ctx, path } = input;
     const skipCerts = readCount(expectUniversalField(node, TAG_INTEGER, path, MALFORMED, node.offset), ctx, path);
+    // §4.2.1.14 requires it critical; pkinative enforces it either way.
+    if (!input.critical) ctx.emitter.emit(inhibitAnyPolicyNotCriticalDiagnostic());
     const extension: InhibitAnyPolicyExtension = { ...baseOf(input), kind: 'inhibitAnyPolicy', skipCerts };
     return Object.freeze(extension);
 }

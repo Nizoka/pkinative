@@ -106,6 +106,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/core/pki-limits.ts' },
     { file: 'src/core/pki-reasons.ts' },
     { file: 'src/core/text.ts' },
+    { file: 'src/core/uri.ts' },
     { file: 'src/crypto/cms-verify.ts' },
     { file: 'src/crypto/crypto-algorithms.ts' },
     { file: 'src/crypto/crypto-signature.ts' },
