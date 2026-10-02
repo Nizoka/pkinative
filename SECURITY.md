@@ -234,7 +234,7 @@ There is no external security audit at 1.0 ([ADR 0010](docs/adr/0010-no-external
 - **Seeded adversarial suites** and coverage-guided fuzzing — see [Verification of the Parser](#verification-of-the-parser).
 - **CodeQL** (TypeScript and the GitHub Actions workflows) on every push and pull request to `main`, and weekly; **zizmor** and **actionlint** on every change; **OpenSSF Scorecard** on every push to `main`, and weekly; **Dependency Review** on every pull request, as a required check.
 
-If you need an audit for procurement, open an issue: it will be scoped, and ROADMAP.md will say when it happens.
+There is no external audit and none is planned: pkinative is maintained by one person, and the evidence above is what a reader can re-derive for themselves.
 
 ## Release integrity
 

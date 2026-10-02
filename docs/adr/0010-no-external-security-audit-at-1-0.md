@@ -33,7 +33,7 @@ Chosen option: 2, decided in the 0.2.0 roadmap change. What stands in place, as 
 | Seeded adversarial suites | `tests/fuzzing/`, [SECURITY.md §Verification of the Parser](../../SECURITY.md) |
 | CodeQL, OpenSSF Scorecard and Dependency Review on every change | [SECURITY.md §Code Safety](../../SECURITY.md) |
 
-A user who needs an audit for procurement opens an issue; it will be scoped, and ROADMAP.md will say when it happens.
+Until 1.0.0, a user who needed an audit for procurement was invited to open an issue, for one to be scoped and scheduled in ROADMAP.md; that offer was withdrawn at 1.0.0 (see the amendment below).
 
 ### Consequences
 
@@ -53,3 +53,4 @@ A user who needs an audit for procurement opens an issue; it will be scoped, and
 - When this record was written, ROADMAP.md §1.0.0 said what stands in the audit's place "is named in SECURITY.md", and SECURITY.md named the corpora, the seeded suites, CodeQL, Scorecard and Dependency Review but not the release review or the coverage bar, which live in CONTRIBUTING.md and `vitest.config.ts`. The table above cites each where it actually is.
 - When this record was written, ROADMAP.md §1.0.0 still described the gate as "L0–L5", although the gate had run L6 since 0.5.0 and L8 since 0.7.0.
 - Amended at 1.0.0 (the decision is unchanged): both gaps above are closed. SECURITY.md §In place of an external audit now names the adversarial release audit and 100 % coverage on all four axes, and ROADMAP.md §1.0.0 describes the L0–L8 conformance gate.
+- Amended 2026-10-02, at 1.0.0 (the decision is unchanged): the offer to scope an audit on request is withdrawn. pkinative is maintained by one person, and a promise to scope an engagement it cannot commission is the kind of promise the first driver above removes. SECURITY.md §In place of an external audit and the 1.0.0 release note now say that there is no external audit and none is planned; the evidence in its place is unchanged.
