@@ -48,12 +48,12 @@ function _isIpv4(text: string): boolean {
  */
 function _isIpv6(text: string): boolean {
     let groups = text;
-    const lastColon = groups.lastIndexOf(':');
-    const tail = groups.slice(lastColon + 1);
+    const tail = text.slice(text.lastIndexOf(':') + 1);
     if (tail.includes('.')) {
-        // ls32 as an IPv4address stands for the last two groups.
-        if (lastColon < 0 || !_isIpv4(tail)) return false;
-        groups = `${groups.slice(0, lastColon + 1)}0:0`;
+        // ls32 as an IPv4address stands for the last two groups. Without a
+        // colon at all the result has two groups, which no form accepts.
+        if (!_isIpv4(tail)) return false;
+        groups = text.replace(/[^:]*$/, '0:0');
     }
     const halves = groups.split('::');
     if (halves.length > 2) return false;
@@ -66,49 +66,44 @@ function _isIpv6(text: string): boolean {
 
 /** A URI cut at its RFC 3986 §3 delimiters, before any of the parts is judged. */
 interface _UriParts {
-    readonly scheme: string;
     /** The authority after `//`, or null when the hier-part has none. */
     readonly authority: string | null;
     readonly path: string;
+    /** Everything after the first `?`, a later `?` included, which the query alphabet allows. */
     readonly query: string;
+    /** Everything after the first `#`, a later `#` included, which the fragment alphabet then refuses. */
     readonly fragment: string;
 }
 
 function _split(uri: string): _UriParts | null {
     const scheme = SCHEME.exec(uri);
     if (scheme === null) return null;
-    let rest = uri.slice(scheme[0].length);
-    const hash = rest.indexOf('#');
-    const fragment = hash < 0 ? '' : rest.slice(hash + 1);
-    if (hash >= 0) rest = rest.slice(0, hash);
-    const question = rest.indexOf('?');
-    const query = question < 0 ? '' : rest.slice(question + 1);
-    if (question >= 0) rest = rest.slice(0, question);
-    if (!rest.startsWith('//')) return { scheme: scheme[1] as string, authority: null, path: rest, query, fragment };
-    const slash = rest.indexOf('/', 2);
-    const end = slash < 0 ? rest.length : slash;
-    return { scheme: scheme[1] as string, authority: rest.slice(2, end), path: rest.slice(end), query, fragment };
+    const [beforeFragment, ...fragment] = uri.slice(scheme[0].length).split('#') as [string, ...string[]];
+    const [hierPart, ...query] = beforeFragment.split('?') as [string, ...string[]];
+    const hier = /^\/\/([^/]*)(.*)$/s.exec(hierPart);
+    return {
+        authority: hier === null ? null : hier[1] as string,
+        path: hier === null ? hierPart : hier[2] as string,
+        query: query.join('?'),
+        fragment: fragment.join('#'),
+    };
 }
 
 /**
- * The userinfo, host and port of an authority. An IP literal keeps its
- * brackets; one that does not close, or is followed by anything but a port,
- * is returned whole as the host, which no host rule then accepts.
+ * The userinfo, host and port of an authority: the userinfo ends at the
+ * first `@`, the port starts at the first `:` after the host. An IP literal
+ * keeps its brackets; one that does not close, or is followed by anything
+ * but a port, is returned whole as the host, which no host rule accepts.
  */
 function _authorityHost(authority: string): { readonly userinfo: string; readonly host: string; readonly port: string } {
-    const at = authority.indexOf('@');
-    const userinfo = authority.slice(0, Math.max(at, 0));
-    const hostAndPort = authority.slice(at + 1);
-    if (hostAndPort.startsWith('[')) {
-        const close = hostAndPort.indexOf(']') + 1;
-        const after = hostAndPort.slice(close);
-        if (close === 0 || (after !== '' && !after.startsWith(':'))) return { userinfo, host: hostAndPort, port: '' };
-        return { userinfo, host: hostAndPort.slice(0, close), port: after.slice(1) };
-    }
-    const colon = hostAndPort.indexOf(':');
-    return colon < 0
-        ? { userinfo, host: hostAndPort, port: '' }
-        : { userinfo, host: hostAndPort.slice(0, colon), port: hostAndPort.slice(colon + 1) };
+    const parts = /^(?:([^@]*)@)?(.*)$/s.exec(authority) as RegExpExecArray;
+    const userinfo = parts[1] ?? '';
+    const hostAndPort = parts[2] as string;
+    const literal = /^(\[[^\]]*\])(?::(.*))?$/s.exec(hostAndPort);
+    if (literal !== null) return { userinfo, host: literal[1] as string, port: literal[2] ?? '' };
+    if (hostAndPort.startsWith('[')) return { userinfo, host: hostAndPort, port: '' };
+    const plain = /^([^:]*)(?::(.*))?$/s.exec(hostAndPort) as RegExpExecArray;
+    return { userinfo, host: plain[1] as string, port: plain[2] ?? '' };
 }
 
 /**
@@ -159,7 +154,8 @@ export function uriScheme(text: string): { readonly scheme: string; readonly spe
  * @returns True for a name such as `crl.example.com`.
  */
 export function isFqdn(host: string): boolean {
-    if (host.length === 0 || host.length > 253) return false;
+    // The empty name is one empty label, which the label rule refuses.
+    if (host.length > 253) return false;
     return host.split('.').every((label) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label));
 }
 
@@ -265,10 +261,12 @@ export function uriHost(uri: string): string | null {
  */
 export function ldapUrlFields(text: string): { readonly dn: string | undefined; readonly attributes: string | undefined } | null {
     const scheme = uriScheme(text);
-    if (scheme?.scheme.toLowerCase() !== 'ldap' || !scheme.specific.startsWith('//')) return null;
-    const slash = scheme.specific.indexOf('/', 2);
-    if (slash < 0) return { dn: undefined, attributes: undefined };
-    const [dn, attributes] = scheme.specific.slice(slash + 1).split('?');
+    if (scheme?.scheme.toLowerCase() !== 'ldap') return null;
+    // The hostport runs to the first "/", after which come the dn and the "?"-separated fields.
+    const url = /^\/\/[^/]*(?:\/(.*))?$/s.exec(scheme.specific);
+    if (url === null) return null;
+    if (url[1] === undefined) return { dn: undefined, attributes: undefined };
+    const [dn, attributes] = url[1].split('?');
     return { dn, attributes };
 }
 

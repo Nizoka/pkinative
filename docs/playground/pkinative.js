@@ -973,12 +973,12 @@ function noticeRefUsedDiagnostic(path) {
     void 0
   );
 }
-function explicitTextStringTypeDiagnostic(type, path) {
+function explicitTextStringTypeDiagnostic(path) {
   return _diagnostic(
     "PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE",
     "warning",
     "RFC 5280 \xA74.2.1.4",
-    `a user notice's explicitText is a ${type}; RFC 5280 forbids VisibleString and BMPString there and asks for UTF8String (or IA5String)`,
+    "a user notice's explicitText is a VisibleString or a BMPString, which RFC 5280 forbids there; it asks for UTF8String (or IA5String)",
     path,
     void 0
   );
@@ -2343,11 +2343,10 @@ function _isIpv4(text) {
 }
 function _isIpv6(text) {
   let groups = text;
-  const lastColon = groups.lastIndexOf(":");
-  const tail = groups.slice(lastColon + 1);
+  const tail = text.slice(text.lastIndexOf(":") + 1);
   if (tail.includes(".")) {
-    if (lastColon < 0 || !_isIpv4(tail)) return false;
-    groups = `${groups.slice(0, lastColon + 1)}0:0`;
+    if (!_isIpv4(tail)) return false;
+    groups = text.replace(/[^:]*$/, "0:0");
   }
   const halves = groups.split("::");
   if (halves.length > 2) return false;
@@ -2358,30 +2357,25 @@ function _isIpv6(text) {
 function _split(uri) {
   const scheme = SCHEME.exec(uri);
   if (scheme === null) return null;
-  let rest = uri.slice(scheme[0].length);
-  const hash = rest.indexOf("#");
-  const fragment = hash < 0 ? "" : rest.slice(hash + 1);
-  if (hash >= 0) rest = rest.slice(0, hash);
-  const question = rest.indexOf("?");
-  const query = question < 0 ? "" : rest.slice(question + 1);
-  if (question >= 0) rest = rest.slice(0, question);
-  if (!rest.startsWith("//")) return { scheme: scheme[1], authority: null, path: rest, query, fragment };
-  const slash = rest.indexOf("/", 2);
-  const end = slash < 0 ? rest.length : slash;
-  return { scheme: scheme[1], authority: rest.slice(2, end), path: rest.slice(end), query, fragment };
+  const [beforeFragment, ...fragment] = uri.slice(scheme[0].length).split("#");
+  const [hierPart, ...query] = beforeFragment.split("?");
+  const hier = /^\/\/([^/]*)(.*)$/s.exec(hierPart);
+  return {
+    authority: hier === null ? null : hier[1],
+    path: hier === null ? hierPart : hier[2],
+    query: query.join("?"),
+    fragment: fragment.join("#")
+  };
 }
 function _authorityHost(authority) {
-  const at = authority.indexOf("@");
-  const userinfo = authority.slice(0, Math.max(at, 0));
-  const hostAndPort = authority.slice(at + 1);
-  if (hostAndPort.startsWith("[")) {
-    const close = hostAndPort.indexOf("]") + 1;
-    const after = hostAndPort.slice(close);
-    if (close === 0 || after !== "" && !after.startsWith(":")) return { userinfo, host: hostAndPort, port: "" };
-    return { userinfo, host: hostAndPort.slice(0, close), port: after.slice(1) };
-  }
-  const colon = hostAndPort.indexOf(":");
-  return colon < 0 ? { userinfo, host: hostAndPort, port: "" } : { userinfo, host: hostAndPort.slice(0, colon), port: hostAndPort.slice(colon + 1) };
+  const parts = /^(?:([^@]*)@)?(.*)$/s.exec(authority);
+  const userinfo = parts[1] ?? "";
+  const hostAndPort = parts[2];
+  const literal = /^(\[[^\]]*\])(?::(.*))?$/s.exec(hostAndPort);
+  if (literal !== null) return { userinfo, host: literal[1], port: literal[2] ?? "" };
+  if (hostAndPort.startsWith("[")) return { userinfo, host: hostAndPort, port: "" };
+  const plain = /^([^:]*)(?::(.*))?$/s.exec(hostAndPort);
+  return { userinfo, host: plain[1], port: plain[2] ?? "" };
 }
 function isUri(text) {
   const parts = _split(text);
@@ -2400,7 +2394,7 @@ function uriScheme(text) {
   return scheme === null ? null : { scheme: scheme[1], specific: text.slice(scheme[0].length) };
 }
 function isFqdn(host) {
-  if (host.length === 0 || host.length > 253) return false;
+  if (host.length > 253) return false;
   return host.split(".").every((label) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label));
 }
 function uriAuthorityHost(uri) {
@@ -2434,10 +2428,11 @@ function uriHost(uri) {
 }
 function ldapUrlFields(text) {
   const scheme = uriScheme(text);
-  if (scheme?.scheme.toLowerCase() !== "ldap" || !scheme.specific.startsWith("//")) return null;
-  const slash = scheme.specific.indexOf("/", 2);
-  if (slash < 0) return { dn: void 0, attributes: void 0 };
-  const [dn, attributes] = scheme.specific.slice(slash + 1).split("?");
+  if (scheme?.scheme.toLowerCase() !== "ldap") return null;
+  const url = /^\/\/[^/]*(?:\/(.*))?$/s.exec(scheme.specific);
+  if (url === null) return null;
+  if (url[1] === void 0) return { dn: void 0, attributes: void 0 };
+  const [dn, attributes] = url[1].split("?");
   return { dn, attributes };
 }
 function isHttpOrLdapUri(text) {
@@ -2917,7 +2912,7 @@ function emitDistributionPointDiagnostics(ctx, points, extension) {
       const ldap = ldapUrlFields(name.value);
       if (ldap === null) return;
       const attributes = ldap.attributes ?? "";
-      if (ldap.dn === void 0 || ldap.dn === "" || attributes === "" || attributes.includes(",")) {
+      if (ldap.dn === "" || attributes === "" || attributes.includes(",")) {
         ctx.emitter.emit(distributionPointLdapUriIncompleteDiagnostic(name.value, `${namePath}.fullName[${String(k)}]`));
       }
     });
@@ -2973,7 +2968,7 @@ function emitAccessLocationDiagnostics(ctx, descriptions, method, extension) {
     if (location.kind !== "uniformResourceIdentifier") continue;
     if (isHttpOrLdapUri(location.value)) fetchable = true;
     const ldap = ldapUrlFields(location.value);
-    if (ldap !== null && (ldap.dn === void 0 || ldap.dn === "" || ldap.attributes === void 0 || ldap.attributes === "")) {
+    if (ldap !== null && (ldap.attributes === void 0 || ldap.dn === "" || ldap.attributes === "")) {
       ctx.emitter.emit(infoAccessLdapUriIncompleteDiagnostic(location.value, `tbsCertificate.extensions.${extension}[${String(i)}].accessLocation`));
     }
   }
@@ -3181,8 +3176,8 @@ function readPolicy(node, ctx, path) {
   return Object.freeze(policy);
 }
 function hasControlCharacter2(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
+  for (const character of text) {
+    const code = character.charCodeAt(0);
     if (code < 32 || code >= 127 && code <= 159) return true;
   }
   return false;
@@ -3196,9 +3191,7 @@ function emitQualifierDiagnostics(ctx, policy, policyPath) {
     const text = qualifier.explicitText;
     if (text === void 0) return;
     const textPath = `${at}.explicitText`;
-    if (text.stringType === "visible" || text.stringType === "bmp") {
-      ctx.emitter.emit(explicitTextStringTypeDiagnostic(text.stringType === "bmp" ? "BMPString" : "VisibleString", textPath));
-    }
+    if (text.stringType === "visible" || text.stringType === "bmp") ctx.emitter.emit(explicitTextStringTypeDiagnostic(textPath));
     if (hasControlCharacter2(text.value)) ctx.emitter.emit(explicitTextControlCharacterDiagnostic(textPath));
     if (text.stringType === "utf8" && text.value.normalize("NFC") !== text.value) ctx.emitter.emit(explicitTextNotNfcDiagnostic(textPath));
   });

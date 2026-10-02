@@ -572,3 +572,25 @@ function indexOf(haystack: Uint8Array, needle: Uint8Array): number {
     }
     return -1;
 }
+
+describe('certificatePolicies and policyMappings — the structural guards answer at the structure they guard', () => {
+    const notice = (...parts: readonly Uint8Array[]): Uint8Array => sequence(sequence(oid(DV), sequence(sequence(oid(USER_NOTICE), sequence(...parts)))));
+
+    it.each([
+        ['a context-tagged explicitText', notice(context(0, false, ascii('x'))), 'extnValue[0].policyQualifiers[0].qualifier.explicitText'],
+        ['an INTEGER explicitText', notice(integer([1])), 'extnValue[0].policyQualifiers[0].qualifier.explicitText'],
+        ['a noticeRef of three values', notice(sequence(utf8('Org'), sequence(integer([1])), utf8('x'))), 'extnValue[0].policyQualifiers[0].qualifier.noticeRef'],
+        ['an empty PolicyInformation', sequence(sequence()), 'extnValue[0]'],
+        ['a PolicyInformation of three values', sequence(sequence(oid(DV), sequence(sequence(oid(CPS), ia5('http://cps.example/'))), utf8('x'))), 'extnValue[0]'],
+    ])('should refuse %s at its own path', (_label, value, path) => {
+        expect(thrown(() => decode(OID.certificatePolicies, value))).toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', path });
+    });
+
+    it.each([
+        ['one value', sequence(sequence(oid(DV)))],
+        ['three values', sequence(sequence(oid(DV), oid(OV), oid(DV)))],
+    ])('should refuse a policy mapping of %s at the mapping', (_label, value) => {
+        expect(thrown(() => decode(OID.policyMappings, value, { critical: true, onDiagnostic: () => undefined })))
+            .toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', path: 'extnValue[0]' });
+    });
+});

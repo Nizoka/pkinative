@@ -117,7 +117,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_KEY_USAGE_NOT_CRITICAL', diagnostics.keyUsageNotCriticalDiagnostic()],
         ['PKI_DIAG_ANY_POLICY_QUALIFIER', diagnostics.anyPolicyQualifierDiagnostic('1.2.3.4', 'tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0]')],
         ['PKI_DIAG_NOTICE_REF_USED', diagnostics.noticeRefUsedDiagnostic('tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0].noticeRef')],
-        ['PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE', diagnostics.explicitTextStringTypeDiagnostic('BMPString', 'tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0].explicitText')],
+        ['PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE', diagnostics.explicitTextStringTypeDiagnostic('tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0].explicitText')],
         ['PKI_DIAG_EXPLICIT_TEXT_CONTROL_CHARACTER', diagnostics.explicitTextControlCharacterDiagnostic('tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0].explicitText')],
         ['PKI_DIAG_EXPLICIT_TEXT_NOT_NFC', diagnostics.explicitTextNotNfcDiagnostic('tbsCertificate.extensions.certificatePolicies[0].policyQualifiers[0].explicitText')],
         ['PKI_DIAG_POLICY_MAPPING_NOT_ASSERTED', diagnostics.policyMappingNotAssertedDiagnostic('2.23.140.1.2.1')],

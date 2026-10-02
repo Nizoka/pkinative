@@ -537,6 +537,19 @@ describe('the RFC 5280 §4.1–§4.2 profile diagnostics', () => {
         expect(diagnostics(ca(points(fullName(uri('http://crl.example/'), uri('ldaps://ldap.example.com')))))).toEqual([]);
     });
 
+    it.each([
+        ['\u001f', true], [' ', false], ['~', false], ['\u007f', true], ['\u009f', true], [' ', false],
+    ])('should hold the control-character range of §4.2.1.4 to its ends: %j → %s', (character, reported) => {
+        const seen: string[] = [];
+        decodeExtensionValue(OID.policies, sequence(userNotice(utf8(`a${character}b`))), { onDiagnostic: (d) => { seen.push(d.code); } });
+        expect(seen).toEqual(reported ? ['PKI_DIAG_EXPLICIT_TEXT_CONTROL_CHARACTER'] : []);
+    });
+
+    it('should report an id-ad-caIssuers LDAP URI whose dn is empty', () => {
+        expect(diagnostics(ca(access(OID.aia, CA_ISSUERS, 'ldap://ldap.example.com/?cACertificate'))).map((d) => d.code))
+            .toEqual(['PKI_DIAG_INFO_ACCESS_LDAP_URI_INCOMPLETE']);
+    });
+
     it('should count only directoryNames as the distinguished names of cRLIssuer', () => {
         const der = ca(crlDp(undefined, point(relativeName, crlIssuer(directoryName('CRL A'), dns('crl.example'), uri('http://crl.example/')))));
         expect(diagnostics(der).map((d) => d.code)).toEqual(['PKI_DIAG_DISTRIBUTION_POINT_NO_HTTP_OR_LDAP_URI', 'PKI_DIAG_DISTRIBUTION_POINT_RELATIVE_NAME']);

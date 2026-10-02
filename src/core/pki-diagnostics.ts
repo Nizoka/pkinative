@@ -489,9 +489,9 @@ export function noticeRefUsedDiagnostic(path: string): PkiDiagnostic {
         path, undefined);
 }
 
-export function explicitTextStringTypeDiagnostic(type: string, path: string): PkiDiagnostic {
+export function explicitTextStringTypeDiagnostic(path: string): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE', 'warning', 'RFC 5280 §4.2.1.4',
-        `a user notice's explicitText is a ${type}; RFC 5280 forbids VisibleString and BMPString there and asks for UTF8String (or IA5String)`,
+        'a user notice\'s explicitText is a VisibleString or a BMPString, which RFC 5280 forbids there; it asks for UTF8String (or IA5String)',
         path, undefined);
 }
 

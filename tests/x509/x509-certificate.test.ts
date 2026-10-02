@@ -492,3 +492,46 @@ describe('parseCertificate', () => {
 function utf8Value(text: string): Uint8Array {
     return concat([0x0c, text.length], ascii(text));
 }
+
+describe('parseCertificate — the structural guards answer at the structure they guard', () => {
+    const errorOf = (der: Uint8Array): unknown => thrown(() => parseCertificate(der, QUIET));
+    const SKI_VALUE = octetString([0x04, 0x01, 0x01]);
+
+    it.each([
+        ['one value', sequence(oid('2.5.29.14'))],
+        ['four values', sequence(oid('2.5.29.14'), boolean(true), SKI_VALUE, SKI_VALUE)],
+    ])('should refuse an Extension of %s at the extension itself', (_label, ext) => {
+        const error = errorOf(certificate({ trailing: [explicit(3, sequence(ext))] }));
+        expect(error).toBeInstanceOf(PkiCertificateError);
+        expect(error).toMatchObject({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertificate.extensions[0]' });
+    });
+
+    it.each([
+        ['two', sequence(tbsCertificate(), algorithm(ECDSA_SHA256))],
+        ['four', sequence(tbsCertificate(), algorithm(ECDSA_SHA256), bitString([0x00]), nullValue())],
+    ])('should refuse a Certificate of %s values at the certificate itself', (_label, der) => {
+        expect(errorOf(der)).toMatchObject({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'certificate' });
+    });
+
+    it.each([
+        ['issuerUniqueID', 1],
+        ['subjectUniqueID', 2],
+    ])('should name the repeated %s in the error path', (field, tag) => {
+        const der = certificate({ trailing: [context(tag, false, [0x00, 0xaa]), context(tag, false, [0x00, 0xbb])] });
+        expect(errorOf(der)).toMatchObject({ code: 'PKI_X509_UNIQUE_ID_INVALID', path: `tbsCertificate.${field}` });
+    });
+
+    it('should not call a validity that starts and ends at the same instant inverted', () => {
+        const der = certificate({ validity: sequence(utcTime('250101000000Z'), utcTime('250101000000Z')) });
+        expect(diagnosticsOf(der)).toEqual([]);
+    });
+
+    it('should not hold an organisational commonName with a colon and a space to the SAN', () => {
+        const san = extension('2.5.29.17', sequence(context(2, false, ascii('a.example'))));
+        const der = certificate({
+            subject: name([['2.5.4.3', utf8('Example: CA')]]),
+            trailing: [explicit(3, sequence(BASIC_CONSTRAINTS_CA, SUBJECT_KEY_ID, AUTHORITY_KEY_ID, san))],
+        });
+        expect(diagnosticsOf(der)).toEqual([]);
+    });
+});

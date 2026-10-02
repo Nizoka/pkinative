@@ -126,8 +126,8 @@ function readPolicy(node: Asn1Node, ctx: Asn1Context, path: string): PolicyInfor
 
 /** U+0000 to U+001F and U+007F to U+009F, the control characters §4.2.1.4 names. */
 function hasControlCharacter(text: string): boolean {
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
+    for (const character of text) {
+        const code = character.charCodeAt(0);
         if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
     }
     return false;
@@ -149,9 +149,7 @@ function emitQualifierDiagnostics(ctx: Asn1Context, policy: PolicyInformation, p
         const text = qualifier.explicitText;
         if (text === undefined) return;
         const textPath = `${at}.explicitText`;
-        if (text.stringType === 'visible' || text.stringType === 'bmp') {
-            ctx.emitter.emit(explicitTextStringTypeDiagnostic(text.stringType === 'bmp' ? 'BMPString' : 'VisibleString', textPath));
-        }
+        if (text.stringType === 'visible' || text.stringType === 'bmp') ctx.emitter.emit(explicitTextStringTypeDiagnostic(textPath));
         if (hasControlCharacter(text.value)) ctx.emitter.emit(explicitTextControlCharacterDiagnostic(textPath));
         if (text.stringType === 'utf8' && text.value.normalize('NFC') !== text.value) ctx.emitter.emit(explicitTextNotNfcDiagnostic(textPath));
     });

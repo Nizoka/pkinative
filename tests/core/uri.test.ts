@@ -220,3 +220,34 @@ describe('isHttpOrLdapUri', () => {
         expect(isHttpOrLdapUri(text)).toBe(expected);
     });
 });
+
+describe('the grammar at its edges', () => {
+    it.each([
+        // An IPv4 tail whose first octet is one digit: the tail is cut after the last colon, not later.
+        ['http://[::ffff:1.2.3.4]/', true],
+        // Two "::" are refused even when the groups would add up to eight.
+        ['http://[1:2::3:4::5:6:7:8]/', false],
+        // A fragment or a query whose first character is outside its alphabet.
+        ['x:#[', false],
+        ['x:?[', false],
+        ['x:#', true],
+        ['x:?', true],
+        // A port that starts with a digit and goes wrong after it, behind a literal and behind a name.
+        ['http://[::1]:8x/', false],
+        ['http://host:8x/', false],
+        // A userinfo that goes wrong at its first character.
+        ['http:// a@example.com/', false],
+        ['http://@example.com/', true],
+    ])('%s → %s', (text, expected) => {
+        expect(isUri(text)).toBe(expected);
+    });
+
+    it('should take a one-character label as a name', () => {
+        expect(isFqdn('a')).toBe(true);
+        expect(isFqdnOrIpHost('a')).toBe(true);
+    });
+
+    it('should read an LDAP URL whose path is a bare slash as an empty dn without attributes', () => {
+        expect(ldapUrlFields('ldap://ldap.example.com/')).toEqual({ dn: '', attributes: undefined });
+    });
+});

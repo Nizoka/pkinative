@@ -149,8 +149,10 @@ function emitDistributionPointDiagnostics(ctx: Asn1Context, points: readonly Dis
             if (name.kind !== 'uniformResourceIdentifier') return;
             const ldap = ldapUrlFields(name.value);
             if (ldap === null) return;
+            // No `/` after the host leaves both fields undefined, so a missing
+            // attribute list also covers a missing dn.
             const attributes = ldap.attributes ?? '';
-            if (ldap.dn === undefined || ldap.dn === '' || attributes === '' || attributes.includes(',')) {
+            if (ldap.dn === '' || attributes === '' || attributes.includes(',')) {
                 ctx.emitter.emit(distributionPointLdapUriIncompleteDiagnostic(name.value, `${namePath}.fullName[${String(k)}]`));
             }
         });
@@ -220,7 +222,7 @@ function emitAccessLocationDiagnostics(ctx: Asn1Context, descriptions: readonly 
         if (location.kind !== 'uniformResourceIdentifier') continue;
         if (isHttpOrLdapUri(location.value)) fetchable = true;
         const ldap = ldapUrlFields(location.value);
-        if (ldap !== null && (ldap.dn === undefined || ldap.dn === '' || ldap.attributes === undefined || ldap.attributes === '')) {
+        if (ldap !== null && (ldap.attributes === undefined || ldap.dn === '' || ldap.attributes === '')) {
             ctx.emitter.emit(infoAccessLdapUriIncompleteDiagnostic(location.value, `tbsCertificate.extensions.${extension}[${String(i)}].accessLocation`));
         }
     }
