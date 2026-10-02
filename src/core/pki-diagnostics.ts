@@ -7,8 +7,9 @@
  *
  * Every diagnostic of an operation is recorded (parse results expose them),
  * and delivered to exactly one place:
- *   - `strict: true` → the first diagnostic throws a `PkiError` with code
- *     `PKI_STRICT_DIAGNOSTIC`, before any result is returned;
+ *   - `strict: true` → the first `warning` diagnostic throws a `PkiError` with
+ *     code `PKI_STRICT_DIAGNOSTIC`, before any result is returned; an `info`
+ *     diagnostic — a SHOULD the input did not follow — is reported, never thrown;
  *   - `onDiagnostic` → the handler receives every diagnostic;
  *   - default → `console.warn`, once per code per operation.
  *
@@ -52,7 +53,13 @@ export function createDiagnosticEmitter(strict: boolean | undefined, handler: Pk
     return {
         diagnostics: recorded,
         emit(diagnostic: PkiDiagnostic): void {
-            if (strict === true) {
+            // A warning is a MUST the input broke; an info is a SHOULD it did
+            // not follow. `strict` refuses the first and reports the second:
+            // nine thousand end-entity certificates of x509-limbo omit the
+            // subjectKeyIdentifier RFC 5280 only recommends, and a strict
+            // reader that refused every one of them would be a reader nobody
+            // could leave on.
+            if (strict === true && diagnostic.severity === 'warning') {
                 throw new PkiError('PKI_STRICT_DIAGNOSTIC',
                     `pkinative: [${diagnostic.code}] ${diagnostic.message} — refused because strict: true; omit it to accept the input with this diagnostic`);
             }

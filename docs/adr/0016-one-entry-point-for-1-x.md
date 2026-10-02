@@ -60,3 +60,7 @@ What holds for 1.x:
 - [ADR 0007](0007-no-subpath-exports-before-1-0.md), which this record supersedes.
 - [`tsup.config.ts`](../../tsup.config.ts) — the single entry, `splitting: false` today.
 - Measurement: `npm run build`, then the size of `dist/index.d.ts`; and a consumer compiled with `tsc --extendedDiagnostics`, `skipLibCheck: false`, `lib: ["es2020", "dom"]`, at TypeScript 5.9.3.
+
+## Amendments
+
+- **2026-10-02, before the first publication.** `dist/index.d.ts` measures 314 129 bytes, past the 310 000-byte trigger above. The cause is reviewed: the final review added 37 diagnostic codes with their TSDoc — the 36 RFC 5280 §4.1–§4.2 sentences the L5 inventory recorded as not diagnosed, and the RSA-exponent, EC-parameter and control-character profile checks — and every one is a string literal in the `PkiDiagnosticCode` union plus its sentence in `docs/data/diagnostics.json`, not a new module. **The decision is unchanged:** one entry point for 1.x. What the trigger asked for was a review of *why* the declarations grew, and the answer is "the registry's vocabulary", which a subpath would not shrink — a consumer who imports `parseCertificate` still needs every diagnostic code it may emit. The budget in `declared.bundle` moves to 320 000 bytes, and the next trigger is a declaration file over 400 000 bytes or a measured consumer type-check regression, whichever comes first.

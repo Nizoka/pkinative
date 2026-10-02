@@ -85,7 +85,7 @@ const cert = parseCertificate(der, { onDiagnostic: (d) => log(d.code, d.path, d.
 cert.diagnostics;   // the same list, in order
 ```
 
-By default each code is also written to `console.warn`, once per code in each call; `onDiagnostic` replaces that, and `strict: true` turns the first diagnostic into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC` — the choice for a verifier that accepts only clean certificates.
+By default each code is also written to `console.warn`, once per code in each call; `onDiagnostic` replaces that, and `strict: true` turns the first `warning` diagnostic — a MUST the input broke — into a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`, and still reports every `info` — a SHOULD it did not follow — the choice for a verifier that accepts only clean certificates without refusing the Web PKI's own profile.
 
 ## Errors: branch on the code
 

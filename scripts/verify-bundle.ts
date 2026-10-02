@@ -80,20 +80,30 @@ const MARKERS = {
  * Crypto bridge. A layer diagram is a drawing until something weighs it.
  */
 export const PROBES: readonly Probe[] = [
-    { exports: ['decodeAsn1'], maxBytes: 14 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
+    // Final review (2026-10-02): 14 KB → 15 KB, measured at 14.5 KB — every frame
+    // now carries the bound no child may cross (an indefinite child held to its
+    // definite parent, P-03).
+    { exports: ['decodeAsn1'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
     { exports: ['decodePem', 'encodePem'], maxBytes: 13 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     // 1.0.0 audit: 64 KB → 70 KB, measured at 67.7 KB — the RFC 5280 Appendix A
     // name-syntax table and its two diagnostics, the X.690 §8.23 string checks,
     // and the subjectDirectoryAttributes decoder that makes "every RFC 5280
     // extension" true.
-    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 70 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
+    // Final review (2026-10-02): 70 KB → 86 KB, measured at 84.2 KB — the 36 RFC 5280
+    // §4.1–§4.2 profile diagnostics the L5 inventory recorded as not diagnosed,
+    // the RFC 3986/4516 grammar they need (core/uri.ts), the EC-parameter and
+    // RSA-exponent diagnostics and the control-character check on general names.
+    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 86 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
     // 1.0.0 audit: 11 KB → 12 KB, measured at 11.1 KB — the PkiError brand that
     // keeps instanceof true across the ESM and CJS builds.
     { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 12 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
     { exports: ['getOidName'], maxBytes: 19 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     // 1.0.0 audit: 17 KB → 18 KB, measured at 17.4 KB — the RFC 4055 §1.2/§3.3
     // rules for id-RSASSA-PSS keys and the error brand.
-    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 18 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // Final review (2026-10-02): 18 KB → 19 KB, measured at 18.8 KB — the RSA public
+    // exponent refused below 3 or even (RFC 8017 §3.1), and the RSASSA-PSS
+    // parameter grammar enforced field by field.
+    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 19 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The builder from the same angle: writing a certificate ships no reader.
     // It carries the ASN.1 *encoders* by necessity, so the decoder marker is
     // the one that matters here — an app that only issues certificates must
@@ -125,7 +135,10 @@ export const PROBES: readonly Probe[] = [
     // 1.0.0 audit: 22 KB → 25 KB, measured at 23.6 KB — the RFC 3986 host reader
     // for URI constraints and SmtpUTF8Mailbox under rfc822Name subtrees — two
     // constraint bypasses closed.
-    { exports: ['validateCertificatePath'], maxBytes: 25 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // Final review (2026-10-02): 25 KB → 26 KB, measured at 25.1 KB — the anchor
+    // matched by name and key, the §6.1.5 (g)(iii) intersection, v1/v2
+    // intermediates refused and the implicit anchor counted.
+    { exports: ['validateCertificatePath'], maxBytes: 26 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "Revocation is synchronous and carries no crypto", weighed. The Web
     // Crypto marker is the invariant: `checkRevocation` takes a signature
     // verdict rather than a key, and a bundle retaining the bridge would mean
@@ -153,7 +166,11 @@ export const PROBES: readonly Probe[] = [
     // 1.0.0 audit: 64 KB → 72 KB, measured at 69.4 KB — REVOKED only from
     // authenticated, applicable evidence, plus the decoder and string-check
     // growth of the certificate parser it reaches.
-    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 72 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // Final review (2026-10-02): 72 KB → 87 KB, measured at 85.4 KB — the cursor
+    // aligned with the decoder, the entry-extension walk of §5.3, the
+    // distribution-point reasons mask, and the profile diagnostics the list's
+    // issuer and extensions share with the certificate reader.
+    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 87 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // 156 KB → 164 KB, measured at 157.9 KB: the purpose check and the
     // composition layer. The roadmap's own projection for 1.0 is ~320 KB, so
     // this figure is on track; it is raised in the commit that measures it,
@@ -181,7 +198,11 @@ export const PROBES: readonly Probe[] = [
     // 1.0.0 audit: 128 KB → 138 KB, measured at 133.3 KB — the path and
     // revocation fixes above, the commonName fallback held to dNSName
     // constraints, and the parser growth.
-    { exports: ['verifyCertificateChain'], maxBytes: 138 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // Final review (2026-10-02): 138 KB → 158 KB, measured at 156.1 KB — the sum
+    // of the leaves above, plus the off-path CRL issuer validated with its own
+    // links, the delegated responder's revocation, OCSP freshness and the
+    // re-rooted reason paths.
+    { exports: ['verifyCertificateChain'], maxBytes: 158 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.7 band, weighed from four sides — measured 2026-09-29 at 70.5,
     // 35.2, 17.2 and 167.2 KB.
     //
@@ -191,7 +212,9 @@ export const PROBES: readonly Probe[] = [
     // one — which is most of the 70 KB.
     // 1.0.0 audit: 76 KB → 80 KB, measured at 76.4 KB — the parser growth it
     // inherits and the error brand.
-    { exports: ['parseSignedData', 'parseTimeStampToken', 'parseTimeStampResponse', 'parseTstInfo'], maxBytes: 80 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.pem] },
+    // Final review (2026-10-02): 80 KB → 92 KB, measured at 90.7 KB — the stricter
+    // cursor, the PSS grammar, and the certificate reader's new diagnostics.
+    { exports: ['parseSignedData', 'parseTimeStampToken', 'parseTimeStampResponse', 'parseTstInfo'], maxBytes: 92 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.pem] },
     // "build never imports x509": the signer's certificate enters as DER and
     // its issuer and serial are lifted from the encoding, never re-rendered.
     // The hashes are here by necessity — `messageDigest` is one.
@@ -200,12 +223,16 @@ export const PROBES: readonly Probe[] = [
     // through Web Crypto, so it carries neither the parser nor the SHA code.
     // 1.0.0 audit: 19 KB → 20 KB, measured at 19.1 KB — the RFC 4055 rules,
     // shared with resolveCmsAlgorithm.
-    { exports: ['verifySignerInfoSignature'], maxBytes: 20 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
+    // Final review (2026-10-02): 20 KB → 21 KB, measured at 20.5 KB — the RSA
+    // exponent refusal and the RSASSA-PSS parameter grammar.
+    { exports: ['verifySignerInfoSignature'], maxBytes: 21 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
     // The two CMS verdicts are `verifyCertificateChain` plus the CMS layer,
     // which is exactly what they are: 121.7 + ~45 KB.
     // 1.0.0 audit: 176 KB → 190 KB, measured at 182.9 KB — everything
     // verifyCertificateChain gained, plus the CMS layer.
-    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 190 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // Final review (2026-10-02): 190 KB → 210 KB, measured at 206.0 KB — the chain
+    // report's growth above, the SHA-1 imprint gate and the clock read once.
+    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 210 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.8 band, weighed from three sides — measured 2026-09-29 at 39.8,
     // 44.3 and 94.4 KB.
     //
@@ -219,7 +246,10 @@ export const PROBES: readonly Probe[] = [
     { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 50 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The one call parses every certificate the file carries, to match each
     // key to the one naming its algorithm: the certificate parser is the price.
-    { exports: ['openPkcs12'], maxBytes: 104 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // Final review (2026-10-02): 104 KB → 120 KB, measured at 118.5 KB — the
+    // certificate reader's profile diagnostics, which the bag's certificates
+    // pass through, and the PBMAC1 key-length floor.
+    { exports: ['openPkcs12'], maxBytes: 120 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
     // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules;
     // 172 KB → 236 KB, measured at 225.3 KB with CMS and RFC 3161 — the largest
@@ -229,7 +259,9 @@ export const PROBES: readonly Probe[] = [
     // the last subsystem before 1.0, and within the ~320 KB projection.
     // 1.0.0 audit: 272 KB → 280 KB, measured at 272.9 KB — the whole of the
     // above; still under the ~320 KB projection for 1.0.
-    { exports: ['*'], maxBytes: 280 * 1024, mustNotContain: [] },
+    // Final review (2026-10-02): 280 KB → 300 KB, measured at 296.3 KB — the sum of
+    // the leaves above: 37 diagnostics and the checks behind them.
+    { exports: ['*'], maxBytes: 300 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

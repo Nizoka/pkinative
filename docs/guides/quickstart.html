@@ -264,7 +264,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 <pre><code class="language-ts">const cert = parseCertificate(der, { onDiagnostic: (d) =&gt; log(d.code, d.path, d.standard) });
 cert.diagnostics;   // the same list, in order
 </code></pre>
-<p>By default each code is also written to <code>console.warn</code>, once per code in each call; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first diagnostic into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code> — the choice for a verifier that accepts only clean certificates.</p>
+<p>By default each code is also written to <code>console.warn</code>, once per code in each call; <code>onDiagnostic</code> replaces that, and <code>strict: true</code> turns the first <code>warning</code> diagnostic — a MUST the input broke — into a thrown <code>PkiError</code> with code <code>PKI_STRICT_DIAGNOSTIC</code>, and still reports every <code>info</code> — a SHOULD it did not follow — the choice for a verifier that accepts only clean certificates without refusing the Web PKI&#39;s own profile.</p>
 <h2 id="errors-branch-on-the-code">Errors: branch on the code <a class="heading-anchor" href="#errors-branch-on-the-code" aria-label="Link to this section">#</a></h2>
 <p>Every failure is a <code>PkiError</code> subclass with a stable <code>code</code>, a message that starts with <code>pkinative: </code> and names the remedy, and — for certificates — the <code>path</code> and <code>offset</code> of the offending field:</p>
 <pre><code class="language-ts">import { parseCertificate, PkiCertificateError, PkiError, PkiLimitError } from &#39;pkinative&#39;;

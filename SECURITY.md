@@ -90,7 +90,7 @@ Security fixes stay possible within 1.x because every one found so far made pkin
 
 ### What is not promised
 
-- **Diagnostics.** A diagnostic code is never renamed or removed, but its severity and wording may change in a minor — so under `strict: true`, which turns diagnostics into `PKI_STRICT_DIAGNOSTIC`, a certificate may become refused in a minor.
+- **Diagnostics.** A diagnostic code is never renamed or removed, but its severity and wording may change in a minor — so under `strict: true`, which turns the first `warning` into `PKI_STRICT_DIAGNOSTIC` and reports every `info`, a certificate may become refused, or stop being refused, in a minor.
 - **Message wording.** The code and the class are the contract; the sentence after `pkinative: `, a reason's `message` and the clause its `standard` cites are for a human, and a cited clause may become more precise.
 - **The exact `path` and `offset`** of an error or a reason, beyond the grammar above: they move when a check moves.
 - **Order and counts.** The order of `reasons` (treat them as a set), the counts a report carries (`explored`, `signatureVerifications`) and the order of properties in a returned object.

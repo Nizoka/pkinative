@@ -438,4 +438,27 @@ describe('wrapUpPolicies — §6.1.5', () => {
         expect(wrapUpPolicies(state, [P1, P3])).toEqual([P1, P3]);
         expect(wrapUpPolicies(state, [])).toEqual([ANY_POLICY]);
     });
+
+    it('should not add a user policy the anyPolicy node already stands beside', () => {
+        // Certificate 1 asserts P1 and anyPolicy, certificate 2 only anyPolicy:
+        // the bottom holds P1 (under P1) and anyPolicy (under anyPolicy). The
+        // user's P1 is already named under the root, so only P3 is added when
+        // the anyPolicy leaf is replaced.
+        const state = initialPolicyState(2, true, false, false);
+        growPolicyTree(state, [policy(P1), policy(ANY_POLICY)], MAX);
+        growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+        expect(wrapUpPolicies(state, [P1, P3])).toEqual([P1, P3]);
+    });
+
+    it('should intersect a tree a mapping kill has pruned, judging only the live sibling', () => {
+        // Mapping inhibited: applyPolicyMappings kills the mapped node and
+        // prunes, so the root's children hold the live sibling alone and the
+        // intersection judges that one.
+        const state = initialPolicyState(1, true, false, false);
+        growPolicyTree(state, [policy(P1), policy(P2)], MAX);
+        state.policyMapping = 0;
+        applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P3 }]);
+        expect(wrapUpPolicies(state, [P2])).toEqual([P2]);
+        expect(wrapUpPolicies(state, [P1])).toBeNull();
+    });
 });

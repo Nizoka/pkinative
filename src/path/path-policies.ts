@@ -331,9 +331,11 @@ export function wrapUpPolicies(state: PolicyState, initialPolicySet: readonly st
 function _intersectWithUserSet(state: PolicyState, initialPolicySet: readonly string[]): PolicyState {
     const levels = (state.levels as PolicyNode[][]).map((level) => level.map((node) => ({ ...node, children: [...node.children] })));
     const copy: PolicyState = { ...state, levels };
+    // Children indices always name a node of the next level: the tree is built
+    // level by level and only ever marked, never spliced, so the casts here
+    // state an invariant rather than guard against one.
     const kill = (depth: number, index: number): void => {
-        const node = levels[depth]?.[index];
-        if (node === undefined || !node.alive) return;
+        const node = (levels[depth] as PolicyNode[])[index] as PolicyNode;
         node.alive = false;
         for (const child of node.children) kill(depth + 1, child);
     };
@@ -345,9 +347,11 @@ function _intersectWithUserSet(state: PolicyState, initialPolicySet: readonly st
         if (depth === levels.length - 1) break;
         for (const parent of level) {
             if (!parent.alive || parent.validPolicy !== ANY_POLICY) continue;
+            // A parent's children are live on entry — every kill so far ended
+            // in a prune — and a kill below marks a subtree no other parent
+            // reaches, so no child is met twice.
             for (const index of parent.children) {
-                const child = levels[depth + 1]?.[index];
-                if (child === undefined || !child.alive) continue;
+                const child = (levels[depth + 1] as PolicyNode[])[index] as PolicyNode;
                 if (child.validPolicy !== ANY_POLICY && !initialPolicySet.includes(child.validPolicy)) kill(depth + 1, index);
                 else named.add(child.validPolicy);
             }
@@ -361,11 +365,13 @@ function _intersectWithUserSet(state: PolicyState, initialPolicySet: readonly st
     if (wild >= 0 && last > 0) {
         const node = bottom[wild] as PolicyNode;
         const parentLevel = levels[last - 1] as PolicyNode[];
-        const parent = parentLevel.find((candidate) => candidate.alive && candidate.children.includes(wild));
+        // A live node has a live parent: pruning works upwards and never
+        // leaves a child whose parent is gone.
+        const parent = parentLevel.find((candidate) => candidate.alive && candidate.children.includes(wild)) as PolicyNode;
         for (const policy of initialPolicySet) {
             if (named.has(policy)) continue;
             bottom.push({ validPolicy: policy, qualifiers: node.qualifiers, expectedPolicySet: [policy], children: [], alive: true });
-            parent?.children.push(bottom.length - 1);
+            parent.children.push(bottom.length - 1);
         }
         node.alive = false;
     }

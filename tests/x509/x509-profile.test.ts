@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { decodeExtensionValue } from '../../src/x509/x509-extensions.js';
@@ -101,6 +102,9 @@ interface Row {
 
 const LDAP_CRL = 'ldap://ldap.example.com/cn=Example%20CA,dc=example,dc=com?certificateRevocationList;binary';
 const LDAP_CERTS = 'ldap://ldap.example.com/cn=Example%20CA,dc=example,dc=com?cACertificate;binary,crossCertificatePair;binary';
+
+/** Severity by code, from the registry: what `strict` refuses is a warning, what it reports is an info. */
+const SEVERITY = new Map((JSON.parse(readFileSync('docs/data/diagnostics.json', 'utf8')) as { diagnostics: Array<{ code: string; severity: string }> }).diagnostics.map((d) => [d.code, d.severity]));
 
 const ROWS: readonly Row[] = [
     {
@@ -433,7 +437,17 @@ describe('the RFC 5280 §4.1–§4.2 profile diagnostics', () => {
         expect(diagnostics(passes).map((d) => d.code)).toEqual([]);
     });
 
-    it.each(ROWS)('$code ($ids): refused under strict: true', ({ code, fails, before }) => {
+    it.each(ROWS)('$code ($ids): under strict: true a warning refuses and an info is only reported', ({ code, fails, before }) => {
+        // `strict` refuses the first MUST the certificate broke; a SHOULD it did
+        // not follow is advice to the issuer, delivered and never thrown.
+        const emitted = [...(before ?? []), code];
+        const firstWarning = emitted.find((c) => SEVERITY.get(c) === 'warning');
+        if (firstWarning === undefined) {
+            const seen: string[] = [];
+            parseCertificate(fails, { strict: true, onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(seen).toEqual(emitted);
+            return;
+        }
         let caught: unknown;
         try {
             parseCertificate(fails, { strict: true });
@@ -442,7 +456,7 @@ describe('the RFC 5280 §4.1–§4.2 profile diagnostics', () => {
         }
         expect(caught).toBeInstanceOf(PkiError);
         expect(caught).toMatchObject({ code: 'PKI_STRICT_DIAGNOSTIC' });
-        expect((caught as PkiError).message).toContain(`[${before?.[0] ?? code}]`);
+        expect((caught as PkiError).message).toContain(`[${firstWarning}]`);
     });
 
     it('should give a MUST a warning and a SHOULD an info', () => {

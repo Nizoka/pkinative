@@ -37,7 +37,7 @@ Every thrown failure is a `PkiError` or one of its six subclasses — `PkiEncodi
 
 ## Diagnostics are not errors
 
-Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has one. By default each code is logged with `console.warn`, once per code in each call; pass `onDiagnostic` to silence or redirect that.
+Profile concerns (a long serial, an explicit DEFAULT, a non-critical name constraint) are diagnostics on `cert.diagnostics`, also passed to `onDiagnostic`. Use `strict: true` to refuse any certificate that has a `warning` one; an `info` (a SHOULD, such as an end entity without a subjectKeyIdentifier) is reported either way and never refuses. By default each code is logged with `console.warn`, once per code in each call; pass `onDiagnostic` to silence or redirect that.
 
 ## Signed messages and timestamps
 

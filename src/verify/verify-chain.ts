@@ -439,11 +439,13 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     // a list that clears it. Its links are verified here, on demand: an
     // indirect CRL issuer (§5.2.5, PKITS 4.14) is a name the leaf's own chain
     // never reaches, and a signer nobody vouched for is not believed.
-    const bag = ctx.input.candidates ?? [];
+    // A candidate off the path and not an anchor came from the bag, so the bag
+    // exists; `reading.limits` is set where `reading` is built.
+    const bag = ctx.input.candidates as readonly Certificate[];
     await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
     const own = buildCertificatePath({
         leaf: candidate, candidates: bag, trustAnchors: ctx.input.trustAnchors, at: ctx.at,
-        signatures: [...ctx.verdicts.values()], limits: ctx.reading.limits ?? {},
+        signatures: [...ctx.verdicts.values()], limits: ctx.reading.limits as Partial<PkiLimits>,
     });
     if (!own.valid) return false;
     return await _unrevokedOnLists(ctx, candidate);

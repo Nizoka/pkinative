@@ -422,7 +422,7 @@ function createDiagnosticEmitter(strict, handler) {
   return {
     diagnostics: recorded,
     emit(diagnostic) {
-      if (strict === true) {
+      if (strict === true && diagnostic.severity === "warning") {
         throw new PkiError(
           "PKI_STRICT_DIAGNOSTIC",
           `pkinative: [${diagnostic.code}] ${diagnostic.message} \u2014 refused because strict: true; omit it to accept the input with this diagnostic`
@@ -5636,8 +5636,7 @@ function _intersectWithUserSet(state, initialPolicySet) {
   const levels = state.levels.map((level) => level.map((node) => ({ ...node, children: [...node.children] })));
   const copy = { ...state, levels };
   const kill = (depth, index) => {
-    const node = levels[depth]?.[index];
-    if (node === void 0 || !node.alive) return;
+    const node = levels[depth][index];
     node.alive = false;
     for (const child of node.children) kill(depth + 1, child);
   };
@@ -5647,8 +5646,7 @@ function _intersectWithUserSet(state, initialPolicySet) {
     for (const parent of level) {
       if (!parent.alive || parent.validPolicy !== ANY_POLICY) continue;
       for (const index of parent.children) {
-        const child = levels[depth + 1]?.[index];
-        if (child === void 0 || !child.alive) continue;
+        const child = levels[depth + 1][index];
         if (child.validPolicy !== ANY_POLICY && !initialPolicySet.includes(child.validPolicy)) kill(depth + 1, index);
         else named.add(child.validPolicy);
       }
@@ -5664,7 +5662,7 @@ function _intersectWithUserSet(state, initialPolicySet) {
     for (const policy of initialPolicySet) {
       if (named.has(policy)) continue;
       bottom.push({ validPolicy: policy, qualifiers: node.qualifiers, expectedPolicySet: [policy], children: [], alive: true });
-      parent?.children.push(bottom.length - 1);
+      parent.children.push(bottom.length - 1);
     }
     node.alive = false;
   }
@@ -6270,7 +6268,6 @@ function mgf1HashOf(algorithm, oid) {
 var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
 var isPkcs1Key = (key) => key.kind === "rsa";
 function _refuseWeakRsaExponent(key, oid) {
-  if (key.kind !== "rsa" && key.kind !== "rsa-pss") return;
   const e = key.publicExponent;
   if (e < 3n || (e & 1n) === 0n) {
     throw new PkiCryptoError(
@@ -7193,7 +7190,7 @@ async function _signerStillGood(ctx, candidate) {
   const mine = _hex2(candidate.der);
   if (ctx.path.some((c) => _hex2(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex2(c.der) === mine)) return true;
   if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
-  const bag = ctx.input.candidates ?? [];
+  const bag = ctx.input.candidates;
   await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
   const own = buildCertificatePath({
     leaf: candidate,
@@ -7201,7 +7198,7 @@ async function _signerStillGood(ctx, candidate) {
     trustAnchors: ctx.input.trustAnchors,
     at: ctx.at,
     signatures: [...ctx.verdicts.values()],
-    limits: ctx.reading.limits ?? {}
+    limits: ctx.reading.limits
   });
   if (!own.valid) return false;
   return await _unrevokedOnLists(ctx, candidate);

@@ -72,3 +72,44 @@ End-to-end, after retreating on `_sextet` only (three accepted runs; control in 
 | `computeFingerprint` SHA-256 — leaf | 51 974 | 0.019 | 0.105 | ±1.9 % |
 
 Reading: parsing a real end-entity certificate with every extension decoded takes about 0.17 ms on a 2014 laptop CPU; half of it is extension decoding, which `decodeExtensions: false` skips for tools that only need the envelope. The high relative error of the first `decodeAsn1` row is JIT warm-up on the first benchmark of the run, not a property of the decoder.
+
+## 2026-10-02 — 1.0.0, every verb family measured before the first publication
+
+- **Command:** `npm run bench` (`vitest bench --run`, vitest 4.1.11, default tinybench warm-up and iterations), on an otherwise idle machine; an earlier run under three concurrent agent sessions gave relative errors of 20–40 % and was discarded
+- **Runtime:** Node.js v22.17.0, win32 x64
+- **Machine:** Intel Core i7-4510U @ 2.00 GHz, 4 logical cores, laptop on mains power, otherwise idle
+- **Inputs:** as the 2026-09-25 section for `bench/asn1-x509.bench.ts`, plus the small Ed25519 PKI of `bench/path-revocation.bench.ts` (a root, a leaf, twenty bystanders, a 10 000-entry CRL and one OCSP answer, every signature real) and the containers of `bench/cms-keys.bench.ts` (an ECDSA P-256 signer under a root, a timestamp token, a PKCS#8 key plain and under PBES2 with 2 048 iterations, a PBMAC1 PKCS#12). `vitest bench` reports the asn1-x509 file three times in one run; the first table is recorded.
+
+Rows whose name says "dominates" are Web Crypto benchmarks with pkinative's decoding attached, and are not pkinative's speed.
+
+| Benchmark | ops/s | mean (ms) | p99 (ms) | rme |
+|---|---|---|---|---|
+| `verifyCertificateChain` — leaf under a root, name checked (Ed25519 verify dominates) | 1 174 | 0.852 | 1.535 | ±1.8 % |
+| `buildCertificatePath` — leaf, 20 bystanders in the bag, verdicts supplied | 4 521 | 0.221 | 0.664 | ±2.7 % |
+| `validateCertificatePath` — §6 over [leaf], anchor implicit, verdicts supplied | 6 977 | 0.143 | 0.368 | ±1.4 % |
+| `parseCertificateList` — 10 000 entries | 437 | 2.289 | 5.450 | ±5.9 % |
+| `checkRevocation` — one serial against 10 000 entries, signature verdict supplied | 56 | 17.867 | 30.641 | ±7 % |
+| `verifyCertificateChain` — with a 10 000-entry CRL, required (parse, sign check, lookup) | 24 | 41.919 | 43.645 | — |
+| `parseOcspResponse` — one good answer | 24 432 | 0.041 | 0.132 | ±4.8 % |
+| `checkOcspStatus` — one good answer, verdicts supplied | 744 906 | 0.0013 | 0.0026 | ±6.4 % |
+| `decodeAsn1` — ISRG Root X1 (1 391 B, RSA 4096) | 30 755 | 0.033 | 0.072 | ±1.2 % |
+| `decodeAsn1` — letsencrypt.org leaf (1 098 B) | 16 647 | 0.060 | 0.223 | ±7.4 % |
+| `parseCertificate` — ISRG Root X1 | 3 471 | 0.288 | 0.962 | ±5.5 % |
+| `parseCertificate` — letsencrypt.org leaf, 10 extensions | 1 975 | 0.506 | 3.526 | ±11.3 % |
+| `parseCertificate` — leaf, `decodeExtensions: false` | 4 198 | 0.238 | 1.242 | ±14.1 % |
+| `decodePem` — six-certificate bundle | 7 582 | 0.132 | 0.300 | ±1.0 % |
+| `computeFingerprint` SHA-256 — leaf | 55 557 | 0.018 | 0.069 | ±1.3 % |
+| `encodeDistinguishedName` — two RDNs | 62 924 | 0.016 | 0.040 | ±1.0 % |
+| `encodeExtensions` — three extensions | 44 148 | 0.023 | 0.051 | ±0.9 % |
+| `createCertificate` — v3, three extensions (ECDSA P-256 sign dominates) | 1 932 | 0.518 | 4.007 | ±16.9 % |
+| `parseSignedData` — one signer, one certificate | 5 560 | 0.180 | 0.570 | ±6.5 % |
+| `verifySignedData` — attached, one ECDSA P-256 signer under a root (verify dominates) | 402 | 2.490 | 3.924 | ±2.4 % |
+| `verifySignedData` — detached, content supplied | 397 | 2.521 | 4.804 | ±3.0 % |
+| `verifyTimeStampToken` — token against its imprint, TSA under a root | 379 | 2.637 | 5.778 | ±7.7 % |
+| `importPrivateKey` — PKCS#8 ECDSA P-256 | 716 | 1.397 | 2.820 | ±2.8 % |
+| `decryptPrivateKey` — PBES2, PBKDF2 2 048 iterations, AES-256-CBC (PBKDF2 dominates) | 244 | 4.106 | 6.941 | ±2.8 % |
+| `openPkcs12` — PBMAC1, one shrouded key, two certificates (three PBKDF2 runs dominate) | 95 | 10.500 | 16.802 | — |
+
+**What the new rows say.** The decision paths cost what their signatures cost: the chain report is one Ed25519 verification plus a tenth of a millisecond of §6; the path search over twenty bystanders and the §6 walk alone run in the hundreds of microseconds. A 10 000-entry list parses in 2.3 ms and is consulted in 18 ms — the lookup decodes entries while the parse only walks them, which is the linear bound `maxRevokedCertificates` exists for, and the one row here that would repay attention. The key containers are PBKDF2: 2 048 iterations cost 4 ms per derivation, and a PKCS#12 that derives three times costs 10 ms, so the `maxPkcs12KdfIterations` budget of ten million is minutes, not seconds, on this machine — which is why it is a budget.
+
+Against 2026-09-25 the parser rows moved within noise or faster (`decodeAsn1` on ISRG Root X1 24 386 → 30 755 ops/s): the review's added checks — the exponent, the EC parameters, the control characters in general names — cost nothing measurable.

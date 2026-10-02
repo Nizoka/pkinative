@@ -155,8 +155,10 @@ describe('decodePem — lax', () => {
         expect(failure(() => decodePem('-----BEGIN X-----\nZm9*\n-----END X-----\n', LAX)).code).toBe('PKI_PEM_BASE64_INVALID');
     });
 
-    it('should escalate a lax deviation under strict: true', () => {
-        expect(failure(() => decodePem(PEM.replace(/^([A-Za-z0-9+/]{10})/m, '$1 '), { mode: 'lax', strict: true })).code).toBe('PKI_STRICT_DIAGNOSTIC');
+    it('should report, not refuse, a lax deviation under strict: true — the caller chose lax, and the acceptance is info', () => {
+        const seen: string[] = [];
+        expect(decodePem(PEM.replace(/^([A-Za-z0-9+/]{10})/m, '$1 '), { mode: 'lax', strict: true, onDiagnostic: (d) => { seen.push(d.code); } })).toHaveLength(1);
+        expect(seen).toEqual(['PKI_DIAG_PEM_LAX_ACCEPTED']);
     });
 });
 

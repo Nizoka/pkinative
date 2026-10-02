@@ -13,9 +13,9 @@
     {
       "option": "strict",
       "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions"],
-      "default": "false — a diagnostic is reported, not thrown",
+      "default": "false — a diagnostic is reported, not thrown; true refuses the first warning and still reports every info",
       "semver": "frozen",
-      "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true) {" }]
+      "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true && diagnostic.severity === 'warning') {" }]
     },
     {
       "option": "limits",

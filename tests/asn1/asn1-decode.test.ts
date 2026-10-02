@@ -261,8 +261,10 @@ describe('decodeAsn1 — arguments', () => {
         expect(failure(fn).code).toBe(code);
     });
 
-    it('should escalate an accepted BER construct under strict', () => {
-        expect(failure(() => decodeAsn1(hex('30 80 00 00'), { encodingRules: 'ber', strict: true })).code).toBe('PKI_STRICT_DIAGNOSTIC');
+    it('should report, not refuse, an accepted BER construct under strict — the caller asked for BER, and the acceptance is info', () => {
+        const seen: string[] = [];
+        expect(decodeAsn1(hex('30 80 00 00'), { encodingRules: 'ber', strict: true, onDiagnostic: (d) => { seen.push(d.code); } }).contentLength).toBe(0);
+        expect(seen).toEqual(['PKI_DIAG_BER_CONSTRUCT_ACCEPTED']);
     });
 
     it('should decode a value built with an explicit long length only under BER', () => {

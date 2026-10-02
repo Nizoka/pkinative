@@ -27,7 +27,7 @@ import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
 import type { SignatureAlgorithm } from '../types/crypto-types.js';
-import type { AlgorithmIdentifier, SubjectPublicKeyInfo } from '../types/x509-types.js';
+import type { AlgorithmIdentifier, RsaPublicKeyInfo, SubjectPublicKeyInfo } from '../types/x509-types.js';
 
 // ── The digests ──────────────────────────────────────────────────────
 
@@ -212,7 +212,7 @@ function mgf1HashOf(algorithm: Asn1Node, oid: string): string {
  * `rsaEncryption` key places no restriction on how it is used (RFC 4055
  * §1.2), and an `id-RSASSA-PSS` key is certified for exactly this.
  */
-const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || key.kind === 'rsa-pss';
+const isRsaKey = (key: SubjectPublicKeyInfo): key is RsaPublicKeyInfo => key.kind === 'rsa' || key.kind === 'rsa-pss';
 
 /**
  * Whether a PKCS#1 v1.5 signature may be checked against this key. Only an
@@ -220,7 +220,7 @@ const isRsaKey = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa' || k
  * public key with the id-RSASSA-PSS object identifier, the certificate user
  * MUST only use the certified RSA public key for RSASSA-PSS operations."
  */
-const isPkcs1Key = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa';
+const isPkcs1Key = (key: SubjectPublicKeyInfo): key is RsaPublicKeyInfo => key.kind === 'rsa';
 
 /**
  * Refuse an RSA public exponent no signature scheme is defined for.
@@ -235,8 +235,7 @@ const isPkcs1Key = (key: SubjectPublicKeyInfo): boolean => key.kind === 'rsa';
  *
  * @internal
  */
-export function _refuseWeakRsaExponent(key: SubjectPublicKeyInfo, oid: string): void {
-    if (key.kind !== 'rsa' && key.kind !== 'rsa-pss') return;
+export function _refuseWeakRsaExponent(key: RsaPublicKeyInfo, oid: string): void {
     const e = key.publicExponent;
     if (e < 3n || (e & 1n) === 0n) {
         throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',

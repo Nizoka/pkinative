@@ -260,9 +260,10 @@ describe('parsePrivateKeyInfo — diagnostics', () => {
         expect(info.diagnostics).toEqual(seen);
     });
 
-    it('should escalate it under strict', () => {
-        expect(() => parsePrivateKeyInfo(berKey(), { encodingRules: 'ber', strict: true }))
-            .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
+    it('should still report it under strict, which refuses warnings and not the BER the caller allowed', () => {
+        const seen: string[] = [];
+        expect(parsePrivateKeyInfo(berKey(), { encodingRules: 'ber', strict: true, onDiagnostic: (d) => { seen.push(d.code); } }).version).toBe(0);
+        expect(seen).toContain('PKI_DIAG_BER_CONSTRUCT_ACCEPTED');
     });
 });
 
