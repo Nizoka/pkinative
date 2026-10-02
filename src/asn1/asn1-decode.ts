@@ -46,6 +46,13 @@ interface Frame {
     readonly contentStart: number;
     /** null for the indefinite form: the end is the end-of-contents marker. */
     readonly contentEnd: number | null;
+    /**
+     * The offset no child may cross: `contentEnd` for the definite form; for the
+     * indefinite form, the bound of the enclosing value, or the end of the input.
+     */
+    readonly bound: number;
+    /** Whether `bound` is the end of the input rather than the end of an enclosing value. */
+    readonly boundIsInput: boolean;
     readonly children: Asn1Node[];
 }
 
@@ -180,9 +187,12 @@ function decodeValueIn(view: DataView, data: Uint8Array, start: number, ctx: Asn
             let closed: Asn1Node | null = null;
             if (top.contentEnd !== null && pos === top.contentEnd) {
                 closed = makeNode(data, top.tagClass, top.tagNumber, true, top.offset, top.headerLength, top.contentStart, pos, pos, false, top.children);
-            } else if (top.contentEnd === null && pos + 1 < data.length && data[pos] === 0 && data[pos + 1] === 0) {
+            } else if (top.contentEnd === null && pos + 1 < top.bound && data[pos] === 0 && data[pos + 1] === 0) {
                 closed = makeNode(data, top.tagClass, top.tagNumber, true, top.offset, top.headerLength, top.contentStart, pos, pos + 2, true, top.children);
                 pos += 2;
+            } else if (top.contentEnd === null && !top.boundIsInput && pos + 2 > top.bound) {
+                throw new PkiEncodingError('PKI_ASN1_LENGTH_OVERFLOW',
+                    `pkinative: the indefinite-length ${tagLabel(top.tagClass, top.tagNumber)} at offset ${top.offset} has no end-of-contents marker before its enclosing value ends at offset ${top.bound} — the input is corrupt or crafted`, top.offset);
             } else if (top.contentEnd === null && pos >= data.length) {
                 throw new PkiEncodingError('PKI_ASN1_TRUNCATED',
                     `pkinative: the indefinite-length ${tagLabel(top.tagClass, top.tagNumber)} at offset ${top.offset} has no end-of-contents marker — the input is incomplete`, top.offset);
@@ -196,8 +206,8 @@ function decodeValueIn(view: DataView, data: Uint8Array, start: number, ctx: Asn
             }
         }
 
-        const end = top?.contentEnd ?? data.length;
-        const endIsInput = top === undefined || top.contentEnd === null;
+        const end = top === undefined ? data.length : top.bound;
+        const endIsInput = top === undefined || top.boundIsInput;
         const header = readHeader(view, pos, end, endIsInput, ctx);
         const label = tagLabel(header.tagClass, header.tagNumber);
 
@@ -230,7 +240,7 @@ function decodeValueIn(view: DataView, data: Uint8Array, start: number, ctx: Asn
         const contentStart = pos + header.headerLength;
         if (header.length === null) {
             enforceLimit(ctx.limits, 'maxDepth', frames.length + 1, 'the nesting depth');
-            frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd: null, children: [] });
+            frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd: null, bound: end, boundIsInput: endIsInput, children: [] });
             pos = contentStart;
             continue;
         }
@@ -245,7 +255,7 @@ function decodeValueIn(view: DataView, data: Uint8Array, start: number, ctx: Asn
         }
         if (header.constructed) {
             enforceLimit(ctx.limits, 'maxDepth', frames.length + 1, 'the nesting depth');
-            frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd, children: [] });
+            frames.push({ tagClass: header.tagClass, tagNumber: header.tagNumber, offset: pos, headerLength: header.headerLength, contentStart, contentEnd, bound: contentEnd, boundIsInput: false, children: [] });
             pos = contentStart;
             continue;
         }

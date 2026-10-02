@@ -127,6 +127,34 @@ describe('decodeAsn1 — indefinite length and end-of-contents', () => {
         expect(error).toMatchObject({ code: 'PKI_ASN1_TRUNCATED', offset });
     });
 
+    // P-03: an indefinite child is bounded by its definite parent, not by the input (X.690 §8.1.3.6).
+    it.each([
+        ['an end-of-contents marker that straddles the parent', '30 03 30 80 00 00', 2],
+        ['no room left for the marker inside the parent', '30 02 30 80 00 00', 2],
+        ['a child that fills the parent and leaves no marker', '30 04 30 80 05 00 00 00', 2],
+        ['a nested indefinite value under an indefinite one', '30 04 30 80 30 80 00 00 00 00', 4],
+    ])('should refuse %s with PKI_ASN1_LENGTH_OVERFLOW at the indefinite value', (_label, input, offset) => {
+        const error = failure(() => decodeAsn1(hex(input), { encodingRules: 'ber', onDiagnostic: () => undefined, allowTrailingData: true }));
+        expect(error).toBeInstanceOf(PkiEncodingError);
+        expect(error).toMatchObject({ code: 'PKI_ASN1_LENGTH_OVERFLOW', offset });
+    });
+
+    it('should hold a child of an indefinite value to the definite parent around it', () => {
+        const error = failure(() => decodeAsn1(hex('30 05 30 80 04 03 00 00 00'), { encodingRules: 'ber', onDiagnostic: () => undefined, allowTrailingData: true }));
+        expect(error).toMatchObject({ code: 'PKI_ASN1_LENGTH_OVERFLOW', offset: 4 });
+    });
+
+    it('should still read a header that ends exactly at the definite parent', () => {
+        const error = failure(() => decodeAsn1(hex('30 04 30 80 1f 05'), { encodingRules: 'ber', onDiagnostic: () => undefined }));
+        expect(error).toMatchObject({ code: 'PKI_ASN1_TAG_INVALID', offset: 4 });
+    });
+
+    it('should close an indefinite value whose marker ends exactly at its definite parent', () => {
+        const node = decodeAsn1(hex('30 06 30 80 05 00 00 00'), { encodingRules: 'ber', onDiagnostic: () => undefined });
+        expect(node.children[0]).toMatchObject({ indefinite: true, offset: 2, contentLength: 2 });
+        expect(node.children[0]?.bytes.length).toBe(6);
+    });
+
     it('should explain which end-of-contents rule was broken', () => {
         expect(failure(() => decodeAsn1(hex('00 00'))).message).toContain('outside an indefinite-length value');
         expect(failure(() => decodeAsn1(hex('30 80 00 01 00 00 00'), { encodingRules: 'ber', onDiagnostic: () => undefined })).message).toContain('not the two octets');

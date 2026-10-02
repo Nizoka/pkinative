@@ -3,16 +3,10 @@
   "schema": 1,
   "equivalents": [
     {
-      "id": "src/asn1/asn1-decode.ts:117:64:number+1",
+      "id": "src/asn1/asn1-decode.ts:124:64:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: `at - 1` is the offset quoted in the PKI_ASN1_LENGTH_INVALID message text; the error's offset field is `offset`, which the mutant does not touch."
-    },
-    {
-      "id": "src/asn1/asn1-decode.ts:183:59:relational",
-      "original": "<",
-      "replacement": "<=",
-      "reason": "Semantic: the extra case is pos + 1 === data.length, where data[pos + 1] reads past the Uint8Array and is undefined, so `data[pos + 1] === 0` is false and the branch is not taken either way."
     },
     {
       "id": "src/keys/key-pbes2.ts:201:97:number+1",
