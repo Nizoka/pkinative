@@ -523,6 +523,60 @@
       "original": "80",
       "replacement": "81",
       "reason": "Semantic: as 78:28 relational — the bound 81 adds the single step j = 80, whose writes past the 80-word arrays are discarded and whose scratch t is overwritten at round 0 before it is read."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:21:21:number-1",
+      "original": "0x3fffffffffff",
+      "replacement": "70368744177662",
+      "reason": "Semantic: the limit only decides when _decodeOid moves a subidentifier from number to bigint arithmetic. The mutant also moves it at value = 2^46 − 1, where the number path is still exact: (2^46 − 1) · 128 + 127 = 2^53 − 1 = Number.MAX_SAFE_INTEGER. Both paths then hold the same integer, String() of it is the same decimal text, and for a first subidentifier both push '2' and value − 80 (the value is far above 80). Every OID decodes to the same string."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:40:35:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Semantic: as 21:21:number-1 — the extra case is value === 2^46 − 1, where switching to bigint one octet early computes the same exact integer the number path would (its largest successor is 2^53 − 1), so every arc string is identical."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:39:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Message-only: `oid.length > 64 ? … : oid` only chooses whether the refused string is quoted whole or cut to 61 characters plus an ellipsis inside the PKI_OID_INVALID message; the refusal is decided by isValidOid on the line above, and the code and class are unchanged."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:41:number+1",
+      "original": "64",
+      "replacement": "65",
+      "reason": "Message-only: the truncation threshold of the quoted OID in the PKI_OID_INVALID message (see 135:39)."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:41:number-1",
+      "original": "64",
+      "replacement": "63",
+      "reason": "Message-only: the truncation threshold of the quoted OID in the PKI_OID_INVALID message (see 135:39)."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:59:number+1",
+      "original": "0",
+      "replacement": "1",
+      "reason": "Message-only: the start of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:59:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Message-only: the start of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:62:number+1",
+      "original": "61",
+      "replacement": "62",
+      "reason": "Message-only: the length of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
+    },
+    {
+      "id": "src/asn1/asn1-oid.ts:135:62:number-1",
+      "original": "61",
+      "replacement": "60",
+      "reason": "Message-only: the length of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
     }
   ]
 }
