@@ -140,7 +140,7 @@ export function _readEncryptedPrivateKeyInfo(node: Asn1Node | undefined, ctx: As
  * import { decodePem, parsePrivateKeyInfo } from 'pkinative';
  *
  * const [block] = decodePem(pemText, { label: 'PRIVATE KEY' });
- * const info = parsePrivateKeyInfo(block.der);
+ * const info = parsePrivateKeyInfo(block.bytes);
  * console.log(info.kind, info.curve);   // 'ec' 'P-256'
  * ```
  *

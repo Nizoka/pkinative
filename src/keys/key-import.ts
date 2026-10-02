@@ -117,7 +117,7 @@ function _checkAlgorithmOption(algorithm: unknown, required: boolean): void {
  * import { decodePem, importPrivateKey } from 'pkinative';
  *
  * const [block] = decodePem(pemText, { label: 'PRIVATE KEY' });
- * const signer = await importPrivateKey(block.der);                  // an EC or Edwards key decides
+ * const signer = await importPrivateKey(block.bytes);                // an EC or Edwards key decides
  * const rsa = await importPrivateKey(rsaDer, { algorithm: { name: 'RSA-PSS', hash: 'SHA-256' } });
  * ```
  *
@@ -161,7 +161,7 @@ export async function importPrivateKey(der: Uint8Array, options?: ImportPrivateK
  * import { decodePem, decryptPrivateKey } from 'pkinative';
  *
  * const [block] = decodePem(pemText, { label: 'ENCRYPTED PRIVATE KEY' });
- * const signer = await decryptPrivateKey(block.der, {
+ * const signer = await decryptPrivateKey(block.bytes, {
  *     password: 'correct horse battery staple',
  *     algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
  * });
