@@ -427,6 +427,54 @@
       "original": "1",
       "replacement": "2",
       "reason": "Semantic: as 54:31 relational — only padding === 1 changes, and the extra third write lands past out.length and is discarded."
+    },
+    {
+      "id": "src/core/text.ts:18:15:number+1",
+      "original": "4096",
+      "replacement": "4097",
+      "reason": "Semantic: CHUNK only splits the code units into String.fromCharCode calls whose results are concatenated in order; the concatenation is the same string for any chunk size, and 4097 arguments are as far below an engine's spread limit as 4096."
+    },
+    {
+      "id": "src/core/text.ts:18:15:number-1",
+      "original": "4096",
+      "replacement": "4095",
+      "reason": "Semantic: as number+1 at the same position — a different chunk size splits the same code units at other places and concatenates the same string."
+    },
+    {
+      "id": "src/core/text.ts:22:23:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra iteration runs only when i === units.length (a multiple of CHUNK, including 0), where units.slice(i, i + CHUNK) is empty and String.fromCharCode() appends ''."
+    },
+    {
+      "id": "src/core/text.ts:58:26:number-1",
+      "original": "0xe0",
+      "replacement": "223",
+      "reason": "Semantic: the only octet the mutant adds to the three-octet branch is 0xDF, which the preceding branch (b0 >= 0xc2 && b0 <= 0xdf) has already taken."
+    },
+    {
+      "id": "src/core/text.ts:62:26:number-1",
+      "original": "0xf0",
+      "replacement": "239",
+      "reason": "Semantic: the only octet the mutant adds to the four-octet branch is 0xEF, which the preceding three-octet branch (b0 >= 0xe0 && b0 <= 0xef) has already taken."
+    },
+    {
+      "id": "src/core/text.ts:136:74:number-1",
+      "original": "0x30",
+      "replacement": "47",
+      "reason": "Semantic: the digit range then also admits 0x2F '/', which the same expression admits anyway through `b === 0x2f` (X.680 §41.4 lists the solidus); isPrintableOctet returns true for 0x2F either way."
+    },
+    {
+      "id": "src/core/text.ts:136:87:number+1",
+      "original": "0x39",
+      "replacement": "58",
+      "reason": "Semantic: the digit range then also admits 0x3A ':', which the same expression admits anyway through `b === 0x3a` (X.680 §41.4 lists the colon); isPrintableOctet returns true for 0x3A either way."
+    },
+    {
+      "id": "src/core/text.ts:166:26:number-1",
+      "original": "0xdc00",
+      "replacement": "56319",
+      "reason": "Semantic: the only code unit the mutant adds to the lone-low-surrogate branch is 0xDBFF, which the preceding high-surrogate branch (cp >= 0xd800 && cp <= 0xdbff) has already taken; this else-if never sees it."
     }
   ]
 }
