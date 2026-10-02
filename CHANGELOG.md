@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **fix(revocation): `PKI_REASON_REVOKED` only from authenticated, applicable evidence**; an unauthenticated claim is carried in `PKI_REASON_REVOCATION_UNKNOWN`.
 - **fix(path): three name-constraint bypasses closed** — a URI host read by the RFC 3986 grammar, SmtpUTF8Mailbox (RFC 9598) held to rfc822Name subtrees, and the commonName fallback held to dNSName constraints through the new `CheckServerNameOptions.path`.
 - **fix(crypto): id-RSASSA-PSS keys held to RFC 4055 §1.2 and §3.3.**
+- **fix(path): a trust anchor is a name and a key** (RFC 5280 §6.1.1 (d); CWE-295): a self-signed certificate copying an anchor's name no longer ends the walk unverified.
+- **fix(verify): a CRL issuer off the path is believed only once its own certificate validates under the same anchors** (§6.3.3 (f)): a forged delta or complete list from the sender's bag no longer clears a revoked certificate.
+- **fix(path): `user-initial-policy-set` intersected in the anchor's domain** (§6.1.5 (g)(iii)), across policy mappings.
+- **fix(crypto): an RSA public exponent below 3 or even is refused** (RFC 8017 §3.1); `PKI_DIAG_SPKI_RSA_EXPONENT_WEAK` at parse.
+- **fix(verify): a SHA-1 timestamp imprint is not evidence without `allowSha1`.**
+- **fix(keys): a PBMAC1 key shorter than 20 octets is not verified.**
+- **fix(path, revocation):** v1/v2 intermediates refused (§6.1.4 (k)); an IP-literal `dns` reference compared with iPAddress entries only; an unknown critical CRL entry extension makes the list unusable (§5.3); an OCSP answer without `nextUpdate` is stale by default and contradictory answers are UNKNOWN; a delegated OCSP responder is checked for revocation unless `id-pkix-ocsp-nocheck`; the reasons mask includes the certificate's distribution-point reasons; the implicit anchor counts against `maxChainLength`.
+- **fix(asn1, crypto): two parser differentials closed** (CWE-436): the CRL/OCSP cursor refuses what the decoder refuses, an indefinite child is bounded by its parent, and RSASSA-PSS parameters are held to their grammar.
 - **A CVE-class regression corpus**: 43 published vulnerabilities of comparable PKI libraries, each identifier checked against NVD or the GitHub Advisory Database, replayed by `tests/security/cve-classes.test.ts` and listed in `docs/data/cve-classes.json` with who stops each (`cve-class-parity`).
 
 ### Added
