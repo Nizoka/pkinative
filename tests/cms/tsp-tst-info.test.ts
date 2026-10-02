@@ -92,6 +92,15 @@ describe('parseTstInfo', () => {
         expect(diagnostics).toEqual([]);
     });
 
+    it.each([
+        ['without seconds', '202609281200Z'],
+        ['with an offset instead of Z', '20260928120000+0100'],
+        ['with a comma for the decimal point', '20260928120000,5Z'],
+        ['with a trailing zero in its fraction', '20260928120000.50Z'],
+    ])('should refuse a genTime %s, even when the caller asked for BER (RFC 3161 §2.4.2)', (_, text) => {
+        expect(code(() => parseTstInfo(tstInfo({ genTime: generalizedTime(text) }), { ...quiet, encodingRules: 'ber' }))).toBe('PKI_ASN1_TIME_INVALID');
+    });
+
     it('should refuse a version other than 1', () => {
         expect(() => parseTstInfo(tstInfo({ version: int(2) }), quiet)).toThrow(PkiCmsError);
         expect(code(() => parseTstInfo(tstInfo({ version: int(2) }), quiet))).toBe('PKI_CMS_VERSION_UNSUPPORTED');

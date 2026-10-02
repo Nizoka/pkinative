@@ -191,6 +191,30 @@ describe('_signerAttributeReasons', () => {
         expect(codes(_signerAttributeReasons(DATA, signer({ signedAttributes: attrs }), 's'))).toEqual(['PKI_REASON_CMS_ATTRIBUTE_INVALID']);
     });
 
+    const SIGNING_TIME = universal(23, ascii('260901000000Z'));
+
+    it.each([
+        ['contentType', oids.OID_ATTR_CONTENT_TYPE, ID_DATA],
+        ['signingTime', oids.OID_ATTR_SIGNING_TIME, SIGNING_TIME],
+    ] as const)('should refuse a %s found among the unsigned attributes (RFC 5652 §11.1, §11.3)', (_name, type, value) => {
+        const reasons = _signerAttributeReasons(DATA, signer({ unsignedAttributes: [attribute(type, value)] }), 's');
+        expect(codes(reasons)).toEqual(['PKI_REASON_CMS_ATTRIBUTE_INVALID']);
+        expect(reasons[0]?.path).toBe('s.unsignedAttrs');
+    });
+
+    it.each([
+        ['contentType', oids.OID_ATTR_CONTENT_TYPE, ID_DATA],
+        ['messageDigest', oids.OID_ATTR_MESSAGE_DIGEST, universal(4, new Array<number>(32).fill(0xaa))],
+        ['signingTime', oids.OID_ATTR_SIGNING_TIME, SIGNING_TIME],
+    ] as const)('should refuse a signed %s that appears twice, holds no value or holds two (RFC 5652 §11.1–§11.3)', (name, type, value) => {
+        const others = (signer().signedAttributes ?? []).filter((a) => a.oid !== type);
+        const shapes = [[attribute(type, value), attribute(type, value)], [attribute(type)], [attribute(type, value, value)]];
+        for (const shape of shapes) {
+            const reasons = _signerAttributeReasons(DATA, signer({ signedAttributes: [...others, ...shape] }), 's');
+            expect(reasons.filter((r) => r.path === `s.signedAttrs.${name}`).map((r) => r.code)).toEqual(['PKI_REASON_CMS_ATTRIBUTE_INVALID']);
+        }
+    });
+
     describe('CMSAlgorithmProtection (RFC 6211)', () => {
         // The parser decodes the attribute, and refuses a malformed one; what
         // reaches this rule is a well-formed protection to compare.

@@ -255,6 +255,16 @@ describe('parseOcspResponse', () => {
         expect(parseOcspResponse(der, quiet).basicResponse?.responses).toHaveLength(1);
     });
 
+    it('should refuse a BasicOCSPResponse that is not DER, under any encodingRules (RFC 6960 §4.2.1)', () => {
+        // The byKey responder ID with its 20-octet length in the long form, 0x81 0x14,
+        // where DER requires the one octet 0x14.
+        const byKey = tlv(2, true, 2, concat([0x04, 0x81, 20], new Array<number>(20).fill(0xcc)));
+        const basic = sequence(sequence(byKey, gen('20260501000000Z'), sequence(single())), ALG_ED25519, universal(3, [0x00, 0xde]));
+        const der = sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...basic]))));
+        expect(() => parseOcspResponse(der, quiet)).toThrow(expect.objectContaining({ code: 'PKI_ASN1_LENGTH_INVALID', message: expect.stringContaining('DER requires the short form') }));
+        expect(() => parseOcspResponse(der, { ...quiet, encodingRules: 'ber' })).toThrow(expect.objectContaining({ code: 'PKI_ASN1_LENGTH_INVALID', message: expect.stringContaining('DER requires the short form') }));
+    });
+
     it.each([
         { name: 'not a SEQUENCE', der: universal(2, [0x00]) },
         { name: 'a responseStatus that is not an ENUMERATED', der: sequence(universal(2, [0x00])) },

@@ -95,6 +95,26 @@ describe('signed attributes — signingTime (RFC 5652 §11.3)', () => {
         expect(signer.signingTime?.type).toBe(_);
         expect(signer.signingTime?.epochMilliseconds).toBe(_ === 'UTCTime' ? Date.UTC(2026, 2, 1, 12) : Date.UTC(2050, 2, 1, 12));
     });
+
+    it.each([
+        ['a UTCTime without seconds', universal(23, ascii('2603011200Z'))],
+        ['a UTCTime with an offset instead of Z', universal(23, ascii('260301120000+0100'))],
+        ['a GeneralizedTime without seconds', universal(24, ascii('205003011200Z'))],
+        ['a GeneralizedTime with an offset instead of Z', universal(24, ascii('20500301120000-0130'))],
+    ])('should refuse a signingTime that is %s, and read it under BER only with the BER diagnostic', (_, value) => {
+        const attrs = sorted([contentTypeAttr, digestAttr, attribute(OIDS.signingTime, value)]);
+        const error = refusal(attrs);
+        expect(error).toBeInstanceOf(PkiCmsError);
+        expect(error.code).toBe('PKI_CMS_STRUCTURE_INVALID');
+        expect((error as PkiCmsError).path).toBe('content.signerInfos[0].signedAttrs.signingTime');
+        expect(signerWith(attrs, { encodingRules: 'ber' }).codes).toContain('PKI_DIAG_BER_CONSTRUCT_ACCEPTED');
+    });
+
+    it('should refuse a signingTime that writes midnight as hour 24, under DER and BER alike', () => {
+        const attrs = sorted([contentTypeAttr, digestAttr, attribute(OIDS.signingTime, universal(23, ascii('260301240000Z')))]);
+        expect(refusal(attrs).code).toBe('PKI_CMS_STRUCTURE_INVALID');
+        expect(refusal(attrs, { encodingRules: 'ber' }).code).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
 });
 
 describe('signed attributes — malformed recognised values', () => {
