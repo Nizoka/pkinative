@@ -20,14 +20,13 @@
  * below is the set this validator handles, and everything else critical is
  * `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
  *
- * That is not a placeholder, it is the correct behaviour — and it means a
- * chain constrained by `nameConstraints` or `policyConstraints`, which this
- * version does not yet process, is **refused rather than silently accepted**.
- * A validator that ignored an extension it had not implemented would answer
+ * That is not a placeholder, it is the correct behaviour: a critical
+ * extension outside the set is **refused rather than silently accepted**. A
+ * validator that ignored an extension it had not implemented would answer
  * "valid" for a chain the issuing CA forbade, which is the shape of a real
- * CVE rather than a missing feature. Name constraints and the policy tree
- * join the set in their own commits, each with its own tests; until then the
- * honest answer to a chain that uses them is no.
+ * CVE rather than a missing feature. `nameConstraints`, `policyConstraints`,
+ * `policyMappings` and `inhibitAnyPolicy` each joined the set in their own
+ * commit, with their own tests, once §6 processed them — and only then.
  *
  * @module path/path-validate
  */
@@ -78,11 +77,8 @@ const EMAIL_ADDRESS = '1.2.840.113549.1.9.1';
 /**
  * The critical extensions this validator processes. RFC 5280 §6.1.3 (f)
  * requires refusing any other critical extension, so this set is the exact
- * boundary of what a chain may rely on.
- *
- * Absent on purpose, and each refuses a chain rather than being ignored:
- * `2.5.29.30` nameConstraints, `2.5.29.36` policyConstraints,
- * `2.5.29.54` inhibitAnyPolicy, `2.5.29.33` policyMappings.
+ * boundary of what a chain may rely on. Every entry is processed by a §6
+ * step below; an extension joins the set only with the step that honours it.
  */
 export const PROCESSED_CRITICAL_EXTENSIONS: ReadonlySet<string> = new Set([
     '2.5.29.19', // basicConstraints — §6.1.4 (k), (l)
@@ -396,9 +392,10 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * verdicts are all answers, reported as reasons. The only thing that can
  * throw is misusing the API — an unknown key in `limits`.
  *
- * What this version does **not** process, and therefore refuses rather than
- * ignores: `nameConstraints`, `policyConstraints`, `policyMappings` and
- * `inhibitAnyPolicy`. See `PROCESSED_CRITICAL_EXTENSIONS`.
+ * `nameConstraints`, `policyConstraints`, `policyMappings` and
+ * `inhibitAnyPolicy` are processed (§6.1.3, §6.1.4); any **other** critical
+ * extension is refused rather than ignored, as `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
+ * See `PROCESSED_CRITICAL_EXTENSIONS`.
  *
  * @param input What to validate, and everything needed to judge it.
  * @returns The verdict and every reason behind it.
