@@ -79,10 +79,32 @@ describe('signed attributes — the single-instance, single-value rule', () => {
         expect(signer.signedAttributes?.[0]?.values).toEqual([]);
     });
 
+    it('should admit exactly maxAttributes attributes, and refuse one more', () => {
+        const { signer } = signerWith([contentTypeAttr, digestAttr], { limits: { maxAttributes: 2 } });
+        expect(signer.signedAttributes).toHaveLength(2);
+        const error = refusal([contentTypeAttr, digestAttr, attribute('1.2.3', int(1))], { limits: { maxAttributes: 2 } });
+        expect(error).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxAttributes' });
+    });
+
     it('should keep each value and the whole attribute as their exact DER', () => {
         const { signer } = signerWith([contentTypeAttr, digestAttr]);
         expect(sameBytes(signer.signedAttributes?.[1]?.der, digestAttr)).toBe(true);
         expect(sameBytes(signer.signedAttributes?.[1]?.values[0], octets(DIGEST))).toBe(true);
+    });
+});
+
+describe('signed attributes — DER SET OF order (X.690 §11.6)', () => {
+    const other = attribute('1.2.3', int(1));
+
+    it('should hold two identical attributes side by side to be in order, and diagnose nothing', () => {
+        // Equal encodings are ordered either way round: §11.6 sorts, it does not forbid repeats.
+        const { codes } = signerWith(sorted([contentTypeAttr, digestAttr, other, other]));
+        expect(codes).toEqual([]);
+    });
+
+    it('should diagnose the same attributes out of order', () => {
+        const { codes } = signerWith([...sorted([contentTypeAttr, digestAttr, other, other])].reverse());
+        expect(codes).toEqual(['PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER']);
     });
 });
 
@@ -123,6 +145,8 @@ describe('signed attributes — malformed recognised values', () => {
         ['a contentType that is an OCTET STRING', attribute(OIDS.contentType, octets([1])), 'contentType'],
         ['a contentType whose OID is not encoded correctly', attribute(OIDS.contentType, universal(6, [0x2a, 0x86])), 'contentType'],
         ['a signingTime that is an OCTET STRING', attribute(OIDS.signingTime, octets([1])), 'signingTime'],
+        // The tag number of a UTCTime under the context class is not a UTCTime.
+        ['a signingTime tagged [23]', attribute(OIDS.signingTime, tlv(2, false, 23, ascii('260101000000Z'))), 'signingTime'],
         ['a signingTime in month 13', attribute(OIDS.signingTime, universal(23, ascii('261301120000Z'))), 'signingTime'],
     ])('should refuse %s with PKI_CMS_STRUCTURE_INVALID', (_, attr, field) => {
         const error = refusal([attr]);
@@ -210,6 +234,11 @@ describe('signed attributes — signingCertificateV2 (RFC 5035 §3)', () => {
         expect((error as PkiError & { readonly limit?: string }).limit).toBe('maxChainLength');
     });
 
+    it('should admit exactly maxChainLength certIds', () => {
+        const { signer } = signerWith([v2(sequence(octets(HASH)), sequence(octets([...HASH].reverse())))], { limits: { maxChainLength: 2 } });
+        expect(signer.signingCertificate?.certIds).toHaveLength(2);
+    });
+
     it('should let a limit inside issuerSerial surface as itself', () => {
         const error = refusal([v2(sequence(octets(HASH), sequence(sequence(directoryName, directoryName), int(1))))], { limits: { maxGeneralNames: 1 } });
         expect(error.code).toBe('PKI_LIMIT_EXCEEDED');
@@ -273,6 +302,23 @@ describe('signed attributes — DER even under BER (RFC 5652 §5.3)', () => {
         const { signer } = signerWith([contentTypeAttr, digestAttr, attribute('1.2.3', tlv(2, false, 40, [1]), octets(long))], ber);
         expect(signer.signedAttributes?.[2]?.values).toHaveLength(2);
         expect(signer.messageDigest).toBeDefined();
+    });
+
+    // The edges of the shortest header: the last low tag number and the first
+    // high one, the one- and two-octet high tag numbers (X.690 §8.1.2.4), and
+    // the short and long length forms either side of 0x80 and of 0x100 (§8.1.3).
+    it.each<readonly [string, Uint8Array]>([
+        ['tag number 30, the last in one identifier octet', tlv(2, false, 30, [1])],
+        ['tag number 31, the first in the high-tag form', tlv(2, false, 31, [1])],
+        ['tag number 127, the last in one subsequent octet', tlv(2, false, 127, [1])],
+        ['tag number 128, the first in two subsequent octets', tlv(2, false, 128, [1])],
+        ['127 content octets, the last short length', octets(new Uint8Array(127).fill(7))],
+        ['128 content octets, the first long length', octets(new Uint8Array(128).fill(7))],
+        ['255 content octets, the last one-octet long length', octets(new Uint8Array(255).fill(7))],
+        ['256 content octets, the first two-octet long length', octets(new Uint8Array(256).fill(7))],
+    ])('should accept DER with %s', (_label, value) => {
+        const { signer } = signerWith([contentTypeAttr, digestAttr, attribute('1.2.3', value)], ber);
+        expect(sameBytes(signer.signedAttributes?.[2]?.values[0], value)).toBe(true);
     });
 });
 

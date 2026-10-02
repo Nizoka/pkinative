@@ -733,6 +733,54 @@
       "original": "5",
       "replacement": "6",
       "reason": "Semantic: f.zone is either 'Z' (which skips the branch) or zoneOf's text.slice(-5), exactly five characters ±hhmm because both grammars end in [+-]\\d{4}; slice(3, 6) of a five-character string equals slice(3, 5)."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:142:9:if-false",
+      "original": "ctx.rules === 'der'",
+      "replacement": "false",
+      "reason": "Semantic: the early return only skips a walk that finds nothing under 'der'. The walk looks for an indefinite length, a length longer than derHeaderLength or a constructed string; under 'der' the decoder that built the tree has already thrown PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN, PKI_ASN1_LENGTH_NON_MINIMAL or PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN for each (asn1-decode.ts, every one gated on ctx.rules === 'der'), and refuses a non-minimal identifier under any rules, so every node's headerLength equals derHeaderLength and the walk returns without throwing."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:183:9:throw-guard",
+      "original": "!container.constructed",
+      "replacement": "false",
+      "reason": "Message-only: a primitive node has no children, so with the guard off the next statement throws for it — PKI_CMS_STRUCTURE_INVALID, the same path and the same offset (container.offset) — with the 'is empty' wording instead of 'is primitive'."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:346:129:conditional",
+      "original": "version === 1 ? '2634 §5.4' : '5035 §3'",
+      "replacement": "(version === 1 ? '5035 §3' : '2634 §5.4')",
+      "reason": "Message-only: the conditional only picks which RFC the 'holds N values' PKI_CMS_STRUCTURE_INVALID message cites; the comparison that throws is seq.children.length > 2, pinned for v1 and v2 by the 'three fields' cases (code and path)."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:346:137:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional swap at 346:129 — the test only chooses the RFC the message cites."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:346:141:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: as the conditional swap at 346:129 — the compared version only chooses the RFC the message cites."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:366:73:conditional",
+      "original": "version === 1 ? 'an ESSCertID SEQUENCE' : 'an ESSCertIDv2 SEQUENCE'",
+      "replacement": "(version === 1 ? 'an ESSCertIDv2 SEQUENCE' : 'an ESSCertID SEQUENCE')",
+      "reason": "Message-only: the argument is _expectUniversal's `what`, which only words the PKI_CMS_STRUCTURE_INVALID message; the tag test, the path and the offset do not read it ('an ESSCertID that is not a SEQUENCE' pins code and path)."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:366:81:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional swap at 366:73 — the test only chooses the wording of `what`."
+    },
+    {
+      "id": "src/cms/cms-attributes.ts:366:85:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: as the conditional swap at 366:73 — the compared version only chooses the wording of `what`."
     }
   ]
 }
