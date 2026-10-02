@@ -870,6 +870,15 @@ describe('external-links, what it reads and what it reports', () => {
     });
 });
 
+describe('bench-parity, the API families', () => {
+    it('should fire when a verb family of the public API has no benchmark naming one of its functions', async () => {
+        const files = { ...TREE };
+        edit(files, 'bench/path-revocation.bench.ts', 'validateCertificatePath — §6 over [leaf]', 'the §6 walk over [leaf]');
+        const problems = await runRules(createMemoryContext(files), RULES, 'bench-parity');
+        expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ file: 'bench', message: expect.stringContaining('validate*') })]));
+    });
+});
+
 describe('reuse-shape, what it holds', () => {
     it.each([
         ['a licence text nobody uses', (f: Record<string, string>) => { f['LICENSES/Apache-2.0.txt'] = 'Apache License\n'; }, 'LICENSES/Apache-2.0.txt', 'no annotation of REUSE.toml uses this licence'],

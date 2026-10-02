@@ -21,15 +21,21 @@
  *      performance budget that blocks a merge on a shared runner — 2-5x
  *      run-to-run variance — teaches people to re-run until green, which is
  *      worse than having no budget at all.
+ *   4. Every verb family of the public API (parse*, decode*, create*,
+ *      verify*, check*, open*, build*, validate*) is named by at least one
+ *      benchmark, so no release ships an operation nobody ever measured.
  *
  * @module scripts/verify-docs/rules/bench
  */
 
-import { error, type Finding, type Rule } from '../context.js';
+import { error, readJson, type Finding, type Rule } from '../context.js';
 
 const RESULTS = 'bench/RESULTS.md';
 const WORKFLOW = '.github/workflows/bench.yml';
 const RULESET = '.github/rulesets/main.json';
+const API_JSON = 'docs/assets/api.json';
+/** The verb families of the public API; each has at least one benchmark naming one of its functions. */
+const API_FAMILIES: readonly string[] = ['parse', 'decode', 'create', 'verify', 'check', 'open', 'build', 'validate'];
 
 /** A dated section must say where the numbers came from. */
 const CONTEXT_KEYS = ['Command', 'Runtime', 'Machine'];
@@ -93,6 +99,23 @@ const benchParity: Rule = {
         const ruleset = ctx.read(RULESET);
         if (ruleset !== null && /"context"\s*:\s*"[^"]*bench/i.test(ruleset)) {
             out.push(error(RULESET, 'requires a bench status check — a performance budget enforced on a shared runner is a budget people learn to re-run until it passes'));
+        }
+
+        // ── 4. Every family of the public API is measured somewhere ──
+        //
+        // Not every export: a benchmark per function would be a second test
+        // suite nobody reads. One row per verb family is what lets a reader
+        // of RESULTS.md find the order of magnitude of the operation they
+        // are about to call — and what caught 0.5 to 1.0 shipping with no
+        // number at all for path validation, revocation, CMS and PKCS#12.
+        const api = readJson<{ exports?: ReadonlyArray<{ name?: string; kind?: string }> }>(ctx, API_JSON);
+        if ('finding' in api) return [...out, api.finding];
+        const names = [...seen.keys()].join('\n');
+        for (const prefix of API_FAMILIES) {
+            const family = (api.value.exports ?? []).filter((e) => e.kind === 'function' && (e.name ?? '').startsWith(prefix)).map((e) => e.name ?? '');
+            if (family.length > 0 && !family.some((name) => new RegExp(`\\b${name}\\b`).test(names))) {
+                out.push(error('bench', `no benchmark names any ${prefix}* function (${family.join(', ')}) — a family of the public API with no measured row`));
+            }
         }
 
         return out;
