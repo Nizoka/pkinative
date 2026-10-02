@@ -478,15 +478,25 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     });
     if (!own.valid) return false;
     for (const { der, crl } of ctx.lists) {
-        if (_crlScopeProblem({ certificate: candidate, crl }) !== null) continue;
+        const problem = _crlScopeProblem({ certificate: candidate, crl });
+        if (problem !== null && problem.kind !== 'unusable') continue;
         if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
         const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, onDiagnostic: ctx.reading.onDiagnostic }, 'crl');
-        // A list its CA signed and nobody can walk has not said the delegate
-        // is unrevoked, so the delegate is not believed — fail closed.
-        if (reasons.some((reason) => reason.code === 'PKI_REASON_REVOKED' || reason.code === 'PKI_REASON_INPUT_MALFORMED')) return false;
+        // A list its CA signed and nobody can walk — or may use, for a
+        // critical extension on it or on any entry (RFC 5280 §5.3, §6.3.3) —
+        // has not said the delegate is unrevoked, so the delegate is not
+        // believed: fail closed.
+        if (reasons.some((reason) => STILL_GOOD_REFUSALS.has(reason.code))) return false;
     }
     return true;
 }
+
+/** What a list about a delegated CRL signer can say that stops it being believed. */
+const STILL_GOOD_REFUSALS: ReadonlySet<string> = /*#__PURE__*/ new Set([
+    'PKI_REASON_REVOKED',
+    'PKI_REASON_INPUT_MALFORMED',
+    'PKI_REASON_UNKNOWN_CRITICAL_EXTENSION',
+]);
 
 /** Everything `_crlSigner` needs to decide who was entitled to sign a list. */
 interface CrlSignerContext {
@@ -684,19 +694,15 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 mine.push(unknownCriticalExtensionReason(`crls[${String(index)}]`, problem.oid, 'revocation list'));
                 continue;
             }
-            covered.add(position);
             if (!signed.has(index)) signed.set(index, await _crlSigner(signing, crl, _hex(crl.issuer.der)));
             const signatureVerified = signed.get(index);
-            const only = crl.issuingDistributionPoint?.onlySomeReasons;
-            if (only === undefined) complete = true;
-            else for (const reason of only) reasons.add(reason);
             // The delta that belongs to **this** base, for **this** certificate
             // (RFC 5280 §5.2.4). Pairing is the composition's job because only
             // it holds both lists, and `checkRevocation` owns what the pair
             // means — the caller never merges two answers, because there is
             // only ever one.
             const delta = await _deltaFor(signing, subject, crl, signed);
-            mine.push(..._judged({
+            const judged = _judged({
                 certificate: subject,
                 crl,
                 crlDer: der,
@@ -705,7 +711,23 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 ...(delta === undefined ? {} : { delta }),
                 limits: reading.limits,
                 onDiagnostic: reading.onDiagnostic,
-            }, `crls[${String(index)}]`));
+            }, `crls[${String(index)}]`);
+            // **An entry can make the list unusable as well** (RFC 5280 §5.3: a
+            // critical entry extension nothing here processes, on *any* entry),
+            // and only the walk inside `checkRevocation` reaches the entries.
+            // Such a list then covers nothing and adds nothing to the mask, and
+            // that is all that is said about it — exactly the list-level case
+            // above, so the two read the same in a report.
+            const unusable = judged.filter((reason) => reason.code === 'PKI_REASON_UNKNOWN_CRITICAL_EXTENSION');
+            if (unusable.length > 0) {
+                mine.push(...unusable);
+                continue;
+            }
+            covered.add(position);
+            const only = crl.issuingDistributionPoint?.onlySomeReasons;
+            if (only === undefined) complete = true;
+            else for (const reason of only) reasons.add(reason);
+            mine.push(...judged);
         }
         // §6.3.3's `reasons_mask`, which only the composition can see: a CA that
         // publishes a keyCompromise list and a second list for everything else

@@ -517,6 +517,30 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_INPUT_MALFORMED@ocspResponses[0]', 'PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[1]']);
     });
 
+    it('should not use, nor count as an answer, a list whose entry about another certificate is critical and unknown (§5.3)', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, icaKey, { criticalEntry: true })],
+            requireRevocation: true,
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`))
+            .toEqual(['PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crls[0]', 'PKI_REASON_REVOCATION_UNKNOWN@path[0]']);
+        expect(report.reasons[0]?.message).toContain('1.3.6.1.4.1.99999.7');
+    });
+
+    it('should not add an unusable list to the reason mask', async () => {
+        // Two halves of the reasons, one of them unusable: the usable half is
+        // partial and stays reported as such.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, icaKey, { reasons: [0x05, 0x60] }), await signedCrl(ica, icaKey, { reasons: [0x07, 0x1f, 0x80], criticalEntry: true })],
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`))
+            .toEqual(['PKI_REASON_REVOCATION_PARTIAL@crls[0]', 'PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crls[1]']);
+    });
+
     it('should report NOT_CHECKED, never INVALID, for a signature it refuses to weigh', async () => {
         // Signed over SHA-1, whose collisions have been practical since 2017.
         // Neither boolean is honest, so verifyCertificateSignature throws — and
@@ -1315,6 +1339,23 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(report.reasons[1]).toMatchObject({ errorCode: 'PKI_X509_STRUCTURE_INVALID', path: 'crls[1]' });
     });
 
+    it.each([
+        ['on an entry (§5.3)', { criticalEntry: true }],
+        ['on the list (§6.3.3)', { criticalExtension: true }],
+    ])('should stop believing a delegated signer when the list that would clear it is unusable, critical extension %s', async (_where, unusable) => {
+        // The same canary: a list the CA signed that may not be used has not
+        // said the delegate is unrevoked either.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const delegate = await crlDelegate(ica, icaKey);
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica, delegate.certificate], trustAnchors: [root], at: AT,
+            crls: [await signedCrl(ica, delegate.key), await signedCrl(ica, icaKey, unusable)],
+            requireRevocation: true,
+        });
+        expect(report.reasons.map((r) => `${r.code}@${r.path}`))
+            .toEqual(['PKI_REASON_REVOCATION_UNKNOWN@crls[0]', 'PKI_REASON_UNKNOWN_CRITICAL_EXTENSION@crls[1]']);
+    });
+
     it('should stop believing a delegated signer whose certificate has expired', async () => {
         const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
         const delegate = await crlDelegate(ica, icaKey, { notAfter: AT - DAY / 2 });
@@ -1683,7 +1724,14 @@ interface SignedCrlOptions {
      * envelope parses, and only the walk that looks for a serial trips on it.
      */
     readonly malformedEntry?: boolean;
+    /** An entry for another serial carrying a critical extension nothing processes (RFC 5280 §5.3). */
+    readonly criticalEntry?: boolean;
+    /** A critical list extension nothing processes (RFC 5280 §6.3.3). */
+    readonly criticalExtension?: boolean;
 }
+
+/** `1.3.6.1.4.1.99999.7`, critical, valued NULL: an instruction nothing here can follow. */
+const VENDOR_CRITICAL = encodeSequence([encodeObjectIdentifier('1.3.6.1.4.1.99999.7'), encodeBoolean(true), encodeOctetString(encodeNull())]);
 
 async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: SignedCrlOptions = {}): Promise<Uint8Array> {
     const { revoked, reasons, aki } = options;
@@ -1697,6 +1745,7 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: Sig
             ])])]),
         ])]),
         ...(options.malformedEntry === true ? [encodeSequence([encodeInteger(0x7777n)])] : []),
+        ...(options.criticalEntry === true ? [encodeSequence([encodeInteger(0x7778n), encodeTime(AT - 30 * DAY, 'UTCTime'), encodeSequence([VENDOR_CRITICAL])])] : []),
     ];
     // issuingDistributionPoint { onlySomeReasons [3] ReasonFlags }, when asked:
     // the bytes are the BIT STRING content, unused-bit count first.
@@ -1725,6 +1774,7 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: Sig
             encodeBoolean(true),
             encodeOctetString(encodeInteger(BigInt(options.over))),
         ])]),
+        ...(options.criticalExtension === true ? [VENDOR_CRITICAL] : []),
     ];
     const tbs = encodeSequence([
         encodeInteger(1n),
