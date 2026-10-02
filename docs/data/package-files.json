@@ -27,7 +27,7 @@
       "path": "THIRD-PARTY-NOTICES.md",
       "executable": false,
       "role": "legal",
-      "sha256": "1a2a9c021e8275fd557f7fffac4ff7af3c2afc69cb7dd6190da9b9e293d3a4f5"
+      "sha256": "2eae293a8d980e3ba47d1d188f1c01dd469d153fbc4f0d0c472e76be1c54464f"
     },
     {
       "path": "dist/index.cjs",

@@ -13,7 +13,8 @@
 import { CLAUSES } from '../../lib/clauses.js';
 import { CORPORA, checksumPath, parseChecksums } from '../../lib/corpora.js';
 import { IMPLEMENTED_TOOLS, KEY_CONTAINER_CASES, PENDING_TOOLS, READ_CASES, REQUIRED_TOOLS, TOOL_LIMITATIONS } from '../../lib/interop.js';
-import { error, readJson, type Finding, type Rule } from '../context.js';
+import { RFC_INVENTORIES, titleInSource, type RfcInventorySpec } from '../../lib/rfc-requirements.js';
+import { error, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 const NOTICES = 'THIRD-PARTY-NOTICES.md';
 const ECOSYSTEM = 'docs/assets/ecosystem.json';
@@ -23,7 +24,6 @@ const INTEROP = 'scripts/lib/interop.ts';
 const ROADMAP = 'ROADMAP.md';
 const CONFORMANCE_WORKFLOW = '.github/workflows/conformance.yml';
 const GATE = 'scripts/gate.ts';
-const REQUIREMENTS = 'scripts/data/rfc5280-requirements.json';
 
 const corpusPinParity: Rule = {
     id: 'corpus-pin-parity',
@@ -138,7 +138,7 @@ const validatorRecordParity: Rule = {
  */
 const clauseTableComplete: Rule = {
     id: 'clause-table-complete',
-    summary: 'Every L5 clause cites a real section, quotes a normative sentence, and names either a diagnostic code that exists in docs/data/diagnostics.json or a written waiver; the conformance guide documents L5; the counts of scripts/data/rfc5280-requirements.json match declared.rfc5280 in ecosystem.json and the guide.',
+    summary: 'Every L5 clause cites a real section, quotes a normative sentence, and names either a diagnostic code that exists in docs/data/diagnostics.json or a written waiver; the conformance guide documents L5; the counts of every RFC requirement inventory (scripts/data/rfc<NNNN>-requirements.json) match declared.rfc<NNNN> in ecosystem.json and the conformance guide, and every `test` entry names a test file holding a case of that title.',
     check(ctx) {
         const out: Finding[] = [];
         const registry = readJson<{ diagnostics: Array<{ code: string }> }>(ctx, DIAGNOSTICS);
@@ -166,30 +166,64 @@ const clauseTableComplete: Rule = {
         const guide = ctx.read(GUIDE) ?? '';
         if (!guide.includes('L5')) out.push(error(GUIDE, 'does not describe conformance level L5 — the clause checker is the difference between a regression detector and an authority, and it is not documented'));
 
-        // The requirement inventory: its counts are ecosystem.json canaries,
-        // and the guide quotes them, so the three must say the same thing.
-        const inventory = readJson<{ requirements?: Record<string, { status?: string }> }>(ctx, REQUIREMENTS);
-        if ('finding' in inventory) return [...out, inventory.finding];
-        const ecosystem = readJson<{ declared?: { rfc5280?: { requirements?: number; clauses?: number; excluded?: number } } }>(ctx, ECOSYSTEM);
+        // The requirement inventories: their counts are ecosystem.json
+        // canaries, and the guide quotes them, so the three must say the same
+        // thing. A `test` entry claims that a named case exercises its
+        // sentence; a renamed or deleted case would leave the claim standing
+        // with nothing behind it, so the file must still hold that title.
+        const ecosystem = readJson<{ declared?: Record<string, Record<string, unknown> | undefined> }>(ctx, ECOSYSTEM);
         if ('finding' in ecosystem) return [...out, ecosystem.finding];
-        const entries = Object.values(inventory.value.requirements ?? {});
-        const counts = {
-            requirements: entries.length,
-            clauses: entries.filter((e) => e.status === 'clause').length,
-            excluded: entries.filter((e) => e.status === 'excluded').length,
-        };
-        const declared = ecosystem.value.declared?.rfc5280;
-        for (const [key, value] of Object.entries(counts)) {
-            if (declared?.[key as keyof typeof counts] !== value) {
-                out.push(error(ECOSYSTEM, `declared.rfc5280.${key} is ${String(declared?.[key as keyof typeof counts])}; ${REQUIREMENTS} holds ${String(value)}`));
-            }
-        }
-        for (const phrase of [`**${String(counts.requirements)} sentences**`, `**${String(counts.clauses)} are held by a clause**`, `**${String(counts.excluded)} are excluded**`]) {
-            if (!guide.includes(phrase)) out.push(error(GUIDE, `does not say ${phrase} — the L5 completeness counts in the guide drifted from ${REQUIREMENTS}`));
-        }
+        for (const spec of RFC_INVENTORIES) out.push(...inventoryFindings(ctx, spec, guide, ecosystem.value.declared?.[spec.declared]));
         return out;
     },
 };
+
+/**
+ * One inventory against its three witnesses: its declared counts in
+ * ecosystem.json, the sentence of the conformance guide that quotes them —
+ * RFC 5280's in the wording of its own paragraph, every other RFC's as
+ * `RFC NNNN <scope>: **N sentences**, **N held by a test**, **N excluded**`
+ * followed by its exclusions by reason — and, for each `test` entry, the
+ * test file that must still hold a case of that title.
+ */
+function inventoryFindings(ctx: RuleContext, spec: RfcInventorySpec, guide: string, declared: Record<string, unknown> | undefined): Finding[] {
+    const out: Finding[] = [];
+    const inventory = readJson<{ requirements?: Record<string, { status?: string; reason?: string; file?: string; test?: string }> }>(ctx, spec.data);
+    if ('finding' in inventory) return [inventory.finding];
+    const entries = Object.entries(inventory.value.requirements ?? {});
+    const counts = {
+        requirements: entries.length,
+        clauses: entries.filter(([, e]) => e.status === 'clause').length,
+        tests: entries.filter(([, e]) => e.status === 'test').length,
+        excluded: entries.filter(([, e]) => e.status === 'excluded').length,
+    };
+    for (const [key, value] of Object.entries(counts)) {
+        if (declared?.[key] !== value) out.push(error(ECOSYSTEM, `declared.${spec.declared}.${key} is ${String(declared?.[key])}; ${spec.data} holds ${String(value)}`));
+    }
+    for (const [id, entry] of entries) {
+        if (entry.status !== 'test') continue;
+        const source = ctx.read(entry.file ?? '');
+        if (source === null || !titleInSource(source, entry.test ?? '')) {
+            out.push(error(spec.data, `${id} is held by "${String(entry.test)}" in ${String(entry.file)}, which holds no it, test or describe of that title — the test was renamed or removed`));
+        }
+    }
+    if (spec.declared === 'rfc5280') {
+        for (const phrase of [`**${String(counts.requirements)} sentences**`, `**${String(counts.clauses)} are held by a clause**`, `**${String(counts.excluded)} are excluded**`]) {
+            if (!guide.includes(phrase)) out.push(error(GUIDE, `does not say ${phrase} — the L5 completeness counts in the guide drifted from ${spec.data}`));
+        }
+        return out;
+    }
+    const phrase = `${spec.rfc} ${spec.scope}: **${String(counts.requirements)} sentences**, **${String(counts.tests)} held by a test**, **${String(counts.excluded)} excluded**`;
+    const at = guide.indexOf(phrase);
+    if (at < 0) return [...out, error(GUIDE, `does not say ${phrase} — the L5 completeness counts in the guide drifted from ${spec.data}`)];
+    const sentence = guide.slice(at + phrase.length, guide.indexOf('\n', at) < 0 ? undefined : guide.indexOf('\n', at)).split(/\.(\s|$)/)[0] ?? '';
+    const reasons = new Map<string, number>();
+    for (const [, e] of entries) if (e.status === 'excluded' && e.reason !== undefined) reasons.set(e.reason, (reasons.get(e.reason) ?? 0) + 1);
+    for (const [reason, n] of reasons) {
+        if (!sentence.includes(`${String(n)} \`${reason}\``)) out.push(error(GUIDE, `does not say ${String(n)} \`${reason}\` in its ${spec.rfc} sentence — the exclusions by reason drifted from ${spec.data}`));
+    }
+    return out;
+}
 
 /**
  * A gap written down is a gap someone can close; a gap only the code knows

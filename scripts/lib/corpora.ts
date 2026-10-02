@@ -46,7 +46,7 @@ export interface CorpusArchive {
 }
 
 export interface Corpus {
-    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits' | 'rfc5280';
+    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits' | 'rfc5280' | 'rfc5652' | 'rfc3161' | 'rfc6960' | 'rfc7292' | 'rfc7468';
     readonly title: string;
     readonly repository: string;
     /**
@@ -123,6 +123,51 @@ export const CORPORA: readonly Corpus[] = [
         commit: 'a2f2628c0a83b873fc4786abd921f9b2c02395954b655d190bf16b831633345d',
         licence: 'Copyright (C) The IETF Trust (2008), BCP 78',
         files: [{ name: 'rfc5280.txt', path: 'rfc5280.txt', url: 'https://www.rfc-editor.org/rfc/rfc5280.txt' }],
+    },
+    // The five other RFCs whose requirement sentences are inventoried, pinned
+    // the same way and for the same reason: scripts/lib/rfc-requirements.ts
+    // extracts each RFC's sentences from exactly these bytes, and
+    // scripts/data/rfc<NNNN>-requirements.json accounts for each one. The
+    // digest of each is the file's own SHA-256, as for RFC 5280 above.
+    {
+        id: 'rfc5652',
+        title: 'RFC 5652, Cryptographic Message Syntax (CMS) (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc5652',
+        commit: 'dbd209ae7844031f51722c4d9e2d1fa3fff3081319851d581f914f5f0147f918',
+        licence: 'Copyright (C) The IETF Trust (2009), BCP 78',
+        files: [{ name: 'rfc5652.txt', path: 'rfc5652.txt', url: 'https://www.rfc-editor.org/rfc/rfc5652.txt' }],
+    },
+    {
+        id: 'rfc3161',
+        title: 'RFC 3161, Internet X.509 PKI Time-Stamp Protocol (TSP) (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc3161',
+        commit: '39fd17644ff2d654bc83814a78b1c5b5e7517f496741f34ead5064943eb98240',
+        licence: 'Copyright (C) The Internet Society (2001)',
+        files: [{ name: 'rfc3161.txt', path: 'rfc3161.txt', url: 'https://www.rfc-editor.org/rfc/rfc3161.txt' }],
+    },
+    {
+        id: 'rfc6960',
+        title: 'RFC 6960, X.509 Internet PKI Online Certificate Status Protocol - OCSP (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc6960',
+        commit: '7e63ffa1ea2ce2737d9aaf895a63776e9105ddbdfc97b8ae4029e3e825b4cdea',
+        licence: 'Copyright (C) The IETF Trust (2013), BCP 78',
+        files: [{ name: 'rfc6960.txt', path: 'rfc6960.txt', url: 'https://www.rfc-editor.org/rfc/rfc6960.txt' }],
+    },
+    {
+        id: 'rfc7292',
+        title: 'RFC 7292, PKCS #12: Personal Information Exchange Syntax v1.1 (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc7292',
+        commit: '168ce6749ac36f9a03c105e29b968ebe6f0d77cefce0200857f1d82d7de6cbad',
+        licence: 'Copyright (C) The IETF Trust (2014), BCP 78',
+        files: [{ name: 'rfc7292.txt', path: 'rfc7292.txt', url: 'https://www.rfc-editor.org/rfc/rfc7292.txt' }],
+    },
+    {
+        id: 'rfc7468',
+        title: 'RFC 7468, Textual Encodings of PKIX, PKCS, and CMS Structures (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc7468',
+        commit: '0b2c3c2087cc0b099789c90e61c0208e87b25793f0ce40090979e8c734b3d989',
+        licence: 'Copyright (C) The IETF Trust (2015), BCP 78',
+        files: [{ name: 'rfc7468.txt', path: 'rfc7468.txt', url: 'https://www.rfc-editor.org/rfc/rfc7468.txt' }],
     },
 ];
 

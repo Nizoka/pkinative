@@ -41,6 +41,7 @@
  */
 
 import { LAYERS, parseLayerDiagram } from '../../lib/architecture.js';
+import { RFC_INVENTORIES } from '../../lib/rfc-requirements.js';
 import { error, lineContaining, lineOf, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 import { DIAGNOSTICS_REGISTRY, ERRORS_REGISTRY, REASONS_REGISTRY } from './registries.js';
 
@@ -188,7 +189,7 @@ const standardsEvidence: Rule = {
             for (const m of (ctx.read(path) ?? '').matchAll(/\bid: '([a-z0-9-]+)'/g)) ruleIds.add(m[1] ?? '');
         }
         const clauses = ctx.read('scripts/lib/clauses.ts') ?? '';
-        const inventory = ctx.read('scripts/data/rfc5280-requirements.json') ?? '';
+        const inventory = RFC_INVENTORIES.map((spec) => ctx.read(spec.data) ?? '').join('\n');
         const conformance = ctx.read('docs/guides/conformance.md') ?? '';
         const codes = registeredCodes(ctx);
         if ('finding' in codes) return [codes.finding];
@@ -204,7 +205,7 @@ const standardsEvidence: Rule = {
                 if (path.includes('*') ? !globMatches(ctx, path) : !ctx.exists(path)) cite(token, 'which is not in the repository');
             } else if (KEBAB_TOKEN.test(token) && /[a-z]/.test(token)) {
                 if (!ruleIds.has(token) && !clauses.includes(`id: '${token}'`) && !inventory.includes(`"${token}"`)) {
-                    cite(token, 'which is no verify-docs rule, L5 clause of scripts/lib/clauses.ts or term of the requirement inventory');
+                    cite(token, 'which is no verify-docs rule, L5 clause of scripts/lib/clauses.ts or term of an RFC requirement inventory');
                 }
             }
         }

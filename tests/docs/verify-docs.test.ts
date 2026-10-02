@@ -839,6 +839,31 @@ describe('stale-milestone, the phrases it tells apart', () => {
     });
 });
 
+describe('clause-table-complete, the RFC requirement inventories', () => {
+    const fire = async (mutate: Mutation): Promise<readonly string[]> => {
+        const files = { ...TREE };
+        mutate(files);
+        const problems = await runRules(createMemoryContext(files), RULES, 'clause-table-complete');
+        return problems.filter((p) => p.severity === 'error').map((p) => `${p.file}: ${p.message}`);
+    };
+
+    it('should fire on a test entry whose title no case of its file holds any more', async () => {
+        const problems = await fire((f) => edit(f, 'scripts/data/rfc6960-requirements.json',
+            '"test": "should refuse a responder that nominated itself"', '"test": "should refuse something no test says"'));
+        expect(problems).toEqual([expect.stringContaining('scripts/data/rfc6960-requirements.json: 4.2.2.2-5-db78e837 is held by "should refuse something no test says"')]);
+    });
+
+    it('should fire on a count the ecosystem declares and the inventory does not hold', async () => {
+        const problems = await fire((f) => edit(f, 'docs/assets/ecosystem.json', /("rfc3161": \{[^}]*"tests": )26/, '$127'));
+        expect(problems).toEqual([expect.stringContaining('declared.rfc3161.tests is 27; scripts/data/rfc3161-requirements.json holds 26')]);
+    });
+
+    it('should fire on a guide whose exclusions by reason drifted from the inventory', async () => {
+        const problems = await fire((f) => edit(f, 'docs/guides/conformance.md', '10 `producer-policy` (what the TSA', '9 `producer-policy` (what the TSA'));
+        expect(problems).toEqual([expect.stringContaining('does not say 10 `producer-policy` in its RFC 3161 sentence')]);
+    });
+});
+
 describe('standards-evidence, what it resolves', () => {
     it.each([
         ['a rule that does not exist', '`corpus-pin-parity`', '`corpus-pin-parities`', 'no verify-docs rule'],
