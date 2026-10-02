@@ -487,6 +487,18 @@
       "original": "subtle !== undefined && typeof subtle.digest === 'function'",
       "replacement": "true",
       "reason": "Semantic: the guard only spares a throw that the try/catch below it already absorbs. When subtle is undefined, or its digest is not a function, the forced call raises a TypeError inside the try block, the catch swallows it, and the function returns hash(bytes) — the pure-path result the guard would have chosen. A host whose digest is a function takes the same path with or without the mutant."
+    },
+    {
+      "id": "src/hash/sha1.ts:35:28:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one extra schedule step, j = 80, reads w[77], w[72], w[66] and w[64] (all within the 80-word array) and writes w[80], an index past the end of the Uint32Array that is discarded (ECMA-262 TypedArraySetElement); no other state changes, and rounds 0..79 read only w[0..79]."
+    },
+    {
+      "id": "src/hash/sha1.ts:35:30:number+1",
+      "original": "80",
+      "replacement": "81",
+      "reason": "Semantic: as 35:28 relational — the bound 81 adds the single step j = 80, whose write to w[80] lies past the 80-word Uint32Array and is discarded."
     }
   ]
 }
