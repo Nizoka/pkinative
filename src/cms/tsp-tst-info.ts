@@ -272,6 +272,11 @@ function readExtensions(der: Uint8Array, field: Asn1Node, ctx: Asn1Context, path
             || oidNode === undefined || valueNode === undefined) {
             throw _tspError(where, entry.offset, 'is not an Extension');
         }
+        // `extnValue OCTET STRING` (RFC 5280 §4.1): any other tag is not the
+        // wrapper the value is read out of, whatever its content looks like.
+        if (valueNode.tagClass !== 'universal' || valueNode.tagNumber !== 4) {
+            throw _tspError(`${where}.extnValue`, valueNode.offset, 'is not an OCTET STRING, the extnValue RFC 5280 §4.1 defines');
+        }
         const criticalNode = entry.children.length === 3 ? entry.children[1] as Asn1Node : undefined;
         const start = valueNode.offset + valueNode.headerLength;
         out.push(_viaX509(where, entry.offset, () => _decodeExtension(

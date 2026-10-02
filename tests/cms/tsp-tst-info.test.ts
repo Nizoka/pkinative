@@ -221,3 +221,88 @@ describe('parseTstInfo', () => {
         expect(code(() => parseTstInfo(indefinite, { ...quiet, encodingRules: 'ber' }))).toBe('PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN');
     });
 });
+
+// ── Each refusal at its own path, and the edges of what is accepted ──
+
+/** The five mandatory fields, without the SEQUENCE around them. */
+const MANDATORY = concat(int(1), oid(POLICY), imprint(SHA256, 32), int(0x2b), generalizedTime('20260928120000Z'));
+const HASH_FIELDS = concat(sequence(oid(SHA256), universal(5, [])), universal(4, new Array<number>(32).fill(0xab)));
+const DNS = tlv(2, false, 2, ascii('tsa.example'));
+const EXTENSION = sequence(oid([0x2a, 0x03, 0x05]), universal(4, [0x05, 0x00]));
+const extensions = (...entries: readonly Uint8Array[]): Uint8Array => tlv(2, true, 1, concat(...entries));
+const accuracy = (...fields: readonly Uint8Array[]): Uint8Array => sequence(...fields);
+
+function refusal(der: Uint8Array): unknown {
+    try {
+        parseTstInfo(der, quiet);
+    } catch (error) {
+        return error;
+    }
+    throw new Error('expected a refusal');
+}
+
+describe('parseTstInfo — where each refusal points', () => {
+    it.each<readonly [string, Uint8Array, string]>([
+        ['a TSTInfo under the SET tag', universal(17, MANDATORY, true), 'TSTInfo'],
+        ['a TSTInfo under a context [16] tag', tlv(2, true, 16, MANDATORY), 'TSTInfo'],
+        ['an imprint under the SET tag', tstInfo({ imprint: universal(17, HASH_FIELDS, true) }), 'TSTInfo.messageImprint'],
+        ['an imprint of three fields', tstInfo({ imprint: sequence(HASH_FIELDS, int(0)) }), 'TSTInfo.messageImprint'],
+        ['a tsa holding two GeneralNames', tstInfo({ tail: [tlv(2, true, 0, concat(DNS, DNS))] }), 'TSTInfo.tsa'],
+        ['a field after a well-formed extensions field', tstInfo({ tail: [extensions(EXTENSION), int(5)] }), 'TSTInfo[6]'],
+        ['an extension under the SET tag', tstInfo({ tail: [extensions(universal(17, concat(oid([0x2a, 0x03, 0x05]), universal(4, [0x05, 0x00])), true))] }), 'TSTInfo.extensions[0]'],
+        // One field is not an Extension at all — refused as the entry, before its extnValue is looked for.
+        ['an extension holding only an OID', tstInfo({ tail: [extensions(sequence(oid([0x2a, 0x03, 0x05])))] }), 'TSTInfo.extensions[0]'],
+        ['an extension holding only an OCTET STRING', tstInfo({ tail: [extensions(sequence(universal(4, [0x05, 0x00])))] }), 'TSTInfo.extensions[0]'],
+        ['an extnValue that is an INTEGER', tstInfo({ tail: [extensions(sequence(oid([0x2a, 0x03, 0x05]), int(5)))] }), 'TSTInfo.extensions[0].extnValue'],
+        ['an extnValue under a context [4] tag', tstInfo({ tail: [extensions(sequence(oid([0x2a, 0x03, 0x05]), tlv(2, false, 4, [0x05])))] }), 'TSTInfo.extensions[0].extnValue'],
+        ['a recognised extension whose extnValue is an INTEGER', tstInfo({ tail: [extensions(sequence(oid([0x55, 0x1d, 0x13]), universal(2, [0x30, 0x00])))] }), 'TSTInfo.extensions[0].extnValue'],
+        ['a millis of 0', tstInfo({ tail: [accuracy(tlv(2, false, 0, [0x00]))] }), 'TSTInfo.accuracy.millis'],
+        ['a millis of 1000', tstInfo({ tail: [accuracy(tlv(2, false, 0, [0x03, 0xe8]))] }), 'TSTInfo.accuracy.millis'],
+        ['a micros of 0', tstInfo({ tail: [accuracy(tlv(2, false, 1, [0x00]))] }), 'TSTInfo.accuracy.micros'],
+        ['a micros of 1000', tstInfo({ tail: [accuracy(tlv(2, false, 1, [0x03, 0xe8]))] }), 'TSTInfo.accuracy.micros'],
+    ])('should refuse %s with PKI_CMS_STRUCTURE_INVALID at its path', (_, der, path) => {
+        const error = refusal(der);
+        expect(error).toBeInstanceOf(PkiCmsError);
+        expect(error).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path });
+    });
+});
+
+describe('parseTstInfo — the edges of what is accepted', () => {
+    it.each([
+        ['millis 1 and micros 999', [tlv(2, false, 0, [0x01]), tlv(2, false, 1, [0x03, 0xe7])], { seconds: 0, millis: 1, micros: 999 }],
+        ['millis 999 and micros 1', [tlv(2, false, 0, [0x03, 0xe7]), tlv(2, false, 1, [0x01])], { seconds: 0, millis: 999, micros: 1 }],
+        ['seconds 0', [int(0)], { seconds: 0, millis: 0, micros: 0 }],
+        ['seconds 2^53 − 1, the largest a number holds exactly', [int(0x1f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff)], { seconds: Number.MAX_SAFE_INTEGER, millis: 0, micros: 0 }],
+    ])('should read an accuracy of %s (RFC 3161 §2.4.2: millis and micros are 1..999)', (_, fields, expected) => {
+        expect(parseTstInfo(tstInfo({ tail: [accuracy(...fields)] }), quiet).accuracy).toEqual(expected);
+    });
+
+    it('should not name an ordering of TRUE, which is not the DEFAULT', () => {
+        const diagnostics: string[] = [];
+        const info = parseTstInfo(tstInfo({ tail: [bool(true)] }), { onDiagnostic: (d): void => { diagnostics.push(d.code); } });
+        expect(info.ordering).toBe(true);
+        expect(diagnostics).toEqual([]);
+    });
+
+    it('should read each extension\'s value out of its extnValue, with and without critical', () => {
+        const critical = sequence(oid([0x2a, 0x03, 0x06]), bool(true), universal(4, [0x07]));
+        const info = parseTstInfo(tstInfo({ tail: [extensions(EXTENSION, critical)] }), quiet);
+        expect(info.extensions.map((e) => [e.oid, e.critical, Array.from(e.valueDer)])).toEqual([
+            ['1.2.3.5', false, [0x05, 0x00]],
+            ['1.2.3.6', true, [0x07]],
+        ]);
+    });
+
+    it('should decode a recognised extension from its extnValue, in place', () => {
+        // basicConstraints (2.5.29.19), an empty SEQUENCE: cA FALSE.
+        const info = parseTstInfo(tstInfo({ tail: [tlv(2, true, 0, DNS), extensions(sequence(oid([0x55, 0x1d, 0x13]), universal(4, [0x30, 0x00])))] }), quiet);
+        expect(info.tsa?.kind).toBe('dNSName');
+        expect(info.extensions[0]).toMatchObject({ kind: 'basicConstraints', cA: false });
+    });
+
+    it('should admit exactly maxExtensions extensions', () => {
+        const second = sequence(oid([0x2a, 0x03, 0x06]), universal(4, [0x05, 0x00]));
+        const info = parseTstInfo(tstInfo({ tail: [extensions(EXTENSION, second)] }), { ...quiet, limits: { maxExtensions: 2 } });
+        expect(info.extensions).toHaveLength(2);
+    });
+});
