@@ -39,6 +39,19 @@ export const PENDING_TOOLS: readonly PendingTool[] = Object.freeze([
         platform: 'darwin',
         why: 'the macOS Security framework is the only way to check what Apple platforms accept; it needs a program written against SecCertificate/SecTrust and proved on a macOS machine, and the development machine is not one — conformance-macos would run it, unproved, which is how a matrix starts lying',
     },
+    {
+        // `dotnet` is implemented and proved on Windows only (TOOL_PLATFORMS);
+        // these two entries are the rest of its platforms, declared so the gap
+        // is held by interop-matrix-declared instead of a code comment.
+        id: 'dotnet-linux',
+        platform: 'linux',
+        why: '.NET runs on Linux, but scripts/validators/dotnet.ps1 has been run and proved on Windows only, where X509Chain and SignedCms sit on CryptoAPI; on Linux the same API sits on OpenSSL, so it would be a second front end onto a lineage the matrix already runs, and it is not run unproved',
+    },
+    {
+        id: 'dotnet-macos',
+        platform: 'darwin',
+        why: '.NET on macOS reaches the Apple Security framework, which would be a lineage the matrix does not have yet, but scripts/validators/dotnet.ps1 has never been run on a macOS machine and the development machine is not one — it is not run unproved, the same reason macos-security waits',
+    },
 ]);
 
 /** The tools the matrix runs today. Kept here so the rule can compare both halves. */
@@ -63,14 +76,17 @@ export const IMPLEMENTED_TOOLS: readonly string[] = Object.freeze([
  * reaches the Linux ones through WSL) and is held to the same agreement when
  * it does.
  *
- * Linux carries the most because the workflow installs it: GnuTLS from the
- * distribution, Go from a pinned setup-go, zlint at a pinned module version,
- * pyca/cryptography and pkilint from a hash-pinned requirements file. Windows
- * needs nothing installed. macOS has only its system `openssl`, which is not
- * the reference build and is held to reading, not to agreement on refusals.
+ * Linux carries the most because the workflow installs it: GnuTLS and gpgsm
+ * from the distribution, Go from a pinned setup-go, zlint at a pinned module
+ * version, pyca/cryptography and pkilint from a hash-pinned requirements file;
+ * the JDK behind `java-keytool` is the one the ubuntu image carries. Every
+ * tool the Linux runner has is required there, so none of them can disappear
+ * into a skip. Windows needs nothing installed. macOS has only its system
+ * `openssl`, which is not the reference build and is held to reading, not to
+ * agreement on refusals.
  */
 export const REQUIRED_TOOLS: Readonly<Record<'linux' | 'win32' | 'darwin', readonly string[]>> = Object.freeze({
-    linux: ['openssl', 'gnutls-certtool', 'python-cryptography', 'go-x509', 'zlint', 'pkilint'],
+    linux: ['openssl', 'gnutls-certtool', 'gpgsm', 'java-keytool', 'python-cryptography', 'go-x509', 'zlint', 'pkilint'],
     win32: ['openssl', 'windows-cryptoapi', 'dotnet'],
     darwin: ['openssl'],
 });

@@ -288,7 +288,9 @@ const EMITTERS = join(dirname(fileURLToPath(import.meta.url)), '..', 'validators
  * (Windows), Go's crypto/x509 and pyca/cryptography's Rust parser (Linux,
  * where the workflow installs them). Still to come, each deliberately absent
  * until it can be run and proved rather than written blind: Java's
- * `CertificateFactory`, and .NET's own reader on Linux and macOS.
+ * `CertificateFactory`, and .NET's own reader on Linux and macOS (declared
+ * pending in the interop matrix as `dotnet-linux` and `dotnet-macos`,
+ * scripts/lib/interop.ts, where interop-matrix-declared holds the gap).
  */
 export const VALIDATORS: readonly ValidatorSpec[] = [
     {
