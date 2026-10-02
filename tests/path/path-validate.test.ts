@@ -591,6 +591,22 @@ describe('validateCertificatePath', () => {
         expect(reason?.limit).toBe('maxChainLength');
     });
 
+    it.each([
+        ['inside path', [LEAF, R12, ROOT_X1]],
+        ['only in trustAnchors', [LEAF, R12]],
+    ])('should count the anchor against maxChainLength when it is %s', (_where, path) => {
+        // One counting rule: the walked path, anchor included. Three
+        // certificates fit a bound of three; at two the anchor does not fit,
+        // and it is reported once, at the index it would have taken.
+        const input = { path, trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, R12) };
+        const fits = validateCertificatePath({ ...input, limits: { maxChainLength: 3 } });
+        expect(fits.reasons).toEqual([]);
+        expect(fits.path).toHaveLength(3);
+        const tooLong = validateCertificatePath({ ...input, limits: { maxChainLength: 2 } });
+        expect(tooLong.reasons.map((r) => [r.code, r.path, r.limit])).toEqual([['PKI_REASON_LIMIT_EXCEEDED', 'path[2]', 'maxChainLength']]);
+        expect(tooLong.path).toEqual([LEAF, R12]);
+    });
+
     it('should accept a chain whose anchor is supplied only in trustAnchors', () => {
         // A server sends the chain both ways in practice; refusing one of them
         // would be refusing half the internet.

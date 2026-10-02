@@ -286,6 +286,21 @@ describe('buildCertificatePath', () => {
         expect(report.explored).toBe(1);
     });
 
+    it.each([
+        ['in the candidates', [INTERMEDIATE.certificate, ROOT]],
+        ['only in trustAnchors', [INTERMEDIATE.certificate]],
+    ])('should count the anchor against maxChainLength when it is %s', (_where, candidates) => {
+        // The bound counts the anchor however the caller supplied it: three
+        // certificates, anchor included, fit a bound of three and not of two.
+        const input = { leaf: LEAF.certificate, candidates, trustAnchors: [ROOT], at: AT, signatures: allValid(LEAF.certificate, INTERMEDIATE.certificate) };
+        const fits = buildCertificatePath({ ...input, limits: { maxChainLength: 3 } });
+        expect(fits.reasons).toEqual([]);
+        expect(fits.path).toHaveLength(3);
+        const tooLong = buildCertificatePath({ ...input, limits: { maxChainLength: 2 } });
+        expect(tooLong.valid).toBe(false);
+        expect(tooLong.reasons.map((r) => [r.code, r.path, r.limit])).toEqual([['PKI_REASON_LIMIT_EXCEEDED', 'path[2]', 'maxChainLength']]);
+    });
+
     it('should accept a leaf that is itself a trust anchor, without exploring', () => {
         // The real question "is this root in my trust store?" — and the shortest
         // possible path, which is one certificate.

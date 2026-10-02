@@ -469,11 +469,15 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
 
     const walked: Certificate[] = [];
     let anchored = false;
+    // Set when the walk stopped at `maxChainLength`, so the anchor that does
+    // not fit is not reported a second time below.
+    let limited = false;
 
     for (const [index, certificate] of input.path.entries()) {
         const path = `path[${String(index)}]`;
         if (index >= context.maxCertificates) {
             state.reasons.push(limitExceededReason(path, 'maxChainLength', context.maxCertificates));
+            limited = true;
             break;
         }
         const fingerprint = _hex(certificate.der);
@@ -552,10 +556,19 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
             // this validator cannot follow. A relying party that means to trust
             // an expired anchor anyway can see the reason and decide; one that
             // never sees it cannot.
-            const validity = checkValidity(anchor, context.at, path);
-            if (validity !== null) state.reasons.push(validity);
-            state.reasons.push(...checkCriticalExtensions(anchor, path));
-            walked.push(anchor);
+            //
+            // It also **counts against `maxChainLength`**, for the same reason:
+            // the bound is on the walked path, anchor included, and a chain
+            // that is refused with its root inside `path` must not validate
+            // with the same root supplied only in `trustAnchors`.
+            if (walked.length >= context.maxCertificates) {
+                if (!limited) state.reasons.push(limitExceededReason(path, 'maxChainLength', context.maxCertificates));
+            } else {
+                const validity = checkValidity(anchor, context.at, path);
+                if (validity !== null) state.reasons.push(validity);
+                state.reasons.push(...checkCriticalExtensions(anchor, path));
+                walked.push(anchor);
+            }
         }
     }
     if (!anchored) state.reasons.push(noTrustAnchorReason(`path[${String(Math.max(walked.length - 1, 0))}]`));
