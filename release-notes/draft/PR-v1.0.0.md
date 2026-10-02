@@ -11,7 +11,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The three-part compatibility promise** (export surface, error vocabulary, decision surface), each held by a snapshot and a rule, plus what ADR 0018 adds beyond the snapshots: option defaults, open unions, what is not promised.
 - **Security fixes found before anyone could depend on the defect:** the PBKDF2 work of a whole PKCS#12 bounded (`maxPkcs12KdfIterations`, ADR 0020); `PKI_REASON_REVOKED` only from authenticated evidence; three name-constraint bypasses closed; id-RSASSA-PSS keys held to RFC 4055. A CVE-class corpus of 43 published vulnerabilities of comparable libraries.
 - **Decisions 1.0 could not leave open:** one entry point (ADR 0016), the runtime and toolchain policy with a patched Node.js floor (ADR 0017), error identity across the ESM and CJS builds (ADR 0021).
-- **Cross-validation made permanent:** eight foreign implementations and two linters, both directions, `--require-all`.
+- **Cross-validation made permanent:** eight foreign implementations and two linters read what pkinative writes, five of them also write what it reads, `--require-all`.
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
@@ -29,7 +29,7 @@ Conformance:
 | L6 | 9 156/9 208 (99.44 %) |
 | L7 | 195/203 (96.06 %) |
 | L8 | 221/224 intact, 196/204 agree with NIST |
-| Interop | 9 tools agree on every artefact, both directions, on the Windows release machine; the Linux set (GnuTLS, Python cryptography, Go, zlint, pkilint) is required in the conformance workflow |
+| Interop | 9 tools agree on every artefact, both directions, on the Windows release machine; the Linux set (GnuTLS, gpgsm, Java keytool, Python cryptography, Go, zlint, pkilint) is required in the conformance workflow |
 
 ## Changes
 

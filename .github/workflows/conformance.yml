@@ -142,13 +142,15 @@ jobs:
       - name: Run the conformance gate (blocking)
         run: npx tsx scripts/validate-certs.ts --require-all
 
-      # Both directions: foreign tools reading what pkinative writes, and
-      # pkinative reading what they write. This job's three contexts are
+      # Foreign tools reading what pkinative writes, and pkinative reading
+      # what five of them write (openssl, GnuTLS, gpgsm, .NET, CryptoAPI;
+      # READ_CASES and KEY_CONTAINER_CASES). This job's three contexts are
       # already required by the ruleset, so the matrix is blocking on Linux,
       # Windows and macOS without the ruleset changing at all.
       #
       # --require-all: a tool REQUIRED_TOOLS names for this runner — Linux:
-      # openssl, GnuTLS, Go, pyca/cryptography, zlint, pkilint; Windows:
+      # openssl, GnuTLS, gpgsm, the JDK's keytool, Go, pyca/cryptography,
+      # zlint, pkilint; Windows:
       # openssl, CryptoAPI, .NET; macOS: openssl — that is missing fails the
       # job instead of being skipped. Every other tool runs wherever the image
       # happens to carry it, and is held to the same agreement when it does.
