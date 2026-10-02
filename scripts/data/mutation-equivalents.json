@@ -781,6 +781,30 @@
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: as the conditional swap at 366:73 — the compared version only chooses the wording of `what`."
+    },
+    {
+      "id": "src/cms/cms-signed-data.ts:146:19:conditional",
+      "original": "known === undefined ? contentType : `${contentType} (${known})`",
+      "replacement": "(known === undefined ? `${contentType} (${known})` : contentType)",
+      "reason": "Message-only: the conditional only words how the PKI_CMS_CONTENT_TYPE_UNEXPECTED message names the content type found (with or without its registered name); the throw is decided by contentType !== OID_SIGNED_DATA on line 143, and its code, path ('contentType') and offset are unchanged."
+    },
+    {
+      "id": "src/cms/cms-signed-data.ts:146:25:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional swap at 146:19 — the test only chooses the wording of the content type in the message."
+    },
+    {
+      "id": "src/cms/cms-signed-data.ts:182:114:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: `fields.length - at - 1` only counts, in the PKI_CMS_STRUCTURE_INVALID message, the values after signerInfos; the throw is decided by fields.length !== at + 1 on line 181, pinned by 'a field after signerInfos' (code and path 'content')."
+    },
+    {
+      "id": "src/cms/cms-signed-data.ts:182:114:number-1",
+      "original": "1",
+      "replacement": "0",
+      "reason": "Message-only: as number+1 at the same position — the subtrahend only formats the count the message quotes."
     }
   ]
 }

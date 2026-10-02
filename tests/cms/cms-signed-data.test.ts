@@ -370,6 +370,16 @@ describe('parseSignedData — limits', () => {
         expect(tripped(der, { maxSignerInfos: 1 })).toBe('maxSignerInfos');
     });
 
+    it('should admit exactly maxSignerInfos signers', () => {
+        const der = contentInfo(signedData({ signers: [signerInfo({ signature: octets([1]) }), signerInfo({ signature: octets([2]) })] }));
+        expect(parse(der, { limits: { maxSignerInfos: 2 } }).signed.signerInfos).toHaveLength(2);
+    });
+
+    it('should admit exactly maxSignerInfos digest algorithms', () => {
+        const der = contentInfo(signedData({ digestAlgorithms: [alg(OIDS.sha256), alg(OIDS.sha384)] }));
+        expect(parse(der, { limits: { maxSignerInfos: 2 } }).signed.digestAlgorithms.map((a) => a.oid)).toEqual([OIDS.sha256, OIDS.sha384]);
+    });
+
     it('should bound the signed attributes with maxAttributes', () => {
         expect(tripped(contentInfo(), { maxAttributes: 1 })).toBe('maxAttributes');
     });
@@ -429,6 +439,8 @@ describe('parseSignedData — structures RFC 5652 does not define', () => {
         ['a constructed [0] sid', signerWith({ sid: context(0, true, octets(SKI)) }), 'content.signerInfos[0].sid'],
         ['a [1] sid', signerWith({ sid: context(1, false, SKI) }), 'content.signerInfos[0].sid'],
         ['an issuerAndSerialNumber with one field', signerWith({ sid: sequence(ISSUER) }), 'content.signerInfos[0].sid'],
+        // The two fields of an IssuerAndSerialNumber, under the SET tag: not a SignerIdentifier, however well its contents read.
+        ['an issuerAndSerialNumber under a SET', signerWith({ sid: set(ISSUER, int(1)) }), 'content.signerInfos[0].sid'],
         ['an issuer that is not a Name', signerWith({ sid: sequence(int(1), int(1)) }), 'content.signerInfos[0].sid.issuer'],
         ['a serial that is not an INTEGER', signerWith({ sid: sequence(ISSUER, octets([1])) }), 'content.signerInfos[0].sid.serialNumber'],
         ['a missing digestAlgorithm', signerWith({ fields: [defaults.version, defaults.sid] }), 'content.signerInfos[0].digestAlgorithm'],
