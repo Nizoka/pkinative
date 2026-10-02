@@ -18,6 +18,11 @@
  * every one of which lets an attacker present the same signature in several
  * encodings. Each is refused here, and the corpus is already pinned.
  *
+ * What it does not refuse is a well-encoded value out of range: r = 0,
+ * s = 0 or r ≥ n is converted as it stands, and the CVE-2022-21449 class
+ * ("psychic signatures") is closed by the host's ECDSA verify (Node.js over
+ * OpenSSL rejects them), not by this converter.
+ *
  * @module crypto/crypto-signature
  */
 
