@@ -409,6 +409,16 @@ export type GeneralNameDescription =
     | { readonly kind: 'directoryNameDer'; readonly value: Uint8Array };
 
 /**
+ * The implicit tag of each IA5String GeneralName. A `Map`, because the key is
+ * the caller's `kind`: on a plain object, `'constructor'` would find a value.
+ */
+const TEXT_NAME_TAGS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map([
+    ['rfc822Name', 1],
+    ['dNSName', 2],
+    ['uniformResourceIdentifier', 6],
+]);
+
+/**
  * `subjectAltName` (RFC 5280 §4.2.1.6), and `issuerAltName`, which has the
  * same value syntax.
  *
@@ -425,7 +435,6 @@ export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): 
     if (names.length === 0) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: a subjectAltName with no name is refused by RFC 5280 §4.2.1.6 — omit the extension instead');
     }
-    const tags: Readonly<Record<string, number>> = { rfc822Name: 1, dNSName: 2, uniformResourceIdentifier: 6 };
     return encodeSequence(names.map((name) => {
         if (name.kind === 'directoryNameDer') return encodeExplicit(4, assertBytes(name.value, 'directoryName'));
         if (name.kind === 'iPAddress') {
@@ -439,7 +448,7 @@ export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): 
             return encodeImplicit(7, encodeOctetString(address));
         }
         if (name.kind === 'registeredID') return encodeImplicit(8, encodeObjectIdentifier(name.value));
-        const tag = tags[name.kind];
+        const tag = TEXT_NAME_TAGS.get(name.kind);
         if (tag === undefined) {
             throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${String((name as { kind: string }).kind)} is not a GeneralName form this encoder writes — pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
         }

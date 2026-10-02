@@ -305,6 +305,12 @@ describe('the extension values', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION' }));
     });
 
+    // C-07 (CWE-1321): the kind is the caller's string, looked up as an own key only.
+    it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])('should refuse the inherited key %s as a name form', (kind) => {
+        expect(() => encodeSubjectAltName([{ kind, value: 'x' } as never]))
+            .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION' }));
+    });
+
     it('should write an iPAddress in network byte order, both families', () => {
         // [7] IMPLICIT OCTET STRING, so the tag is replaced and the value
         // stays primitive: 87 04 for IPv4, 87 10 for IPv6.
