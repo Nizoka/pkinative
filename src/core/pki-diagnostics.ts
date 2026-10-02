@@ -440,6 +440,223 @@ export function defaultEncodedDiagnostic(path: string, value: string, offset?: n
         path, offset);
 }
 
+// ── Payload factories — the rest of the RFC 5280 §4.1–§4.2 profile ───
+//
+// Each is one requirement sentence of scripts/data/rfc5280-requirements.json,
+// held to an independent reading by its L5 clause in scripts/lib/clauses.ts.
+// A MUST is a `warning`, a SHOULD an `info`; none of them changes what is
+// decoded, and none refuses a chain.
+
+export function uniqueIdPresentDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_UNIQUE_ID_PRESENT', 'warning', 'RFC 5280 §4.1.2.8',
+        'the certificate carries a unique identifier; RFC 5280 forbids conforming CAs to generate one, and no relying party gives it a meaning',
+        path, undefined);
+}
+
+export function akiCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AKI_CRITICAL', 'warning', 'RFC 5280 §4.2.1.1',
+        'authorityKeyIdentifier is marked critical; RFC 5280 requires conforming CAs to mark it non-critical',
+        'tbsCertificate.extensions.authorityKeyIdentifier', undefined);
+}
+
+export function skiCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SKI_CRITICAL', 'warning', 'RFC 5280 §4.2.1.2',
+        'subjectKeyIdentifier is marked critical; RFC 5280 requires conforming CAs to mark it non-critical',
+        'tbsCertificate.extensions.subjectKeyIdentifier', undefined);
+}
+
+export function skiMissingEndEntityDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SKI_MISSING_END_ENTITY', 'info', 'RFC 5280 §4.2.1.2',
+        'subjectKeyIdentifier is absent from an end-entity certificate; RFC 5280 says it should be included, though the CA/Browser Forum now advises against it in subscriber certificates',
+        'tbsCertificate.extensions', undefined);
+}
+
+export function keyUsageNotCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_KEY_USAGE_NOT_CRITICAL', 'info', 'RFC 5280 §4.2.1.3',
+        'keyUsage is not marked critical; RFC 5280 says conforming CAs should mark it critical, so that a verifier which does not process it refuses the certificate rather than ignore the restriction',
+        'tbsCertificate.extensions.keyUsage', undefined);
+}
+
+export function anyPolicyQualifierDiagnostic(oid: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ANY_POLICY_QUALIFIER', 'warning', 'RFC 5280 §4.2.1.4',
+        `anyPolicy carries the qualifier ${oid}; with anyPolicy, RFC 5280 limits qualifiers to the CPS pointer and the user notice`,
+        path, undefined);
+}
+
+export function noticeRefUsedDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NOTICE_REF_USED', 'info', 'RFC 5280 §4.2.1.4',
+        'a user notice uses noticeRef; RFC 5280 says conforming CAs should not, since a relying party can rarely resolve it to text',
+        path, undefined);
+}
+
+export function explicitTextStringTypeDiagnostic(type: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_EXPLICIT_TEXT_STRING_TYPE', 'warning', 'RFC 5280 §4.2.1.4',
+        `a user notice's explicitText is a ${type}; RFC 5280 forbids VisibleString and BMPString there and asks for UTF8String (or IA5String)`,
+        path, undefined);
+}
+
+export function explicitTextControlCharacterDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_EXPLICIT_TEXT_CONTROL_CHARACTER', 'info', 'RFC 5280 §4.2.1.4',
+        'a user notice\'s explicitText contains a control character (U+0000 to U+001F or U+007F to U+009F), which RFC 5280 says it should not; the text is kept as decoded',
+        path, undefined);
+}
+
+export function explicitTextNotNfcDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_EXPLICIT_TEXT_NOT_NFC', 'info', 'RFC 5280 §4.2.1.4',
+        'a UTF8String explicitText is not in Unicode normalization form C, which RFC 5280 says it should be; the text is kept as decoded, so two spellings of it compare unequal',
+        path, undefined);
+}
+
+export function policyMappingNotAssertedDiagnostic(oid: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_POLICY_MAPPING_NOT_ASSERTED', 'info', 'RFC 5280 §4.2.1.5',
+        `policyMappings maps the issuerDomainPolicy ${oid}, which the certificate's certificatePolicies does not assert; RFC 5280 says it should`,
+        'tbsCertificate.extensions.policyMappings', undefined);
+}
+
+export function policyMappingsNotCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_POLICY_MAPPINGS_NOT_CRITICAL', 'info', 'RFC 5280 §4.2.1.5',
+        'policyMappings is not marked critical; RFC 5280 says conforming CAs should mark it critical',
+        'tbsCertificate.extensions.policyMappings', undefined);
+}
+
+export function sanCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SAN_CRITICAL', 'info', 'RFC 5280 §4.2.1.6',
+        'subjectAltName is marked critical while the subject is not empty; RFC 5280 says conforming CAs should then mark it non-critical',
+        'tbsCertificate.extensions.subjectAltName', undefined);
+}
+
+export function altNameUriInvalidDiagnostic(uri: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ALT_NAME_URI_INVALID', 'warning', 'RFC 5280 §4.2.1.6',
+        `the uniformResourceIdentifier ${JSON.stringify(uri)} is not an absolute URI by the RFC 3986 grammar; RFC 5280 forbids a relative or ill-formed one, and two URI parsers may read it two ways`,
+        path, undefined);
+}
+
+export function altNameUriSchemeMissingDiagnostic(uri: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ALT_NAME_URI_SCHEME_MISSING', 'warning', 'RFC 5280 §4.2.1.6',
+        `the uniformResourceIdentifier ${JSON.stringify(uri)} lacks a scheme or a scheme-specific part; RFC 5280 requires both`,
+        path, undefined);
+}
+
+export function altNameUriHostInvalidDiagnostic(uri: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ALT_NAME_URI_HOST_INVALID', 'warning', 'RFC 5280 §4.2.1.6',
+        `the uniformResourceIdentifier ${JSON.stringify(uri)} has an authority whose host is neither a fully qualified domain name nor an IP address, which RFC 5280 requires`,
+        path, undefined);
+}
+
+export function altNameGeneralNameEmptyDiagnostic(kind: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ALT_NAME_GENERAL_NAME_EMPTY', 'warning', 'RFC 5280 §4.2.1.6',
+        `an alternative name holds an empty ${kind}; RFC 5280 forbids empty GeneralName fields, and an empty name identifies nothing`,
+        path, undefined);
+}
+
+export function issuerAltNameCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_ISSUER_ALT_NAME_CRITICAL', 'info', 'RFC 5280 §4.2.1.7',
+        'issuerAltName is marked critical; RFC 5280 says conforming CAs should mark it non-critical',
+        'tbsCertificate.extensions.issuerAltName', undefined);
+}
+
+export function nameConstraintsMinMaxDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_CONSTRAINTS_MIN_MAX', 'warning', 'RFC 5280 §4.2.1.10',
+        'a GeneralSubtree sets a non-zero minimum or a maximum; RFC 5280 requires minimum 0 and no maximum, and path validation never treats such a subtree as covering a name',
+        path, undefined);
+}
+
+export function nameConstraintsUriNotFqdnDiagnostic(constraint: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_CONSTRAINTS_URI_NOT_FQDN', 'warning', 'RFC 5280 §4.2.1.10',
+        `the uniformResourceIdentifier constraint ${JSON.stringify(constraint)} is not a fully qualified domain name (with a leading period for a domain), which RFC 5280 requires; it is still matched against the host of each URI`,
+        path, undefined);
+}
+
+export function ekuAnyCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_EKU_ANY_CRITICAL', 'info', 'RFC 5280 §4.2.1.12',
+        'extKeyUsage is marked critical and contains anyExtendedKeyUsage; RFC 5280 says conforming CAs should not mark it critical then',
+        'tbsCertificate.extensions.extKeyUsage', undefined);
+}
+
+export function crlDistributionPointsCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CRL_DISTRIBUTION_POINTS_CRITICAL', 'info', 'RFC 5280 §4.2.1.13',
+        'cRLDistributionPoints is marked critical; RFC 5280 says the extension should be non-critical',
+        'tbsCertificate.extensions.cRLDistributionPoints', undefined);
+}
+
+export function distributionPointWithoutNameDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DISTRIBUTION_POINT_WITHOUT_NAME', 'warning', 'RFC 5280 §4.2.1.13',
+        'a DistributionPoint has neither distributionPoint nor cRLIssuer; RFC 5280 requires one of them, and without either it locates no CRL',
+        path, undefined);
+}
+
+export function distributionPointLdapUriIncompleteDiagnostic(uri: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DISTRIBUTION_POINT_LDAP_URI_INCOMPLETE', 'warning', 'RFC 5280 §4.2.1.13',
+        `the LDAP URI ${JSON.stringify(uri)} lacks a <dn> or a single <attrdesc>; RFC 5280 requires both, to name the entry and the attribute that hold the CRL`,
+        path, undefined);
+}
+
+export function distributionPointNoHttpOrLdapUriDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DISTRIBUTION_POINT_NO_HTTP_OR_LDAP_URI', 'info', 'RFC 5280 §4.2.1.13',
+        'a DistributionPointName includes no HTTP or LDAP URI; RFC 5280 says it should include at least one, the two schemes a relying party is expected to fetch',
+        path, undefined);
+}
+
+export function distributionPointRelativeNameDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DISTRIBUTION_POINT_RELATIVE_NAME', 'info', 'RFC 5280 §4.2.1.13',
+        'a distribution point is named by nameRelativeToCRLIssuer; RFC 5280 says conforming CAs should not use it',
+        path, undefined);
+}
+
+export function distributionPointRelativeNameAmbiguousDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_DISTRIBUTION_POINT_RELATIVE_NAME_AMBIGUOUS', 'warning', 'RFC 5280 §4.2.1.13',
+        'a distribution point uses nameRelativeToCRLIssuer while cRLIssuer holds more than one distinguished name; RFC 5280 forbids it, since the name is relative to none of them in particular',
+        path, undefined);
+}
+
+export function inhibitAnyPolicyNotCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_INHIBIT_ANY_POLICY_NOT_CRITICAL', 'warning', 'RFC 5280 §4.2.1.14',
+        'inhibitAnyPolicy is not marked critical; RFC 5280 requires conforming CAs to mark it critical (pkinative enforces it either way)',
+        'tbsCertificate.extensions.inhibitAnyPolicy', undefined);
+}
+
+export function freshestCrlCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_FRESHEST_CRL_CRITICAL', 'warning', 'RFC 5280 §4.2.1.15',
+        'freshestCRL is marked critical; RFC 5280 requires conforming CAs to mark it non-critical',
+        'tbsCertificate.extensions.freshestCRL', undefined);
+}
+
+export function aiaCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AIA_CRITICAL', 'warning', 'RFC 5280 §4.2.2.1',
+        'authorityInfoAccess is marked critical; RFC 5280 requires conforming CAs to mark it non-critical',
+        'tbsCertificate.extensions.authorityInfoAccess', undefined);
+}
+
+export function siaCriticalDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SIA_CRITICAL', 'warning', 'RFC 5280 §4.2.2.2',
+        'subjectInfoAccess is marked critical; RFC 5280 requires conforming CAs to mark it non-critical',
+        'tbsCertificate.extensions.subjectInfoAccess', undefined);
+}
+
+/**
+ * An LDAP URI of an `id-ad-caIssuers` (authorityInfoAccess) or
+ * `id-ad-caRepository` (subjectInfoAccess) location without its `<dn>` or its
+ * `<attributes>`. One code for both: the two sections state the requirement
+ * in the same sentence, and the path names the extension.
+ */
+export function infoAccessLdapUriIncompleteDiagnostic(uri: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_INFO_ACCESS_LDAP_URI_INCOMPLETE', 'warning', 'RFC 5280 §4.2.2.1, §4.2.2.2',
+        `the LDAP URI ${JSON.stringify(uri)} lacks a <dn> or an <attributes> field; RFC 5280 requires both, to name the entry and the attributes that hold the certificates`,
+        path, undefined);
+}
+
+export function caIssuersNoHttpOrLdapUriDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CA_ISSUERS_NO_HTTP_OR_LDAP_URI', 'info', 'RFC 5280 §4.2.2.1',
+        'no id-ad-caIssuers access location is an HTTP or LDAP URI; RFC 5280 says at least one should be',
+        'tbsCertificate.extensions.authorityInfoAccess', undefined);
+}
+
+export function caRepositoryNoHttpOrLdapUriDiagnostic(): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CA_REPOSITORY_NO_HTTP_OR_LDAP_URI', 'info', 'RFC 5280 §4.2.2.2',
+        'no id-ad-caRepository access location is an HTTP or LDAP URI; RFC 5280 says at least one should be',
+        'tbsCertificate.extensions.subjectInfoAccess', undefined);
+}
+
 // ── Payload factories — accepted tolerances ──────────────────────────
 
 export function berConstructAcceptedDiagnostic(construct: string, offset: number): PkiDiagnostic {
