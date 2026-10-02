@@ -863,6 +863,29 @@ describe('validateCertificatePath', () => {
         expect(codes(report)).toEqual(expected);
     });
 
+    it('should spend requireExplicitPolicy 1 on a self-issued final certificate too (§6.1.5 (a))', () => {
+        // §6.1.4 (h) exempts a self-issued certificate, but the final one is
+        // wrapped up by §6.1.5 (a), which decrements explicit_policy without
+        // condition. A leaf carrying its issuer's own name is self-issued, and
+        // exempting it let it pass a policy requirement its issuer wrote.
+        const constrained = withExtensions(R12, [], [{ oid: '2.5.29.36', critical: true, valueDer: new Uint8Array(0), kind: 'policyConstraints',
+            requireExplicitPolicy: 1, inhibitPolicyMapping: undefined }]);
+        const selfIssued = { ...LEAF, subject: R12.subject } as Certificate;
+        const report = validateCertificatePath({ path: [selfIssued, constrained, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(selfIssued, constrained) });
+        expect(report.reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_NO_VALID_POLICY', 'path']]);
+    });
+
+    it('should still exempt a self-issued intermediate from requireExplicitPolicy (§6.1.4 (h))', () => {
+        // The other half of the rule: R12 re-issued under its own name sits
+        // between the constraining CA and the leaf, and spends nothing. With
+        // requireExplicitPolicy: 2 the leaf is still free of the requirement.
+        const constrained = withExtensions(R12, [], [{ oid: '2.5.29.36', critical: true, valueDer: new Uint8Array(0), kind: 'policyConstraints',
+            requireExplicitPolicy: 2, inhibitPolicyMapping: undefined }]);
+        const rollover = { ...R12, issuer: R12.subject, der: new Uint8Array([...R12.der, 0]) } as Certificate;
+        const report = validateCertificatePath({ path: [LEAF, rollover, constrained, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(LEAF, rollover, constrained) });
+        expect(codes(report)).toEqual([]);
+    });
+
     it('should honour a policy mapping unless the caller inhibits mapping (§6.1.4 (b))', () => {
         const mapper = withExtensions(R12, ['certificatePolicies'], [policiesOf(P1), { oid: '2.5.29.33', critical: true, valueDer: new Uint8Array(0), kind: 'policyMappings',
             mappings: [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }] }]);

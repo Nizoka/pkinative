@@ -342,9 +342,10 @@ export function checkNamesAgainstConstraints(certificate: Certificate, names: Na
  * @param policies    The walk's policy state, updated in place.
  * @param maxNodes    The `maxPolicyNodes` bound.
  * @param path        The report path prefix.
+ * @param final       Whether this is the final certificate, which §6.1.5 (a) decrements even when self-issued.
  * @returns Every reason policy processing produced for this step.
  */
-export function advancePolicies(certificate: Certificate, policies: PolicyState, maxNodes: number, path: string): PkiReason[] {
+export function advancePolicies(certificate: Certificate, policies: PolicyState, maxNodes: number, path: string, final: boolean): PkiReason[] {
     const out: PkiReason[] = [];
     const asserted = getExtension(certificate, 'certificatePolicies');
     if (asserted === undefined) {
@@ -367,9 +368,13 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
     const constraints = getExtension(certificate, 'policyConstraints');
     const inhibitAny = getExtension(certificate, 'inhibitAnyPolicy');
     // A self-issued certificate does not advance the counters (§6.1.4 (h)):
-    // a CA re-keying itself must not spend a step of anyone's budget.
+    // a CA re-keying itself must not spend a step of anyone's budget. The
+    // exemption stops at the final certificate, which §6.1.5 (a) decrements
+    // unconditionally: *"If explicit_policy is not 0, decrement
+    // explicit_policy by 1."* Exempting it let a self-issued leaf with no
+    // policy pass a `requireExplicitPolicy: 1` its issuer wrote for it.
     const selfIssued = _hex(certificate.subject.der) === _hex(certificate.issuer.der);
-    advancePolicyCounters(policies, selfIssued, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
+    advancePolicyCounters(policies, selfIssued && !final, constraints?.requireExplicitPolicy, constraints?.inhibitPolicyMapping, inhibitAny?.skipCerts);
     return out;
 }
 
@@ -589,7 +594,7 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
         // certificate is the identity being judged, not a step in the chain.
         const selfIssued = _hex(below.subject.der) === _hex(below.issuer.der);
         if (!selfIssued || index - 1 === 0) state.reasons.push(...checkNamesAgainstConstraints(below, names, belowPath));
-        state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath));
+        state.reasons.push(...advancePolicies(below, policies, limits.maxPolicyNodes, belowPath, index - 1 === 0));
     }
 
     // §6.1.5 (g). Only a required explicit policy with nothing surviving
