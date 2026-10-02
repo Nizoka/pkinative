@@ -721,6 +721,18 @@
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration writes charCodeAt(text.length) = NaN to content[text.length], an out-of-bounds index the Uint8Array ignores."
+    },
+    {
+      "id": "src/asn1/asn1-time.ts:87:9:if-true",
+      "original": "f.zone !== 'Z'",
+      "replacement": "true",
+      "reason": "Semantic: for the zone 'Z' the forced branch reads Number('Z'.slice(1, 3)) and Number('Z'.slice(3, 5)), both Number('') = 0, which pass the hours > 23 || minutes > 59 test and give offsetMinutes = (+1) · 0 = 0 — the value the skipped branch leaves. Every Z time yields the same instant."
+    },
+    {
+      "id": "src/asn1/asn1-time.ts:89:48:number+1",
+      "original": "5",
+      "replacement": "6",
+      "reason": "Semantic: f.zone is either 'Z' (which skips the branch) or zoneOf's text.slice(-5), exactly five characters ±hhmm because both grammars end in [+-]\\d{4}; slice(3, 6) of a five-character string equals slice(3, 5)."
     }
   ]
 }
