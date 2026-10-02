@@ -65,7 +65,7 @@ export interface VerifySignedDataInput {
     readonly ocspResponses?: readonly Uint8Array[] | undefined;
     /** Report `PKI_REASON_REVOCATION_UNKNOWN` when nothing covered a signer's certificate. Off by default, as for a chain. */
     readonly requireRevocation?: boolean | undefined;
-    /** The instant to judge the chains at. Now by default. */
+    /** The instant to judge the chains at. Now by default — the clock read once per call, so every chain in it is judged at the same instant. */
     readonly at?: number | undefined;
     /**
      * Judge each signer's chain at the time its own verified RFC 3161 timestamp
@@ -174,6 +174,12 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     if (input.allowTrailingData !== undefined && typeof input.allowTrailingData !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: allowTrailingData must be a boolean, got ${typeof input.allowTrailingData}`);
     }
+    // **One clock read for the whole call.** Every timestamp's TSA chain and
+    // every signer's chain are judged at this instant unless the caller named
+    // one; reading the clock again per question would judge the TSA and the
+    // signer at two different "now"s, milliseconds or a slow revocation walk
+    // apart.
+    const now = input.at ?? Date.now();
     const quiet = { onDiagnostic: (): undefined => undefined };
     let signedData: SignedData;
     try {
@@ -229,7 +235,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 ...(input.crls === undefined ? {} : { crls: input.crls }),
                 ...(input.ocspResponses === undefined ? {} : { ocspResponses: input.ocspResponses }),
                 ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
-                ...(input.at === undefined ? {} : { at: input.at }),
+                at: now,
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
             });
@@ -245,7 +251,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 leaf: certificate,
                 candidates,
                 trustAnchors: input.trustAnchors,
-                at: _instant(input, timeStamps),
+                at: _instant(input.atTimeStamp === true, now, timeStamps),
                 ...(input.purposes === undefined ? {} : { purposes: input.purposes }),
                 crls: [...signedData.crls, ...(input.crls ?? [])],
                 ocspResponses: [...signedData.ocspResponses, ...(input.ocspResponses ?? [])],
@@ -286,10 +292,11 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
  * timestamps: each proves the signature existed by then, and the earliest
  * proof is the strongest. `latest` rather than `genTime`, because the true time
  * may be as late as genTime plus the declared accuracy, and a certificate that
- * expired inside that window is not proved to have been valid.
+ * expired inside that window is not proved to have been valid. Otherwise
+ * `now`, the one instant the whole call read at entry.
  */
-function _instant(input: VerifySignedDataInput, stamps: readonly VerifyTimeStampTokenReport[]): number {
+function _instant(atTimeStamp: boolean, now: number, stamps: readonly VerifyTimeStampTokenReport[]): number {
     const proved = stamps.flatMap((stamp) => (stamp.valid && stamp.latest !== undefined ? [stamp.latest] : []));
-    if (input.atTimeStamp === true && proved.length > 0) return Math.min(...proved);
-    return input.at ?? Date.now();
+    if (atTimeStamp && proved.length > 0) return Math.min(...proved);
+    return now;
 }

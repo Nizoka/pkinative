@@ -103,7 +103,7 @@
       "semver": "frozen",
       "evidence": [
         { "file": "src/verify/verify-chain.ts", "text": "const at = input.at ?? Date.now();" },
-        { "file": "src/verify/verify-signed-data.ts", "text": "return input.at ?? Date.now();" },
+        { "file": "src/verify/verify-signed-data.ts", "text": "const now = input.at ?? Date.now();" },
         { "file": "src/verify/verify-timestamp.ts", "text": "at: input.at ?? Date.now()," }
       ]
     },
@@ -247,7 +247,7 @@
       "in": ["VerifySignedDataInput"],
       "default": "false — chains are judged at `at`",
       "semver": "frozen",
-      "evidence": [{ "file": "src/verify/verify-signed-data.ts", "text": "if (input.atTimeStamp === true && proved.length > 0)" }]
+      "evidence": [{ "file": "src/verify/verify-signed-data.ts", "text": "_instant(input.atTimeStamp === true, now, timeStamps)" }]
     },
     {
       "option": "requireSigningCertificate",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { encodeTlv } from '../../src/asn1/asn1-encode.js';
 import { addTimeStampToken, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
@@ -529,6 +529,22 @@ describe('verifySignedData', () => {
             expect(verdict?.genTime?.epochMilliseconds).toBe(AT);
             // Signer, its link; the TSA's signature, its link.
             expect(report.signatureVerifications).toBe(4);
+        });
+
+        it('should read the clock once per call when `at` is omitted, and judge the TSA and the signer at that instant', async () => {
+            // Two reads used to judge the TSA chain and the signer chain at two
+            // different "now"s. The clock is pinned to AT so both chains are
+            // in date, and the count is the assertion.
+            const s = await stampable();
+            const stamped = addTimeStampToken(addTimeStampToken(s.p7s, 0, await stamp(s, AT)), 0, await stamp(s, AT));
+            const clock = vi.spyOn(Date, 'now').mockReturnValue(AT);
+            try {
+                const report = await verifySignedData({ signedData: stamped, trustAnchors: [s.w.root.certificate] });
+                expect(codes(report)).toEqual([]);
+                expect(clock).toHaveBeenCalledTimes(1);
+            } finally {
+                clock.mockRestore();
+            }
         });
 
         it('should accept a signer whose certificate has since expired with atTimeStamp, and report EXPIRED without', async () => {
