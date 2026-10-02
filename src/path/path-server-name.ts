@@ -41,6 +41,18 @@
  * chose differently is not a bug anyone finds quickly. An IP reference never
  * matches a `dNSName`, and a DNS reference never matches an `iPAddress`.
  *
+ * **A `dns` reference that is an address is an address.** `192.0.2.1` or
+ * `[2001:db8::1]` passed as a DNS name is what a caller holding a URL host
+ * has, and RFC 2818 §3.1 is explicit: *"the iPAddress subjectAltName must be
+ * present in the certificate and must exactly match the IP in the URI"*. So
+ * it is read as one — only the canonical spellings (RFC 3986 §3.2.2:
+ * dotted-quad without leading zeros, RFC 4291 §2.2 for IPv6) — and compared
+ * with `iPAddress` entries only, never with a `dNSName` that happens to
+ * spell the same digits. Any other text ending in a numeric label
+ * (`2130706433`, `0x7f.1`, `010.0.0.1`) is no host name a CA can vouch
+ * for and matches nothing. A reference carrying `*` matches nothing either:
+ * a wildcard is something a certificate presents, never something asked for.
+ *
  * @module path/path-server-name
  */
 
@@ -109,6 +121,17 @@ export interface MatchDnsNameOptions {
 /** `2.5.4.3`, commonName. */
 const OID_COMMON_NAME = '2.5.4.3';
 
+/** One dotted-quad octet without a leading zero — RFC 3986 §3.2.2 `dec-octet`. */
+const DEC_OCTET = '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])';
+/** RFC 3986 §3.2.2 `IPv4address`: the one spelling of an IPv4 address read here. */
+const IPV4_ADDRESS = new RegExp(`^${DEC_OCTET}(?:\\.${DEC_OCTET}){3}$`);
+/** A last label that makes a name numeric rather than a host (WHATWG URL "ends in a number"). */
+const NUMERIC_LABEL = /^(?:0x[0-9a-f]*|[0-9]+)$/i;
+/** One IPv6 group, RFC 4291 §2.2. */
+const IPV6_GROUP = /^[0-9a-f]{1,4}$/i;
+/** The longest IPv6 text form, `INET6_ADDRSTRLEN` less its NUL: the bound on the group loop below. */
+const MAX_IPV6_TEXT = 45;
+
 /**
  * Check that a certificate names the host or address the caller asked about.
  *
@@ -125,7 +148,7 @@ const OID_COMMON_NAME = '2.5.4.3';
  * certificate from nobody in particular or a certificate for somebody else.
  *
  * @param certificate The end-entity certificate presented.
- * @param identity    The host or address the caller connected to.
+ * @param reference   The host or address the caller connected to; a `dns` value that spells an address is read as one.
  * @param options     See {@link CheckServerNameOptions}.
  * @returns `PKI_REASON_NAME_MISMATCH` when nothing matches; empty when
  *   something does.
@@ -134,9 +157,10 @@ const OID_COMMON_NAME = '2.5.4.3';
  */
 export function checkServerName(
     certificate: Certificate,
-    identity: ServerIdentity,
+    reference: ServerIdentity,
     options?: CheckServerNameOptions,
 ): readonly PkiReason[] {
+    const identity = asAddress(reference);
     const san = getExtension(certificate, 'subjectAltName');
     const names = san?.names ?? [];
     // §6.4.4: the presence of ANY dNSName or iPAddress makes the SAN
@@ -150,12 +174,12 @@ export function checkServerName(
         for (const name of names) {
             if (matches(name, identity, dns)) return [];
         }
-        return [nameMismatchReason('certificate.subjectAltName', identityText(identity), listed(names))];
+        return [nameMismatchReason('certificate.subjectAltName', identityText(reference), listed(names))];
     }
 
     if (options?.allowCommonNameFallback !== true) {
         return [nameMismatchReason('certificate.subjectAltName',
-            identityText(identity),
+            identityText(reference),
             names.length === 0
                 ? 'the certificate carries no subjectAltName at all, and the deprecated commonName fallback was not asked for'
                 : 'the subjectAltName carries no dNSName and no iPAddress, and the deprecated commonName fallback was not asked for')];
@@ -164,13 +188,13 @@ export function checkServerName(
     const common = commonNames(certificate);
     const matched = identity.kind === 'dns' ? common.find((cn) => matchDnsName(cn, identity.value, dns)) : undefined;
     if (matched === undefined) {
-        return [nameMismatchReason('certificate.subject', identityText(identity), `commonName ${common.map((c) => JSON.stringify(c)).join(', ') || '(none)'}`)];
+        return [nameMismatchReason('certificate.subject', identityText(reference), `commonName ${common.map((c) => JSON.stringify(c)).join(', ') || '(none)'}`)];
     }
     // A commonName used as a host name is a host name, and the CAs above it
     // constrained host names: the fallback must not be the one route around
     // their dNSName subtrees. Without the path nothing says what they were.
     if (options.path === undefined) {
-        return [nameMismatchReason('certificate.subject', identityText(identity),
+        return [nameMismatchReason('certificate.subject', identityText(reference),
             `commonName ${JSON.stringify(matched)} matches, but the commonName fallback needs options.path — the validated path — so that the dNSName name constraints of the CAs that issued the certificate apply to it`)];
     }
     const verdict = constrainedCommonName(certificate, options.path, matched);
@@ -194,6 +218,61 @@ function constrainedCommonName(certificate: Certificate, path: readonly Certific
         if (constraints !== undefined) accumulateNameConstraints(state, constraints.permittedSubtrees, constraints.excludedSubtrees);
     }
     return checkName(state, { kind: 'dNSName', value: commonName, der: new Uint8Array(0) });
+}
+
+/**
+ * A `dns` reference that spells an address, as the `ip` identity it is.
+ *
+ * An address literal comes back as `ip`; text ending in a numeric label that
+ * is no canonical address comes back as an `ip` identity of zero octets,
+ * which no `iPAddress` entry (4 or 16 octets, or 8 or 32 in a constraint)
+ * equals — so it matches nothing; anything else is a host name and is left
+ * alone.
+ */
+function asAddress(identity: ServerIdentity): ServerIdentity {
+    if (identity.kind === 'ip') return identity;
+    const text = identity.value.startsWith('[') && identity.value.endsWith(']') ? identity.value.slice(1, -1) : identity.value;
+    if (text.includes(':')) return { kind: 'ip', value: ipv6Octets(text) ?? new Uint8Array(0) };
+    const host = stripTrailingDot(text);
+    if (!NUMERIC_LABEL.test(host.slice(host.lastIndexOf('.') + 1))) return identity;
+    return { kind: 'ip', value: IPV4_ADDRESS.test(host) ? Uint8Array.from(host.split('.'), Number) : new Uint8Array(0) };
+}
+
+/**
+ * RFC 4291 §2.2 text to sixteen octets, or null when it is not one: eight
+ * groups, or fewer around one `::`, the last two optionally a dotted quad.
+ * A zone index (`%eth0`) is not part of an address and fails the group test.
+ */
+function ipv6Octets(text: string): Uint8Array | null {
+    if (text.length > MAX_IPV6_TEXT) return null;
+    const halves = text.split('::');
+    if (halves.length > 2) return null;
+    const compressed = halves.length === 2;
+    const head = ipv6Words(halves[0] as string, !compressed);
+    const tail = compressed ? ipv6Words(halves[1] as string, true) : [];
+    if (head === null || tail === null) return null;
+    // `::` stands for at least one group (RFC 4291 §2.2 (2)).
+    if (compressed ? head.length + tail.length > 7 : head.length !== 8) return null;
+    const words = [...head, ...Array.from({ length: 8 - head.length - tail.length }, () => 0), ...tail];
+    return Uint8Array.from(words.flatMap((word) => [word >> 8, word & 0xff]));
+}
+
+/** The 16-bit words of one side of `::`; `last` admits a dotted-quad final group. Bounded by MAX_IPV6_TEXT. */
+function ipv6Words(half: string, last: boolean): number[] | null {
+    if (half === '') return [];
+    const out: number[] = [];
+    const groups = half.split(':');
+    for (const [index, group] of groups.entries()) {
+        if (last && index === groups.length - 1 && IPV4_ADDRESS.test(group)) {
+            const [a, b, c, d] = group.split('.').map(Number) as [number, number, number, number];
+            out.push(a * 256 + b, c * 256 + d);
+        } else if (IPV6_GROUP.test(group)) {
+            out.push(Number.parseInt(group, 16));
+        } else {
+            return null;
+        }
+    }
+    return out;
 }
 
 /** One GeneralName against the identity. Forms never cross. */
@@ -226,6 +305,9 @@ export function matchDnsName(presented: string, reference: string, options?: Mat
     // already refuse them, but saying so here makes the intent explicit — a
     // NUL in a certificate name is CVE-2009-2408's whole mechanism.
     if (presented === '' || presented.includes('\0') || reference === '' || reference.includes('\0')) return false;
+    // A wildcard is presented, never asked for: `*.example.com` as the
+    // reference names no host, and must not match the pattern it copies.
+    if (reference.includes('*')) return false;
 
     const host = fold(stripTrailingDot(reference));
     const pattern = fold(stripTrailingDot(presented));

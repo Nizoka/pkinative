@@ -6416,7 +6416,7 @@
       "name": "checkServerName",
       "kind": "function",
       "module": "src/path/path-server-name.ts",
-      "signature": "export function checkServerName( certificate: Certificate, identity: ServerIdentity, options?: CheckServerNameOptions, ): readonly PkiReason[]",
+      "signature": "export function checkServerName( certificate: Certificate, reference: ServerIdentity, options?: CheckServerNameOptions, ): readonly PkiReason[]",
       "summary": "Check that a certificate names the host or address the caller asked about.",
       "throws": [],
       "params": [
@@ -6425,8 +6425,8 @@
           "description": "The end-entity certificate presented."
         },
         {
-          "name": "identity",
-          "description": "The host or address the caller connected to."
+          "name": "reference",
+          "description": "The host or address the caller connected to; a `dns` value that spells an address is read as one."
         },
         {
           "name": "options",

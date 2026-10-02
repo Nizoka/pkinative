@@ -137,7 +137,9 @@ describe('checkServerName — subjectAltName', () => {
     it('should never let an address match a dNSName, or a host match an iPAddress', () => {
         // `1.2.3.4` written as a DNS name is a whole class of bypass.
         expect(codes(checkServerName(certificate({ names: [dns('192.0.2.1')] }), address(192, 0, 2, 1)))).toEqual(['PKI_REASON_NAME_MISMATCH']);
-        expect(codes(checkServerName(certificate({ names: [ip([192, 0, 2, 1])] }), host('192.0.2.1')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        // A host name never matches an iPAddress; a `dns` reference that spells
+        // an address is an address, and its own block below holds it.
+        expect(codes(checkServerName(certificate({ names: [ip([192, 0, 2, 1])] }), host('bank.example')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 
     it('should never match an IPv4 address against an IPv6 SAN', () => {
@@ -189,6 +191,72 @@ describe('checkServerName — subjectAltName', () => {
         // authoritative for a host name.
         const cert = certificate({ names: [email('a@bank.example')], commonNames: ['bank.example'] });
         expect(checkServerName(cert, host('bank.example'), FALLBACK)).toEqual([]);
+    });
+});
+
+describe('checkServerName — a dns reference that spells an address (RFC 2818 §3.1)', () => {
+    const V4 = [192, 0, 2, 1];
+    const V6 = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+    const MAPPED = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 192, 0, 2, 1];
+    const LEAD = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    it('should never match a dNSName spelling the same digits', () => {
+        // The finding: an address passed as a DNS name matched a dNSName
+        // "192.0.2.1", which no CA validates as a host.
+        expect(codes(checkServerName(certificate({ names: [dns('192.0.2.1')] }), host('192.0.2.1')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+        expect(codes(checkServerName(certificate({ names: [dns('2001:db8::1')] }), host('2001:db8::1')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+    });
+
+    it('should never match a commonName either', () => {
+        expect(codes(checkServerName(certificate({ commonNames: ['192.0.2.1'] }), host('192.0.2.1'), FALLBACK))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+    });
+
+    it.each([
+        // ── IPv4, the one canonical spelling ──
+        { reference: '192.0.2.1', san: V4, expected: true },
+        { reference: '192.0.2.1.', san: V4, expected: true },
+        { reference: '255.255.255.255', san: [255, 255, 255, 255], expected: true },
+        { reference: '192.0.2.2', san: V4, expected: false },
+        { reference: '192.000.2.1', san: V4, expected: false },
+        { reference: '3221225985', san: V4, expected: false },
+        { reference: '0xc0.0.2.1', san: V4, expected: false },
+        { reference: '192.0.2', san: V4, expected: false },
+        { reference: '256.0.2.1', san: V4, expected: false },
+        // ── IPv6, RFC 4291 §2.2 ──
+        { reference: '2001:db8::1', san: V6, expected: true },
+        { reference: '[2001:db8::1]', san: V6, expected: true },
+        { reference: '2001:DB8:0:0:0:0:0:1', san: V6, expected: true },
+        { reference: '2001:db8::0:1', san: V6, expected: true },
+        { reference: '::ffff:192.0.2.1', san: MAPPED, expected: true },
+        { reference: '0:0:0:0:0:ffff:192.0.2.1', san: MAPPED, expected: true },
+        { reference: '0000:0000:0000:0000:0000:ffff:192.0.2.1', san: MAPPED, expected: true },
+        { reference: '1::', san: LEAD, expected: true },
+        { reference: '::', san: new Array<number>(16).fill(0), expected: true },
+        { reference: '0000:0000:0000:0000:0000:ffff:255.255.255.255', san: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 255, 255, 255, 255], expected: true },
+        { reference: '::ffff:192.0.2.1', san: V4, expected: false },
+        { reference: '2001:db8::1%eth0', san: V6, expected: false },
+        { reference: '2001:db8:::1', san: V6, expected: false },
+        { reference: '2001::db8::1', san: V6, expected: false },
+        { reference: '2001:db8:0:0:0:0:1', san: V6, expected: false },
+        { reference: '2001:db8::0:0:0:0:0:1', san: V6, expected: false },
+        { reference: '2001:db8:0:0:0:0:0:0:1', san: V6, expected: false },
+        { reference: '192.0.2.1::', san: MAPPED, expected: false },
+        { reference: ':2001:db8::1', san: V6, expected: false },
+        { reference: '2001:db8::1:', san: V6, expected: false },
+        { reference: '12345::', san: LEAD, expected: false },
+    ])('should read "$reference" as an address: matches=$expected', ({ reference, san, expected }) => {
+        const reasons = checkServerName(certificate({ names: [ip(san), dns(reference)] }), host(reference));
+        expect(codes(reasons)).toEqual(expected ? [] : ['PKI_REASON_NAME_MISMATCH']);
+    });
+
+    it('should leave a host name with numeric labels that is not numeric at the end alone', () => {
+        expect(checkServerName(certificate({ names: [dns('1.2.3.example')] }), host('1.2.3.example'))).toEqual([]);
+        expect(codes(checkServerName(certificate({ names: [dns('example.123')] }), host('example.123')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
+    });
+
+    it('should match nothing for a reference that carries a wildcard', () => {
+        expect(matchDnsName('*.example.com', '*.example.com')).toBe(false);
+        expect(codes(checkServerName(certificate({ names: [dns('*.example.com')] }), host('*.example.com')))).toEqual(['PKI_REASON_NAME_MISMATCH']);
     });
 });
 
