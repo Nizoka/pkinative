@@ -763,6 +763,44 @@ describe('verifyCertificateChain — what it passes through', () => {
         expect(codes(report)).toEqual([]);
     });
 
+    describe('a delegated responder the CA may have withdrawn (RFC 6960 §4.2.2.2.1)', () => {
+        async function delegated(options: { revoked?: boolean; noCheck?: boolean; keyUsage?: readonly string[]; noList?: boolean } = {}): Promise<string[]> {
+            const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+            const delegate = await issueEd25519({
+                subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey, purposes: [OCSP_SIGNING],
+                ...(options.noCheck === true ? { noCheck: true } : {}),
+                ...(options.keyUsage === undefined ? {} : { keyUsage: options.keyUsage }),
+            });
+            const report = await verifyCertificateChain({
+                leaf, candidates: [ica], trustAnchors: [root], at: AT,
+                ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: delegate.key, certificates: [delegate.certificate.der] } })],
+                ...(options.noList === true ? {} : { crls: [await signedCrl(ica, icaKey, options.revoked === true ? { revoked: delegate.certificate } : {})] }),
+                requireRevocation: true,
+            });
+            return report.reasons.map((r) => `${r.code}@${r.path}`);
+        }
+        const REFUSED = ['PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[0]', 'PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[0]'];
+
+        it('should stop believing a delegate its CA has revoked', async () => {
+            expect(await delegated({ revoked: true })).toEqual(REFUSED);
+        });
+
+        it('should keep believing a delegate the CA lists as unrevoked, or about which no list speaks', async () => {
+            expect(await delegated()).toEqual([]);
+            expect(await delegated({ noList: true })).toEqual([]);
+        });
+
+        it('should not check a delegate carrying id-pkix-ocsp-nocheck', async () => {
+            // The CA's own instruction: trust it for its (short) lifetime.
+            expect(await delegated({ revoked: true, noCheck: true })).toEqual([]);
+        });
+
+        it('should refuse a delegate whose keyUsage omits digitalSignature, and accept one that has it', async () => {
+            expect(await delegated({ keyUsage: ['keyEncipherment'] })).toEqual(REFUSED);
+            expect(await delegated({ keyUsage: ['digitalSignature'] })).toEqual([]);
+        });
+    });
+
     it('should refuse a responder that nominated itself', async () => {
         // A certificate the response *attached* is a convenience for reaching
         // the delegate, never a claim of authority. This one has the purpose
@@ -1528,6 +1566,10 @@ async function issueEd25519(options: {
     readonly signWith?: { name: string; hash?: string; namedCurve?: string };
     readonly notBefore?: number;
     readonly notAfter?: number;
+    /** A keyUsage extension with these usages; absent by default. */
+    readonly keyUsage?: readonly string[];
+    /** id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1). */
+    readonly noCheck?: boolean;
 }): Promise<Ed25519Material> {
     const pair = await ed25519Key();
     const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
@@ -1541,6 +1583,8 @@ async function issueEd25519(options: {
         extensions: [
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             ...(options.purposes === undefined ? [] : [{ oid: '2.5.29.37', value: encodeExtendedKeyUsage([...options.purposes]) }]),
+            ...(options.keyUsage === undefined ? [] : [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(options.keyUsage) }]),
+            ...(options.noCheck === true ? [{ oid: '1.3.6.1.5.5.7.48.1.5', value: encodeNull() }] : []),
         ],
     }, { key: options.signer ?? pair.privateKey, algorithm: (options.signWith ?? { name: 'Ed25519' }) as SignatureAlgorithm });
     return { certificate: parseCertificate(der, quiet), key: pair.privateKey };

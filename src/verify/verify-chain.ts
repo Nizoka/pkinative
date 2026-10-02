@@ -477,6 +477,19 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
         signatures: ctx.signatures, limits: ctx.reading.limits ?? {},
     });
     if (!own.valid) return false;
+    return await _unrevokedOnLists(ctx, candidate);
+}
+
+/**
+ * Whether no list the path vouches for says this delegate is revoked — the
+ * revocation half of `_signerStillGood`, shared with the delegated OCSP
+ * responder, whose certificate the CA issued and may since have withdrawn.
+ *
+ * Only a list signed by a key the path itself vouches for (`pathOnly`) may
+ * judge a delegate, which is what keeps the question one level deep. No such
+ * list about the delegate is no evidence against it, as for a CRL signer.
+ */
+async function _unrevokedOnLists(ctx: CrlSignerContext, candidate: Certificate): Promise<boolean> {
     for (const { der, crl } of ctx.lists) {
         const problem = _crlScopeProblem({ certificate: candidate, crl });
         if (problem !== null && problem.kind !== 'unusable') continue;
@@ -764,7 +777,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
             const algorithm = _digestOf(mine?.certId.hashAlgorithm.oid ?? basic.responses[0]?.certId.hashAlgorithm.oid);
             const authorised = issuer === undefined
                 ? undefined
-                : await _ocspSigner(basic, issuer, at, input.allowSha1 === true, reading);
+                : await _ocspSigner(basic, issuer, signing);
             covered.add(0);
             out.push(...checkOcspStatus({
                 response,
@@ -868,17 +881,25 @@ function _digestOf(oid: string | undefined): 'SHA-1' | 'SHA-256' {
  *
  * The certificates a response **attaches** are a convenience for reaching the
  * delegate, never a claim of authority: each is checked to have been issued by
- * this CA, to carry the purpose, and to be valid now, before its signature
- * counts for anything. A client that skipped those would let the responder
- * nominate itself, which is what §4.2.2.2 exists to prevent.
+ * this CA, to carry the purpose, to allow `digitalSignature` when it states a
+ * keyUsage, and to be valid now, before its signature counts for anything. A
+ * client that skipped those would let the responder nominate itself, which is
+ * what §4.2.2.2 exists to prevent.
+ *
+ * And a delegate is a key the CA can withdraw. RFC 6960 §4.2.2.2.1 lets the CA
+ * say how its revocation is to be checked: `id-pkix-ocsp-nocheck` means not
+ * at all — the CA keeps such certificates short-lived instead — and without
+ * it the delegate is judged against the caller's lists exactly as a delegated
+ * CRL signer is (`_unrevokedOnLists`). A revoked responder signing `good`
+ * is the case this exists for.
  */
 async function _ocspSigner(
     basic: OcspBasicResponse,
     issuer: Certificate,
-    at: number,
-    allowSha1: boolean,
-    reading: { limits: Partial<PkiLimits>; onDiagnostic: () => undefined },
+    ctx: CrlSignerContext,
 ): Promise<{ signed: boolean | undefined; authorised: boolean }> {
+    const { at, reading } = ctx;
+    const allowSha1 = ctx.input.allowSha1 === true;
     const direct = await _ocspSignature(basic, issuer);
     if (direct === true) return { signed: true, authorised: true };
 
@@ -905,8 +926,15 @@ async function _ocspSigner(
             continue;
         }
         if (!issued) continue;
+        // RFC 5280 §4.2.1.3: a key that signs anything but certificates and
+        // lists asserts digitalSignature, when the certificate states usages.
+        const usage = getExtension(delegate, 'keyUsage');
+        if (usage !== undefined && !usage.usages.includes('digitalSignature')) continue;
         const signed = await _ocspSignature(basic, delegate);
-        if (signed === true) return { signed: true, authorised: true };
+        if (signed !== true) continue;
+        // Asked last, of the one delegate that did sign: a list walk is the
+        // most expensive question here, and only its answer is at stake.
+        if (getExtension(delegate, 'ocspNoCheck') !== undefined || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true };
     }
     // Nobody authorised signed it. `signed` carries the direct attempt's answer
     // so that "checked and wrong" stays apart from "never checked".
