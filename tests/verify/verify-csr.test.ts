@@ -184,10 +184,27 @@ describe('verifyCertificationRequest', () => {
             await expect(verifyCertificationRequest(der, { limits: { maxNodes: 0 } })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
         });
 
-        it('should throw for a value that is neither bytes nor a parsed request', async () => {
-            for (const wrong of ['MIIB', null, 7, {}, { tbsDer: new Uint8Array(1) }, { tbsDer: new Uint8Array(1), signatureAlgorithm: {}, signatureValue: null }, { tbsDer: new Uint8Array(1), signatureAlgorithm: {}, signatureValue: {}, subjectPublicKeyInfo: 'rsa' }]) {
+        it('should throw for a value that is neither bytes nor a parsed request, whichever one field is wrong', async () => {
+            // Each case leaves every other field sound, so each guard is the one
+            // that refuses: a guard folded into its neighbour would let one through.
+            const sound = { tbsDer: new Uint8Array(1), signatureAlgorithm: {}, signatureValue: {}, subjectPublicKeyInfo: {} };
+            const wrongs: unknown[] = [
+                'MIIB', null, 7, {},
+                { ...sound, tbsDer: undefined },
+                { ...sound, tbsDer: 'MIIB' },
+                { ...sound, signatureAlgorithm: null },
+                { ...sound, signatureAlgorithm: 'ecdsa' },
+                { ...sound, signatureValue: null },
+                { ...sound, signatureValue: 'bits' },
+                { ...sound, subjectPublicKeyInfo: null },
+                { ...sound, subjectPublicKeyInfo: 'rsa' },
+            ];
+            for (const wrong of wrongs) {
                 await expect(verifyCertificationRequest(wrong as unknown as CertificationRequest), JSON.stringify(wrong)).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
             }
+            // …and the sound shape of a parsed request is let through to the verdict.
+            const report = await verifyCertificationRequest(parseCertificationRequest(await P256(), QUIET));
+            expect(report.valid).toBe(true);
         });
     });
 });
