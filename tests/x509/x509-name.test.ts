@@ -149,6 +149,89 @@ describe('_readName', () => {
             expect(codeOf(() => readName(name([['2.5.4.6', utf8('US')]]), { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
         });
     });
+
+    describe('the upper bounds RFC 5280 Appendix A.1 gives each attribute (X.520 ub-*)', () => {
+        it.each<[string, string, Uint8Array, number, number]>([
+            ['commonName', '2.5.4.3', utf8('a'.repeat(65)), 65, 64],
+            ['organizationName', '2.5.4.10', utf8('o'.repeat(65)), 65, 64],
+            ['organizationalUnitName', '2.5.4.11', printable('u'.repeat(100)), 100, 64],
+            ['title', '2.5.4.12', utf8('t'.repeat(65)), 65, 64],
+            ['serialNumber', '2.5.4.5', printable('1'.repeat(65)), 65, 64],
+            ['localityName', '2.5.4.7', utf8('l'.repeat(129)), 129, 128],
+            ['stateOrProvinceName', '2.5.4.8', utf8('s'.repeat(129)), 129, 128],
+            ['pseudonym', '2.5.4.65', utf8('p'.repeat(129)), 129, 128],
+            ['emailAddress', '1.2.840.113549.1.9.1', ia5(`${'e'.repeat(250)}@x.example`), 260, 255],
+            ['givenName', '2.5.4.42', utf8('g'.repeat(32769)), 32769, 32768],
+        ])('should report a %s past its bound as information, naming the length and the bound', (attribute, type, value, characters, bound) => {
+            const seen = diagnosticsOf(name([[type, value]]));
+            expect(seen).toEqual([expect.objectContaining({
+                code: 'PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG', severity: 'info', path: 'name.rdns[0][0].value', standard: 'ITU-T X.520 / RFC 5280 Appendix A.1', offset: expect.any(Number),
+            })]);
+            expect(seen[0]?.message).toContain(`the ${attribute} is ${String(characters)} characters long`);
+            expect(seen[0]?.message).toContain(`bounds it at ${String(bound)}`);
+        });
+
+        it.each<[string, string, Uint8Array]>([
+            ['a commonName of exactly 64 characters', '2.5.4.3', utf8('a'.repeat(64))],
+            ['a commonName of 64 two-octet characters, counted in characters', '2.5.4.3', utf8('é'.repeat(64))],
+            ['an emailAddress of 255 characters', '1.2.840.113549.1.9.1', ia5(`${'e'.repeat(245)}@x.example`)],
+            ['a dnQualifier of 300 characters, which Appendix A.1 leaves unbounded', '2.5.4.46', printable('q'.repeat(300))],
+            ['a domainComponent of 300 characters, which Appendix A.1 leaves unbounded', '0.9.2342.19200300.100.1.25', ia5('d'.repeat(300))],
+            ['a 300-character value of an attribute Appendix A.1 does not define', '2.5.4.9', utf8('s'.repeat(300))],
+        ])('should accept %s silently', (_what, type, value) => {
+            expect(diagnosticsOf(name([[type, value]]))).toEqual([]);
+        });
+
+        it('should report a commonName of 65 characters once, beside its string-type concern when both hold', () => {
+            expect(diagnosticsOf(name([['2.5.4.3', ia5('a'.repeat(65))]])).map((d) => d.code))
+                .toEqual(['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', 'PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG']);
+        });
+
+        it('should not throw under strict, since the bound is information, and still report it', () => {
+            const seen: string[] = [];
+            const read = readName(name([['2.5.4.3', utf8('a'.repeat(65))]]), { strict: true, onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(read.rdns[0]?.[0]?.value?.value).toBe('a'.repeat(65));
+            expect(seen).toEqual(['PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG']);
+        });
+    });
+
+    describe('countryName against ISO 3166-1', () => {
+        it.each(['US', 'FR', 'GB', 'DE', 'TW', 'XK', 'AA', 'QM', 'QZ', 'XA', 'XZ', 'ZZ'])('should accept %s silently', (code) => {
+            expect(diagnosticsOf(name([['2.5.4.6', printable(code)]]))).toEqual([]);
+        });
+
+        it.each([
+            ['UK', 'exceptionally reserved, the assigned code being GB'],
+            ['EU', 'exceptionally reserved'],
+            ['AN', 'transitionally reserved, formerly assigned'],
+            ['QL', 'just outside the user-assigned range'],
+            ['ZY', 'just outside the user-assigned range'],
+            ['fr', 'lower case'],
+            ['Fr', 'mixed case'],
+            ['12', 'digits'],
+        ])('should report %s (%s) as information, quoting it', (code) => {
+            const seen = diagnosticsOf(name([['2.5.4.6', printable(code)]]));
+            expect(seen).toEqual([expect.objectContaining({
+                code: 'PKI_DIAG_NAME_COUNTRY_UNKNOWN', severity: 'info', path: 'name.rdns[0][0].value', standard: 'ISO 3166-1:2020', offset: expect.any(Number),
+            })]);
+            expect(seen[0]?.message).toContain(`the countryName "${code}" is not an assigned ISO 3166-1 alpha-2 code`);
+        });
+
+        it('should report the size of a three-letter code, and not look it up', () => {
+            expect(diagnosticsOf(name([['2.5.4.6', printable('FRA')]])).map((d) => d.code)).toEqual(['PKI_DIAG_COUNTRY_NAME_SIZE']);
+        });
+
+        it('should report a UTF8String UK for both its type and its code', () => {
+            expect(diagnosticsOf(name([['2.5.4.6', utf8('UK')]])).map((d) => d.code))
+                .toEqual(['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', 'PKI_DIAG_NAME_COUNTRY_UNKNOWN']);
+        });
+
+        it('should not throw under strict, since the code is information, and still report it', () => {
+            const seen: string[] = [];
+            expect(readName(name([['2.5.4.6', printable('UK')]]), { strict: true, onDiagnostic: (d) => { seen.push(d.code); } }).rdns).toHaveLength(1);
+            expect(seen).toEqual(['PKI_DIAG_NAME_COUNTRY_UNKNOWN']);
+        });
+    });
 });
 
 describe('formatDistinguishedName', () => {

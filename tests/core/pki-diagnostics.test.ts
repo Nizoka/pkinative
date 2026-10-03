@@ -85,6 +85,8 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_TELETEX_AS_LATIN1', diagnostics.teletexAsLatin1Diagnostic('tbsCertificate.issuer[1]')],
         ['PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE', diagnostics.nameAttributeStringTypeDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'countryName', 'UTF8String', 'a PrintableString', 70)],
         ['PKI_DIAG_COUNTRY_NAME_SIZE', diagnostics.countryNameSizeDiagnostic('tbsCertificate.subject.rdns[0][0].value', 3, 70)],
+        ['PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG', diagnostics.nameAttributeTooLongDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'commonName', 65, 64, 70)],
+        ['PKI_DIAG_NAME_COUNTRY_UNKNOWN', diagnostics.countryNameUnknownDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'UK', 70)],
         ['PKI_DIAG_STRING_SIGNATURE', diagnostics.stringSignatureDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'BMPString', 70)],
         ['PKI_DIAG_STRING_ESCAPE_SEQUENCE', diagnostics.stringEscapeSequenceDiagnostic('tbsCertificate.subject.rdns[0][0].value', 'UTF8String', 'ESC', 70)],
         ['PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION', diagnostics.unknownCriticalExtensionDiagnostic('1.3.6.1.4.1.99999.1', 'tbsCertificate.extensions[4]')],
@@ -167,8 +169,9 @@ describe('diagnostic payload factories', () => {
         expect(payload.message.startsWith('pkinative')).toBe(false);
         // A diagnostic names the document it comes from, and the Web PKI's own
         // profile is one of them: CA/Browser Forum BR 7.1.4.3 is what forbids a
-        // commonName that no subjectAltName repeats, and no RFC says it.
-        expect(payload.standard).toMatch(/^(RFC|ITU-T|CA\/Browser Forum) /);
+        // commonName that no subjectAltName repeats, and no RFC says it. ISO
+        // 3166-1 is another: no RFC lists the country codes a countryName holds.
+        expect(payload.standard).toMatch(/^(RFC|ITU-T|ISO|CA\/Browser Forum) /);
         expect(typeof payload.path).toBe('string');
     });
 

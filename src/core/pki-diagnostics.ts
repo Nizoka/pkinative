@@ -411,6 +411,30 @@ export function countryNameSizeDiagnostic(path: string, characters: number, offs
         path, offset);
 }
 
+/**
+ * A name attribute value past the upper bound RFC 5280 Appendix A.1 gives
+ * its type — X.520's `ub-*` constants, counted in characters. Informational:
+ * the value is read as it is, and names still compare by their bytes; the
+ * concern is a reader that enforces the SIZE constraint and refuses the name.
+ */
+export function nameAttributeTooLongDiagnostic(path: string, attribute: string, characters: number, bound: number, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG', 'info', 'ITU-T X.520 / RFC 5280 Appendix A.1',
+        `the ${attribute} is ${String(characters)} characters long; RFC 5280 Appendix A.1 bounds it at ${String(bound)} — the value is read as it is, and a reader that enforces the bound refuses the name`,
+        path, offset);
+}
+
+/**
+ * A two-letter `countryName` that is no ISO 3166-1 alpha-2 code: neither
+ * officially assigned nor in the user-assigned range (AA, QM–QZ, XA–XZ, ZZ).
+ * Informational: ISO 3166-1 assigns codes over time, and a relying party
+ * decides what an unknown one means to it.
+ */
+export function countryNameUnknownDiagnostic(path: string, code: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_NAME_COUNTRY_UNKNOWN', 'info', 'ISO 3166-1:2020',
+        `the countryName "${code}" is not an assigned ISO 3166-1 alpha-2 code (two capital letters) nor a user-assigned one (AA, QM–QZ, XA–XZ, ZZ) — the value is read as it is`,
+        path, offset);
+}
+
 export function printableStringCharsetDiagnostic(path: string, character: string, offset?: number): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_PRINTABLE_STRING_CHARSET', 'warning', 'ITU-T X.680 §41.4',
         `a PrintableString contains "${character}", which is outside the PrintableString alphabet; the value was decoded as ASCII`,

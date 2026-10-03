@@ -8,7 +8,10 @@
  * emit it, and byte-wise name comparison is what it breaks. So is an
  * attribute RFC 5280 Appendix A.1 defines, encoded outside its syntax — a
  * UTF8String `countryName`, a `countryName` of other than two characters:
- * the value is read all the same, and a strict reader refuses the name.
+ * the value is read all the same, and a strict reader refuses the name. A
+ * value past its Appendix A.1 upper bound (X.520 `ub-*`), or a two-letter
+ * `countryName` ISO 3166-1 has not assigned, is reported as information
+ * and read as it is.
  *
  * @module x509/x509-name
  */
@@ -18,11 +21,12 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readString } from '../asn1/asn1-read.js';
 import { TAG_BMP_STRING, TAG_IA5_STRING, TAG_OID, TAG_PRINTABLE_STRING, TAG_SEQUENCE, TAG_SET, TAG_TELETEX_STRING, TAG_UNIVERSAL_STRING, TAG_UTF8_STRING, stringTypeOfTag, tagLabel } from '../asn1/asn1-tags.js';
 import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
-import { countryNameSizeDiagnostic, nameAttributeStringTypeDiagnostic, rdnSetNotSortedDiagnostic } from '../core/pki-diagnostics.js';
+import { countryNameSizeDiagnostic, countryNameUnknownDiagnostic, nameAttributeStringTypeDiagnostic, nameAttributeTooLongDiagnostic, rdnSetNotSortedDiagnostic } from '../core/pki-diagnostics.js';
 import { compareOctets } from '../core/bytes.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, Asn1String } from '../types/asn1-types.js';
 import type { AttributeTypeAndValue, DistinguishedName, RelativeDistinguishedName } from '../types/x509-types.js';
+import { isCountryCode } from './iso3166.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 
 const CODE = 'PKI_X509_NAME_INVALID';
@@ -61,9 +65,15 @@ function checkAttributeSyntax(type: string, valueNode: Asn1Node, value: Asn1Stri
     if (valueNode.tagClass !== 'universal' || !SYNTAX_TAGS[spec.syntax].includes(valueNode.tagNumber)) {
         ctx.emitter.emit(nameAttributeStringTypeDiagnostic(path, spec.name, tagLabel(valueNode.tagClass, valueNode.tagNumber), SYNTAX_LABELS[spec.syntax], valueNode.offset));
     }
-    if (type === OID_COUNTRY_NAME && value !== undefined) {
-        const characters = [...value.value].length;
+    if (value === undefined) return;
+    // In characters, as the SIZE constraints count: a UTF8String of 64
+    // accented letters is 128 octets and within ub-common-name.
+    const characters = [...value.value].length;
+    if (type === OID_COUNTRY_NAME) {
         if (characters !== 2) ctx.emitter.emit(countryNameSizeDiagnostic(path, characters, valueNode.offset));
+        else if (!isCountryCode(value.value)) ctx.emitter.emit(countryNameUnknownDiagnostic(path, value.value, valueNode.offset));
+    } else if (spec.max !== undefined && characters > spec.max) {
+        ctx.emitter.emit(nameAttributeTooLongDiagnostic(path, spec.name, characters, spec.max, valueNode.offset));
     }
 }
 
