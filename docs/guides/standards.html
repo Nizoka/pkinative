@@ -230,7 +230,7 @@
 <td>Reading, building and verifying</td>
 <td>applies</td>
 <td><code>tests/cms/cms-signed-data.test.ts</code>, <code>tests/cms/cms-check.test.ts</code>, <code>tests/verify/verify-signed-data.test.ts</code>, <code>tests/fuzzing/cms.test.ts</code>; <code>L8</code>, 224 PKITS S/MIME messages verified whole; the pinned text of §5 and §11.1–11.4 held sentence by sentence to a named test (<code>scripts/data/rfc5652-requirements.json</code>)</td>
-<td>DSA and Ed448 signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); countersignatures are carried, not read; the requirements the inventory records as <code>not-diagnosed</code>.</td>
+<td>DSA signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); an Ed448 signer is verified where the host has Ed448 — Node.js — and reported unchecked where it does not — Bun, Chromium (<a href="../adr/0022-ed448-cms-signers-host-dependent.md">ADR 0022</a>); <code>createSignedData</code> does not sign with Ed448; countersignatures are carried, not read; the requirements the inventory records as <code>not-diagnosed</code>.</td>
 </tr>
 <tr>
 <td>RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2</td>
@@ -279,7 +279,7 @@
 <td>Reading key and algorithm identifiers; signatures through Web Crypto</td>
 <td>applies</td>
 <td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/crypto/crypto-algorithms.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>tests/build/build-structures.test.ts</code></td>
-<td>An <code>id-RSASSA-PSS</code> public key cannot be imported by Node.js 22&#39;s Web Crypto, so what it signed is reported unchecked there. No default RSA scheme (<a href="../adr/0015-no-default-rsa-scheme.md">ADR 0015</a>).</td>
+<td>An <code>id-RSASSA-PSS</code> public key, which no conforming Web Crypto imports under that identifier, is handed to the host under <code>rsaEncryption</code> once the signature has been held to the key&#39;s parameters (RFC 4055 §1.2, §3.3), so what it signed verifies everywhere; an <code>id-RSASSA-PSS</code> private key under PBES2 still depends on the host, since a shrouded key is never re-wrapped. No default RSA scheme (<a href="../adr/0015-no-default-rsa-scheme.md">ADR 0015</a>).</td>
 </tr>
 <tr>
 <td>FIPS 204 — ML-DSA keys</td>

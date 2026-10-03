@@ -75,17 +75,20 @@
     },
     {
       "file": "fingerprint.ts",
-      "task": "Compute certificate fingerprints synchronously and through Web Crypto, formatted for display and for pinning",
+      "task": "Compute certificate fingerprints synchronously and through Web Crypto, formatted for display and for pinning, and SHAKE256 at any output length — the digest of an Ed448 CMS signer",
       "surface": [
         "computeFingerprint",
         "computeFingerprintAsync",
-        "formatFingerprint"
+        "formatFingerprint",
+        "shake256"
       ],
       "since": "0.1.0",
       "expects": [
         "sha256=96:BC:EC:06:26:49:76:F3:74:60:77:9A:CF:28:C5:A7:CF:E8:A3:C0:AA:E1:1A:8F:FC:EE:05:C0:BD:DF:08:C6",
         "pin=96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6",
-        "sameBytes=true"
+        "sameBytes=true",
+        "shake256=71179dd9b35bd4118a618b131506b06619aa0948ee5f76ec84ea77ba563e1a10ff855985bfb9d781be5024025ec6255596f29c19d22233367d64c060036513d6",
+        "shake256Prefix=true"
       ]
     },
     {

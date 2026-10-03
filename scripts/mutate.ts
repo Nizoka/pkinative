@@ -117,6 +117,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/hash/sha1.ts' },
     { file: 'src/hash/sha256.ts' },
     { file: 'src/hash/sha512.ts' },
+    { file: 'src/hash/shake256.ts' },
     { file: 'src/keys/key-import.ts' },
     { file: 'src/keys/key-pbes2.ts' },
     { file: 'src/keys/key-pkcs12.ts' },

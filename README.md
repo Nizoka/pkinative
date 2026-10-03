@@ -106,7 +106,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints and key identifiers | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier` |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 284 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 285 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
