@@ -231,6 +231,12 @@
       "reason": "Semantic: an instant cannot be both before notBefore and after notAfter, so the mutant is the if-false mutant at 466:9 — buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
     },
     {
+      "id": "src/verify/verify-signer.ts:159:35:logical",
+      "original": "||",
+      "replacement": "&&",
+      "reason": "Semantic: the mutant passes { content } in two more cases. With signed attributes and content, verifySignerInfoSignature covers `signedAttributesDer ?? options.content` (src/crypto/cms-verify.ts), and the parser sets signedAttributes and signedAttributesDer together (cms-signed-data.ts), so the content is never read. Without signed attributes and without content the function has already returned (CMS_CONTENT_MISSING or API_MISUSE above), so { content: undefined } is never passed."
+    },
+    {
       "id": "src/asn1/asn1-decode.ts:124:64:number+1",
       "original": "1",
       "replacement": "2",

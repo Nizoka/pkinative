@@ -282,6 +282,8 @@ describe('verifySignedData', () => {
             const w = await world({ ski: SKI });
             const report = await verify(w, withCertificates(await sign(w, { sid: 'subjectKeyIdentifier' }), [w.root.certificate.der]));
             expect(codes(report)).toEqual(['PKI_REASON_CMS_SIGNER_NOT_FOUND']);
+            // Every certificate of the message was read, so the report claims no unreadable one.
+            expect(report.reasons[0]?.message).not.toContain('could not be read');
         });
 
         it('should count the certificates of the message it could not read when the signer is not found', async () => {
