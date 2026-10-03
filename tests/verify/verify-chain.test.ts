@@ -1,6 +1,6 @@
 import type { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     encodeBitString,
     encodeBoolean,
@@ -18,6 +18,7 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import {
     encodeAlgorithmIdentifier,
     encodeBasicConstraints,
+    encodeDistinguishedName,
     encodeExtendedKeyUsage,
     encodeKeyUsage,
     encodeSubjectAltName,
@@ -1577,6 +1578,57 @@ describe('verifyCertificateChain — what it passes through', () => {
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
     });
+
+    describe('an indirect CRL issuer off the path (RFC 5280 §5.2.5, §6.3.3 (f))', () => {
+        // A name the leaf's own chain never reaches: its certificate's links
+        // are verified only when its list is weighed, on demand.
+        const SIGNER = 'Indirect CRL Issuer';
+
+        /** root → ica → leaf, the leaf sending revocation to a CRL issuer the ICA certified over `signWith`, and that issuer's empty indirect list. */
+        async function indirect(signWith?: { name: string; hash: string; namedCurve: string }): Promise<{ chain: Parameters<typeof verifyCertificateChain>[0] }> {
+            // cRLDistributionPoints ::= SEQUENCE OF DistributionPoint { cRLIssuer [2] GeneralNames { directoryName [4] Name } }
+            const point = encodeSequence([encodeSequence([
+                encodeTlv('context', 2, true, encodeTlv('context', 4, true, encodeDistinguishedName([[{ type: '2.5.4.3', value: SIGNER }]]))),
+            ])]);
+            const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ ecdsaIca: signWith !== undefined, crlSign: true, leafPoints: point });
+            const signer = await issueEd25519({
+                subject: SIGNER, issuerDer: ica.subject.der, signer: icaKey, keyUsage: ['cRLSign'],
+                ...(signWith === undefined ? {} : { signWith }),
+            });
+            return { chain: {
+                leaf, candidates: [ica, signer.certificate], trustAnchors: [root], at: AT,
+                crls: [await signedCrl(signer.certificate, signer.key, { indirect: true })], requireRevocation: true,
+            } };
+        }
+
+        it('should believe an indirect CRL issuer whose certificate chains to the anchor', async () => {
+            // The canary for the two below.
+            const { chain } = await indirect({ name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' });
+            expect(codes(await verifyCertificateChain(chain))).toEqual([]);
+        });
+
+        it('should not believe an indirect CRL issuer whose certificate is signed over SHA-1, unless allowSha1 says so', async () => {
+            // The issuer's link is verified under the caller's SHA-1 policy, as
+            // the path's own are: a SHA-1 link is not evidence, so the list is
+            // not believed and the leaf's status is unknown.
+            const { chain } = await indirect({ name: 'ECDSA', hash: 'SHA-1', namedCurve: 'P-256' });
+            expect(codes(await verifyCertificateChain(chain))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+            expect(codes(await verifyCertificateChain({ ...chain, allowSha1: true }))).toEqual([]);
+        });
+
+        it('should verify each link once, even where the CRL issuer\'s chain joins the path', async () => {
+            // leaf → ica and ica → root for the path; signer → ica for the CRL
+            // issuer, whose chain then reuses ica → root; and the list itself.
+            const { chain } = await indirect();
+            const verify = vi.spyOn(crypto.subtle, 'verify');
+            try {
+                expect(codes(await verifyCertificateChain(chain))).toEqual([]);
+                expect(verify).toHaveBeenCalledTimes(4);
+            } finally {
+                verify.mockRestore();
+            }
+        });
+    });
 });
 
 // ── OCSP, signed for real ────────────────────────────────────────────
@@ -1857,6 +1909,8 @@ interface SignedCrlOptions {
     readonly criticalEntry?: boolean;
     /** A critical list extension nothing processes (RFC 5280 §6.3.3). */
     readonly criticalExtension?: boolean;
+    /** `indirectCRL` in the issuingDistributionPoint (RFC 5280 §5.2.5): a list answering for another CA's certificates. */
+    readonly indirect?: boolean;
 }
 
 /** `1.3.6.1.4.1.99999.7`, critical, valued NULL: an instruction nothing here can follow. */
@@ -1883,6 +1937,7 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: Sig
     const scope = [
         ...(options.onlyCACerts === true ? [encodeTlv('context', 2, false, Uint8Array.of(0xff))] : []),
         ...(reasons === undefined ? [] : [encodeTlv('context', 3, false, Uint8Array.from(reasons))]),
+        ...(options.indirect === true ? [encodeTlv('context', 4, false, Uint8Array.of(0xff))] : []),
     ];
     const extensions = [
         ...(scope.length === 0 ? [] : [encodeSequence([
