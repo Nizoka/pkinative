@@ -829,6 +829,132 @@
       "original": "!isBytes(nonce)",
       "replacement": "false",
       "reason": "Message-only: with the guard disabled a non-bytes nonce reaches encodeOctetString(nonce) two statements later, before anything is pushed or returned, and that encoder's assertBytes applies the same isBytes predicate and throws the same class (PkiError) with the same code (PKI_INVALID_INPUT); only the wording differs ('the OCSP nonce must be a Uint8Array…' against 'encodeOctetString bytes must be a Uint8Array…'). 'should refuse a nonce that is not bytes' pins class and code."
+    },
+    {
+      "id": "src/pem/pem.ts:61:23:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the one extra iteration reads text.charCodeAt(text.length), which is NaN — neither 0x0A nor 0x0D — so it takes the `continue` and pushes no line; `start` and every pushed line are unchanged."
+    },
+    {
+      "id": "src/pem/pem.ts:68:9:if-true",
+      "original": "start < text.length",
+      "replacement": "true",
+      "reason": "Semantic: when start === text.length the mutant appends one empty line after the last terminator. An empty last line can never sit between a BEGIN and an END (nothing follows it), matches neither boundary regex, has text === trim() for the strict whitespace probes, and inside an unterminated block only joins a body that is refused with PKI_PEM_UNTERMINATED regardless."
+    },
+    {
+      "id": "src/pem/pem.ts:68:15:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: start never exceeds text.length, so `start <= text.length` is always true — the same mutant as if-true at 68:9, equivalent for the same reason (only a trailing empty line is added)."
+    },
+    {
+      "id": "src/pem/pem.ts:99:107:conditional",
+      "original": "text === null ? 'null' : typeof text",
+      "replacement": "(text === null ? typeof text : 'null')",
+      "reason": "Message-only: the expression names the received type in the PKI_INVALID_INPUT message; the refusal, its class and its code are decided by the enclosing typeof test (pinned by the non-string and null text vectors)."
+    },
+    {
+      "id": "src/pem/pem.ts:99:112:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional at 99:107 — the comparison only picks the type name rendered in the PKI_INVALID_INPUT message."
+    },
+    {
+      "id": "src/pem/pem.ts:146:31:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: bodyStart is read only by the probe on line 160, which picks between two PKI_PEM_UNTERMINATED throws with the same class, code and offset (beginLine.start); skipping one more line can only change which remedy the message names."
+    },
+    {
+      "id": "src/pem/pem.ts:146:31:number-1",
+      "original": "1",
+      "replacement": "0",
+      "reason": "Message-only: as number+1 at the same position — the extra line the probe sees is the BEGIN line itself, which in strict mode matched with no surrounding whitespace, and either way both branches throw PKI_PEM_UNTERMINATED at beginLine.start."
+    },
+    {
+      "id": "src/pem/pem.ts:160:17:if-true",
+      "original": "!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))",
+      "replacement": "true",
+      "reason": "Message-only: both branches of an unterminated block throw PkiEncodingError PKI_PEM_UNTERMINATED at beginLine.start; the condition only chooses the remedy text ('decode with mode: lax' vs 'truncated or spliced'). Code, class and offset are pinned by the missing-END and spaced-END vectors."
+    },
+    {
+      "id": "src/pem/pem.ts:160:17:not-removal",
+      "original": "!lax",
+      "replacement": "(lax)",
+      "reason": "Message-only: as if-true at 160:17 — the guard selects between two PKI_PEM_UNTERMINATED throws with identical class, code and offset."
+    },
+    {
+      "id": "src/pem/pem.ts:160:17:throw-guard",
+      "original": "!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))",
+      "replacement": "false",
+      "reason": "Message-only: disabling the first throw falls through to the second, which raises the same PKI_PEM_UNTERMINATED PkiEncodingError at the same offset with the generic message."
+    },
+    {
+      "id": "src/pem/pem.ts:160:22:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Message-only: as if-true at 160:17 — any truth value of the condition ends in PKI_PEM_UNTERMINATED at beginLine.start."
+    },
+    {
+      "id": "src/pem/pem.ts:160:67:equality",
+      "original": "!==",
+      "replacement": "===",
+      "reason": "Message-only: as if-true at 160:17 — the whitespace probe only chooses the message of a PKI_PEM_UNTERMINATED throw whose code and offset are fixed."
+    },
+    {
+      "id": "src/pem/pem.ts:160:85:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Message-only: as if-true at 160:17 — the probe only chooses the message of a PKI_PEM_UNTERMINATED throw whose code and offset are fixed."
+    },
+    {
+      "id": "src/pem/pem.ts:210:79:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Semantic: keeping zero lengths in `lengths` matters only when the content has an empty line, and then the third disjunct on line 212 (`content.some((l) => l.text.length === 0)`) is already true, so the diagnostic is emitted either way; without an empty line the two filters keep the same elements."
+    },
+    {
+      "id": "src/pem/pem.ts:210:81:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Semantic: lengths are never negative, so `n > -1` is `n >= 0` — equivalent for the reason given for 210:79 (a kept zero implies an empty line, which the third disjunct already reports)."
+    },
+    {
+      "id": "src/pem/pem.ts:222:48:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Message-only: `k + 1` renders the 1-based line number in the PKI_PEM_BASE64_INVALID message; the offset of the throw is line.start, pinned by the strict offset vectors."
+    },
+    {
+      "id": "src/pem/pem.ts:222:48:number-1",
+      "original": "1",
+      "replacement": "0",
+      "reason": "Message-only: as number+1 at the same position — only the rendered line number changes."
+    },
+    {
+      "id": "src/pem/pem.ts:235:13:if-true",
+      "original": "!lax && lines.some((l) => BEGIN.test(l.text.trim()))",
+      "replacement": "true",
+      "reason": "Message-only: both branches of an empty result throw PkiEncodingError PKI_PEM_NO_BLOCK at offset 0; the condition only chooses the remedy text (whitespace around BEGIN vs no BEGIN line at all)."
+    },
+    {
+      "id": "src/pem/pem.ts:235:13:not-removal",
+      "original": "!lax",
+      "replacement": "(lax)",
+      "reason": "Message-only: as if-true at 235:13 — the guard selects between two PKI_PEM_NO_BLOCK throws with identical class, code and offset."
+    },
+    {
+      "id": "src/pem/pem.ts:235:13:throw-guard",
+      "original": "!lax && lines.some((l) => BEGIN.test(l.text.trim()))",
+      "replacement": "false",
+      "reason": "Message-only: disabling the first throw falls through to the second, the same PKI_PEM_NO_BLOCK PkiEncodingError at offset 0 with the generic message."
+    },
+    {
+      "id": "src/pem/pem.ts:235:18:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Message-only: as if-true at 235:13 — any truth value of the condition ends in PKI_PEM_NO_BLOCK at offset 0."
     }
   ]
 }

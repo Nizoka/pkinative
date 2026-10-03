@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { decodePem, encodePem } from '../../src/pem/pem.js';
 import type { DecodePemOptions } from '../../src/types/pem-types.js';
-import { PkiError } from '../../src/types/pki-errors.js';
+import { PkiEncodingError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
 import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 
 const PAYLOAD = Uint8Array.from({ length: 200 }, (_, i) => i);
@@ -174,5 +174,132 @@ describe('decodePem — arguments and limits', () => {
         ['more blocks than maxPemBlocks', () => decodePem(PEM + PEM, { limits: { maxPemBlocks: 1 } }), 'PKI_LIMIT_EXCEEDED'],
     ])('should refuse %s', (_label, fn, code) => {
         expect(failure(fn).code).toBe(code);
+    });
+});
+
+// ── Exact boundaries (mutation pins) ──
+// Each vector sits at a boundary of the RFC 7468 grammar, or one past it, and
+// asserts the bytes, the refusal code with its offset, or the exact
+// diagnostics a lax decode emits.
+
+/** The base64 body lines of `encodePem('X', bytes)`. */
+function bodyLines(length: number): string[] {
+    return encodePem('X', Uint8Array.from({ length }, (_, i) => (i * 7) & 0xff)).split('\n').slice(1, -2);
+}
+
+function laxBlock(body: string): string {
+    return `-----BEGIN X-----\n${body}\n-----END X-----\n`;
+}
+
+function encodingFailure(fn: () => unknown): PkiEncodingError {
+    const err = failure(fn);
+    expect(err).toBeInstanceOf(PkiEncodingError);
+    return err as PkiEncodingError;
+}
+
+describe('decodePem — line splitting', () => {
+    it('should read a final END line that has no line terminator (RFC 7468 §3: eol is optional after the last boundary)', () => {
+        const [block] = decodePem('-----BEGIN X-----\nZm9v\n-----END X-----');
+        expect([...(block?.bytes ?? [])]).toEqual([0x66, 0x6f, 0x6f]);
+    });
+});
+
+describe('decodePem — maxPemBlocks at and past the limit', () => {
+    it('should accept exactly maxPemBlocks blocks', () => {
+        expect(decodePem(PEM, { limits: { maxPemBlocks: 1 } })).toHaveLength(1);
+        expect(decodePem(PEM + PEM, { limits: { maxPemBlocks: 2 } })).toHaveLength(2);
+    });
+
+    it('should refuse the block one past maxPemBlocks, naming the limit and the count', () => {
+        const err = failure(() => decodePem(PEM + PEM, { limits: { maxPemBlocks: 1 } }));
+        expect(err).toBeInstanceOf(PkiLimitError);
+        expect(err).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxPemBlocks', configured: 1, observed: 2 });
+    });
+});
+
+describe('decodePem — strict refusals carry the offending line offset', () => {
+    it('should place PKI_PEM_HEADERS_FORBIDDEN on the first header line', () => {
+        const err = encodingFailure(() => decodePem('-----BEGIN X-----\nProc-Type: 4,ENCRYPTED\n\nZm9v\n-----END X-----\n'));
+        expect(err.code).toBe('PKI_PEM_HEADERS_FORBIDDEN');
+        expect(err.offset).toBe(18);
+    });
+
+    it('should refuse a body made of one header line as PKI_PEM_HEADERS_FORBIDDEN, not as base64', () => {
+        const err = encodingFailure(() => decodePem('-----BEGIN X-----\nProc-Type: 4\n-----END X-----\n'));
+        expect(err.code).toBe('PKI_PEM_HEADERS_FORBIDDEN');
+        expect(err.offset).toBe(18);
+    });
+
+    it('should place a 64-character line holding a space on that line, not on the block', () => {
+        const err = encodingFailure(() => decodePem(PEM.replace(/^([A-Za-z0-9+/]{10})[A-Za-z0-9+/]/m, '$1 ')));
+        expect(err.code).toBe('PKI_PEM_BASE64_INVALID');
+        expect(err.offset).toBe(28);
+    });
+
+    it('should place a short line before the last on that line', () => {
+        const err = encodingFailure(() => decodePem(PEM.replace(/^(.{63}).\n/m, '$1\n')));
+        expect(err.code).toBe('PKI_PEM_BASE64_INVALID');
+        expect(err.offset).toBe(28);
+    });
+
+    it('should accept a last line of exactly 64 characters and refuse one of 65 on that line', () => {
+        const [first, second] = bodyLines(96);
+        expect(decodePem(laxBlock(`${first}\n${second}`))[0]?.bytes.length).toBe(96);
+        const err = encodingFailure(() => decodePem(laxBlock(`${first}${(second ?? '').slice(0, 1)}`)));
+        expect(err.code).toBe('PKI_PEM_BASE64_INVALID');
+        expect(err.offset).toBe(18);
+    });
+});
+
+describe('decodePem — lax headers (RFC 1421 §4.2)', () => {
+    it('should read a header value that follows the colon without a space', () => {
+        const [block] = decodePem('-----BEGIN X-----\nProc-Type:4,ENCRYPTED\n\nZm9v\n-----END X-----\n', LAX);
+        expect(block?.headers).toEqual([['Proc-Type', '4,ENCRYPTED']]);
+    });
+
+    it('should end the headers at a whitespace-only line, as at an empty one', () => {
+        const [block] = decodePem('-----BEGIN X-----\nProc-Type: 4\n \t\nZm9v\n-----END X-----\n', LAX);
+        expect(block?.headers).toEqual([['Proc-Type', '4']]);
+        expect([...(block?.bytes ?? [])]).toEqual([0x66, 0x6f, 0x6f]);
+    });
+});
+
+describe('decodePem — lax diagnostics, exactly', () => {
+    const lengthDeviation = [expect.objectContaining({ code: 'PKI_DIAG_PEM_LAX_ACCEPTED', message: expect.stringContaining('not 64 characters') })];
+
+    it('should report nothing for strict text decoded in lax mode', () => {
+        expect(laxDiagnostics(PEM)).toEqual([]);
+    });
+
+    it('should report nothing for a last line of exactly 64 characters', () => {
+        const [first, second] = bodyLines(96);
+        expect(laxDiagnostics(laxBlock(`${first}\n${second}`))).toEqual([]);
+    });
+
+    it('should report a last line longer than 64 characters once', () => {
+        const [first, second, third] = bodyLines(99);
+        expect(laxDiagnostics(laxBlock(`${first}\n${second}${third}`))).toEqual(lengthDeviation);
+    });
+
+    it('should report a 65-character last line before refusing its base64 length', () => {
+        const [first, second] = bodyLines(99);
+        const seen: PkiDiagnostic[] = [];
+        const err = encodingFailure(() => decodePem(laxBlock(`${first}${(second ?? '').slice(0, 1)}`), { mode: 'lax', onDiagnostic: (d) => seen.push(d) }));
+        expect(err.code).toBe('PKI_PEM_BASE64_INVALID');
+        expect(seen).toEqual(lengthDeviation);
+    });
+
+    it('should report a one-character first line', () => {
+        expect(laxDiagnostics(laxBlock('Z\nm9v'))).toEqual(lengthDeviation);
+        expect([...(decodePem(laxBlock('Z\nm9v'), LAX)[0]?.bytes ?? [])]).toEqual([0x66, 0x6f, 0x6f]);
+    });
+
+    it('should report an empty line in the body when every other length is canonical', () => {
+        expect(laxDiagnostics(laxBlock('Zm9v\n'))).toEqual(lengthDeviation);
+    });
+
+    it('should report each kind of deviation once, at its first offset', () => {
+        const padded = `  ${PEM.replace('CERTIFICATE-----\n', 'CERTIFICATE-----  \n').replace('-----END', '\t-----END')}`;
+        expect(laxDiagnostics(padded)).toEqual([expect.objectContaining({ code: 'PKI_DIAG_PEM_LAX_ACCEPTED', offset: 0, message: expect.stringContaining('boundary line') })]);
     });
 });
