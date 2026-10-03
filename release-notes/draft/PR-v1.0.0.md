@@ -16,7 +16,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · `<to be filled by the publish gate>` tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 205 reviewed equivalents.
+Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · `<to be filled by the publish gate>` tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 191 reviewed equivalents.
 
 Conformance:
 
@@ -71,7 +71,7 @@ Conformance:
 ### Tests and conformance
 
 - `tests/security/cve-classes.test.ts` (43 classes), `tests/tools/dual-package.test.ts`, `tests/tools/exported-constants.test.ts`, `tests/tools/interop.test.ts`, `tests/conformance/guide-counts.test.ts`, `tests/tools/check-ts-floor.test.ts`; mutation testing back to 100 % on every module the fixes touched, `verify-chain.ts` (213 mutants) and `verify-timestamp.ts` (131) included — 22 reviewed equivalents in all, each with its argument in `scripts/data/mutation-equivalents.json`.
-- `tests/performance/budgets.test.ts` (a time budget at every named limit), `tests/property/repeatability.test.ts` (two runs and two builds write the same bytes), `tests/x509/x509-profile.test.ts` (the 34 profile diagnostics, each with its twin and its strict verdict), `tests/core/uri.test.ts`; `openPkcs12` and `verifyCertificationRequest` under adversarial files (`tests/fuzzing/reports.test.ts`, `tests/fuzzing/csr.test.ts`); 62 frozen samples (`cert/v3-ed448-self-signed`, `cms/signed-data-ed448-shake256` and `asn1/relative-oid-8571-3-2` among them); 2 new benchmark files with the 1.0.0 section of `bench/RESULTS.md`; mutation at 100 % on every executable module of `src/` (79 files), 205 argued equivalents; the `openssl:csr` interop case; the pass found and fixed a realm-bound byte check in `addTimeStampToken`, an unchecked `extnValue` tag in the TSTInfo, CRL and OCSP extension readers, and a `TypeError` where `maxPolicyNodes` met a user policy set.
+- `tests/performance/budgets.test.ts` (a time budget at every named limit), `tests/property/repeatability.test.ts` (two runs and two builds write the same bytes), `tests/x509/x509-profile.test.ts` (the 34 profile diagnostics, each with its twin and its strict verdict), `tests/core/uri.test.ts`; `openPkcs12` and `verifyCertificationRequest` under adversarial files (`tests/fuzzing/reports.test.ts`, `tests/fuzzing/csr.test.ts`); 62 frozen samples (`cert/v3-ed448-self-signed`, `cms/signed-data-ed448-shake256` and `asn1/relative-oid-8571-3-2` among them); 2 new benchmark files with the 1.0.0 section of `bench/RESULTS.md`; mutation at 100 % on every executable module of `src/` (79 files), 191 argued equivalents; the `openssl:csr` interop case; the pass found and fixed a realm-bound byte check in `addTimeStampToken`, an unchecked `extnValue` tag in the TSTInfo, CRL and OCSP extension readers, and a `TypeError` where `maxPolicyNodes` met a user policy set.
 
 ### Documentation
 
@@ -94,7 +94,7 @@ The figures of 2026-10-02 (the final review) were superseded when the 1.1 list w
 | `npx tsx scripts/gate.ts --publish --require-all` | `<to be filled by the publish gate>` (16 steps with `check:guides`) |
 | `npm run gate:fast` (typecheck:all, lint, test, check:guides, verify:samples, verify:docs) | `<to be filled by the publish gate>` — the Lot C run is reported in its hand-back |
 | `npm run test:coverage` | not run since 2026-10-02 (then 4 880 tests, 100 % on all four axes); `<to be filled by the publish gate>` |
-| `npx tsx scripts/mutate.ts` (every default target) | 79 modules, 100 % on every one at the end of each lot; 205 reviewed equivalents in `scripts/data/mutation-equivalents.json`; not re-run whole after integration |
+| `npx tsx scripts/mutate.ts` (every default target) | 79 modules, 100 % on every one at the end of each lot; 191 reviewed equivalents in `scripts/data/mutation-equivalents.json`; not re-run whole after integration |
 | `npm run verify:bundle` | not run since 2026-10-02 (then 18 probes within budget); the integrator raises any budget the lots exceeded |
 | `npx tsx scripts/verify-docs.ts` | 84 rules, 0 errors, 0 warnings (2026-10-03, Lot C) |
 | `npm run check:guides` | `<to be filled by the publish gate>` — the Lot C run is reported in its hand-back |
