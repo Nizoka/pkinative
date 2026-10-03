@@ -111,85 +111,85 @@
       "reason": "Semantic: a dead candidate cannot list the live wildcard as a child (a step (2) kill takes the whole subtree, a pruned node has no children), so the mutant finds the first live node of depth n-1, which may not be the wildcard's parent. The added nodes stay alive whoever adopts them — pruning never touches the deepest level — and the adopter, being live, has a live chain to the root and keeps it after the prune; wrapUpPolicies reads only the deepest level's alive flags, so the returned set and the null verdict are the same."
     },
     {
-      "id": "src/verify/verify-chain.ts:406:13:if-true",
+      "id": "src/verify/verify-chain.ts:417:13:if-true",
       "original": "verified === false",
       "replacement": "true",
       "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is undefined (the signature could not be checked), where it turns answer from undefined into false. Every reader of the answer asks only whether it is true — checkRevocation (signatureVerified !== true, and === true before REVOKED), the delta pairing (!== true) and _signerStillGood (!== true) — so the codes, paths and verdicts are unchanged; checkRevocation alone words the REVOCATION_UNKNOWN message differently for false (\"did not verify\") and undefined (\"never checked\")."
     },
     {
-      "id": "src/verify/verify-chain.ts:406:22:equality",
+      "id": "src/verify/verify-chain.ts:417:22:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: verified === true has already returned, so verified !== false holds exactly when verified is undefined — the same single case as the if-true mutant at 439:13, with the same consequence: false in place of undefined, read by every consumer only as \"not true\", and worded differently in the REVOCATION_UNKNOWN message."
     },
     {
-      "id": "src/verify/verify-chain.ts:618:13:if-true",
+      "id": "src/verify/verify-chain.ts:629:13:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:726:17:if-true",
+      "id": "src/verify/verify-chain.ts:738:17:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:644:9:if-false",
+      "id": "src/verify/verify-chain.ts:655:9:if-false",
       "original": "lists.length === 0 && stapled.length === 0",
       "replacement": "false",
       "reason": "Message-only: with no list and no response, the code past the early return parses nothing, finds no list covering any certificate (mine stays empty, so the reason-mask push adds nothing) and runs no OCSP loop; what remains is the final requirement check, which pushes PKI_REASON_REVOCATION_UNKNOWN at path[0] exactly when requireRevocation is true and nothing covered path[0] — the code, path and condition of the early return's own reason, with other wording."
     },
     {
-      "id": "src/verify/verify-chain.ts:644:26:number-1",
+      "id": "src/verify/verify-chain.ts:655:26:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:644:50:number-1",
+      "id": "src/verify/verify-chain.ts:655:50:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:795:91:number+1",
+      "id": "src/verify/verify-chain.ts:807:91:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Semantic: the fallback is read only when no single response names the leaf's serial (mine is undefined). The digest then chooses how the expected CertID is computed, and a CertID matches only when its serial does too, so no answer can match under any digest and checkOcspStatus returns the same no-matching-answer verdict; _digestOf(undefined) yields SHA-1, a member of the same two-value range."
     },
     {
-      "id": "src/verify/verify-chain.ts:795:91:number-1",
+      "id": "src/verify/verify-chain.ts:807:91:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: responses[-1] is undefined, so the digest falls to SHA-1 — read only when no single response names the leaf's serial, where no CertID can match under any digest (see 727:91:number+1)."
     },
     {
-      "id": "src/verify/verify-timestamp.ts:273:110:number+1",
+      "id": "src/verify/verify-timestamp.ts:290:110:number+1",
       "original": "1000",
       "replacement": "1001",
       "reason": "Semantic: the TSTInfo reader refuses micros outside 1..999 (RFC 3161 §2.4.2, tsp-tst-info.ts), so micros / 1000 and micros / 1001 both lie strictly between 0 and 1. genTime and the whole part of the slack are integers, and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 for every f in (0, 1): earliest and latest are identical."
     },
     {
-      "id": "src/verify/verify-timestamp.ts:273:110:number-1",
+      "id": "src/verify/verify-timestamp.ts:290:110:number-1",
       "original": "1000",
       "replacement": "999",
       "reason": "Semantic: with micros in 1..999, micros / 999 lies in (0, 1] — 1 exactly at 999 — and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 hold for every f in (0, 1] when g and k are integers, as they are with micros / 1000: earliest and latest are identical."
     },
     {
-      "id": "src/verify/verify-chain.ts:406:13:if-false",
+      "id": "src/verify/verify-chain.ts:417:13:if-false",
       "original": "verified === false",
       "replacement": "false",
       "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is false, where answer keeps the undefined (or the false set by ??= for an earlier candidate) it held instead of becoming false. Every reader of the answer asks only whether it is true (see 439:13:if-true); checkRevocation alone words REVOCATION_UNKNOWN differently for false and undefined."
     },
     {
-      "id": "src/verify/verify-chain.ts:336:88:relational",
+      "id": "src/verify/verify-chain.ts:347:88:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
     },
     {
-      "id": "src/verify/verify-chain.ts:336:90:number-1",
+      "id": "src/verify/verify-chain.ts:347:90:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
@@ -219,13 +219,13 @@
       "reason": "Semantic: skipping the check on the second label leaves a pattern whose second label carries `*` to the suffix comparison — matchDnsName refuses a reference carrying `*` before it reaches this line, so the host has no `*` in any label; a pattern with `*` past its first label then has a `*` in the suffix it compares, and the suffix comparison on the next lines can never equal the `*`-free host suffix — the same false this line returns earlier."
     },
     {
-      "id": "src/verify/verify-chain.ts:433:9:if-false",
+      "id": "src/verify/verify-chain.ts:444:9:if-false",
       "original": "ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds",
       "replacement": "false",
       "reason": "Semantic: buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
     },
     {
-      "id": "src/verify/verify-chain.ts:433:65:logical",
+      "id": "src/verify/verify-chain.ts:444:65:logical",
       "original": "||",
       "replacement": "&&",
       "reason": "Semantic: an instant cannot be both before notBefore and after notAfter, so the mutant is the if-false mutant at 466:9 — buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
@@ -813,73 +813,73 @@
       "reason": "Semantic: f.zone is either 'Z' (which skips the branch) or zoneOf's text.slice(-5), exactly five characters ±hhmm because both grammars end in [+-]\\d{4}; slice(3, 6) of a five-character string equals slice(3, 5)."
     },
     {
-      "id": "src/cms/cms-attributes.ts:142:9:if-false",
+      "id": "src/cms/cms-attributes.ts:150:9:if-false",
       "original": "ctx.rules === 'der'",
       "replacement": "false",
       "reason": "Semantic: the early return only skips a walk that finds nothing under 'der'. The walk looks for an indefinite length, a length longer than derHeaderLength or a constructed string; under 'der' the decoder that built the tree has already thrown PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN, PKI_ASN1_LENGTH_NON_MINIMAL or PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN for each (asn1-decode.ts, every one gated on ctx.rules === 'der'), and refuses a non-minimal identifier under any rules, so every node's headerLength equals derHeaderLength and the walk returns without throwing."
     },
     {
-      "id": "src/cms/cms-attributes.ts:183:9:throw-guard",
+      "id": "src/cms/cms-attributes.ts:193:9:throw-guard",
       "original": "!container.constructed",
       "replacement": "false",
       "reason": "Message-only: a primitive node has no children, so with the guard off the next statement throws for it — PKI_CMS_STRUCTURE_INVALID, the same path and the same offset (container.offset) — with the 'is empty' wording instead of 'is primitive'."
     },
     {
-      "id": "src/cms/cms-attributes.ts:346:129:conditional",
+      "id": "src/cms/cms-attributes.ts:425:129:conditional",
       "original": "version === 1 ? '2634 §5.4' : '5035 §3'",
       "replacement": "(version === 1 ? '5035 §3' : '2634 §5.4')",
       "reason": "Message-only: the conditional only picks which RFC the 'holds N values' PKI_CMS_STRUCTURE_INVALID message cites; the comparison that throws is seq.children.length > 2, pinned for v1 and v2 by the 'three fields' cases (code and path)."
     },
     {
-      "id": "src/cms/cms-attributes.ts:346:137:equality",
+      "id": "src/cms/cms-attributes.ts:425:137:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: as the conditional swap at 346:129 — the test only chooses the RFC the message cites."
     },
     {
-      "id": "src/cms/cms-attributes.ts:346:141:number+1",
+      "id": "src/cms/cms-attributes.ts:425:141:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: as the conditional swap at 346:129 — the compared version only chooses the RFC the message cites."
     },
     {
-      "id": "src/cms/cms-attributes.ts:366:73:conditional",
+      "id": "src/cms/cms-attributes.ts:445:73:conditional",
       "original": "version === 1 ? 'an ESSCertID SEQUENCE' : 'an ESSCertIDv2 SEQUENCE'",
       "replacement": "(version === 1 ? 'an ESSCertIDv2 SEQUENCE' : 'an ESSCertID SEQUENCE')",
       "reason": "Message-only: the argument is _expectUniversal's `what`, which only words the PKI_CMS_STRUCTURE_INVALID message; the tag test, the path and the offset do not read it ('an ESSCertID that is not a SEQUENCE' pins code and path)."
     },
     {
-      "id": "src/cms/cms-attributes.ts:366:81:equality",
+      "id": "src/cms/cms-attributes.ts:445:81:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: as the conditional swap at 366:73 — the test only chooses the wording of `what`."
     },
     {
-      "id": "src/cms/cms-attributes.ts:366:85:number+1",
+      "id": "src/cms/cms-attributes.ts:445:85:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: as the conditional swap at 366:73 — the compared version only chooses the wording of `what`."
     },
     {
-      "id": "src/cms/cms-signed-data.ts:146:19:conditional",
+      "id": "src/cms/cms-signed-data.ts:148:19:conditional",
       "original": "known === undefined ? contentType : `${contentType} (${known})`",
       "replacement": "(known === undefined ? `${contentType} (${known})` : contentType)",
       "reason": "Message-only: the conditional only words how the PKI_CMS_CONTENT_TYPE_UNEXPECTED message names the content type found (with or without its registered name); the throw is decided by contentType !== OID_SIGNED_DATA on line 143, and its code, path ('contentType') and offset are unchanged."
     },
     {
-      "id": "src/cms/cms-signed-data.ts:146:25:equality",
+      "id": "src/cms/cms-signed-data.ts:148:25:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: as the conditional swap at 146:19 — the test only chooses the wording of the content type in the message."
     },
     {
-      "id": "src/cms/cms-signed-data.ts:182:114:number+1",
+      "id": "src/cms/cms-signed-data.ts:186:114:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: `fields.length - at - 1` only counts, in the PKI_CMS_STRUCTURE_INVALID message, the values after signerInfos; the throw is decided by fields.length !== at + 1 on line 181, pinned by 'a field after signerInfos' (code and path 'content')."
     },
     {
-      "id": "src/cms/cms-signed-data.ts:182:114:number-1",
+      "id": "src/cms/cms-signed-data.ts:186:114:number-1",
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as number+1 at the same position — the subtrahend only formats the count the message quotes."
