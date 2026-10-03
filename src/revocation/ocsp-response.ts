@@ -25,6 +25,7 @@ import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readInteger } from '../asn1/asn1-read.js';
 import { _readTime } from '../asn1/asn1-time.js';
 import { toHex } from '../core/bytes.js';
+import { defaultEncodedDiagnostic, ocspCertsEmptyDiagnostic, ocspVersionNotV1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import type { CrlReason } from '../types/crl-types.js';
@@ -173,7 +174,11 @@ function readBasicResponse(der: Uint8Array, ctx: Asn1Context): OcspBasicResponse
     const certsField = parts[3];
     if (certsField !== undefined) {
         const seq = [...walkChildren(der, certsField, 'BasicOCSPResponse.certs')][0];
-        for (const certificate of seq === undefined ? [] : [...walkChildren(der, seq, 'BasicOCSPResponse.certs')]) {
+        const entries = seq === undefined ? [] : [...walkChildren(der, seq, 'BasicOCSPResponse.certs')];
+        // RFC 6960 §4.2.1: "If no certificates are included, then certs SHOULD
+        // be absent." Present and empty reads exactly as absent, and is said.
+        if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
+        for (const certificate of entries) {
             enforceLimit(ctx.limits, 'maxChainLength', certificates.length + 1, 'BasicOCSPResponse.certs');
             certificates.push(der.subarray(certificate.offset, certificate.end));
         }
@@ -208,7 +213,10 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     let at = 0;
     // version [0] EXPLICIT is the only context-0 field here, and responderID
     // is context 1 or 2, so one tag test separates them.
-    if (fields[0]?.tagClass === 'context' && fields[0].tagNumber === 0) at += 1;
+    if (fields[0]?.tagClass === 'context' && fields[0].tagNumber === 0) {
+        readVersion(der, fields[0], ctx);
+        at += 1;
+    }
 
     const idField = fields[at];
     if (idField === undefined || idField.tagClass !== 'context' || (idField.tagNumber !== 1 && idField.tagNumber !== 2)) {
@@ -238,6 +246,32 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     const extensionsField = fields[at];
     const extensions = extensionsField === undefined ? [] : readExtensions(der, extensionsField, ctx, 'ResponseData.responseExtensions');
     return { responderId, producedAt, responses: Object.freeze(responses), extensions };
+}
+
+/**
+ * `version [0] EXPLICIT Version DEFAULT v1`, when the responder wrote it out.
+ *
+ * Two sentences meet here and neither refuses. Written as v1, the field
+ * encodes its DEFAULT, which DER omits (X.690 §11.5): the same diagnostic a
+ * certificate gets for an explicit v1. Written as anything else — another
+ * value, or not the INTEGER the syntax calls for — it violates RFC 6960
+ * §4.2.2.3, which defines v1 alone; the response is read with the v1 syntax
+ * because there is no other, and the reader says so. Compared on the bytes,
+ * not decoded: a version is one octet, and reading a stranger's INTEGER here
+ * could only add a refusal where a diagnostic was promised.
+ */
+function readVersion(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): void {
+    const inner = [...walkChildren(der, field, 'ResponseData.version')][0];
+    if (inner === undefined || inner.tagClass !== 'universal' || inner.tagNumber !== 2) {
+        ctx.emitter.emit(ocspVersionNotV1Diagnostic('holds no INTEGER', field.offset));
+        return;
+    }
+    const content = der.subarray(inner.contentStart, inner.end);
+    if (content.length === 1 && content[0] === 0) {
+        ctx.emitter.emit(defaultEncodedDiagnostic('ResponseData.version', 'v1 (0)', field.offset));
+        return;
+    }
+    ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset));
 }
 
 function readResponderId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): OcspResponderId {

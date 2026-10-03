@@ -53,13 +53,23 @@
 
 import { bytesEqual } from '../core/bytes.js';
 import {
+    createDiagnosticEmitter,
+    ocspNoCheckCriticalDiagnostic,
+    ocspResponderIdMismatchDiagnostic,
+    ocspSingleResponseUnrequestedDiagnostic,
+} from '../core/pki-diagnostics.js';
+import {
     revocationMismatchReason,
     revocationStaleReason,
     revocationUnknownReason,
     revokedReason,
 } from '../core/pki-reasons.js';
-import type { OcspBasicResponse, OcspResponse, OcspSingleResponse } from '../types/ocsp-types.js';
+import { computeKeyIdentifier } from '../hash/key-identifier.js';
+import type { OcspBasicResponse, OcspResponderId, OcspResponse, OcspSingleResponse } from '../types/ocsp-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
+import type { PkiDiagnosticEmitter, PkiDiagnosticHandler } from '../types/pki-types.js';
+import type { Certificate } from '../types/x509-types.js';
+import { getExtension } from '../x509/x509-extensions.js';
 import { _unverifiedRevocation } from './crl-check.js';
 
 /** `id-pkix-ocsp-nonce`, RFC 6960 §4.4.1. */
@@ -95,6 +105,22 @@ export interface CheckOcspStatusInput {
      * authorised is a responder anyone can be.
      */
     readonly responderAuthorized?: boolean | undefined;
+    /**
+     * The certificate whose key verified the signature — the CA itself, or
+     * the delegate it issued — when you hold it. Nothing it says changes the
+     * verdict; it lets two sentences of RFC 6960 be checked and **reported**
+     * through `onDiagnostic`: that `responderID` names this certificate's
+     * subject or key (§4.2.2.3), and that its `id-pkix-ocsp-nocheck`, if
+     * any, is not critical (§4.2.2.2.1). Give it only when `signatureVerified`
+     * is `true`, because that is what makes it the responder.
+     */
+    readonly signer?: Certificate | undefined;
+    /**
+     * Receive the diagnostics this decision raises — what the response says
+     * about itself that §4.2 asks it not to, none of which touches the
+     * verdict. As everywhere, the default is `console.warn` once per code.
+     */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
     /** The nonce that was sent, if any. A different one coming back is always a mismatch. */
     readonly nonce?: Uint8Array | undefined;
     /**
@@ -173,6 +199,8 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
         out.push(revocationUnknownReason(path, 'the response carries no body'));
         return out;
     }
+    const emitter = createDiagnosticEmitter(undefined, input.onDiagnostic);
+    if (input.signer !== undefined) _signerDiagnostics(basic, input.signer, path, emitter);
 
     if (input.signatureVerified !== true) {
         out.push(revocationUnknownReason(path, input.signatureVerified === false
@@ -197,6 +225,13 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
         out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
         return out;
     }
+    // RFC 6960 §4.2.2.3: the response "SHOULD NOT include any additional
+    // SingleResponse elements" — and RFC 5019 pre-generated responses do.
+    // Said once the answer asked about is found: without it the whole
+    // response is a mismatch, which the reason above has already named.
+    if (basic.responses.length > answers.length) {
+        emitter.emit(ocspSingleResponseUnrequestedDiagnostic(path, basic.responses.length - answers.length));
+    }
     // Two answers about this one certificate that disagree: `good` then
     // `revoked` is a response that has said both, and believing the first
     // would let the order of the SEQUENCE decide the verdict.
@@ -219,6 +254,28 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
         out.push(revocationUnknownReason(path, 'the responder answered unknown, meaning it has no record of this certificate — often a sign the serial does not belong to that CA'));
     }
     return out;
+}
+
+/**
+ * What the response says about the certificate that signed it, against that
+ * certificate (RFC 6960 §4.2.2.3, §4.2.2.2.1).
+ *
+ * `responderID` is the responder's claim about itself and is not what
+ * decides who answered — the signature is — so a claim that does not match
+ * is reported, not refused. `byName` is the signer's subject, compared as
+ * encoded; `byKey` is the SHA-1 of its `subjectPublicKey` BIT STRING content,
+ * "excluding the tag and length fields" (§4.2.1), which is the key
+ * identifier RFC 5280 §4.2.1.2 method (1) computes.
+ */
+function _signerDiagnostics(basic: OcspBasicResponse, signer: Certificate, path: string, emitter: PkiDiagnosticEmitter): void {
+    if (!_responderIdMatches(basic.responderId, signer)) emitter.emit(ocspResponderIdMismatchDiagnostic(path, basic.responderId.kind));
+    if (getExtension(signer, 'ocspNoCheck')?.critical === true) emitter.emit(ocspNoCheckCriticalDiagnostic(path));
+}
+
+function _responderIdMatches(id: OcspResponderId, signer: Certificate): boolean {
+    return id.kind === 'byName'
+        ? bytesEqual(id.nameDer, signer.subject.der)
+        : bytesEqual(id.keyHash, computeKeyIdentifier(signer.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1'));
 }
 
 /** All three `CertID` fields, compared by bytes. */

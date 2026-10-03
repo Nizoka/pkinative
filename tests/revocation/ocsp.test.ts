@@ -9,6 +9,7 @@ import { sha256 } from '../../src/hash/sha256.js';
 import { createOcspRequest, encodeOcspCertId } from '../../src/revocation/ocsp-request.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
 import { PkiError } from '../../src/types/pki-errors.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
@@ -572,6 +573,61 @@ describe('parseOcspResponse — boundaries the mutation pass pinned (RFC 6960 §
         const flagged = (flag: number): Uint8Array => sequence(NONCE_OID, universal(1, [flag]), universal(4, [...universal(4, [1])]));
         const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single()), tlv(2, true, 1, sequence(flagged(0x00), flagged(0xff)))), ALG_ED25519, SIG));
         expect(parseOcspResponse(der, quiet).basicResponse?.extensions.map((e) => e.critical)).toEqual([false, true]);
+    });
+});
+
+describe('parseOcspResponse — what a response says about itself (RFC 6960 §4.2.1, §4.2.2.3)', () => {
+    const BY_KEY = tlv(2, true, 2, universal(4, [...new Array<number>(20).fill(0xcc)]));
+    /** A successful response whose BasicOCSPResponse is exactly `tbs`, the algorithm, a signature and, when given, a `certs [0]` field. */
+    const responseOf = (tbs: Uint8Array, certs?: Uint8Array): Uint8Array => {
+        const basic = sequence(tbs, ALG_ED25519, universal(3, [0x00, 0xde, 0xad]), ...(certs === undefined ? [] : [tlv(2, true, 0, certs)]));
+        return sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...basic]))));
+    };
+    const tbsOf = (...before: readonly Uint8Array[]): Uint8Array => sequence(...before, BY_KEY, gen('20260501000000Z'), sequence(single()));
+
+    function seen(der: Uint8Array, options: { strict?: boolean } = {}): { readonly basic: NonNullable<ReturnType<typeof parseOcspResponse>['basicResponse']>; readonly diagnostics: readonly PkiDiagnostic[] } {
+        const diagnostics: PkiDiagnostic[] = [];
+        const response = parseOcspResponse(der, { onDiagnostic: (d) => { diagnostics.push(d); }, ...options });
+        return { basic: response.basicResponse as NonNullable<typeof response.basicResponse>, diagnostics };
+    }
+
+    it('should diagnose a certs field that is present and empty, and read it as if it were absent (RFC 6960 §4.2.1)', () => {
+        for (const certs of [sequence(), new Uint8Array(0)]) {
+            const { basic, diagnostics } = seen(responseOf(tbsOf(), certs));
+            expect(basic.certificates).toEqual([]);
+            expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_OCSP_CERTS_EMPTY', 'info', 'BasicOCSPResponse.certs']]);
+            expect(typeof diagnostics[0]?.offset).toBe('number');
+        }
+        // An info is reported and never thrown, strict or not.
+        expect(seen(responseOf(tbsOf(), sequence()), { strict: true }).diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_OCSP_CERTS_EMPTY']);
+        // Absent, or holding a certificate: nothing to say.
+        expect(seen(responseOf(tbsOf())).diagnostics).toEqual([]);
+        const carrying = seen(responseOf(tbsOf(), sequence(sequence(universal(2, [1])))));
+        expect(carrying.diagnostics).toEqual([]);
+        expect(carrying.basic.certificates).toHaveLength(1);
+    });
+
+    it.each([
+        ['v1 written out', universal(2, [0x00]), 'PKI_DIAG_DEFAULT_ENCODED', 'v1 (0)'],
+        ['the version 1 (a v2 that does not exist)', universal(2, [0x01]), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'declares the version 0x01'],
+        ['a two-octet zero', universal(2, [0x00, 0x00]), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'declares the version 0x0000'],
+        ['a NULL where the INTEGER goes', universal(5, []), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'holds no INTEGER'],
+        ['nothing inside the [0]', new Uint8Array(0), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'holds no INTEGER'],
+    ])('should diagnose an explicit ResponseData version that is %s, and read the response as v1 (RFC 6960 §4.2.2.3)', (_, inner, code, detail) => {
+        const { basic, diagnostics } = seen(responseOf(tbsOf(tlv(2, true, 0, inner))));
+        expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([[code, 'warning', 'ResponseData.version']]);
+        expect(diagnostics[0]?.message).toContain(detail);
+        expect(typeof diagnostics[0]?.offset).toBe('number');
+        // The fields after the version are read where they stand.
+        expect(basic.responderId.kind).toBe('byKey');
+        expect(basic.responses).toHaveLength(1);
+        // Both are a MUST the response broke, so strict refuses them.
+        expect(() => parseOcspResponse(responseOf(tbsOf(tlv(2, true, 0, inner))), { strict: true, onDiagnostic: () => undefined }))
+            .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
+    });
+
+    it('should say nothing about the version when the responder left it to its DEFAULT', () => {
+        expect(seen(responseOf(tbsOf())).diagnostics).toEqual([]);
     });
 });
 

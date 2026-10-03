@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createDiagnosticEmitter, ocspResponderIdMismatchDiagnostic } from '../../src/core/pki-diagnostics.js';
 import { sha1 } from '../../src/hash/sha1.js';
 import { checkOcspStatus, OCSP_NONCE_OID, type CheckOcspStatusInput } from '../../src/revocation/ocsp-check.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
+import type { Certificate } from '../../src/types/x509-types.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 /**
  * The OCSP status decision, and RFC 6960 §3.2's four client responsibilities.
@@ -68,6 +75,8 @@ interface ResponseParts {
     readonly statusCode?: number;
     readonly singles?: readonly Uint8Array[];
     readonly nonce?: Uint8Array | null;
+    /** The responderID TLV; byKey of twenty 0xcc octets by default. */
+    readonly responderId?: Uint8Array;
 }
 
 function build(parts: ResponseParts = {}): Uint8Array {
@@ -78,7 +87,7 @@ function build(parts: ResponseParts = {}): Uint8Array {
         ? []
         : [tlv(2, true, 1, sequence(sequence(NONCE_OID, universal(4, [...universal(4, [...parts.nonce])]))))];
     const tbs = sequence(
-        tlv(2, true, 2, universal(4, [...new Array<number>(20).fill(0xcc)])),
+        parts.responderId ?? tlv(2, true, 2, universal(4, [...new Array<number>(20).fill(0xcc)])),
         gen(AT - DAY),
         sequence(...(parts.singles ?? [single({ nextUpdate: AT + DAY })])),
         ...extensions,
@@ -94,8 +103,16 @@ const check = (der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): 
         at: AT,
         signatureVerified: true,
         responderAuthorized: true,
+        onDiagnostic: quiet.onDiagnostic,
         ...overrides,
     });
+
+/** `check`, with what the decision says through `onDiagnostic` kept beside its reasons. */
+function diagnosed(der: Uint8Array, overrides: Partial<CheckOcspStatusInput> = {}): { readonly reasons: readonly { code: string }[]; readonly diagnostics: readonly PkiDiagnostic[] } {
+    const diagnostics: PkiDiagnostic[] = [];
+    const reasons = check(der, { onDiagnostic: (d) => { diagnostics.push(d); }, ...overrides });
+    return { reasons, diagnostics };
+}
 
 const codes = (reasons: readonly { code: string }[]): string[] => reasons.map((r) => r.code).sort();
 
@@ -400,5 +417,77 @@ describe('checkOcspStatus — several reasons at once', () => {
 
     it('should never throw for a status issue', () => {
         expect(() => check(build({ statusCode: 3 }), { signatureVerified: undefined, responderAuthorized: undefined })).not.toThrow();
+    });
+});
+
+describe('checkOcspStatus — what the response says about itself (RFC 6960 §4.2.2.2.1, §4.2.2.3)', () => {
+    // A signer as checkOcspStatus reads one: its subject bytes, its public key
+    // bits and its extensions. Nothing else of a certificate is consulted.
+    const SUBJECT = sequence(universal(17, sequence(universal(6, [0x55, 0x04, 0x03]), universal(12, ascii('Responder'))), true));
+    const OTHER_SUBJECT = sequence(universal(17, sequence(universal(6, [0x55, 0x04, 0x03]), universal(12, ascii('Somebody'))), true));
+    const KEY_BITS = Uint8Array.from(ascii('the responder key bits'));
+    const signerWith = (extensions: readonly object[] = []): Certificate =>
+        ({ subject: { der: SUBJECT }, subjectPublicKeyInfo: { publicKey: { bytes: KEY_BITS } }, extensions } as unknown as Certificate);
+    const byName = (name: Uint8Array): Uint8Array => tlv(2, true, 1, name);
+    const byKey = (hash: Uint8Array): Uint8Array => tlv(2, true, 2, universal(4, [...hash]));
+    const NO_CHECK = '1.3.6.1.5.5.7.48.1.5';
+
+    it('should diagnose a responderID that names neither the subject nor the key hash of the signer, and accept one that does (RFC 6960 §4.2.2.3)', () => {
+        const signer = signerWith();
+        expect(diagnosed(build({ responderId: byName(SUBJECT) }), { signer }).diagnostics).toEqual([]);
+        expect(diagnosed(build({ responderId: byKey(sha1(KEY_BITS)) }), { signer }).diagnostics).toEqual([]);
+
+        const name = diagnosed(build({ responderId: byName(OTHER_SUBJECT) }), { signer });
+        expect(name.diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'warning', 'ocsp.responderID']]);
+        expect(name.diagnostics[0]?.message).toContain('names a subject');
+        const key = diagnosed(build(), { signer });
+        expect(key.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH']);
+        expect(key.diagnostics[0]?.message).toContain('key hash');
+        // The verdict is the signature's, not the claim's.
+        expect(name.reasons).toEqual([]);
+        expect(key.reasons).toEqual([]);
+        // Without the signer there is nothing to compare, and nothing is said.
+        expect(diagnosed(build()).diagnostics).toEqual([]);
+    });
+
+    it('should diagnose a signer whose id-pkix-ocsp-nocheck is critical, and say nothing of one that is not (RFC 6960 §4.2.2.2.1)', () => {
+        const honest = build({ responderId: byName(SUBJECT) });
+        const critical = diagnosed(honest, { signer: signerWith([{ kind: 'ocspNoCheck', oid: NO_CHECK, critical: true }]) });
+        expect(critical.diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_OCSP_NOCHECK_CRITICAL', 'info', 'ocsp.signer.ocspNoCheck']]);
+        expect(critical.reasons).toEqual([]);
+        expect(diagnosed(honest, { signer: signerWith([{ kind: 'ocspNoCheck', oid: NO_CHECK, critical: false }]) }).diagnostics).toEqual([]);
+        expect(diagnosed(honest, { signer: signerWith([{ kind: 'basicConstraints', oid: '2.5.29.19', critical: true }]) }).diagnostics).toEqual([]);
+        // Both claims wrong at once: both said, the responderID first.
+        expect(diagnosed(build(), { signer: signerWith([{ kind: 'ocspNoCheck', oid: NO_CHECK, critical: true }]) }).diagnostics.map((d) => d.code))
+            .toEqual(['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'PKI_DIAG_OCSP_NOCHECK_CRITICAL']);
+    });
+
+    it('should diagnose SingleResponse elements about certificates nobody asked about, beside the answer that was (RFC 6960 §4.2.2.3)', () => {
+        const other = (serial: number): Uint8Array => single({ id: certId({ serial: [serial] }), nextUpdate: AT + DAY });
+        const right = single({ nextUpdate: AT + DAY });
+        const one = diagnosed(build({ singles: [other(0x99), right] }));
+        expect(one.reasons).toEqual([]);
+        expect(one.diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', 'info', 'ocsp.responses']]);
+        expect(one.diagnostics[0]?.message).toContain('1 SingleResponse element(s)');
+        expect(diagnosed(build({ singles: [other(0x98), right, other(0x99)] })).diagnostics[0]?.message).toContain('2 SingleResponse element(s)');
+        // Alone, or twice about the same certificate: nothing unasked for.
+        expect(diagnosed(build({ singles: [right] })).diagnostics).toEqual([]);
+        expect(diagnosed(build({ singles: [right, right] })).diagnostics).toEqual([]);
+        // Without the answer asked about, the response is a mismatch, said once
+        // as a reason — not again as a diagnostic.
+        const mismatch = diagnosed(build({ singles: [other(0x99)] }));
+        expect(codes(mismatch.reasons)).toEqual(['PKI_REASON_REVOCATION_MISMATCH']);
+        expect(mismatch.diagnostics).toEqual([]);
+    });
+
+    it('should warn once on the console without a handler, as every primitive does, and a strict emitter refuses the warning', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        expect(check(build(), { signer: signerWith(), onDiagnostic: undefined })).toEqual([]);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]?.[0]).toContain('[PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH]');
+        // checkOcspStatus itself never throws; the severity is what a strict
+        // parse would refuse, and the emitter is where that is decided.
+        expect(() => createDiagnosticEmitter(true, undefined).emit(ocspResponderIdMismatchDiagnostic('ocsp', 'byKey')))
+            .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
     });
 });
