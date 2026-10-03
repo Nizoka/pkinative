@@ -153,3 +153,12 @@ describe('readRelativeOid and encodeRelativeOid', () => {
         expect(() => encodeRelativeOid('1.x')).toThrow(/"1.x" is not a dotted-decimal RELATIVE-OID/);
     });
 });
+
+describe('the X.690 section each refusal cites', () => {
+    it('should cite §8.19.2 for an OBJECT IDENTIFIER and §8.20.2 for a RELATIVE-OID', () => {
+        expect(() => decodeOid(hex(''))).toThrow(/OBJECT IDENTIFIER at offset 0 has no content octet \(X\.690 §8\.19\.2\)/);
+        expect(() => decodeOid(hex('80 01'))).toThrow(/X\.690 §8\.19\.2 forbids/);
+        expect(() => readRelativeOid(decodeAsn1(hex('0D 00')))).toThrow(/RELATIVE-OID at offset 0 has no content octet \(X\.690 §8\.20\.2\)/);
+        expect(() => readRelativeOid(decodeAsn1(hex('0D 02 80 01')))).toThrow(/X\.690 §8\.20\.2 forbids/);
+    });
+});

@@ -51,223 +51,223 @@
       "reason": "Message-only: `where()` only chooses the words 'input' or 'enclosing value' in a PKI_ASN1_TRUNCATED message; the error's code, class, path and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:146:23:relational",
+      "id": "src/asn1/asn1-encode.ts:147:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration of hexToBytes writes parseInt('', 16) = NaN to out[out.length], an out-of-bounds index of a Uint8Array, which a typed array ignores; the returned octets are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:174:79:number-1",
+      "id": "src/asn1/asn1-encode.ts:175:79:number-1",
       "original": "2",
       "replacement": "1",
       "reason": "Semantic: the padStart never pads. The loop above leaves v ≥ −2^(8·octets − 1), so (1n << 8·octets) + v lies in [2^(8·octets − 1), 2^(8·octets)) and its hex form has exactly 2·octets digits; padStart to 2·octets or to octets returns it unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:329:17:relational",
+      "id": "src/asn1/asn1-encode.ts:330:17:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: the extra case is bit === highest, where the mutant assigns highest the value it already holds."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:333:19:number-1",
+      "id": "src/asn1/asn1-encode.ts:334:19:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: highest starts at −1 and only grows, so highest < −1 is never true — the mutant is the if-false mutant at 333:9, whose fall-through for the empty input yields the same 03 01 00."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:333:9:if-false",
+      "id": "src/asn1/asn1-encode.ts:334:9:if-false",
       "original": "highest < 0",
       "replacement": "false",
       "reason": "Semantic: highest < 0 holds only for an empty input (highest = −1, no position). The fall-through then builds new Uint8Array((−1 >> 3) + 1) = an empty array, sets no bit, and calls encodeBitString(empty, 7 − (−1 & 7)) = encodeBitString(empty, 0) — the early return's own call, so the output is 03 01 00 either way (pinned by 'should encode no bit as the empty BIT STRING')."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:101:logical",
+      "id": "src/asn1/asn1-encode.ts:391:101:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:120:relational",
+      "id": "src/asn1/asn1-encode.ts:391:120:relational",
       "original": ">=",
       "replacement": ">",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:123:number+1",
+      "id": "src/asn1/asn1-encode.ts:391:123:number+1",
       "original": "0xd800",
       "replacement": "55297",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:123:number-1",
+      "id": "src/asn1/asn1-encode.ts:391:123:number-1",
       "original": "0xd800",
       "replacement": "55295",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:130:logical",
+      "id": "src/asn1/asn1-encode.ts:391:130:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:149:relational",
+      "id": "src/asn1/asn1-encode.ts:391:149:relational",
       "original": "<=",
       "replacement": "<",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:152:number+1",
+      "id": "src/asn1/asn1-encode.ts:391:152:number+1",
       "original": "0xdfff",
       "replacement": "57344",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:152:number-1",
+      "id": "src/asn1/asn1-encode.ts:391:152:number-1",
       "original": "0xdfff",
       "replacement": "57342",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:95:equality",
+      "id": "src/asn1/asn1-encode.ts:391:95:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the findIndex expression on this line only computes the index that outOfRange quotes in the PKI_ASN1_VALUE_OUT_OF_RANGE message; outOfRange passes no offset, and the refusal is decided by encodeUtf8 returning null, before the expression runs. Code, class and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:99:number+1",
+      "id": "src/asn1/asn1-encode.ts:391:99:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:376:99:number-1",
+      "id": "src/asn1/asn1-encode.ts:391:99:number-1",
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:388:28:number+1",
+      "id": "src/asn1/asn1-encode.ts:403:28:number+1",
       "original": "0x7f",
       "replacement": "128",
       "reason": "Semantic: the only code the mutant lets past the range test is 0x80, which every allowed predicate then refuses (isPrintableOctet tops out at 0x7a, isIa5Octet is b < 0x80, isVisibleOctet ≤ 0x7e, isNumericOctet ≤ 0x39), so the same PKI_ASN1_VALUE_OUT_OF_RANGE is thrown at the same index."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:395:31:relational",
+      "id": "src/asn1/asn1-encode.ts:410:31:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra TeletexString iteration reads charCodeAt(value.length) = NaN, which fails NaN > 0xff, and writes it to content[value.length], an out-of-bounds index the Uint8Array ignores."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:403:31:relational",
+      "id": "src/asn1/asn1-encode.ts:418:31:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra BMPString iteration reads charCodeAt(value.length) = NaN, which fails the surrogate test, and writes NaN >> 8 and NaN & 0xff to content[2·length] and content[2·length + 1], out-of-bounds indices the Uint8Array ignores."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:420:38:number+1",
+      "id": "src/asn1/asn1-encode.ts:435:38:number+1",
       "original": "24",
       "replacement": "25",
       "reason": "Semantic: code is at most 0x10FFFF (a for…of step is one unit or one surrogate pair), and 0x10FFFF >>> 24, >>> 25 and >>> 23 are all 0, so the first octet of every UniversalString character is 00 either way."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:420:38:number-1",
+      "id": "src/asn1/asn1-encode.ts:435:38:number-1",
       "original": "24",
       "replacement": "23",
       "reason": "Semantic: as 420:38:number+1 — code ≤ 0x10FFFF < 2^23, so code >>> 23 is 0 like code >>> 24."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:461:83:conditional",
+      "id": "src/asn1/asn1-encode.ts:476:83:conditional",
       "original": "type === 'rfc5280' ? 'RFC 5280 forbids in certificates' : 'UTCTime cannot hold'",
       "replacement": "(type === 'rfc5280' ? 'UTCTime cannot hold' : 'RFC 5280 forbids in certificates')",
       "reason": "Message-only: the conditional only chooses which rule the PKI_ASN1_VALUE_OUT_OF_RANGE message for a fraction of a second names; the refusal is decided by millisecond !== 0 && type !== 'GeneralizedTime', and the code and class are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:461:88:equality",
+      "id": "src/asn1/asn1-encode.ts:476:88:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the test of the message-rendering conditional at 461:83."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:475:23:relational",
+      "id": "src/asn1/asn1-encode.ts:490:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration writes charCodeAt(text.length) = NaN to content[text.length], an out-of-bounds index the Uint8Array ignores."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:39:relational",
+      "id": "src/asn1/asn1-oid.ts:191:23:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Message-only: `oid.length > 64 ? … : oid` only chooses whether the refused string is quoted whole or cut to 61 characters plus an ellipsis inside the PKI_OID_INVALID message; the refusal is decided by isValidOid on the line above, and the code and class are unchanged."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:41:number+1",
+      "id": "src/asn1/asn1-oid.ts:191:25:number+1",
       "original": "64",
       "replacement": "65",
       "reason": "Message-only: the truncation threshold of the quoted OID in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:41:number-1",
+      "id": "src/asn1/asn1-oid.ts:191:25:number-1",
       "original": "64",
       "replacement": "63",
       "reason": "Message-only: the truncation threshold of the quoted OID in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:59:number+1",
+      "id": "src/asn1/asn1-oid.ts:191:43:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Message-only: the start of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:59:number-1",
+      "id": "src/asn1/asn1-oid.ts:191:43:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: the start of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:62:number+1",
+      "id": "src/asn1/asn1-oid.ts:191:46:number+1",
       "original": "61",
       "replacement": "62",
       "reason": "Message-only: the length of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:135:62:number-1",
+      "id": "src/asn1/asn1-oid.ts:191:46:number-1",
       "original": "61",
       "replacement": "60",
       "reason": "Message-only: the length of the excerpt quoted in the PKI_OID_INVALID message (see 135:39)."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:21:21:number-1",
+      "id": "src/asn1/asn1-oid.ts:24:21:number-1",
       "original": "0x3fffffffffff",
       "replacement": "70368744177662",
       "reason": "Semantic: the limit only decides when _decodeOid moves a subidentifier from number to bigint arithmetic. The mutant also moves it at value = 2^46 − 1, where the number path is still exact: (2^46 − 1) · 128 + 127 = 2^53 − 1 = Number.MAX_SAFE_INTEGER. Both paths then hold the same integer, String() of it is the same decimal text, and for a first subidentifier both push '2' and value − 80 (the value is far above 80). Every OID decodes to the same string."
     },
     {
-      "id": "src/asn1/asn1-oid.ts:40:35:relational",
+      "id": "src/asn1/asn1-oid.ts:51:35:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: as 21:21:number-1 — the extra case is value === 2^46 − 1, where switching to bigint one octet early computes the same exact integer the number path would (its largest successor is 2^53 − 1), so every arc string is identical."
     },
     {
-      "id": "src/asn1/asn1-read.ts:252:24:number-1",
+      "id": "src/asn1/asn1-read.ts:285:24:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: with unusedBits 0 the mask (1 << 0) - 1 is 0, so the masked last octet is 0 and the branch is not taken either way; content holds at least one octet here."
     },
     {
-      "id": "src/asn1/asn1-read.ts:357:23:relational",
+      "id": "src/asn1/asn1-read.ts:390:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration reads charCodeAt(value.length), which is NaN, and CODE_EXTENSION_CONTROLS holds no NaN key."
     },
     {
-      "id": "src/asn1/asn1-read.ts:61:116:conditional",
+      "id": "src/asn1/asn1-read.ts:62:116:conditional",
       "original": "node === null ? 'null' : typeof node",
       "replacement": "(node === null ? typeof node : 'null')",
       "reason": "Message-only: the expression only names the received type in the PKI_INVALID_INPUT message ('got null' or 'got object'); the error's code, class, path and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-read.ts:61:121:equality",
+      "id": "src/asn1/asn1-read.ts:62:121:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant on this line; the error's code, class, path and offset are unchanged."
