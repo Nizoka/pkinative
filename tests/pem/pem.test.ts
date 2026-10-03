@@ -44,6 +44,19 @@ describe('encodePem', () => {
     it('should refuse a payload that is not bytes', () => {
         expect(failure(() => encodePem('CERTIFICATE', 'abc' as unknown as Uint8Array)).code).toBe('PKI_INVALID_INPUT');
     });
+
+    // The message is bounded, not pinned: a bad label is quoted whole up to 64 characters and cut
+    // with an ellipsis past that, so a message never reproduces an arbitrary value in full.
+    it('should quote at most 64 characters of a bad label in the message', () => {
+        const whole = `${'A'.repeat(63)}é`;             // 64 characters, invalid (non-ASCII)
+        expect(failure(() => encodePem(whole, PAYLOAD)).message).toContain(JSON.stringify(whole));
+        const long = `${'A'.repeat(64)}é`;              // 65 characters: cut after 64, then an ellipsis
+        const message = failure(() => encodePem(long, PAYLOAD)).message;
+        expect(message).toContain(JSON.stringify(`${'A'.repeat(64)}…`));
+        expect(message).not.toContain(long);
+        expect(failure(() => encodePem(`${'A'.repeat(5000)}é`, PAYLOAD)).message.length).toBeLessThan(300);
+        expect(failure(() => encodePem(5 as unknown as string, PAYLOAD)).message).toContain('a number is not an RFC 7468 label');
+    });
 });
 
 describe('decodePem — strict', () => {

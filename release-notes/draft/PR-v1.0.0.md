@@ -104,12 +104,12 @@ The figures of 2026-10-02 (the final review) were superseded when the 1.1 list w
 | `npm run check:package` | PASS inside the publish gate (2026-10-03) |
 | `npm run smoke:install` | PASS inside the publish gate (2026-10-03) |
 | `npm pack --dry-run` | 12 files, 1.3 MB packed, 5.4 MB unpacked (2026-10-03) |
-| `npm audit` / `osv-scanner` (2.6.0) | `npm audit`: 0 vulnerabilities (2026-10-03); osv-scanner not re-run since 2026-10-02 (then no issues in 326 packages; the lockfile has not changed since) |
-| zizmor 1.30.1 (offline) / actionlint 1.7.12 | not run since 2026-10-02 (then no findings / clean); `node-current.yml` and the `a11y` job are new |
-| `reuse lint` (reuse 6.2.0) | not run since 2026-10-02 (then 520/520 files compliant with REUSE 3.3) |
-| L4 Linux lineages, run locally under WSL Ubuntu on the release machine's validator input | not run since 2026-10-02 (then Go `crypto/x509` 202/202, Python cryptography 46.0.5 202/202, both canaries behaved) |
-| Jazzer.js 4.0.0, 180 s per target over the eight ClusterFuzzLite targets | not run since 2026-10-02 (then 780 036 runs, 0 crashes, 0 artefacts) |
-| axe-core 4.13.0 (WCAG 2.0/2.1/2.2 A and AA) over every page, light and dark | now the `a11y` job of `docs.yml` (`npm run check:a11y`); not run locally since 2026-10-02 (then 0 violations in 24 runs over 12 pages) |
+| `npm audit` / `osv-scanner` (2.6.0) | `npm audit`: 0 vulnerabilities (2026-10-03); osv-scanner 2.6.0 over `package-lock.json`: no issues in 326 packages (2026-10-04, WSL) |
+| zizmor 1.30.1 (offline) / actionlint 1.7.12 | actionlint 1.7.12: clean over every workflow, `node-current.yml` and the `a11y` job included (2026-10-04, WSL); zizmor not installed on this machine, not run since 2026-10-02 (then no findings) — the `audit` workflow runs it on the first push |
+| `reuse lint` (reuse 6.2.0) | not installed on this machine, not run since 2026-10-02 (then 520/520 files compliant with REUSE 3.3); `reuse-shape` (verify-docs) holds the manifest, and the `audit` workflow runs the tool |
+| L4 Linux lineages, run locally under WSL Ubuntu on the release machine's validator input | not run since 2026-10-02 (then Go `crypto/x509` 202/202, Python cryptography 46.0.5 202/202, both canaries behaved): the WSL image has Go 1.26 and cryptography 46.0.5 but no Node.js for the runner; the `conformance` job runs them on ubuntu at the first push |
+| Jazzer.js 4.0.0, 180 s per target over the eight ClusterFuzzLite targets | 2 298 579 runs, 0 crashes, 0 artefacts (2026-10-04, the pinned engine of `.clusterfuzzlite/engine`, seeds from `tests/fuzzing/_fuzz-seeds.ts`) |
+| axe-core 4.13.0 (WCAG 2.0/2.1/2.2 A and AA) over every page, light and dark | `npm run check:a11y` with Edge 149 headless: 0 violations in 24 runs over 12 pages (2026-10-04); the `a11y` job of `docs.yml` repeats it on every change |
 | Lighthouse accessibility, the same 12 pages | not run since 2026-10-02 (then 100 on every page) |
 | Horizontal overflow at 1280 and 375 px, light and dark | not run since 2026-10-02 (then 0 px on the home page and the guides) |
 
