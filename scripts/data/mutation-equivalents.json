@@ -817,6 +817,12 @@
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: as the logical flip at 159:32 — the one value the mutant lets through, 6, indexes past the end of STATUSES, the lookup is undefined and the same refusal follows ('a status beyond revocationNotification' pins code and path)."
+    },
+    {
+      "id": "src/revocation/crl-parse.ts:512:23:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: sameBytes returns false on line 511 unless a.length === b.length, so the one extra iteration compares a[a.length] with b[a.length] — both out of range of their typed-array views, so both undefined (an integer-indexed exotic object never reads past its view, whatever the underlying buffer holds) — which is no mismatch; the loop ends and returns true exactly as the original does. The argument of src/core/bytes.ts:86:23."
     }
   ]
 }

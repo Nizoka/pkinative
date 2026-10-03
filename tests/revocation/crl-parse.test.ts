@@ -397,3 +397,132 @@ describe('the shape of a CRL extension (RFC 5280 §4.1)', () => {
         expect(() => parseCertificateList(der)).toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertList.crlExtensions[0].critical' }));
     });
 });
+
+/** The absolute offset of `needle` in `haystack` — an oracle independent of the parser. */
+function offsetOf(haystack: Uint8Array, needle: Uint8Array): number {
+    for (let i = 0; i + needle.length <= haystack.length; i += 1) {
+        if (needle.every((octet, j) => haystack[i + j] === octet)) return i;
+    }
+    return -1;
+}
+
+describe('parseCertificateList — a SEQUENCE is universal, constructed and tag 16 (RFC 5280 §5.1)', () => {
+    // Three tests joined by OR. `[16]` in the context class is constructed and
+    // numbered 16 but is not a SEQUENCE; a universal SET is constructed and
+    // universal but is not one either. Each vector fails exactly one test.
+    const entryContent = [...int(0x01), ...utc('260601000000Z')];
+
+    it.each([
+        { name: 'a context-class [16]', first: 0xb0 },
+        { name: 'a universal SET', first: 0x31 },
+    ])('should refuse a CertificateList that is $name, at offset 0', ({ first }) => {
+        const der = crl();
+        der[0] = first;
+        expect(() => parseCertificateList(der, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'CertificateList', offset: 0 }));
+    });
+
+    it.each([
+        { name: 'a context-class [16]', bad: tlv(2, true, 16, entryContent) },
+        { name: 'a universal SET', bad: universal(17, entryContent, true) },
+    ])('should refuse a revokedCertificates entry that is $name, with its path and offset', ({ bad }) => {
+        const der = crl({ entries: [entry([0x01]), bad] });
+        expect(() => parseCertificateList(der, quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID',
+            path: 'tbsCertList.revokedCertificates[1]',
+            offset: offsetOf(der, bad),
+        }));
+    });
+
+    it('should refuse a signatureValue that is not a BIT STRING at its own offset, not the algorithm\'s', () => {
+        const der = sequence(sequence(int(1), ALG, name('CA'), utc('260101000000Z')), ALG, universal(4, [0x00]));
+        expect(() => parseCertificateList(der, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'signatureValue', offset: der.length - 3 }));
+    });
+
+    it('should read the unused-bits count from the first octet of the signature BIT STRING', () => {
+        const tbs = sequence(int(1), ALG, name('CA'), utc('260101000000Z'));
+        const list = parseCertificateList(sequence(tbs, ALG, universal(3, [0x03, 0xa8])), quiet);
+        expect(list.signatureValue.unusedBits).toBe(3);
+        expect(Array.from(list.signatureValue.bytes)).toEqual([0xa8]);
+    });
+
+    it('should refuse an extension of one field at the Extension itself, not as a missing extnValue', () => {
+        const lone = sequence(universal(6, [0x55, 0x1d, 0x14]));
+        const broken = crl({ crlExtensions: [lone] });
+        expect(() => parseCertificateList(broken, quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertList.crlExtensions[0]', offset: offsetOf(broken, lone),
+        }));
+    });
+});
+
+describe('parseCertificateList — maxExtensions counts every crlExtension once', () => {
+    const vendor = (last: number): Uint8Array => extension([0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, last], universal(5, []));
+    const three = crl({ crlExtensions: [vendor(1), vendor(2), vendor(3)] });
+
+    it('should accept exactly maxExtensions extensions', () => {
+        expect(parseCertificateList(three, { ...quiet, limits: { maxExtensions: 3 } }).extensions.map((e) => e.oid))
+            .toEqual(['1.3.6.1.4.1.99999.1', '1.3.6.1.4.1.99999.2', '1.3.6.1.4.1.99999.3']);
+    });
+
+    it('should refuse one extension past maxExtensions, observing the third', () => {
+        expect(() => parseCertificateList(three, { ...quiet, limits: { maxExtensions: 2 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxExtensions', observed: 3, configured: 2 }));
+    });
+
+    it('should name the second extension by its own index when it is malformed', () => {
+        const der = crl({ crlExtensions: [vendor(1), sequence(universal(6, [0x55, 0x1d, 0x14]), int(0x2a))] });
+        expect(() => parseCertificateList(der, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'tbsCertList.crlExtensions[1].extnValue' }));
+    });
+});
+
+describe('findRevocation — boundaries', () => {
+    const three = crl({ entries: [entry([0x01]), entry([0x02]), entry([0x03])] });
+    const collect = (seen: string[]) => ({ onDiagnostic: (d: { code: string }): undefined => { seen.push(d.code); } });
+
+    it('should walk exactly maxRevokedCertificates entries', () => {
+        expect(findRevocation(three, Uint8Array.of(0x09), { ...quiet, limits: { maxRevokedCertificates: 3 } })).toBeUndefined();
+        expect(findRevocation(three, Uint8Array.of(0x03), { ...quiet, limits: { maxRevokedCertificates: 3 } })?.serialNumber.hex).toBe('03');
+    });
+
+    it('should refuse the entry one past maxRevokedCertificates, observing the third', () => {
+        expect(() => findRevocation(three, Uint8Array.of(0x09), { ...quiet, limits: { maxRevokedCertificates: 2 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxRevokedCertificates', observed: 3, configured: 2 }));
+    });
+
+    it('should not match a listed serial that is a prefix of the one asked about, nor the reverse', () => {
+        // Serial 01 is revoked; the certificate with serial 01 02 is not. A
+        // comparison that stopped at the shorter length would revoke it.
+        const der = crl({ entries: [entry([0x01]), entry([0x03, 0x04])] });
+        expect(findRevocation(der, Uint8Array.of(0x01, 0x02), quiet)).toBeUndefined();
+        expect(findRevocation(der, Uint8Array.of(0x03), quiet)).toBeUndefined();
+        expect(findRevocation(der, Uint8Array.of(0x01), quiet)?.serialNumber.hex).toBe('01');
+    });
+
+    it('should read a reasonCode written as an INTEGER, and diagnose nothing for it', () => {
+        // RFC 5280 §5.3.1 says ENUMERATED; INTEGER is a common encoder bug and
+        // is read anyway, because refusing it would hide the revocation.
+        const seen: string[] = [];
+        const der = crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x15], int(0x01)))] });
+        expect(findRevocation(der, Uint8Array.of(0x05), collect(seen))?.reason).toBe('keyCompromise');
+        expect(seen).toEqual([]);
+    });
+
+    it('should diagnose nothing for a well-formed ENUMERATED reasonCode', () => {
+        const seen: string[] = [];
+        const der = crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x15], universal(10, [0x04])))] });
+        expect(findRevocation(der, Uint8Array.of(0x05), collect(seen))?.reason).toBe('superseded');
+        expect(seen).toEqual([]);
+    });
+
+    it.each([
+        { name: 'a BOOLEAN', value: universal(1, [0xff]) },
+        { name: 'a BIT STRING', value: universal(3, [0x01]) },
+    ])('should leave reason undefined for a reasonCode that is $name holding one octet', ({ value }) => {
+        const seen: string[] = [];
+        const der = crl({ entries: [entry([0x05], '260601000000Z', extension([0x55, 0x1d, 0x15], value))] });
+        expect(findRevocation(der, Uint8Array.of(0x05), collect(seen))?.reason).toBeUndefined();
+        expect(seen).toEqual(['PKI_DIAG_CRL_EXTENSION_MALFORMED']);
+    });
+});
