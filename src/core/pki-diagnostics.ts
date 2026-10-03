@@ -221,6 +221,118 @@ export function cmsDigestAlgorithmNotListedDiagnostic(path: string, oid: string,
         path, offset);
 }
 
+// ── Payload factories — RFC 5652 §5.2, §11.3 and §11.4 ───────────────
+//
+// Each is one requirement sentence of scripts/data/rfc5652-requirements.json
+// that the parser can decide from the message alone. None changes what is
+// decoded and none touches a verdict: the certificates-only case has no
+// signer to judge, a countersignature is carried and never verified, and a
+// signing time is read to the millisecond whatever its form.
+
+/**
+ * A SignedData with no signer whose `eContentType` is not id-data, or which
+ * still carries `eContent`. RFC 5652 §5.2 reserves the signer-less form for
+ * the certificates-only message, and says what its content must look like.
+ */
+export function cmsCertsOnlyContentDiagnostic(path: string, found: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_CERTS_ONLY_CONTENT', 'warning', 'RFC 5652 §5.2',
+        `this SignedData has no signer and ${found}; RFC 5652 §5.2 requires a signer-less message to carry id-data and no eContent, and a strict reader may refuse it`,
+        path, offset);
+}
+
+/** A countersignature whose own signed attributes carry a content-type attribute, which §11.4 forbids: there is no content type for a countersignature. */
+export function cmsCountersignatureContentTypeDiagnostic(path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE', 'warning', 'RFC 5652 §11.4',
+        'this countersignature carries a content-type attribute among its signed attributes; RFC 5652 §11.4 forbids one there, since a countersignature has no content type — the countersignature is carried, not verified',
+        path, offset);
+}
+
+/** A countersignature whose signed attributes lack a message-digest attribute while holding others. */
+export function cmsCountersignatureNoMessageDigestDiagnostic(path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST', 'warning', 'RFC 5652 §11.4',
+        'this countersignature has signed attributes and none of them is a message-digest attribute, which RFC 5652 §11.4 requires whenever any other attribute is signed; a verifier of the countersignature has nothing to bind it to',
+        path, offset);
+}
+
+/** A countersignature attribute whose SET OF values is empty. */
+export function cmsCountersignatureEmptyDiagnostic(path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY', 'warning', 'RFC 5652 §11.4',
+        'this countersignature attribute holds no value; RFC 5652 §11.4 requires one or more SignerInfo values, so the attribute countersigns nothing',
+        path, offset);
+}
+
+/** A signing time in GeneralizedTime for a date 1950–2049, which §11.3 requires as UTCTime. */
+export function cmsSigningTimeNotUtcDiagnostic(path: string, text: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC', 'warning', 'RFC 5652 §11.3',
+        `"${text}" is a GeneralizedTime for a date between 1950 and 2049; RFC 5652 §11.3 requires UTCTime for those years — the instant is read as written, and a strict reader may refuse the attribute`,
+        path, offset);
+}
+
+/** A GeneralizedTime signing time with fractional seconds, which §11.3 forbids. */
+export function cmsSigningTimeFractionDiagnostic(path: string, text: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_CMS_SIGNING_TIME_FRACTION', 'warning', 'RFC 5652 §11.3',
+        `"${text}" carries fractional seconds, which RFC 5652 §11.3 forbids in a signing time; the instant is read to the millisecond`,
+        path, offset);
+}
+
+// ── Payload factories — RFC 3161 §2.4.1: certReq against the token ───
+//
+// Decided only where the request and the token are both in hand — the
+// verifier — because neither side alone says what the other asked for.
+
+/** `certReq` was TRUE and the token does not carry the TSA's certificate. */
+export function tspCertReqUnmetDiagnostic(path: string, found: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_TSP_CERTREQ_UNMET', 'warning', 'RFC 3161 §2.4.1',
+        `the request set certReq and ${found}; RFC 3161 §2.4.1 requires the TSA to include the certificate its SigningCertificate attribute names — the token verifies against the certificates you pass, but a reader without them cannot`,
+        path, undefined);
+}
+
+/** `certReq` was FALSE or absent and the token carries certificates anyway. */
+export function tspCertsUnrequestedDiagnostic(path: string, count: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_TSP_CERTS_UNREQUESTED', 'warning', 'RFC 3161 §2.4.1',
+        `the request did not set certReq and the token carries ${String(count)} certificate(s); RFC 3161 §2.4.1 then forbids the certificates field — they are read as the TSA's hint, and the token is no less valid for it`,
+        path, undefined);
+}
+
+// ── Payload factories — RFC 6960 §4.2: what a response says about itself ──
+
+/** The `certs` field is present and holds no certificate; §4.2.1 says it should then be absent. */
+export function ocspCertsEmptyDiagnostic(offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_CERTS_EMPTY', 'info', 'RFC 6960 §4.2.1',
+        'the certs field is present and empty; RFC 6960 §4.2.1 says it should be absent when no certificate is included — nothing is lost, the responder is found as if the field were absent',
+        'BasicOCSPResponse.certs', offset);
+}
+
+/** `ResponseData.version` is present and is not the one-octet INTEGER 0 of v1. */
+export function ocspVersionNotV1Diagnostic(found: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_VERSION_NOT_V1', 'warning', 'RFC 6960 §4.2.2.3',
+        `ResponseData.version ${found}; RFC 6960 §4.2.2.3 defines v1 (0) only, so the response is read with the v1 syntax — a strict reader may refuse it`,
+        'ResponseData.version', offset);
+}
+
+/** The `responderID` names neither the subject nor the key of the certificate that signed the response. */
+export function ocspResponderIdMismatchDiagnostic(path: string, kind: 'byName' | 'byKey'): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'warning', 'RFC 6960 §4.2.2.3',
+        kind === 'byName'
+            ? 'responderID names a subject that is not the subject of the certificate whose key verified the signature; RFC 6960 §4.2.2.3 requires it to correspond — the signature decides who answered, the name here is what the responder claims'
+            : 'responderID carries a key hash that is not the SHA-1 of the public key that verified the signature; RFC 6960 §4.2.2.3 requires it to correspond — the signature decides who answered, the hash here is what the responder claims',
+        `${path}.responderID`, undefined);
+}
+
+/** The response answers about certificates nobody asked about, beside the one that was. */
+export function ocspSingleResponseUnrequestedDiagnostic(path: string, extra: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', 'info', 'RFC 6960 §4.2.2.3',
+        `the response carries ${String(extra)} SingleResponse element(s) about certificates that were not asked about; RFC 6960 §4.2.2.3 says a responder should not add them, and allows pre-generated responses to — the answer about the certificate asked about is the one judged`,
+        `${path}.responses`, undefined);
+}
+
+/** The responder's certificate marks `id-pkix-ocsp-nocheck` critical; §4.2.2.2.1 says it should not be. */
+export function ocspNoCheckCriticalDiagnostic(path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_NOCHECK_CRITICAL', 'info', 'RFC 6960 §4.2.2.2.1',
+        'the certificate that signed the response marks id-pkix-ocsp-nocheck critical; RFC 6960 §4.2.2.2.1 says the extension should be non-critical — it is honoured either way, and a reader that does not know it must refuse the certificate',
+        `${path}.signer.ocspNoCheck`, undefined);
+}
+
 /**
  * A PBKDF2 iteration count below the 1 000 RFC 8018 recommends.
  *

@@ -144,6 +144,19 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_INFO_ACCESS_LDAP_URI_INCOMPLETE', diagnostics.infoAccessLdapUriIncompleteDiagnostic('ldap://ldap.example.com/', 'tbsCertificate.extensions.authorityInfoAccess[0].accessLocation')],
         ['PKI_DIAG_CA_ISSUERS_NO_HTTP_OR_LDAP_URI', diagnostics.caIssuersNoHttpOrLdapUriDiagnostic()],
         ['PKI_DIAG_CA_REPOSITORY_NO_HTTP_OR_LDAP_URI', diagnostics.caRepositoryNoHttpOrLdapUriDiagnostic()],
+        ['PKI_DIAG_CMS_CERTS_ONLY_CONTENT', diagnostics.cmsCertsOnlyContentDiagnostic('content.encapContentInfo.eContent', 'it carries an eContent', 12)],
+        ['PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE', diagnostics.cmsCountersignatureContentTypeDiagnostic('content.signerInfos[0].unsignedAttrs[0][0].signedAttrs', 300)],
+        ['PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST', diagnostics.cmsCountersignatureNoMessageDigestDiagnostic('content.signerInfos[0].unsignedAttrs[0][0].signedAttrs', 300)],
+        ['PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY', diagnostics.cmsCountersignatureEmptyDiagnostic('content.signerInfos[0].unsignedAttrs[0]', 290)],
+        ['PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC', diagnostics.cmsSigningTimeNotUtcDiagnostic('content.signerInfos[0].signedAttrs.signingTime', '20260301120000Z', 200)],
+        ['PKI_DIAG_CMS_SIGNING_TIME_FRACTION', diagnostics.cmsSigningTimeFractionDiagnostic('content.signerInfos[0].signedAttrs.signingTime', '20500301120000.5Z', 200)],
+        ['PKI_DIAG_TSP_CERTREQ_UNMET', diagnostics.tspCertReqUnmetDiagnostic('token.certificates', 'the token carries no certificate at all')],
+        ['PKI_DIAG_TSP_CERTS_UNREQUESTED', diagnostics.tspCertsUnrequestedDiagnostic('token.certificates', 2)],
+        ['PKI_DIAG_OCSP_CERTS_EMPTY', diagnostics.ocspCertsEmptyDiagnostic(120)],
+        ['PKI_DIAG_OCSP_VERSION_NOT_V1', diagnostics.ocspVersionNotV1Diagnostic('declares the version 0x01', 8)],
+        ['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', diagnostics.ocspResponderIdMismatchDiagnostic('ocsp', 'byKey')],
+        ['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', diagnostics.ocspSingleResponseUnrequestedDiagnostic('ocsp', 3)],
+        ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', diagnostics.ocspNoCheckCriticalDiagnostic('ocsp')],
     ];
 
     it.each(cases)('should build %s as a frozen, fully described payload', (code, payload) => {
