@@ -190,7 +190,7 @@ Every loop over untrusted input consults one of these named bounds (`PkiLimits`)
 | `maxOidBytes` | 256 | CWE-400 | The content length of one OBJECT IDENTIFIER. |
 | `maxBerSegments` | 10 000 | CWE-400 | The segments joined from one BER constructed string. |
 | `maxPemBlocks` | 10 000 | CWE-400 | The blocks read from one PEM text. |
-| `maxExtensions` | 256 | CWE-400 | The extensions of one certificate. |
+| `maxExtensions` | 256 | CWE-400 | The extensions of one certificate; of one certification request, the attributes, the values of each attribute and the extensions it requests — the structure the attributes carry, so the one bound fits both. |
 | `maxGeneralNames` | 10 000 | CWE-400 | The GeneralName entries of one field. |
 | `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name. |
 | `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension. |
@@ -230,7 +230,7 @@ There is no external security audit at 1.0 ([ADR 0010](docs/adr/0010-no-external
 
 - **An adversarial release audit** before every release: two independent auditors (claims against code; docs and machine surfaces), an adversarial verifier that re-derives every finding, a docs-autonomy pass and a GO/NO-GO ledger — [CONTRIBUTING.md §Release](CONTRIBUTING.md#release), step 5, and `.claude/skills/release-audit/`. It is run by agents under the maintainer's direction.
 - **The conformance gate, L0 to L8**, over third-party corpora pinned by commit and SHA-256 — x509-limbo, Wycheproof and NIST PKITS — plus an interoperability matrix against implementations written by other people ([docs/guides/conformance.md](docs/guides/conformance.md)). It runs on every change and in the publish gate of every release. The corpora judge conformance, not the absence of vulnerabilities.
-- **100 % coverage on all four axes** (`vitest.config.ts`), every unreachable branch a counted, justified exception held by `coverage-ignore-budget`; and **mutation testing** (`npm run mutate`), run by hand on the files a change touches when it changes a security decision — not a gate step, because it takes minutes per file; every survivor is killed by a test or argued equivalent in `scripts/data/mutation-equivalents.json`.
+- **100 % coverage on all four axes** (`vitest.config.ts`), every unreachable branch a counted, justified exception held by `coverage-ignore-budget`; and **mutation testing** (`npm run mutate`) over every executable module of `src/` — each a default target of `scripts/mutate.ts`, held at 100 % killed, every survivor killed by a test or argued equivalent in `scripts/data/mutation-equivalents.json`. It is run by hand, on the files a change touches and whole before a release, not as a gate step: a full pass is hours of machine time, which no required check can carry on every push.
 - **Seeded adversarial suites** and coverage-guided fuzzing — see [Verification of the Parser](#verification-of-the-parser).
 - **CodeQL** (TypeScript and the GitHub Actions workflows) on every push and pull request to `main`, and weekly; **zizmor** and **actionlint** on every change; **OpenSSF Scorecard** on every push to `main`, and weekly; **Dependency Review** on every pull request, as a required check.
 

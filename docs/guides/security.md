@@ -23,7 +23,7 @@ Every loop over input consults a named limit. The decoder is iterative, so nesti
 | `maxOidBytes` | 256 | CWE-400 | The content length of one OBJECT IDENTIFIER |
 | `maxBerSegments` | 10 000 | CWE-400 | The segments joined from one BER constructed string |
 | `maxPemBlocks` | 10 000 | CWE-400 | The blocks read from one PEM text |
-| `maxExtensions` | 256 | CWE-400 | The extensions of one certificate |
+| `maxExtensions` | 256 | CWE-400 | The extensions of one certificate; of one certification request, its attributes, their values and the extensions it requests |
 | `maxGeneralNames` | 10 000 | CWE-400 | The GeneralName entries of one field |
 | `maxNameAttributes` | 1 024 | CWE-400 | The attributes of one distinguished name |
 | `maxPolicies` | 1 024 | CWE-400 | The policies or policy mappings of one extension |
