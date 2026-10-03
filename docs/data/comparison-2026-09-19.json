@@ -1,5 +1,6 @@
 {
   "$comment": "Facts behind the README comparison, read mechanically on 2026-09-19 from the npm registry (https://registry.npmjs.org/<name>, latest dist-tag) and the npm downloads API (last week). Only registry facts are recorded — no benchmark, no opinion. pkinative has no npm release before 1.0.0, so its row describes the git tag. Refresh by re-reading the same endpoints and saving a new dated file.",
+  "schemaVersion": 1,
   "retrievedOn": "2026-09-19",
   "downloadsWeek": "2026-09-12..2026-09-18",
   "libraries": [

@@ -34,6 +34,7 @@ import {
     manifestShapeFindings,
     type PackageFilesManifest,
 } from './lib/package-files.js';
+import { REGISTRY_SCHEMA_VERSION } from './lib/registry-schema.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -85,7 +86,7 @@ function main(argv: readonly string[]): number {
             console.error('package-files: refusing to pin a tarball that breaks the rules above');
             return 1;
         }
-        const manifest: PackageFilesManifest = { $comment: COMMENT, generatedBy: PACKAGE_FILES_COMMAND, files: actual };
+        const manifest: PackageFilesManifest = { $comment: COMMENT, schemaVersion: REGISTRY_SCHEMA_VERSION, generatedBy: PACKAGE_FILES_COMMAND, files: actual };
         writeFileSync(join(ROOT, PACKAGE_FILES_MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
         console.log(`package-files: wrote ${PACKAGE_FILES_MANIFEST} (${actual.length} files) — review the diff before committing it`);
         return 0;

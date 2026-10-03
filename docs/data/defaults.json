@@ -1,5 +1,6 @@
 {
   "$comment": "Every default pkinative chooses on a caller's behalf, and what a 1.x release may do to it (ADR 0018). semver: frozen — changing the default is semver-major, in either direction; lowerable — a minor may lower it, as a recorded new refusal (ADR 0014); addable — there is no default, and a minor may add one (ADR 0015), which is frozen from then; not-promised — a diagnostic behaviour, which is not promised. Each row names the exported types or functions that take the option, and the source lines that implement the default: the option-defaults-parity rule of scripts/verify-docs.ts finds every evidence string in its file, finds the option on every type or function named, and requires a row for every optional boolean member of an exported ...Options, ...Input or ...Description type. A change to a default changes its evidence, so it cannot land without a diff of this file — and the review of that diff is what calls it major.",
+  "schemaVersion": 1,
   "package": "pkinative",
   "verifiedOn": "2026-10-01",
   "defaults": [

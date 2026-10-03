@@ -18,6 +18,8 @@
  * @module scripts/lib/refusals-frozen
  */
 
+import { REGISTRY_SCHEMA_VERSION } from './registry-schema.js';
+
 export const REFUSALS_FROZEN = 'docs/data/refusals.frozen.json';
 export const REFUSAL_BASELINE = 'scripts/data/limbo-refusals.json';
 export const REFUSALS_GENERATOR = 'npx tsx scripts/build-refusals-frozen.ts';
@@ -139,7 +141,7 @@ export function renderRefusalsFrozen(s: RefusalsFrozen): string {
     const row = (r: FrozenRefusal): string => `    { "sha256": ${JSON.stringify(r.sha256)}, "code": ${JSON.stringify(r.code)}${r.since === undefined ? '' : `, "since": ${JSON.stringify(r.since)}`} }`;
     const retired = s.retired ?? [];
     const retiredBlock = retired.length === 0 ? '' : `,\n  "retired": [\n${retired.map((r) => `    { "sha256": ${JSON.stringify(r.sha256)}, "code": ${JSON.stringify(r.code)}, "commit": ${JSON.stringify(r.commit)}, "adr": ${JSON.stringify(r.adr)} }`).join(',\n')}\n  ]`;
-    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "frozenAt": ${JSON.stringify(s.frozenAt)},\n  "phase": ${JSON.stringify(s.phase)},\n  "asOf": ${JSON.stringify(s.asOf)},\n`
+    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "schemaVersion": ${String(REGISTRY_SCHEMA_VERSION)},\n  "frozenAt": ${JSON.stringify(s.frozenAt)},\n  "phase": ${JSON.stringify(s.phase)},\n  "asOf": ${JSON.stringify(s.asOf)},\n`
         + `  "corpus": ${JSON.stringify(s.corpus)},\n  "commit": ${JSON.stringify(s.commit)},\n  "refusals": [\n${[...s.refusals].sort(byHash).map(row).join(',\n')}\n  ]${retiredBlock}\n}\n`;
 }
 

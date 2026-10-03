@@ -1,5 +1,6 @@
 {
   "$comment": "The registry of every named security bound. The limits-parity rule of scripts/verify-docs.ts holds four copies together: the PkiLimits interface (src/types/pki-types.ts, CWE in each TSDoc line), DEFAULT_PKI_LIMITS and its header table (src/core/pki-limits.ts), this file, and the Resource Limits table of SECURITY.md.",
+  "schemaVersion": 1,
   "package": "pkinative",
   "verifiedOn": "2026-09-15",
   "limits": [

@@ -36,6 +36,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { REGISTRY_SCHEMA_VERSION } from './lib/registry-schema.js';
 import { ERRORS_REGISTRY, FROZEN_REGISTRY, compareSemver } from './verify-docs/rules/registries.js';
 
 /** The version the error-code vocabulary freezes at, when no snapshot exists yet. */
@@ -57,7 +58,7 @@ export function renderFrozenSnapshot(registryText: string, frozenAt: string, thr
         .filter((e) => typeof e.code === 'string' && typeof e.class === 'string' && typeof e.since === 'string' && compareSemver(e.since, through) <= 0)
         .map((e) => `    { "code": ${JSON.stringify(e.code)}, "class": ${JSON.stringify(e.class)} }`);
     const asOf = through === frozenAt ? '' : `  "asOf": ${JSON.stringify(through)},\n`;
-    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "frozenAt": ${JSON.stringify(frozenAt)},\n${asOf}  "codes": [\n${rows.join(',\n')}\n  ]\n}\n`;
+    return `{\n  "$comment": ${JSON.stringify(COMMENT)},\n  "schemaVersion": ${String(REGISTRY_SCHEMA_VERSION)},\n  "frozenAt": ${JSON.stringify(frozenAt)},\n${asOf}  "codes": [\n${rows.join(',\n')}\n  ]\n}\n`;
 }
 
 export type ErrorsFrozenMode = 'default' | 'ratchet';

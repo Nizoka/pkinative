@@ -1,5 +1,6 @@
 {
   "$comment": "The registry of every diagnostic code pkinative reports. The diagnostics-parity rule of scripts/verify-docs.ts keeps it in bidirectional sync with the PkiDiagnosticCode union of src/types/pki-types.ts and requires a payload factory for every code in src/core/pki-diagnostics.ts. The union is additions-only: a code is never renamed or removed. Delivery: strict: true throws PKI_STRICT_DIAGNOSTIC; onDiagnostic receives every diagnostic; otherwise console.warn once per code per operation. Parse results also record every diagnostic.",
+  "schemaVersion": 1,
   "package": "pkinative",
   "verifiedOn": "2026-09-15",
   "diagnostics": [

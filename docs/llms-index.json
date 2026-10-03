@@ -36,26 +36,26 @@
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 27897,
-      "approxTokens": 6974
+      "bytes": 27919,
+      "approxTokens": 6980
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 32146,
-      "approxTokens": 8037
+      "bytes": 32168,
+      "approxTokens": 8042
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5101,
-      "approxTokens": 1275
+      "bytes": 5123,
+      "approxTokens": 1281
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 7759,
-      "approxTokens": 1940
+      "bytes": 7781,
+      "approxTokens": 1945
     },
     {
       "url": "assets/ecosystem.json",

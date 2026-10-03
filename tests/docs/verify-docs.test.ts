@@ -36,6 +36,7 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'claude-md-budget': (f) => edit(f, 'CLAUDE.md', /^@AGENTS\.md\n/, ''),
     'governance-sources': (f) => edit(f, '.github/ai-governance.json', '"AGENTS.md",', '"AGENTS.md",\n      "MISSING.md",'),
     'node-pin-parity': (f) => { f['.nvmrc'] = '20\n'; },
+    'registry-schema-version': (f) => edit(f, 'docs/data/limits.json', '"schemaVersion": 1,', '"schemaVersion": 2,'),
     'ruleset-parity': (f) => edit(f, '.github/rulesets/main.json', '"ci (22)"', '"ci (18)"'),
     'agent-config-parity': (f) => edit(f, '.claude/settings.json', '"commit": ""', '"commit": "Co-Authored-By: an agent"'),
     'claude-rules-sync': (f) => {

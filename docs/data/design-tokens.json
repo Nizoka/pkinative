@@ -1,5 +1,6 @@
 {
   "$comment": "The native-family design charter as pkinative.dev ports it: pdfnative's design tokens, read from pdfnative's docs/style.css and docs/guides/guide.css at the commit below, plus the one exception this port makes and why. The design-tokens-parity rule holds docs/style.css and docs/guides/guide.css to this file (palette blocks, font stacks, width breakpoints, guide column); the contrast rule checks every pair in textPairs in the light palette, the [data-theme=\"dark\"] palette and the prefers-color-scheme dark block, and fails on a token the CSS uses as text colour, or a colour/background pair it declares in one rule, that textPairs does not list. Re-capture after a charter change upstream: update the commit, the palettes and the lists, never one without the others.",
+  "schemaVersion": 1,
   "charter": {
     "repository": "https://github.com/Nizoka/pdfnative",
     "commit": "2900513f9bf03451f7d3488aad4baa4f27df911a",

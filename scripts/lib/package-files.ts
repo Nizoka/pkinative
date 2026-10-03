@@ -45,6 +45,8 @@ export interface PackageFile {
 
 export interface PackageFilesManifest {
     readonly $comment?: string;
+    /** `REGISTRY_SCHEMA_VERSION` (scripts/lib/registry-schema.ts): 1 throughout 1.x. */
+    readonly schemaVersion?: number;
     readonly generatedBy?: string;
     readonly files: readonly PackageFile[];
 }

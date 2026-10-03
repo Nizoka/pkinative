@@ -16,6 +16,7 @@
 import { posix } from 'node:path';
 import ts from 'typescript';
 import { KEY_OPERATION_POLICY, WEBCRYPTO_HOST_MODULES } from '../../lib/architecture.js';
+import { REGISTRY_SCHEMA_VERSION } from '../../lib/registry-schema.js';
 import { error, lineContaining, lineOf, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 export const ERRORS_SOURCE = 'src/types/pki-errors.ts';
@@ -993,7 +994,35 @@ const pkcs12PolicyParity: Rule = {
     },
 };
 
-export const REGISTRY_RULES: readonly Rule[] = [errorParity, errorCodesFrozen, diagnosticsParity, reasonParity, limitsParity, keyOperationParity, pkcs12PolicyParity];
+// ── registry-schema-version ──────────────────────────────────────────
+
+const REGISTRY_DIR = 'docs/data';
+
+const registrySchemaVersion: Rule = {
+    id: 'registry-schema-version',
+    summary: `Every docs/data/*.json registry carries "schemaVersion": ${String(REGISTRY_SCHEMA_VERSION)} as its first field after $comment — the integer a consumer checks before reading a shape (ADR 0018).`,
+    check(ctx) {
+        const out: Finding[] = [];
+        // `list` returns repository-relative paths; a registry is a JSON file directly under docs/data/.
+        const files = ctx.list(REGISTRY_DIR).filter((f) => f.endsWith('.json') && !f.slice(REGISTRY_DIR.length + 1).includes('/')).sort();
+        if (files.length === 0) return [error(REGISTRY_DIR, 'holds no registry — the machine contracts of ADR 0018 live here')];
+        for (const path of files) {
+            const parsed = readJson<{ schemaVersion?: unknown }>(ctx, path);
+            if ('finding' in parsed) { out.push(parsed.finding); continue; }
+            const v = parsed.value.schemaVersion;
+            if (v !== REGISTRY_SCHEMA_VERSION) {
+                out.push(error(path, `schemaVersion is ${JSON.stringify(v)}; every registry carries ${String(REGISTRY_SCHEMA_VERSION)} throughout 1.x (ADR 0018) — add "schemaVersion": ${String(REGISTRY_SCHEMA_VERSION)} after "$comment"`, 1));
+                continue;
+            }
+            const keys = Object.keys(parsed.value);
+            const at = keys.indexOf('schemaVersion');
+            if (at > 1 || (at === 1 && keys[0] !== '$comment')) out.push(error(path, `schemaVersion is the ${String(at + 1)}th key; it comes first, or right after "$comment", so a consumer finds it before any shape`, 1));
+        }
+        return out;
+    },
+};
+
+export const REGISTRY_RULES: readonly Rule[] = [errorParity, errorCodesFrozen, diagnosticsParity, reasonParity, limitsParity, keyOperationParity, pkcs12PolicyParity, registrySchemaVersion];
 
 /** Exported for tests: the codes the registries hold, read the way the rules read them. */
 export function registryCodes(ctx: RuleContext): { errors: string[]; diagnostics: string[] } {
