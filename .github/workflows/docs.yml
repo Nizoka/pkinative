@@ -98,6 +98,47 @@ jobs:
       - name: Verify documentation
         run: npm run verify:docs
 
+  # The rendered site under axe-core, every page in the light and the dark
+  # palette, WCAG 2.2 A and AA plus best practices: what a11y-structure cannot
+  # see in the HTML alone (contrast, focus, ARIA that resolves). axe-core is
+  # loaded by the harness from jsDelivr, pinned by version and SRI hash — the
+  # same CDN and the same pinning as the Prism the pages themselves load.
+  # Blocking: one violation is a red job (scripts/a11y-check.ts).
+  a11y:
+    name: Accessibility (axe, light and dark)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            cdn.jsdelivr.net:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run axe over every page, light and dark
+        run: |
+          google-chrome --version
+          npm run check:a11y
+
   npm-drift:
     name: Check the manifest against npm
     runs-on: ubuntu-latest

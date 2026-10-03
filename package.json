@@ -57,6 +57,7 @@
     "smoke:install": "npx tsx scripts/smoke-install.ts",
     "check:ts-floor": "npx tsx scripts/check-ts-floor.ts",
     "check:guides": "npx tsx scripts/check-guides.ts",
+    "check:a11y": "npx tsx scripts/a11y-check.ts",
     "docs:api": "npx tsx scripts/build-api-json.ts",
     "docs:guides": "npx tsx scripts/build-guides.ts",
     "docs:sitemap": "npx tsx scripts/build-sitemap.ts",

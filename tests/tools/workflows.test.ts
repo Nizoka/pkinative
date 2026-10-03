@@ -157,7 +157,7 @@ const BLOCKING_JOBS: Readonly<Record<string, readonly string[]>> = {
     'audit.yml': ['audit'],
     'bench.yml': ['bench'],
     'dependency-review.yml': ['dependency-review'],
-    'docs.yml': ['verify'],
+    'docs.yml': ['verify', 'a11y'],
 };
 
 

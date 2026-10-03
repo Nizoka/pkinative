@@ -338,9 +338,9 @@
 <tr>
 <td>ISO/IEC 40500 (WCAG)</td>
 <td>The documentation site</td>
-<td>partial, not claimed</td>
-<td>The rule <code>contrast</code> (4.5:1 text contrast in both palettes); <code>lang=&quot;en&quot;</code> on every page</td>
-<td>No automated accessibility audit runs in the gate.</td>
+<td>applies (WCAG 2.2 A and AA, automated rules)</td>
+<td>The rules <code>contrast</code> (4.5:1 text contrast in both palettes) and <code>a11y-structure</code> (skip link, one <code>&lt;main&gt;</code> and <code>&lt;h1&gt;</code>, heading levels, <code>alt</code>, button names); <code>lang=&quot;en&quot;</code> on every page; the <code>a11y</code> job of the Docs workflow runs axe-core 4.13.0 (WCAG 2.0/2.1/2.2 A and AA plus best practices) over every page in the light and the dark palette, zero violations blocking (<code>scripts/a11y-check.ts</code>)</td>
+<td>Automated rules decide about half of WCAG; the manual criteria (meaningful sequence, reading level, consistent navigation) are reviewed, not measured.</td>
 </tr>
 <tr>
 <td>ISO/IEC 27001</td>
