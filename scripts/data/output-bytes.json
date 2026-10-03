@@ -151,6 +151,11 @@
       "sha256": "6de9fd7f22944a7e07b8b8b0538509673bdc8c48f3ff1548106bc8f70a8cac29",
       "since": "0.3.0"
     },
+    "cert/v3-ed448-self-signed": {
+      "bytes": 352,
+      "sha256": "f0ac4782157429e25fc682dbd9fdde0237a181f5c8bfa647c23855a9d8658e09",
+      "since": "1.0.0"
+    },
     "cert/v3-leaf-issued-by-root": {
       "bytes": 324,
       "sha256": "da475c496048b014b3ca94c7bc52ab9e499c50fe13ce9c8df26d17b9db4f02c8",
@@ -164,6 +169,11 @@
     "cms/signed-data-detached-ski-signing-time": {
       "bytes": 870,
       "sha256": "6f59f60a36807faf2960f29aa34155f731d6dd5eac8eecf4258bb5189535690c",
+      "since": "1.0.0"
+    },
+    "cms/signed-data-ed448-shake256": {
+      "bytes": 880,
+      "sha256": "0df0e3e4e4550b7c44547ae70b44a08bd6027d4b05496c63ff125590b384bbf2",
       "since": "1.0.0"
     },
     "cms/signed-data-with-timestamp-token": {

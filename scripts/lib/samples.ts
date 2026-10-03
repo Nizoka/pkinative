@@ -10,16 +10,18 @@
  *
  * **Determinism, and why there is no key in this repository.** A signature
  * must be reproducible for a signed sample to have a stable hash, so every
- * signed sample uses Ed25519 (RFC 8032: deterministic by construction —
- * ECDSA and RSASSA-PSS are not). Every other signature family the API writes,
- * and every other signed structure, is covered by the set
+ * signed sample uses EdDSA (RFC 8032: deterministic by construction — ECDSA
+ * and RSASSA-PSS are not): Ed25519 throughout, and Ed448 for the one
+ * certificate and the one SignedData that freeze the RFC 8419 §3.1 shape, a
+ * SHAKE256 digest under an Ed448 signature. Every other signature family the
+ * API writes, and every other signed structure, is covered by the set
  * scripts/lib/interop-artefacts.ts generates afresh on each interop run and
  * holds to facts rather than to hashes.
- * The key comes from a fixed 32-octet seed wrapped in the PKCS#8 prefix
- * below, so nothing secret-looking is committed and the rule "never commit
- * what our own code can build" holds. `node:crypto` derives the public half,
- * which is why the sample certificates are genuinely self-signed rather than
- * merely well-formed.
+ * Each key comes from a fixed seed — 32 octets for Ed25519, 57 for Ed448 —
+ * wrapped in the PKCS#8 prefix below, so nothing secret-looking is committed
+ * and the rule "never commit what our own code can build" holds.
+ * `node:crypto` derives the public half, which is why the sample
+ * certificates are genuinely self-signed rather than merely well-formed.
  *
  * @module scripts/lib/samples
  */
@@ -79,15 +81,19 @@ import {
 const PKCS8_ED25519_PREFIX = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20]);
 /** Visibly not a real key: thirty-two 0x42 octets. */
 const SEED = new Uint8Array(32).fill(0x42);
+/** The Ed448 wrapper (RFC 8410 §7): version 0, id-Ed448, then the 57-octet seed in an OCTET STRING. */
+const PKCS8_ED448_PREFIX = Uint8Array.from([0x30, 0x47, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x71, 0x04, 0x3b, 0x04, 0x39]);
+/** Visibly not a real key either: fifty-seven 0x43 octets. */
+const SEED_448 = new Uint8Array(57).fill(0x43);
 
-async function signer(): Promise<{ readonly signer: SigningKey; readonly spki: Uint8Array }> {
-    const pkcs8 = new Uint8Array([...PKCS8_ED25519_PREFIX, ...SEED]);
-    const key = await crypto.subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, false, ['sign']);
+async function signer(name: 'Ed25519' | 'Ed448' = 'Ed25519'): Promise<{ readonly signer: SigningKey; readonly spki: Uint8Array }> {
+    const pkcs8 = name === 'Ed25519' ? new Uint8Array([...PKCS8_ED25519_PREFIX, ...SEED]) : new Uint8Array([...PKCS8_ED448_PREFIX, ...SEED_448]);
+    const key = await crypto.subtle.importKey('pkcs8', pkcs8, { name }, false, ['sign']);
     // Web Crypto cannot give the public half of a private key, and pkinative
     // is not allowed to compute it (that is scalar multiplication on secret
     // material). node:crypto can, and scripts/ may use node:.
     const spki = new Uint8Array(createPublicKey(createPrivateKey({ key: Buffer.from(pkcs8), format: 'der', type: 'pkcs8' })).export({ format: 'der', type: 'spki' }));
-    return { signer: { key, algorithm: { name: 'Ed25519' } }, spki };
+    return { signer: { key, algorithm: { name } }, spki };
 }
 
 // ── The catalogue ────────────────────────────────────────────────────
@@ -237,6 +243,21 @@ export async function samples(): Promise<Map<string, Uint8Array>> {
     const token = await createSignedData({ content: tstInfo, contentType: '1.2.840.113549.1.9.16.1.4', certificate: rootCertificate }, key);
     out.set('cms/timestamp-token', token);
     out.set('cms/signed-data-with-timestamp-token', addTimeStampToken(attached, 0, token));
+
+    // RFC 8419 §3.1 under Ed448: the digest is SHAKE256 with a 512-bit output,
+    // which pkinative computes, and the signature the host's. The signer's
+    // certificate is Ed448 too, self-signed, so the pair stands alone.
+    const { signer: key448, spki: spki448 } = await signer('Ed448');
+    const ed448 = await createCertificate({
+        serialNumber: 3n,
+        subject: [[{ type: CN, value: 'pkinative sample ed448' }]],
+        notBefore: Date.UTC(2026, 0, 1),
+        notAfter: Date.UTC(2027, 0, 1),
+        subjectPublicKey: spki448,
+        extensions: [{ oid: '2.5.29.14', value: encodeSubjectKeyIdentifier(KEY_ID) }],
+    }, key448);
+    out.set('cert/v3-ed448-self-signed', ed448);
+    out.set('cms/signed-data-ed448-shake256', await createSignedData({ content: DATA, certificate: parseCertificate(ed448, QUIET) }, key448));
 
     // RFC 3161 and RFC 6960 requests.
     out.set('tsp/request-minimal', createTimeStampRequest(IMPRINT));
