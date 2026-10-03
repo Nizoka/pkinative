@@ -122,6 +122,7 @@ export type { PemBlock, DecodePemOptions } from './types/pem-types.js';
 
 export { computeFingerprint, computeFingerprintAsync, formatFingerprint } from './hash/fingerprint.js';
 export { computeKeyIdentifier } from './hash/key-identifier.js';
+export { shake256 } from './hash/shake256.js';
 export type { FingerprintAlgorithm, FormatFingerprintOptions } from './types/hash-types.js';
 
 // ── 6. X.509 — certificate parsing, names, public keys ───────────────

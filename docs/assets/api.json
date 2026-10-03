@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 284,
+  "exportCount": 285,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -8168,6 +8168,28 @@
         }
       ],
       "returns": "The type, the instant in epoch milliseconds and the encoded text. UTCTime years 50–99 are 1950–1999, 00–49 are 2000–2049.",
+      "members": null
+    },
+    {
+      "name": "shake256",
+      "kind": "function",
+      "module": "src/hash/shake256.ts",
+      "signature": "export function shake256(input: Uint8Array, outputLength: number): Uint8Array",
+      "summary": "SHAKE256 of public data, with the output length the caller names.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "input",
+          "description": "The octets to hash."
+        },
+        {
+          "name": "outputLength",
+          "description": "How many octets to produce — 64 for an Ed448 CMS signer."
+        }
+      ],
+      "returns": "`outputLength` octets of SHAKE256 output.",
       "members": null
     },
     {
