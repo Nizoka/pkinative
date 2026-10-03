@@ -721,7 +721,9 @@ describe('.github/runtime-smoke/checks.mjs', () => {
         // it runs against src/ on every gate run, the way the fuzz targets
         // are held (tests/fuzzing/targets.test.ts).
         const lines = await (await load()).runChecks(await import('../../src/index.js'));
-        expect(lines).toHaveLength(5);
+        expect(lines).toHaveLength(6);
+        // Node has Ed448, so here the host-dependent check lands on the verified side.
+        expect(lines[5]).toMatch(/^Ed448 CMS signer .*verified/u);
     });
 
     it('should fail loudly when the package under test misbehaves', async () => {

@@ -9,7 +9,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0001](0001-no-secret-dependent-cryptography.md) | No secret-dependent cryptography in TypeScript; Web Crypto is the one door | accepted | 0.1.0 |
 | [0002](0002-pkcs12-pbes2-only.md) | PKCS#8 and PKCS#12 are opened under PBES2 only, and integrity fails closed | accepted | 0.8.0 |
 | [0003](0003-no-pkcs8-or-pkcs12-writer.md) | No PKCS#8 or PKCS#12 writer | accepted | 0.8.0 |
-| [0004](0004-dsa-and-ed448-cms-signers-not-verified.md) | DSA signatures and Ed448 CMS signers are not verified | accepted | 0.3.0 |
+| [0004](0004-dsa-and-ed448-cms-signers-not-verified.md) | DSA signatures and Ed448 CMS signers are not verified | superseded by ADR 0022 | 0.3.0 |
 | [0005](0005-names-compared-by-encoded-bytes.md) | Distinguished names are compared by encoded bytes, not by RFC 5280 §7.1 string preparation | accepted | 0.5.0 |
 | [0006](0006-no-network-io-in-the-engine.md) | No network I/O in the engine | accepted | 0.1.0 |
 | [0007](0007-no-subpath-exports-before-1-0.md) | One entry point until 1.0; subpath exports are decided at 1.0, for the whole partition at once | superseded by ADR 0016 | 0.3.0 |
@@ -27,6 +27,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0019](0019-release-integrity-slsa-build-l2.md) | Release integrity at SLSA Build L2: the job that builds cannot publish, and L3 is deferred | accepted | 1.0.0 |
 | [0020](0020-a-kdf-budget-per-pkcs12.md) | One PKCS#12 costs a bounded number of PBKDF2 iterations in total: maxPkcs12KdfIterations joins the limits before the freeze | accepted | 1.0.0 |
 | [0021](0021-error-identity-across-builds.md) | Error identity across builds: a shared brand answers `instanceof`, and the dual package stays | accepted | 1.0.0 |
+| [0022](0022-ed448-cms-signers-host-dependent.md) | Ed448 CMS signers are verified where the host verifies Ed448: SHAKE256 is computed here, the signature is the host's; DSA stays refused | accepted | 1.0.0 |
 
 ## Adding a record
 

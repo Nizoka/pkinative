@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0022
 date: 2026-09-29
 since: 0.3.0
 ---
@@ -47,3 +47,4 @@ The two halves carry different weight in the repository, and this record keeps t
 - [release-notes/v0.5.0.md §Known limitations](../../release-notes/v0.5.0.md) — DSA.
 - [release-notes/v0.7.0.md §Known limitations](../../release-notes/v0.7.0.md) — "DSA and Ed448 signers are not verified: Web Crypto implements neither DSA nor SHAKE256".
 - The certificate-signature set took effect at 0.3.0; the Ed448 CMS refusal at 0.7.0, with the CMS layer.
+- Superseded at 1.0.0 by [ADR 0022](0022-ed448-cms-signers-host-dependent.md) for its Ed448 half: SHAKE256 is computed in `src/hash/shake256.ts` under ADR 0001, and an Ed448 CMS signer is verified wherever the host verifies Ed448. The DSA half is unchanged, and ADR 0022 restates it.
