@@ -1,6 +1,6 @@
 import { createHash, KeyObject, sign as nodeSign, webcrypto } from 'node:crypto';
 import { runInNewContext } from 'node:vm';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { addTimeStampToken, addUnsignedAttribute, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import {
@@ -24,8 +24,9 @@ import {
 } from '../../src/index.js';
 import type { ExternalSigner } from '../../src/types/crypto-types.js';
 import { PkiCmsError, PkiEncodingError, PkiError } from '../../src/types/pki-errors.js';
+import { verifySignedData } from '../../src/verify/verify-signed-data.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
-import { issueTsa, makeRoot, makeToken, tstInfo } from '../verify/_cms-pki.js';
+import { issue, issueTsa, keyPair, makeRoot, makeToken, tstInfo } from '../verify/_cms-pki.js';
 
 /**
  * CMS SignedData creation, checked without the CMS parser (written in
@@ -554,10 +555,77 @@ describe('createSignedData', () => {
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE' }));
         });
 
-        it('should refuse Ed448, whose CMS digest is SHAKE256 (RFC 8419 §3.1)', async () => {
-            const m = await p256();
-            await expect(createSignedData(input(m), { key: m.signer.key, algorithm: { name: 'Ed448' } }))
-                .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+        describe('an Ed448 signer, digesting with SHAKE256 (RFC 8419 §3.1)', () => {
+            const SHAKE256 = '2.16.840.1.101.3.4.2.12';
+            /** An Ed448 holder under an Ed25519 root, as the verifier's own Ed448 tests build it; the signer names Ed448 itself. */
+            const ed448 = once(async () => {
+                const root = await makeRoot();
+                const holder = await issue(root, { pair: await keyPair('Ed25519', { name: 'Ed448' }), family: 'Ed25519' });
+                const signer = { key: holder.pair.privateKey, algorithm: { name: 'Ed448' } } as const;
+                const input: CreateSignedDataInput = { content: CONTENT, certificate: holder.certificate };
+                return { root, holder, signer, input };
+            });
+            const shake = (data: Uint8Array): string => createHash('shake256', { outputLength: 64 }).update(data).digest('hex');
+
+            it('should write a SignedData whose signature verifies, under id-shake256 and id-Ed448 both without parameters', async () => {
+                const { holder, signer, input } = await ed448();
+                const d = dissect(await createSignedData(input, signer));
+                expect(await webcrypto.subtle.verify({ name: 'Ed448' }, holder.pair.publicKey as never, d.signature, d.signedBytes)).toBe(true);
+                // messageDigest: SHAKE256 with a 512-bit output, recomputed with node:crypto.
+                expect(hex(value(d, OID.messageDigest).content)).toBe(shake(CONTENT));
+                // SignerInfo.digestAlgorithm is SEQUENCE { id-shake256 } with no parameters (RFC 8419 §2.1), listed once in the SignedData.
+                const digestAlgorithm = child(d.signerInfo, 2);
+                expect(digestAlgorithm.children).toHaveLength(1);
+                expect(readObjectIdentifier(child(digestAlgorithm, 0))).toBe(SHAKE256);
+                expect(hex(child(d.signedData, 1).bytes)).toBe(`310d${hex(digestAlgorithm.bytes)}`);
+                // id-Ed448 with absent parameters (RFC 8410 §3).
+                expect(hex(d.signatureAlgorithm.bytes)).toBe('300506032b6571');
+                // ESSCertIDv2 keeps its default hash: SHA-256 of the certificate, hashAlgorithm absent.
+                const essCertId = child(child(value(d, OID.signingCertificateV2), 0), 0);
+                expect(essCertId.children).toHaveLength(2);
+                expect(hex(child(essCertId, 0).content)).toBe(createHash('sha256').update(holder.certificate.der).digest('hex'));
+            });
+
+            it('should verify with verifySignedData — valid, the signature and the issuing one checked — and parse back with zero diagnostics', async () => {
+                const { root, signer, input } = await ed448();
+                const der = await createSignedData(input, signer);
+                const report = await verifySignedData({ signedData: der, trustAnchors: [root.certificate], at: Date.UTC(2026, 0, 15) });
+                expect(report.reasons).toEqual([]);
+                expect(report.valid).toBe(true);
+                expect(report.signers[0]?.intact).toBe(true);
+                expect(report.signers[0]?.certificate?.subjectPublicKeyInfo.kind).toBe('ed448');
+                // The signer's signature, and the root's over the signer's certificate.
+                expect(report.signatureVerifications).toBe(2);
+                const diagnostics: string[] = [];
+                parseSignedData(der, { onDiagnostic: (diagnostic) => { diagnostics.push(diagnostic.code); } });
+                expect(diagnostics).toEqual([]);
+            });
+
+            it('should take a 64-octet contentDigest for a detached signature and refuse another length, naming SHAKE256', async () => {
+                const { holder, signer } = await ed448();
+                const digest = Buffer.from(shake(CONTENT), 'hex');
+                const d = dissect(await createSignedData({ contentDigest: new Uint8Array(digest), certificate: holder.certificate }, signer));
+                expect(await webcrypto.subtle.verify({ name: 'Ed448' }, holder.pair.publicKey as never, d.signature, d.signedBytes)).toBe(true);
+                expect(hex(value(d, OID.messageDigest).content)).toBe(shake(CONTENT));
+                expect(d.encap.children).toHaveLength(1);
+                await expect(createSignedData({ contentDigest: new Uint8Array(32), certificate: holder.certificate }, signer))
+                    .rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('a SHAKE256 digest is 64') }));
+            });
+
+            it('should refuse with PKI_CRYPTO_KEY_UNSUPPORTED on a host without Ed448 — Bun, Chromium — as for every key the host rejects', async () => {
+                const { signer, input } = await ed448();
+                const subtle = globalThis.crypto.subtle;
+                const real = subtle.sign.bind(subtle);
+                const spy = vi.spyOn(subtle, 'sign').mockImplementation(((algorithm, key, data) =>
+                    (algorithm as { readonly name: string }).name === 'Ed448'
+                        ? Promise.reject(new DOMException('Unrecognized algorithm name', 'NotSupportedError'))
+                        : real(algorithm as never, key as never, data as never)) as typeof subtle.sign);
+                try {
+                    await expect(createSignedData(input, signer)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: 'Ed448' }));
+                } finally {
+                    spy.mockRestore();
+                }
+            });
         });
 
         it('should refuse a digest with no signature OID before reading its own table', async () => {

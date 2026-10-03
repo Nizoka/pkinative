@@ -39,11 +39,13 @@ import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '.
 import { assertBytes, byteView, bytesEqual, concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
+import { ID_SHAKE256 } from '../crypto/crypto-algorithms.js';
 import { computeFingerprintAsync } from '../hash/fingerprint.js';
+import { shake256 } from '../hash/shake256.js';
 import type { TagClass } from '../types/asn1-types.js';
 import type { PkiBuildOptions } from '../types/build-types.js';
 import type { SignatureHash, Signer } from '../types/crypto-types.js';
-import { PkiCmsError, PkiCryptoError, PkiError } from '../types/pki-errors.js';
+import { PkiCmsError, PkiError } from '../types/pki-errors.js';
 import type { PkiLimits } from '../types/pki-types.js';
 import type { Certificate, Extension, SubjectKeyIdentifierExtension } from '../types/x509-types.js';
 import {
@@ -64,16 +66,24 @@ import { encodeAlgorithmIdentifier, encodeAttribute } from './build-structures.j
 /** Attributes RFC 5652 §11, RFC 2634, RFC 5035 and RFC 6211 allow only among the signed attributes. */
 const SIGNED_ONLY = SIGNED_ONLY_ATTRIBUTES;
 
+/** The digests a SignerInfo can name: the Web Crypto hashes, and SHAKE256 for an Ed448 signer (RFC 8419 §3.1). */
+type CmsDigest = SignatureHash | 'SHAKE256';
+
+/** The output length of `id-shake256` as a CMS digest: 512 bits (RFC 8419 §2.1, RFC 8702 §3.1). */
+const SHAKE256_DIGEST_OCTETS = 64;
+
 /**
  * The digests a signer can name, keyed by the literal union so the lookup is
  * total. Their AlgorithmIdentifiers are written with **absent** parameters:
- * RFC 5754 §2 says an implementation "MUST generate" them that way.
+ * RFC 5754 §2 says an implementation "MUST generate" them that way, and
+ * RFC 8419 §2.1 says the same of `id-shake256`.
  */
-const DIGESTS: Readonly<Record<SignatureHash, { readonly oid: string; readonly length: number }>> = /*#__PURE__*/ Object.freeze({
+const DIGESTS: Readonly<Record<CmsDigest, { readonly oid: string; readonly length: number }>> = /*#__PURE__*/ Object.freeze({
     'SHA-1': { oid: '1.3.14.3.2.26', length: 20 },
     'SHA-256': { oid: '2.16.840.1.101.3.4.2.1', length: 32 },
     'SHA-384': { oid: '2.16.840.1.101.3.4.2.2', length: 48 },
     'SHA-512': { oid: '2.16.840.1.101.3.4.2.3', length: 64 },
+    SHAKE256: { oid: ID_SHAKE256, length: SHAKE256_DIGEST_OCTETS },
 });
 
 /**
@@ -244,16 +254,20 @@ function bagEntryVersion(der: Uint8Array, what: string, choices: ReadonlyMap<num
 }
 
 /** The digest the SignerInfo names, which hashes the content and — through the signature — the attributes. */
-function signerDigest(signer: Signer): SignatureHash {
+function signerDigest(signer: Signer): CmsDigest {
     const algorithm = signer.algorithm;
-    // RFC 8419 §3.1: Ed25519 is pure, and SHA-512 hashes only what the
-    // messageDigest attribute carries. Ed448 needs SHAKE256, which neither
-    // Web Crypto nor the hash layer provides.
-    if (algorithm.name === 'Ed448') {
-        throw new PkiCryptoError('PKI_CRYPTO_ALGORITHM_UNSUPPORTED',
-            'pkinative: a CMS signature with Ed448 names SHAKE256 as its digest (RFC 8419 §3.1), which neither Web Crypto nor pkinative computes — sign with Ed25519, ECDSA or RSA instead', '1.3.101.113');
-    }
-    return algorithm.name === 'Ed25519' ? 'SHA-512' : algorithm.hash;
+    // RFC 8419 §3.1: the EdDSA signatures are pure, so the digest hashes only
+    // what the messageDigest attribute carries — SHA-512 for Ed25519, and for
+    // Ed448 SHAKE256 with a 512-bit output, which `shake256` computes here
+    // because Web Crypto has no extendable-output function (ADR 0022).
+    if (algorithm.name === 'Ed25519') return 'SHA-512';
+    if (algorithm.name === 'Ed448') return 'SHAKE256';
+    return algorithm.hash;
+}
+
+/** `digest` over `data`: the host for the FIPS 180-4 hashes, pkinative for SHAKE256, which Web Crypto does not compute. */
+async function digestOf(data: Uint8Array, digest: CmsDigest): Promise<Uint8Array> {
+    return digest === 'SHAKE256' ? shake256(data, SHAKE256_DIGEST_OCTETS) : computeFingerprintAsync(data, digest);
 }
 
 function isSubjectKeyIdentifier(extension: Extension): extension is SubjectKeyIdentifierExtension {
@@ -288,7 +302,7 @@ function signingTimeValue(time: number): Uint8Array {
 }
 
 /** The content octets to embed, if any, and the digest the messageDigest attribute commits to. */
-async function resolveContent(input: CreateSignedDataInput, digest: SignatureHash): Promise<{ readonly eContent: Uint8Array | undefined; readonly messageDigest: Uint8Array }> {
+async function resolveContent(input: CreateSignedDataInput, digest: CmsDigest): Promise<{ readonly eContent: Uint8Array | undefined; readonly messageDigest: Uint8Array }> {
     if ((input.content === undefined) === (input.contentDigest === undefined)) {
         throw misuse('createSignedData takes exactly one of content and contentDigest — content to have it hashed (and embedded unless detached), contentDigest for a detached signature over bytes you have already hashed');
     }
@@ -303,7 +317,7 @@ async function resolveContent(input: CreateSignedDataInput, digest: SignatureHas
         return { eContent: undefined, messageDigest };
     }
     const content = assertBytes(input.content, 'content');
-    return { eContent: input.detached === true ? undefined : content, messageDigest: await computeFingerprintAsync(content, digest) };
+    return { eContent: input.detached === true ? undefined : content, messageDigest: await digestOf(content, digest) };
 }
 
 // ── createSignedData ─────────────────────────────────────────────────
@@ -323,9 +337,10 @@ async function resolveContent(input: CreateSignedDataInput, digest: SignatureHas
  * One SignerInfo, with signed attributes always: `contentType` and
  * `messageDigest`, then `signingCertificateV2` and `CMSAlgorithmProtection`
  * unless turned off, `signingTime` when given, and the caller's extras. The
- * digest is the signer's own hash, SHA-512 for Ed25519 (RFC 8419); the
- * signature algorithm is written in full, parameters included, never as a
- * bare `rsaEncryption`. The version fields follow RFC 5652 §5.1 and §5.3
+ * digest is the signer's own hash — SHA-512 for Ed25519, SHAKE256 with a
+ * 512-bit output for Ed448 (RFC 8419 §3.1), computed here since Web Crypto
+ * has none; the signature algorithm is written in full, parameters included,
+ * never as a bare `rsaEncryption`. The version fields follow RFC 5652 §5.1 and §5.3
  * from what the structure carries.
  *
  * For a PDF signature, pass `contentDigest` — the `/ByteRange` hashed with
@@ -335,7 +350,9 @@ async function resolveContent(input: CreateSignedDataInput, digest: SignatureHas
  * Where the reader is unknown, sign with ECDSA or RSA: an Ed25519 SignerInfo
  * is correct RFC 8419, and not every deployed reader verifies it — gpgsm
  * 2.4.9 refuses one ("DSA requires the hash length to be a multiple of 8
- * bits") whether OpenSSL or pkinative wrote it.
+ * bits") whether OpenSSL or pkinative wrote it — and an Ed448 one fewer
+ * still: the host must have Ed448 to sign it (Node.js does; Bun and
+ * Chromium do not) and the reader must compute SHAKE256 to verify it.
  *
  * @param input   What is signed and what is written around it; see {@link CreateSignedDataInput}.
  * @param signer  The key that signs: a `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
@@ -349,9 +366,10 @@ async function resolveContent(input: CreateSignedDataInput, digest: SignatureHas
  *   an `ExternalSigner` that returns other than what `crypto.subtle.sign`
  *   would; `PKI_INVALID_OPTION` for an unknown `sid`; `PKI_INVALID_INPUT`
  *   where bytes are expected and something else is given.
- * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for Ed448 or an
+ * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an
  *   algorithm with no OID; `PKI_CRYPTO_UNAVAILABLE` and
- *   `PKI_CRYPTO_KEY_UNSUPPORTED` as for `createCertificate`.
+ *   `PKI_CRYPTO_KEY_UNSUPPORTED` as for `createCertificate` — the latter also
+ *   for an Ed448 key on a host without Ed448, as for an Ed448 certificate.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed `contentType`;
  *   `PKI_ASN1_VALUE_OUT_OF_RANGE` for a `signingTime` outside 0000–9999.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxAttributes` or `maxCmsCertificatesAndCrls`.
@@ -427,10 +445,15 @@ export async function createSignedData(input: CreateSignedDataInput, signer: Sig
     ];
     if (input.signingTime !== undefined) signed.push(encodeAttribute(OID_ATTR_SIGNING_TIME, [signingTimeValue(input.signingTime)]));
     if (input.signingCertificateV2 !== false) {
+        // The certificate hash is the signer's digest — except for an Ed448
+        // signer: `id-shake256` is a CMS digest, not one a verifier computes a
+        // certificate hash with (pkinative's own refuses it), so that signer's
+        // ESSCertIDv2 stays at the RFC 5035 §4 default.
+        const essDigest: SignatureHash = digest === 'SHAKE256' ? 'SHA-256' : digest;
         const essCertIdV2 = encodeSequence([
             // hashAlgorithm DEFAULT id-sha256: DER omits a DEFAULT (X.690 §11.5).
-            ...(digest === 'SHA-256' ? [] : [digestAlgorithm]),
-            encodeOctetString(await computeFingerprintAsync(certificateDer, digest)),
+            ...(essDigest === 'SHA-256' ? [] : [digestAlgorithm]),
+            encodeOctetString(await computeFingerprintAsync(certificateDer, essDigest)),
             // IssuerSerial: the issuer as the one directoryName [4] — explicit,
             // because Name is a CHOICE — and the serial (RFC 5035 §4).
             encodeSequence([encodeSequence([encodeExplicit(4, certificate.issuer.der)]), serial]),
