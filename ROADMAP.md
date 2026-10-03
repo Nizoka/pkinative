@@ -155,9 +155,9 @@ Everything here is a semver-minor addition under the 1.x promise; none of it was
 
 - [ ] The fifteen requirement sentences of RFC 5652, 3161 and 6960 that are decidable from the bytes and not yet diagnosed (`not-diagnosed` in `scripts/data/rfc5652-requirements.json`, `rfc3161-requirements.json` and `rfc6960-requirements.json`): countersignature contents, signingTime forms, `certReq` against the token's certificates, the OCSP responderID against the signer, an explicit ResponseData version
 - [ ] An id-RSASSA-PSS key verified by re-wrapping its SubjectPublicKeyInfo as rsaEncryption at the Web Crypto door, now that the RFC 4055 restrictions are enforced first; and a PKCS#12 key under an id-RSASSA-PSS certificate
-- [ ] A PKCS#10 reader: parse and verify a certification request
-- [ ] Signatures verified lazily, only for the edges the path search tries, so a hostile bag of same-name certificates no longer costs a verification per pair
-- [ ] An OCSP delegated responder's certificate checked at the response's `producedAt` as well as at the validation instant
+- [x] A PKCS#10 reader: parse and verify a certification request
+- [x] Signatures verified lazily, only for the edges the path search tries, so a hostile bag of same-name certificates no longer costs a verification per pair
+- [x] An OCSP delegated responder's certificate checked at the response's `producedAt` as well as at the validation instant
 - [ ] Ed448 CMS signers ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)), once a host verifies Ed448 everywhere the build runs
 - [ ] The surface classifier taught that a union widened inside an interface member is compatible, as ADR 0018's open unions require
 - [ ] The guides' code blocks type-checked against `lib: DOM`, and an accessibility run (axe or Lighthouse) in the docs workflow

@@ -27,12 +27,16 @@ import { ecdsaRawToDer } from '../../src/crypto/crypto-signature.js';
 import { computeKeyIdentifier } from '../../src/hash/key-identifier.js';
 import { sha1 } from '../../src/hash/sha1.js';
 import { sha256 } from '../../src/hash/sha256.js';
+import { bytesEqual } from '../../src/core/bytes.js';
+import { verifyCertificateSignature } from '../../src/crypto/x509-verify.js';
+import { buildCertificatePath } from '../../src/path/path-build.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
 import { PkiError } from '../../src/types/pki-errors.js';
 import type { ExtensionDescription } from '../../src/types/build-types.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
+import type { SignatureResult } from '../../src/types/path-types.js';
 import type { CryptoKeyHandle } from '../../src/types/webcrypto.js';
 import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
@@ -170,6 +174,110 @@ describe('verifyCertificateChain', () => {
         const report = await verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT });
         expect(report.signatureVerifications).toBe(2);
         expect(report.explored).toBeGreaterThanOrEqual(1);
+    });
+
+    describe('signatures verified as the search needs them, never ahead of it', () => {
+        /**
+         * A hostile bag: `decoys` self-signed certificates bearing the ICA's
+         * name, each naming that same name as its issuer — so every one of them
+         * is a plausible issuer of the leaf and of every other decoy, and the
+         * name closure a verifier might verify up front is N² links. One real
+         * ICA, under the root, somewhere in the bag.
+         */
+        async function hostileBag(decoys: number, realFirst: boolean): Promise<{ root: Certificate; leaf: Certificate; bag: Certificate[]; ica: Certificate }> {
+            const { root, ica, leaf } = await hierarchy();
+            const impostors: Certificate[] = [];
+            for (let i = 0; i < decoys; i += 1) {
+                const self = await issue({ subject: 'Verify ICA', issuerDer: ica.subject.der, ca: true, serial: BigInt(100 + i) });
+                impostors.push(self.certificate);
+            }
+            return { root, leaf, ica, bag: realFirst ? [ica, ...impostors] : [...impostors, ica] };
+        }
+
+        it('should verify two signatures, not N², when the real issuer heads a bag of forty same-name decoys', async () => {
+            const { root, leaf, bag } = await hostileBag(39, true);
+            const verify = vi.spyOn(crypto.subtle, 'verify');
+            try {
+                const report = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT });
+                expect(codes(report)).toEqual([]);
+                expect(report.path).toHaveLength(3);
+                // leaf → ICA, ICA → root: the two links the search relied on.
+                expect(report.signatureVerifications).toBe(2);
+                expect(verify).toHaveBeenCalledTimes(2);
+                expect(verify.mock.calls.length).toBeLessThanOrEqual(report.explored);
+            } finally {
+                verify.mockRestore();
+            }
+        });
+
+        it('should verify no more signatures than the links the search tried, when the decoys come first', async () => {
+            // Every decoy names the same issuer name as itself, so the search
+            // descends into them and runs out of budget before the real ICA —
+            // the builder's own, bounded behaviour on a bag designed to be
+            // expensive. What laziness changes is that every verification paid
+            // for was a link the builder actually tried.
+            const { root, leaf, bag } = await hostileBag(39, false);
+            const verify = vi.spyOn(crypto.subtle, 'verify');
+            try {
+                const report = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits: { maxPathsExplored: 60 } });
+                expect(codes(report)).toContain('PKI_REASON_LIMIT_EXCEEDED');
+                expect(verify.mock.calls.length).toBeLessThanOrEqual(report.explored);
+                expect(report.signatureVerifications).toBe(verify.mock.calls.length);
+                // Far below the 40 × 40 links of the name closure.
+                expect(verify.mock.calls.length).toBeLessThan(40 * 40 / 10);
+            } finally {
+                verify.mockRestore();
+            }
+        });
+
+        it('should hand the builder the same report it reaches with every verdict precomputed', async () => {
+            // The lazy search is the builder's enumeration replayed; this holds
+            // the two to one answer on the shape that matters — same-name
+            // decoys around the real issuer — valid and refused alike.
+            const { root, leaf, bag, ica } = await hostileBag(6, false);
+            // Every name-plausible link of the whole bag, verified once up front
+            // — the eager way — then handed to the builder subset by subset.
+            const everyone = [leaf, ...bag, root];
+            const verdicts: SignatureResult[] = [];
+            for (const subject of everyone) {
+                for (const issuer of everyone) {
+                    if (issuer === subject || !bytesEqual(subject.issuer.der, issuer.subject.der)) continue;
+                    verdicts.push({ certificate: subject, issuer, verdict: await verifyCertificateSignature(subject, issuer) ? 'valid' : 'invalid' });
+                }
+            }
+            for (const [candidates, at] of [[bag, AT], [[...bag.slice(0, 3), ica], AT], [bag.slice(0, 6), AT], [bag, AT + 3 * DAY]] as const) {
+                const present = new Set<Certificate>([leaf, ...candidates, root]);
+                const signatures = verdicts.filter((v) => present.has(v.certificate) && present.has(v.issuer as Certificate));
+                const eager = buildCertificatePath({ leaf, candidates, trustAnchors: [root], at, signatures });
+                const lazy = await verifyCertificateChain({ leaf, candidates, trustAnchors: [root], at });
+                expect(lazy.valid).toBe(eager.valid);
+                expect(lazy.explored).toBe(eager.explored);
+                expect(lazy.path.map((c) => c.serialNumber.hex)).toEqual(eager.path.map((c) => c.serialNumber.hex));
+                expect(lazy.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(eager.reasons.map((r) => `${r.code}@${r.path}`));
+                expect(lazy.signatureVerifications).toBeLessThanOrEqual(signatures.length);
+            }
+        }, 120_000);
+
+        it('should ask for the leaf\'s own link to the anchor it names, and nothing when the chain may not grow', async () => {
+            // §6.1.1 (a): a leaf directly under an anchor is judged against that
+            // anchor without the walk extending into it, so that one signature
+            // is asked for — and found wanting here, the leaf being self-signed
+            // under the root's name.
+            const { root } = await hierarchy();
+            const direct = await issue({ subject: 'direct.example', issuerDer: root.subject.der, ca: false, serial: 77n });
+            const unsigned = await verifyCertificateChain({ leaf: direct.certificate, trustAnchors: [root], at: AT });
+            expect(codes(unsigned)).toEqual(['PKI_REASON_SIGNATURE_INVALID']);
+            expect(unsigned.signatureVerifications).toBe(1);
+            // maxChainLength 1 leaves the leaf alone, and a leaf whose issuer is
+            // neither at hand nor an anchor has no link to ask about: nothing is
+            // verified, and §6 fails closed on the verdict it was not given —
+            // the builder's own answer, with or without a verdict table.
+            const { leaf } = await hierarchy();
+            const alone = await verifyCertificateChain({ leaf, candidates: [], trustAnchors: [root], at: AT, limits: { maxChainLength: 1 } });
+            expect(alone.valid).toBe(false);
+            expect(alone.signatureVerifications).toBe(0);
+            expect(codes(alone)).toContain('PKI_REASON_SIGNATURE_NOT_CHECKED');
+        });
     });
 
     it('should report the chain, the name and the purpose together, not one at a time', async () => {
@@ -886,6 +994,44 @@ describe('verifyCertificateChain — what it passes through', () => {
         });
     });
 
+    describe('a delegated responder judged when it spoke (RFC 6960 §4.2.2.2, at producedAt)', () => {
+        async function spoke(window: { notBefore?: number; notAfter?: number }, producedAt: number): Promise<string[]> {
+            const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+            const delegate = await issueEd25519({ subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey, purposes: [OCSP_SIGNING], ...window });
+            const report = await verifyCertificateChain({
+                leaf, candidates: [ica], trustAnchors: [root], at: AT,
+                ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, producedAt, signer: { key: delegate.key, certificates: [delegate.certificate.der] } })],
+                requireRevocation: true,
+            });
+            return report.reasons.map((r) => `${r.code}@${r.path}`);
+        }
+        const REFUSED = ['PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[0]', 'PKI_REASON_REVOCATION_UNKNOWN@ocspResponses[0]'];
+
+        it('should refuse a delegate valid now that had not yet begun when the response was produced', async () => {
+            // The response was produced a day before AT; the delegate's window
+            // opens half a day before AT. Valid at `at`, not when it signed.
+            expect(await spoke({ notBefore: AT - DAY / 2 }, AT - DAY)).toEqual(REFUSED);
+        });
+
+        it('should refuse a delegate valid now that had expired when the response was produced', async () => {
+            // The reverse: a response produced after the delegate's window
+            // closed, judged at an instant inside that window.
+            expect(await spoke({ notAfter: AT + DAY / 4 }, AT + DAY / 2)).toEqual(REFUSED);
+        });
+
+        it('should still refuse a delegate valid when it spoke and not valid now', async () => {
+            // Today's rule, kept: `at` is asked as well as `producedAt`.
+            expect(await spoke({ notAfter: AT - DAY / 2 }, AT - DAY)).toEqual(REFUSED);
+            expect(await spoke({ notBefore: AT + DAY / 4 }, AT + DAY / 2)).toEqual(REFUSED);
+        });
+
+        it('should believe a delegate valid both now and when it spoke, at either edge of its window', async () => {
+            expect(await spoke({ notBefore: AT - DAY / 2 }, AT - DAY / 4)).toEqual([]);
+            expect(await spoke({ notBefore: AT - DAY / 2 }, AT - DAY / 2)).toEqual([]);
+            expect(await spoke({ notAfter: AT + DAY / 2 }, AT + DAY / 2)).toEqual([]);
+        });
+    });
+
     it('should refuse a responder that nominated itself', async () => {
         // A certificate the response *attached* is a convenience for reaching
         // the delegate, never a claim of authority. This one has the purpose
@@ -1058,8 +1204,10 @@ describe('verifyCertificateChain — what it passes through', () => {
             subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey,
             purposes: [OCSP_SIGNING], ...window,
         });
+        // Produced at AT as well: the delegate is judged when it spoke too
+        // (RFC 6960 §4.2.2.2), and AT is the one instant inside both windows.
         const response = await ocspResponse({
-            certificate: leaf, issuer: ica,
+            certificate: leaf, issuer: ica, producedAt: AT,
             signer: { key: delegate.key, certificates: [delegate.certificate.der] },
         });
         const report = await verifyCertificateChain({
@@ -1904,6 +2052,8 @@ async function ocspResponse(options: {
     readonly thisUpdate?: number;
     /** The answer's nextUpdate, or null for none; a day after AT by default. */
     readonly nextUpdate?: number | null;
+    /** The response's producedAt; a day before AT by default. */
+    readonly producedAt?: number;
     /** A second answer about the same certificate, after the first, with this status. */
     readonly also?: Uint8Array;
     /** The responderID TLV; by key, twenty 0xcc octets — a claim that names nobody — by default. */
@@ -1931,7 +2081,7 @@ async function ocspResponse(options: {
     const tbs = encodeSequence([
         // responderID ::= [2] KeyHash — by key, which needs no name to match.
         options.responderId ?? encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
-        encodeTime(AT - DAY, 'GeneralizedTime'),
+        encodeTime(options.producedAt ?? AT - DAY, 'GeneralizedTime'),
         encodeSequence([...others, single, ...(options.also === undefined ? [] : [singleResponse(options.serial ?? options.certificate.serialNumber.bytes, options.sha256 === true, options.also)])]),
         // responseExtensions ::= [1] EXPLICIT Extensions — the nonce echo, whose
         // value sits inside TWO OCTET STRINGs.

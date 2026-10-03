@@ -72,12 +72,20 @@ const world = await (async () => {
     const ocsp = await ocspResponse(root, leaf);
     const response = parseOcspResponse(ocsp, QUIET);
     const signatures: SignatureResult[] = [{ certificate: leaf, issuer: root.certificate, verdict: 'valid' }];
-    return { root: root.certificate, leaf, bag, crl, list, ocsp, response, signatures };
+    // A hostile bag: forty self-signed decoys bearing the root's name, each a
+    // plausible issuer of the leaf and of every other decoy — N² name-plausible
+    // links — with the real root first among the candidates.
+    const decoys: Certificate[] = [];
+    for (let i = 0; i < 40; i += 1) decoys.push((await makeRoot('Bench Root')).certificate);
+    return { root: root.certificate, leaf, bag, crl, list, ocsp, response, signatures, sameName: [root.certificate, ...decoys] };
 })();
 
 describe('Path', () => {
     bench('verifyCertificateChain — leaf under a root, name checked (Ed25519 verify dominates)', async () => {
         await verifyCertificateChain({ leaf: world.leaf, trustAnchors: [world.root], at: AT, serverName: { kind: 'dns', value: 'bench.example' } });
+    });
+    bench('verifyCertificateChain — 40 same-name decoys in the bag, the real issuer first (one signature verified, not 1 600)', async () => {
+        await verifyCertificateChain({ leaf: world.leaf, candidates: world.sameName, trustAnchors: [world.root], at: AT });
     });
     bench('buildCertificatePath — leaf, 20 bystanders in the bag, verdicts supplied', () => {
         buildCertificatePath({ leaf: world.leaf, candidates: world.bag, trustAnchors: [world.root], at: AT, signatures: world.signatures });

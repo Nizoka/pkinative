@@ -15,11 +15,14 @@
  * **If that somebody is every caller, every caller gets it slightly wrong.** So
  * it is here, once:
  *
- *   1. every signature the search could need, verified **in parallel**, before
- *      anything is decided;
- *   2. the path built with those verdicts and with the purpose already in hand,
- *      because a builder that does not know what a path is for will return one
- *      that fails the purpose check while an acceptable path existed;
+ *   1. every signature the path search is about to rely on, verified **the
+ *      moment it is about to be tried and never twice** — the search is replayed
+ *      ahead of the builder (`_searchVerdicts`), so a bag of forty certificates
+ *      under one name costs forty verifications only when all forty have to be
+ *      tried, and the builder itself stays synchronous and pure;
+ *   2. the path built with exactly those verdicts and with the purpose already
+ *      in hand, because a builder that does not know what a path is for will
+ *      return one that fails the purpose check while an acceptable path existed;
  *   3. the host name, which §6 never asks about;
  *   4. revocation, against the lists you supplied.
  *
@@ -48,6 +51,7 @@ import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature } f
 import { buildCertificatePath } from '../path/path-build.js';
 import { checkExtendedKeyUsage } from '../path/path-purpose.js';
 import { checkServerName, type ServerIdentity } from '../path/path-server-name.js';
+import { _validateIndexed, type SignatureEntry } from '../path/path-validate.js';
 import { computeKeyIdentifier } from '../hash/key-identifier.js';
 import { sha1 } from '../hash/sha1.js';
 import { sha256 } from '../hash/sha256.js';
@@ -58,10 +62,11 @@ import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies, _interimReasons } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
-import { assertBytes, isBytes } from '../core/bytes.js';
+import { assertBytes, bytesEqual, isBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
+import { resolveLimits } from '../core/pki-limits.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { BuildCertificatePathReport } from '../path/path-build.js';
+import type { BuildCertificatePathInput, BuildCertificatePathReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
 import type { PkiDiagnosticHandler, PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -299,29 +304,31 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
     ], { limits: input.limits ?? {} });
     const at = input.at ?? Date.now();
     const candidates = input.candidates ?? [];
-    const all = [input.leaf, ...candidates, ...input.trustAnchors];
 
-    // Every link a name chain from the leaf can reach, verified once, before
-    // anything is decided — which is the whole reason §6 takes verdicts
-    // rather than keys. The map outlives the search: a CRL issuer off the
-    // path is judged later with its own links added (`_signerStillGood`).
-    const verdicts = new Map<string, SignatureResult>();
-    await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);
-    const signatures: SignatureResult[] = [...verdicts.values()];
-
-    const report = buildCertificatePath({
+    // Every link the search is about to rely on, verified then and once —
+    // which is the whole reason §6 takes verdicts rather than keys. The memo
+    // outlives the search: a CRL issuer off the path is judged later with its
+    // own links added (`_signerStillGood`), from the same memo.
+    const verdicts: VerdictMemo = {
+        allowSha1: input.allowSha1 === true,
+        pending: new Map(),
+        settled: [],
+        index: new Map(),
+    };
+    const search: SearchInput = {
         leaf: input.leaf,
         candidates,
         trustAnchors: input.trustAnchors,
         at,
-        signatures,
         ...(input.purposes === undefined ? {} : { purposes: input.purposes }),
         ...(input.initialPolicySet === undefined ? {} : { initialPolicySet: input.initialPolicySet }),
         ...(input.requireExplicitPolicy === undefined ? {} : { requireExplicitPolicy: input.requireExplicitPolicy }),
         ...(input.inhibitPolicyMapping === undefined ? {} : { inhibitPolicyMapping: input.inhibitPolicyMapping }),
         ...(input.inhibitAnyPolicy === undefined ? {} : { inhibitAnyPolicy: input.inhibitAnyPolicy }),
         ...(input.limits === undefined ? {} : { limits: input.limits }),
-    });
+    };
+    await _searchVerdicts(search, verdicts);
+    const report = buildCertificatePath({ ...search, signatures: [...verdicts.settled] });
 
     const reasons: PkiReason[] = [...report.reasons];
 
@@ -350,7 +357,7 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
 
     reasons.push(...await _checkRevocation(input, report.path, at, verdicts));
 
-    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.size };
+    return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.settled.length };
 }
 
 /**
@@ -453,11 +460,9 @@ async function _signerStillGood(ctx: CrlSignerContext, candidate: Certificate): 
     // A candidate off the path and not an anchor came from the bag, so the bag
     // exists; `reading.limits` is set where `reading` is built.
     const bag = ctx.input.candidates as readonly Certificate[];
-    await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
-    const own = buildCertificatePath({
-        leaf: candidate, candidates: bag, trustAnchors: ctx.input.trustAnchors, at: ctx.at,
-        signatures: [...ctx.verdicts.values()], limits: ctx.reading.limits as Partial<PkiLimits>,
-    });
+    const search: SearchInput = { leaf: candidate, candidates: bag, trustAnchors: ctx.input.trustAnchors, at: ctx.at, limits: ctx.reading.limits as Partial<PkiLimits> };
+    await _searchVerdicts(search, ctx.verdicts);
+    const own = buildCertificatePath({ ...search, signatures: [...ctx.verdicts.settled] });
     if (!own.valid) return false;
     return await _unrevokedOnLists(ctx, candidate);
 }
@@ -487,48 +492,139 @@ async function _unrevokedOnLists(ctx: CrlSignerContext, candidate: Certificate):
 }
 
 /**
- * The signature verdict of every link a name chain from `start` can reach,
- * added to `verdicts` — computed once per pair, in parallel.
+ * The signature verdicts one report has asked for, each link once.
  *
- * Index by encoded subject name, then keep only what a name chain from
- * `start` can reach: the search walks nothing else, so a pair outside that
- * closure cannot change an answer, and a trust store of hundreds costs the
- * handful of verifications that name the right subjects.
+ * `pending` is keyed exactly as `_signatureIndex` keys a verdict with an
+ * issuer, `hex(subject.der)|hex(issuer.der)`, so a link asked for twice —
+ * by the leaf's search and again by a delegated signer's — is verified once.
+ * `settled` is what `buildCertificatePath` receives, in the order the links
+ * were tried, and `index` is the same set in the shape `_validateIndexed`
+ * reads, kept incrementally so the search judges a path without re-indexing
+ * every verdict so far.
  */
-async function _collectVerdicts(start: Certificate, all: readonly Certificate[], allowSha1: boolean, verdicts: Map<string, SignatureResult>): Promise<void> {
+interface VerdictMemo {
+    readonly allowSha1: boolean;
+    readonly pending: Map<string, Promise<SignatureResult>>;
+    readonly settled: SignatureResult[];
+    readonly index: Map<string, SignatureEntry>;
+}
+
+/** `buildCertificatePath`'s input, minus the verdicts the search is about to collect for it. */
+type SearchInput = Omit<BuildCertificatePathInput, 'signatures'>;
+
+/**
+ * The verdict of one link, asked once. A runtime that cannot decide says
+ * nothing about the signature, and so does a SHA-1 refusal: `not-checked`
+ * keeps that apart from `invalid` all the way into the report.
+ */
+function _verdict(memo: VerdictMemo, subject: Certificate, issuer: Certificate): Promise<SignatureResult> {
+    const key = `${_hex(subject.der)}|${_hex(issuer.der)}`;
+    let pending = memo.pending.get(key);
+    if (pending === undefined) {
+        pending = (async (): Promise<SignatureResult> => {
+            let result: SignatureResult;
+            try {
+                const valid = await verifyCertificateSignature(subject, issuer, { allowSha1: memo.allowSha1 });
+                result = { certificate: subject, issuer, verdict: valid ? 'valid' : 'invalid' };
+            } catch (error) {
+                const refused = _pkiError(error);
+                result = { certificate: subject, issuer, verdict: 'not-checked', errorCode: refused.code, detail: refused.message };
+            }
+            memo.settled.push(result);
+            memo.index.set(key, { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail });
+            return result;
+        })();
+        memo.pending.set(key, pending);
+    }
+    return pending;
+}
+
+/**
+ * Every verdict `buildCertificatePath` is about to ask for, and no other: the
+ * search replayed ahead of the builder, each link's signature verified the
+ * moment the search is about to rely on it.
+ *
+ * This mirrors `extend` in path-build.ts step for step — the same index by
+ * encoded subject, the same candidate order, the same `maxChainLength` and
+ * `maxPathsExplored` cuts, the same stop at the first path that §6 and the
+ * purposes accept — because the links the builder tries are exactly the
+ * signatures worth verifying. A bag of N certificates under one name then
+ * costs N verifications only when all N have to be tried, where verifying
+ * every name-plausible pair up front cost N² before the search began. The
+ * builder itself stays synchronous and pure, as the decision layer requires;
+ * the laziness lives here, where the Web Crypto door is reachable. Judged
+ * with the verdicts so far, a path through a link not yet verified is
+ * refused, which is why nothing here can accept a path the builder will not:
+ * the builder receives the whole memo and replays the same enumeration.
+ *
+ * A change to the builder's enumeration is a change here too;
+ * `tests/verify/verify-chain.test.ts` holds the two to the same report on
+ * every shape of bag, and to a verification count no higher than the links
+ * the builder tried.
+ */
+async function _searchVerdicts(input: SearchInput, memo: VerdictMemo): Promise<void> {
+    const limits = resolveLimits(input.limits);
+    const anchors = new Set(input.trustAnchors.map((c) => _hex(c.der)));
+    const anchorKey = (c: Certificate): string => `${_hex(c.subject.der)}|${_hex(c.subjectPublicKeyInfo.der)}`;
+    const anchorKeys = new Set(input.trustAnchors.map(anchorKey));
     const bySubject = new Map<string, Certificate[]>();
-    for (const certificate of all) {
-        const key = _hex(certificate.subject.der);
-        bySubject.set(key, [...(bySubject.get(key) ?? []), certificate]);
+    for (const candidate of input.candidates) {
+        const key = _hex(candidate.subject.der);
+        bySubject.set(key, [...(bySubject.get(key) ?? []), candidate]);
     }
-    const pairs: Array<readonly [string, Certificate, Certificate]> = [];
-    const walked = new Set<Certificate>();
-    const queue: Certificate[] = [start];
-    while (queue.length > 0) {
-        const subject = queue.pop() as Certificate;
-        if (walked.has(subject)) continue;
-        walked.add(subject);
-        for (const issuer of bySubject.get(_hex(subject.issuer.der)) ?? []) {
-            // A self-signed certificate is not a link: §6 does not check a trust
-            // anchor's own signature, and following the edge would loop.
-            if (issuer === subject) continue;
-            const key = `${_hex(subject.der)}|${_hex(issuer.der)}`;
-            if (!verdicts.has(key)) pairs.push([key, subject, issuer]);
-            queue.push(issuer);
-        }
+    for (const anchor of input.trustAnchors) {
+        const key = _hex(anchor.subject.der);
+        const existing = bySubject.get(key) ?? [];
+        if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
     }
-    await Promise.all(pairs.map(async ([key, subject, issuer]) => {
-        try {
-            const valid = await verifyCertificateSignature(subject, issuer, { allowSha1 });
-            verdicts.set(key, { certificate: subject, issuer, verdict: valid ? 'valid' : 'invalid' });
-        } catch (error) {
-            // A runtime that cannot decide says nothing about the signature, and
-            // so does a SHA-1 refusal. `not-checked` keeps that apart from
-            // `invalid` all the way into the report.
-            const refused = _pkiError(error);
-            verdicts.set(key, { certificate: subject, issuer, verdict: 'not-checked', errorCode: refused.code, detail: refused.message });
+
+    /**
+     * Whether §6 and the purposes accept this path under the verdicts so far —
+     * where the builder stops. §6.1.1 (a) takes the anchor as a separate input,
+     * so a chain that stops one short of its root is judged against the first
+     * anchor that bears its last issuer's name, a link the walk never extends
+     * into: that signature is asked for here, as the validator is about to.
+     */
+    const accepted = async (path: readonly Certificate[]): Promise<boolean> => {
+        const last = path[path.length - 1] as Certificate;
+        if (!anchorKeys.has(anchorKey(last))) {
+            const wanted = _hex(last.issuer.der);
+            const anchor = input.trustAnchors.find((candidate) => _hex(candidate.subject.der) === wanted);
+            if (anchor !== undefined) await _verdict(memo, last, anchor);
         }
-    }));
+        const report = _validateIndexed({ ...input, path }, memo.index);
+        if (!report.valid || input.purposes === undefined) return report.valid;
+        return input.purposes.every((purpose) => [...checkExtendedKeyUsage(report.path, purpose)].length === 0);
+    };
+
+    if (await accepted([input.leaf])) return;
+    let explored = 1;
+    let limitHit = false;
+
+    const extend = async (chain: readonly Certificate[], seen: ReadonlySet<string>): Promise<boolean> => {
+        if (chain.length >= limits.maxChainLength) return false;
+        const last = chain[chain.length - 1] as Certificate;
+        if (anchors.has(_hex(last.der)) || anchorKeys.has(anchorKey(last))) return false;
+
+        for (const issuer of bySubject.get(_hex(last.issuer.der)) ?? []) {
+            const key = _hex(issuer.der);
+            if (seen.has(key)) continue;
+            if (explored >= limits.maxPathsExplored) { limitHit = true; return false; }
+            explored += 1;
+
+            // The one line the builder does not have: the link is about to be
+            // judged, so its signature is asked for now.
+            await _verdict(memo, last, issuer);
+            const next = [...chain, issuer];
+            if (await accepted(next)) return true;
+
+            if (await extend(next, new Set([...seen, key]))) return true;
+            if (limitHit) return false;
+        }
+        return false;
+    };
+
+    await extend([input.leaf], new Set([_hex(input.leaf.der)]));
 }
 
 /** What a list about a delegated CRL signer can say that stops it being believed. */
@@ -546,8 +642,8 @@ interface CrlSignerContext {
     /** Every list the caller supplied, parsed — a delegated signer may be revoked on one of them. */
     readonly lists: readonly ParsedCrl[];
     readonly reading: PkiParseOptions;
-    /** The signature verdicts so far, by `hex(subject.der)|hex(issuer.der)`; a signer off the path adds its own links (RFC 5280 §6.3.3 (f)). */
-    readonly verdicts: Map<string, SignatureResult>;
+    /** The signature verdicts so far, each link once; a signer off the path adds its own links (RFC 5280 §6.3.3 (f)). */
+    readonly verdicts: VerdictMemo;
 }
 
 /** The `keyIdentifier` a list names in its own `authorityKeyIdentifier`, if any. */
@@ -648,7 +744,7 @@ async function _deltaFor(
  * the Web PKI handles intermediates out of band — CRLSets, OneCRL — which is
  * not a decision a library gets to make for its caller.
  */
-async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number, verdicts: Map<string, SignatureResult>): Promise<PkiReason[]> {
+async function _checkRevocation(input: VerifyCertificateChainInput, path: readonly Certificate[], at: number, verdicts: VerdictMemo): Promise<PkiReason[]> {
     const out: PkiReason[] = [];
     const lists = input.crls ?? [];
     const stapled = input.ocspResponses ?? [];
@@ -950,7 +1046,16 @@ async function _ocspSigner(
         if (_hex(delegate.issuer.der) !== _hex(issuer.subject.der)) continue;
         const purposes = getExtension(delegate, 'extendedKeyUsage')?.purposes ?? [];
         if (!purposes.includes(OCSP_SIGNING)) continue;
-        if (at < delegate.validity.notBefore.epochMilliseconds || at > delegate.validity.notAfter.epochMilliseconds) continue;
+        // Valid now, and valid when it spoke: RFC 6960 §4.2.2.2 makes the
+        // response's authority rest on the responder's certificate, and a
+        // certificate that had expired — or had not yet begun — at `producedAt`
+        // vouched for nothing at the moment the signature was made. Both
+        // instants are asked, because a delegate good then and withdrawn by
+        // expiry since is a key the CA no longer stands behind.
+        const { notBefore, notAfter } = delegate.validity;
+        const produced = basic.producedAt.epochMilliseconds;
+        if (at < notBefore.epochMilliseconds || at > notAfter.epochMilliseconds) continue;
+        if (produced < notBefore.epochMilliseconds || produced > notAfter.epochMilliseconds) continue;
         // The CA must actually have issued it, not merely be named by it.
         let issued: boolean;
         try {
