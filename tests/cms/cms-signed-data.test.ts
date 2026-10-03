@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
 import type { ParseSignedDataOptions, SignedData } from '../../src/types/cms-types.js';
@@ -250,14 +251,21 @@ describe('parseSignedData — the certificates-only message (RFC 5652 §5.2)', (
     it('should diagnose a signer-less SignedData whose eContentType is not id-data, and one that still carries an eContent (RFC 5652 §5.2)', () => {
         // Each half of the sentence is one diagnostic, at the field it is about;
         // the message is read as it stands, since there is no signer to judge.
-        const typed = seen(certsOnly({ contentType: OIDS.tstInfo, eContent: null }));
+        // ContentInfo → [0] → SignedData → its third field: where the EncapsulatedContentInfo starts.
+        const encapOffset = (der: Uint8Array): number | undefined => decodeAsn1(der).children[1]?.children[0]?.children[2]?.offset;
+
+        const typedDer = certsOnly({ contentType: OIDS.tstInfo, eContent: null });
+        const typed = seen(typedDer);
         expect(typed.diagnostics.map((d) => [d.code, d.path, d.severity])).toEqual([['PKI_DIAG_CMS_CERTS_ONLY_CONTENT', 'content.encapContentInfo.eContentType', 'warning']]);
         expect(typed.diagnostics[0]?.message).toContain(`its eContentType is ${OIDS.tstInfo}, not id-data`);
+        expect(typed.diagnostics[0]?.offset).toBe(encapOffset(typedDer));
         expect(typed.signed.contentType).toBe(OIDS.tstInfo);
 
-        const carrying = seen(certsOnly());
+        const carryingDer = certsOnly();
+        const carrying = seen(carryingDer);
         expect(carrying.diagnostics.map((d) => [d.code, d.path])).toEqual([['PKI_DIAG_CMS_CERTS_ONLY_CONTENT', 'content.encapContentInfo.eContent']]);
         expect(carrying.diagnostics[0]?.message).toContain('it carries an eContent');
+        expect(carrying.diagnostics[0]?.offset).toBe(encapOffset(carryingDer));
         expect(carrying.signed.content).toEqual(CONTENT);
 
         expect(seen(certsOnly({ contentType: OIDS.tstInfo })).diagnostics.map((d) => d.path))
