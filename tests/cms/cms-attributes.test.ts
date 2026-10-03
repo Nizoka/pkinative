@@ -119,6 +119,38 @@ describe('signed attributes — signingTime (RFC 5652 §11.3)', () => {
     });
 
     it.each([
+        ['a GeneralizedTime in 2026', '20260301120000Z', Date.UTC(2026, 2, 1, 12), ['PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC']],
+        ['a GeneralizedTime on 1 January 1950', '19500101000000Z', Date.UTC(1950, 0, 1), ['PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC']],
+        ['a GeneralizedTime on 31 December 2049', '20491231235959Z', Date.UTC(2049, 11, 31, 23, 59, 59), ['PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC']],
+        ['a GeneralizedTime in 1949', '19491231235959Z', Date.UTC(1949, 11, 31, 23, 59, 59), []],
+        ['a GeneralizedTime in 2050', '20500101000000Z', Date.UTC(2050, 0, 1), []],
+        ['a GeneralizedTime in 2050 with a fraction', '20500301120000.5Z', Date.UTC(2050, 2, 1, 12, 0, 0, 500), ['PKI_DIAG_CMS_SIGNING_TIME_FRACTION']],
+        ['a GeneralizedTime in 2026 with a fraction', '20260301120000.25Z', Date.UTC(2026, 2, 1, 12, 0, 0, 250), ['PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC', 'PKI_DIAG_CMS_SIGNING_TIME_FRACTION']],
+    ])('should diagnose a signingTime that is %s as RFC 5652 §11.3 asks, and read the instant as written', (_, text, epochMilliseconds, expected) => {
+        // The signature covers these bytes, so the instant is never rewritten:
+        // the form is a diagnostic, the value is what the signer wrote.
+        const seen: PkiDiagnostic[] = [];
+        const der = contentInfo(signedData({ signers: [signerInfo({ signedAttrs: sorted([contentTypeAttr, digestAttr, attribute(OIDS.signingTime, universal(24, ascii(text)))]) })] }));
+        const signer = parseSignedData(der, { onDiagnostic: (d) => { seen.push(d); } }).signerInfos[0];
+        expect(signer?.signingTime?.epochMilliseconds).toBe(epochMilliseconds);
+        expect(signer?.signingTime?.text).toBe(text);
+        expect(seen.map((d) => d.code)).toEqual(expected);
+        for (const diagnostic of seen) {
+            expect(diagnostic.severity).toBe('warning');
+            expect(diagnostic.path).toBe('content.signerInfos[0].signedAttrs.signingTime');
+            expect(diagnostic.message).toContain(`"${text}"`);
+            expect(typeof diagnostic.offset).toBe('number');
+        }
+    });
+
+    it('should say nothing of a UTCTime signingTime, and refuse a GeneralizedTime one for 2026 under strict', () => {
+        expect(signerWith(sorted([contentTypeAttr, digestAttr, attribute(OIDS.signingTime, universal(23, ascii('260301120000Z')))])).codes).toEqual([]);
+        const error = refusal(sorted([contentTypeAttr, digestAttr, attribute(OIDS.signingTime, universal(24, ascii('20260301120000Z')))]), { strict: true });
+        expect(error.code).toBe('PKI_STRICT_DIAGNOSTIC');
+        expect(error.message).toContain('PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC');
+    });
+
+    it.each([
         ['a UTCTime without seconds', universal(23, ascii('2603011200Z'))],
         ['a UTCTime with an offset instead of Z', universal(23, ascii('260301120000+0100'))],
         ['a GeneralizedTime without seconds', universal(24, ascii('205003011200Z'))],

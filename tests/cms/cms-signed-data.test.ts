@@ -24,7 +24,7 @@ import {
     subjectKeyIdentifier,
 } from '../helpers/cms-signed-data-builder.js';
 import type { SignedDataParts, SignerParts } from '../helpers/cms-signed-data-builder.js';
-import { concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 
 /**
  * RFC 5652 §5 SignedData parsing.
@@ -234,6 +234,118 @@ describe('parseSignedData — the bag', () => {
         expect(signed.signerInfos).toEqual([]);
         expect(signed.certificates).toHaveLength(1);
         expect(codes).toEqual([]);
+    });
+});
+
+describe('parseSignedData — the certificates-only message (RFC 5652 §5.2)', () => {
+    /** A signer-less SignedData carrying one certificate, declared at the version its content calls for. */
+    const certsOnly = (parts: SignedDataParts = {}): Uint8Array =>
+        contentInfo(signedData({ digestAlgorithms: [], signers: [], certificates: [sequence(int(1))], version: int(parts.contentType === undefined ? 1 : 3), ...parts }));
+
+    function seen(der: Uint8Array): { readonly signed: SignedData; readonly diagnostics: readonly PkiDiagnostic[] } {
+        const diagnostics: PkiDiagnostic[] = [];
+        return { signed: parseSignedData(der, { onDiagnostic: (d) => { diagnostics.push(d); } }), diagnostics };
+    }
+
+    it('should diagnose a signer-less SignedData whose eContentType is not id-data, and one that still carries an eContent (RFC 5652 §5.2)', () => {
+        // Each half of the sentence is one diagnostic, at the field it is about;
+        // the message is read as it stands, since there is no signer to judge.
+        const typed = seen(certsOnly({ contentType: OIDS.tstInfo, eContent: null }));
+        expect(typed.diagnostics.map((d) => [d.code, d.path, d.severity])).toEqual([['PKI_DIAG_CMS_CERTS_ONLY_CONTENT', 'content.encapContentInfo.eContentType', 'warning']]);
+        expect(typed.diagnostics[0]?.message).toContain(`its eContentType is ${OIDS.tstInfo}, not id-data`);
+        expect(typed.signed.contentType).toBe(OIDS.tstInfo);
+
+        const carrying = seen(certsOnly());
+        expect(carrying.diagnostics.map((d) => [d.code, d.path])).toEqual([['PKI_DIAG_CMS_CERTS_ONLY_CONTENT', 'content.encapContentInfo.eContent']]);
+        expect(carrying.diagnostics[0]?.message).toContain('it carries an eContent');
+        expect(carrying.signed.content).toEqual(CONTENT);
+
+        expect(seen(certsOnly({ contentType: OIDS.tstInfo })).diagnostics.map((d) => d.path))
+            .toEqual(['content.encapContentInfo.eContentType', 'content.encapContentInfo.eContent']);
+    });
+
+    it('should say nothing of a certificates-only message with id-data and no eContent, nor of a signed message of another type', () => {
+        expect(parse(certsOnly({ eContent: null })).codes).toEqual([]);
+        // With a signer the content type is the signer's business: the
+        // contentType attribute must name it, which is a verdict, not a
+        // diagnostic (cms-check).
+        expect(parse(contentInfo(signedData({ contentType: OIDS.tstInfo, version: int(3) }))).codes).toEqual([]);
+    });
+
+    it('should refuse a certificates-only message that carries an eContent under strict', () => {
+        const error = refusal(certsOnly(), { strict: true });
+        expect(error.code).toBe('PKI_STRICT_DIAGNOSTIC');
+        expect(error.message).toContain('PKI_DIAG_CMS_CERTS_ONLY_CONTENT');
+    });
+});
+
+describe('parseSignedData — countersignatures (RFC 5652 §11.4)', () => {
+    const COUNTERSIGNATURE = '1.2.840.113549.1.9.6';
+    const contentTypeAttr = attribute(OIDS.contentType, oid(OIDS.data));
+    const digestAttr = attribute(OIDS.messageDigest, octets([1, 2, 3]));
+    const timeAttr = attribute(OIDS.signingTime, universal(23, [...ascii('260301120000Z')]));
+
+    /** A message whose one signer carries a countersignature attribute with these values. */
+    function countersigned(values: readonly Uint8Array[], options: ParseSignedDataOptions = {}): { readonly signed: SignedData; readonly diagnostics: readonly PkiDiagnostic[] } {
+        const diagnostics: PkiDiagnostic[] = [];
+        const der = contentInfo(signedData({ signers: [signerInfo({ unsignedAttrs: [attribute(COUNTERSIGNATURE, ...values)] })] }));
+        return { signed: parseSignedData(der, { onDiagnostic: (d) => { diagnostics.push(d); }, ...options }), diagnostics };
+    }
+    const codesOf = (values: readonly Uint8Array[]): string[] => countersigned(values).diagnostics.map((d) => d.code);
+
+    it('should diagnose a countersignature whose signed attributes carry a content-type attribute, which has no meaning there (RFC 5652 §5.3, §11.4)', () => {
+        const { signed, diagnostics } = countersigned([signerInfo({ signedAttrs: [contentTypeAttr, digestAttr] })]);
+        expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([
+            ['PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE', 'warning', 'content.signerInfos[0].unsignedAttrs[0][0].signedAttrs'],
+        ]);
+        expect(typeof diagnostics[0]?.offset).toBe('number');
+        // Carried, not read: the value stays in the attribute as received.
+        expect(signed.signerInfos[0]?.unsignedAttributes?.[0]?.values).toHaveLength(1);
+        expect(signed.signerInfos[0]?.unsignedAttributes?.[0]?.oid).toBe(COUNTERSIGNATURE);
+    });
+
+    it('should diagnose a countersignature whose signed attributes hold others but no message-digest attribute (RFC 5652 §11.4)', () => {
+        expect(codesOf([signerInfo({ signedAttrs: [timeAttr] })])).toEqual(['PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST']);
+        // Both faults at once, both said; and each value of the SET is judged
+        // on its own, under its own index.
+        const both = countersigned([signerInfo({ signedAttrs: [digestAttr] }), signerInfo({ signedAttrs: [contentTypeAttr] })]).diagnostics;
+        expect(both.map((d) => [d.code, d.path])).toEqual([
+            ['PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE', 'content.signerInfos[0].unsignedAttrs[0][1].signedAttrs'],
+            ['PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST', 'content.signerInfos[0].unsignedAttrs[0][1].signedAttrs'],
+        ]);
+    });
+
+    it('should diagnose a countersignature attribute whose SET of values is empty (RFC 5652 §11.4)', () => {
+        const { signed, diagnostics } = countersigned([]);
+        expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY', 'warning', 'content.signerInfos[0].unsignedAttrs[0]']]);
+        expect(signed.signerInfos[0]?.unsignedAttributes?.[0]?.values).toEqual([]);
+    });
+
+    it('should say nothing of a countersignature that is in order, has no signed attributes, or is not a SignerInfo at all', () => {
+        expect(codesOf([signerInfo({ signedAttrs: [digestAttr, timeAttr] })])).toEqual([]);
+        expect(codesOf([signerInfo({ signedAttrs: null })])).toEqual([]);
+        // A SignerInfo whose fourth field is a primitive [0] is not one with
+        // signed attributes; nor is a value that is no SEQUENCE.
+        expect(codesOf([sequence(int(1), issuerAndSerial(), alg(OIDS.sha256), context(0, false, [1]))])).toEqual([]);
+        expect(codesOf([int(1)])).toEqual([]);
+        // Children of the set that are not Attributes are passed over, and
+        // count as no attribute: nothing to require a message-digest beside.
+        expect(codesOf([signerInfo({ signedAttrs: [int(1), sequence(int(1), set())] })])).toEqual([]);
+        // The same attributes in the signer's own set are the verifier's
+        // business (cms-check), not a countersignature's diagnostic.
+        expect(parse(contentInfo(signedData({ signers: [signerInfo({ unsignedAttrs: [attribute(OIDS.timeStampToken, signerInfo({ signedAttrs: [contentTypeAttr] }))] })] }))).codes).toEqual([]);
+    });
+
+    it('should refuse a countersignature with a content-type attribute under strict, and bound its signed attributes by maxAttributes', () => {
+        expect(() => countersigned([signerInfo({ signedAttrs: [contentTypeAttr, digestAttr] })], { strict: true })).toThrow(PkiError);
+        try {
+            countersigned([signerInfo({ signedAttrs: [contentTypeAttr, digestAttr] })], { strict: true });
+        } catch (error) {
+            expect((error as PkiError).code).toBe('PKI_STRICT_DIAGNOSTIC');
+        }
+        const three = signerInfo({ signedAttrs: [digestAttr, timeAttr, attribute('1.2.3', int(1))] });
+        expect(codesOf([three])).toEqual([]);
+        expect(() => countersigned([three], { limits: { maxAttributes: 2 } })).toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED' }));
     });
 });
 

@@ -29,6 +29,7 @@ import { _readInteger, _readOctetString } from '../asn1/asn1-read.js';
 import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
 import { assertBytes } from '../core/bytes.js';
 import {
+    cmsCertsOnlyContentDiagnostic,
     cmsDigestAlgorithmNotListedDiagnostic,
     cmsSetNotSortedDiagnostic,
     cmsSignedAttributesNotDerDiagnostic,
@@ -45,6 +46,7 @@ import {
     _assertDerEncoded,
     _cmsError,
     _collectTimeStampTokens,
+    _countersignatureDiagnostics,
     _expectUniversal,
     _inDerSetOrder,
     _readAttributes,
@@ -170,6 +172,8 @@ function readSignedData(root: Asn1Node, seq: Asn1Node, ctx: Asn1Context): Signed
 
     const digestAlgorithms = readDigestAlgorithms(fields[1], ctx, seq.offset);
     const encap = readEncapsulatedContent(fields[2], ctx, seq.offset);
+    // readEncapsulatedContent has refused anything else at fields[2].
+    const encapNode = fields[2] as Asn1Node;
 
     // The two optional bags are told apart by their tags, and whatever follows
     // them must be the signerInfos SET — so a walk, not an index.
@@ -190,6 +194,18 @@ function readSignedData(root: Asn1Node, seq: Asn1Node, ctx: Asn1Context): Signed
         signerInfos.push(readSignerInfo(signerSet.children[i] as Asn1Node, ctx, path, listed));
     }
     if (!_inDerSetOrder(signerSet.children)) ctx.emitter.emit(cmsSetNotSortedDiagnostic('content.signerInfos', signerSet.offset));
+
+    // RFC 5652 §5.2: with no signer this is the certificates-only message,
+    // whose content "MUST be id-data" and whose eContent "MUST be omitted".
+    // Said, not refused — there is no signature for either half to bear on.
+    if (signerInfos.length === 0) {
+        if (encap.contentType !== OID_DATA) {
+            ctx.emitter.emit(cmsCertsOnlyContentDiagnostic('content.encapContentInfo.eContentType', `its eContentType is ${encap.contentType}, not id-data`, encapNode.offset));
+        }
+        if (encap.content !== undefined) {
+            ctx.emitter.emit(cmsCertsOnlyContentDiagnostic('content.encapContentInfo.eContent', 'it carries an eContent', encapNode.offset));
+        }
+    }
 
     // RFC 5652 §5.1, top-down, first match wins.
     const derived: SignedData['version'] = bag.hasOtherFormat ? 5
@@ -395,6 +411,7 @@ function readSignerInfo(node: Asn1Node, ctx: Asn1Context, path: string, listed: 
         signedAttributesDer[0] = 0x31;
     }
     const unsignedEntries = unsignedNode === undefined ? undefined : _readAttributes(unsignedNode, ctx, `${path}.unsignedAttrs`);
+    _countersignatureDiagnostics(unsignedEntries, ctx, `${path}.unsignedAttrs`);
     const convenience = _readSignedAttributeFields(signedEntries ?? [], ctx, `${path}.signedAttrs`);
 
     return Object.freeze({

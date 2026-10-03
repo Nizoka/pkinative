@@ -26,8 +26,15 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readInteger, _readOctetString } from '../asn1/asn1-read.js';
 import { isStringTag, TAG_GENERALIZED_TIME, TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET, TAG_UTC_TIME } from '../asn1/asn1-tags.js';
 import { _readTime } from '../asn1/asn1-time.js';
-import { compareOctets, toHex } from '../core/bytes.js';
-import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
+import { bytesEqual, compareOctets, toHex } from '../core/bytes.js';
+import {
+    cmsCountersignatureContentTypeDiagnostic,
+    cmsCountersignatureEmptyDiagnostic,
+    cmsCountersignatureNoMessageDigestDiagnostic,
+    cmsSigningTimeFractionDiagnostic,
+    cmsSigningTimeNotUtcDiagnostic,
+    defaultEncodedDiagnostic,
+} from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, PkiTime } from '../types/asn1-types.js';
 import type { Attribute, EssCertId, SignerInfo, SigningCertificateAttribute } from '../types/cms-types.js';
@@ -38,6 +45,7 @@ import { _readGeneralNames } from '../x509/x509-general-name.js';
 import {
     OID_ATTR_ALGORITHM_PROTECTION,
     OID_ATTR_CONTENT_TYPE,
+    OID_ATTR_COUNTERSIGNATURE,
     OID_ATTR_MESSAGE_DIGEST,
     OID_ATTR_SIGNING_CERTIFICATE,
     OID_ATTR_SIGNING_CERTIFICATE_V2,
@@ -166,6 +174,8 @@ export function _assertDerEncoded(root: Asn1Node, ctx: Asn1Context, path: string
 export interface _AttributeEntry {
     readonly attribute: Attribute;
     readonly valueNodes: readonly Asn1Node[];
+    /** Absolute offset of the Attribute SEQUENCE, for a diagnostic about it. */
+    readonly offset: number;
 }
 
 /**
@@ -202,7 +212,7 @@ export function _readAttributes(container: Asn1Node, ctx: Asn1Context, path: str
             values: Object.freeze(set.children.map((value) => value.bytes)),
             der: node.bytes,
         };
-        out.push(Object.freeze({ attribute: Object.freeze(attribute), valueNodes: set.children }));
+        out.push(Object.freeze({ attribute: Object.freeze(attribute), valueNodes: set.children, offset: node.offset }));
     }
     return Object.freeze(out);
 }
@@ -261,12 +271,23 @@ export function _readSignedAttributeFields(entries: readonly _AttributeEntry[], 
         _readObjectIdentifier(_expectUniversal(node, TAG_OID, `${path}.contentType`, node.offset, 'an OBJECT IDENTIFIER'), ctx));
     const messageDigest = readRecognised(singleValue(entries, OID_ATTR_MESSAGE_DIGEST), `${path}.messageDigest`, (node) =>
         _readOctetString(_expectUniversal(node, TAG_OCTET_STRING, `${path}.messageDigest`, node.offset, 'an OCTET STRING'), ctx));
-    const signingTime = readRecognised(singleValue(entries, OID_ATTR_SIGNING_TIME), `${path}.signingTime`, (node) => {
+    const signingTimeNode = singleValue(entries, OID_ATTR_SIGNING_TIME);
+    const signingTime = readRecognised(signingTimeNode, `${path}.signingTime`, (node) => {
         if (node.tagClass !== 'universal' || (node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME)) {
             throw _cmsError('PKI_CMS_STRUCTURE_INVALID', `${path}.signingTime`, node.offset, 'is not a UTCTime or a GeneralizedTime');
         }
         return _readTime(node, ctx, undefined);
     });
+    if (signingTime?.type === 'GeneralizedTime') {
+        // RFC 5652 §11.3 draws the same line RFC 5280 §4.1.2.5 draws for a
+        // certificate: UTCTime through 2049, GeneralizedTime after, and never a
+        // fraction. The instant is read as written either way — the signature
+        // covers these bytes, so nothing here may change them.
+        const year = Number(signingTime.text.slice(0, 4));
+        const offset = (signingTimeNode as Asn1Node).offset;
+        if (year >= 1950 && year <= 2049) ctx.emitter.emit(cmsSigningTimeNotUtcDiagnostic(`${path}.signingTime`, signingTime.text, offset));
+        if (/[.,]/.test(signingTime.text)) ctx.emitter.emit(cmsSigningTimeFractionDiagnostic(`${path}.signingTime`, signingTime.text, offset));
+    }
     const v1 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE), `${path}.signingCertificate`, (node) =>
         readSigningCertificate(node, ctx, `${path}.signingCertificate`, 1));
     const v2 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) =>
@@ -320,6 +341,64 @@ export function _collectTimeStampTokens(entries: readonly _AttributeEntry[] | un
         if (entry.attribute.oid === OID_ATTR_TIMESTAMP_TOKEN) tokens.push(...entry.attribute.values);
     }
     return Object.freeze(tokens);
+}
+
+// ── Countersignatures (RFC 5652 §11.4) ──
+
+/** The DER content of `id-contentType` and `id-messageDigest`: compared as bytes, so a malformed OID in a countersignature is passed over, never thrown on. */
+const CONTENT_TYPE_OID_CONTENT = /*#__PURE__*/ Uint8Array.of(0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x03);
+const MESSAGE_DIGEST_OID_CONTENT = /*#__PURE__*/ Uint8Array.of(0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x09, 0x04);
+
+/**
+ * What RFC 5652 §11.4 says a countersignature's own SignerInfo must and must
+ * not carry, as diagnostics.
+ *
+ * A countersignature is carried, not verified: its SignerInfo stays in the
+ * attribute's values as received, and nothing here reads it further than the
+ * tags needed to find its signed attributes. Three sentences of §11.4 are
+ * decidable from those tags alone — the value SET must not be empty, the
+ * signed attributes must not hold a content-type attribute, and must hold a
+ * message-digest attribute when they hold anything — and each is a
+ * diagnostic, never a refusal: a value that is not a SignerInfo at all is
+ * passed over, because the message's own signature does not depend on it.
+ *
+ * @internal
+ */
+export function _countersignatureDiagnostics(entries: readonly _AttributeEntry[] | undefined, ctx: Asn1Context, path: string): void {
+    for (const [index, entry] of (entries ?? []).entries()) {
+        if (entry.attribute.oid !== OID_ATTR_COUNTERSIGNATURE) continue;
+        const where = `${path}[${String(index)}]`;
+        if (entry.valueNodes.length === 0) {
+            ctx.emitter.emit(cmsCountersignatureEmptyDiagnostic(where, entry.offset));
+            continue;
+        }
+        for (const [v, value] of entry.valueNodes.entries()) {
+            // SignerInfo ::= SEQUENCE { version, sid, digestAlgorithm, signedAttrs [0] IMPLICIT OPTIONAL, … }:
+            // the signed attributes are the fourth field when they are there,
+            // and `sid` as [0] is primitive, so a constructed [0] in that
+            // position is the set and nothing else.
+            if (value.tagClass !== 'universal' || value.tagNumber !== TAG_SEQUENCE) continue;
+            const signed = value.children[3];
+            if (signed === undefined || signed.tagClass !== 'context' || signed.tagNumber !== 0 || !signed.constructed) continue;
+            let attributes = 0;
+            let contentType = false;
+            let messageDigest = false;
+            for (let i = 0; i < signed.children.length; i++) {
+                enforceLimit(ctx.limits, 'maxAttributes', i + 1, `${where}[${String(v)}].signedAttrs`);
+                const attribute = signed.children[i] as Asn1Node;
+                const type = attribute.children[0];
+                // Anything that is not `SEQUENCE { OID, … }` is no attribute, and
+                // is passed over: a malformed countersignature is still carried.
+                if (attribute.tagClass !== 'universal' || attribute.tagNumber !== TAG_SEQUENCE || type?.tagClass !== 'universal' || type.tagNumber !== TAG_OID) continue;
+                attributes += 1;
+                if (bytesEqual(type.content, CONTENT_TYPE_OID_CONTENT)) contentType = true;
+                if (bytesEqual(type.content, MESSAGE_DIGEST_OID_CONTENT)) messageDigest = true;
+            }
+            const valuePath = `${where}[${String(v)}].signedAttrs`;
+            if (contentType) ctx.emitter.emit(cmsCountersignatureContentTypeDiagnostic(valuePath, signed.offset));
+            if (attributes > 0 && !messageDigest) ctx.emitter.emit(cmsCountersignatureNoMessageDigestDiagnostic(valuePath, signed.offset));
+        }
+    }
 }
 
 // ── signingCertificate (RFC 2634 §5.4) and signingCertificateV2 (RFC 5035 §3) ──
