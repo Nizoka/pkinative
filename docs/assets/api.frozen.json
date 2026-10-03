@@ -328,6 +328,7 @@
     { "name": "readSmallInteger", "kind": "function", "signature": "(_: Asn1Node) => number" },
     { "name": "readString", "kind": "function", "signature": "(_: Asn1Node, _?: ReadStringOptions) => Asn1String" },
     { "name": "readTime", "kind": "function", "signature": "(_: Asn1Node, _?: ReadTimeOptions) => PkiTime" },
+    { "name": "shake256", "kind": "function", "signature": "(_: Uint8Array, _: number) => Uint8Array" },
     { "name": "validateCertificatePath", "kind": "function", "signature": "(_: ValidateCertificatePathInput) => ValidateCertificatePathReport" },
     { "name": "verifyCertificateChain", "kind": "function", "signature": "(_: VerifyCertificateChainInput) => Promise<VerifyCertificateChainReport>" },
     { "name": "verifyCertificateSignature", "kind": "function", "signature": "(_: Certificate, _: Certificate, _?: VerifyCertificateSignatureOptions) => Promise<boolean>" },

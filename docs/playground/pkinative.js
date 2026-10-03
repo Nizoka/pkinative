@@ -6334,12 +6334,20 @@ function resolveAlgorithm(algorithm, key) {
   const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
   return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
 }
-function _importRefusal(key) {
-  return key.kind === "rsa-pss" ? "the key is id-RSASSA-PSS (RFC 4055 \xA71.2), and the W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only as rsaEncryption, so no conforming runtime checks a signature this key made; the certificate is not at fault \u2014 check it with a library that implements id-RSASSA-PSS keys (OpenSSL, for one)" : void 0;
+var RSA_ENCRYPTION_IDENTIFIER = /* @__PURE__ */ encodeSequence([encodeObjectIdentifier("1.2.840.113549.1.1.1"), encodeNull()]);
+function _importableSpki(key) {
+  if (key.kind !== "rsa-pss") return key.der;
+  const bitString = encodeTlv("universal", TAG_BIT_STRING, false, concatBytes([Uint8Array.of(key.publicKey.unusedBits), key.publicKey.bytes]));
+  return encodeSequence([RSA_ENCRYPTION_IDENTIFIER, bitString]);
+}
+function _pssKeyHash(key) {
+  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return void 0;
+  return readPssParams(key.algorithm.parameters, key.algorithm.oid).hash;
 }
 var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
 var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
 var ID_ED448 = "1.3.101.113";
+var ID_SHAKE256 = "2.16.840.1.101.3.4.2.12";
 var MD5_OIDS = /* @__PURE__ */ new Set(["1.2.840.113549.1.1.4", "1.2.840.113549.2.5"]);
 function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
   if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
@@ -6347,6 +6355,12 @@ function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
   }
   if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
     return "id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm";
+  }
+  if (signatureAlgorithm.oid === ID_ED448) {
+    if (digestAlgorithm.oid !== ID_SHAKE256) {
+      return `Ed448 requires the id-shake256 digestAlgorithm, SHAKE256 with a 512-bit output (RFC 8419 \xA73.1), not ${digestAlgorithm.oid}`;
+    }
+    return hasNoHashParameters(digestAlgorithm.parameters) ? null : "the id-shake256 digestAlgorithm carries parameters, where RFC 8419 \xA72.1 allows none";
   }
   const digest = HASH_BY_OID.get(digestAlgorithm.oid);
   if (digest === void 0) return null;
@@ -6370,15 +6384,9 @@ function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
     }
     return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
   }
-  if (shape.family === "ed25519") {
-    return digest === "SHA-512" ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 \xA73.1), not ${digest}`;
-  }
-  return null;
+  return digest === "SHA-512" ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 \xA73.1), not ${digest}`;
 }
 function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
-  if (signatureAlgorithm.oid === ID_ED448) {
-    throw unsupported("an Ed448 CMS signer digests with SHAKE256 (RFC 8419 \xA73.1), which neither Web Crypto nor pkinative computes", ID_ED448);
-  }
   if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
   const hash = HASH_BY_OID.get(digestAlgorithm.oid);
   if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
@@ -6557,14 +6565,14 @@ function requireSubtle(oid) {
   }
   return subtle;
 }
-async function importPublicKey(spkiDer, params, oid, refusal) {
+async function importPublicKey(spkiDer, params, oid) {
   const subtle = requireSubtle(oid);
   try {
     return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
   } catch (cause) {
     throw new PkiCryptoError(
       "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 ${refusal ?? "the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault"}`,
+      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
       oid
     );
   }
@@ -6709,7 +6717,7 @@ async function verifySignedStructure(signed, signer, options) {
     if (raw === null) return false;
     signature = raw;
   }
-  const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid, _importRefusal(signer.subjectPublicKeyInfo));
+  const key = await importPublicKey(_importableSpki(signer.subjectPublicKeyInfo), resolved.importParams, signed.signatureAlgorithm.oid);
   return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
 }
 async function verifyCrlSignature(crl, issuer, options) {
@@ -8539,6 +8547,141 @@ function formatFingerprint(digest, options) {
   return letterCase === "upper" ? hex3.toUpperCase() : hex3;
 }
 
+// src/hash/shake256.ts
+var RC_HI = /* @__PURE__ */ new Uint32Array([
+  0,
+  0,
+  2147483648,
+  2147483648,
+  0,
+  0,
+  2147483648,
+  2147483648,
+  0,
+  0,
+  0,
+  0,
+  0,
+  2147483648,
+  2147483648,
+  2147483648,
+  2147483648,
+  2147483648,
+  0,
+  2147483648,
+  2147483648,
+  2147483648,
+  0,
+  2147483648
+]);
+var RC_LO = /* @__PURE__ */ new Uint32Array([
+  1,
+  32898,
+  32906,
+  2147516416,
+  32907,
+  2147483649,
+  2147516545,
+  32777,
+  138,
+  136,
+  2147516425,
+  2147483658,
+  2147516555,
+  139,
+  32905,
+  32771,
+  32770,
+  128,
+  32778,
+  2147483658,
+  2147516545,
+  32896,
+  2147483649,
+  2147516424
+]);
+var RHO_SHIFT = /* @__PURE__ */ new Uint8Array([0, 1, 30, 28, 27, 4, 12, 6, 23, 20, 3, 10, 11, 25, 7, 9, 13, 15, 21, 8, 18, 2, 29, 24, 14]);
+var RHO_SWAP = /* @__PURE__ */ new Uint8Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0]);
+var PI = /* @__PURE__ */ new Uint8Array([0, 10, 20, 5, 15, 16, 1, 11, 21, 6, 7, 17, 2, 12, 22, 23, 8, 18, 3, 13, 14, 24, 9, 19, 4]);
+var COLUMNS = /* @__PURE__ */ new Uint8Array([0, 1, 2, 3, 4]);
+var ROWS = /* @__PURE__ */ new Uint8Array([0, 5, 10, 15, 20]);
+var RATE = 136;
+var SHAKE_PAD = 31;
+function keccakF(s, c, b) {
+  for (let round = 0; round < 24; round++) {
+    for (const x of COLUMNS) {
+      const i = 2 * x;
+      c[i] = s[i] ^ s[i + 10] ^ s[i + 20] ^ s[i + 30] ^ s[i + 40];
+      c[i + 1] = s[i + 1] ^ s[i + 11] ^ s[i + 21] ^ s[i + 31] ^ s[i + 41];
+    }
+    for (const x of COLUMNS) {
+      const left = 2 * ((x + 4) % 5);
+      const right = 2 * ((x + 1) % 5);
+      const rightLo = c[right];
+      const rightHi = c[right + 1];
+      const dLo = c[left] ^ (rightLo << 1 | rightHi >>> 31);
+      const dHi = c[left + 1] ^ (rightHi << 1 | rightLo >>> 31);
+      for (const y of ROWS) {
+        const i = 2 * (x + y);
+        s[i] = s[i] ^ dLo;
+        s[i + 1] = s[i + 1] ^ dHi;
+      }
+    }
+    for (const lane of PI.keys()) {
+      const swap = RHO_SWAP[lane] === 1;
+      const lo = swap ? s[2 * lane + 1] : s[2 * lane];
+      const hi = swap ? s[2 * lane] : s[2 * lane + 1];
+      const m = RHO_SHIFT[lane];
+      const target = 2 * PI[lane];
+      b[target] = m === 0 ? lo : lo << m | hi >>> 32 - m;
+      b[target + 1] = m === 0 ? hi : hi << m | lo >>> 32 - m;
+    }
+    for (const y of ROWS) {
+      for (const x of COLUMNS) {
+        const i = 2 * (y + x);
+        const next = 2 * (y + (x + 1) % 5);
+        const after = 2 * (y + (x + 2) % 5);
+        s[i] = b[i] ^ ~b[next] & b[after];
+        s[i + 1] = b[i + 1] ^ ~b[next + 1] & b[after + 1];
+      }
+    }
+    s[0] = s[0] ^ RC_LO[round];
+    s[1] = s[1] ^ RC_HI[round];
+  }
+}
+function shake256(input, outputLength) {
+  const bytes = assertBytes(input, "shake256 input");
+  if (!Number.isInteger(outputLength) || outputLength < 0) {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: shake256 outputLength must be a non-negative integer number of octets, got ${String(outputLength)} \u2014 an Ed448 CMS signer uses 64`);
+  }
+  const total = Math.ceil((bytes.length + 1) / RATE) * RATE;
+  const padded = new Uint8Array(total);
+  padded.set(bytes);
+  padded[bytes.length] = SHAKE_PAD;
+  padded[total - 1] = padded[total - 1] | 128;
+  const state = new Uint32Array(50);
+  const c = new Uint32Array(10);
+  const b = new Uint32Array(50);
+  const view = new DataView(padded.buffer);
+  for (let offset = 0; offset < total; offset += RATE) {
+    for (let word = 0; word < RATE / 4; word++) {
+      state[word] = state[word] ^ view.getUint32(offset + word * 4, true);
+    }
+    keccakF(state, c, b);
+  }
+  const out = new Uint8Array(outputLength);
+  const block = new Uint8Array(RATE);
+  const blockView = new DataView(block.buffer);
+  const blocks = Math.ceil(outputLength / RATE);
+  for (let index = 0; index < blocks; index++) {
+    if (index > 0) keccakF(state, c, b);
+    for (let word = 0; word < RATE / 4; word++) blockView.setUint32(word * 4, state[word], true);
+    const offset = index * RATE;
+    out.set(block.subarray(0, Math.min(RATE, outputLength - offset)), offset);
+  }
+  return out;
+}
+
 // src/build/build-certificate.ts
 function encodeSignatureAlgorithm(signer) {
   const resolved = resolveSigner(signer.algorithm);
@@ -9169,7 +9312,7 @@ async function verifySignerInfoSignature(signerInfo, signer, options) {
     if (raw === null) return false;
     signature = raw;
   }
-  const key = await importPublicKey(certificate.subjectPublicKeyInfo.der, resolved.importParams, info.signatureAlgorithm.oid, _importRefusal(certificate.subjectPublicKeyInfo));
+  const key = await importPublicKey(_importableSpki(certificate.subjectPublicKeyInfo), resolved.importParams, info.signatureAlgorithm.oid);
   return verifySignature(key, resolved.verifyParams, signature, covered);
 }
 function assertSignerInfo(value) {
@@ -9995,6 +10138,12 @@ var DIGEST_NAMES = /* @__PURE__ */ new Map([
 function _digestName(oid) {
   return DIGEST_NAMES.get(oid);
 }
+var SHAKE256_DIGEST_OCTETS = 64;
+async function _contentDigest(content, oid) {
+  if (oid === ID_SHAKE256) return shake256(content, SHAKE256_DIGEST_OCTETS);
+  const name = _digestName(oid);
+  return name === void 0 ? void 0 : computeFingerprintAsync(content, name);
+}
 async function _verifySigner(ctx, signer, path) {
   const reasons = [..._signerAttributeReasons(ctx.signedData, signer, path, { requireAlgorithmProtection: ctx.requireAlgorithmProtection })];
   if (ctx.requireSigningCertificate && !(signer.signedAttributes ?? []).some((attribute) => attribute.oid === OID_ATTR_SIGNING_CERTIFICATE || attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2)) {
@@ -10009,17 +10158,15 @@ async function _verifySigner(ctx, signer, path) {
     return { reasons, certificate: void 0, intact: false, signatureVerifications: 0 };
   }
   const hasAttributes = signer.signedAttributes !== void 0;
-  const digestName = _digestName(signer.digestAlgorithm.oid);
   let computed;
   if (ctx.content !== void 0) {
-    if (digestName === void 0) {
+    computed = await _contentDigest(ctx.content, signer.digestAlgorithm.oid);
+    if (computed === void 0) {
       reasons.push(signatureNotCheckedReason(
         `${path}.digestAlgorithm`,
         "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
         `the content digest ${signer.digestAlgorithm.oid} is one pkinative does not compute, so the content cannot be tied to this signature`
       ));
-    } else {
-      computed = await computeFingerprintAsync(ctx.content, digestName);
     }
   } else if (ctx.contentDigest !== void 0 && hasAttributes) {
     computed = ctx.contentDigest;
@@ -10733,8 +10880,18 @@ async function importPrivateKey(der, options) {
   _checkAlgorithmOption(options?.algorithm, false);
   const algorithm = _signingAlgorithm(info, options?.algorithm);
   const { importParams } = resolveSigner(algorithm);
-  const key = await importPkcs8Key(info.der, importParams, info.algorithm.oid);
-  return Object.freeze({ key, algorithm });
+  const pkcs8 = info.kind === "rsa-pss" ? _underRsaEncryption(info, options) : info.der;
+  try {
+    const key = await importPkcs8Key(pkcs8, importParams, info.algorithm.oid);
+    return Object.freeze({ key, algorithm });
+  } finally {
+    if (pkcs8 !== info.der) pkcs8.fill(0);
+  }
+}
+var RSA_ENCRYPTION_IDENTIFIER2 = /* @__PURE__ */ encodeSequence([encodeObjectIdentifier("1.2.840.113549.1.1.1"), encodeNull()]);
+function _underRsaEncryption(info, options) {
+  const fields = decodeAsn1(info.der, options).children.map((field) => field.bytes);
+  return encodeSequence([fields[0], RSA_ENCRYPTION_IDENTIFIER2, ...fields.slice(2)]);
 }
 async function decryptPrivateKey(der, options) {
   if (typeof options !== "object" || options === null) {
@@ -11176,7 +11333,7 @@ async function openPkcs12(der, options) {
     if (algorithm === void 0) {
       reasons.push(pkcs12KeyUnsupportedReason(
         bag.path,
-        `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${certificate.subjectPublicKeyInfo.kind === "ec" ? " on a curve Web Crypto does not sign with" : ""}, which Web Crypto cannot import as a signing key`
+        `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${_keyQualifier(certificate.subjectPublicKeyInfo.kind)}, which Web Crypto cannot import as a signing key`
       ));
       keys.push(Object.freeze({ ...entry, signingKey: void 0 }));
       continue;
@@ -11231,11 +11388,26 @@ function _openingReason(refused, path, scheme) {
       return inputMalformedReason(refused.code, refused.message, path);
   }
 }
+function _keyQualifier(kind) {
+  if (kind === "ec") return " on a curve Web Crypto does not sign with";
+  if (kind === "rsa-pss") return " whose RSASSA-PSS parameters name a digest or a mask generation function Web Crypto cannot express";
+  return "";
+}
 function _algorithmOf(certificate, rsa) {
   const spki = certificate.subjectPublicKeyInfo;
   switch (spki.kind) {
     case "rsa":
       return rsa ?? "unspecified";
+    case "rsa-pss": {
+      let hash;
+      try {
+        hash = _pssKeyHash(spki);
+      } catch (error) {
+        _pkiError(error);
+        return void 0;
+      }
+      return hash === void 0 ? rsa ?? "unspecified" : { name: "RSA-PSS", hash };
+    }
     case "ec":
       return spki.curve === void 0 ? void 0 : { name: "ECDSA", namedCurve: spki.curve, hash: CURVE_HASH[spki.curve] };
     case "ed25519":
@@ -11258,6 +11430,6 @@ function _report2(reasons, integrity, pkcs12, keys, certificates, crls) {
   });
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, shake256, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
