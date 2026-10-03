@@ -258,6 +258,114 @@ describe('verifyCertificateChain', () => {
             }
         }, 120_000);
 
+        /** A self-signed CA under `cn`, its key kept, so a second certificate for the same key can be made. */
+        async function selfSigned(cn: string, serial: bigint): Promise<Material & { readonly pair: webcrypto.CryptoKeyPair }> {
+            const seed = await issue({ subject: cn, issuerDer: encodeSequence([]), ca: true, serial });
+            return issue({ subject: cn, issuerDer: seed.certificate.subject.der, signer: seed.key, pair: seed.pair, ca: true, serial });
+        }
+
+        it('should find the path through the second of two anchors sharing a name, verifying only the links it tried', async () => {
+            // Two roots under one name — a key rollover — and the leaf's ICA
+            // signed by the second. §6.1.1 (a) judges [leaf, ICA] against the
+            // first anchor by name and refuses it, so the search has to extend
+            // into the anchors themselves: that link is one the index must hold.
+            // Same-name decoys of the ICA follow it in the bag; none is tried.
+            const oldRoot = await selfSigned('Verify Root', 1n);
+            const newRoot = await selfSigned('Verify Root', 2n);
+            const ica = await issue({ subject: 'Verify ICA', issuerDer: newRoot.certificate.subject.der, signer: newRoot.key, ca: true, serial: 3n });
+            const leaf = await issue({ subject: 'leaf.example', issuerDer: ica.certificate.subject.der, signer: ica.key, ca: false, serial: 4n, host: 'leaf.example' });
+            const decoys: Certificate[] = [];
+            for (let i = 0; i < 5; i += 1) decoys.push((await issue({ subject: 'Verify ICA', issuerDer: ica.certificate.subject.der, ca: true, serial: BigInt(50 + i) })).certificate);
+            const report = await verifyCertificateChain({
+                leaf: leaf.certificate, candidates: [ica.certificate, ...decoys], trustAnchors: [oldRoot.certificate, newRoot.certificate], at: AT,
+            });
+            expect(codes(report)).toEqual([]);
+            expect(report.path.map((c) => c.serialNumber.hex)).toEqual(['04', '03', '02']);
+            // leaf → ICA, ICA → old root (refused), ICA → new root: three links, no decoy.
+            expect(report.signatureVerifications).toBe(3);
+        });
+
+        it('should spend the exploration budget exactly as the builder does when the anchor is in the bag too', async () => {
+            // The real root sits in `candidates` as well as in `trustAnchors`, a
+            // decoy under the ICA's name leads to it first, and the budget is the
+            // builder's exact need: an index that listed the anchor twice would
+            // spend one exploration more and stop a link short of the path.
+            const root = await selfSigned('Verify Root', 1n);
+            const decoy = await issue({ subject: 'Verify ICA', issuerDer: root.certificate.subject.der, ca: true, serial: 2n });
+            const ica = await issue({ subject: 'Verify ICA', issuerDer: root.certificate.subject.der, signer: root.key, ca: true, serial: 3n });
+            const leaf = await issue({ subject: 'leaf.example', issuerDer: ica.certificate.subject.der, signer: ica.key, ca: false, serial: 4n, host: 'leaf.example' });
+            const input = { leaf: leaf.certificate, candidates: [decoy.certificate, ica.certificate, root.certificate], trustAnchors: [root.certificate], at: AT };
+            const unbounded = await verifyCertificateChain(input);
+            expect(codes(unbounded)).toEqual([]);
+            expect(unbounded.explored).toBe(4);
+            const exact = await verifyCertificateChain({ ...input, limits: { maxPathsExplored: unbounded.explored } });
+            expect(codes(exact)).toEqual([]);
+            expect(exact.explored).toBe(4);
+            expect(exact.signatureVerifications).toBe(unbounded.signatureVerifications);
+            const short = await verifyCertificateChain({ ...input, limits: { maxPathsExplored: unbounded.explored - 1 } });
+            expect(codes(short)).toContain('PKI_REASON_LIMIT_EXCEEDED');
+        });
+
+        it('should find the path through a small bag of decoys with the budget the builder needs, and not one less', async () => {
+            // Three same-name decoys before the real ICA: the search descends into
+            // every arrangement of them before it reaches the ICA, and the budget
+            // is set to exactly that count — a search counting faster than the
+            // builder would give up a link short.
+            const { root, leaf, bag } = await hostileBag(3, false);
+            const unbounded = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT });
+            expect(codes(unbounded)).toEqual([]);
+            const exact = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits: { maxPathsExplored: unbounded.explored } });
+            expect(codes(exact)).toEqual([]);
+            expect(exact.explored).toBe(unbounded.explored);
+            expect(exact.signatureVerifications).toBe(unbounded.signatureVerifications);
+            const short = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits: { maxPathsExplored: unbounded.explored - 1 } });
+            expect(codes(short)).toContain('PKI_REASON_LIMIT_EXCEEDED');
+        });
+
+        it('should cut the search at maxChainLength exactly where the builder does, and find the path with the budget that cut leaves', async () => {
+            // Three same-name decoys, each naming the ICA's name as issuer, then
+            // the ICA: with chains of at most three (the anchor counted), every
+            // decoy is tried under the leaf and extended one level — into the
+            // other two and into the ICA — and cut there; then the ICA itself.
+            // 1 + 3 × (1 + 3) + 1 = 14 explorations, and fourteen links: the
+            // decoys' twelve, leaf → ICA, ICA → root. A search that cut a level
+            // later, or not at all, or gave up at its first cut, would spend
+            // that exact budget elsewhere and leave the builder a link short.
+            const { root, leaf, bag } = await hostileBag(3, false);
+            const limits = { maxChainLength: 3 };
+            const report = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits });
+            expect(codes(report)).toEqual([]);
+            expect(report.path).toHaveLength(3);
+            expect(report.explored).toBe(14);
+            expect(report.signatureVerifications).toBe(14);
+            const exact = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits: { ...limits, maxPathsExplored: 14 } });
+            expect(codes(exact)).toEqual([]);
+            expect(exact.signatureVerifications).toBe(14);
+            const short = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, limits: { ...limits, maxPathsExplored: 13 } });
+            expect(codes(short)).toContain('PKI_REASON_LIMIT_EXCEEDED');
+        });
+
+        it('should stop at an anchor it reaches by name and key, verifying nothing past it', async () => {
+            // An expired leaf, so nothing is accepted and the whole bag is
+            // walked; the bag holds a second certificate for the root's key — the
+            // same anchor by name and key, another encoding — which ends a chain
+            // as the anchor itself does. Two links are judged: the leaf against
+            // each root; neither root is extended into the other.
+            const root = await selfSigned('Verify Root', 1n);
+            const variant = await issue({ subject: 'Verify Root', issuerDer: root.certificate.subject.der, signer: root.key, pair: root.pair, ca: true, serial: 2n });
+            const leaf = await issue({ subject: 'leaf.example', issuerDer: root.certificate.subject.der, signer: root.key, ca: false, serial: 3n, notAfter: AT - DAY / 2 });
+            const report = await verifyCertificateChain({ leaf: leaf.certificate, candidates: [variant.certificate], trustAnchors: [root.certificate], at: AT });
+            expect(codes(report)).toContain('PKI_REASON_EXPIRED');
+            expect(report.signatureVerifications).toBe(2);
+        });
+
+        it('should stop at the first accepted path when a purpose is required, as the builder does', async () => {
+            const { root, leaf, bag } = await hostileBag(39, true);
+            const report = await verifyCertificateChain({ leaf, candidates: bag, trustAnchors: [root], at: AT, purposes: [KEY_PURPOSES.serverAuth] });
+            expect(codes(report)).toEqual([]);
+            expect(report.signatureVerifications).toBe(2);
+        });
+
         it('should ask for the leaf\'s own link to the anchor it names, and nothing when the chain may not grow', async () => {
             // §6.1.1 (a): a leaf directly under an anchor is judged against that
             // anchor without the walk extending into it, so that one signature
