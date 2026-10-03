@@ -612,6 +612,7 @@ describe('parseOcspResponse — what a response says about itself (RFC 6960 §4.
         ['the version 1 (a v2 that does not exist)', universal(2, [0x01]), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'declares the version 0x01'],
         ['a two-octet zero', universal(2, [0x00, 0x00]), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'declares the version 0x0000'],
         ['a NULL where the INTEGER goes', universal(5, []), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'holds no INTEGER'],
+        ['a [2] holding a zero where the INTEGER goes', tlv(2, false, 2, [0x00]), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'holds no INTEGER'],
         ['nothing inside the [0]', new Uint8Array(0), 'PKI_DIAG_OCSP_VERSION_NOT_V1', 'holds no INTEGER'],
     ])('should diagnose an explicit ResponseData version that is %s, and read the response as v1 (RFC 6960 §4.2.2.3)', (_, inner, code, detail) => {
         const { basic, diagnostics } = seen(responseOf(tbsOf(tlv(2, true, 0, inner))));
