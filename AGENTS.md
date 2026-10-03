@@ -1,27 +1,28 @@
 # AGENTS.md
 
-Condensed, editor-agnostic guidance for AI coding agents (Cursor, Aider, Claude Code, Copilot, Continue, Zed, Cline, Windsurf, Goose, Gemini CLI, …).
-Canonical detail: [.github/copilot-instructions.md](.github/copilot-instructions.md) + [.github/instructions/](.github/instructions/). Claude Code loads [CLAUDE.md](CLAUDE.md), which imports this file. Keep the three consistent.
+Editor-agnostic guidance for AI coding agents. Detail: [.github/copilot-instructions.md](.github/copilot-instructions.md) + [.github/instructions/](.github/instructions/) (one file per area, table below).
+Claude Code loads [CLAUDE.md](CLAUDE.md), which imports this file.
 
 ## Mission and constraints
 
-pkinative is a zero-runtime-dependency TypeScript toolkit for public-key infrastructure data: ITU-T X.690 DER/BER, RFC 7468 PEM, object identifiers and RFC 5280 X.509 certificates.
-Third library of the *native* family, under the doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
+pkinative is a zero-runtime-dependency TypeScript toolkit for PKI data — X.690 DER/BER, RFC 7468 PEM, OIDs, RFC 5280 certificates, paths and revocation, CMS and timestamps, PKCS#8/#12 —
+third library of the *native* family ([pdfnative](https://github.com/Nizoka/pdfnative), [zipnative](https://github.com/Nizoka/zipnative)).
 
-- **Zero deps.** Never add a runtime dependency. Dev deps need a written justification.
-- **No secret-dependent cryptography.** No key generation, no arithmetic on secret material, no signing algorithm in TypeScript: signing and verification are one call to Web Crypto with the caller's key. Hashing covers public data.
-- **No classes, no module-level side effects.** Closure factories return interfaces; the only classes are the `PkiError` family in `src/types/pki-errors.ts`. `sideEffects: false` is probed.
-- **TypeScript strict** plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`. No `any`; ESM-first; `.js` import extensions; one entry point, `src/index.ts`.
+- **Zero deps.** Never add a runtime dependency; a dev dependency needs a written justification.
+- **No secret-dependent cryptography.** No key generation, no arithmetic on secrets, no signature algorithm in TypeScript: signing and verification are one Web Crypto call with the caller's key;
+  hashing covers public data only.
+- **No classes, no module-level side effects.** Closure factories; the only classes are the `PkiError` family (`src/types/pki-errors.ts`).
+- **TypeScript strict** + `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`; no `any`; ESM-first; `.js` import extensions; one entry point, `src/index.ts`.
 - **Untrusted input everywhere.** Every loop over input bytes consults a named, CWE-tagged limit (`src/core/pki-limits.ts`); the decoder is iterative; DER is strict by default.
-- **Throw or diagnose, never both.** Structural failures throw a `PkiError` subclass with a stable `code` and a message that starts with `pkinative: ` and names the remedy.
-  Conformance concerns go through `src/core/pki-diagnostics.ts`, the only module that may call `console.warn` (`onDiagnostic` redirects, `strict` escalates).
-- **No I/O in the engine.** No `node:` imports, no `process`, no filesystem, no network, no `eval`, no dynamic `import()` — decided from the syntax tree by `tests/tools/architecture.test.ts`.
-- **Human-in-the-loop.** Agents draft and verify; the maintainer pushes, opens PRs/issues and publishes (see Governance).
-- **English everywhere.** Code, comments, messages, tests, docs and release notes; another language only as demonstrated content marked `demo-language: <tag> (reason)`.
+- **Throw or diagnose, never both.** Structural failures throw a `PkiError` subclass (stable `code`, message `pkinative: …` naming the remedy).
+  Conformance concerns go through `src/core/pki-diagnostics.ts`, the only module that may `console.warn` (`onDiagnostic` redirects; `strict: true` refuses `warning` diagnostics, still reports `info`).
+- **No I/O in the engine.** No `node:` imports, `process`, filesystem, network, `eval`, dynamic `import()` — `tests/tools/architecture.test.ts` decides from the syntax tree.
+- **Human-in-the-loop.** Agents draft and verify; the maintainer pushes, tags, opens PRs/issues and publishes.
+- **English everywhere**; another language only as demonstrated content marked `demo-language: <tag> (reason)`.
 
 ## The gate
 
-`npm run gate` is THE quality gate (`scripts/gate.ts`; the step list is its `STEPS` table). Logs land in `test-output/.gate/<step>.log`; the summary is at most 20 lines.
+`scripts/gate.ts` (`STEPS` is the list); logs in `test-output/.gate/<step>.log`, summary ≤ 20 lines.
 
 | Profile | Command | Runs |
 |---|---|---|
@@ -29,29 +30,30 @@ Third library of the *native* family, under the doctrine of [pdfnative](https://
 | CI — the default | `npm run gate` | the CI profile |
 | Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | everything |
 
-`npx tsx scripts/gate.ts --only <step>` runs one step, `--json` emits machine-readable output. One suite: `npx vitest run tests/<path>.test.ts` (dot reporter).
+`--only <step>`, `--json`. One suite: `npx vitest run tests/<path>.test.ts`.
+After a change under `src/`: `npm run mutate -- --files <files>` → 100 % killed (a survivor is a test or an argued entry in `scripts/data/mutation-equivalents.json`).
+Conformance L0–L8: `npm run build`, then `npx tsx scripts/validate-certs.ts` (it loads `dist/`).
 
 ## Where is what
 
-| Path | Purpose | Read first |
+| Path | Purpose | Read first (`.github/instructions/`) |
 |---|---|---|
-| `src/types/` | Error classes and their code unions, public types | `.github/instructions/api-design.instructions.md` |
-| `src/core/` | Named limits, the diagnostics sink, byte, text and base64 helpers | `.github/instructions/security.instructions.md` |
-| `src/asn1/` | X.690 decoder (iterative, DER or BER), value readers, time, OID codec, encoders | `.github/instructions/pki-core.instructions.md` |
-| `src/pem/` | RFC 7468 decode and encode | `.github/instructions/pki-core.instructions.md` |
-| `src/oid/` | OID name registry — data that only `getOidName` pulls in | `.github/instructions/pki-core.instructions.md` |
-| `src/hash/` | SHA-1/256/384/512 over public data, certificate fingerprints | `.github/instructions/performance.instructions.md` |
-| `src/x509/` | RFC 5280 certificates: envelope, names, general names, SPKI, every standard extension | `.github/instructions/pki-core.instructions.md` |
-| `src/crypto/` | The Web Crypto boundary, the algorithm tables, the DER ↔ P1363 converter, signature verification | `.github/instructions/security.instructions.md` |
-| `src/build/` | Structural encoders, and certificates and CSRs signed through Web Crypto | `.github/instructions/pki-core.instructions.md` |
-| `src/path/`, `src/revocation/`, `src/cms/`, `src/keys/`, `src/verify/` | §6 paths, §5 revocation, CMS, TSP, PKCS#8/#12; `verify/` composes them and alone turns a `PkiError` into a reason | `.github/instructions/pki-core.instructions.md` |
-| `tests/` | Vitest suites mirroring `src/`, plus fuzzing, property, conformance, tools and docs suites | `.github/instructions/testing.instructions.md` |
-| `scripts/` | The gate, verify-docs (engine + `verify-docs/rules/`), generators, the conformance runner | this file |
-| `docs/` | pkinative.dev sources: guides, data registries, llms files, `assets/ecosystem.json` | `.github/instructions/api-design.instructions.md` |
+| `src/types/` | `PkiError` family, code unions, public types | `api-design` |
+| `src/core/` | Limits, diagnostics sink, bytes/text/base64 | `security` |
+| `src/asn1/`, `src/pem/`, `src/oid/` | X.690 decoder and readers, time, OID codec, encoders; RFC 7468; OID names | `pki-core` |
+| `src/hash/` | Hashes over public data, fingerprints | `performance` |
+| `src/x509/` | RFC 5280 certificates and requests: envelope, names, SPKI, every extension | `pki-core` |
+| `src/crypto/`, `src/keys/` | The Web Crypto door, algorithm tables, DER ↔ P1363; PKCS#8/#12 | `security` |
+| `src/build/`, `src/cms/` | Structural encoders, signed certificates and CSRs; RFC 5652 and RFC 3161 | `pki-core` |
+| `src/path/`, `src/revocation/`, `src/verify/` | §6 paths, §5 revocation, OCSP; `verify/` composes them and alone turns a `PkiError` into a reason | `decision` |
+| `src/index.ts` | The single entry point, ten numbered sections | `api-design` |
+| `tests/` | Suites mirroring `src/`, plus fuzzing, security, property, performance, conformance, tools, docs | `testing` |
+| `scripts/`, `.github/` | Gate, verify-docs rules, generators, conformance and mutation runners; workflows, governance | `tooling` |
+| `docs/` | pkinative.dev: guides, `data/` registries, llms files, `assets/ecosystem.json` | `api-design` |
 
 ## Architecture
 
-Strict layering, enforced from `LAYERS` in `scripts/lib/architecture.ts`; `verify:docs` rules `layer-parity` and `copilot-layer-parity` hold this diagram, and the Copilot file's, to it:
+Layering enforced from `LAYERS` in `scripts/lib/architecture.ts` (`layer-parity` holds this diagram to it):
 
 ```
 types  → (nothing)
@@ -70,51 +72,38 @@ keys   → types, core, asn1, crypto
 verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 ```
 
-`src/index.ts` imports every layer; nothing imports it. **Sanctioned reverse edges: none.** A new layer or edge changes `LAYERS` and this diagram first, in its own reviewed commit.
-`x509` never imports `oid`, `pem` never imports `asn1`, **neither `crypto` nor `build` imports `x509`**; `path` and `cms` never import `crypto` (verdicts arrive precomputed); `keys` never imports `x509` (certificate bags leave as DER).
-**Web Crypto has one door.** Only `src/crypto/webcrypto.ts` names `importKey`, `verify`, `sign`, `deriveKey`, `unwrapKey`, `decrypt`; `KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt`, `wrapKey` forever.
+`src/index.ts` imports every layer; nothing imports it. **No reverse edges**; a new edge changes `LAYERS` and this diagram first, in its own commit.
+`x509` never imports `oid`, `pem` never `asn1`, `crypto`/`build` never `x509`, `path`/`cms` never `crypto` (verdicts arrive precomputed), `keys` never `x509`.
+**Web Crypto has one door**, `src/crypto/webcrypto.ts`: the only module naming `importKey`, `verify`, `sign`, `deriveKey`, `unwrapKey`, `decrypt`;
+`KEY_OPERATION_POLICY` refuses `generateKey`, `exportKey`, `deriveBits`, `encrypt`, `wrapKey` forever.
 
 ## Conventions
 
-- `verbNoun` functions, `PascalCase` types, `UPPER_SNAKE` constants, `_prefixed` internals; options object last: `fn(data, options?)`; explicit return types on every export.
-- Error codes `PKI_<SUBJECT>_<CONDITION>` in `docs/data/errors.json`; diagnostic codes `PKI_DIAG_<SUBJECT>_<CONDITION>` in `docs/data/diagnostics.json`; both checked both ways by `verify:docs`.
-- Decoded values are `readonly`, with zero-copy `Uint8Array` views of the input; times are `epochMilliseconds`; `bigint` only for INTEGER values and oversized OID arcs.
-- Every public export has TSDoc with `@param`, `@returns` and `@throws`; `docs/assets/api.json` is generated from it.
-- Module header `/** pkinative — Title\n ===\n … */`, section dividers `// ── Name ──`, `/*#__PURE__*/` on module-level constant construction.
+- `verbNoun` functions, `PascalCase` types, `UPPER_SNAKE` constants, `_prefixed` internals; `fn(data, options?)`; explicit return types;
+  TSDoc `@param`/`@returns`/`@throws` on every export (`docs/assets/api.json` is generated from it).
+- Codes `PKI_<SUBJECT>_<CONDITION>` in `docs/data/errors.json` (frozen vocabulary), `PKI_DIAG_…` in `docs/data/diagnostics.json` (additions-only),
+  `PKI_REASON_…` in `docs/data/reasons.json`; `verify:docs` checks each both ways.
+- Decoded values `readonly`, zero-copy `Uint8Array` views; times `epochMilliseconds`; `bigint` only for INTEGERs and oversized arcs;
+  `isBytes` (`src/core/bytes.ts`) never `instanceof Uint8Array`; a catch binds its error and passes through `_pkiError`.
+- Module header `/** pkinative — Title\n ===\n … */`, dividers `// ── Name ──`, `/*#__PURE__*/` on module-level constants.
+- **Find a symbol:** public → grep `docs/assets/api.json` for `"name":"<Export>"` (lists its `module`); internal → grep `^export function <name>` in `src/`.
 
-**Finding a symbol:** public export → grep `docs/assets/api.json` for `"name":"<Export>"` (each lists its `module`); internal → grep `^export function <name>` in `src/`. README.md and ROADMAP.md: `grep -n "^## "` first.
+## Never touch / regenerate instead
 
-## Never touch
+- `release-notes/v*.md` of tagged versions; `tests/fixtures/**` (foreign provenance); SHA pins in `.github/workflows/*.yml` (Dependabot); `package-lock.json` (npm);
+  `dist/`, `coverage/`, `test-output/`, `node_modules/`.
+- Generated: `docs/assets/api.json` + llms files + playground (`npm run docs:*`); `docs/assets/api.frozen.json`, `docs/data/{errors,refusals}.frozen.json` (`scripts/build-*-frozen.ts --ratchet`);
+  `scripts/data/limbo-*.json` (`validate-certs.ts --update-baseline`, review each entry); `scripts/data/output-bytes.json` (`verify-samples.ts --update-baseline`); `.claude/rules/*.md` (`npm run agents:rules`).
 
-- `release-notes/v*.md` of already-tagged versions (read-only history); `dist/`, `coverage/`, `test-output/`, `node_modules/`, `package-lock.json` (npm owns it), and every generated file below: regenerate, never hand-edit.
-- `tests/fixtures/**` committed certificates (foreign provenance — regenerating them locally destroys the point) and the SHA pins in `.github/workflows/*.yml` (Dependabot owns bumps).
+## Counts, versions, traceability
 
-## Generated files
+`docs/assets/ecosystem.json` is the source of every count, version and contract quoted in the docs (`verify:docs` enforces).
+Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable branch is removed or carries a justified `v8 ignore`.
+`scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) give every MUST/SHOULD sentence a status naming its test or a closed-list exclusion reason.
 
-| File | Regenerate with |
-|---|---|
-| `docs/assets/api.json` | `npm run docs:api` (from the TSDoc of every export of `src/index.ts`) |
-| `scripts/data/limbo-refusals.json` | `npx tsx scripts/validate-certs.ts --update-baseline` — then review every changed entry |
-| `dist/`, `coverage/`, `test-output/` | `npm run build`, `npm run test:coverage`, `npm run gate` |
+## Releasing and governance
 
-## Counts and versions
-
-`docs/assets/ecosystem.json` is the source of every count, version, milestone and contract quoted in the docs; run `npm run verify:docs` after touching any of them.
-Coverage thresholds live once, in `vitest.config.ts`: 100 % on all four axes, no per-path override. An unreachable branch is removed by construction, or carries a justified `v8 ignore` that `declared.coverageIgnores` counts.
-
-## Releasing
-
-Follow CONTRIBUTING.md §Release; Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `chore:`); every runtime change gets a [ROADMAP.md](ROADMAP.md) entry and a line in the next `release-notes/vX.Y.Z.md`.
-Downstream-impacting changes (new public APIs, removed APIs, behaviour shifts, new error codes) must be documented in the **Downstream integration notes** section of the relevant release note.
+CONTRIBUTING.md §Release; Conventional Commits; every runtime change gets a ROADMAP.md entry and a line in the next `release-notes/vX.Y.Z.md`, downstream-visible ones under **Downstream integration notes**.
 Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.
-
-## Governance
-
-Human-in-the-loop, enforced: agents never push, never open PRs/issues/releases, never publish, and never add `Co-Authored-By` trailers.
-Protocol: [.github/AGENT_RULES.md](.github/AGENT_RULES.md); machine-readable policy: [.github/ai-governance.json](.github/ai-governance.json).
-Issue drafts go to `.github/drafts/` and are validated with `npm run verify:issue` before a human submits them. Security findings follow [SECURITY.md](SECURITY.md), never a public draft.
-
-## Ecosystem
-
-- [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project, whose PAdES/LTV stack is pkinative's origin; adopting pkinative is pdfnative's own milestone.
-- [zipnative](https://github.com/Nizoka/zipnative) — the sibling whose error vocabulary, limits and conformance-gate patterns pkinative inherits.
+Human-in-the-loop, enforced: agents never push, tag, open PRs/issues/releases, publish, or add `Co-Authored-By`.
+Protocol [.github/AGENT_RULES.md](.github/AGENT_RULES.md), policy [.github/ai-governance.json](.github/ai-governance.json); issue drafts in `.github/drafts/` (`npm run verify:issue`); security findings follow SECURITY.md.

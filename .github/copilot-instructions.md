@@ -33,13 +33,14 @@ caller's key, and `src/crypto/webcrypto.ts` is the only module that names a Web 
 | `src/x509/` | Certificate envelope, names, general names, SPKI, every standard extension | `pki-core.instructions.md` |
 | `src/crypto/` | The Web Crypto boundary, algorithm tables, DER ↔ P1363, signature verification | `security.instructions.md` |
 | `src/build/` | Structural encoders; certificates and CSRs signed through Web Crypto | `pki-core.instructions.md` |
-| `src/path/` | RFC 5280 §6 path building and validation, host names, key purposes | `pki-core.instructions.md` |
-| `src/revocation/` | RFC 5280 §5 CRLs and RFC 6960 OCSP | `pki-core.instructions.md` |
+| `src/path/` | RFC 5280 §6 path building and validation, host names, key purposes | `decision.instructions.md` |
+| `src/revocation/` | RFC 5280 §5 CRLs and RFC 6960 OCSP | `decision.instructions.md` |
 | `src/cms/` | RFC 5652 SignedData and RFC 3161 timestamps | `pki-core.instructions.md` |
 | `src/keys/` | PKCS#8 and PKCS#12 under PBES2 | `security.instructions.md` |
-| `src/verify/` | The one-call reports; the only layer that turns a `PkiError` into a reason | `pki-core.instructions.md` |
+| `src/verify/` | The one-call reports; the only layer that turns a `PkiError` into a reason | `decision.instructions.md` |
 | `src/index.ts` | The single public entry point | `api-design.instructions.md` |
-| `tests/` | Unit, fuzzing, property, conformance, tools, docs | `testing.instructions.md` |
+| `tests/` | Unit, fuzzing, security, property, performance, conformance, tools, docs | `testing.instructions.md` |
+| `scripts/`, `.github/` | The gate, verify-docs, generators, the conformance and mutation runners; workflows and governance | `tooling.instructions.md` |
 
 The dependency rules, which `LAYERS` in `scripts/lib/architecture.ts` defines and the `copilot-layer-parity` rule holds this block to:
 
@@ -97,7 +98,7 @@ npm run agents:rules       # regenerate .claude/rules/ from .github/instructions
 - Coverage: 100 % statements, branches, functions and lines, with no per-path override; an unreachable branch carries a justified `v8 ignore` counted by `declared.coverageIgnores`
 - Every error code and diagnostic raised by at least one test; every limit tripped by a fuzzing test
 - Zero runtime dependencies — `npm ls --omit=dev --all` lists pkinative alone
-- The conformance gate, L0 to L8, passes on the pinned x509-limbo, Wycheproof and NIST PKITS corpora and the pinned text of RFC 5280
+- The conformance gate, L0 to L8, passes on the pinned x509-limbo, Wycheproof and NIST PKITS corpora and the pinned texts of RFC 5280, 5652, 3161, 6960, 7292 and 7468
 
 ## Conventions
 

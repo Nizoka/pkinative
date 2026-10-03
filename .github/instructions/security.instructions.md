@@ -24,6 +24,12 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
   anything but a `PkiError`. A bare `catch {}` is allowed only in a capability probe listed in `BARE_CATCH_PROBES`
   (`scripts/lib/architecture.ts`) with its reason, opening with a `// capability probe: …` comment;
   `tests/tools/architecture.test.ts` enforces both from the syntax tree.
+- **Bytes are `isBytes`, never `instanceof Uint8Array`** (`src/core/bytes.ts`): a view from another realm is still bytes; the
+  architecture test forbids the `instanceof` outside that module.
+- **An algorithm the host lacks is a verdict, never a throw.** `importKey` refusing a curve (Ed448 on Bun or Chromium) yields the
+  unsupported reason; a key whose own AlgorithmIdentifier the host cannot import (id-RSASSA-PSS) is re-wrapped as
+  rsaEncryption **after** its RFC 4055 parameters have been checked against the signature — Web Crypto never sees
+  parameters it would ignore.
 - **No object keys from input.** Decoded names and OIDs go into arrays or `Map`s, never into plain object keys
   (prototype pollution, CWE-1321).
 - **No secret-dependent cryptography, ever.** `src/` holds no modular exponentiation, no elliptic-curve scalar

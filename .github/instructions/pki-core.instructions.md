@@ -1,6 +1,6 @@
 ---
-description: "Use when working on the ASN.1 decoder and encoder, PEM, OIDs or X.509 parsing. Covers the standards, the strictness policy and the module boundaries."
-applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**"
+description: "Use when working on the ASN.1 decoder and encoder, PEM, OIDs, X.509 parsing, the structural builders or CMS/TSP. Covers the standards, the strictness policy and the module boundaries."
+applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**,src/build/**,src/cms/**"
 ---
 # PKI Core Standards
 
@@ -13,6 +13,9 @@ applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**"
 | Names | RFC 4514 | §2 string representation of distinguished names |
 | Algorithms | RFC 3279, RFC 4055, RFC 5480, RFC 8410, RFC 9814 | parameters of RSA, RSA-PSS, EC, EdDSA, ML-DSA keys |
 | IP in names | RFC 5280 §4.2.1.6 / §4.2.1.10 | 4 or 16 octets; doubled with a mask in name constraints |
+| CMS, timestamps | RFC 5652, RFC 3161, RFC 5035, RFC 8419 | §5 SignedData, §11 attributes; TSTInfo and the imprint; ESSCertIDv2; EdDSA digests |
+
+Each RFC with an inventory in `scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) has every MUST/SHOULD sentence given a status; a new check names its sentence there, and a sentence left unchecked carries a closed-list reason.
 
 ## Decoder policy
 - `encodingRules: 'der'` (default) refuses: indefinite length, non-minimal length, constructed strings,

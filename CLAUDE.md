@@ -6,50 +6,33 @@ Everything in AGENTS.md applies. This file adds only what is specific to Claude 
 
 ## Token discipline
 
-- Run tests through `npm run gate:fast` or `npx vitest run <file>` (the dot reporter is configured); never paste a full test run into context.
-- Never Read `coverage/`, `dist/`, `test-output/`, `node_modules/`, `package-lock.json`, `docs/llms-full.txt`, `docs/llms-index.json`.
-  The deny list in `.claude/settings.json` applies to Read and, at best effort, to Grep/Glob — prefer `docs/assets/api.json` lookups over searching them.
-- Find an export's module by grepping `docs/assets/api.json` (each export lists its `module`); find internal symbols with Grep `^export function <name>` in `src/`.
-- Read README.md and ROADMAP.md by section: `grep -n "^## "` first, then a line range. CHANGELOG.md: only the top entry.
-- `.github/instructions/*.md` are the per-area rules: open the ONE matching the area you touch (table in AGENTS.md §Where is what), not all of them.
-- In plan mode, summarise gate output; do not paste logs.
-- Conformance corpora are downloaded into `test-output/corpora/` — never read them whole; query them with the conformance runner.
-- Never push, never open PRs/issues/releases (HITL policy, hook-enforced). No `Co-Authored-By` trailers (`attribution.commit` is `""`).
-
-## Gate
-
-- `npm run gate:fast` — typecheck:all, lint, test, verify:samples, verify:docs. Run before proposing a commit.
-- `npm run gate` — the CI profile (default).
-- `npx tsx scripts/gate.ts --publish --require-all` — everything. Release branches only.
-- `--only <step>` for one step, `--json` for machine output; logs in `test-output/.gate/<step>.log` — open only the failing step's log.
-- When the gate exceeds the Bash timeout, run it in the background; read the result with `--json` and open only the failing step's log.
-
-## Where to look first
-
-1. `docs/assets/api.json` — the public surface and the module of every export.
-2. AGENTS.md §Where is what — the path → purpose → instruction-file table.
-3. `docs/assets/ecosystem.json` — every count and version; `npm run verify:docs` enforces it.
-4. `docs/data/errors.json` — every error code, when it is raised, its remedy, standard and CWE.
+- Run tests through `npm run gate:fast` or `npx vitest run <file>` (dot reporter); never paste a test run or a gate log into context — the gate summary is ≤ 20 lines, and `test-output/.gate/<step>.log` is opened only for the failing step.
+- Never Read `coverage/`, `dist/`, `test-output/`, `node_modules/`, `package-lock.json`, `docs/llms-full.txt`, `docs/llms-index.json`, `docs/llms-recipes.txt`, `docs/playground/pkinative.js`,
+  `docs/assets/api.frozen.json`, `docs/data/refusals.frozen.json`, `scripts/data/limbo-refusals.json`, `scripts/data/limbo-score.json` — generated: regenerate them.
+  `.claude/settings.json` denies Read on them (Grep/Glob at best effort).
+- Large registries (`docs/assets/api.json`, `scripts/data/mutation-equivalents.json`, the requirement inventories) are queried with `node -e`, not opened.
+- Read README.md, ROADMAP.md, SECURITY.md by section (`grep -n "^## "`, then a line range); CHANGELOG.md: only the top entry.
+- Open the ONE `.github/instructions/*.md` for the area you touch (AGENTS.md §Where is what); the matching `.claude/rules/*.md` loads itself when you read a file in scope.
+- Conformance corpora live in `test-output/corpora/` — never read them; query them with `scripts/validate-certs.ts` (after `npm run build`: the runner loads `dist/`).
+- After any change under `src/`: `npm run mutate -- --files <changed files>` — 100 % killed; a survivor is a new test or an argued entry in `scripts/data/mutation-equivalents.json`, never ignored.
+- When a command exceeds the shell timeout, run it in the background and read only its summary (`--json` for the gate).
 
 ## Hooks and permissions in force
 
 - `.claude/hooks/guard.mjs` (PreToolUse on **Bash and PowerShell**) denies `npm publish`/`unpublish`/`deprecate`/`dist-tag`/`version <bump>`, `gh pr|issue create|edit|close|comment` (+ `pr merge`),
   `gh release`, writing `gh api`, any `git push`, `git tag <name>` and `git add --renormalize` — in the whole command, every `&&`/`;`/`|` segment, `$( )`/backticks and
   `sh -c`/`pwsh -Command`/`node -e`/`npx -c` payloads (a quoted string holding one is refused too — write such strings with Edit, never via echo/heredoc).
-  Those are submitted by the maintainer (.github/AGENT_RULES.md §5) — prepare, then stop. `tests/tools/guard.test.ts` is the rule table's contract.
-- `permissions.deny` in `.claude/settings.json` blocks Read on the generated bulk files listed above and a subset of the GitHub write commands, **once per shell tool** — a family denied for one shell and allowed for another is not denied.
+  Those are the maintainer's acts (.github/AGENT_RULES.md §5) — prepare, then stop. `tests/tools/guard.test.ts` is the rule table's contract.
+  No `Co-Authored-By` trailers (`attribution.commit` is `""`).
+- `permissions.deny` in `.claude/settings.json` blocks Read on the files above and a subset of the GitHub write commands, **once per shell tool** —
+  a family denied for one shell and allowed for another is not denied.
   `permissions.allow` pre-approves `npm run`, `npx vitest`, `npx tsx scripts/*`, `npx tsc`, `npx eslint`, `node -e` and read-only git, likewise per tool.
   `GUARDED_SHELL_TOOLS` (`scripts/lib/agent-config.ts`) is the list; `agent-config-parity` fails on a tool missing either half.
 
-## Plan mode
-
-Plans name the files, the commands and the expected gate outcome; keep gate output to its ≤ 20-line summary.
-
-## Rules
+## Rules and plans
 
 - `.claude/rules/*.md` are generated from `.github/instructions/*.instructions.md` by `npm run agents:rules` (scoped by `paths:` = the source `applyTo`).
-  Never edit a rule: edit the instruction file, then regenerate (`verify:docs` rule `claude-rules-sync` fails on drift).
-
-## Release
-
-Follow CONTRIBUTING.md §Release: prepare everything (version, changelog, release note, manifest, the publish gate) and stop before tagging or pushing.
+  Never edit a rule: edit the instruction file, then regenerate (`claude-rules-sync` fails on drift).
+- Plans name the files, the commands and the expected gate outcome, and summarise gate output.
+- Parallel work: one worktree per lot (`git worktree add -b <branch> D:\Github\pkinative-<x> HEAD`, junctions `node_modules` and `dist` —
+  shared `dist` means no build or conformance run inside a worktree); unlink every junction before `git worktree remove`.

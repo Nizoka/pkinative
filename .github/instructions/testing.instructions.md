@@ -14,18 +14,14 @@ applyTo: "tests/**"
 ## Test Organization
 ```
 tests/
-├── core/           # errors, limits, diagnostics, bytes, text, base64
-├── asn1/           # decoder, value readers, time, OID codec, encoders
-├── pem/            # RFC 7468 strict and lax
-├── hash/           # SHA-1/256/384/512 known answers, fingerprints
-├── oid/            # registry integrity
-├── x509/           # certificate envelope, names, general names, SPKI, every extension
-├── fuzzing/        # one file per adversarial class, seeded, fixed budgets
+├── core/ asn1/ pem/ oid/ hash/ x509/ crypto/ build/ path/ revocation/ cms/ keys/ verify/   # one directory per src/ layer
+├── fuzzing/        # one file per adversarial class, seeded, fixed budgets; reports.test.ts: every report function always resolves
 ├── security/       # CVE-class replays, one test per published class, held to docs/data/cve-classes.json
-├── property/       # seeded round-trip properties (encode → decode → encode)
-├── conformance/    # offline differential against node:crypto
-├── tools/          # guard hook, workflows, agent config, architecture, verify-issue
-├── docs/           # verify-docs rules, recipes, fixture budget
+├── property/       # seeded round-trip and repeatability properties (encode → decode → encode; same input, same bytes)
+├── performance/    # a time budget per named limit (library time only); excluded from the mutation runner
+├── conformance/    # offline differential against node:crypto and the pinned corpora' baselines
+├── tools/          # guard hook, workflows, agent config, architecture, api-surface, mutate, verify-issue
+├── docs/           # verify-docs rules (one perturbation per rule), recipes, fixture budget
 ├── helpers/        # raw DER builder, PRNG, certificate templates — NEVER import src/
 └── fixtures/       # public certificates only, with PROVENANCE.md
 ```
@@ -36,7 +32,8 @@ tests/
 - Use `describe.each` / `it.each` for tables of vectors
 - No `any` in test code — type test inputs properly
 - **Assert the error code, never the message text**: `expect(() => f(x)).toThrow(expect.objectContaining({ code: 'PKI_ASN1_TRUNCATED' }))`, plus `instanceof` the class
-- Diagnostics: assert the code through `onDiagnostic` (and the throw under `strict`), never the `console.warn` text; every code asserted must exist in the registry
+- Diagnostics: assert the code through `onDiagnostic` (and, for a `warning`, the throw under `strict: true` — an `info` never throws), never the `console.warn` text; every code asserted must exist in the registry
+- Every public export is imported by at least one test outside `tests/helpers/` (`verify:docs` rule `export-exercised`)
 
 ## Known-Answer Vectors
 - Cite the source in the test name or a comment: `X.690 §8.19.5`, `RFC 7468 §5.1`, `FIPS 180-4`, `RFC 8410 §10.2`

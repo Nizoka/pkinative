@@ -78,7 +78,7 @@
           "tests": "tests/tools/guard.test.ts"
         }
       ],
-      "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, social images), and the HITL commands above denied once per shell tool — Bash(...) and PowerShell(...) — since a family denied for one and allowed for the other is not denied",
+      "permissions_deny": "Read on generated bulk files (package-lock.json, coverage/**, dist/**, test-output/**, node_modules/**, docs/llms-full.txt, docs/llms-index.json, docs/llms-recipes.txt, docs/playground/pkinative.js, the frozen snapshots api.frozen.json and refusals.frozen.json, the limbo baselines, social images), and the HITL commands above denied once per shell tool — Bash(...) and PowerShell(...) — since a family denied for one and allowed for the other is not denied",
       "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
       "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
       "skills": [

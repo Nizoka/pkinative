@@ -14,7 +14,7 @@ applyTo: "src/index.ts,src/types/**"
 - **Every new diagnostic code** goes in the `PkiDiagnosticCode` union AND in `docs/data/diagnostics.json` — the union is additions-only by contract
 
 ## Backward Compatibility
-- Pre-1.0: a minor release may change the API, and the release note says how under Downstream integration notes
+- 1.x: an addition is semver-minor and enters `docs/assets/api.frozen.json` through `scripts/build-api-frozen.ts --ratchet` at the release; a removal or a signature change is semver-major. Every downstream-visible change is written under the release note's Downstream integration notes
 - From 0.8.0 the error-code vocabulary is frozen: removing or renaming a code, or moving it to another class, is semver-major; adding one is semver-minor. `docs/data/errors.frozen.json` is the snapshot (`scripts/build-errors-frozen.ts` writes it, and refuses to once 0.8.0 is released); the `error-codes-frozen` rule of `verify:docs` fails on a frozen code that leaves the registry or its union, and on an addition whose `since` is not newer than `frozenAt`. Diagnostic codes are additions-only: a code is never renamed or removed, while its severity and wording may change in a minor
 - **The public surface is frozen by phase.** `docs/assets/api.frozen.json` (written by `scripts/build-api-frozen.ts`) holds every export's name, kind and canonical signature, and every reason code; the `api-surface-frozen` rule of `verify:docs` holds the sources to it:
   - `phase: "rehearsal"` (0.8.x–0.9.x): **any** addition, removal or signature change fails, and so does any error code outside `errors.frozen.json` or reason code outside the snapshot, whatever its `since` — ROADMAP 0.9's "zero new exports, zero new codes", made executable
@@ -41,13 +41,17 @@ applyTo: "src/index.ts,src/types/**"
 - Error codes: `PKI_<SUBJECT>_<CONDITION>`; diagnostic codes: `PKI_DIAG_<SUBJECT>_<CONDITION>`
 - Internal helpers: `_prefixed` or unexported
 
-## Export Categories (maintain grouping in index.ts)
+## Export Categories (maintain the numbered sections of index.ts, in this order)
 1. Errors, limits and diagnostics (`PkiError` family, `DEFAULT_PKI_LIMITS`, their types)
 2. ASN.1 — decoding, value readers, encoders
 3. OID — codec and registry
 4. PEM — decode and encode
-5. Fingerprints
-6. X.509 — certificate parsing, extensions, names
+5. Fingerprints and hashes over public data
+6. X.509 — certificate and certification-request parsing, extensions, names, public keys
+7. Certification path validation (RFC 5280 §6) and verification through Web Crypto
+8. Building — certificates and requests, signed through Web Crypto
+9. CMS signed messages and RFC 3161 timestamps
+10. Private keys — PKCS#8 and PKCS#12, under PBES2 only
 
 ## Documentation Requirements
 - README Quick Start must work as-is (copy-paste ready), and is executed by the recipes suite
