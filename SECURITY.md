@@ -297,3 +297,20 @@ We ask that you:
 1. Report vulnerabilities privately (see [Reporting a Vulnerability](#reporting-a-vulnerability))
 2. Allow the time above for a fix before public disclosure
 3. Do not exploit the vulnerability beyond what is necessary to demonstrate it, and do not access, modify or keep data that is not yours
+
+### ISO/IEC 29147 and 30111 self-assessment
+
+A self-assessment, by the one maintainer, of the process above against the clauses of ISO/IEC 29147:2018 (vulnerability disclosure) and ISO/IEC 30111:2019 (vulnerability handling). It is not a certification, and no second party has reviewed it: both standards describe an organisation's processes, and the evidence for each clause is the repository's own record. Clause numbers follow the published editions.
+
+| Clause | What it asks | Where it is met |
+|---|---|---|
+| 29147 §5 — disclosure policy | A published policy saying how to report, what to expect and when | This file, and the same contacts for machines at `docs/.well-known/security.txt` (RFC 9116), held to each other by the `security-txt-parity` rule |
+| 29147 §6.2 — receipt | Reports are acknowledged within a stated time | Receipt within 48 hours, by the channel the report came in on ([Disclosure Policy](#disclosure-policy)) |
+| 29147 §6.3 — verification | The report is reproduced or refuted, and the reporter kept informed | Verification within 7 days: reproduction, CVSS severity, the outcome and the planned dates told to the reporter; the reporter invited to review the fix in the advisory's private fork |
+| 29147 §6.5 — advisory | Remediation information is published | A GitHub Security Advisory with a CVE identifier, the affected and fixed versions, the severity, a workaround where one exists and the credit, the day of the release; a `### Security` entry in the release note and in CHANGELOG.md |
+| 29147 §7 — coordination | Other parties involved in the vulnerability are coordinated with | When the defect is the host's, the fix is the host's release and pkinative's part is its runtime floor: CVE-2026-21713 in Node.js Web Crypto moved `engines.node` to the first fixed release of each line ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md)), the precedent |
+| 30111 §7.1 — intake | Reports reach the handling process from every channel | Private vulnerability reporting and security@pkinative.dev, both in [Reporting a Vulnerability](#reporting-a-vulnerability) |
+| 30111 §7.2 — triage | The report is assessed and prioritised | The verification step, with CVSS; the report held against the CVE-class corpus `docs/data/cve-classes.json`, which says whether the class was known and what already locks it |
+| 30111 §7.3 — remediation | A fix is developed and verified | The fix and its locking test in the private fork; a CVE-class entry when the root cause is a class, so that the class cannot return unnoticed (the `cve-class-parity` rule holds the corpus to its tests) |
+| 30111 §7.4 — release | The remediation is delivered | A patch or minor of the latest 1.x line, with the advisory the day of the release, and the change named under the release note's Downstream integration notes |
+| 30111 §7.5 — post-release | Lessons are drawn and the remediation followed up | The root cause reviewed within the next minor; the class stays in the corpus, and the rule, test or limit that locks it is named in the release note |

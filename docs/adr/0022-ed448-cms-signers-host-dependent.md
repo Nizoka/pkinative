@@ -30,7 +30,7 @@ Chosen option: 2. `src/hash/shake256.ts` implements Keccak-f[1600] over 32-bit l
 
 Option 3 was rejected because Ed448 verification is elliptic-curve arithmetic, which ADR 0001 forbids in `src/` whatever the key's secrecy, and because it would make pkinative the one place where an algorithm verifies that the host refuses. Option 1 was rejected because the refusal rested on a digest nobody computed, and that reason no longer holds.
 
-`createSignedData` is unchanged: it still refuses to sign with Ed448, since signing needs the same digest at the builder and the builder's digest path goes through the host's `digest`. The DSA half of ADR 0004 is unchanged: DSA signatures, certificate or CMS, are not verified and never will be.
+`createSignedData` signs with Ed448 under the same condition (amended 2026-10-03, the lot after this record): the builder computes the `messageDigest` with `shake256` and signs through the host's `Ed448`, and a host without it refuses with `PKI_CRYPTO_KEY_UNSUPPORTED` from `signData`, the path every signing key the host rejects takes; the ESSCertIDv2 of `signingCertificateV2` keeps its default SHA-256, which every verifier computes, since `id-shake256` is a CMS digest and not one a certificate hash is checked with. The DSA half of ADR 0004 is unchanged: DSA signatures, certificate or CMS, are not verified and never will be.
 
 ### Consequences
 
