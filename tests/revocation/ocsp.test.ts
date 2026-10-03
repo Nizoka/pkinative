@@ -458,6 +458,123 @@ describe('parseOcspResponse — extensions and every structural refusal', () => 
     });
 });
 
+/** The offset of `needle` in `haystack` — an oracle independent of the parser. */
+function offsetOf(haystack: Uint8Array, needle: Uint8Array): number {
+    for (let i = 0; i + needle.length <= haystack.length; i += 1) {
+        if (needle.every((octet, j) => haystack[i + j] === octet)) return i;
+    }
+    return -1;
+}
+
+describe('parseOcspResponse — boundaries the mutation pass pinned (RFC 6960 §4.2.1)', () => {
+    const NONCE_OID = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x02]);
+    const nonceExtension = sequence(NONCE_OID, universal(4, [...universal(4, [1, 2, 3, 4])]));
+    const BY_KEY = tlv(2, true, 2, universal(4, [...new Array<number>(20).fill(0xcc)]));
+    const SIG = universal(3, [0x00, 0xde]);
+    const PRODUCED = gen('20260501000000Z');
+    /** The BasicOCSPResponse itself: offsets inside it are reported relative to it. */
+    const basic = (...fields: readonly Uint8Array[]): Uint8Array => sequence(...fields);
+    const wrap = (body: Uint8Array): Uint8Array => sequence(universal(10, [0x00]), tlv(2, true, 0, sequence(OID_BASIC, universal(4, [...body]))));
+    const vendor = (last: number): Uint8Array => sequence(universal(6, [0x2b, 0x06, 0x01, 0x04, 0x01, 0x86, 0x8d, 0x1f, last]), universal(4, [...universal(5, [])]));
+
+    it.each([
+        { name: 'a context-class [16]', first: 0xb0 },
+        { name: 'a universal SET', first: 0x31 },
+    ])('should refuse an OCSPResponse that is $name, at offset 0', ({ first }) => {
+        const der = buildResponse();
+        der[0] = first;
+        expect(() => parseOcspResponse(der, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'OCSPResponse', offset: 0 }));
+    });
+
+    it('should refuse responseBytes tagged [1] rather than [0], at their offset', () => {
+        const body = basic(sequence(BY_KEY, PRODUCED, sequence(single())), ALG_ED25519, SIG);
+        const bytes = tlv(2, true, 1, sequence(OID_BASIC, universal(4, [...body])));
+        const der = sequence(universal(10, [0x00]), bytes);
+        expect(() => parseOcspResponse(der, quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID', path: 'OCSPResponse.responseBytes', offset: der.length - bytes.length,
+        }));
+    });
+
+    it('should accept exactly maxChainLength attached certificates, and refuse one more', () => {
+        const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single())), ALG_ED25519, SIG, tlv(2, true, 0, sequence(R12.der, ROOT.der))));
+        expect(parseOcspResponse(der, { ...quiet, limits: { maxChainLength: 2 } }).basicResponse?.certificates).toHaveLength(2);
+        expect(() => parseOcspResponse(der, { ...quiet, limits: { maxChainLength: 1 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxChainLength', observed: 2, configured: 1 }));
+    });
+
+    it('should read the unused-bits count from the first octet of the signature BIT STRING', () => {
+        const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single())), ALG_ED25519, universal(3, [0x03, 0xa8])));
+        const signature = parseOcspResponse(der, quiet).basicResponse?.signatureValue;
+        expect(signature?.unusedBits).toBe(3);
+        expect(Array.from(signature?.bytes ?? [])).toEqual([0xa8]);
+    });
+
+    it('should accept exactly maxOcspSingleResponses answers, and refuse one more', () => {
+        const three = buildResponse({ responses: [single(), single(), single()] });
+        expect(parseOcspResponse(three, { ...quiet, limits: { maxOcspSingleResponses: 3 } }).basicResponse?.responses).toHaveLength(3);
+        expect(() => parseOcspResponse(three, { ...quiet, limits: { maxOcspSingleResponses: 2 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxOcspSingleResponses', observed: 3, configured: 2 }));
+    });
+
+    it('should read singleExtensions that follow a nextUpdate', () => {
+        const both = sequence(CERT_ID, tlv(2, false, 0, new Uint8Array(0)), gen('20260501000000Z'),
+            tlv(2, true, 0, gen('20260601000000Z')), tlv(2, true, 1, sequence(nonceExtension)));
+        const answer = parseOcspResponse(wrap(basic(sequence(BY_KEY, PRODUCED, sequence(both)), ALG_ED25519, SIG)), quiet).basicResponse?.responses[0];
+        expect(new Date(answer?.nextUpdate?.epochMilliseconds ?? 0).toISOString()).toBe('2026-06-01T00:00:00.000Z');
+        expect(answer?.extensions.map((e) => e.oid)).toEqual(['1.3.6.1.5.5.7.48.1.2']);
+    });
+
+    it('should refuse a universal INTEGER 2 as certStatus rather than read it as unknown [2]', () => {
+        // The CHOICE is context-tagged; a universal value with the same number
+        // is not `unknown`, and reading it as one invents a responder's answer.
+        const status = universal(2, [0x02]);
+        const answer = single({ status });
+        const body = basic(sequence(BY_KEY, PRODUCED, sequence(answer)), ALG_ED25519, SIG);
+        expect(() => parseOcspResponse(wrap(body), quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID', path: 'ResponseData.responses[0].certStatus', offset: offsetOf(body, answer) + 2 + CERT_ID.length,
+        }));
+    });
+
+    it.each([
+        { name: 'a bare SEQUENCE of Extension', field: sequence(nonceExtension) },
+        { name: 'a bare SEQUENCE wrapping a well-formed Extensions', field: sequence(sequence(nonceExtension)) },
+    ])('should refuse responseExtensions that are $name, at the field', ({ field }) => {
+        const body = basic(sequence(BY_KEY, PRODUCED, sequence(single()), field), ALG_ED25519, SIG);
+        expect(() => parseOcspResponse(wrap(body), quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID', path: 'ResponseData.responseExtensions', offset: offsetOf(body, field),
+        }));
+    });
+
+    it('should accept exactly maxExtensions extensions, and refuse one more', () => {
+        const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single()), tlv(2, true, 1, sequence(vendor(1), vendor(2), vendor(3)))), ALG_ED25519, SIG));
+        expect(parseOcspResponse(der, { ...quiet, limits: { maxExtensions: 3 } }).basicResponse?.extensions.map((e) => e.oid))
+            .toEqual(['1.3.6.1.4.1.99999.1', '1.3.6.1.4.1.99999.2', '1.3.6.1.4.1.99999.3']);
+        expect(() => parseOcspResponse(der, { ...quiet, limits: { maxExtensions: 2 } }))
+            .toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxExtensions', observed: 3, configured: 2 }));
+    });
+
+    it('should name a malformed second extension by its own index', () => {
+        const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single()), tlv(2, true, 1, sequence(vendor(1), sequence(NONCE_OID, universal(2, [0x01]))))), ALG_ED25519, SIG));
+        expect(() => parseOcspResponse(der, quiet))
+            .toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID', path: 'ResponseData.responseExtensions[1].extnValue' }));
+    });
+
+    it('should refuse an extension of one field at the Extension itself, not as a missing extnValue', () => {
+        const lone = sequence(NONCE_OID);
+        const body = basic(sequence(BY_KEY, PRODUCED, sequence(single()), tlv(2, true, 1, sequence(lone))), ALG_ED25519, SIG);
+        expect(() => parseOcspResponse(wrap(body), quiet)).toThrow(expect.objectContaining({
+            code: 'PKI_X509_STRUCTURE_INVALID', path: 'ResponseData.responseExtensions[0]', offset: offsetOf(body, lone),
+        }));
+    });
+
+    it('should read a critical flag written out as FALSE as not critical, and TRUE as critical', () => {
+        const flagged = (flag: number): Uint8Array => sequence(NONCE_OID, universal(1, [flag]), universal(4, [...universal(4, [1])]));
+        const der = wrap(basic(sequence(BY_KEY, PRODUCED, sequence(single()), tlv(2, true, 1, sequence(flagged(0x00), flagged(0xff)))), ALG_ED25519, SIG));
+        expect(parseOcspResponse(der, quiet).basicResponse?.extensions.map((e) => e.critical)).toEqual([false, true]);
+    });
+});
+
 describe('verifyOcspSignature', () => {
     it('should refuse anything that did not come from parseOcspResponse', async () => {
         await expect(verifyOcspSignature(buildResponse() as never, ROOT))
