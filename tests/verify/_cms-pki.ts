@@ -238,7 +238,7 @@ export async function makeCrl(ca: Authority, revoked: readonly Certificate[] = [
  * A successful BasicOCSPResponse (RFC 6960 §4.2.1) about `certificate`, signed
  * by the Ed25519 `ca` that issued it, current at AT ± 1 day.
  */
-export async function makeOcspResponse(ca: Authority, certificate: Certificate, status: 'good' | 'revoked'): Promise<Uint8Array> {
+export async function makeOcspResponse(ca: Authority, certificate: Certificate, status: 'good' | 'revoked', options: { readonly responderKeyHash?: Uint8Array } = {}): Promise<Uint8Array> {
     const keyHash = await sha('SHA-1', ca.certificate.subjectPublicKeyInfo.publicKey.bytes);
     const certId = encodeSequence([
         encodeSequence([encodeObjectIdentifier(OID.sha1), encodeNull()]),
@@ -251,8 +251,8 @@ export async function makeOcspResponse(ca: Authority, certificate: Certificate, 
         ? encodeTlv('context', 0, false, new Uint8Array(0))
         : encodeTlv('context', 1, true, encodeTime(AT - 2 * DAY, 'GeneralizedTime'));
     const tbs = encodeSequence([
-        // responderID ::= [2] KeyHash
-        encodeExplicit(2, encodeOctetString(keyHash), { tagClass: 'context' }),
+        // responderID ::= [2] KeyHash — the CA's own, unless a test claims otherwise.
+        encodeExplicit(2, encodeOctetString(options.responderKeyHash ?? keyHash), { tagClass: 'context' }),
         encodeTime(AT - DAY, 'GeneralizedTime'),
         encodeSequence([encodeSequence([
             certId,

@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { encodeInteger, encodeSequence, encodeTlv } from '../../src/asn1/asn1-encode.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints, encodeDistinguishedName, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { createTimeStampRequest } from '../../src/cms/tsp-request.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import { verifyTimeStampToken, type VerifyTimeStampTokenInput } from '../../src/verify/verify-timestamp.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import {
@@ -18,6 +19,7 @@ import {
     issueTsa,
     keyPair,
     makeCrl,
+    makeOcspResponse,
     makeRoot,
     makeToken,
     OID,
@@ -550,5 +552,87 @@ describe('verifyTimeStampToken', () => {
             expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
             expect(report.reasons[0]?.path).toBe('response');
         });
+    });
+});
+
+describe('verifyTimeStampToken — the certReq contract between the request and the token (RFC 3161 §2.4.1)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+
+    it('should report a token that carries no certificate, or not the certificate of the TSA, when the request set certReq (RFC 3161 §2.4.1)', async () => {
+        const w = await world();
+        const request = createTimeStampRequest(w.imprint); // certReq TRUE is what createTimeStampRequest writes
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+        const anchors = { request, certificates: [w.tsa.certificate], trustAnchors: [w.root.certificate], at: AT } as const;
+
+        // Found among the certificates passed, so the verdict stands — and the
+        // TSA's omission is said.
+        const bare = collect();
+        const report = await verifyTimeStampToken({ ...anchors, token: withCertificates(token, []), onDiagnostic: bare.onDiagnostic });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(bare.seen.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_TSP_CERTREQ_UNMET', 'warning', 'token.certificates']]);
+        expect(bare.seen[0]?.message).toContain('no certificate at all');
+
+        const stranger = collect();
+        expect(codes(await verifyTimeStampToken({ ...anchors, token: withCertificates(token, [w.root.certificate.der]), onDiagnostic: stranger.onDiagnostic }))).toEqual([]);
+        expect(stranger.seen.map((d) => d.code)).toEqual(['PKI_DIAG_TSP_CERTREQ_UNMET']);
+        expect(stranger.seen[0]?.message).toContain('the 1 certificate(s) the token carries do not include the TSA\'s');
+
+        // Honoured: nothing to say.
+        const honoured = collect();
+        expect(codes(await verifyTimeStampToken({ ...anchors, token, onDiagnostic: honoured.onDiagnostic }))).toEqual([]);
+        expect(honoured.seen).toEqual([]);
+
+        // TSA not found and the bag not empty: it may well be in there, and
+        // nothing is said; the reason says the TSA was not found.
+        const unknown = collect();
+        const unfound = await verifyTimeStampToken({ request, token: withCertificates(token, [w.root.certificate.der]), trustAnchors: [w.root.certificate], at: AT, onDiagnostic: unknown.onDiagnostic });
+        expect(codes(unfound)).toEqual(['PKI_REASON_CMS_SIGNER_NOT_FOUND']);
+        expect(unknown.seen).toEqual([]);
+        // …but an empty bag is unmet whoever the TSA is.
+        const none = collect();
+        expect(codes(await verifyTimeStampToken({ request, token: withCertificates(token, []), trustAnchors: [w.root.certificate], at: AT, onDiagnostic: none.onDiagnostic }))).toEqual(['PKI_REASON_CMS_SIGNER_NOT_FOUND']);
+        expect(none.seen.map((d) => d.code)).toEqual(['PKI_DIAG_TSP_CERTREQ_UNMET']);
+    });
+
+    it('should report a token that carries certificates when the request did not set certReq, and accept one that carries none (RFC 3161 §2.4.1)', async () => {
+        const w = await world();
+        const request = createTimeStampRequest(w.imprint, { certReq: false });
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+
+        const carrying = collect();
+        const report = await verifyTimeStampToken({ token, request, trustAnchors: [w.root.certificate], at: AT, onDiagnostic: carrying.onDiagnostic });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(carrying.seen.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_TSP_CERTS_UNREQUESTED', 'warning', 'token.certificates']]);
+        expect(carrying.seen[0]?.message).toContain('carries 1 certificate(s)');
+
+        const bare = collect();
+        expect(codes(await verifyTimeStampToken({ token: withCertificates(token, []), request, certificates: [w.tsa.certificate], trustAnchors: [w.root.certificate], at: AT, onDiagnostic: bare.onDiagnostic }))).toEqual([]);
+        expect(bare.seen).toEqual([]);
+    });
+
+    it('should say nothing about certReq without the request, forward what the TSA\'s chain reports, and stay silent without a handler', async () => {
+        const w = await world();
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+        const noRequest = collect();
+        expect(codes(await verifyTimeStampToken({ token: withCertificates(token, []), data: DATA, certificates: [w.tsa.certificate], trustAnchors: [w.root.certificate], at: AT, onDiagnostic: noRequest.onDiagnostic }))).toEqual([]);
+        expect(noRequest.seen).toEqual([]);
+
+        // A diagnostic the chain raises — an OCSP responderID naming nobody —
+        // reaches the token's handler.
+        const chain = collect();
+        const response = await makeOcspResponse(w.root, w.tsa.certificate, 'good', { responderKeyHash: new Uint8Array(20).fill(0xcc) });
+        expect(codes(await verifyTimeStampToken({ token, data: DATA, trustAnchors: [w.root.certificate], at: AT, ocspResponses: [response], requireRevocation: true, onDiagnostic: chain.onDiagnostic }))).toEqual([]);
+        expect(chain.seen.map((d) => d.code)).toEqual(['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH']);
+
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const request = createTimeStampRequest(w.imprint, { certReq: false });
+        expect(codes(await verifyTimeStampToken({ token, request, trustAnchors: [w.root.certificate], at: AT, ocspResponses: [response], requireRevocation: true }))).toEqual([]);
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
     });
 });

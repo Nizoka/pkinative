@@ -24,6 +24,7 @@
 
 import { OID_KP_TIMESTAMPING } from '../core/cms-oids.js';
 import { bytesEqual } from '../core/bytes.js';
+import { createDiagnosticEmitter, tspCertReqUnmetDiagnostic, tspCertsUnrequestedDiagnostic } from '../core/pki-diagnostics.js';
 import {
     cmsNoSignersReason,
     expiredReason,
@@ -42,7 +43,7 @@ import { computeFingerprintAsync } from '../hash/fingerprint.js';
 import type { PkiTime } from '../types/asn1-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
+import type { PkiDiagnosticEmitter, PkiDiagnosticHandler, PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { MessageImprint, TimeStampToken } from '../types/tsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { parseCertificate } from '../x509/x509-certificate.js';
@@ -105,6 +106,17 @@ export interface VerifyTimeStampTokenInput {
     readonly allowNonCriticalTimeStampingEku?: boolean | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
+    /**
+     * Receive every diagnostic this verification raises or reads: what the
+     * token, the response and the TSA's chain say about themselves that their
+     * RFCs ask them not to, and what only this call can decide — whether the
+     * token honoured the request's `certReq` (RFC 3161 §2.4.1), which needs
+     * `request`. None of it changes the verdict; the report carries the
+     * verdict. **Without it, nothing is reported**: a verdict call does not
+     * warn on the console, and never throws for a diagnostic (`strict` is not
+     * an input here).
+     */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
 }
 
 /** The verdict on a timestamp token, and what it established. */
@@ -138,6 +150,8 @@ interface _Expectation {
     readonly requested: MessageImprint | undefined;
     readonly nonce: bigint | undefined;
     readonly policy: string | undefined;
+    /** The request's `certReq`, when there was a request: what the token's certificates field must then do. */
+    readonly certReq: boolean | undefined;
     /** Whether a SHA-1 imprint may count as evidence of what was stamped. */
     readonly allowSha1: boolean;
 }
@@ -163,9 +177,10 @@ interface _Expectation {
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
 export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Promise<VerifyTimeStampTokenReport> {
-    // Silent for everything this call reads — the request, the token and the
-    // bag: a verdict call reports in its report.
-    const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
+    // What the request, the response and the token say about themselves goes
+    // to the caller's handler when there is one, and nowhere otherwise: a
+    // verdict call reports in its report and does not warn on the console.
+    const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
     const expectation = _expectation(input, reading);
     const reasons: PkiReason[] = [];
 
@@ -228,6 +243,7 @@ export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Pr
     reasons.push(...outcome.reasons);
     let signatureVerifications = outcome.signatureVerifications;
     const tsa = outcome.certificate;
+    _certReqDiagnostics(expectation.certReq, signedData.certificates, tsa, createDiagnosticEmitter(undefined, reading.onDiagnostic));
     if (tsa === undefined) return _report(reasons, token, undefined, undefined, signatureVerifications);
 
     // ── Whether that signer may stamp (RFC 3161 §2.3, §2.4.2) ──
@@ -259,6 +275,7 @@ export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Pr
         ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
         ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
         ...(input.limits === undefined ? {} : { limits: input.limits }),
+        ...(input.onDiagnostic === undefined ? {} : { onDiagnostic: input.onDiagnostic }),
     });
     signatureVerifications += chain.signatureVerifications;
     reasons.push(...chain.reasons.map((reason) => _under('token.tsaChain', reason)));
@@ -310,8 +327,36 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
         requested: request?.messageImprint,
         nonce: request?.nonce,
         policy: request?.policy,
+        certReq: request?.certReq,
         allowSha1: input.allowSha1 === true,
     };
+}
+
+/**
+ * RFC 3161 §2.4.1's contract on the token's certificates field, decided where
+ * the request and the token are both in hand.
+ *
+ * `certReq` TRUE: the TSA "MUST" include the certificate its
+ * SigningCertificate attribute names — so a token carrying none, or carrying
+ * certificates without the one that verified it, fell short. FALSE or absent:
+ * the field "MUST not be present", so any certificate is one too many. Neither
+ * touches the verdict: the TSA is found among the token's certificates **and**
+ * the caller's, which is what `certificates` is for, and a token that verifies
+ * is evidence whatever the TSA chose to attach. When no TSA was found and the
+ * bag is not empty, nothing is said: the bag may well hold it.
+ */
+function _certReqDiagnostics(certReq: boolean | undefined, bag: readonly Uint8Array[], tsa: Certificate | undefined, emitter: PkiDiagnosticEmitter): void {
+    if (certReq === undefined) return;
+    const where = 'token.certificates';
+    if (!certReq) {
+        if (bag.length > 0) emitter.emit(tspCertsUnrequestedDiagnostic(where, bag.length));
+        return;
+    }
+    if (bag.length === 0) {
+        emitter.emit(tspCertReqUnmetDiagnostic(where, 'the token carries no certificate at all'));
+    } else if (tsa !== undefined && !bag.some((der) => bytesEqual(der, tsa.der))) {
+        emitter.emit(tspCertReqUnmetDiagnostic(where, `the ${String(bag.length)} certificate(s) the token carries do not include the TSA's, which was found among those you passed`));
+    }
 }
 
 /**

@@ -34,6 +34,7 @@ import { PkiError } from '../../src/types/pki-errors.js';
 import type { ExtensionDescription } from '../../src/types/build-types.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
 import type { CryptoKeyHandle } from '../../src/types/webcrypto.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 
 /**
@@ -371,6 +372,77 @@ describe('verifyCertificateChain — the one place that catches', () => {
             crls: [emptyCrl(ica)],
         });
         expect(codes(report)).toContain('PKI_REASON_REVOCATION_UNKNOWN');
+    });
+});
+
+describe('verifyCertificateChain — what it reports through onDiagnostic (RFC 6960 §4.2)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+    const keyHashOf = (certificate: Certificate): Uint8Array =>
+        encodeExplicit(2, encodeOctetString(computeKeyIdentifier(certificate.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1')), { tagClass: 'context' });
+
+    it('should report a responderID that does not name the CA that signed the response, and nothing when it does (RFC 6960 §4.2.2.3)', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, requireRevocation: true } as const;
+        const claimed = collect();
+        const report = await verifyCertificateChain({ ...common, ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } })], onDiagnostic: claimed.onDiagnostic });
+        // The claim is wrong and the verdict is untouched: the signature said who answered.
+        expect(codes(report)).toEqual([]);
+        expect(claimed.seen.map((d) => [d.code, d.path])).toEqual([['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'ocsp.responderID']]);
+
+        const byKey = collect();
+        await verifyCertificateChain({ ...common, ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, responderId: keyHashOf(ica) })], onDiagnostic: byKey.onDiagnostic });
+        expect(byKey.seen).toEqual([]);
+        const byName = collect();
+        await verifyCertificateChain({ ...common, ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, responderId: encodeExplicit(1, ica.subject.der, { tagClass: 'context' }) })], onDiagnostic: byName.onDiagnostic });
+        expect(byName.seen).toEqual([]);
+    });
+
+    it('should judge the responderID against the delegate that signed, report its critical nocheck and the answers nobody asked for', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const delegate = await issueEd25519({ subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey, purposes: [OCSP_SIGNING], noCheck: true, noCheckCritical: true });
+        const seen = collect();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT, requireRevocation: true,
+            ocspResponses: [await ocspResponse({
+                certificate: leaf, issuer: ica, signer: { key: delegate.key, certificates: [delegate.certificate.der] },
+                responderId: keyHashOf(delegate.certificate), others: [{ serial: Uint8Array.of(0x7a, 0x01) }],
+            })],
+            onDiagnostic: seen.onDiagnostic,
+        });
+        expect(codes(report)).toEqual([]);
+        // What the delegate certificate says about itself comes first — it is
+        // parsed on the way — then what the response says once it is judged.
+        expect(seen.seen.map((d) => [d.code, d.severity])).toEqual([
+            ['PKI_DIAG_AKI_MISSING', 'warning'],
+            ['PKI_DIAG_SKI_MISSING_END_ENTITY', 'info'],
+            ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', 'info'],
+            ['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', 'info'],
+        ]);
+    });
+
+    it('should name no signer when nobody authorised signed, forward what the response says about itself, and stay silent without a handler', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, requireRevocation: true } as const;
+        // A stranger's key: the responderID has nobody to be compared with,
+        // and the report says UNKNOWN twice (signature, authorisation).
+        const stranger = collect();
+        const refused = await verifyCertificateChain({ ...common, ocspResponses: [await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: (await ed25519Key()).privateKey } })], onDiagnostic: stranger.onDiagnostic });
+        expect(codes(refused)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_UNKNOWN']);
+        expect(stranger.seen).toEqual([]);
+
+        // What the parser says about the response — here a certs field present
+        // and empty — reaches the same handler.
+        const forwarded = collect();
+        const empty = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey, certificates: [] }, responderId: keyHashOf(ica) });
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [empty], onDiagnostic: forwarded.onDiagnostic }))).toEqual([]);
+        expect(forwarded.seen.map((d) => d.code)).toEqual(['PKI_DIAG_OCSP_CERTS_EMPTY']);
+
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [empty, await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } })] }))).toEqual([]);
+        expect(warn).not.toHaveBeenCalled();
     });
 });
 
@@ -1663,6 +1735,8 @@ async function issueEd25519(options: {
     readonly keyUsage?: readonly string[];
     /** id-pkix-ocsp-nocheck (RFC 6960 §4.2.2.2.1). */
     readonly noCheck?: boolean;
+    /** …marked critical, which §4.2.2.2.1 says it should not be. */
+    readonly noCheckCritical?: boolean;
 }): Promise<Ed25519Material> {
     const pair = await ed25519Key();
     const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey as unknown as Parameters<typeof crypto.subtle.exportKey>[1]));
@@ -1677,7 +1751,7 @@ async function issueEd25519(options: {
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
             ...(options.purposes === undefined ? [] : [{ oid: '2.5.29.37', value: encodeExtendedKeyUsage([...options.purposes]) }]),
             ...(options.keyUsage === undefined ? [] : [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(options.keyUsage) }]),
-            ...(options.noCheck === true ? [{ oid: '1.3.6.1.5.5.7.48.1.5', value: encodeNull() }] : []),
+            ...(options.noCheck === true ? [{ oid: '1.3.6.1.5.5.7.48.1.5', value: encodeNull(), ...(options.noCheckCritical === true ? { critical: true } : {}) }] : []),
         ],
     }, { key: options.signer ?? pair.privateKey, algorithm: (options.signWith ?? { name: 'Ed25519' }) as SignatureAlgorithm });
     return { certificate: parseCertificate(der, quiet), key: pair.privateKey };
@@ -1832,6 +1906,8 @@ async function ocspResponse(options: {
     readonly nextUpdate?: number | null;
     /** A second answer about the same certificate, after the first, with this status. */
     readonly also?: Uint8Array;
+    /** The responderID TLV; by key, twenty 0xcc octets — a claim that names nobody — by default. */
+    readonly responderId?: Uint8Array;
 }): Promise<Uint8Array> {
     if (options.statusCode !== undefined) return encodeSequence([encodeEnumerated(options.statusCode)]);
     const singleResponse = (serial: Uint8Array, wide: boolean, status: Uint8Array): Uint8Array => {
@@ -1854,7 +1930,7 @@ async function ocspResponse(options: {
     const others = (options.others ?? []).map((other) => singleResponse(other.serial, other.sha256 === true, good));
     const tbs = encodeSequence([
         // responderID ::= [2] KeyHash — by key, which needs no name to match.
-        encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
+        options.responderId ?? encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
         encodeTime(AT - DAY, 'GeneralizedTime'),
         encodeSequence([...others, single, ...(options.also === undefined ? [] : [singleResponse(options.serial ?? options.certificate.serialNumber.bytes, options.sha256 === true, options.also)])]),
         // responseExtensions ::= [1] EXPLICIT Extensions — the nonce echo, whose

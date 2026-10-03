@@ -63,7 +63,7 @@ import { _pkiError } from '../core/pki-error-guard.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { BuildCertificatePathReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
-import type { PkiLimits, PkiParseOptions } from '../types/pki-types.js';
+import type { PkiDiagnosticHandler, PkiLimits, PkiParseOptions } from '../types/pki-types.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate, ReasonFlag } from '../types/x509-types.js';
 import type { CertificateList } from '../types/crl-types.js';
@@ -161,6 +161,17 @@ export interface VerifyCertificateChainInput {
     readonly inhibitAnyPolicy?: boolean | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
+    /**
+     * Receive every diagnostic this verification raises or reads: what the
+     * CRLs, the OCSP responses and the responders' certificates say about
+     * themselves that their RFCs ask them not to, and what only this call can
+     * decide — an OCSP `responderID` that does not name the signer, answers
+     * about certificates nobody asked about. None of it changes the verdict;
+     * the report carries the verdict. **Without it, nothing is reported**: a
+     * verdict call does not warn on the console, and never throws for a
+     * diagnostic (`strict` is not an input here).
+     */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
 }
 
 /** The verdict, every reason behind it, and the path that was judged. */
@@ -648,10 +659,11 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
         return out;
     }
 
-    // One options object for both readers: the limits are the caller's, and a
-    // CRL's profile concerns are not this report's business — a caller who
-    // wants them calls parseCertificateList themselves.
-    const reading = { limits: input.limits ?? {}, onDiagnostic: (): undefined => undefined };
+    // One options object for both readers: the limits are the caller's, and
+    // what the lists and responses say about themselves goes to the caller's
+    // handler when there is one — and nowhere otherwise, because a verdict call
+    // reports in its report and does not warn on the console.
+    const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
 
     // **Every certificate on the path, not only the leaf.** A revoked
     // intermediate is a revoked chain: the CA whose key signed the leaf has had
@@ -801,7 +813,11 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 response,
                 expected: _certId(input.leaf, issuer, algorithm),
                 at,
+                onDiagnostic: reading.onDiagnostic,
                 ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised }),
+                // The one certificate that both signed and was entitled to:
+                // what `responderID` must name (RFC 6960 §4.2.2.3).
+                ...(authorised?.certificate === undefined ? {} : { signer: authorised.certificate }),
                 ...(input.ocspNonce === undefined ? {} : { nonce: input.ocspNonce }),
                 ...(input.requireOcspNonce === undefined ? {} : { requireNonce: input.requireOcspNonce }),
             }).map((reason) => _rooted(reason, 'ocsp', where)));
@@ -915,11 +931,11 @@ async function _ocspSigner(
     basic: OcspBasicResponse,
     issuer: Certificate,
     ctx: CrlSignerContext,
-): Promise<{ signed: boolean | undefined; authorised: boolean }> {
+): Promise<{ signed: boolean | undefined; authorised: boolean; certificate: Certificate | undefined }> {
     const { at, reading } = ctx;
     const allowSha1 = ctx.input.allowSha1 === true;
     const direct = await _ocspSignature(basic, issuer);
-    if (direct === true) return { signed: true, authorised: true };
+    if (direct === true) return { signed: true, authorised: true, certificate: issuer };
 
     for (const der of basic.certificates) {
         let delegate: Certificate;
@@ -952,11 +968,12 @@ async function _ocspSigner(
         if (signed !== true) continue;
         // Asked last, of the one delegate that did sign: a list walk is the
         // most expensive question here, and only its answer is at stake.
-        if (getExtension(delegate, 'ocspNoCheck') !== undefined || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true };
+        if (getExtension(delegate, 'ocspNoCheck') !== undefined || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true, certificate: delegate };
     }
     // Nobody authorised signed it. `signed` carries the direct attempt's answer
-    // so that "checked and wrong" stays apart from "never checked".
-    return { signed: direct, authorised: false };
+    // so that "checked and wrong" stays apart from "never checked"; no
+    // certificate, because none both signed and was entitled to.
+    return { signed: direct, authorised: false, certificate: undefined };
 }
 
 /**

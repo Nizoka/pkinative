@@ -895,6 +895,18 @@
           "summary": "Whether the signer is authorised to answer for this CA (RFC 6960 §4.2.2.2)."
         },
         {
+          "name": "signer",
+          "type": "Certificate | undefined",
+          "optional": true,
+          "summary": "The certificate whose key verified the signature — the CA itself, or the delegate it issued — when you hold it."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive the diagnostics this decision raises — what the response says about itself that §4.2 asks it not to, none of which touches the verdict."
+        },
+        {
           "name": "nonce",
           "type": "Uint8Array | undefined",
           "optional": true,
@@ -5828,6 +5840,12 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic this verification raises or reads: what the CRLs, the OCSP responses and the responders' certificates say about themselves that their RFCs ask them not to, and what only this call can decide — an OCSP `responderID` that does not name the signer, answers about certificates no…"
         }
       ]
     },
@@ -6170,6 +6188,12 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic this verification raises or reads: what the token, the response and the TSA's chain say about themselves that their RFCs ask them not to, and what only this call can decide — whether the token honoured the request's `certReq` (RFC 3161 §2.4.1), which needs `request`."
         }
       ]
     },
