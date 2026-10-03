@@ -15,7 +15,7 @@ import { assertBytes, byteView, compareOctets, concatBytes } from '../core/bytes
 import { encodeUtf8, isIa5Octet, isNumericOctet, isPrintableOctet, isVisibleOctet } from '../core/text.js';
 import type { Asn1Node, Asn1StringType, TagClass } from '../types/asn1-types.js';
 import { PkiEncodingError, PkiError } from '../types/pki-errors.js';
-import { encodeOid } from './asn1-oid.js';
+import { _encodeRelativeOid, encodeOid } from './asn1-oid.js';
 import { assertNode } from './asn1-read.js';
 import {
     STRING_TAGS,
@@ -28,6 +28,7 @@ import {
     TAG_NULL,
     TAG_OCTET_STRING,
     TAG_OID,
+    TAG_RELATIVE_OID,
     TAG_SEQUENCE,
     TAG_SET,
     TAG_UTC_TIME,
@@ -349,6 +350,20 @@ export function encodeNamedBits(bits: Iterable<number>): Uint8Array {
  */
 export function encodeObjectIdentifier(oid: string): Uint8Array {
     return encodeTlv('universal', TAG_OID, false, encodeOid(oid));
+}
+
+/**
+ * Encode a RELATIVE-OID (X.690 §8.20) from its dotted-decimal arcs: one
+ * subidentifier per arc, with none of the first-two-arcs packing of an
+ * OBJECT IDENTIFIER, so `8571.3.2` is `0D 04 C2 7B 03 02` (the §8.20.2 example).
+ *
+ * @param oid One or more decimal arcs without leading zeros, separated by dots.
+ * @returns The RELATIVE-OID encoding.
+ * @throws {PkiEncodingError} `PKI_OID_INVALID` for a string that is not one or more dotted decimal arcs.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the argument is not a string.
+ */
+export function encodeRelativeOid(oid: string): Uint8Array {
+    return encodeTlv('universal', TAG_RELATIVE_OID, false, _encodeRelativeOid(oid));
 }
 
 function outOfRange(type: Asn1StringType, index: number): PkiEncodingError {

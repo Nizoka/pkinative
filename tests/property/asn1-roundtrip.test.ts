@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
-import { encodeAsn1Node, encodeInteger, encodeObjectIdentifier, encodeString, encodeTime } from '../../src/asn1/asn1-encode.js';
-import { readObjectIdentifier } from '../../src/asn1/asn1-oid.js';
-import { readInteger, readString } from '../../src/asn1/asn1-read.js';
+import { encodeAsn1Node, encodeEnumerated, encodeInteger, encodeObjectIdentifier, encodeRelativeOid, encodeString, encodeTime } from '../../src/asn1/asn1-encode.js';
+import { readObjectIdentifier, readRelativeOid } from '../../src/asn1/asn1-oid.js';
+import { readEnumerated, readInteger, readString } from '../../src/asn1/asn1-read.js';
 import { readTime } from '../../src/asn1/asn1-time.js';
 import type { Asn1Node, Asn1StringType } from '../../src/types/asn1-types.js';
 import { createPrng, type Prng } from '../helpers/prng.js';
@@ -85,6 +85,31 @@ describe('property — values', () => {
             const second = first === 2 ? arc() : String(rng.int(40));
             const oid = [String(first), second, ...Array.from({ length: rng.int(8) }, arc)].join('.');
             expect(readObjectIdentifier(decodeAsn1(encodeObjectIdentifier(oid)))).toBe(oid);
+        }
+    });
+
+    it('should round-trip random ENUMERATEDs of up to 64 octets, as INTEGERs under tag 10', () => {
+        const rng = createPrng(0x5eed_1006);
+        for (let i = 0; i < 2000; i++) {
+            const octets = 1 + rng.int(64);
+            let value = BigInt(`0x${Buffer.from(rng.bytes(octets)).toString('hex')}`);
+            if (rng.int(2) === 0) value = -value;
+            const encoded = encodeEnumerated(value);
+            expect(encoded[0]).toBe(10);
+            expect(readEnumerated(decodeAsn1(encoded))).toBe(value);
+            // The same content octets as the INTEGER: only the tag differs (X.690 §8.4).
+            expect([...encoded.subarray(1)]).toEqual([...encodeInteger(value).subarray(1)]);
+        }
+    });
+
+    it('should round-trip random RELATIVE-OIDs of one to eight arcs, arcs beyond 2^53 included', () => {
+        const rng = createPrng(0x5eed_1007);
+        const arc = (): string => (rng.int(4) === 0 ? BigInt(`0x${Buffer.from(rng.bytes(1 + rng.int(12))).toString('hex')}`).toString() : String(rng.int(100_000)));
+        for (let i = 0; i < 2000; i++) {
+            const oid = Array.from({ length: 1 + rng.int(8) }, arc).join('.');
+            const encoded = encodeRelativeOid(oid);
+            expect(encoded[0]).toBe(13);
+            expect(readRelativeOid(decodeAsn1(encoded))).toBe(oid);
         }
     });
 

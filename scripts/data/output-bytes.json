@@ -86,6 +86,11 @@
       "sha256": "a75c7c6977811e1921292fa083a6814259c7fd2a58c4b93425782f9aa3ab95de",
       "since": "1.0.0"
     },
+    "asn1/relative-oid-8571-3-2": {
+      "bytes": 6,
+      "sha256": "80da0fcee4e6ff5eb0eaf407b13bcd545577cf55b9e4cd377b70d98113687ffc",
+      "since": "1.0.0"
+    },
     "asn1/sequence-integer-boolean": {
       "bytes": 8,
       "sha256": "8df045fa1c2721c2c540700c38aade29b80702bda84830b93c8587b5d6a44e88",

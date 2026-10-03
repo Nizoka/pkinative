@@ -57,6 +57,7 @@ import {
     encodeOctetString,
     encodeOid,
     encodePem,
+    encodeRelativeOid,
     encodeSequence,
     encodeSet,
     encodeSetOf,
@@ -258,6 +259,8 @@ export async function samples(): Promise<Map<string, Uint8Array>> {
     out.set('asn1/null', encodeNull());
     out.set('asn1/object-identifier-basic-constraints', encodeObjectIdentifier('2.5.29.19'));
     out.set('asn1/oid-contents-sha256-with-rsa', encodeOid('1.2.840.113549.1.1.11'));
+    // X.690 §8.20.2's own example: no first-two-arcs packing, so 8571 is one subidentifier.
+    out.set('asn1/relative-oid-8571-3-2', encodeRelativeOid('8571.3.2'));
     out.set('asn1/octet-string-four', encodeOctetString(Uint8Array.of(1, 2, 3, 4)));
     out.set('asn1/sequence-integer-boolean', encodeSequence([encodeInteger(1), encodeBoolean(false)]));
     out.set('asn1/set-as-given', encodeSet([encodeOctetString(Uint8Array.of(2)), encodeInteger(1)]));

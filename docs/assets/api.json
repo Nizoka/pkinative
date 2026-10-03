@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 285,
+  "exportCount": 288,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -7292,6 +7292,25 @@
       "members": null
     },
     {
+      "name": "encodeRelativeOid",
+      "kind": "function",
+      "module": "src/asn1/asn1-encode.ts",
+      "signature": "export function encodeRelativeOid(oid: string): Uint8Array",
+      "summary": "Encode a RELATIVE-OID (X.690 §8.20) from its dotted-decimal arcs: one subidentifier per arc, with none of the first-two-arcs packing of an OBJECT IDENTIFIER, so `8571.3.2` is `0D 04 C2 7B 03 02` (the §8.20.2 example).",
+      "throws": [
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "oid",
+          "description": "One or more decimal arcs without leading zeros, separated by dots."
+        }
+      ],
+      "returns": "The RELATIVE-OID encoding.",
+      "members": null
+    },
+    {
       "name": "encodeSequence",
       "kind": "function",
       "module": "src/asn1/asn1-encode.ts",
@@ -8042,6 +8061,29 @@
       "members": null
     },
     {
+      "name": "readEnumerated",
+      "kind": "function",
+      "module": "src/asn1/asn1-read.ts",
+      "signature": "export function readEnumerated(node: Asn1Node, options?: PkiParseOptions): bigint",
+      "summary": "Read an ENUMERATED (X.690 §8.4): universal tag 10 over the content octets of an INTEGER, so the minimal two's complement form of §8.3.2 is required as for `readInteger`.",
+      "throws": [
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "An ENUMERATED node, or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Limits (`maxIntegerBytes`) and diagnostics."
+        }
+      ],
+      "returns": "The enumeration value as a bigint, as `readInteger` returns it.",
+      "members": null
+    },
+    {
       "name": "readInteger",
       "kind": "function",
       "module": "src/asn1/asn1-read.ts",
@@ -8124,6 +8166,29 @@
         }
       ],
       "returns": "The octets: a zero-copy view when primitive, a joined copy when segmented.",
+      "members": null
+    },
+    {
+      "name": "readRelativeOid",
+      "kind": "function",
+      "module": "src/asn1/asn1-oid.ts",
+      "signature": "export function readRelativeOid(node: Asn1Node, options?: PkiParseOptions): string",
+      "summary": "Read a RELATIVE-OID node (X.690 §8.20): universal tag 13, the subidentifier encoding of an OBJECT IDENTIFIER without the first-two-arcs packing, so `0D 04 C2 7B 03 02` reads as `8571.3.2` (the §8.20.2 example).",
+      "throws": [
+        "PkiEncodingError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "node",
+          "description": "A RELATIVE-OID node, or an implicitly tagged one."
+        },
+        {
+          "name": "options",
+          "description": "Limits (`maxOidBytes`)."
+        }
+      ],
+      "returns": "The arcs in dotted decimal, e.g. `8571.3.2`.",
       "members": null
     },
     {

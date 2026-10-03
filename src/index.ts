@@ -68,11 +68,13 @@ export {
     readBoolean,
     readInteger,
     readSmallInteger,
+    readEnumerated,
     readNull,
     readBitString,
     readOctetString,
     readString,
 } from './asn1/asn1-read.js';
+export { readRelativeOid } from './asn1/asn1-oid.js';
 export { readTime } from './asn1/asn1-time.js';
 export {
     encodeTlv,
@@ -85,6 +87,7 @@ export {
     encodeBitString,
     encodeOctetString,
     encodeObjectIdentifier,
+    encodeRelativeOid,
     encodeString,
     encodeTime,
     encodeAsn1Node,

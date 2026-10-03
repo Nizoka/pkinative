@@ -3,6 +3,7 @@ import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import {
     readBitString,
     readBoolean,
+    readEnumerated,
     readInteger,
     readNull,
     readOctetString,
@@ -97,6 +98,43 @@ describe('readSmallInteger', () => {
         expect(readSmallInteger(node('02 07 E0 00 00 00 00 00 01'))).toBe(-Number.MAX_SAFE_INTEGER);
         expect(codeOf(() => readSmallInteger(node('02 07 20 00 00 00 00 00 00')))).toBe('PKI_ASN1_INTEGER_UNREPRESENTABLE');
         expect(codeOf(() => readSmallInteger(node('02 07 E0 00 00 00 00 00 00')))).toBe('PKI_ASN1_INTEGER_UNREPRESENTABLE');
+    });
+});
+
+describe('readEnumerated', () => {
+    it.each([
+        // X.690 §8.4: the INTEGER encoding under tag 10 — RFC 5280 §5.3.1 CRLReason superseded(4).
+        ['0A 01 04', 4n],
+        ['0A 01 00', 0n],
+        ['0A 01 7F', 127n],
+        ['0A 02 00 80', 128n],
+        ['0A 01 FF', -1n],
+        ['0A 02 FF 7F', -129n],
+        ['0A 09 01 00 00 00 00 00 00 00 00', 18446744073709551616n],
+        ['81 01 05', 5n],
+    ])('should read %s as %s', (text, value) => {
+        expect(readEnumerated(node(text))).toBe(value);
+    });
+
+    it.each([
+        ['an empty ENUMERATED', '0A 00', 'PKI_ASN1_INTEGER_INVALID'],
+        ['a redundant leading zero', '0A 02 00 7F', 'PKI_ASN1_INTEGER_INVALID'],
+        ['a redundant leading 0xFF', '0A 02 FF 80', 'PKI_ASN1_INTEGER_INVALID'],
+        ['an INTEGER, which is not interchangeable with it', '02 01 04', 'PKI_ASN1_UNEXPECTED_TAG'],
+        ['a constructed implicit tag', 'A1 00', 'PKI_ASN1_CONSTRUCTED_FORM_INVALID'],
+    ])('should refuse %s', (_label, text, code) => {
+        expect(codeOf(() => readEnumerated(node(text)))).toBe(code);
+    });
+
+    it('should enforce maxIntegerBytes and name the type in the refusal', () => {
+        expect(codeOf(() => readEnumerated(node('0A 03 01 00 00'), { limits: { maxIntegerBytes: 2 } }))).toBe('PKI_LIMIT_EXCEEDED');
+        expect(() => readEnumerated(node('0A 00'))).toThrow(/the ENUMERATED at offset 0 has no content octet/);
+        expect(() => readEnumerated(node('0A 02 00 7F'))).toThrow(/the ENUMERATED at offset 0 is not in minimal/);
+        expect(() => readEnumerated(node('0A 03 01 00 00'), { limits: { maxIntegerBytes: 2 } })).toThrow(/the ENUMERATED content length/);
+    });
+
+    it('should refuse something that is not a node', () => {
+        expect(codeOf(() => readEnumerated(null as unknown as Asn1Node))).toBe('PKI_INVALID_INPUT');
     });
 });
 

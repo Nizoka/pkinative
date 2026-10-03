@@ -19,6 +19,7 @@ export const TAG_NULL = 5;
 export const TAG_OID = 6;
 export const TAG_ENUMERATED = 10;
 export const TAG_UTF8_STRING = 12;
+export const TAG_RELATIVE_OID = 13;
 export const TAG_SEQUENCE = 16;
 export const TAG_SET = 17;
 export const TAG_NUMERIC_STRING = 18;

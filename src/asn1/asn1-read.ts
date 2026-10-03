@@ -1,8 +1,8 @@
 /**
  * pkinative — ASN.1 value readers
  * ===============================
- * Typed readers over decoded nodes: BOOLEAN, INTEGER, NULL, BIT STRING,
- * OCTET STRING and the character string types.
+ * Typed readers over decoded nodes: BOOLEAN, INTEGER, ENUMERATED, NULL,
+ * BIT STRING, OCTET STRING and the character string types.
  *
  * A reader accepts its universal tag, or any non-universal tag — an
  * implicitly tagged value, whose type only the schema knows. A universal tag
@@ -40,6 +40,7 @@ import {
     STRING_TAGS,
     TAG_BIT_STRING,
     TAG_BOOLEAN,
+    TAG_ENUMERATED,
     TAG_INTEGER,
     TAG_NULL,
     TAG_OCTET_STRING,
@@ -148,18 +149,23 @@ export function readBoolean(node: Asn1Node, options?: PkiParseOptions): boolean 
     return _readBoolean(assertNode(node, 'readBoolean'), createAsn1Context(options));
 }
 
-// ── INTEGER ──────────────────────────────────────────────────────────
+// ── INTEGER and ENUMERATED ───────────────────────────────────────────
 
-/** @internal */
-export function _readInteger(node: Asn1Node, ctx: Asn1Context): bigint {
-    expectUniversal(node, TAG_INTEGER);
-    expectPrimitive(node, 'INTEGER');
+/**
+ * The two's complement value of an INTEGER's content octets, which an
+ * ENUMERATED shares (X.690 §8.4: "the encoding of an enumerated value shall
+ * be that of the integer value with which it is associated"), so the
+ * minimal-form rule of §8.3.2 holds for both and the same code names it.
+ */
+function integerValue(node: Asn1Node, ctx: Asn1Context, tagNumber: number, what: 'INTEGER' | 'ENUMERATED'): bigint {
+    expectUniversal(node, tagNumber);
+    expectPrimitive(node, what);
     const content = node.content;
     if (content.length === 0) {
         throw new PkiEncodingError('PKI_ASN1_INTEGER_INVALID',
-            `pkinative: the INTEGER at offset ${node.offset} has no content octet (X.690 §8.3.1)`, node.offset);
+            `pkinative: the ${what} at offset ${node.offset} has no content octet (X.690 §8.3.1)`, node.offset);
     }
-    enforceLimit(ctx.limits, 'maxIntegerBytes', content.length, 'the INTEGER content length');
+    enforceLimit(ctx.limits, 'maxIntegerBytes', content.length, `the ${what} content length`);
     // content.length === 0 has already thrown.
     const view = byteView(content);
     const first = view.getUint8(0);
@@ -167,7 +173,7 @@ export function _readInteger(node: Asn1Node, ctx: Asn1Context): bigint {
         const second = view.getUint8(1);
         if ((first === 0x00 && (second & 0x80) === 0) || (first === 0xff && (second & 0x80) !== 0)) {
             throw new PkiEncodingError('PKI_ASN1_INTEGER_INVALID',
-                `pkinative: the INTEGER at offset ${node.offset} is not in minimal two's complement form (X.690 §8.3.2) — the encoder is broken`, node.offset);
+                `pkinative: the ${what} at offset ${node.offset} is not in minimal two's complement form (X.690 §8.3.2) — the encoder is broken`, node.offset);
         }
     }
     let hex = '';
@@ -175,6 +181,11 @@ export function _readInteger(node: Asn1Node, ctx: Asn1Context): bigint {
     let value = BigInt(`0x${hex}`);
     if ((first & 0x80) !== 0) value -= 1n << BigInt(content.length * 8);
     return value;
+}
+
+/** @internal */
+export function _readInteger(node: Asn1Node, ctx: Asn1Context): bigint {
+    return integerValue(node, ctx, TAG_INTEGER, 'INTEGER');
 }
 
 /**
@@ -209,6 +220,28 @@ export function _readSmallInteger(node: Asn1Node, ctx: Asn1Context): number {
  */
 export function readSmallInteger(node: Asn1Node): number {
     return _readSmallInteger(assertNode(node, 'readSmallInteger'), createAsn1Context(undefined));
+}
+
+/** @internal */
+export function _readEnumerated(node: Asn1Node, ctx: Asn1Context): bigint {
+    return integerValue(node, ctx, TAG_ENUMERATED, 'ENUMERATED');
+}
+
+/**
+ * Read an ENUMERATED (X.690 §8.4): universal tag 10 over the content octets
+ * of an INTEGER, so the minimal two's complement form of §8.3.2 is required
+ * as for `readInteger`. RFC 5280's `CRLReason` and RFC 6960's
+ * `OCSPResponseStatus` are ENUMERATED, and a reader that expects tag 10
+ * refuses tag 2: the two types are not interchangeable.
+ *
+ * @param node    An ENUMERATED node, or an implicitly tagged one.
+ * @param options Limits (`maxIntegerBytes`) and diagnostics.
+ * @returns The enumeration value as a bigint, as `readInteger` returns it.
+ * @throws {PkiEncodingError} `PKI_ASN1_UNEXPECTED_TAG`, `PKI_ASN1_CONSTRUCTED_FORM_INVALID` or `PKI_ASN1_INTEGER_INVALID` (empty or non-minimal content).
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` beyond `maxIntegerBytes`.
+ */
+export function readEnumerated(node: Asn1Node, options?: PkiParseOptions): bigint {
+    return _readEnumerated(assertNode(node, 'readEnumerated'), createAsn1Context(options));
 }
 
 // ── NULL ─────────────────────────────────────────────────────────────
