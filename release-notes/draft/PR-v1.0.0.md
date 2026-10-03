@@ -137,7 +137,7 @@ This is the first push to an empty repository, so the steps differ from the temp
 3. The one-time settings of CONTRIBUTING §Branch protection: Dependency graph; private vulnerability reporting (check: `curl -s https://api.github.com/repos/Nizoka/pkinative/private-vulnerability-reporting` answers `{"enabled":true}`); Dependabot alerts and security updates; secret scanning with push protection; the CodeQL advanced set-up; Actions workflow permissions read-only; release immutability; Pages from `main` `/docs` with `pkinative.dev` and Enforce HTTPS.
 4. Import the rulesets: `.github/rulesets/main.json`, then `.github/rulesets/tags.json` (Settings → Rules → Rulesets → Import).
 5. Wait for CI, conformance (three platforms), runtimes, workflow lint, CodeQL and Scorecard to go green on `main`. (`dependency-review` reports on pull requests.)
-6. Tag the 0.x line: annotated tags, pushed, with **no GitHub Release**. Those commits carry the old `publish.yml`, triggered only by a published release, so the tags start nothing.
+6. Tag the 0.x line: `npx tsx scripts/tag-history.ts` (dry run — the eight commands, each verified against the commit's `package.json`, the release note and CHANGELOG), then `npx tsx scripts/tag-history.ts --apply` in your terminal, `git tag -n3` to review, `git push origin --tags`. Annotated tags, **no GitHub Release**. Those commits carry the old `publish.yml`, triggered only by a published release, so the tags start nothing. The table the script holds (CONTRIBUTING.md §Tagging the 0.x line explains the choice of commit):
 
    | Tag | Commit |
    |---|---|
