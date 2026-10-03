@@ -16,7 +16,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · `<to be filled by the publish gate>` tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 191 reviewed equivalents.
+Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 5 216 tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 191 reviewed equivalents.
 
 Conformance:
 
@@ -87,24 +87,24 @@ Conformance:
 
 ## Validation (what actually ran, on Windows 11, Node v22.17.0)
 
-The figures of 2026-10-02 (the final review) were superseded when the 1.1 list was pulled in on 2026-10-03; a row reads `not run` until the integrator re-runs it on the integrated branch, and `<to be filled by the publish gate>` where the figure comes from that gate.
+The figures of 2026-10-02 (the final review) were superseded when the 1.1 list was pulled in on 2026-10-03 and re-run on the integrated branch (tip d2e2051) the same day; a row still marked `not run since 2026-10-02` names a check that was not repeated and the figure it gave then.
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | `<to be filled by the publish gate>` (16 steps with `check:guides`) |
-| `npm run gate:fast` (typecheck:all, lint, test, check:guides, verify:samples, verify:docs) | `<to be filled by the publish gate>` — the Lot C run is reported in its hand-back |
-| `npm run test:coverage` | not run since 2026-10-02 (then 4 880 tests, 100 % on all four axes); `<to be filled by the publish gate>` |
-| `npx tsx scripts/mutate.ts` (every default target) | 79 modules, 100 % on every one at the end of each lot; 191 reviewed equivalents in `scripts/data/mutation-equivalents.json`; not re-run whole after integration |
-| `npm run verify:bundle` | not run since 2026-10-02 (then 18 probes within budget); the integrator raises any budget the lots exceeded |
+| `npx tsx scripts/gate.ts --publish --require-all` | 16/16 passed in 584.0 s (2026-10-03, tip `d2e2051`): typecheck:all, lint, build, dist-check, bundle-check, test:coverage, check:package, verify:bundle, verify:samples, smoke:install, ts-floor, docs:playground-fresh, verify:docs, check:guides, conformance, interop |
+| `npm run gate:fast` (typecheck:all, lint, test, check:guides, verify:samples, verify:docs) | 6/6 passed in 328.9 s (2026-10-03, 5 216 tests); every step re-run inside the publish gate above |
+| `npm run test:coverage` | 5 216 tests; 100.0 % statements, and the 100 % threshold on all four axes held (publish gate, 2026-10-03) |
+| `npx tsx scripts/mutate.ts` (every default target) | 79 modules; every module a lot touched was re-measured on the integrated branch on 2026-10-03 — verify-chain 283 mutants (192 killed, 17 equivalents), x509-certificate 298, asn1-encode 382, crypto-algorithms 263, cms-attributes 271, cms-signed-data 261, x509-csr 69, verify-csr 43, key-import 72, verify-signer 69, verify-pkcs12 97, shake256 156 (0 equivalents) — 100 % killed or argued on each; 191 reviewed equivalents in `scripts/data/mutation-equivalents.json`, 0 stale, 0 refuted; the untouched modules keep their 100 % of 2026-10-03 morning |
+| `npm run verify:bundle` | 18 probes within budget (publish gate, 2026-10-03) after one reviewed raise of every budget with its measurement (`cab9a3b`); the whole library re-minifies to 314.6 KB, under the ~320 KB projection written for 1.0 |
 | `npx tsx scripts/verify-docs.ts` | 84 rules, 0 errors, 0 warnings (2026-10-03, Lot C) |
-| `npm run check:guides` | `<to be filled by the publish gate>` — the Lot C run is reported in its hand-back |
-| `npx tsx scripts/validate-certs.ts --level 8 --require-all` | not run since 2026-10-02 (then PASSED: 0 failures, 0 skips, 2 not applicable; L5 six inventories, 0 todo); `<to be filled by the publish gate>` |
-| `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | not run since 2026-10-02 (then 9 tools agree on every artefact); `openssl:csr` is new; `<to be filled by the publish gate>` |
-| `npm run check:ts-floor` | not run since 2026-10-02 (then TypeScript 5.0.4 under node16, bundler, node10 and nodom) |
-| `npm run check:package` | not run since 2026-10-02 (then PASS) |
-| `npm run smoke:install` | not run since 2026-10-02 (then PASS) |
-| `npm pack --dry-run` | not run since 2026-10-02 (then 12 files, 1.2 MB packed, 4.7 MB unpacked) |
-| `npm audit` / `osv-scanner` (2.6.0) | not run since 2026-10-02 (then 0 vulnerabilities / no issues in 326 packages) |
+| `npm run check:guides` | 27 TypeScript fences of README and the guides compiled against `src/index.ts` under lib ES2020 + DOM, 0 errors (publish gate, 2026-10-03) |
+| `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED on 2026-10-03 on the integrated build: 0 failures, 0 skips, 2 not applicable on win32 (the Go and Python lineages); L1 565 promised refusals held code for code; L6 9 158/9 208 chains agree (99.46 %); L7 195/203 PKITS paths; L8 196/204 S/MIME verdicts, 221/224 messages intact; L5 six inventories, 0 todo — every figure unchanged from the final review: no corpus verdict moved |
+| `npm run interop` (`PKINATIVE_INTEROP_REQUIRE_ALL=1`) | 9 tools agree on every artefact they read or write (2026-10-03, `--require-all`), `openssl:csr` included — the CSRs OpenSSL writes are parsed and verified by pkinative; pkilint cannot verify RSASSA-PSS signatures and windows-certutil prints a translated dump, both reviewed N/A |
+| `npm run check:ts-floor` | PASS inside the publish gate (2026-10-03): TypeScript 5.0.4 under node16, bundler, node10 and nodom |
+| `npm run check:package` | PASS inside the publish gate (2026-10-03) |
+| `npm run smoke:install` | PASS inside the publish gate (2026-10-03) |
+| `npm pack --dry-run` | 12 files, 1.3 MB packed, 5.4 MB unpacked (2026-10-03) |
+| `npm audit` / `osv-scanner` (2.6.0) | `npm audit`: 0 vulnerabilities (2026-10-03); osv-scanner not re-run since 2026-10-02 (then no issues in 326 packages; the lockfile has not changed since) |
 | zizmor 1.30.1 (offline) / actionlint 1.7.12 | not run since 2026-10-02 (then no findings / clean); `node-current.yml` and the `a11y` job are new |
 | `reuse lint` (reuse 6.2.0) | not run since 2026-10-02 (then 520/520 files compliant with REUSE 3.3) |
 | L4 Linux lineages, run locally under WSL Ubuntu on the release machine's validator input | not run since 2026-10-02 (then Go `crypto/x509` 202/202, Python cryptography 46.0.5 202/202, both canaries behaved) |
@@ -167,7 +167,7 @@ This is the first push to an empty repository, so the steps differ from the temp
 
 ## Self-review checklist
 
-- [x] Every count above was produced by a command on this branch, not typed from memory; the rows marked `not run` and `<to be filled by the publish gate>` wait for the integrator's run.
+- [x] Every count above was produced by a command on this branch, not typed from memory; the rows marked `not run since 2026-10-02` name the checks not repeated after the 1.1 list landed and what they gave then.
 - [x] `git diff --stat` on the release commit reads as the bump and the regenerated files (plus the two re-rasterised images), nothing else; the audit fixes follow it as their own commits.
 - [x] The release note carries all six mandatory sections and the CHANGELOG entry mirrors it.
 - [x] No `Co-Authored-By` trailer and no "generated with" footer anywhere on the branch.
