@@ -37,30 +37,6 @@ export type {
 // says why neither of the other two could do this job.
 export type { PkiReason, PkiReasonCode } from './types/pki-reasons.js';
 
-// ── 7. Certification path validation (RFC 5280 section 6) ────────────
-
-export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
-export type { FindRevocationOptions } from './revocation/crl-parse.js';
-export { checkRevocation } from './revocation/crl-check.js';
-export { createOcspRequest, encodeOcspCertId } from './revocation/ocsp-request.js';
-export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
-export { parseOcspResponse } from './revocation/ocsp-response.js';
-export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
-export type { CheckOcspStatusInput } from './revocation/ocsp-check.js';
-export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
-export type { DeltaCrlInput, CheckRevocationInput } from './revocation/crl-check.js';
-export type { CertificateList, CrlReason, IssuingDistributionPoint, RevokedCertificate } from './types/crl-types.js';
-export { buildCertificatePath } from './path/path-build.js';
-export { checkServerName, matchDnsName } from './path/path-server-name.js';
-export type { CheckServerNameOptions, MatchDnsNameOptions, ServerIdentity } from './path/path-server-name.js';
-export { ANY_EXTENDED_KEY_USAGE, checkExtendedKeyUsage, KEY_PURPOSES } from './path/path-purpose.js';
-export type { CheckExtendedKeyUsageOptions } from './path/path-purpose.js';
-export type { BuildCertificatePathInput, BuildCertificatePathReport } from './path/path-build.js';
-export { validateCertificatePath } from './path/path-validate.js';
-export { verifyCertificateChain } from './verify/verify-chain.js';
-export type { VerifyCertificateChainInput, VerifyCertificateChainReport } from './verify/verify-chain.js';
-export type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
-
 // ── 2. ASN.1 — decoding, value readers, encoders ─────────────────────
 
 export { decodeAsn1, decodeAsn1Sequence } from './asn1/asn1-decode.js';
@@ -128,9 +104,10 @@ export { computeKeyIdentifier } from './hash/key-identifier.js';
 export { shake256 } from './hash/shake256.js';
 export type { FingerprintAlgorithm, FormatFingerprintOptions } from './types/hash-types.js';
 
-// ── 6. X.509 — certificate parsing, names, public keys ───────────────
+// ── 6. X.509 — certificate and request parsing, names, public keys ───
 
 export { parseCertificate } from './x509/x509-certificate.js';
+export { parseCertificationRequest } from './x509/x509-csr.js';
 export { formatDistinguishedName } from './x509/x509-name-format.js';
 export { getExtension, decodeExtensionValue } from './x509/x509-extensions.js';
 export type {
@@ -193,13 +170,38 @@ export type {
     RawExtension,
     Extension,
     Certificate,
+    CsrAttribute,
+    CertificationRequest,
 } from './types/x509-types.js';
 
-// ── 7. Verification through Web Crypto ───────────────────────────────
+// ── 7. Verification — signatures through Web Crypto, certification paths (RFC 5280 section 6), revocation, the one-call verdicts ──
 
 export { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from './crypto/x509-verify.js';
 export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
 export { canVerify } from './crypto/webcrypto.js';
+export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';
+export type { FindRevocationOptions } from './revocation/crl-parse.js';
+export { checkRevocation } from './revocation/crl-check.js';
+export { createOcspRequest, encodeOcspCertId } from './revocation/ocsp-request.js';
+export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
+export { parseOcspResponse } from './revocation/ocsp-response.js';
+export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
+export type { CheckOcspStatusInput } from './revocation/ocsp-check.js';
+export type { OcspBasicResponse, OcspCertId, OcspCertStatus, OcspResponderId, OcspResponse, OcspResponseStatus, OcspSingleResponse } from './types/ocsp-types.js';
+export type { DeltaCrlInput, CheckRevocationInput } from './revocation/crl-check.js';
+export type { CertificateList, CrlReason, IssuingDistributionPoint, RevokedCertificate } from './types/crl-types.js';
+export { buildCertificatePath } from './path/path-build.js';
+export { checkServerName, matchDnsName } from './path/path-server-name.js';
+export type { CheckServerNameOptions, MatchDnsNameOptions, ServerIdentity } from './path/path-server-name.js';
+export { ANY_EXTENDED_KEY_USAGE, checkExtendedKeyUsage, KEY_PURPOSES } from './path/path-purpose.js';
+export type { CheckExtendedKeyUsageOptions } from './path/path-purpose.js';
+export type { BuildCertificatePathInput, BuildCertificatePathReport } from './path/path-build.js';
+export { validateCertificatePath } from './path/path-validate.js';
+export { verifyCertificateChain } from './verify/verify-chain.js';
+export type { VerifyCertificateChainInput, VerifyCertificateChainReport } from './verify/verify-chain.js';
+export type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureResult, SignatureVerdict } from './types/path-types.js';
+export { verifyCertificationRequest } from './verify/verify-csr.js';
+export type { VerifyCertificationRequestOptions, VerifyCertificationRequestReport } from './verify/verify-csr.js';
 
 // ── 8. Building — certificates and requests, signed through Web Crypto ─
 

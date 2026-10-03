@@ -26,8 +26,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     parseCertificate,
+    parseCertificationRequest,
     PkiError,
     verifyCertificateChain,
+    verifyCertificationRequest,
     verifySignedData,
     verifyTimeStampToken,
     type Certificate,
@@ -212,6 +214,29 @@ function opensslWrites(o: Host, dir: string, reference: boolean): Written {
     if (setup !== null) { giveUp(ids, setup); return { cases, skipped, failures }; }
     const root = (): Certificate => certPem(f('root.pem'));
     const leaf = (name: string): Certificate => certPem(f(`${name}.pem`));
+
+    // PKCS#10: every request `openssl req -new` wrote on the way to a
+    // certificate is read back — zero diagnostics, the subject the tool was
+    // given — and its proof of possession verified with the key it carries.
+    cases.set('openssl:csr', async () => {
+        const out: string[] = [];
+        for (const name of ['signer-rsa', 'signer-p384', 'signer-ed25519', 'tsa', 'ocsp', 'good', 'revoked1', 'revoked2']) {
+            const der = pemBlocks(readFileSync(f(`${name}.csr`), 'utf8'), 'CERTIFICATE REQUEST')[0];
+            if (der === undefined) { out.push(`openssl:csr ${name}: no CERTIFICATE REQUEST block in ${name}.csr`); continue; }
+            const diagnostics: string[] = [];
+            try {
+                const request = parseCertificationRequest(der, { onDiagnostic: (d) => { diagnostics.push(d.code); } });
+                const cn = request.subject.rdns.flat().find((a) => a.type === '2.5.4.3')?.value?.value;
+                if (cn !== `${name}.example.com`) out.push(`openssl:csr ${name}: subject commonName read as ${String(cn)}, expected ${name}.example.com`);
+            } catch (error) {
+                out.push(`openssl:csr ${name}: refused (${error instanceof Error ? error.message.slice(0, 160) : String(error)})`);
+                continue;
+            }
+            if (diagnostics.length > 0) out.push(`openssl:csr ${name}: parsed with diagnostics ${diagnostics.join(', ')} — what OpenSSL writes must read back clean`);
+            out.push(...expectValid(`openssl:csr ${name}`, await verifyCertificationRequest(der)));
+        }
+        return out;
+    });
 
     // CMS SignedData.
     const sign = (out: string, signer: string, extra: readonly string[]): readonly string[] =>

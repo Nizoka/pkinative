@@ -148,7 +148,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 21 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
+- [recipes/](../../recipes/) — 22 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.

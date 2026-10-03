@@ -565,7 +565,7 @@ export type DecodedExtensionKind = Exclude<Extension['kind'], 'unknown' | 'raw'>
 
 // ── Options ──────────────────────────────────────────────────────────
 
-/** Options of `parseCertificate`. */
+/** Options of `parseCertificate` and `parseCertificationRequest`. */
 export interface ParseCertificateOptions extends PkiParseOptions {
     /**
      * Decode every recognised extension (default `true`). With `false`, every
@@ -614,6 +614,50 @@ export interface Certificate {
     readonly subjectUniqueId: BitString | undefined;
     /** Every extension in encoded order; empty when the field is absent. */
     readonly extensions: readonly Extension[];
+    /** Every diagnostic the parse recorded, in emission order. */
+    readonly diagnostics: readonly PkiDiagnostic[];
+}
+
+// ── Certification request ────────────────────────────────────────────
+
+/** One attribute of a PKCS#10 request (RFC 2986 §4.1): a type and its values, kept as DER. */
+export interface CsrAttribute {
+    /** The attribute type OID, e.g. `1.2.840.113549.1.9.14` (extensionRequest). */
+    readonly oid: string;
+    /** The exact encoding of each value — tag, length and content — in encoded order. */
+    readonly values: readonly Uint8Array[];
+}
+
+/**
+ * A parsed PKCS#10 certification request (RFC 2986 §4). Parsing checks the
+ * structure and records profile concerns; it does not verify the signature —
+ * `verifyCertificationRequest` does, with the key the request itself carries.
+ */
+export interface CertificationRequest {
+    /** The whole request encoding. */
+    readonly der: Uint8Array;
+    /** The certificationRequestInfo encoding — the bytes the signature covers. */
+    readonly tbsDer: Uint8Array;
+    /** The encoded version: `0`, the only one RFC 2986 defines (v1). */
+    readonly version: 0;
+    /** The name the requester asks to be certified under; its `der` is what a CA copies into the certificate. */
+    readonly subject: DistinguishedName;
+    /** The public key the requester asks to have certified — and the key its signature is checked with. */
+    readonly subjectPublicKeyInfo: SubjectPublicKeyInfo;
+    /** Every attribute in encoded order; empty when the request asks for nothing beyond its subject and key. */
+    readonly attributes: readonly CsrAttribute[];
+    /**
+     * The extensions requested through the `extensionRequest` attribute (RFC 2985
+     * §5.4.2), decoded as a certificate's would be; `undefined` when the request
+     * carries none. A CA is free to ignore every one of them.
+     */
+    readonly extensions: readonly Extension[] | undefined;
+    /** The `challengePassword` attribute (RFC 2985 §5.4.1), or `undefined` when absent. Attacker-controlled text. */
+    readonly challengePassword: string | undefined;
+    /** The signature algorithm. A request names it once, so there is no inner field to match it against. */
+    readonly signatureAlgorithm: AlgorithmIdentifier;
+    /** The signature over `tbsDer`, made with the private half of `subjectPublicKeyInfo`. */
+    readonly signatureValue: BitString;
     /** Every diagnostic the parse recorded, in emission order. */
     readonly diagnostics: readonly PkiDiagnostic[];
 }

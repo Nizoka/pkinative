@@ -93,6 +93,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 |---|---|
 | The one-call verdict | `verifyCertificateChain` — path building, RFC 5280 §6 validation, host name, key purpose and revocation in one report that lists every reason at once ([use cases](docs/guides/use-cases.md#just-tell-me-whether-to-accept-this-certificate)) |
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
+| Certification requests | `parseCertificationRequest` (PKCS#10, a `CertificationRequest`: subject, key, attributes and the extensions it asks for, read with the certificate's own readers), `verifyCertificationRequest` — the proof of possession checked with the key inside the request, as a `VerifyCertificationRequestReport` that never throws for bad bytes (`VerifyCertificationRequestOptions` for `allowSha1` and the reading options) |
 | Signature verification | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` — one signature against one issuer key, through Web Crypto; `PkiCryptoError` when it could not be checked, never when it failed |
 | Creation | `createCertificate`, `createCertificationRequest` (PKCS#10), `canSign` — signed by a Web Crypto key or an `ExternalSigner`; the structural encoders `encodeDistinguishedName`, `encodeExtensions`, `encodeSubjectAltName`, `encodeKeyUsage`, `KEY_USAGE_BITS`, `encodeSubjectPublicKeyInfo` and the rest |
 | Paths | `buildCertificatePath`, `validateCertificatePath` — RFC 5280 §6 with name constraints and the policy tree |
@@ -106,7 +107,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints and key identifiers | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier` |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 288 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 294 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -129,7 +130,7 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 - **Coverage-guided fuzzing has not run on GitHub yet.** The ClusterFuzzLite workflow is in place; its first run needs the published repository ([SECURITY.md](SECURITY.md#verification-of-the-parser)). The seeded adversarial suites run in every gate.
 - **An `id-RSASSA-PSS` public key cannot be imported on Node.js 22**, so a certificate, list, response or message signed with one is reported `PKI_REASON_SIGNATURE_NOT_CHECKED` (`PKI_CRYPTO_KEY_UNSUPPORTED`): it fails closed, it is not verified. Keys of type `rsaEncryption` signing with RSASSA-PSS verify normally.
 - **No built-in trust store, no fetching.** The caller supplies the trust anchors, and the CRLs and OCSP responses a check needs: pkinative does no network I/O ([ADR 0006](docs/adr/0006-no-network-io-in-the-engine.md)).
-- **No PKCS#10, OCSP-request or timestamp-request reader.** `createCertificationRequest`, `createOcspRequest` and `createTimeStampRequest` write them; no public function parses one.
+- **No OCSP-request or timestamp-request reader.** `createOcspRequest` and `createTimeStampRequest` write them; no public function parses one. (A PKCS#10 request is read by `parseCertificationRequest` and judged by `verifyCertificationRequest`.)
 - **No CRL or OCSP-response writer.** pkinative reads and verifies both, and writes neither.
 - **ML-DSA signatures are not verified**, though ML-DSA keys are read; **DSA and Ed448 CMS signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)).
 - **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied. No public suffix list is embedded: a wildcard needs three labels, and registry-level policy is the caller's.

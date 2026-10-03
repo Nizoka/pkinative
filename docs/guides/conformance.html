@@ -401,6 +401,11 @@
 <td>with the base alone the second certificate is valid; with the base and the delta, <code>PKI_REASON_REVOKED</code></td>
 </tr>
 <tr>
+<td><code>openssl:csr</code></td>
+<td><code>openssl req -new</code> for every key the matrix issues a certificate to (RSA 2048, ECDSA P-256 and P-384, Ed25519)</td>
+<td><code>parseCertificationRequest</code> with zero diagnostics and the subject the tool was given; <code>verifyCertificationRequest</code> valid</td>
+</tr>
+<tr>
 <td><code>gnutls-certtool:crl</code></td>
 <td><code>certtool --generate-crl</code> over an ECDSA CA and one certificate it issued</td>
 <td>the listed certificate <code>PKI_REASON_REVOKED</code>, the other valid</td>

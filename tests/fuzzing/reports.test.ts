@@ -12,6 +12,7 @@ import {
     encodeTime,
     encodeTlv,
 } from '../../src/asn1/asn1-encode.js';
+import { createCertificationRequest } from '../../src/build/build-csr.js';
 import { addTimeStampToken, createSignedData } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { createTimeStampRequest } from '../../src/cms/tsp-request.js';
@@ -21,6 +22,7 @@ import { PkiError } from '../../src/types/pki-errors.js';
 import type { PkiLimits } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
+import { verifyCertificationRequest } from '../../src/verify/verify-csr.js';
 import { verifySignedData } from '../../src/verify/verify-signed-data.js';
 import { openPkcs12 } from '../../src/verify/verify-pkcs12.js';
 import { verifyTimeStampToken } from '../../src/verify/verify-timestamp.js';
@@ -52,6 +54,7 @@ import {
     quiet,
     rawSign,
     sha,
+    spkiOf,
     tstInfo,
 } from '../verify/_cms-pki.js';
 
@@ -347,6 +350,8 @@ interface World {
     readonly imprint: Uint8Array;
     /** The signer's key and certificate, shrouded and MACed under PASSWORD the way OpenSSL 3.4 writes them. */
     readonly pkcs12: Uint8Array;
+    /** A PKCS#10 request for the signer's key, signed by it. */
+    readonly csr: Uint8Array;
     readonly donors: readonly Uint8Array[];
 }
 
@@ -377,9 +382,14 @@ beforeAll(async () => {
     const keys = safeContents(shroudedKeyBag(await shroudKey(pkcs8, PASSWORD), [localKeyId(KEY_ID)]));
     const authSafe = authenticatedSafe(await encryptedSafeContents(certs, PASSWORD), dataInfo(keys));
     const pkcs12 = pfx({ authSafe, macData: await pbmac1MacData(authSafe, PASSWORD) });
+    const csr = await createCertificationRequest({
+        subject: [[{ type: '2.5.4.3', value: 'Fuzz Requester' }]],
+        subjectPublicKey: await spkiOf(signer.pair),
+        extensions: [{ oid: '2.5.29.17', value: encodeSequence([encodeTlv('context', 2, false, new TextEncoder().encode('fuzz.example'))]) }],
+    }, signer.signer);
     w = {
-        root, signer, tsa, crl, ocsp, attached, detached, token, response, request, imprint, pkcs12,
-        donors: [crl, ocsp, token, attached, signer.certificate.der, tsa.certificate.der, pkcs12],
+        root, signer, tsa, crl, ocsp, attached, detached, token, response, request, imprint, pkcs12, csr,
+        donors: [crl, ocsp, token, attached, signer.certificate.der, tsa.certificate.der, pkcs12, csr],
     };
 }, 30_000);
 
@@ -528,12 +538,34 @@ describe('openPkcs12 under adversarial files, passwords and limits', () => {
     });
 });
 
+describe('verifyCertificationRequest under adversarial requests and limits', () => {
+    it('should always resolve with a registered report', async () => {
+        const prng = createPrng(SEED + 4);
+        const seen = new Map<string, number>();
+        expect((await verifyCertificationRequest(w.csr)).valid).toBe(true);
+        for (let i = 0; i < BUDGET; i += 1) {
+            const limits = TINY_LIMITS[prng.int(TINY_LIMITS.length)];
+            const { name, bytes } = mutate(prng, w.csr, w.donors);
+            const label = `seed ${String(prng.seed)} iteration ${String(i)} ${name} limits ${JSON.stringify(limits)}`;
+            const result = await check(label, bytes, () => verifyCertificationRequest(bytes, limits === undefined ? {} : { limits }));
+            seen.set(result, (seen.get(result) ?? 0) + 1);
+        }
+        expect(seen.size).toBeGreaterThan(3);
+    });
+});
+
 /**
  * The property above must not be satisfied by swallowing everything: misuse
  * still throws its documented code, whatever the bytes beside it.
  */
 describe('the reports under API misuse', () => {
     const notACertificate = { der: new Uint8Array(1) } as unknown as Certificate;
+
+    it('should still throw from verifyCertificationRequest', async () => {
+        await expect(verifyCertificationRequest(w.csr, { limits: { maxNode: 1 } as Partial<PkiLimits> })).rejects.toMatchObject({ code: 'PKI_LIMIT_INVALID' });
+        await expect(verifyCertificationRequest(w.csr, { encodingRules: 'cer' as 'der' })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
+        await expect(verifyCertificationRequest('MIIB' as unknown as Uint8Array)).rejects.toMatchObject({ code: 'PKI_INVALID_INPUT' });
+    });
 
     it('should still throw from verifyCertificateChain', async () => {
         const base = { leaf: w.signer.certificate, trustAnchors: [w.root.certificate], at: AT, crls: [w.crl], ocspResponses: [w.ocsp] };

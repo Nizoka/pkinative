@@ -1,9 +1,10 @@
 /**
  * pkinative — X.509 field checks
  * ==============================
- * The two helpers every certificate structure reader shares: the error of a
- * field that is missing or of the wrong type, and the check that raises it.
- * Every `PkiCertificateError` names its path, its offset and a remedy.
+ * The two helpers every certificate structure reader shares — the certificate,
+ * the CRL and the PKCS#10 request among them: the error of a field that is
+ * missing or of the wrong type, and the check that raises it. Every
+ * `PkiCertificateError` names its path, its offset and a remedy.
  *
  * @module x509/x509-fields
  */
@@ -13,8 +14,8 @@ import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCertificateError, type PkiCertificateErrorCode } from '../types/pki-errors.js';
 
 const REMEDIES: Readonly<Record<PkiCertificateErrorCode, string>> = /*#__PURE__*/ Object.freeze({
-    PKI_X509_STRUCTURE_INVALID: 'check that the input is a certificate, not a CSR, a CRL or a key',
-    PKI_X509_VERSION_INVALID: 'the input is not a certificate version RFC 5280 defines',
+    PKI_X509_STRUCTURE_INVALID: 'check that the input is the structure this reader expects: a certificate, a CSR, a CRL and a key are four different ones',
+    PKI_X509_VERSION_INVALID: 'the input is not a version RFC 5280 (certificate) or RFC 2986 (request) defines',
     PKI_X509_NAME_INVALID: 'the issuer encoded the name wrongly',
     PKI_X509_VALIDITY_INVALID: 'the issuer encoded the validity period wrongly',
     PKI_X509_SPKI_INVALID: 'the issuer encoded the public key wrongly',

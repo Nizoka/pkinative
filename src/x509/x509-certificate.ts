@@ -238,10 +238,24 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
         throw certificateError(STRUCTURE, path, field.offset, 'is not one SEQUENCE under the explicit [3] tag');
     }
     const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE, field.offset);
+    return _readExtensionSequence(seq, ctx, input, decode, path, 'the extensions of the certificate');
+}
+
+/**
+ * The `Extensions` SEQUENCE itself (RFC 5280 §4.1.2.9), wherever it sits: under
+ * the explicit `[3]` of a TBSCertificate, or as the one value of a PKCS#10
+ * `extensionRequest` attribute (x509-csr.ts). One reader, so a request's
+ * extensions are held to exactly what a certificate's are — the same codes, the
+ * same bound, the same decoders. `counted` is what the `maxExtensions` bound is
+ * said to count when it trips.
+ *
+ * @internal
+ */
+export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: Uint8Array, decode: boolean, path: string, counted: string): readonly Extension[] {
     if (seq.children.length === 0) {
         throw certificateError('PKI_X509_EXTENSIONS_EMPTY', path, seq.offset, 'is present but holds no extension; RFC 5280 requires at least one');
     }
-    enforceLimit(ctx.limits, 'maxExtensions', seq.children.length, 'the extensions of the certificate');
+    enforceLimit(ctx.limits, 'maxExtensions', seq.children.length, counted);
     const seen = new Set<string>();
     const extensions: Extension[] = [];
     for (let i = 0; i < seq.children.length; i++) {

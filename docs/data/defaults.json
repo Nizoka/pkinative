@@ -13,7 +13,7 @@
     },
     {
       "option": "strict",
-      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions"],
+      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions", "VerifyCertificationRequestOptions"],
       "default": "false — a diagnostic is reported, not thrown; true refuses the first warning and still reports every info",
       "semver": "frozen",
       "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true && diagnostic.severity === 'warning') {" }]
@@ -58,10 +58,13 @@
     },
     {
       "option": "decodeExtensions",
-      "in": ["ParseCertificateOptions"],
+      "in": ["ParseCertificateOptions", "VerifyCertificationRequestOptions"],
       "default": "true — every recognised extension is decoded",
       "semver": "frozen",
-      "evidence": [{ "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions ?? true;" }]
+      "evidence": [
+        { "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions ?? true;" },
+        { "file": "src/x509/x509-csr.ts", "text": "const decode = options?.decodeExtensions ?? true;" }
+      ]
     },
     {
       "option": "critical",
@@ -86,13 +89,14 @@
     },
     {
       "option": "allowSha1",
-      "in": ["VerifyCertificateSignatureOptions", "VerifySignerInfoSignatureOptions", "VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput"],
+      "in": ["VerifyCertificateSignatureOptions", "VerifySignerInfoSignatureOptions", "VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput", "VerifyCertificationRequestOptions"],
       "default": "false — a SHA-1 signature is not evidence",
       "semver": "frozen",
       "evidence": [
         { "file": "src/crypto/x509-verify.ts", "text": "allowSha1: options?.allowSha1 === true" },
         { "file": "src/crypto/cms-verify.ts", "text": "if (resolved.hash === 'SHA-1' && options?.allowSha1 !== true) {" },
-        { "file": "src/verify/verify-chain.ts", "text": "await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);" },
+        { "file": "src/verify/verify-chain.ts", "text": "allowSha1: input.allowSha1 === true," },
+        { "file": "src/verify/verify-csr.ts", "text": "{ allowSha1: allowSha1 === true }" },
         { "file": "src/verify/verify-signed-data.ts", "text": "allowSha1: input.allowSha1 === true," },
         { "file": "src/verify/verify-timestamp.ts", "text": "allowSha1: input.allowSha1 === true," }
       ]

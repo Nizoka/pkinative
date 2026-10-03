@@ -11,7 +11,7 @@
     { "limit": "maxOidBytes", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The content length of one OBJECT IDENTIFIER." },
     { "limit": "maxBerSegments", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The segments joined from one BER constructed string." },
     { "limit": "maxPemBlocks", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The blocks read from one PEM text." },
-    { "limit": "maxExtensions", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The extensions of one certificate." },
+    { "limit": "maxExtensions", "default": 256, "display": "256", "cwe": "CWE-400", "guards": "The extensions of one certificate; of one certification request, the attributes, the values of each attribute and the extensions it requests — the structure the attributes carry, so the one bound fits both." },
     { "limit": "maxGeneralNames", "default": 10000, "display": "10 000", "cwe": "CWE-400", "guards": "The GeneralName entries of one field." },
     { "limit": "maxNameAttributes", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The attributes of one distinguished name." },
     { "limit": "maxPolicies", "default": 1024, "display": "1 024", "cwe": "CWE-400", "guards": "The policies or policy mappings of one extension." },

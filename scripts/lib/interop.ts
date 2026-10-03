@@ -256,6 +256,7 @@ export const READ_CASES: readonly ReadCase[] = Object.freeze([
     { id: 'openssl:ocsp-revoked', tool: 'openssl', writes: 'openssl ocsp -index after openssl ca -revoke -crl_reason keyCompromise', expect: 'verifyCertificateChain: PKI_REASON_REVOKED' },
     { id: 'openssl:crl-base', tool: 'openssl', writes: 'openssl ca -gencrl after one revocation (keyCompromise)', expect: 'the revoked certificate PKI_REASON_REVOKED, the other valid with requireRevocation' },
     { id: 'openssl:crl-delta', tool: 'openssl', writes: 'openssl crl -gendelta -sha256 between that CRL and the next, after a second revocation', expect: 'with the base CRL, the certificate revoked after it is PKI_REASON_REVOKED' },
+    { id: 'openssl:csr', tool: 'openssl', writes: 'openssl req -new for every key the matrix issues a certificate to (RSA 2048, ECDSA P-256 and P-384, Ed25519)', expect: 'parseCertificationRequest with zero diagnostics and the subject the tool was given; verifyCertificationRequest valid' },
     { id: 'gnutls-certtool:crl', tool: 'gnutls-certtool', writes: 'certtool --generate-crl over a CA and a certificate it issued', expect: 'the listed certificate PKI_REASON_REVOKED, the other valid with requireRevocation' },
     { id: 'gpgsm:cms-detached', tool: 'gpgsm', writes: 'gpgsm --detach-sign with a key imported from PKCS #12', expect: 'verifySignedData valid' },
     { id: 'gpgsm:cms-attached', tool: 'gpgsm', writes: 'gpgsm --sign: indefinite-length BER', expect: 'verifySignedData valid with encodingRules: \'ber\'' },

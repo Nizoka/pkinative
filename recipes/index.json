@@ -692,6 +692,32 @@
         "macRefused=PKI_KEY_MAC_UNSUPPORTED",
         "legacyReport=valid=false PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED@authSafe[0] PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED@authSafe[1].bags[0]"
       ]
+    },
+    {
+      "file": "csr.ts",
+      "task": "Read a PKCS#10 certification request and judge its proof of possession with the key it carries, before a CA decides anything else",
+      "surface": [
+        "parseCertificationRequest",
+        "verifyCertificationRequest",
+        "CertificationRequest",
+        "CsrAttribute",
+        "VerifyCertificationRequestOptions",
+        "VerifyCertificationRequestReport",
+        "createCertificationRequest",
+        "formatDistinguishedName"
+      ],
+      "since": "1.0.0",
+      "expects": [
+        "available=yes",
+        "subject=CN=host.example,C=US",
+        "key=ec version=0 diagnostics=0",
+        "attributes=1.2.840.113549.1.9.14(1)",
+        "requested=subjectAltName,keyUsage!",
+        "names=host.example,www.host.example",
+        "sound=valid=true verifications=1",
+        "altered=valid=false PKI_REASON_SIGNATURE_INVALID@certificationRequest.signature subject=CN=jost.example,C=US",
+        "garbage=valid=false PKI_REASON_INPUT_MALFORMED@certificationRequest errorCode=PKI_X509_STRUCTURE_INVALID request=undefined"
+      ]
     }
   ]
 }
