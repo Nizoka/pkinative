@@ -967,6 +967,36 @@
       "original": "1",
       "replacement": "0",
       "reason": "Semantic: the mutant allocates maxTag slots instead of maxTag + 1; a field [maxTag] is still stored by `fields[child.tagNumber] = child` (a JS array grows on assignment), and an absent one reads as undefined through the callers' positional destructuring, exactly as the filled slot would."
+    },
+    {
+      "id": "src/x509/x509-name-format.ts:48:14:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: hexpairs is called only from escapeValue for U+0000–U+001F, U+007F–U+009F and the twelve BIDI_CONTROLS (U+061C, U+200E–U+200F, U+202A–U+202E, U+2066–U+2069); U+0800 is none of them, so `code <= 0x800` and `code < 0x800` agree on every argument."
+    },
+    {
+      "id": "src/x509/x509-name-format.ts:48:16:number+1",
+      "original": "0x800",
+      "replacement": "2049",
+      "reason": "Semantic: as 48:14 — the two- and three-octet branches differ only for U+0800, which is not a code point escapeValue passes to hexpairs."
+    },
+    {
+      "id": "src/x509/x509-name-format.ts:48:16:number-1",
+      "original": "0x800",
+      "replacement": "2047",
+      "reason": "Semantic: as 48:14 — the bound moves onto U+07FF, which is not a code point escapeValue passes to hexpairs (the arguments below U+0800 stop at U+061C; the next one is U+200E)."
+    },
+    {
+      "id": "src/x509/x509-name-format.ts:81:110:conditional",
+      "original": "name === null ? 'null' : typeof name",
+      "replacement": "(name === null ? typeof name : 'null')",
+      "reason": "Message-only: the expression names the received type in the PKI_INVALID_INPUT message; the refusal and its code are decided by the enclosing typeof/null/Array.isArray test (pinned by the null, string and object vectors)."
+    },
+    {
+      "id": "src/x509/x509-name-format.ts:81:115:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional at 81:110 — the comparison only picks the type name rendered in the message."
     }
   ]
 }

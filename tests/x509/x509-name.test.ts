@@ -186,6 +186,22 @@ describe('formatDistinguishedName', () => {
         expect(format(name([['2.5.4.3', utf8(value)]]))).toBe(expected);
     });
 
+    // Each escaped class at its first and last code point and one past it, and
+    // each UTF-8 width of hexpairs at a code point whose low bits a wrong mask
+    // or shift would change.
+    it.each<[string, string, string]>([
+        ['U+001F, the last C0 control', 'a\u001fb', 'CN=a\\1fb'],
+        ['U+007E, the last printable ASCII character, literally', 'a~b', 'CN=a~b'],
+        ['U+0080, the first C1 control, as two octets', 'a\u0080b', 'CN=a\\c2\\80b'],
+        ['U+009F, the last C1 control', 'a\u009fb', 'CN=a\\c2\\9fb'],
+        ['U+00A0, past the C1 controls, literally', 'a b', 'CN=a b'],
+        ['U+061C, the arabic letter mark, as two octets', 'a؜b', 'CN=a\\d8\\9cb'],
+        ['U+200F, the right-to-left mark, as three octets', 'a‏b', 'CN=a\\e2\\80\\8fb'],
+        ['U+2066, the left-to-right isolate, as three octets', 'a⁦b', 'CN=a\\e2\\81\\a6b'],
+    ])('should write %s (RFC 4514 §2.4 hexpairs of the UTF-8 octets)', (_, value, expected) => {
+        expect(format(name([['2.5.4.3', utf8(value)]]))).toBe(expected);
+    });
+
     it('should leave a number sign inside a value and non-ASCII text as they are', () => {
         expect(format(name([['2.5.4.3', utf8('a#b Zoë')]]))).toBe('CN=a#b Zoë');
     });
