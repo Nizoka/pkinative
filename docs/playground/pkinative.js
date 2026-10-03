@@ -5572,7 +5572,10 @@ function growPolicyTree(state, policies, maxNodes) {
   if (levels === null || parents === null) return "ok";
   const next = [];
   const push = (node, parentIndex) => {
-    if (state.nodeCount >= maxNodes) return false;
+    if (state.nodeCount >= maxNodes) {
+      for (const parent of parents) parent.children = [];
+      return false;
+    }
     parents[parentIndex]?.children.push(next.length);
     next.push(node);
     state.nodeCount += 1;
