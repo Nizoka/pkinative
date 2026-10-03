@@ -594,3 +594,26 @@ describe('certificatePolicies and policyMappings — the structural guards answe
             .toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', path: 'extnValue[0]' });
     });
 });
+
+// ── Shared readers at their exact boundaries (mutation pins) ──
+
+describe('shared extension readers — exact boundaries', () => {
+    it('should refuse a context field repeated with the same tag, at the repeated field (RFC 5280 §4.2.1.1: each field once)', () => {
+        const error = thrown(() => decode(OID.authorityKeyIdentifier, sequence(context(0, false, [1]), context(0, false, [2]))));
+        expect(error).toBeInstanceOf(PkiCertificateError);
+        expect(error).toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', offset: 5 });
+    });
+
+    it('should read a count of exactly 2^53 − 1 and refuse 2^53, at the INTEGER', () => {
+        expect(decode(OID.basicConstraints, sequence(boolean(true), integer([0x1f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]))))
+            .toMatchObject({ cA: true, pathLenConstraint: Number.MAX_SAFE_INTEGER });
+        const error = thrown(() => decode(OID.basicConstraints, sequence(boolean(true), integer([0x20, 0, 0, 0, 0, 0, 0]))));
+        expect(error).toBeInstanceOf(PkiCertificateError);
+        expect(error).toMatchObject({ code: 'PKI_X509_EXTENSION_MALFORMED', offset: 5 });
+    });
+
+    it('should report a named bit list of one bit whose only bit is zero as a trailing zero', () => {
+        expect(diagnosticsOf(OID.keyUsage, bitString([0x00], 7), true)).toEqual(['PKI_DIAG_NAMED_BITS_TRAILING_ZERO', 'PKI_DIAG_KEY_USAGE_EMPTY']);
+        expect(diagnosticsOf(OID.keyUsage, bitString([0x80], 7), true)).toEqual([]);
+    });
+});

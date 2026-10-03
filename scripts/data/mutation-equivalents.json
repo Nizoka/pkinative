@@ -955,6 +955,18 @@
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as if-true at 235:13 — any truth value of the condition ends in PKI_PEM_NO_BLOCK at offset 0."
+    },
+    {
+      "id": "src/x509/x509-ext-shared.ts:65:90:number+1",
+      "original": "1",
+      "replacement": "2",
+      "reason": "Semantic: the mutant allocates one more trailing slot, filled with undefined; every caller (x509-ext-constraints, -distribution, -identifiers, revocation/crl-scope) destructures fields [0] to [maxTag] by position and never reads the length, so the extra undefined is never seen."
+    },
+    {
+      "id": "src/x509/x509-ext-shared.ts:65:90:number-1",
+      "original": "1",
+      "replacement": "0",
+      "reason": "Semantic: the mutant allocates maxTag slots instead of maxTag + 1; a field [maxTag] is still stored by `fields[child.tagNumber] = child` (a JS array grows on assignment), and an absent one reads as undefined through the callers' positional destructuring, exactly as the filled slot would."
     }
   ]
 }
