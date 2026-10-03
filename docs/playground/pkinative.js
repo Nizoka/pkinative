@@ -173,197 +173,6 @@ function enforceLimit(limits, limit, observed, context) {
   }
 }
 
-// src/asn1/asn1-tags.ts
-var TAG_BOOLEAN = 1;
-var TAG_INTEGER = 2;
-var TAG_BIT_STRING = 3;
-var TAG_OCTET_STRING = 4;
-var TAG_NULL = 5;
-var TAG_OID = 6;
-var TAG_ENUMERATED = 10;
-var TAG_UTF8_STRING = 12;
-var TAG_RELATIVE_OID = 13;
-var TAG_SEQUENCE = 16;
-var TAG_SET = 17;
-var TAG_NUMERIC_STRING = 18;
-var TAG_PRINTABLE_STRING = 19;
-var TAG_TELETEX_STRING = 20;
-var TAG_IA5_STRING = 22;
-var TAG_UTC_TIME = 23;
-var TAG_GENERALIZED_TIME = 24;
-var TAG_VISIBLE_STRING = 26;
-var TAG_UNIVERSAL_STRING = 28;
-var TAG_BMP_STRING = 30;
-var TAG_CLASSES = ["universal", "application", "context", "private"];
-function tagClassOf(identifier) {
-  const bits = identifier & 192;
-  if (bits === 0) return "universal";
-  if (bits === 64) return "application";
-  if (bits === 128) return "context";
-  return "private";
-}
-var STRING_TAGS = {
-  utf8: TAG_UTF8_STRING,
-  numeric: TAG_NUMERIC_STRING,
-  printable: TAG_PRINTABLE_STRING,
-  teletex: TAG_TELETEX_STRING,
-  ia5: TAG_IA5_STRING,
-  visible: TAG_VISIBLE_STRING,
-  universal: TAG_UNIVERSAL_STRING,
-  bmp: TAG_BMP_STRING
-};
-var NAMES = {
-  0: "end-of-contents",
-  1: "BOOLEAN",
-  2: "INTEGER",
-  3: "BIT STRING",
-  4: "OCTET STRING",
-  5: "NULL",
-  6: "OBJECT IDENTIFIER",
-  7: "ObjectDescriptor",
-  8: "EXTERNAL",
-  9: "REAL",
-  10: "ENUMERATED",
-  11: "EMBEDDED PDV",
-  12: "UTF8String",
-  13: "RELATIVE-OID",
-  14: "TIME",
-  16: "SEQUENCE",
-  17: "SET",
-  18: "NumericString",
-  19: "PrintableString",
-  20: "TeletexString",
-  21: "VideotexString",
-  22: "IA5String",
-  23: "UTCTime",
-  24: "GeneralizedTime",
-  25: "GraphicString",
-  26: "VisibleString",
-  27: "GeneralString",
-  28: "UniversalString",
-  29: "CHARACTER STRING",
-  30: "BMPString"
-};
-function isPrimitiveOnly(tagNumber) {
-  return tagNumber === 1 || tagNumber === 2 || tagNumber === 5 || tagNumber === 6 || tagNumber === 9 || tagNumber === 10 || tagNumber === 13 || tagNumber === 14;
-}
-function isConstructedOnly(tagNumber) {
-  return tagNumber === 8 || tagNumber === 11 || tagNumber === 16 || tagNumber === 17 || tagNumber === 29;
-}
-function isStringTag(tagNumber) {
-  return tagNumber === 3 || tagNumber === 4 || tagNumber === 7 || tagNumber === 12 || tagNumber >= 18 && tagNumber <= 28 || tagNumber === 30;
-}
-function stringTypeOfTag(tagNumber) {
-  for (const type of Object.keys(STRING_TAGS)) {
-    if (STRING_TAGS[type] === tagNumber) return type;
-  }
-  return void 0;
-}
-function tagLabel(tagClass, tagNumber) {
-  if (tagClass === "universal") return NAMES[tagNumber] ?? `[UNIVERSAL ${tagNumber}]`;
-  if (tagClass === "context") return `[${tagNumber}]`;
-  return `[${tagClass.toUpperCase()} ${tagNumber}]`;
-}
-
-// src/asn1/asn1-cursor.ts
-var CLASSES = ["universal", "application", "context", "private"];
-function readTlvHeader(data, offset, path) {
-  const first = data[offset];
-  if (first === void 0) {
-    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} expects a value at offset ${String(offset)} and the input ends there \u2014 the structure is truncated`, offset);
-  }
-  const tagClass = CLASSES[first >> 6 & 3];
-  const constructed = (first & 32) !== 0;
-  let tagNumber = first & 31;
-  let at = offset + 1;
-  if (tagNumber === 31) {
-    tagNumber = 0;
-    let octets = 0;
-    for (; ; ) {
-      const byte = data[at];
-      if (byte === void 0) {
-        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a high tag number that runs past the input`, offset);
-      }
-      if (octets === 0 && byte === 128) {
-        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a high tag number whose first octet is 0x80, which is not the shortest form (X.690 \xA78.1.2.4.2)`, offset);
-      }
-      octets += 1;
-      if (octets > 4) {
-        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a tag number wider than four octets \u2014 no PKI structure uses one, and accepting it invites an integer overflow`, offset);
-      }
-      tagNumber = tagNumber << 7 | byte & 127;
-      at += 1;
-      if ((byte & 128) === 0) break;
-    }
-    if (tagNumber < 31) {
-      throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} writes tag number ${String(tagNumber)} in the high-tag-number form, which X.690 \xA78.1.2.2 reserves for numbers of 31 and above`, offset);
-    }
-  }
-  if (tagClass === "universal") {
-    if (tagNumber === 0) {
-      throw new PkiEncodingError("PKI_ASN1_EOC_UNEXPECTED", `pkinative: ${path} holds an end-of-contents marker where a value belongs (X.690 \xA78.1.5) \u2014 the input is corrupt`, offset);
-    }
-    if (constructed ? isPrimitiveOnly(tagNumber) : isConstructedOnly(tagNumber)) {
-      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is a universal type ${String(tagNumber)} in the ${constructed ? "constructed" : "primitive"} form, which X.690 never uses for it \u2014 the input is corrupt`, offset);
-    }
-    if (constructed && isStringTag(tagNumber)) {
-      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN", `pkinative: ${path} is a string in constructed form, which DER forbids (X.690 \xA710.2) and this cursor never accepts`, offset);
-    }
-  }
-  const lengthByte = data[at];
-  if (lengthByte === void 0) {
-    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has no length octet \u2014 the structure is truncated`, offset);
-  }
-  at += 1;
-  let length;
-  if (lengthByte < 128) {
-    length = lengthByte;
-  } else if (lengthByte === 128) {
-    throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} uses an indefinite length, which DER forbids (X.690 \xA710.1) and this cursor never accepts`, offset);
-  } else {
-    const octets = lengthByte & 127;
-    if (octets > 6) {
-      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} declares a length in ${String(octets)} octets; nothing this library reads is that large, and a wider length is an overflow waiting to happen`, offset);
-    }
-    length = 0;
-    for (let i = 0; i < octets; i += 1) {
-      const byte = data[at + i];
-      if (byte === void 0) {
-        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a length that runs past the input`, offset);
-      }
-      if (i === 0 && byte === 0) {
-        throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} has a long-form length with a leading zero octet, which is not the shortest form (X.690 \xA710.1)`, offset);
-      }
-      length = length * 256 + byte;
-    }
-    if (length < 128) {
-      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} encodes the length ${String(length)} in long form, and DER requires the short form below 128 (X.690 \xA710.1)`, offset);
-    }
-    at += octets;
-  }
-  const end = at + length;
-  if (end > data.length) {
-    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} declares ${String(length)} content octets and only ${String(data.length - at)} remain \u2014 the structure is truncated`, offset);
-  }
-  return { tagClass, tagNumber, constructed, offset, contentStart: at, length, end };
-}
-function* walkChildren(data, parent, path) {
-  if (!parent.constructed) {
-    throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is primitive, so its content is octets and not values to walk \u2014 the structure expects the constructed form here`, parent.offset);
-  }
-  let at = parent.contentStart;
-  let index = 0;
-  while (at < parent.end) {
-    const child = readTlvHeader(data, at, `${path}[${String(index)}]`);
-    if (child.end > parent.end) {
-      throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path}[${String(index)}] runs past the end of its parent \u2014 the two lengths disagree, and a value that overruns its container is how one parser reads what another does not`, child.offset);
-    }
-    yield child;
-    at = child.end;
-    index += 1;
-  }
-}
-
 // src/core/bytes.ts
 function isBytes(value) {
   return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]";
@@ -1447,6 +1256,98 @@ function noteBer(ctx, construct, offset) {
   ctx.emitter.emit(berConstructAcceptedDiagnostic(construct, offset));
 }
 
+// src/asn1/asn1-tags.ts
+var TAG_BOOLEAN = 1;
+var TAG_INTEGER = 2;
+var TAG_BIT_STRING = 3;
+var TAG_OCTET_STRING = 4;
+var TAG_NULL = 5;
+var TAG_OID = 6;
+var TAG_ENUMERATED = 10;
+var TAG_UTF8_STRING = 12;
+var TAG_RELATIVE_OID = 13;
+var TAG_SEQUENCE = 16;
+var TAG_SET = 17;
+var TAG_NUMERIC_STRING = 18;
+var TAG_PRINTABLE_STRING = 19;
+var TAG_TELETEX_STRING = 20;
+var TAG_IA5_STRING = 22;
+var TAG_UTC_TIME = 23;
+var TAG_GENERALIZED_TIME = 24;
+var TAG_VISIBLE_STRING = 26;
+var TAG_UNIVERSAL_STRING = 28;
+var TAG_BMP_STRING = 30;
+var TAG_CLASSES = ["universal", "application", "context", "private"];
+function tagClassOf(identifier) {
+  const bits = identifier & 192;
+  if (bits === 0) return "universal";
+  if (bits === 64) return "application";
+  if (bits === 128) return "context";
+  return "private";
+}
+var STRING_TAGS = {
+  utf8: TAG_UTF8_STRING,
+  numeric: TAG_NUMERIC_STRING,
+  printable: TAG_PRINTABLE_STRING,
+  teletex: TAG_TELETEX_STRING,
+  ia5: TAG_IA5_STRING,
+  visible: TAG_VISIBLE_STRING,
+  universal: TAG_UNIVERSAL_STRING,
+  bmp: TAG_BMP_STRING
+};
+var NAMES = {
+  0: "end-of-contents",
+  1: "BOOLEAN",
+  2: "INTEGER",
+  3: "BIT STRING",
+  4: "OCTET STRING",
+  5: "NULL",
+  6: "OBJECT IDENTIFIER",
+  7: "ObjectDescriptor",
+  8: "EXTERNAL",
+  9: "REAL",
+  10: "ENUMERATED",
+  11: "EMBEDDED PDV",
+  12: "UTF8String",
+  13: "RELATIVE-OID",
+  14: "TIME",
+  16: "SEQUENCE",
+  17: "SET",
+  18: "NumericString",
+  19: "PrintableString",
+  20: "TeletexString",
+  21: "VideotexString",
+  22: "IA5String",
+  23: "UTCTime",
+  24: "GeneralizedTime",
+  25: "GraphicString",
+  26: "VisibleString",
+  27: "GeneralString",
+  28: "UniversalString",
+  29: "CHARACTER STRING",
+  30: "BMPString"
+};
+function isPrimitiveOnly(tagNumber) {
+  return tagNumber === 1 || tagNumber === 2 || tagNumber === 5 || tagNumber === 6 || tagNumber === 9 || tagNumber === 10 || tagNumber === 13 || tagNumber === 14;
+}
+function isConstructedOnly(tagNumber) {
+  return tagNumber === 8 || tagNumber === 11 || tagNumber === 16 || tagNumber === 17 || tagNumber === 29;
+}
+function isStringTag(tagNumber) {
+  return tagNumber === 3 || tagNumber === 4 || tagNumber === 7 || tagNumber === 12 || tagNumber >= 18 && tagNumber <= 28 || tagNumber === 30;
+}
+function stringTypeOfTag(tagNumber) {
+  for (const type of Object.keys(STRING_TAGS)) {
+    if (STRING_TAGS[type] === tagNumber) return type;
+  }
+  return void 0;
+}
+function tagLabel(tagClass, tagNumber) {
+  if (tagClass === "universal") return NAMES[tagNumber] ?? `[UNIVERSAL ${tagNumber}]`;
+  if (tagClass === "context") return `[${tagNumber}]`;
+  return `[${tagClass.toUpperCase()} ${tagNumber}]`;
+}
+
 // src/asn1/asn1-decode.ts
 function where(endIsInput) {
   return endIsInput ? "input" : "enclosing value";
@@ -2197,133 +2098,6 @@ function readString(node, options) {
   return _readString(checked, ctx, implicitType, "");
 }
 
-// src/asn1/asn1-time.ts
-var MAX_TIME_OCTETS = 64;
-var UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
-var GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(?:Z|[+-]\d{4})$/;
-function zoneOf(text) {
-  return text.endsWith("Z") ? "Z" : text.slice(-5);
-}
-function isLeapYear(year) {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-function daysInMonth(year, month) {
-  return month === 2 ? isLeapYear(year) ? 29 : 28 : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
-}
-var NO_LENIENT_READING = "RFC 5280 and X.690 leave no lenient interpretation";
-var BER_GENERALIZED_TIME_SUBSET = "under BER pkinative reads YYYYMMDDHHMM[SS[(.|,)f]] with Z or a \xB1hhmm offset \u2014 the other ITU-T X.680 forms (hours only, a fraction of a minute or of an hour, an offset in whole hours) are refused rather than guessed at";
-function invalidTime(node, type, text, why, tail = NO_LENIENT_READING) {
-  return new PkiEncodingError(
-    "PKI_ASN1_TIME_INVALID",
-    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 ${tail}`,
-    node.offset
-  );
-}
-function toEpoch(node, type, text, f) {
-  if (f.month < 1 || f.month > 12) throw invalidTime(node, type, text, `names month ${f.month}`);
-  if (f.day < 1 || f.day > daysInMonth(f.year, f.month)) throw invalidTime(node, type, text, `names day ${f.day} of a month that has ${daysInMonth(f.year, f.month)}`);
-  if (f.hour > 23) throw invalidTime(node, type, text, `names hour ${f.hour}`);
-  if (f.minute > 59) throw invalidTime(node, type, text, `names minute ${f.minute}`);
-  if (f.second > 59) throw invalidTime(node, type, text, `names second ${f.second}`);
-  let offsetMinutes = 0;
-  if (f.zone !== "Z") {
-    const hours = Number(f.zone.slice(1, 3));
-    const minutes = Number(f.zone.slice(3, 5));
-    if (hours > 23 || minutes > 59) throw invalidTime(node, type, text, `has the impossible offset ${f.zone}`);
-    offsetMinutes = (f.zone[0] === "-" ? -1 : 1) * (hours * 60 + minutes);
-  }
-  const date = /* @__PURE__ */ new Date(0);
-  date.setUTCFullYear(f.year, f.month - 1, f.day);
-  date.setUTCHours(f.hour, f.minute, f.second, f.millisecond);
-  return date.getTime() - offsetMinutes * 6e4;
-}
-function _readTime(node, ctx, implicitType) {
-  let type;
-  if (node.tagClass === "universal") {
-    if (node.tagNumber === TAG_UTC_TIME) type = "UTCTime";
-    else if (node.tagNumber === TAG_GENERALIZED_TIME) type = "GeneralizedTime";
-    else {
-      throw new PkiEncodingError(
-        "PKI_ASN1_UNEXPECTED_TAG",
-        `pkinative: expected UTCTime or GeneralizedTime at offset ${node.offset}, found ${tagLabel(node.tagClass, node.tagNumber)}`,
-        node.offset
-      );
-    }
-  } else if (implicitType === void 0) {
-    throw new PkiError(
-      "PKI_API_MISUSE",
-      `pkinative: the value at offset ${node.offset} carries the implicit tag ${tagLabel(node.tagClass, node.tagNumber)}; pass timeType to say which time type it is`
-    );
-  } else {
-    type = implicitType;
-  }
-  const raw = stringContent(node, ctx, TAG_OCTET_STRING, type);
-  if (raw.length > MAX_TIME_OCTETS) {
-    throw invalidTime(
-      node,
-      type,
-      `${raw.length} octets`,
-      `is longer than the ${MAX_TIME_OCTETS} octets any well-formed ${type} needs`
-    );
-  }
-  const text = String.fromCharCode(...raw);
-  if (type === "UTCTime") {
-    const m2 = UTC_TIME.exec(text);
-    if (m2 === null) throw invalidTime(node, type, text, "is not YYMMDDHHMM[SS](Z|\xB1hhmm)");
-    const [, yy, mo2, dd2, hh2, mi2, ss2] = m2;
-    const zone2 = zoneOf(text);
-    if (ss2 === void 0 || zone2 !== "Z") {
-      if (ctx.rules === "der") throw invalidTime(node, type, text, "omits the seconds or the Z; DER requires YYMMDDHHMMSSZ (X.690 \xA711.8)");
-      noteBer(ctx, "UTCTime without seconds or with an offset", node.offset);
-    }
-    const twoDigit = Number(yy);
-    const epochMilliseconds2 = toEpoch(node, type, text, {
-      year: twoDigit >= 50 ? 1900 + twoDigit : 2e3 + twoDigit,
-      month: Number(mo2),
-      day: Number(dd2),
-      hour: Number(hh2),
-      minute: Number(mi2),
-      second: Number(ss2 ?? "0"),
-      millisecond: 0,
-      zone: zone2
-    });
-    return Object.freeze({ type, epochMilliseconds: epochMilliseconds2, text });
-  }
-  const m = GENERALIZED_TIME.exec(text);
-  const tail = ctx.rules === "der" ? NO_LENIENT_READING : BER_GENERALIZED_TIME_SUBSET;
-  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)", tail);
-  const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
-  const zone = zoneOf(text);
-  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds", tail);
-  const nonCanonical = ss === void 0 || zone !== "Z" || separator === "," || fraction !== void 0 && fraction.endsWith("0");
-  if (nonCanonical) {
-    if (ctx.rules === "der") {
-      throw invalidTime(node, type, text, "is not in the DER form YYYYMMDDHHMMSS[.f]Z with no trailing zero in the fraction (X.690 \xA711.7)");
-    }
-    noteBer(ctx, "non-canonical GeneralizedTime", node.offset);
-  }
-  const epochMilliseconds = toEpoch(node, type, text, {
-    year: Number(yyyy),
-    month: Number(mo),
-    day: Number(dd),
-    hour: Number(hh),
-    minute: Number(mi),
-    second: Number(ss ?? "0"),
-    millisecond: fraction === void 0 ? 0 : Number(`${fraction}000`.slice(0, 3)),
-    zone
-  });
-  return Object.freeze({ type, epochMilliseconds, text });
-}
-function readTime(node, options) {
-  const checked = assertNode(node, "readTime");
-  const ctx = createAsn1Context(options);
-  const implicitType = options?.timeType;
-  if (implicitType !== void 0 && implicitType !== "UTCTime" && implicitType !== "GeneralizedTime") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
-  }
-  return _readTime(checked, ctx, implicitType);
-}
-
 // src/asn1/asn1-oid.ts
 var EXACT_LIMIT = 70368744177663;
 function decodeArcs(content, offset, ctx, relative) {
@@ -2467,16 +2241,1860 @@ function _encodeRelativeOid(oid) {
   return encodeSubidentifiers(oid.split(".").map((arc) => BigInt(arc)));
 }
 
-// src/core/pki-error-guard.ts
-function _pkiError(error) {
-  if (!(error instanceof PkiError)) throw error;
-  return error;
+// src/asn1/asn1-time.ts
+var MAX_TIME_OCTETS = 64;
+var UTC_TIME = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:Z|[+-]\d{4})$/;
+var GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:([.,])(\d+))?(?:Z|[+-]\d{4})$/;
+function zoneOf(text) {
+  return text.endsWith("Z") ? "Z" : text.slice(-5);
+}
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+function daysInMonth(year, month) {
+  return month === 2 ? isLeapYear(year) ? 29 : 28 : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+}
+var NO_LENIENT_READING = "RFC 5280 and X.690 leave no lenient interpretation";
+var BER_GENERALIZED_TIME_SUBSET = "under BER pkinative reads YYYYMMDDHHMM[SS[(.|,)f]] with Z or a \xB1hhmm offset \u2014 the other ITU-T X.680 forms (hours only, a fraction of a minute or of an hour, an offset in whole hours) are refused rather than guessed at";
+function invalidTime(node, type, text, why, tail = NO_LENIENT_READING) {
+  return new PkiEncodingError(
+    "PKI_ASN1_TIME_INVALID",
+    `pkinative: the ${type} "${text}" at offset ${node.offset} ${why} \u2014 ${tail}`,
+    node.offset
+  );
+}
+function toEpoch(node, type, text, f) {
+  if (f.month < 1 || f.month > 12) throw invalidTime(node, type, text, `names month ${f.month}`);
+  if (f.day < 1 || f.day > daysInMonth(f.year, f.month)) throw invalidTime(node, type, text, `names day ${f.day} of a month that has ${daysInMonth(f.year, f.month)}`);
+  if (f.hour > 23) throw invalidTime(node, type, text, `names hour ${f.hour}`);
+  if (f.minute > 59) throw invalidTime(node, type, text, `names minute ${f.minute}`);
+  if (f.second > 59) throw invalidTime(node, type, text, `names second ${f.second}`);
+  let offsetMinutes = 0;
+  if (f.zone !== "Z") {
+    const hours = Number(f.zone.slice(1, 3));
+    const minutes = Number(f.zone.slice(3, 5));
+    if (hours > 23 || minutes > 59) throw invalidTime(node, type, text, `has the impossible offset ${f.zone}`);
+    offsetMinutes = (f.zone[0] === "-" ? -1 : 1) * (hours * 60 + minutes);
+  }
+  const date = /* @__PURE__ */ new Date(0);
+  date.setUTCFullYear(f.year, f.month - 1, f.day);
+  date.setUTCHours(f.hour, f.minute, f.second, f.millisecond);
+  return date.getTime() - offsetMinutes * 6e4;
+}
+function _readTime(node, ctx, implicitType) {
+  let type;
+  if (node.tagClass === "universal") {
+    if (node.tagNumber === TAG_UTC_TIME) type = "UTCTime";
+    else if (node.tagNumber === TAG_GENERALIZED_TIME) type = "GeneralizedTime";
+    else {
+      throw new PkiEncodingError(
+        "PKI_ASN1_UNEXPECTED_TAG",
+        `pkinative: expected UTCTime or GeneralizedTime at offset ${node.offset}, found ${tagLabel(node.tagClass, node.tagNumber)}`,
+        node.offset
+      );
+    }
+  } else if (implicitType === void 0) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: the value at offset ${node.offset} carries the implicit tag ${tagLabel(node.tagClass, node.tagNumber)}; pass timeType to say which time type it is`
+    );
+  } else {
+    type = implicitType;
+  }
+  const raw = stringContent(node, ctx, TAG_OCTET_STRING, type);
+  if (raw.length > MAX_TIME_OCTETS) {
+    throw invalidTime(
+      node,
+      type,
+      `${raw.length} octets`,
+      `is longer than the ${MAX_TIME_OCTETS} octets any well-formed ${type} needs`
+    );
+  }
+  const text = String.fromCharCode(...raw);
+  if (type === "UTCTime") {
+    const m2 = UTC_TIME.exec(text);
+    if (m2 === null) throw invalidTime(node, type, text, "is not YYMMDDHHMM[SS](Z|\xB1hhmm)");
+    const [, yy, mo2, dd2, hh2, mi2, ss2] = m2;
+    const zone2 = zoneOf(text);
+    if (ss2 === void 0 || zone2 !== "Z") {
+      if (ctx.rules === "der") throw invalidTime(node, type, text, "omits the seconds or the Z; DER requires YYMMDDHHMMSSZ (X.690 \xA711.8)");
+      noteBer(ctx, "UTCTime without seconds or with an offset", node.offset);
+    }
+    const twoDigit = Number(yy);
+    const epochMilliseconds2 = toEpoch(node, type, text, {
+      year: twoDigit >= 50 ? 1900 + twoDigit : 2e3 + twoDigit,
+      month: Number(mo2),
+      day: Number(dd2),
+      hour: Number(hh2),
+      minute: Number(mi2),
+      second: Number(ss2 ?? "0"),
+      millisecond: 0,
+      zone: zone2
+    });
+    return Object.freeze({ type, epochMilliseconds: epochMilliseconds2, text });
+  }
+  const m = GENERALIZED_TIME.exec(text);
+  const tail = ctx.rules === "der" ? NO_LENIENT_READING : BER_GENERALIZED_TIME_SUBSET;
+  if (m === null) throw invalidTime(node, type, text, "is not YYYYMMDDHHMM[SS[.f]](Z|\xB1hhmm)", tail);
+  const [, yyyy, mo, dd, hh, mi, ss, separator, fraction] = m;
+  const zone = zoneOf(text);
+  if (fraction !== void 0 && ss === void 0) throw invalidTime(node, type, text, "has a fraction without seconds", tail);
+  const nonCanonical = ss === void 0 || zone !== "Z" || separator === "," || fraction !== void 0 && fraction.endsWith("0");
+  if (nonCanonical) {
+    if (ctx.rules === "der") {
+      throw invalidTime(node, type, text, "is not in the DER form YYYYMMDDHHMMSS[.f]Z with no trailing zero in the fraction (X.690 \xA711.7)");
+    }
+    noteBer(ctx, "non-canonical GeneralizedTime", node.offset);
+  }
+  const epochMilliseconds = toEpoch(node, type, text, {
+    year: Number(yyyy),
+    month: Number(mo),
+    day: Number(dd),
+    hour: Number(hh),
+    minute: Number(mi),
+    second: Number(ss ?? "0"),
+    millisecond: fraction === void 0 ? 0 : Number(`${fraction}000`.slice(0, 3)),
+    zone
+  });
+  return Object.freeze({ type, epochMilliseconds, text });
+}
+function readTime(node, options) {
+  const checked = assertNode(node, "readTime");
+  const ctx = createAsn1Context(options);
+  const implicitType = options?.timeType;
+  if (implicitType !== void 0 && implicitType !== "UTCTime" && implicitType !== "GeneralizedTime") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
+  }
+  return _readTime(checked, ctx, implicitType);
+}
+
+// src/asn1/asn1-encode.ts
+function encodeLength(length) {
+  if (length < 128) return [length];
+  const octets = [];
+  let rest = length;
+  while (rest > 0) {
+    octets.unshift(rest % 256);
+    rest = Math.floor(rest / 256);
+  }
+  return [128 | octets.length, ...octets];
+}
+function encodeTlv(tagClass, tagNumber, constructed, content) {
+  const bytes = assertBytes(content, "encodeTlv content");
+  const classIndex = TAG_CLASSES.indexOf(tagClass);
+  if (classIndex < 0) {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: tagClass must be one of ${TAG_CLASSES.join(", ")}, got ${String(tagClass)}`);
+  }
+  if (!Number.isInteger(tagNumber) || tagNumber < 0 || tagNumber > 2147483647 || tagClass === "universal" && tagNumber === 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: tag number ${String(tagNumber)} is outside 0 to 2^31 \u2212 1, or is the reserved universal tag 0 \u2014 pass a valid tag number`
+    );
+  }
+  const leading = classIndex << 6 | (constructed ? 32 : 0);
+  const identifier = [];
+  if (tagNumber < 31) {
+    identifier.push(leading | tagNumber);
+  } else {
+    const digits = [];
+    let rest = tagNumber;
+    do {
+      digits.unshift(rest % 128);
+      rest = Math.floor(rest / 128);
+    } while (rest > 0);
+    identifier.push(leading | 31);
+    let remaining = digits.length;
+    for (const digit of digits) {
+      remaining--;
+      identifier.push(digit | (remaining > 0 ? 128 : 0));
+    }
+  }
+  const header = [...identifier, ...encodeLength(bytes.length)];
+  const out = new Uint8Array(header.length + bytes.length);
+  out.set(header, 0);
+  out.set(bytes, header.length);
+  return out;
+}
+function childrenContent(children, what) {
+  if (!Array.isArray(children)) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} expects an array of encodings, got ${typeof children}`);
+  }
+  return concatBytes(children.map((c) => assertBytes(c, `${what} child`)));
+}
+function encodeSequence(children) {
+  return encodeTlv("universal", TAG_SEQUENCE, true, childrenContent(children, "encodeSequence"));
+}
+function encodeSet(children) {
+  return encodeTlv("universal", TAG_SET, true, childrenContent(children, "encodeSet"));
+}
+function encodeSetOf(children) {
+  childrenContent(children, "encodeSetOf");
+  return encodeTlv("universal", TAG_SET, true, concatBytes([...children].sort(compareOctets)));
+}
+function hexToBytes(hex3) {
+  const out = new Uint8Array(hex3.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex3.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function encodeInteger(value) {
+  let v;
+  if (typeof value === "bigint") {
+    v = value;
+  } else if (typeof value === "number" && Number.isSafeInteger(value)) {
+    v = BigInt(value);
+  } else {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
+  }
+  let hex3;
+  if (v >= 0n) {
+    hex3 = v.toString(16);
+    if (hex3.length % 2 === 1) hex3 = `0${hex3}`;
+    if (parseInt(hex3.slice(0, 2), 16) >= 128) hex3 = `00${hex3}`;
+  } else {
+    let octets = 1;
+    while (v < -(1n << BigInt(octets * 8 - 1))) octets++;
+    hex3 = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
+  }
+  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex3));
+}
+function encodeBoolean(value) {
+  return encodeTlv("universal", TAG_BOOLEAN, false, Uint8Array.of(value ? 255 : 0));
+}
+function encodeNull() {
+  return encodeTlv("universal", TAG_NULL, false, new Uint8Array(0));
+}
+function encodeBitString(bytes, unusedBits = 0) {
+  const data = assertBytes(bytes, "encodeBitString bytes");
+  if (!Number.isInteger(unusedBits) || unusedBits < 0 || unusedBits > 7 || data.length === 0 && unusedBits !== 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`
+    );
+  }
+  if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & (1 << unusedBits) - 1) !== 0) {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: the ${unusedBits} unused bits of the last octet must be zero in DER (X.690 \xA711.2.1) \u2014 clear them before encoding`
+    );
+  }
+  const content = new Uint8Array(data.length + 1);
+  content[0] = unusedBits;
+  content.set(data, 1);
+  return encodeTlv("universal", TAG_BIT_STRING, false, content);
+}
+function encodeOctetString(bytes) {
+  return encodeTlv("universal", TAG_OCTET_STRING, false, assertBytes(bytes, "encodeOctetString bytes"));
+}
+function encodeEnumerated(value) {
+  return encodeTlv("universal", TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
+}
+function encodeExplicit(tagNumber, inner, options) {
+  return encodeTlv(options?.tagClass ?? "context", tagNumber, true, assertBytes(inner, "encodeExplicit inner"));
+}
+function encodeImplicit(tagNumber, encoded, options) {
+  const bytes = assertBytes(encoded, "encodeImplicit encoded");
+  if (bytes.length < 2) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets \u2014 pass the output of another encoder");
+  }
+  const view = byteView(bytes);
+  const identifier = view.getUint8(0);
+  if (view.getUint8(1) === 128) {
+    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit cannot re-tag an indefinite-length value \u2014 DER has no indefinite form, so encode the inner value definitely first");
+  }
+  const retagged = encodeTlv(options?.tagClass ?? "context", tagNumber, (identifier & 32) !== 0, new Uint8Array(0));
+  const header = retagged.length - 1;
+  const out = new Uint8Array(header + bytes.length - 1);
+  out.set(retagged.subarray(0, header));
+  out.set(bytes.subarray(1), header);
+  return out;
+}
+function encodeNamedBits(bits) {
+  let highest = -1;
+  const positions = [];
+  for (const bit of bits) {
+    if (!Number.isInteger(bit) || bit < 0 || bit > 65535) {
+      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
+    }
+    positions.push(bit);
+    if (bit > highest) highest = bit;
+  }
+  if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
+  const octets = new Uint8Array((highest >> 3) + 1);
+  const view = byteView(octets);
+  for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | 128 >> (bit & 7));
+  return encodeBitString(octets, 7 - (highest & 7));
+}
+function encodeObjectIdentifier(oid) {
+  return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
+}
+function encodeRelativeOid(oid) {
+  return encodeTlv("universal", TAG_RELATIVE_OID, false, _encodeRelativeOid(oid));
+}
+function outOfRange(type, index) {
+  return new PkiEncodingError(
+    "PKI_ASN1_VALUE_OUT_OF_RANGE",
+    `pkinative: the character at index ${index} cannot be encoded as ${tagLabel("universal", STRING_TAGS[type])} \u2014 choose a string type whose character set contains it`
+  );
+}
+function encodeString(type, value) {
+  if (typeof value !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeString expects a string value, got ${typeof value}`);
+  }
+  let content;
+  switch (type) {
+    case "utf8": {
+      const encoded = encodeUtf8(value);
+      if (encoded === null) throw outOfRange(type, [...value].findIndex((c) => c.length === 1 && c.charCodeAt(0) >= 55296 && c.charCodeAt(0) <= 57343));
+      content = encoded;
+      break;
+    }
+    case "printable":
+    case "ia5":
+    case "visible":
+    case "numeric": {
+      const allowed = type === "printable" ? isPrintableOctet : type === "ia5" ? isIa5Octet : type === "visible" ? isVisibleOctet : isNumericOctet;
+      content = new Uint8Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code > 127 || !allowed(code)) throw outOfRange(type, i);
+        content[i] = code;
+      }
+      break;
+    }
+    case "teletex":
+      content = new Uint8Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code > 255) throw outOfRange(type, i);
+        content[i] = code;
+      }
+      break;
+    case "bmp":
+      content = new Uint8Array(value.length * 2);
+      for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code >= 55296 && code <= 57343) throw outOfRange(type, i);
+        content[i * 2] = code >> 8;
+        content[i * 2 + 1] = code & 255;
+      }
+      break;
+    case "universal": {
+      const points = [];
+      let index = 0;
+      for (const ch of value) {
+        const lead = ch.charCodeAt(0);
+        const code = ch.length === 2 ? 65536 + (lead - 55296 << 10) + (ch.charCodeAt(1) - 56320) : lead;
+        if (code >= 55296 && code <= 57343) throw outOfRange(type, index);
+        points.push(code >>> 24, code >> 16 & 255, code >> 8 & 255, code & 255);
+        index += ch.length;
+      }
+      content = Uint8Array.from(points);
+      break;
+    }
+    default:
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(", ")}, got ${String(type)}`);
+  }
+  return encodeTlv("universal", STRING_TAGS[type], false, content);
+}
+function pad(value, width) {
+  return String(value).padStart(width, "0");
+}
+function encodeTime(epochMilliseconds, type = "rfc5280") {
+  if (type !== "UTCTime" && type !== "GeneralizedTime" && type !== "rfc5280") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${String(type)}`);
+  }
+  const date = new Date(typeof epochMilliseconds === "number" ? epochMilliseconds : NaN);
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(date.getTime()) || year < 0 || year > 9999) {
+    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: ${String(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
+  }
+  const millisecond = date.getUTCMilliseconds();
+  const resolved = type === "rfc5280" ? year >= 1950 && year <= 2049 ? "UTCTime" : "GeneralizedTime" : type;
+  if (millisecond !== 0 && type !== "GeneralizedTime") {
+    throw new PkiEncodingError(
+      "PKI_ASN1_VALUE_OUT_OF_RANGE",
+      `pkinative: ${date.toISOString()} has a fraction of a second, which ${type === "rfc5280" ? "RFC 5280 forbids in certificates" : "UTCTime cannot hold"} \u2014 round to whole seconds`
+    );
+  }
+  const clock = `${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}`;
+  let text;
+  if (resolved === "UTCTime") {
+    if (year < 1950 || year > 2049) {
+      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: UTCTime covers 1950 to 2049 only; ${year} needs GeneralizedTime`);
+    }
+    text = `${pad(year % 100, 2)}${clock}Z`;
+  } else {
+    const fraction = millisecond === 0 ? "" : `.${pad(millisecond, 3).replace(/0+$/, "")}`;
+    text = `${pad(year, 4)}${clock}${fraction}Z`;
+  }
+  const content = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) content[i] = text.charCodeAt(i);
+  return encodeTlv("universal", resolved === "UTCTime" ? TAG_UTC_TIME : TAG_GENERALIZED_TIME, false, content);
+}
+function encodeAsn1Node(node) {
+  const root = assertNode(node, "encodeAsn1Node");
+  const stack = [{ node: root, next: 0, parts: [] }];
+  let result = new Uint8Array(0);
+  while (stack.length > 0) {
+    const top = stack[stack.length - 1];
+    const current = top.node;
+    if (current.indefinite) {
+      throw new PkiError(
+        "PKI_API_MISUSE",
+        `pkinative: the value at offset ${current.offset} was decoded from the BER indefinite length form, which has no DER re-encoding \u2014 decode the original as DER, or keep its bytes`
+      );
+    }
+    let encoded;
+    if (!current.constructed) {
+      encoded = encodeTlv(current.tagClass, current.tagNumber, false, current.content);
+    } else {
+      if (current.tagClass === "universal" && isStringTag(current.tagNumber)) {
+        throw new PkiError(
+          "PKI_API_MISUSE",
+          `pkinative: the ${tagLabel(current.tagClass, current.tagNumber)} at offset ${current.offset} is a constructed string, which has no DER form \u2014 read it with the string reader and encode the result`
+        );
+      }
+      if (top.next < current.children.length) {
+        stack.push({ node: current.children[top.next], next: 0, parts: [] });
+        top.next++;
+        continue;
+      }
+      encoded = encodeTlv(current.tagClass, current.tagNumber, true, concatBytes(top.parts));
+    }
+    stack.pop();
+    const parent = stack[stack.length - 1];
+    if (parent === void 0) result = encoded;
+    else parent.parts.push(encoded);
+  }
+  return result;
+}
+
+// src/oid/oid-registry.ts
+var GROUPS = [
+  // ── Name attributes ──
+  ["ITU-T X.520", [
+    ["2.5.4.0", "objectClass"],
+    ["2.5.4.3", "commonName"],
+    ["2.5.4.4", "surname"],
+    ["2.5.4.5", "serialNumber"],
+    ["2.5.4.6", "countryName"],
+    ["2.5.4.7", "localityName"],
+    ["2.5.4.8", "stateOrProvinceName"],
+    ["2.5.4.9", "streetAddress"],
+    ["2.5.4.10", "organizationName"],
+    ["2.5.4.11", "organizationalUnitName"],
+    ["2.5.4.12", "title"],
+    ["2.5.4.13", "description"],
+    ["2.5.4.15", "businessCategory"],
+    ["2.5.4.16", "postalAddress"],
+    ["2.5.4.17", "postalCode"],
+    ["2.5.4.18", "postOfficeBox"],
+    ["2.5.4.19", "physicalDeliveryOfficeName"],
+    ["2.5.4.20", "telephoneNumber"],
+    ["2.5.4.36", "userCertificate"],
+    ["2.5.4.37", "cACertificate"],
+    ["2.5.4.38", "authorityRevocationList"],
+    ["2.5.4.39", "certificateRevocationList"],
+    ["2.5.4.40", "crossCertificatePair"],
+    ["2.5.4.41", "name"],
+    ["2.5.4.42", "givenName"],
+    ["2.5.4.43", "initials"],
+    ["2.5.4.44", "generationQualifier"],
+    ["2.5.4.45", "x500UniqueIdentifier"],
+    ["2.5.4.46", "dnQualifier"],
+    ["2.5.4.51", "houseIdentifier"],
+    ["2.5.4.53", "deltaRevocationList"],
+    ["2.5.4.65", "pseudonym"],
+    ["2.5.4.72", "role"],
+    ["2.5.4.97", "organizationIdentifier"]
+  ]],
+  ["RFC 4519", [
+    ["0.9.2342.19200300.100.1.1", "uid"],
+    ["0.9.2342.19200300.100.1.25", "domainComponent"]
+  ]],
+  ["RFC 4524", [
+    ["0.9.2342.19200300.100.1.3", "mail"]
+  ]],
+  ["CA/Browser Forum EV Guidelines", [
+    ["1.3.6.1.4.1.311.60.2.1.1", "jurisdictionLocalityName"],
+    ["1.3.6.1.4.1.311.60.2.1.2", "jurisdictionStateOrProvinceName"],
+    ["1.3.6.1.4.1.311.60.2.1.3", "jurisdictionCountryName"]
+  ]],
+  ["RFC 2985", [
+    ["1.2.840.113549.1.9.1", "emailAddress"],
+    ["1.2.840.113549.1.9.2", "unstructuredName"],
+    ["1.2.840.113549.1.9.3", "contentType"],
+    ["1.2.840.113549.1.9.4", "messageDigest"],
+    ["1.2.840.113549.1.9.5", "signingTime"],
+    ["1.2.840.113549.1.9.6", "counterSignature"],
+    ["1.2.840.113549.1.9.7", "challengePassword"],
+    ["1.2.840.113549.1.9.8", "unstructuredAddress"],
+    ["1.2.840.113549.1.9.14", "extensionRequest"],
+    ["1.2.840.113549.1.9.20", "friendlyName"],
+    ["1.2.840.113549.1.9.21", "localKeyId"],
+    ["1.2.840.113549.1.9.22.1", "x509Certificate"],
+    ["1.2.840.113549.1.9.22.2", "sdsiCertificate"],
+    ["1.2.840.113549.1.9.23.1", "x509Crl"]
+  ]],
+  ["RFC 8551", [
+    ["1.2.840.113549.1.9.15", "smimeCapabilities"]
+  ]],
+  // ── Certificate and CRL extensions ──
+  ["RFC 5280", [
+    ["2.5.29.9", "subjectDirectoryAttributes"],
+    ["2.5.29.14", "subjectKeyIdentifier"],
+    ["2.5.29.15", "keyUsage"],
+    ["2.5.29.16", "privateKeyUsagePeriod"],
+    ["2.5.29.17", "subjectAltName"],
+    ["2.5.29.18", "issuerAltName"],
+    ["2.5.29.19", "basicConstraints"],
+    ["2.5.29.20", "cRLNumber"],
+    ["2.5.29.21", "cRLReasons"],
+    ["2.5.29.23", "holdInstructionCode"],
+    ["2.5.29.24", "invalidityDate"],
+    ["2.5.29.27", "deltaCRLIndicator"],
+    ["2.5.29.28", "issuingDistributionPoint"],
+    ["2.5.29.29", "certificateIssuer"],
+    ["2.5.29.30", "nameConstraints"],
+    ["2.5.29.31", "cRLDistributionPoints"],
+    ["2.5.29.32", "certificatePolicies"],
+    ["2.5.29.32.0", "anyPolicy"],
+    ["2.5.29.33", "policyMappings"],
+    ["2.5.29.35", "authorityKeyIdentifier"],
+    ["2.5.29.36", "policyConstraints"],
+    ["2.5.29.37", "extKeyUsage"],
+    ["2.5.29.37.0", "anyExtendedKeyUsage"],
+    ["2.5.29.46", "freshestCRL"],
+    ["2.5.29.54", "inhibitAnyPolicy"],
+    ["1.3.6.1.5.5.7.1.1", "authorityInfoAccess"],
+    ["1.3.6.1.5.5.7.1.11", "subjectInfoAccess"],
+    ["1.3.6.1.5.5.7.2.1", "cps"],
+    ["1.3.6.1.5.5.7.2.2", "unotice"],
+    ["1.3.6.1.5.5.7.3.1", "serverAuth"],
+    ["1.3.6.1.5.5.7.3.2", "clientAuth"],
+    ["1.3.6.1.5.5.7.3.3", "codeSigning"],
+    ["1.3.6.1.5.5.7.3.4", "emailProtection"],
+    ["1.3.6.1.5.5.7.3.8", "timeStamping"],
+    ["1.3.6.1.5.5.7.3.9", "OCSPSigning"],
+    ["1.3.6.1.5.5.7.48.1", "ocsp"],
+    ["1.3.6.1.5.5.7.48.2", "caIssuers"],
+    ["1.3.6.1.5.5.7.48.3", "id-ad-timeStamping"],
+    ["1.3.6.1.5.5.7.48.5", "caRepository"],
+    ["1.2.840.10040.2.1", "holdInstructionNone"],
+    ["1.2.840.10040.2.2", "holdInstructionCallIssuer"],
+    ["1.2.840.10040.2.3", "holdInstructionReject"]
+  ]],
+  ["RFC 3739", [
+    ["1.3.6.1.5.5.7.1.2", "biometricInfo"],
+    ["1.3.6.1.5.5.7.1.3", "qcStatements"],
+    ["1.3.6.1.5.5.7.11.2", "qcsPkixQCSyntax-v2"],
+    ["1.3.6.1.5.5.7.9.1", "dateOfBirth"],
+    ["1.3.6.1.5.5.7.9.2", "placeOfBirth"],
+    ["1.3.6.1.5.5.7.9.3", "gender"],
+    ["1.3.6.1.5.5.7.9.4", "countryOfCitizenship"],
+    ["1.3.6.1.5.5.7.9.5", "countryOfResidence"]
+  ]],
+  ["RFC 3709", [["1.3.6.1.5.5.7.1.12", "logotype"]]],
+  ["RFC 3779", [
+    ["1.3.6.1.5.5.7.1.7", "ipAddrBlocks"],
+    ["1.3.6.1.5.5.7.1.8", "autonomousSysIds"]
+  ]],
+  ["RFC 6487", [
+    ["1.3.6.1.5.5.7.48.10", "rpkiManifest"],
+    ["1.3.6.1.5.5.7.48.11", "signedObject"]
+  ]],
+  ["RFC 8182", [["1.3.6.1.5.5.7.48.13", "rpkiNotify"]]],
+  ["RFC 7633", [["1.3.6.1.5.5.7.1.24", "tlsFeature"]]],
+  ["RFC 9608", [["2.5.29.56", "noRevAvail"]]],
+  ["RFC 6962", [
+    ["1.3.6.1.4.1.11129.2.4.2", "signedCertificateTimestampList"],
+    ["1.3.6.1.4.1.11129.2.4.3", "ctPrecertificatePoison"],
+    ["1.3.6.1.4.1.11129.2.4.4", "ctPrecertificateSigning"],
+    ["1.3.6.1.4.1.11129.2.4.5", "ocspSignedCertificateTimestampList"]
+  ]],
+  ["RFC 6960", [
+    ["1.3.6.1.5.5.7.48.1.1", "ocspBasic"],
+    ["1.3.6.1.5.5.7.48.1.2", "ocspNonce"],
+    ["1.3.6.1.5.5.7.48.1.3", "ocspCrlId"],
+    ["1.3.6.1.5.5.7.48.1.4", "ocspResponse"],
+    ["1.3.6.1.5.5.7.48.1.5", "ocspNoCheck"],
+    ["1.3.6.1.5.5.7.48.1.6", "ocspArchiveCutoff"],
+    ["1.3.6.1.5.5.7.48.1.7", "ocspServiceLocator"]
+  ]],
+  // ── Extended key usages and other names ──
+  ["RFC 4334", [
+    ["1.3.6.1.5.5.7.3.13", "eapOverPPP"],
+    ["1.3.6.1.5.5.7.3.14", "eapOverLAN"]
+  ]],
+  ["RFC 4945", [["1.3.6.1.5.5.7.3.17", "ipsecIKE"]]],
+  ["RFC 5924", [["1.3.6.1.5.5.7.3.20", "sipDomain"]]],
+  ["RFC 6187", [
+    ["1.3.6.1.5.5.7.3.21", "secureShellClient"],
+    ["1.3.6.1.5.5.7.3.22", "secureShellServer"]
+  ]],
+  ["RFC 6402", [
+    ["1.3.6.1.5.5.7.3.27", "cmcCA"],
+    ["1.3.6.1.5.5.7.3.28", "cmcRA"],
+    ["1.3.6.1.5.5.7.3.29", "cmcArchive"]
+  ]],
+  ["RFC 8209", [["1.3.6.1.5.5.7.3.30", "bgpsecRouter"]]],
+  ["RFC 9336", [["1.3.6.1.5.5.7.3.36", "documentSigning"]]],
+  ["RFC 4043", [["1.3.6.1.5.5.7.8.3", "permanentIdentifier"]]],
+  ["RFC 4108", [["1.3.6.1.5.5.7.8.4", "hardwareModuleName"]]],
+  ["RFC 6120", [["1.3.6.1.5.5.7.8.5", "xmppAddr"]]],
+  ["RFC 4985", [["1.3.6.1.5.5.7.8.7", "srvName"]]],
+  ["RFC 9598", [["1.3.6.1.5.5.7.8.9", "smtpUTF8Mailbox"]]],
+  ["RFC 4556", [
+    ["1.3.6.1.5.2.2", "pkinitSan"],
+    ["1.3.6.1.5.2.3.4", "pkinitKPClientAuth"],
+    ["1.3.6.1.5.2.3.5", "pkinitKPKdc"]
+  ]],
+  ["Microsoft", [
+    ["1.3.6.1.4.1.311.10.3.4", "msEncryptedFileSystem"],
+    ["1.3.6.1.4.1.311.10.3.12", "msDocumentSigning"],
+    ["1.3.6.1.4.1.311.20.2", "msCertificateTemplateName"],
+    ["1.3.6.1.4.1.311.20.2.2", "msSmartcardLogon"],
+    ["1.3.6.1.4.1.311.20.2.3", "msUserPrincipalName"],
+    ["1.3.6.1.4.1.311.21.1", "msCAVersion"],
+    ["1.3.6.1.4.1.311.21.2", "msPreviousCertHash"],
+    ["1.3.6.1.4.1.311.21.7", "msCertificateTemplate"],
+    ["1.3.6.1.4.1.311.21.10", "msApplicationCertPolicies"]
+  ]],
+  ["Netscape", [
+    ["2.16.840.1.113730.1.1", "netscapeCertType"],
+    ["2.16.840.1.113730.1.13", "netscapeComment"]
+  ]],
+  ["Adobe (ISO 32000)", [
+    ["1.2.840.113583.1.1.8", "adbeRevocationInfoArchival"],
+    ["1.2.840.113583.1.1.9.1", "adbeTimestamp"]
+  ]],
+  // ── Certificate policies and qualified certificates ──
+  ["CA/Browser Forum Baseline Requirements", [
+    ["2.23.140.1.1", "extendedValidation"],
+    ["2.23.140.1.2.1", "domainValidated"],
+    ["2.23.140.1.2.2", "organizationValidated"],
+    ["2.23.140.1.2.3", "individualValidated"],
+    ["2.23.140.1.3", "extendedValidationCodeSigning"],
+    ["2.23.140.1.4.1", "codeSigningRequirements"]
+  ]],
+  ["ETSI EN 319 411-1", [
+    ["0.4.0.2042.1.1", "etsiNcp"],
+    ["0.4.0.2042.1.2", "etsiNcpPlus"],
+    ["0.4.0.2042.1.3", "etsiLcp"],
+    ["0.4.0.2042.1.4", "etsiEvcp"],
+    ["0.4.0.2042.1.6", "etsiDvcp"],
+    ["0.4.0.2042.1.7", "etsiOvcp"]
+  ]],
+  ["ETSI EN 319 411-2", [
+    ["0.4.0.194112.1.0", "etsiQcpNatural"],
+    ["0.4.0.194112.1.1", "etsiQcpLegal"],
+    ["0.4.0.194112.1.2", "etsiQcpNaturalQscd"],
+    ["0.4.0.194112.1.3", "etsiQcpLegalQscd"],
+    ["0.4.0.194112.1.4", "etsiQcpWeb"]
+  ]],
+  ["ETSI EN 319 412-1", [
+    ["0.4.0.194121.1.1", "etsiSemanticsIdNatural"],
+    ["0.4.0.194121.1.2", "etsiSemanticsIdLegal"]
+  ]],
+  ["ETSI EN 319 412-5", [
+    ["0.4.0.1862.1.1", "qcCompliance"],
+    ["0.4.0.1862.1.2", "qcLimitValue"],
+    ["0.4.0.1862.1.3", "qcRetentionPeriod"],
+    ["0.4.0.1862.1.4", "qcSSCD"],
+    ["0.4.0.1862.1.5", "qcPDS"],
+    ["0.4.0.1862.1.6", "qcType"],
+    ["0.4.0.1862.1.6.1", "qcTypeESign"],
+    ["0.4.0.1862.1.6.2", "qcTypeESeal"],
+    ["0.4.0.1862.1.6.3", "qcTypeWeb"],
+    ["0.4.0.1862.1.7", "qcCClegislation"]
+  ]],
+  ["ETSI TS 119 495", [["0.4.0.19495.2", "qcsPsd2"]]],
+  // ── CMS, timestamps and signed attributes ──
+  ["RFC 5652", [
+    ["1.2.840.113549.1.7.1", "data"],
+    ["1.2.840.113549.1.7.2", "signedData"],
+    ["1.2.840.113549.1.7.3", "envelopedData"],
+    ["1.2.840.113549.1.7.5", "digestedData"],
+    ["1.2.840.113549.1.7.6", "encryptedData"],
+    ["1.2.840.113549.1.9.16.1.2", "authData"]
+  ]],
+  ["RFC 3274", [["1.2.840.113549.1.9.16.1.9", "compressedData"]]],
+  ["RFC 5083", [["1.2.840.113549.1.9.16.1.23", "authEnvelopedData"]]],
+  ["RFC 3161", [
+    ["1.2.840.113549.1.9.16.1.4", "tstInfo"],
+    ["1.2.840.113549.1.9.16.2.14", "timeStampToken"]
+  ]],
+  ["RFC 6211", [["1.2.840.113549.1.9.52", "cmsAlgorithmProtection"]]],
+  ["RFC 2634", [["1.2.840.113549.1.9.16.2.12", "signingCertificate"]]],
+  ["RFC 5035", [["1.2.840.113549.1.9.16.2.47", "signingCertificateV2"]]],
+  ["RFC 5126", [
+    ["1.2.840.113549.1.9.16.2.15", "sigPolicyId"],
+    ["1.2.840.113549.1.9.16.2.16", "commitmentType"],
+    ["1.2.840.113549.1.9.16.2.17", "signerLocation"],
+    ["1.2.840.113549.1.9.16.2.18", "signerAttr"],
+    ["1.2.840.113549.1.9.16.2.19", "otherSigCert"],
+    ["1.2.840.113549.1.9.16.2.20", "contentTimestamp"],
+    ["1.2.840.113549.1.9.16.2.21", "certificateRefs"],
+    ["1.2.840.113549.1.9.16.2.22", "revocationRefs"],
+    ["1.2.840.113549.1.9.16.2.23", "certValues"],
+    ["1.2.840.113549.1.9.16.2.24", "revocationValues"],
+    ["1.2.840.113549.1.9.16.2.25", "escTimeStamp"],
+    ["1.2.840.113549.1.9.16.2.26", "certCRLTimestamp"],
+    ["1.2.840.113549.1.9.16.2.27", "archiveTimeStamp"],
+    ["1.2.840.113549.1.9.16.6.1", "proofOfOrigin"],
+    ["1.2.840.113549.1.9.16.6.2", "proofOfReceipt"],
+    ["1.2.840.113549.1.9.16.6.3", "proofOfDelivery"],
+    ["1.2.840.113549.1.9.16.6.4", "proofOfSender"],
+    ["1.2.840.113549.1.9.16.6.5", "proofOfApproval"],
+    ["1.2.840.113549.1.9.16.6.6", "proofOfCreation"]
+  ]],
+  // ── PKCS #12 and password-based encryption ──
+  ["RFC 7292", [
+    ["1.2.840.113549.1.12.1.3", "pbeWithSHAAnd3-KeyTripleDES-CBC"],
+    ["1.2.840.113549.1.12.1.6", "pbeWithSHAAnd40BitRC2-CBC"],
+    ["1.2.840.113549.1.12.10.1.1", "keyBag"],
+    ["1.2.840.113549.1.12.10.1.2", "pkcs8ShroudedKeyBag"],
+    ["1.2.840.113549.1.12.10.1.3", "certBag"],
+    ["1.2.840.113549.1.12.10.1.4", "crlBag"],
+    ["1.2.840.113549.1.12.10.1.5", "secretBag"],
+    ["1.2.840.113549.1.12.10.1.6", "safeContentsBag"]
+  ]],
+  ["RFC 8018", [
+    ["1.2.840.113549.1.5.12", "pbkdf2"],
+    ["1.2.840.113549.1.5.13", "pbes2"],
+    ["1.2.840.113549.2.7", "hmacWithSHA1"],
+    ["1.2.840.113549.2.8", "hmacWithSHA224"],
+    ["1.2.840.113549.2.9", "hmacWithSHA256"],
+    ["1.2.840.113549.2.10", "hmacWithSHA384"],
+    ["1.2.840.113549.2.11", "hmacWithSHA512"],
+    ["1.2.840.113549.3.2", "rc2CBC"],
+    ["1.2.840.113549.3.7", "des-EDE3-CBC"]
+  ]],
+  // ── Public-key and signature algorithms ──
+  ["RFC 8017", [
+    ["1.2.840.113549.1.1.1", "rsaEncryption"],
+    ["1.2.840.113549.1.1.2", "md2WithRSAEncryption"],
+    ["1.2.840.113549.1.1.3", "md4WithRSAEncryption"],
+    ["1.2.840.113549.1.1.4", "md5WithRSAEncryption"],
+    ["1.2.840.113549.1.1.5", "sha1WithRSAEncryption"],
+    ["1.2.840.113549.1.1.7", "RSAES-OAEP"],
+    ["1.2.840.113549.1.1.8", "mgf1"],
+    ["1.2.840.113549.1.1.9", "pSpecified"],
+    ["1.2.840.113549.1.1.10", "RSASSA-PSS"],
+    ["1.2.840.113549.1.1.11", "sha256WithRSAEncryption"],
+    ["1.2.840.113549.1.1.12", "sha384WithRSAEncryption"],
+    ["1.2.840.113549.1.1.13", "sha512WithRSAEncryption"],
+    ["1.2.840.113549.1.1.14", "sha224WithRSAEncryption"],
+    ["1.2.840.113549.1.1.15", "sha512-224WithRSAEncryption"],
+    ["1.2.840.113549.1.1.16", "sha512-256WithRSAEncryption"]
+  ]],
+  ["OIW", [["1.3.14.3.2.29", "sha1WithRSASignature"]]],
+  ["RFC 3279", [
+    ["1.2.840.113549.2.2", "md2"],
+    ["1.2.840.113549.2.5", "md5"],
+    ["1.3.14.3.2.26", "sha1"],
+    ["1.2.840.10040.4.1", "dsa"],
+    ["1.2.840.10040.4.3", "dsa-with-sha1"],
+    ["1.2.840.10045.4.1", "ecdsa-with-SHA1"],
+    ["1.2.840.10046.2.1", "dhpublicnumber"]
+  ]],
+  ["RFC 5758", [
+    ["1.2.840.10045.4.3.1", "ecdsa-with-SHA224"],
+    ["1.2.840.10045.4.3.2", "ecdsa-with-SHA256"],
+    ["1.2.840.10045.4.3.3", "ecdsa-with-SHA384"],
+    ["1.2.840.10045.4.3.4", "ecdsa-with-SHA512"],
+    ["2.16.840.1.101.3.4.3.1", "dsa-with-sha224"],
+    ["2.16.840.1.101.3.4.3.2", "dsa-with-sha256"]
+  ]],
+  ["RFC 5480", [
+    ["1.2.840.10045.2.1", "ecPublicKey"],
+    ["1.3.132.1.12", "ecDH"],
+    ["1.3.132.1.13", "ecMQV"],
+    ["1.2.840.10045.3.1.1", "secp192r1"],
+    ["1.3.132.0.33", "secp224r1"],
+    ["1.2.840.10045.3.1.7", "secp256r1"],
+    ["1.3.132.0.34", "secp384r1"],
+    ["1.3.132.0.35", "secp521r1"]
+  ]],
+  ["SEC 2", [["1.3.132.0.10", "secp256k1"]]],
+  ["RFC 5639", [
+    ["1.3.36.3.3.2.8.1.1.7", "brainpoolP256r1"],
+    ["1.3.36.3.3.2.8.1.1.11", "brainpoolP384r1"],
+    ["1.3.36.3.3.2.8.1.1.13", "brainpoolP512r1"]
+  ]],
+  ["RFC 8410", [
+    ["1.3.101.110", "X25519"],
+    ["1.3.101.111", "X448"],
+    ["1.3.101.112", "Ed25519"],
+    ["1.3.101.113", "Ed448"]
+  ]],
+  ["NIST CSOR", [
+    ["2.16.840.1.101.3.4.3.9", "ecdsa-with-SHA3-224"],
+    ["2.16.840.1.101.3.4.3.10", "ecdsa-with-SHA3-256"],
+    ["2.16.840.1.101.3.4.3.11", "ecdsa-with-SHA3-384"],
+    ["2.16.840.1.101.3.4.3.12", "ecdsa-with-SHA3-512"],
+    ["2.16.840.1.101.3.4.3.13", "sha3-224WithRSAEncryption"],
+    ["2.16.840.1.101.3.4.3.14", "sha3-256WithRSAEncryption"],
+    ["2.16.840.1.101.3.4.3.15", "sha3-384WithRSAEncryption"],
+    ["2.16.840.1.101.3.4.3.16", "sha3-512WithRSAEncryption"]
+  ]],
+  ["FIPS 204", [
+    ["2.16.840.1.101.3.4.3.17", "ml-dsa-44"],
+    ["2.16.840.1.101.3.4.3.18", "ml-dsa-65"],
+    ["2.16.840.1.101.3.4.3.19", "ml-dsa-87"]
+  ]],
+  ["FIPS 205", [
+    ["2.16.840.1.101.3.4.3.20", "slh-dsa-sha2-128s"],
+    ["2.16.840.1.101.3.4.3.21", "slh-dsa-sha2-128f"],
+    ["2.16.840.1.101.3.4.3.22", "slh-dsa-sha2-192s"],
+    ["2.16.840.1.101.3.4.3.23", "slh-dsa-sha2-192f"],
+    ["2.16.840.1.101.3.4.3.24", "slh-dsa-sha2-256s"],
+    ["2.16.840.1.101.3.4.3.25", "slh-dsa-sha2-256f"],
+    ["2.16.840.1.101.3.4.3.26", "slh-dsa-shake-128s"],
+    ["2.16.840.1.101.3.4.3.27", "slh-dsa-shake-128f"],
+    ["2.16.840.1.101.3.4.3.28", "slh-dsa-shake-192s"],
+    ["2.16.840.1.101.3.4.3.29", "slh-dsa-shake-192f"],
+    ["2.16.840.1.101.3.4.3.30", "slh-dsa-shake-256s"],
+    ["2.16.840.1.101.3.4.3.31", "slh-dsa-shake-256f"]
+  ]],
+  ["FIPS 203", [
+    ["2.16.840.1.101.3.4.4.1", "ml-kem-512"],
+    ["2.16.840.1.101.3.4.4.2", "ml-kem-768"],
+    ["2.16.840.1.101.3.4.4.3", "ml-kem-1024"]
+  ]],
+  // ── Digests and symmetric algorithms ──
+  ["FIPS 180-4", [
+    ["2.16.840.1.101.3.4.2.1", "sha256"],
+    ["2.16.840.1.101.3.4.2.2", "sha384"],
+    ["2.16.840.1.101.3.4.2.3", "sha512"],
+    ["2.16.840.1.101.3.4.2.4", "sha224"],
+    ["2.16.840.1.101.3.4.2.5", "sha512-224"],
+    ["2.16.840.1.101.3.4.2.6", "sha512-256"]
+  ]],
+  ["FIPS 202", [
+    ["2.16.840.1.101.3.4.2.7", "sha3-224"],
+    ["2.16.840.1.101.3.4.2.8", "sha3-256"],
+    ["2.16.840.1.101.3.4.2.9", "sha3-384"],
+    ["2.16.840.1.101.3.4.2.10", "sha3-512"],
+    ["2.16.840.1.101.3.4.2.11", "shake128"],
+    ["2.16.840.1.101.3.4.2.12", "shake256"],
+    ["2.16.840.1.101.3.4.2.13", "hmacWithSHA3-224"],
+    ["2.16.840.1.101.3.4.2.14", "hmacWithSHA3-256"],
+    ["2.16.840.1.101.3.4.2.15", "hmacWithSHA3-384"],
+    ["2.16.840.1.101.3.4.2.16", "hmacWithSHA3-512"]
+  ]],
+  ["RFC 3565", [
+    ["2.16.840.1.101.3.4.1.2", "aes128-CBC"],
+    ["2.16.840.1.101.3.4.1.22", "aes192-CBC"],
+    ["2.16.840.1.101.3.4.1.42", "aes256-CBC"]
+  ]],
+  ["RFC 3394", [
+    ["2.16.840.1.101.3.4.1.5", "aes128-wrap"],
+    ["2.16.840.1.101.3.4.1.25", "aes192-wrap"],
+    ["2.16.840.1.101.3.4.1.45", "aes256-wrap"]
+  ]],
+  ["RFC 5649", [
+    ["2.16.840.1.101.3.4.1.8", "aes128-wrap-pad"],
+    ["2.16.840.1.101.3.4.1.28", "aes192-wrap-pad"],
+    ["2.16.840.1.101.3.4.1.48", "aes256-wrap-pad"]
+  ]],
+  ["RFC 5084", [
+    ["2.16.840.1.101.3.4.1.6", "aes128-GCM"],
+    ["2.16.840.1.101.3.4.1.26", "aes192-GCM"],
+    ["2.16.840.1.101.3.4.1.46", "aes256-GCM"]
+  ]],
+  ["RFC 8103", [["1.2.840.113549.1.9.16.3.18", "aeadChaCha20Poly1305"]]]
+];
+function buildRegistry(groups) {
+  const entries = [];
+  for (const [standard, pairs] of groups) {
+    for (const [oid, name] of pairs) entries.push(Object.freeze({ oid, name, standard }));
+  }
+  return Object.freeze(entries);
+}
+var OID_REGISTRY = /* @__PURE__ */ buildRegistry(GROUPS);
+
+// src/oid/oid-names.ts
+function indexByOid(entries) {
+  const map = /* @__PURE__ */ new Map();
+  for (const entry of entries) map.set(entry.oid, entry.name);
+  return map;
+}
+var NAME_BY_OID = /* @__PURE__ */ indexByOid(OID_REGISTRY);
+function getOidName(oid) {
+  return typeof oid === "string" ? NAME_BY_OID.get(oid) : void 0;
+}
+
+// src/core/base64.ts
+var ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function _reverseTable() {
+  const table = new Int16Array(128).fill(-1);
+  for (let i = 0; i < ALPHABET.length; i++) table[ALPHABET.charCodeAt(i)] = i;
+  return table;
+}
+var REVERSE = /* @__PURE__ */ _reverseTable();
+function _sextet(text, index) {
+  const c = text.charCodeAt(index);
+  return c < 128 ? REVERSE[c] ?? -1 : -1;
+}
+function decodeBase64(text) {
+  if (text.length % 4 !== 0) return null;
+  if (text.length === 0) return new Uint8Array(0);
+  let padding = 0;
+  if (text.charCodeAt(text.length - 1) === 61) padding = text.charCodeAt(text.length - 2) === 61 ? 2 : 1;
+  const out = new Uint8Array(text.length / 4 * 3 - padding);
+  let at = 0;
+  for (let i = 0; i < text.length; i += 4) {
+    const last = i + 4 === text.length;
+    const a = _sextet(text, i);
+    const b = _sextet(text, i + 1);
+    const c = last && padding === 2 ? 0 : _sextet(text, i + 2);
+    const d = last && padding >= 1 ? 0 : _sextet(text, i + 3);
+    if (a < 0 || b < 0 || c < 0 || d < 0) return null;
+    if (last && padding === 2 && (b & 15) !== 0) return null;
+    if (last && padding === 1 && (c & 3) !== 0) return null;
+    const triple = a << 18 | b << 12 | c << 6 | d;
+    out[at++] = triple >> 16 & 255;
+    if (!(last && padding === 2)) out[at++] = triple >> 8 & 255;
+    if (!(last && padding >= 1)) out[at++] = triple & 255;
+  }
+  return out;
+}
+function encodeBase64(bytes) {
+  const parts = [];
+  const view = byteView(bytes);
+  for (let i = 0; i < bytes.length; i += 3) {
+    const remaining = bytes.length - i;
+    const b0 = view.getUint8(i);
+    const b1 = remaining > 1 ? view.getUint8(i + 1) : 0;
+    const b2 = remaining > 2 ? view.getUint8(i + 2) : 0;
+    const triple = b0 << 16 | b1 << 8 | b2;
+    parts.push(
+      ALPHABET.charAt(triple >> 18 & 63),
+      ALPHABET.charAt(triple >> 12 & 63),
+      remaining > 1 ? ALPHABET.charAt(triple >> 6 & 63) : "=",
+      remaining > 2 ? ALPHABET.charAt(triple & 63) : "="
+    );
+  }
+  return parts.join("");
+}
+
+// src/pem/pem.ts
+var LABEL = /^(?:[\x21-\x2c\x2e-\x7e](?:[- ]?[\x21-\x2c\x2e-\x7e])*)?$/;
+var BEGIN = /^-----BEGIN .*-----$/;
+var END = /^-----END .*-----$/;
+var BEGIN_PREFIX = "-----BEGIN ".length;
+var END_PREFIX = "-----END ".length;
+var BOUNDARY_SUFFIX = "-----".length;
+var BASE64_LINE = /^[A-Za-z0-9+/=]+$/;
+var HEADER = /^[\x21-\x39\x3b-\x7e]+:[ \t]*.*$/;
+var LAX_WHITESPACE = /[ \t\v\f\r\n]/g;
+var TRAILING_WHITESPACE = /[ \t\v\f]+$/;
+var LEADING_WHITESPACE = /^[ \t\v\f]+/;
+function splitLines(text) {
+  const lines = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c !== 10 && c !== 13) continue;
+    lines.push({ text: text.slice(start, i), start });
+    if (c === 13 && text.charCodeAt(i + 1) === 10) i++;
+    start = i + 1;
+  }
+  if (start < text.length) lines.push({ text: text.slice(start), start });
+  return lines;
+}
+function isValidLabel(label) {
+  return LABEL.test(label);
+}
+function deviate(state, what, offset) {
+  if (state.reported.has(what)) return;
+  state.reported.add(what);
+  state.emitter.emit(pemLaxAcceptedDiagnostic(what, offset));
+}
+function decodePem(text, options) {
+  if (typeof text !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: decodePem expects PEM text as a string, got ${text === null ? "null" : typeof text} \u2014 for DER bytes, call the DER function directly`);
+  }
+  if (options !== void 0 && (typeof options !== "object" || options === null)) {
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: options must be an object \u2014 pass { mode, label, limits, strict, onDiagnostic } or omit it");
+  }
+  const mode = options?.mode ?? "strict";
+  if (mode !== "strict" && mode !== "lax") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: mode must be 'strict' or 'lax', got ${String(mode)}`);
+  }
+  const wanted = options?.label;
+  if (wanted !== void 0 && (typeof wanted !== "string" || !isValidLabel(wanted))) {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: label must be an RFC 7468 label such as 'CERTIFICATE', got ${JSON.stringify(wanted)}`);
+  }
+  if (options?.strict !== void 0 && typeof options.strict !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: strict must be a boolean, got ${typeof options.strict}`);
+  }
+  if (options?.onDiagnostic !== void 0 && typeof options.onDiagnostic !== "function") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: onDiagnostic must be a function, got ${typeof options.onDiagnostic}`);
+  }
+  const limits = resolveLimits(options?.limits);
+  enforceLimit(limits, "maxInputBytes", text.length, "the PEM text length");
+  const state = { emitter: createDiagnosticEmitter(options?.strict, options?.onDiagnostic), reported: /* @__PURE__ */ new Set() };
+  const lax = mode === "lax";
+  const boundary = (line) => {
+    if (!lax) return line.text;
+    const trimmed = line.text.replace(LEADING_WHITESPACE, "").replace(TRAILING_WHITESPACE, "");
+    if (trimmed !== line.text && (BEGIN.test(trimmed) || END.test(trimmed))) deviate(state, "whitespace around a boundary line", line.start);
+    return trimmed;
+  };
+  const lines = splitLines(text);
+  const blocks = [];
+  for (let i = 0; i < lines.length; i++) {
+    const beginLine = lines[i];
+    const begin = BEGIN.exec(boundary(beginLine));
+    if (begin === null) continue;
+    const label = begin[0].slice(BEGIN_PREFIX, -BOUNDARY_SUFFIX);
+    if (!isValidLabel(label)) {
+      throw new PkiEncodingError(
+        "PKI_PEM_LABEL_INVALID",
+        `pkinative: the BEGIN label ${JSON.stringify(label)} at offset ${beginLine.start} is outside the RFC 7468 label grammar \u2014 printable ASCII joined by single spaces or hyphens`,
+        beginLine.start
+      );
+    }
+    enforceLimit(limits, "maxPemBlocks", blocks.length + 1, "the number of PEM blocks");
+    const body = [];
+    let endLine;
+    let endLabel = "";
+    const bodyStart = i + 1;
+    for (i++; i < lines.length; i++) {
+      const line = lines[i];
+      const shown2 = boundary(line);
+      const end = END.exec(shown2);
+      if (end !== null) {
+        endLine = line;
+        endLabel = end[0].slice(END_PREFIX, -BOUNDARY_SUFFIX);
+        break;
+      }
+      if (BEGIN.test(shown2)) break;
+      body.push(line);
+    }
+    if (endLine === void 0) {
+      if (!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))) {
+        throw new PkiEncodingError(
+          "PKI_PEM_UNTERMINATED",
+          `pkinative: the "${label}" block at offset ${beginLine.start} has an END line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary \u2014 decode with mode: 'lax' to accept it`,
+          beginLine.start
+        );
+      }
+      throw new PkiEncodingError(
+        "PKI_PEM_UNTERMINATED",
+        `pkinative: the "${label}" block at offset ${beginLine.start} has no matching END line \u2014 the text is truncated or spliced`,
+        beginLine.start
+      );
+    }
+    if (endLabel !== label) {
+      throw new PkiEncodingError(
+        "PKI_PEM_LABEL_MISMATCH",
+        `pkinative: the block that begins as "${label}" at offset ${beginLine.start} ends as "${endLabel}" at offset ${endLine.start} \u2014 the text was spliced or corrupted`,
+        endLine.start
+      );
+    }
+    if (wanted !== void 0 && label !== wanted) {
+      throw new PkiEncodingError(
+        "PKI_PEM_UNEXPECTED_LABEL",
+        `pkinative: the block at offset ${beginLine.start} is "${label}", not "${wanted}" \u2014 pass the right block, or omit the label option`,
+        beginLine.start
+      );
+    }
+    const headers = [];
+    let first = 0;
+    if (body.length > 0 && HEADER.test(body[0].text.replace(LEADING_WHITESPACE, ""))) {
+      if (!lax) {
+        throw new PkiEncodingError(
+          "PKI_PEM_HEADERS_FORBIDDEN",
+          `pkinative: the "${label}" block at offset ${beginLine.start} carries RFC 1421 headers, which strict RFC 7468 parsing refuses \u2014 decode with mode: 'lax' to read legacy PEM`,
+          body[0].start
+        );
+      }
+      deviate(state, "RFC 1421 headers", body[0].start);
+      for (; first < body.length; first++) {
+        const raw = body[first].text;
+        if (raw.trim() === "") break;
+        const header = HEADER.exec(raw.replace(LEADING_WHITESPACE, ""));
+        const previous = headers[headers.length - 1];
+        if (header !== null && !LEADING_WHITESPACE.test(raw)) {
+          const colon = header[0].indexOf(":");
+          headers.push([header[0].slice(0, colon), header[0].slice(colon + 1).trim()]);
+        } else if (previous !== void 0 && LEADING_WHITESPACE.test(raw)) headers[headers.length - 1] = [previous[0], `${previous[1]} ${raw.trim()}`];
+        else break;
+      }
+      if (first >= body.length || body[first].text.trim() !== "") {
+        throw new PkiEncodingError(
+          "PKI_PEM_BASE64_INVALID",
+          `pkinative: the headers of the "${label}" block at offset ${beginLine.start} are not followed by a blank line (RFC 1421 \xA74.4)`,
+          beginLine.start
+        );
+      }
+      first++;
+    }
+    let base64 = "";
+    const content = body.slice(first);
+    if (lax) {
+      base64 = content.map((l) => l.text).join("\n");
+      const stripped = base64.replace(LAX_WHITESPACE, "");
+      const lengths = content.map((l) => l.text.length).filter((n) => n > 0);
+      if (stripped !== base64.replace(/\n/g, "")) deviate(state, "whitespace inside the base64 text", beginLine.start);
+      else if (lengths.slice(0, -1).some((n) => n !== 64) || (lengths[lengths.length - 1] ?? 0) > 64 || content.some((l) => l.text.length === 0)) {
+        deviate(state, "base64 lines that are not 64 characters long", beginLine.start);
+      }
+      base64 = stripped;
+    } else {
+      for (let k = 0; k < content.length; k++) {
+        const line = content[k];
+        const last = k === content.length - 1;
+        if (!BASE64_LINE.test(line.text) || line.text.length > 64 || !last && line.text.length !== 64) {
+          throw new PkiEncodingError(
+            "PKI_PEM_BASE64_INVALID",
+            `pkinative: line ${k + 1} of the "${label}" block at offset ${line.start} is not a strict base64 line (64 characters from the base64 alphabet, the last one shorter) \u2014 decode with mode: 'lax' to tolerate whitespace and line lengths`,
+            line.start
+          );
+        }
+        base64 += line.text;
+      }
+    }
+    const bytes = decodeBase64(base64);
+    if (bytes === null) {
+      throw new PkiEncodingError(
+        "PKI_PEM_BASE64_INVALID",
+        `pkinative: the body of the "${label}" block at offset ${beginLine.start} is not canonical base64 (alphabet, padding and zero padding bits, RFC 4648 \xA73.5)`,
+        beginLine.start
+      );
+    }
+    blocks.push(Object.freeze({ label, bytes, headers: Object.freeze(headers), offset: beginLine.start }));
+  }
+  if (blocks.length === 0) {
+    if (!lax && lines.some((l) => BEGIN.test(l.text.trim()))) {
+      throw new PkiEncodingError(
+        "PKI_PEM_NO_BLOCK",
+        "pkinative: the text has a -----BEGIN line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary \u2014 decode with mode: 'lax' to accept it",
+        0
+      );
+    }
+    throw new PkiEncodingError(
+      "PKI_PEM_NO_BLOCK",
+      "pkinative: the text contains no -----BEGIN line \u2014 pass the PEM text itself, or call the DER function directly for binary input",
+      0
+    );
+  }
+  return Object.freeze(blocks);
+}
+function encodePem(label, bytes) {
+  if (typeof label !== "string" || !isValidLabel(label)) {
+    throw new PkiEncodingError(
+      "PKI_PEM_LABEL_INVALID",
+      `pkinative: ${JSON.stringify(label)} is not an RFC 7468 label \u2014 use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`
+    );
+  }
+  const base64 = encodeBase64(assertBytes(bytes, "encodePem bytes"));
+  const lines = [];
+  for (let i = 0; i < base64.length; i += 64) lines.push(base64.slice(i, i + 64));
+  return `-----BEGIN ${label}-----
+${lines.map((l) => `${l}
+`).join("")}-----END ${label}-----
+`;
+}
+
+// src/hash/hash-shared.ts
+var HIGH_WORD_UNIT = 536870912;
+function writeBitLength(target, end, byteLength) {
+  const view = new DataView(target.buffer, target.byteOffset, target.byteLength);
+  view.setUint32(end - 8, Math.floor(byteLength / HIGH_WORD_UNIT), false);
+  view.setUint32(end - 4, byteLength % HIGH_WORD_UNIT * 8, false);
+}
+function padMessage(input, blockSize, lengthOctets) {
+  const total = Math.ceil((input.length + 1 + lengthOctets) / blockSize) * blockSize;
+  const padded = new Uint8Array(total);
+  padded.set(input);
+  padded[input.length] = 128;
+  writeBitLength(padded, total, input.length);
+  return padded;
+}
+
+// src/hash/sha1.ts
+function rotl(x, n) {
+  return (x << n | x >>> 32 - n) >>> 0;
+}
+function sha1(input) {
+  const padded = padMessage(input, 64, 8);
+  const view = new DataView(padded.buffer);
+  const w = new Uint32Array(80);
+  let h0 = 1732584193;
+  let h1 = 4023233417;
+  let h2 = 2562383102;
+  let h3 = 271733878;
+  let h4 = 3285377520;
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
+    for (let j = 16; j < 80; j++) {
+      w[j] = rotl(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
+    }
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    for (let j = 0; j < 80; j++) {
+      let f;
+      let k;
+      if (j < 20) {
+        f = b & c | ~b & d;
+        k = 1518500249;
+      } else if (j < 40) {
+        f = b ^ c ^ d;
+        k = 1859775393;
+      } else if (j < 60) {
+        f = b & c | b & d | c & d;
+        k = 2400959708;
+      } else {
+        f = b ^ c ^ d;
+        k = 3395469782;
+      }
+      const temp = rotl(a, 5) + f + e + k + w[j] >>> 0;
+      e = d;
+      d = c;
+      c = rotl(b, 30);
+      b = a;
+      a = temp;
+    }
+    h0 = h0 + a >>> 0;
+    h1 = h1 + b >>> 0;
+    h2 = h2 + c >>> 0;
+    h3 = h3 + d >>> 0;
+    h4 = h4 + e >>> 0;
+  }
+  const out = new Uint8Array(20);
+  const outView = new DataView(out.buffer);
+  [h0, h1, h2, h3, h4].forEach((word, i) => outView.setUint32(i * 4, word, false));
+  return out;
+}
+
+// src/hash/sha256.ts
+var K = /* @__PURE__ */ new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+function rotr(x, n) {
+  return x >>> n | x << 32 - n;
+}
+function sha256(input) {
+  const padded = padMessage(input, 64, 8);
+  const view = new DataView(padded.buffer);
+  const w = new Uint32Array(64);
+  let h0 = 1779033703;
+  let h1 = 3144134277;
+  let h2 = 1013904242;
+  let h3 = 2773480762;
+  let h4 = 1359893119;
+  let h5 = 2600822924;
+  let h6 = 528734635;
+  let h7 = 1541459225;
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
+    for (let j = 16; j < 64; j++) {
+      const x = w[j - 15];
+      const y = w[j - 2];
+      const s0 = rotr(x, 7) ^ rotr(x, 18) ^ x >>> 3;
+      const s1 = rotr(y, 17) ^ rotr(y, 19) ^ y >>> 10;
+      w[j] = w[j - 16] + s0 + w[j - 7] + s1 >>> 0;
+    }
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    let f = h5;
+    let g = h6;
+    let h = h7;
+    for (let j = 0; j < 64; j++) {
+      const temp1 = h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[j] + w[j] >>> 0;
+      const temp2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b ^ a & c ^ b & c) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1 >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2 >>> 0;
+    }
+    h0 = h0 + a >>> 0;
+    h1 = h1 + b >>> 0;
+    h2 = h2 + c >>> 0;
+    h3 = h3 + d >>> 0;
+    h4 = h4 + e >>> 0;
+    h5 = h5 + f >>> 0;
+    h6 = h6 + g >>> 0;
+    h7 = h7 + h >>> 0;
+  }
+  const out = new Uint8Array(32);
+  const outView = new DataView(out.buffer);
+  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((word, i) => outView.setUint32(i * 4, word, false));
+  return out;
+}
+
+// src/hash/sha512.ts
+var K_HI = /* @__PURE__ */ new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298,
+  3391569614,
+  3515267271,
+  3940187606,
+  4118630271,
+  116418474,
+  174292421,
+  289380356,
+  460393269,
+  685471733,
+  852142971,
+  1017036298,
+  1126000580,
+  1288033470,
+  1501505948,
+  1607167915,
+  1816402316
+]);
+var K_LO = /* @__PURE__ */ new Uint32Array([
+  3609767458,
+  602891725,
+  3964484399,
+  2173295548,
+  4081628472,
+  3053834265,
+  2937671579,
+  3664609560,
+  2734883394,
+  1164996542,
+  1323610764,
+  3590304994,
+  4068182383,
+  991336113,
+  633803317,
+  3479774868,
+  2666613458,
+  944711139,
+  2341262773,
+  2007800933,
+  1495990901,
+  1856431235,
+  3175218132,
+  2198950837,
+  3999719339,
+  766784016,
+  2566594879,
+  3203337956,
+  1034457026,
+  2466948901,
+  3758326383,
+  168717936,
+  1188179964,
+  1546045734,
+  1522805485,
+  2643833823,
+  2343527390,
+  1014477480,
+  1206759142,
+  344077627,
+  1290863460,
+  3158454273,
+  3505952657,
+  106217008,
+  3606008344,
+  1432725776,
+  1467031594,
+  851169720,
+  3100823752,
+  1363258195,
+  3750685593,
+  3785050280,
+  3318307427,
+  3812723403,
+  2003034995,
+  3602036899,
+  1575990012,
+  1125592928,
+  2716904306,
+  442776044,
+  593698344,
+  3733110249,
+  2999351573,
+  3815920427,
+  3928383900,
+  566280711,
+  3454069534,
+  4000239992,
+  1914138554,
+  2731055270,
+  3203993006,
+  320620315,
+  587496836,
+  1086792851,
+  365543100,
+  2618297676,
+  3409855158,
+  4234509866,
+  987167468,
+  1246189591
+]);
+var IV_512 = [
+  1779033703,
+  4089235720,
+  3144134277,
+  2227873595,
+  1013904242,
+  4271175723,
+  2773480762,
+  1595750129,
+  1359893119,
+  2917565137,
+  2600822924,
+  725511199,
+  528734635,
+  4215389547,
+  1541459225,
+  327033209
+];
+var IV_384 = [
+  3418070365,
+  3238371032,
+  1654270250,
+  914150663,
+  2438529370,
+  812702999,
+  355462360,
+  4144912697,
+  1731405415,
+  4290775857,
+  2394180231,
+  1750603025,
+  3675008525,
+  1694076839,
+  1203062813,
+  3204075428
+];
+function add(out, ah, al, bh, bl) {
+  const low = al + bl >>> 0;
+  out[0] = ah + bh + (low < al ? 1 : 0) >>> 0;
+  out[1] = low;
+}
+function core(input, iv, outputLength) {
+  const padded = padMessage(input, 128, 16);
+  const view = new DataView(padded.buffer);
+  const state = Uint32Array.from(iv);
+  const wh = new Uint32Array(80);
+  const wl = new Uint32Array(80);
+  const t = new Uint32Array(2);
+  const fold3 = (i, high, low) => {
+    add(t, state[i], state[i + 1], high, low);
+    state[i] = t[0];
+    state[i + 1] = t[1];
+  };
+  for (let offset = 0; offset < padded.length; offset += 128) {
+    for (let j = 0; j < 16; j++) {
+      wh[j] = view.getUint32(offset + j * 8, false);
+      wl[j] = view.getUint32(offset + j * 8 + 4, false);
+    }
+    for (let j = 16; j < 80; j++) {
+      const xh = wh[j - 15];
+      const xl = wl[j - 15];
+      const s0h = (xh >>> 1 | xl << 31) ^ (xh >>> 8 | xl << 24) ^ xh >>> 7;
+      const s0l = (xl >>> 1 | xh << 31) ^ (xl >>> 8 | xh << 24) ^ (xl >>> 7 | xh << 25);
+      const yh = wh[j - 2];
+      const yl = wl[j - 2];
+      const s1h = (yh >>> 19 | yl << 13) ^ (yl >>> 29 | yh << 3) ^ yh >>> 6;
+      const s1l = (yl >>> 19 | yh << 13) ^ (yh >>> 29 | yl << 3) ^ (yl >>> 6 | yh << 26);
+      add(t, wh[j - 16], wl[j - 16], s0h >>> 0, s0l >>> 0);
+      add(t, t[0], t[1], wh[j - 7], wl[j - 7]);
+      add(t, t[0], t[1], s1h >>> 0, s1l >>> 0);
+      wh[j] = t[0];
+      wl[j] = t[1];
+    }
+    let aH = state[0], aL = state[1];
+    let bH = state[2], bL = state[3];
+    let cH = state[4], cL = state[5];
+    let dH = state[6], dL = state[7];
+    let eH = state[8], eL = state[9];
+    let fH = state[10], fL = state[11];
+    let gH = state[12], gL = state[13];
+    let hH = state[14], hL = state[15];
+    for (let j = 0; j < 80; j++) {
+      const sigma1H = (eH >>> 14 | eL << 18) ^ (eH >>> 18 | eL << 14) ^ (eL >>> 9 | eH << 23);
+      const sigma1L = (eL >>> 14 | eH << 18) ^ (eL >>> 18 | eH << 14) ^ (eH >>> 9 | eL << 23);
+      const choiceH = eH & fH ^ ~eH & gH;
+      const choiceL = eL & fL ^ ~eL & gL;
+      add(t, hH, hL, sigma1H >>> 0, sigma1L >>> 0);
+      add(t, t[0], t[1], choiceH >>> 0, choiceL >>> 0);
+      add(t, t[0], t[1], K_HI[j], K_LO[j]);
+      add(t, t[0], t[1], wh[j], wl[j]);
+      const temp1H = t[0];
+      const temp1L = t[1];
+      const sigma0H = (aH >>> 28 | aL << 4) ^ (aL >>> 2 | aH << 30) ^ (aL >>> 7 | aH << 25);
+      const sigma0L = (aL >>> 28 | aH << 4) ^ (aH >>> 2 | aL << 30) ^ (aH >>> 7 | aL << 25);
+      const majorityH = aH & bH ^ aH & cH ^ bH & cH;
+      const majorityL = aL & bL ^ aL & cL ^ bL & cL;
+      add(t, sigma0H >>> 0, sigma0L >>> 0, majorityH >>> 0, majorityL >>> 0);
+      const temp2H = t[0];
+      const temp2L = t[1];
+      hH = gH;
+      hL = gL;
+      gH = fH;
+      gL = fL;
+      fH = eH;
+      fL = eL;
+      add(t, dH, dL, temp1H, temp1L);
+      eH = t[0];
+      eL = t[1];
+      dH = cH;
+      dL = cL;
+      cH = bH;
+      cL = bL;
+      bH = aH;
+      bL = aL;
+      add(t, temp1H, temp1L, temp2H, temp2L);
+      aH = t[0];
+      aL = t[1];
+    }
+    fold3(0, aH, aL);
+    fold3(2, bH, bL);
+    fold3(4, cH, cL);
+    fold3(6, dH, dL);
+    fold3(8, eH, eL);
+    fold3(10, fH, fL);
+    fold3(12, gH, gL);
+    fold3(14, hH, hL);
+  }
+  const out = new Uint8Array(64);
+  const outView = new DataView(out.buffer);
+  for (let i = 0; i < 16; i++) outView.setUint32(i * 4, state[i], false);
+  return outputLength === 64 ? out : out.slice(0, 48);
+}
+function sha512(input) {
+  return core(input, IV_512, 64);
+}
+function sha384(input) {
+  return core(input, IV_384, 48);
+}
+
+// src/hash/fingerprint.ts
+var ALGORITHMS = ["SHA-1", "SHA-256", "SHA-384", "SHA-512"];
+function digestFunction(algorithm) {
+  switch (algorithm) {
+    case "SHA-1":
+      return sha1;
+    case "SHA-256":
+      return sha256;
+    case "SHA-384":
+      return sha384;
+    case "SHA-512":
+      return sha512;
+    default:
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: the fingerprint algorithm must be one of ${ALGORITHMS.join(", ")}, got ${String(algorithm)}`);
+  }
+}
+function computeFingerprint(der, algorithm) {
+  const hash = digestFunction(algorithm);
+  return hash(assertBytes(der, "computeFingerprint input"));
+}
+async function computeFingerprintAsync(der, algorithm) {
+  const hash = digestFunction(algorithm);
+  const bytes = assertBytes(der, "computeFingerprintAsync input");
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle !== void 0 && typeof subtle.digest === "function") {
+    try {
+      return new Uint8Array(await subtle.digest(algorithm, bytes));
+    } catch {
+    }
+  }
+  return hash(bytes);
+}
+function formatFingerprint(digest, options) {
+  const bytes = assertBytes(digest, "formatFingerprint digest");
+  const separator = options?.separator ?? ":";
+  const letterCase = options?.letterCase ?? "upper";
+  if (typeof separator !== "string") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: separator must be a string, got ${typeof separator}`);
+  }
+  if (letterCase !== "upper" && letterCase !== "lower") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: letterCase must be 'upper' or 'lower', got ${String(letterCase)}`);
+  }
+  const hex3 = toHex(bytes, separator);
+  return letterCase === "upper" ? hex3.toUpperCase() : hex3;
+}
+
+// src/hash/key-identifier.ts
+function computeKeyIdentifier(publicKeyBits, algorithm = "SHA-1") {
+  assertBytes(publicKeyBits, "publicKeyBits");
+  return algorithm === "SHA-256" ? sha256(publicKeyBits) : sha1(publicKeyBits);
+}
+
+// src/hash/shake256.ts
+var RC_HI = /* @__PURE__ */ new Uint32Array([
+  0,
+  0,
+  2147483648,
+  2147483648,
+  0,
+  0,
+  2147483648,
+  2147483648,
+  0,
+  0,
+  0,
+  0,
+  0,
+  2147483648,
+  2147483648,
+  2147483648,
+  2147483648,
+  2147483648,
+  0,
+  2147483648,
+  2147483648,
+  2147483648,
+  0,
+  2147483648
+]);
+var RC_LO = /* @__PURE__ */ new Uint32Array([
+  1,
+  32898,
+  32906,
+  2147516416,
+  32907,
+  2147483649,
+  2147516545,
+  32777,
+  138,
+  136,
+  2147516425,
+  2147483658,
+  2147516555,
+  139,
+  32905,
+  32771,
+  32770,
+  128,
+  32778,
+  2147483658,
+  2147516545,
+  32896,
+  2147483649,
+  2147516424
+]);
+var RHO_SHIFT = /* @__PURE__ */ new Uint8Array([0, 1, 30, 28, 27, 4, 12, 6, 23, 20, 3, 10, 11, 25, 7, 9, 13, 15, 21, 8, 18, 2, 29, 24, 14]);
+var RHO_SWAP = /* @__PURE__ */ new Uint8Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0]);
+var PI = /* @__PURE__ */ new Uint8Array([0, 10, 20, 5, 15, 16, 1, 11, 21, 6, 7, 17, 2, 12, 22, 23, 8, 18, 3, 13, 14, 24, 9, 19, 4]);
+var COLUMNS = /* @__PURE__ */ new Uint8Array([0, 1, 2, 3, 4]);
+var ROWS = /* @__PURE__ */ new Uint8Array([0, 5, 10, 15, 20]);
+var RATE = 136;
+var SHAKE_PAD = 31;
+function keccakF(s, c, b) {
+  for (let round = 0; round < 24; round++) {
+    for (const x of COLUMNS) {
+      const i = 2 * x;
+      c[i] = s[i] ^ s[i + 10] ^ s[i + 20] ^ s[i + 30] ^ s[i + 40];
+      c[i + 1] = s[i + 1] ^ s[i + 11] ^ s[i + 21] ^ s[i + 31] ^ s[i + 41];
+    }
+    for (const x of COLUMNS) {
+      const left = 2 * ((x + 4) % 5);
+      const right = 2 * ((x + 1) % 5);
+      const rightLo = c[right];
+      const rightHi = c[right + 1];
+      const dLo = c[left] ^ (rightLo << 1 | rightHi >>> 31);
+      const dHi = c[left + 1] ^ (rightHi << 1 | rightLo >>> 31);
+      for (const y of ROWS) {
+        const i = 2 * (x + y);
+        s[i] = s[i] ^ dLo;
+        s[i + 1] = s[i + 1] ^ dHi;
+      }
+    }
+    for (const lane of PI.keys()) {
+      const swap = RHO_SWAP[lane] === 1;
+      const lo = swap ? s[2 * lane + 1] : s[2 * lane];
+      const hi = swap ? s[2 * lane] : s[2 * lane + 1];
+      const m = RHO_SHIFT[lane];
+      const target = 2 * PI[lane];
+      b[target] = m === 0 ? lo : lo << m | hi >>> 32 - m;
+      b[target + 1] = m === 0 ? hi : hi << m | lo >>> 32 - m;
+    }
+    for (const y of ROWS) {
+      for (const x of COLUMNS) {
+        const i = 2 * (y + x);
+        const next = 2 * (y + (x + 1) % 5);
+        const after = 2 * (y + (x + 2) % 5);
+        s[i] = b[i] ^ ~b[next] & b[after];
+        s[i + 1] = b[i + 1] ^ ~b[next + 1] & b[after + 1];
+      }
+    }
+    s[0] = s[0] ^ RC_LO[round];
+    s[1] = s[1] ^ RC_HI[round];
+  }
+}
+function shake256(input, outputLength) {
+  const bytes = assertBytes(input, "shake256 input");
+  if (!Number.isInteger(outputLength) || outputLength < 0) {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: shake256 outputLength must be a non-negative integer number of octets, got ${String(outputLength)} \u2014 an Ed448 CMS signer uses 64`);
+  }
+  const total = Math.ceil((bytes.length + 1) / RATE) * RATE;
+  const padded = new Uint8Array(total);
+  padded.set(bytes);
+  padded[bytes.length] = SHAKE_PAD;
+  padded[total - 1] = padded[total - 1] | 128;
+  const state = new Uint32Array(50);
+  const c = new Uint32Array(10);
+  const b = new Uint32Array(50);
+  const view = new DataView(padded.buffer);
+  for (let offset = 0; offset < total; offset += RATE) {
+    for (let word = 0; word < RATE / 4; word++) {
+      state[word] = state[word] ^ view.getUint32(offset + word * 4, true);
+    }
+    keccakF(state, c, b);
+  }
+  const out = new Uint8Array(outputLength);
+  const block = new Uint8Array(RATE);
+  const blockView = new DataView(block.buffer);
+  const blocks = Math.ceil(outputLength / RATE);
+  for (let index = 0; index < blocks; index++) {
+    if (index > 0) keccakF(state, c, b);
+    for (let word = 0; word < RATE / 4; word++) blockView.setUint32(word * 4, state[word], true);
+    const offset = index * RATE;
+    out.set(block.subarray(0, Math.min(RATE, outputLength - offset)), offset);
+  }
+  return out;
 }
 
 // src/x509/x509-fields.ts
 var REMEDIES = /* @__PURE__ */ Object.freeze({
-  PKI_X509_STRUCTURE_INVALID: "check that the input is a certificate, not a CSR, a CRL or a key",
-  PKI_X509_VERSION_INVALID: "the input is not a certificate version RFC 5280 defines",
+  PKI_X509_STRUCTURE_INVALID: "check that the input is the structure this reader expects: a certificate, a CSR, a CRL and a key are four different ones",
+  PKI_X509_VERSION_INVALID: "the input is not a version RFC 5280 (certificate) or RFC 2986 (request) defines",
   PKI_X509_NAME_INVALID: "the issuer encoded the name wrongly",
   PKI_X509_VALIDITY_INVALID: "the issuer encoded the validity period wrongly",
   PKI_X509_SPKI_INVALID: "the issuer encoded the public key wrongly",
@@ -3499,6 +5117,1182 @@ function getExtension(certificate, kind) {
   return void 0;
 }
 
+// src/x509/x509-spki.ts
+var CODE3 = "PKI_X509_SPKI_INVALID";
+var OID_RSA = "1.2.840.113549.1.1.1";
+var OID_RSA_PSS = "1.2.840.113549.1.1.10";
+var OID_EC = "1.2.840.10045.2.1";
+var CURVES = /* @__PURE__ */ new Map([
+  ["1.2.840.10045.3.1.7", { curve: "P-256", size: 32 }],
+  ["1.3.132.0.34", { curve: "P-384", size: 48 }],
+  ["1.3.132.0.35", { curve: "P-521", size: 66 }]
+]);
+var OCTET_KEYS = /* @__PURE__ */ new Map([
+  ["1.3.101.110", { kind: "x25519", length: 32, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.111", { kind: "x448", length: 56, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.112", { kind: "ed25519", length: 32, standard: "RFC 8410 \xA73" }],
+  ["1.3.101.113", { kind: "ed448", length: 57, standard: "RFC 8410 \xA73" }],
+  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312, standard: "RFC 9881 \xA72" }],
+  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952, standard: "RFC 9881 \xA72" }],
+  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592, standard: "RFC 9881 \xA72" }]
+]);
+function requireWholeOctets(parts, what) {
+  if (parts.publicKey.unusedBits !== 0) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `has ${parts.publicKey.unusedBits} unused bits; ${what} key is a whole number of octets`);
+  }
+}
+function readRsa(parts, kind, ctx) {
+  requireWholeOctets(parts, "an RSA");
+  try {
+    const key = decodeWithContext(parts.publicKey.bytes, ctx, false);
+    const modulusNode = key.children[0];
+    const exponentNode = key.children[1];
+    if (key.tagClass !== "universal" || key.tagNumber !== TAG_SEQUENCE || key.children.length !== 2 || modulusNode?.tagClass !== "universal" || modulusNode.tagNumber !== TAG_INTEGER || exponentNode?.tagClass !== "universal" || exponentNode.tagNumber !== TAG_INTEGER) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "is not an RSAPublicKey: a SEQUENCE of the modulus and the public exponent, two INTEGERs");
+    }
+    const modulus = _readInteger(modulusNode, ctx);
+    const publicExponent = _readInteger(exponentNode, ctx);
+    if (modulus <= 0n || publicExponent <= 0n) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "has a modulus or public exponent that is not positive");
+    }
+    if (publicExponent < 3n || (publicExponent & 1n) === 0n) {
+      ctx.emitter.emit(spkiRsaExponentWeakDiagnostic(parts.keyPath, publicExponent, parts.keyOffset));
+    }
+    const content = modulusNode.content;
+    const info = {
+      kind,
+      algorithm: parts.algorithm,
+      publicKey: parts.publicKey,
+      der: parts.der,
+      modulus: content[0] === 0 ? content.subarray(1) : content,
+      modulusBits: modulus.toString(2).length,
+      publicExponent
+    };
+    return Object.freeze(info);
+  } catch (error) {
+    if (error instanceof PkiEncodingError) {
+      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is not a DER RSAPublicKey (${error.code})`);
+    }
+    throw error;
+  }
+}
+function readEc(parts, ctx) {
+  const parameters = parts.algorithm.parameters;
+  if (parameters === void 0) {
+    throw certificateError(CODE3, `${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, parts.keyOffset, "are absent; an EC key names its curve (RFC 5480 \xA72.1.1)");
+  }
+  const namedCurve = parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? _readObjectIdentifier(parameters, ctx) : void 0;
+  const spec = namedCurve === void 0 ? void 0 : CURVES.get(namedCurve);
+  requireWholeOctets(parts, "an EC");
+  const point = parts.publicKey.bytes;
+  const first = point[0];
+  let pointFormat;
+  if (first === 4) {
+    pointFormat = "uncompressed";
+    const valid = spec === void 0 ? point.length >= 3 && point.length % 2 === 1 : point.length === 1 + 2 * spec.size;
+    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is an uncompressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
+  } else if (first === 2 || first === 3) {
+    pointFormat = "compressed";
+    const valid = spec === void 0 ? point.length >= 2 : point.length === 1 + spec.size;
+    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
+  } else {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 \xA72.2 allows no other point form");
+  }
+  if (spec === void 0) {
+    ctx.emitter.emit(spkiEcParametersInvalidDiagnostic(`${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, namedCurve, parameters.offset));
+  }
+  const info = {
+    kind: "ec",
+    algorithm: parts.algorithm,
+    publicKey: parts.publicKey,
+    der: parts.der,
+    namedCurve,
+    curve: spec?.curve,
+    pointFormat,
+    point
+  };
+  return Object.freeze(info);
+}
+function readOctetKey(parts, spec) {
+  if (parts.algorithm.parameters !== void 0) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (${spec.standard})`);
+  }
+  requireWholeOctets(parts, `an ${spec.kind}`);
+  if (parts.publicKey.bytes.length !== spec.length) {
+    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is ${parts.publicKey.bytes.length} octets; an ${spec.kind} key is ${spec.length}`);
+  }
+  const info = { kind: spec.kind, algorithm: parts.algorithm, publicKey: parts.publicKey, der: parts.der, key: parts.publicKey.bytes };
+  return Object.freeze(info);
+}
+function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE3, parentOffset);
+  if (seq.children.length > 2) {
+    throw certificateError(CODE3, path, seq.offset, `holds ${seq.children.length} values; SubjectPublicKeyInfo is an AlgorithmIdentifier and a BIT STRING`);
+  }
+  const algorithm = _readAlgorithmIdentifier(seq.children[0], ctx, `${path}.algorithm`, CODE3, seq.offset);
+  const keyPath = `${path}.subjectPublicKey`;
+  const keyNode = expectUniversalField(seq.children[1], TAG_BIT_STRING, keyPath, CODE3, seq.offset);
+  const parts = { algorithm, publicKey: _readBitString(keyNode, ctx), der: seq.bytes, keyPath, keyOffset: keyNode.offset };
+  if (algorithm.oid === OID_RSA) return readRsa(parts, "rsa", ctx);
+  if (algorithm.oid === OID_RSA_PSS) return readRsa(parts, "rsa-pss", ctx);
+  if (algorithm.oid === OID_EC) return readEc(parts, ctx);
+  const octetKey = OCTET_KEYS.get(algorithm.oid);
+  if (octetKey !== void 0) return readOctetKey(parts, octetKey);
+  const info = { kind: "unknown", algorithm, publicKey: parts.publicKey, der: seq.bytes };
+  return Object.freeze(info);
+}
+
+// src/x509/x509-certificate.ts
+var STRUCTURE = "PKI_X509_STRUCTURE_INVALID";
+var OID_SUBJECT_ALT_NAME = "2.5.29.17";
+var OID_BASIC_CONSTRAINTS = "2.5.29.19";
+var OID_KEY_USAGE = "2.5.29.15";
+var OID_NAME_CONSTRAINTS = "2.5.29.30";
+var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
+var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
+var OID_CERTIFICATE_POLICIES = "2.5.29.32";
+var OID_POLICY_MAPPINGS = "2.5.29.33";
+var OID_COMMON_NAME = "2.5.4.3";
+function looksLikeHost(value) {
+  if (value === "" || /[\s/=,]/.test(value)) return false;
+  return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
+}
+function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
+  const find = (oid) => extensions.find((e) => e.oid === oid);
+  const basicConstraints = find(OID_BASIC_CONSTRAINTS);
+  const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
+  if (version === 3) {
+    if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
+      ctx.emitter.emit(akiMissingDiagnostic());
+    }
+    const hasSki = find(OID_SUBJECT_KEY_IDENTIFIER) !== void 0;
+    if (isCa && !hasSki) ctx.emitter.emit(skiMissingDiagnostic());
+    if (!isCa && !hasSki && (basicConstraints === void 0 || basicConstraints.kind === "basicConstraints")) {
+      ctx.emitter.emit(skiMissingEndEntityDiagnostic());
+    }
+  }
+  const mappings = find(OID_POLICY_MAPPINGS);
+  if (mappings?.kind === "policyMappings") {
+    const policies = find(OID_CERTIFICATE_POLICIES);
+    const asserted = new Set(policies?.kind === "certificatePolicies" ? policies.policies.map((p) => p.policyIdentifier) : []);
+    for (const oid of new Set(mappings.mappings.map((m) => m.issuerDomainPolicy))) {
+      if (!asserted.has(oid)) ctx.emitter.emit(policyMappingNotAssertedDiagnostic(oid));
+    }
+  }
+  if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
+  const keyUsage = find(OID_KEY_USAGE);
+  if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
+    ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
+  }
+  const san = find(OID_SUBJECT_ALT_NAME);
+  if (san?.kind !== "subjectAltName") return;
+  const named = /* @__PURE__ */ new Set();
+  for (const name of san.names) {
+    if (name.kind === "dNSName") named.add(name.value.toLowerCase());
+    else if (name.kind === "iPAddress") named.add(name.address.toLowerCase());
+  }
+  if (named.size === 0) return;
+  for (const rdn of subject.rdns) {
+    for (const attribute of rdn) {
+      if (attribute.type !== OID_COMMON_NAME || attribute.value === void 0) continue;
+      const common = attribute.value.value;
+      if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
+      ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
+    }
+  }
+}
+var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
+function readVersion(field, ctx) {
+  const path = "tbsCertificate.version";
+  if (!field.constructed || field.children.length !== 1) {
+    throw certificateError(STRUCTURE, path, field.offset, "is not one INTEGER under the explicit [0] tag");
+  }
+  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE, field.offset);
+  const value = _readInteger(node, ctx);
+  if (value !== 0n && value !== 1n && value !== 2n) {
+    throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
+  }
+  if (value === 0n) ctx.emitter.emit(defaultEncodedDiagnostic(path, "v1", field.offset));
+  return Number(value) + 1;
+}
+function readValidityTime(node, ctx, path) {
+  if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
+    throw certificateError("PKI_X509_VALIDITY_INVALID", path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a certificate time is a UTCTime or a GeneralizedTime`);
+  }
+  const time = _readTime(node, ctx, void 0);
+  if (time.type === "GeneralizedTime") {
+    if (Number(time.text.slice(0, 4)) < 2050) ctx.emitter.emit(generalizedTimeBefore2050Diagnostic(path, time.text, node.offset));
+    if (/[.,]/.test(time.text)) ctx.emitter.emit(generalizedTimeFractionDiagnostic(path, time.text, node.offset));
+  }
+  return time;
+}
+function readValidity(node, ctx, parentOffset) {
+  const path = "tbsCertificate.validity";
+  const seq = expectUniversalField(node, TAG_SEQUENCE, path, "PKI_X509_VALIDITY_INVALID", parentOffset);
+  if (seq.children.length !== 2) {
+    throw certificateError("PKI_X509_VALIDITY_INVALID", path, seq.offset, `holds ${seq.children.length} values; Validity is notBefore and notAfter`);
+  }
+  const notBefore = readValidityTime(seq.children[0], ctx, `${path}.notBefore`);
+  const notAfter = readValidityTime(seq.children[1], ctx, `${path}.notAfter`);
+  if (notBefore.epochMilliseconds > notAfter.epochMilliseconds) ctx.emitter.emit(validityInvertedDiagnostic(notBefore.text, notAfter.text));
+  const validity = { notBefore, notAfter };
+  return Object.freeze(validity);
+}
+function readExtensions(field, ctx, input, decode) {
+  const path = "tbsCertificate.extensions";
+  if (!field.constructed || field.children.length !== 1) {
+    throw certificateError(STRUCTURE, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
+  }
+  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE, field.offset);
+  return _readExtensionSequence(seq, ctx, input, decode, path, "the extensions of the certificate");
+}
+function _readExtensionSequence(seq, ctx, input, decode, path, counted) {
+  if (seq.children.length === 0) {
+    throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
+  }
+  enforceLimit(ctx.limits, "maxExtensions", seq.children.length, counted);
+  const seen = /* @__PURE__ */ new Set();
+  const extensions = [];
+  for (let i = 0; i < seq.children.length; i++) {
+    const extPath = `${path}[${i}]`;
+    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE, seq.offset);
+    if (ext.children.length < 2 || ext.children.length > 3) {
+      throw certificateError(STRUCTURE, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
+    }
+    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE, ext.offset), ctx);
+    let critical = false;
+    if (ext.children.length === 3) {
+      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE, ext.offset);
+      critical = _readBoolean(flag, ctx);
+      if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
+    }
+    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE, ext.offset);
+    const valueDer = _readOctetString(valueNode, ctx);
+    if (seen.has(oid)) {
+      throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
+    }
+    seen.add(oid);
+    if (!decode) {
+      const extension = { kind: "raw", oid, critical, valueDer };
+      extensions.push(Object.freeze(extension));
+    } else if (valueNode.constructed) {
+      extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
+    } else {
+      const start = valueNode.offset + valueNode.headerLength;
+      extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
+    }
+  }
+  return Object.freeze(extensions);
+}
+function parseCertificate(der, options) {
+  const bytes = assertBytes(der, "parseCertificate input");
+  const ctx = createAsn1Context(options);
+  const decode = options?.decodeExtensions ?? true;
+  if (typeof decode !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
+  }
+  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE, 0);
+  if (cert.children.length !== 3) {
+    throw certificateError(STRUCTURE, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
+  }
+  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE, cert.offset);
+  const fields = tbs.children;
+  let index = 0;
+  let version = 1;
+  const first = fields[0];
+  if (first !== void 0 && first.tagClass === "context" && first.tagNumber === 0) {
+    version = readVersion(first, ctx);
+    index = 1;
+  }
+  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE, tbs.offset);
+  const serialValue = _readInteger(serialNode, ctx);
+  if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
+  if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE, tbs.offset);
+  const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
+  if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
+  const validity = readValidity(fields[index++], ctx, tbs.offset);
+  const subject = _readName(fields[index++], ctx, "tbsCertificate.subject", tbs.offset);
+  const subjectPublicKeyInfo = _readSubjectPublicKeyInfo(fields[index++], ctx, "tbsCertificate.subjectPublicKeyInfo", tbs.offset);
+  let issuerUniqueId;
+  let subjectUniqueId;
+  let extensions = NO_EXTENSIONS;
+  let extensionsPresent = false;
+  let rank = 0;
+  for (; index < fields.length; index++) {
+    const field = fields[index];
+    const tag = field.tagClass === "context" ? field.tagNumber : -1;
+    if (tag !== 1 && tag !== 2 && tag !== 3) {
+      throw certificateError(
+        STRUCTURE,
+        `tbsCertificate[${index}]`,
+        field.offset,
+        `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
+      );
+    }
+    const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
+    if (tag <= rank) {
+      throw certificateError(
+        tag === 3 ? STRUCTURE : "PKI_X509_UNIQUE_ID_INVALID",
+        path,
+        field.offset,
+        "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
+      );
+    }
+    rank = tag;
+    if (tag === 3) {
+      extensions = readExtensions(field, ctx, bytes, decode);
+      extensionsPresent = true;
+      continue;
+    }
+    if (field.constructed && ctx.rules === "der") {
+      throw certificateError("PKI_X509_UNIQUE_ID_INVALID", path, field.offset, "is constructed; a unique identifier is a primitive BIT STRING under its implicit tag");
+    }
+    const id = _readBitString(field, ctx);
+    if (tag === 1) issuerUniqueId = id;
+    else subjectUniqueId = id;
+  }
+  if ((issuerUniqueId !== void 0 || subjectUniqueId !== void 0) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
+  if (issuerUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.issuerUniqueID"));
+  if (subjectUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.subjectUniqueID"));
+  if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
+  const san = extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME);
+  if (subject.rdns.length === 0 && san?.critical !== true) ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
+  if (subject.rdns.length !== 0 && san?.critical === true) ctx.emitter.emit(sanCriticalDiagnostic());
+  emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
+  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE, cert.offset);
+  if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
+    ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
+  }
+  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE, cert.offset), ctx);
+  const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
+  const certificate = {
+    der: cert.bytes,
+    tbsDer: tbs.bytes,
+    version,
+    serialNumber: Object.freeze(serialNumber),
+    signatureAlgorithm,
+    tbsSignatureAlgorithm,
+    signatureValue,
+    issuer,
+    validity,
+    subject,
+    subjectPublicKeyInfo,
+    issuerUniqueId,
+    subjectUniqueId,
+    extensions,
+    diagnostics: Object.freeze([...ctx.emitter.diagnostics])
+  };
+  return Object.freeze(certificate);
+}
+
+// src/x509/x509-csr.ts
+var STRUCTURE2 = "PKI_X509_STRUCTURE_INVALID";
+var OID_EXTENSION_REQUEST = "1.2.840.113549.1.9.14";
+var OID_CHALLENGE_PASSWORD = "1.2.840.113549.1.9.7";
+function singleValue(set, path, what) {
+  if (set.children.length !== 1) {
+    throw certificateError(STRUCTURE2, path, set.offset, `holds ${set.children.length} values; ${what} is single-valued (RFC 2985 \xA75.4)`);
+  }
+  return set.children[0];
+}
+function readAttributes(field, ctx, input, decode) {
+  const path = "certificationRequestInfo.attributes";
+  if (field.tagClass !== "context" || field.tagNumber !== 0 || !field.constructed) {
+    throw certificateError(STRUCTURE2, path, field.offset, `is ${tagLabel(field.tagClass, field.tagNumber)}; RFC 2986 \xA74.1 requires a constructed [0] IMPLICIT SET OF Attribute, present even when empty`);
+  }
+  enforceLimit(ctx.limits, "maxExtensions", field.children.length, "the attributes of the certification request");
+  const seen = /* @__PURE__ */ new Set();
+  const attributes = [];
+  let extensions;
+  let challengePassword;
+  for (let i = 0; i < field.children.length; i++) {
+    const attrPath = `${path}[${i}]`;
+    const attribute = expectUniversalField(field.children[i], TAG_SEQUENCE, attrPath, STRUCTURE2, field.offset);
+    if (attribute.children.length !== 2) {
+      throw certificateError(STRUCTURE2, attrPath, attribute.offset, `holds ${attribute.children.length} values; an Attribute is a type OID and a SET OF values`);
+    }
+    const oid = _readObjectIdentifier(expectUniversalField(attribute.children[0], TAG_OID, `${attrPath}.type`, STRUCTURE2, attribute.offset), ctx);
+    const set = expectUniversalField(attribute.children[1], TAG_SET, `${attrPath}.values`, STRUCTURE2, attribute.offset);
+    enforceLimit(ctx.limits, "maxExtensions", set.children.length, `the values of the attribute ${oid}`);
+    if (seen.has(oid)) {
+      throw certificateError("PKI_X509_EXTENSION_DUPLICATE", attrPath, attribute.offset, `repeats the attribute ${oid}; a request carries each attribute type once (RFC 2985 \xA75.4)`);
+    }
+    seen.add(oid);
+    const entry = { oid, values: Object.freeze(set.children.map((value) => value.bytes)) };
+    attributes.push(Object.freeze(entry));
+    if (oid === OID_EXTENSION_REQUEST) {
+      const value = singleValue(set, `${attrPath}.values`, "extensionRequest");
+      const valuePath = `${attrPath}.values[0]`;
+      const seq = expectUniversalField(value, TAG_SEQUENCE, valuePath, STRUCTURE2, set.offset);
+      extensions = _readExtensionSequence(seq, ctx, input, decode, valuePath, "the extensions requested by the certification request");
+    } else if (oid === OID_CHALLENGE_PASSWORD) {
+      const value = singleValue(set, `${attrPath}.values`, "challengePassword");
+      const valuePath = `${attrPath}.values[0]`;
+      if (value.tagClass !== "universal" || stringTypeOfTag(value.tagNumber) === void 0) {
+        throw certificateError(STRUCTURE2, valuePath, value.offset, `is ${tagLabel(value.tagClass, value.tagNumber)}; a challengePassword is a DirectoryString`);
+      }
+      challengePassword = _readString(value, ctx, void 0, valuePath).value;
+    }
+  }
+  return { attributes: Object.freeze(attributes), extensions, challengePassword };
+}
+function parseCertificationRequest(der, options) {
+  const bytes = assertBytes(der, "parseCertificationRequest input");
+  const ctx = createAsn1Context(options);
+  const decode = options?.decodeExtensions ?? true;
+  if (typeof decode !== "boolean") {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
+  }
+  const request = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificationRequest", STRUCTURE2, 0);
+  if (request.children.length !== 3) {
+    throw certificateError(STRUCTURE2, "certificationRequest", request.offset, `holds ${request.children.length} values; a CertificationRequest is certificationRequestInfo, signatureAlgorithm and signature`);
+  }
+  const info = expectUniversalField(request.children[0], TAG_SEQUENCE, "certificationRequestInfo", STRUCTURE2, request.offset);
+  if (info.children.length !== 4) {
+    throw certificateError(STRUCTURE2, "certificationRequestInfo", info.offset, `holds ${info.children.length} values; CertificationRequestInfo is version, subject, subjectPKInfo and attributes`);
+  }
+  const versionNode = expectUniversalField(info.children[0], TAG_INTEGER, "certificationRequestInfo.version", STRUCTURE2, info.offset);
+  const version = _readInteger(versionNode, ctx);
+  if (version !== 0n) {
+    throw certificateError("PKI_X509_VERSION_INVALID", "certificationRequestInfo.version", versionNode.offset, `is ${String(version)}; RFC 2986 defines v1 (0) and nothing else`);
+  }
+  const subject = _readName(info.children[1], ctx, "certificationRequestInfo.subject", info.offset);
+  const subjectPublicKeyInfo = _readSubjectPublicKeyInfo(info.children[2], ctx, "certificationRequestInfo.subjectPKInfo", info.offset);
+  const { attributes, extensions, challengePassword } = readAttributes(info.children[3], ctx, bytes, decode);
+  const signatureAlgorithm = _readAlgorithmIdentifier(request.children[1], ctx, "signatureAlgorithm", STRUCTURE2, request.offset);
+  const signatureValue = _readBitString(expectUniversalField(request.children[2], TAG_BIT_STRING, "signature", STRUCTURE2, request.offset), ctx);
+  const parsed = {
+    der: request.bytes,
+    tbsDer: info.bytes,
+    version: 0,
+    subject,
+    subjectPublicKeyInfo,
+    attributes,
+    extensions,
+    challengePassword,
+    signatureAlgorithm,
+    signatureValue,
+    diagnostics: Object.freeze([...ctx.emitter.diagnostics])
+  };
+  return Object.freeze(parsed);
+}
+
+// src/x509/x509-name-format.ts
+var SHORT_NAMES = /* @__PURE__ */ new Map([
+  ["2.5.4.3", "CN"],
+  ["2.5.4.7", "L"],
+  ["2.5.4.8", "ST"],
+  ["2.5.4.10", "O"],
+  ["2.5.4.11", "OU"],
+  ["2.5.4.6", "C"],
+  ["2.5.4.9", "STREET"],
+  ["0.9.2342.19200300.100.1.25", "DC"],
+  ["0.9.2342.19200300.100.1.1", "UID"]
+]);
+var SPECIAL = '"+,;<>\\';
+var BIDI_CONTROLS = /* @__PURE__ */ new Set([1564, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8294, 8295, 8296, 8297]);
+var hex2 = (octet) => `\\${octet.toString(16).padStart(2, "0")}`;
+function hexpairs(code) {
+  if (code < 128) return hex2(code);
+  if (code < 2048) return hex2(192 | code >> 6) + hex2(128 | code & 63);
+  return hex2(224 | code >> 12) + hex2(128 | code >> 6 & 63) + hex2(128 | code & 63);
+}
+function escapeValue(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    const code = text.charCodeAt(i);
+    if (code < 32 || code >= 127 && code <= 159 || BIDI_CONTROLS.has(code)) out += hexpairs(code);
+    else if (SPECIAL.includes(ch)) out += `\\${ch}`;
+    else if (i === 0 && (ch === " " || ch === "#") || i === text.length - 1 && ch === " ") out += `\\${ch}`;
+    else out += ch;
+  }
+  return out;
+}
+function formatAttribute(attribute) {
+  const short = SHORT_NAMES.get(attribute.type);
+  if (short === void 0 || attribute.value === void 0) return `${short ?? attribute.type}=#${toHex(attribute.valueDer)}`;
+  return `${short}=${escapeValue(attribute.value.value)}`;
+}
+function formatDistinguishedName(name) {
+  if (typeof name !== "object" || name === null || !Array.isArray(name.rdns)) {
+    throw new PkiError(
+      "PKI_INVALID_INPUT",
+      `pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, got ${name === null ? "null" : typeof name}`
+    );
+  }
+  const parts = [];
+  for (const rdn of name.rdns) {
+    if (!Array.isArray(rdn)) {
+      throw new PkiError(
+        "PKI_INVALID_INPUT",
+        "pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, whose rdns are arrays of attributes"
+      );
+    }
+    parts.push(rdn.map(formatAttribute).join("+"));
+  }
+  parts.reverse();
+  return parts.join(",");
+}
+
+// src/core/pki-error-guard.ts
+function _pkiError(error) {
+  if (!(error instanceof PkiError)) throw error;
+  return error;
+}
+
+// src/crypto/crypto-algorithms.ts
+var HASH_BY_OID = /* @__PURE__ */ new Map([
+  ["1.3.14.3.2.26", "SHA-1"],
+  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
+  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
+  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
+]);
+var DEFAULT_PSS_SALT_LENGTH = 20;
+var SIGNATURE_BY_OID = /* @__PURE__ */ new Map([
+  ["1.2.840.113549.1.1.5", { family: "rsa-pkcs1", hash: "SHA-1" }],
+  ["1.2.840.113549.1.1.11", { family: "rsa-pkcs1", hash: "SHA-256" }],
+  ["1.2.840.113549.1.1.12", { family: "rsa-pkcs1", hash: "SHA-384" }],
+  ["1.2.840.113549.1.1.13", { family: "rsa-pkcs1", hash: "SHA-512" }],
+  ["1.2.840.113549.1.1.10", { family: "rsa-pss" }],
+  ["1.2.840.10045.4.1", { family: "ecdsa", hash: "SHA-1" }],
+  ["1.2.840.10045.4.3.2", { family: "ecdsa", hash: "SHA-256" }],
+  ["1.2.840.10045.4.3.3", { family: "ecdsa", hash: "SHA-384" }],
+  ["1.2.840.10045.4.3.4", { family: "ecdsa", hash: "SHA-512" }],
+  ["1.3.101.112", { family: "ed25519" }],
+  ["1.3.101.113", { family: "ed448" }]
+]);
+var hasNoHashParameters = (parameters) => parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
+function unsupported(message, oid) {
+  return new PkiCryptoError("PKI_CRYPTO_ALGORITHM_UNSUPPORTED", `pkinative: ${message} \u2014 verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
+}
+function readPssParams(parameters, oid) {
+  let hash = "SHA-1";
+  let saltLength;
+  let mgfHash = "SHA-1";
+  if (parameters !== void 0) {
+    if (parameters.tagClass !== "universal" || parameters.tagNumber !== TAG_SEQUENCE) {
+      throw unsupported("the RSASSA-PSS parameters are not a SEQUENCE", oid);
+    }
+    let previous = -1;
+    for (const field of parameters.children) {
+      if (field.tagClass !== "context" || field.tagNumber > 3 || field.tagNumber <= previous) {
+        throw unsupported("the RSASSA-PSS parameters hold a field other than [0] to [3], each at most once and in order (RFC 4055 \xA73.1)", oid);
+      }
+      previous = field.tagNumber;
+      if (field.children.length !== 1) {
+        throw unsupported(`the RSASSA-PSS field [${String(field.tagNumber)}] is not one value under an explicit tag (RFC 4055 \xA73.1)`, oid);
+      }
+      const inner = field.children[0];
+      if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
+      else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
+      else if (field.tagNumber === 2) saltLength = pssInteger(inner, "saltLength", oid);
+      else if (pssInteger(inner, "trailerField", oid) !== 1) {
+        throw unsupported("the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines", oid);
+      }
+    }
+  }
+  if (mgfHash !== hash) {
+    throw unsupported(`the RSASSA-PSS mask generation uses ${mgfHash} while the signature uses ${hash}, and Web Crypto only offers MGF1 over the signature hash`, oid);
+  }
+  if (saltLength === void 0) saltLength = DEFAULT_PSS_SALT_LENGTH;
+  if (saltLength < 0) throw unsupported("the RSASSA-PSS salt length is negative", oid);
+  return { hash, saltLength };
+}
+function pssInteger(node, what, oid) {
+  if (node.tagClass !== "universal" || node.tagNumber !== TAG_INTEGER) {
+    throw unsupported(`the RSASSA-PSS ${what} is not an INTEGER`, oid);
+  }
+  return readSmallInteger(node);
+}
+function hashNameOf(algorithm, oid) {
+  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
+  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
+    throw unsupported("an RSASSA-PSS hash parameter is not an AlgorithmIdentifier", oid);
+  }
+  if (algorithm.children.length > 2 || !hasNoHashParameters(algorithm.children[1])) {
+    throw unsupported("an RSASSA-PSS hash AlgorithmIdentifier carries parameters other than absent or NULL (RFC 4055 \xA72.1)", oid);
+  }
+  const hashOid = readObjectIdentifier(first);
+  const name = HASH_BY_OID.get(hashOid);
+  if (name === void 0) throw unsupported(`the RSASSA-PSS digest ${hashOid} is not one Web Crypto implements`, oid);
+  return name;
+}
+function mgf1HashOf(algorithm, oid) {
+  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
+  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID || algorithm.children.length > 2) {
+    throw unsupported("the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier", oid);
+  }
+  if (readObjectIdentifier(first) !== "1.2.840.113549.1.1.8") {
+    throw unsupported("the RSASSA-PSS mask generation function is not MGF1, the only one Web Crypto implements", oid);
+  }
+  const inner = algorithm.children[1];
+  return inner === void 0 ? "SHA-1" : hashNameOf(inner, oid);
+}
+var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
+var isPkcs1Key = (key) => key.kind === "rsa";
+function _refuseWeakRsaExponent(key, oid) {
+  const e = key.publicExponent;
+  if (e < 3n || (e & 1n) === 0n) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: the RSA public exponent is ${e.toString()}; RFC 8017 \xA73.1 requires an odd exponent of at least 3, and under this one a signature proves nothing \u2014 the certificate's key is not one any verifier should accept`,
+      oid
+    );
+  }
+}
+function pssKeyAdmits(key, signature, oid) {
+  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return true;
+  const restriction = readPssParams(key.algorithm.parameters, oid);
+  return signature.hash === restriction.hash && signature.saltLength >= restriction.saltLength;
+}
+function resolveAlgorithm(algorithm, key) {
+  const shape = SIGNATURE_BY_OID.get(algorithm.oid);
+  if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
+  if (shape.family === "rsa-pss") {
+    if (!isRsaKey(key)) return null;
+    _refuseWeakRsaExponent(key, algorithm.oid);
+    const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
+    if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
+    const verifyParams = { name: "RSA-PSS", saltLength };
+    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
+  }
+  if (shape.family === "rsa-pkcs1") {
+    if (!isPkcs1Key(key)) return null;
+    _refuseWeakRsaExponent(key, algorithm.oid);
+    const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
+    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
+  }
+  if (shape.family === "ecdsa") {
+    if (key.kind !== "ec") return null;
+    const curve = key.curve;
+    if (curve !== "P-256" && curve !== "P-384" && curve !== "P-521") {
+      throw new PkiCryptoError(
+        "PKI_CRYPTO_KEY_UNSUPPORTED",
+        `pkinative: the issuer's EC key is on ${curve ?? "a curve pkinative does not name"}, and Web Crypto verifies ECDSA only on P-256, P-384 and P-521`,
+        algorithm.oid
+      );
+    }
+    const verifyParams = { name: "ECDSA", hash: { name: shape.hash } };
+    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve, hash: shape.hash };
+  }
+  if (key.kind !== shape.family) return null;
+  const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
+  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
+}
+var RSA_ENCRYPTION_IDENTIFIER = /* @__PURE__ */ encodeSequence([encodeObjectIdentifier("1.2.840.113549.1.1.1"), encodeNull()]);
+function _importableSpki(key) {
+  if (key.kind !== "rsa-pss") return key.der;
+  const bitString = encodeTlv("universal", TAG_BIT_STRING, false, concatBytes([Uint8Array.of(key.publicKey.unusedBits), key.publicKey.bytes]));
+  return encodeSequence([RSA_ENCRYPTION_IDENTIFIER, bitString]);
+}
+function _pssKeyHash(key) {
+  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return void 0;
+  return readPssParams(key.algorithm.parameters, key.algorithm.oid).hash;
+}
+var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
+var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
+var ID_ED448 = "1.3.101.113";
+var ID_SHAKE256 = "2.16.840.1.101.3.4.2.12";
+var MD5_OIDS = /* @__PURE__ */ new Set(["1.2.840.113549.1.1.4", "1.2.840.113549.2.5"]);
+function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
+  if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
+    return "MD5 is refused: its collisions have been practical since 2004";
+  }
+  if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
+    return "id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm";
+  }
+  if (signatureAlgorithm.oid === ID_ED448) {
+    if (digestAlgorithm.oid !== ID_SHAKE256) {
+      return `Ed448 requires the id-shake256 digestAlgorithm, SHAKE256 with a 512-bit output (RFC 8419 \xA73.1), not ${digestAlgorithm.oid}`;
+    }
+    return hasNoHashParameters(digestAlgorithm.parameters) ? null : "the id-shake256 digestAlgorithm carries parameters, where RFC 8419 \xA72.1 allows none";
+  }
+  const digest = HASH_BY_OID.get(digestAlgorithm.oid);
+  if (digest === void 0) return null;
+  if (!hasNoHashParameters(digestAlgorithm.parameters)) {
+    return `the ${digest} digestAlgorithm carries parameters, where RFC 5754 \xA72 allows only absent or NULL`;
+  }
+  if (signatureAlgorithm.oid === RSA_ENCRYPTION) return null;
+  const shape = SIGNATURE_BY_OID.get(signatureAlgorithm.oid);
+  if (shape === void 0) return null;
+  if (shape.family === "rsa-pkcs1" || shape.family === "ecdsa") {
+    return shape.hash === digest ? null : `${signatureAlgorithm.oid} signs over ${shape.hash}, but the digestAlgorithm is ${digest}`;
+  }
+  if (shape.family === "rsa-pss") {
+    if (signatureAlgorithm.parameters === void 0) return "RSASSA-PSS without parameters, which RFC 4056 \xA72.2 makes mandatory in CMS";
+    let pssHash;
+    try {
+      pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
+    } catch (error) {
+      _pkiError(error);
+      return null;
+    }
+    return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
+  }
+  return digest === "SHA-512" ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 \xA73.1), not ${digest}`;
+}
+function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
+  if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
+  const hash = HASH_BY_OID.get(digestAlgorithm.oid);
+  if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
+  if (!isPkcs1Key(key)) return null;
+  _refuseWeakRsaExponent(key, RSA_ENCRYPTION);
+  return { family: "rsa-pkcs1", importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: hash } }, verifyParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, hash };
+}
+function coordinateBytes(curve) {
+  return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
+}
+var OID_BY_SIGNATURE = /* @__PURE__ */ new Map([
+  ["RSASSA-PKCS1-v1_5/SHA-1", "1.2.840.113549.1.1.5"],
+  ["RSASSA-PKCS1-v1_5/SHA-256", "1.2.840.113549.1.1.11"],
+  ["RSASSA-PKCS1-v1_5/SHA-384", "1.2.840.113549.1.1.12"],
+  ["RSASSA-PKCS1-v1_5/SHA-512", "1.2.840.113549.1.1.13"],
+  ["ECDSA/SHA-1", "1.2.840.10045.4.1"],
+  ["ECDSA/SHA-256", "1.2.840.10045.4.3.2"],
+  ["ECDSA/SHA-384", "1.2.840.10045.4.3.3"],
+  ["ECDSA/SHA-512", "1.2.840.10045.4.3.4"]
+]);
+var EDWARDS_OID = /* @__PURE__ */ Object.freeze({
+  Ed25519: "1.3.101.112",
+  Ed448: "1.3.101.113"
+});
+var OID_BY_HASH = /* @__PURE__ */ new Map([
+  ["SHA-1", "1.3.14.3.2.26"],
+  ["SHA-256", "2.16.840.1.101.3.4.2.1"],
+  ["SHA-384", "2.16.840.1.101.3.4.2.2"],
+  ["SHA-512", "2.16.840.1.101.3.4.2.3"]
+]);
+var HASH_BYTES = /* @__PURE__ */ new Map([
+  ["SHA-1", 20],
+  ["SHA-256", 32],
+  ["SHA-384", 48],
+  ["SHA-512", 64]
+]);
+function resolveSigner(algorithm) {
+  if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
+    const name = algorithm.name;
+    return { oid: EDWARDS_OID[name], signParams: { name }, importParams: { name }, curve: void 0, pss: void 0 };
+  }
+  if (algorithm.name === "RSA-PSS") {
+    const hashOid = OID_BY_HASH.get(algorithm.hash);
+    const size = HASH_BYTES.get(algorithm.hash);
+    if (hashOid === void 0 || size === void 0) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, "1.2.840.113549.1.1.10");
+    const saltLength = algorithm.saltLength ?? size;
+    if (!Number.isInteger(saltLength) || saltLength < 0) {
+      throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, "1.2.840.113549.1.1.10");
+    }
+    return {
+      oid: "1.2.840.113549.1.1.10",
+      signParams: { name: "RSA-PSS", saltLength },
+      importParams: { name: "RSA-PSS", hash: { name: algorithm.hash } },
+      curve: void 0,
+      pss: { hashOid, saltLength }
+    };
+  }
+  const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
+  if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
+  if (algorithm.name === "ECDSA") {
+    return {
+      oid,
+      signParams: { name: "ECDSA", hash: { name: algorithm.hash } },
+      importParams: { name: "ECDSA", namedCurve: algorithm.namedCurve },
+      curve: algorithm.namedCurve,
+      pss: void 0
+    };
+  }
+  return {
+    oid,
+    signParams: { name: "RSASSA-PKCS1-v1_5" },
+    importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: algorithm.hash } },
+    curve: void 0,
+    pss: void 0
+  };
+}
+
+// src/crypto/crypto-signature.ts
+var SEQUENCE_OCTET = 48;
+var INTEGER_OCTET = 2;
+function ecdsaDerToRaw(der, size) {
+  if (der.length < 8) return null;
+  const view = new DataView(der.buffer, der.byteOffset, der.byteLength);
+  if (view.getUint8(0) !== SEQUENCE_OCTET) return null;
+  let at = 2;
+  let content = view.getUint8(1);
+  if (content === 129) {
+    content = view.getUint8(2);
+    at = 3;
+    if (content < 128) return null;
+  } else if (content > 127) {
+    return null;
+  }
+  if (at + content !== der.length) return null;
+  const r = readInteger2(der, view, at, size);
+  if (r === null) return null;
+  const s = readInteger2(der, view, r.next, size);
+  if (s === null || s.next !== der.length) return null;
+  const raw = new Uint8Array(size * 2);
+  raw.set(r.value, size - r.value.length);
+  raw.set(s.value, size * 2 - s.value.length);
+  return raw;
+}
+function ecdsaRawToDer(raw, size) {
+  if (raw.length !== size * 2) {
+    throw new PkiError(
+      "PKI_API_MISUSE",
+      `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} \u2014 the curve and the signing key disagree`
+    );
+  }
+  const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
+  const header = body.length < 128 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 129, body.length];
+  return concat(Uint8Array.from(header), body);
+}
+function derInteger(value) {
+  const view = byteView(value);
+  let at = 0;
+  while (at < value.length - 1 && view.getUint8(at) === 0) at++;
+  const trimmed = value.subarray(at);
+  const pad2 = (view.getUint8(at) & 128) !== 0 ? 1 : 0;
+  const out = new Uint8Array(2 + pad2 + trimmed.length);
+  out[0] = INTEGER_OCTET;
+  out[1] = pad2 + trimmed.length;
+  out.set(trimmed, 2 + pad2);
+  return out;
+}
+function concat(...parts) {
+  let length = 0;
+  for (const part of parts) length += part.length;
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+function readInteger2(der, view, at, size) {
+  if (at + 2 > der.length || view.getUint8(at) !== INTEGER_OCTET) return null;
+  const length = view.getUint8(at + 1);
+  if (length === 0 || length > 127) return null;
+  const start = at + 2;
+  const end = start + length;
+  if (end > der.length) return null;
+  const first = view.getUint8(start);
+  if ((first & 128) !== 0) return null;
+  const padded = first === 0 && length > 1;
+  if (padded && (view.getUint8(start + 1) & 128) === 0) return null;
+  const value = der.subarray(padded ? start + 1 : start, end);
+  if (value.length > size) return null;
+  return { value, next: end };
+}
+
+// src/crypto/webcrypto.ts
+function publicKeySubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.verify !== "function") return null;
+  return subtle;
+}
+function signingSubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.sign !== "function") return null;
+  return subtle;
+}
+function canVerify() {
+  return publicKeySubtle() !== null;
+}
+function requireSubtle(oid) {
+  const subtle = publicKeySubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle with importKey and verify, so no signature can be checked \u2014 call canVerify() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      oid
+    );
+  }
+  return subtle;
+}
+async function importPublicKey(spkiDer, params, oid) {
+  const subtle = requireSubtle(oid);
+  try {
+    return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
+      oid
+    );
+  }
+}
+async function verifySignature(key, params, signature, data) {
+  const subtle = requireSubtle(params.name);
+  try {
+    return await subtle.verify(params, key, signature, data);
+  } catch {
+    return false;
+  }
+}
+function canSign() {
+  return signingSubtle() !== null;
+}
+async function signData(key, params, data) {
+  const subtle = signingSubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed \u2014 call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      params.name
+    );
+  }
+  try {
+    return new Uint8Array(await subtle.sign(params, key, data));
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) \u2014 check that the key is private, carries the "sign" usage, and matches the algorithm named`,
+      params.name
+    );
+  }
+}
+function passwordSubtle() {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.deriveKey !== "function" || typeof subtle.unwrapKey !== "function" || typeof subtle.decrypt !== "function" || typeof subtle.verify !== "function") {
+    return null;
+  }
+  return subtle;
+}
+function requirePasswordSubtle(oid) {
+  const subtle = passwordSubtle();
+  if (subtle === null) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_UNAVAILABLE",
+      "pkinative: this runtime exposes no crypto.subtle with importKey, deriveKey, unwrapKey, decrypt and verify, so no password-protected key can be opened \u2014 call canDecrypt() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
+      oid
+    );
+  }
+  return subtle;
+}
+function canDecrypt() {
+  return passwordSubtle() !== null;
+}
+async function derivePasswordKey(password, kdf, target, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    const base = await subtle.importKey("raw", password, "PBKDF2", false, ["deriveKey"]);
+    const usages = target.name === "HMAC" ? ["verify"] : ["decrypt", "unwrapKey"];
+    return await subtle.deriveKey(kdf, base, target, false, usages);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
+      `pkinative: this runtime refused to derive a ${target.name} key with PBKDF2 over ${kdf.hash.name} (${String(cause)}) \u2014 the PRF or the key length is not implemented here; try another runtime before concluding the file is at fault`,
+      oid
+    );
+  }
+}
+async function unwrapPrivateKey(wrapped, key, iv, params, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return await subtle.unwrapKey("pkcs8", wrapped, key, { name: "AES-CBC", iv }, params, false, ["sign"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_DECRYPTION_FAILED",
+      `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) \u2014 the password is wrong, the data was altered, or the key is not an ${params.name} key; AES-CBC cannot tell these apart`,
+      oid
+    );
+  }
+}
+async function importPkcs8Key(pkcs8, params, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return await subtle.importKey("pkcs8", pkcs8, params, false, ["sign"]);
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_KEY_UNSUPPORTED",
+      `pkinative: this runtime refused to import the ${params.name} private key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key is not a ${params.name} key`,
+      oid
+    );
+  }
+}
+async function decryptContent(key, iv, data, oid) {
+  const subtle = requirePasswordSubtle(oid);
+  try {
+    return new Uint8Array(await subtle.decrypt({ name: "AES-CBC", iv }, key, data));
+  } catch (cause) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_DECRYPTION_FAILED",
+      `pkinative: the encrypted content could not be decrypted (${String(cause)}) \u2014 the password is wrong or the data was altered; AES-CBC cannot tell the two apart`,
+      oid
+    );
+  }
+}
+async function verifyMac(key, mac, data) {
+  const subtle = requirePasswordSubtle("HMAC");
+  try {
+    return await subtle.verify({ name: "HMAC" }, key, mac, data);
+  } catch {
+    return false;
+  }
+}
+
+// src/crypto/x509-verify.ts
+async function verifyCertificateSignature(certificate, issuer, options) {
+  const subject = assertCertificate(certificate, "certificate");
+  const signer = assertCertificate(issuer, "issuer");
+  return verifySignedStructure(subject, signer, resolveOptions(options));
+}
+function resolveOptions(options) {
+  return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
+}
+async function verifySignedStructure(signed, signer, options) {
+  const inner = signed.tbsSignatureAlgorithm;
+  if (options.requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
+    return false;
+  }
+  if (signed.signatureValue.unusedBits !== 0) return false;
+  const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
+  if (resolved === null) return false;
+  if (resolved.hash === "SHA-1" && !options.allowSha1) {
+    throw new PkiCryptoError(
+      "PKI_CRYPTO_ALGORITHM_REFUSED",
+      "pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
+      signed.signatureAlgorithm.oid
+    );
+  }
+  let signature = signed.signatureValue.bytes;
+  if (resolved.curve !== void 0) {
+    const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
+    if (raw === null) return false;
+    signature = raw;
+  }
+  const key = await importPublicKey(_importableSpki(signer.subjectPublicKeyInfo), resolved.importParams, signed.signatureAlgorithm.oid);
+  return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
+}
+async function verifyCrlSignature(crl, issuer, options) {
+  if (typeof crl !== "object" || crl === null || !isBytes(crl.tbsDer)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
+  }
+  const signer = assertCertificate(issuer, "issuer");
+  return verifySignedStructure(crl, signer, resolveOptions(options));
+}
+async function verifyOcspSignature(basicResponse, responder) {
+  if (typeof basicResponse !== "object" || basicResponse === null || !isBytes(basicResponse.tbsDer)) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
+  }
+  const signer = assertCertificate(responder, "responder");
+  return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
+}
+async function verifySelfSignature(certificate, options) {
+  const self = assertCertificate(certificate, "certificate");
+  if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
+  return verifyCertificateSignature(self, self, options);
+}
+function assertCertificate(value, what) {
+  const candidate = value;
+  if (typeof value !== "object" || candidate === null || !isBytes(candidate.tbsDer) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
+  }
+  return value;
+}
+
+// src/asn1/asn1-cursor.ts
+var CLASSES = ["universal", "application", "context", "private"];
+function readTlvHeader(data, offset, path) {
+  const first = data[offset];
+  if (first === void 0) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} expects a value at offset ${String(offset)} and the input ends there \u2014 the structure is truncated`, offset);
+  }
+  const tagClass = CLASSES[first >> 6 & 3];
+  const constructed = (first & 32) !== 0;
+  let tagNumber = first & 31;
+  let at = offset + 1;
+  if (tagNumber === 31) {
+    tagNumber = 0;
+    let octets = 0;
+    for (; ; ) {
+      const byte = data[at];
+      if (byte === void 0) {
+        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a high tag number that runs past the input`, offset);
+      }
+      if (octets === 0 && byte === 128) {
+        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a high tag number whose first octet is 0x80, which is not the shortest form (X.690 \xA78.1.2.4.2)`, offset);
+      }
+      octets += 1;
+      if (octets > 4) {
+        throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} has a tag number wider than four octets \u2014 no PKI structure uses one, and accepting it invites an integer overflow`, offset);
+      }
+      tagNumber = tagNumber << 7 | byte & 127;
+      at += 1;
+      if ((byte & 128) === 0) break;
+    }
+    if (tagNumber < 31) {
+      throw new PkiEncodingError("PKI_ASN1_TAG_INVALID", `pkinative: ${path} writes tag number ${String(tagNumber)} in the high-tag-number form, which X.690 \xA78.1.2.2 reserves for numbers of 31 and above`, offset);
+    }
+  }
+  if (tagClass === "universal") {
+    if (tagNumber === 0) {
+      throw new PkiEncodingError("PKI_ASN1_EOC_UNEXPECTED", `pkinative: ${path} holds an end-of-contents marker where a value belongs (X.690 \xA78.1.5) \u2014 the input is corrupt`, offset);
+    }
+    if (constructed ? isPrimitiveOnly(tagNumber) : isConstructedOnly(tagNumber)) {
+      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is a universal type ${String(tagNumber)} in the ${constructed ? "constructed" : "primitive"} form, which X.690 never uses for it \u2014 the input is corrupt`, offset);
+    }
+    if (constructed && isStringTag(tagNumber)) {
+      throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_STRING_FORBIDDEN", `pkinative: ${path} is a string in constructed form, which DER forbids (X.690 \xA710.2) and this cursor never accepts`, offset);
+    }
+  }
+  const lengthByte = data[at];
+  if (lengthByte === void 0) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has no length octet \u2014 the structure is truncated`, offset);
+  }
+  at += 1;
+  let length;
+  if (lengthByte < 128) {
+    length = lengthByte;
+  } else if (lengthByte === 128) {
+    throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} uses an indefinite length, which DER forbids (X.690 \xA710.1) and this cursor never accepts`, offset);
+  } else {
+    const octets = lengthByte & 127;
+    if (octets > 6) {
+      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} declares a length in ${String(octets)} octets; nothing this library reads is that large, and a wider length is an overflow waiting to happen`, offset);
+    }
+    length = 0;
+    for (let i = 0; i < octets; i += 1) {
+      const byte = data[at + i];
+      if (byte === void 0) {
+        throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} has a length that runs past the input`, offset);
+      }
+      if (i === 0 && byte === 0) {
+        throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} has a long-form length with a leading zero octet, which is not the shortest form (X.690 \xA710.1)`, offset);
+      }
+      length = length * 256 + byte;
+    }
+    if (length < 128) {
+      throw new PkiEncodingError("PKI_ASN1_LENGTH_INVALID", `pkinative: ${path} encodes the length ${String(length)} in long form, and DER requires the short form below 128 (X.690 \xA710.1)`, offset);
+    }
+    at += octets;
+  }
+  const end = at + length;
+  if (end > data.length) {
+    throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path} declares ${String(length)} content octets and only ${String(data.length - at)} remain \u2014 the structure is truncated`, offset);
+  }
+  return { tagClass, tagNumber, constructed, offset, contentStart: at, length, end };
+}
+function* walkChildren(data, parent, path) {
+  if (!parent.constructed) {
+    throw new PkiEncodingError("PKI_ASN1_CONSTRUCTED_FORM_INVALID", `pkinative: ${path} is primitive, so its content is octets and not values to walk \u2014 the structure expects the constructed form here`, parent.offset);
+  }
+  let at = parent.contentStart;
+  let index = 0;
+  while (at < parent.end) {
+    const child = readTlvHeader(data, at, `${path}[${String(index)}]`);
+    if (child.end > parent.end) {
+      throw new PkiEncodingError("PKI_ASN1_TRUNCATED", `pkinative: ${path}[${String(index)}] runs past the end of its parent \u2014 the two lengths disagree, and a value that overruns its container is how one parser reads what another does not`, child.offset);
+    }
+    yield child;
+    at = child.end;
+    index += 1;
+  }
+}
+
 // src/revocation/crl-scope.ts
 var OID_ISSUING_DISTRIBUTION_POINT = "2.5.29.28";
 var OID_CERTIFICATE_ISSUER = "2.5.29.29";
@@ -3680,7 +6474,7 @@ function _entryCertificateIssuer(extensions, ctx, path) {
 }
 
 // src/revocation/crl-parse.ts
-var STRUCTURE = "PKI_X509_STRUCTURE_INVALID";
+var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
 var REASONS = Object.freeze({
   0: "unspecified",
   1: "keyCompromise",
@@ -3706,7 +6500,7 @@ var CRL_OWN_EXTENSIONS = /* @__PURE__ */ new Set([
   OID_CERTIFICATE_ISSUER
 ]);
 function crlError(path, offset, why) {
-  return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} \u2014 the input is not an RFC 5280 CertificateList`, path, offset);
+  return new PkiCertificateError(STRUCTURE3, `pkinative: ${path} ${why} \u2014 the input is not an RFC 5280 CertificateList`, path, offset);
 }
 function decodeAt(der, header, ctx) {
   return decodeValueAt(der, header.offset, ctx);
@@ -3785,19 +6579,19 @@ function parseCertificateList(der, options) {
   }
   const env = locate(der, outer);
   const fields = env.fields;
-  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, fields[env.signatureIndex], ctx), ctx, "tbsCertList.signature", STRUCTURE, env.tbs.offset);
+  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, fields[env.signatureIndex], ctx), ctx, "tbsCertList.signature", STRUCTURE3, env.tbs.offset);
   const issuer = _readName(decodeAt(der, fields[env.signatureIndex + 1], ctx), ctx, "tbsCertList.issuer", env.tbs.offset);
   const thisUpdate = _readTime(decodeAt(der, env.thisUpdateAt, ctx), ctx, void 0);
   const nextUpdate = env.nextUpdateAt === void 0 ? void 0 : _readTime(decodeAt(der, env.nextUpdateAt, ctx), ctx, void 0);
   const parts = [...walkChildren(der, outer, "CertificateList")];
-  const signatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, parts[1], ctx), ctx, "signatureAlgorithm", STRUCTURE, outer.offset);
+  const signatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, parts[1], ctx), ctx, "signatureAlgorithm", STRUCTURE3, outer.offset);
   const signatureNode = decodeAt(der, parts[2], ctx);
   if (signatureNode.tagClass !== "universal" || signatureNode.tagNumber !== 3) {
     throw crlError("signatureValue", parts[2].offset, "is not a BIT STRING");
   }
   const unusedBits = signatureNode.content[0] ?? 0;
   const signatureValue = { bytes: signatureNode.content.subarray(1), unusedBits };
-  const extensions = readExtensions(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
+  const extensions = readExtensions2(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
   let crlNumber;
   let isDelta = false;
   let baseCrlNumber;
@@ -3827,7 +6621,7 @@ function parseCertificateList(der, options) {
     diagnostics: ctx.emitter.diagnostics
   });
 }
-function readExtensions(der, field, ctx, path) {
+function readExtensions2(der, field, ctx, path) {
   if (field === void 0) return [];
   const wrapper = field.tagClass === "context" ? [...walkChildren(der, field, path)][0] : field;
   if (wrapper === void 0) return [];
@@ -3883,7 +6677,7 @@ function findRevocation(der, serial, options) {
   const outer = readTlvHeader(der, 0, "CertificateList");
   const env = locate(der, outer);
   if (env.revoked === void 0) return void 0;
-  const crlExtensions = readExtensions(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
+  const crlExtensions = readExtensions2(der, env.extensionsField, ctx, "tbsCertList.crlExtensions");
   const indirect = _findIssuingDistributionPoint(crlExtensions, ctx)?.indirectCRL === true;
   const issuerField = env.fields[env.signatureIndex + 1];
   const crlIssuerDer = der.subarray(issuerField.offset, issuerField.end);
@@ -3903,7 +6697,7 @@ function findRevocation(der, serial, options) {
     const content = der.subarray(serialField.contentStart, serialField.end);
     const hit = sameBytes(content, serial);
     if (!hit && wantedIssuer === void 0) continue;
-    const extensions = readExtensions(der, parts[2], ctx, `${path}.crlEntryExtensions`);
+    const extensions = readExtensions2(der, parts[2], ctx, `${path}.crlEntryExtensions`);
     if (wantedIssuer !== void 0) {
       entryIssuer = _entryCertificateIssuer(extensions, ctx, `${path}.crlEntryExtensions.certificateIssuer`) ?? entryIssuer;
       if (!hit || !sameBytes(entryIssuer, wantedIssuer)) continue;
@@ -3930,7 +6724,7 @@ function _unknownCriticalEntryExtension(der, options) {
     enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, path);
     index += 1;
     const field = [...walkChildren(der, entry, path)][2];
-    for (const extension of readExtensions(der, field, ctx, `${path}.crlEntryExtensions`)) {
+    for (const extension of readExtensions2(der, field, ctx, `${path}.crlEntryExtensions`)) {
       if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
     }
   }
@@ -4383,307 +7177,6 @@ function checkRevocation(input) {
   return out;
 }
 
-// src/asn1/asn1-encode.ts
-function encodeLength(length) {
-  if (length < 128) return [length];
-  const octets = [];
-  let rest = length;
-  while (rest > 0) {
-    octets.unshift(rest % 256);
-    rest = Math.floor(rest / 256);
-  }
-  return [128 | octets.length, ...octets];
-}
-function encodeTlv(tagClass, tagNumber, constructed, content) {
-  const bytes = assertBytes(content, "encodeTlv content");
-  const classIndex = TAG_CLASSES.indexOf(tagClass);
-  if (classIndex < 0) {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: tagClass must be one of ${TAG_CLASSES.join(", ")}, got ${String(tagClass)}`);
-  }
-  if (!Number.isInteger(tagNumber) || tagNumber < 0 || tagNumber > 2147483647 || tagClass === "universal" && tagNumber === 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: tag number ${String(tagNumber)} is outside 0 to 2^31 \u2212 1, or is the reserved universal tag 0 \u2014 pass a valid tag number`
-    );
-  }
-  const leading = classIndex << 6 | (constructed ? 32 : 0);
-  const identifier = [];
-  if (tagNumber < 31) {
-    identifier.push(leading | tagNumber);
-  } else {
-    const digits = [];
-    let rest = tagNumber;
-    do {
-      digits.unshift(rest % 128);
-      rest = Math.floor(rest / 128);
-    } while (rest > 0);
-    identifier.push(leading | 31);
-    let remaining = digits.length;
-    for (const digit of digits) {
-      remaining--;
-      identifier.push(digit | (remaining > 0 ? 128 : 0));
-    }
-  }
-  const header = [...identifier, ...encodeLength(bytes.length)];
-  const out = new Uint8Array(header.length + bytes.length);
-  out.set(header, 0);
-  out.set(bytes, header.length);
-  return out;
-}
-function childrenContent(children, what) {
-  if (!Array.isArray(children)) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} expects an array of encodings, got ${typeof children}`);
-  }
-  return concatBytes(children.map((c) => assertBytes(c, `${what} child`)));
-}
-function encodeSequence(children) {
-  return encodeTlv("universal", TAG_SEQUENCE, true, childrenContent(children, "encodeSequence"));
-}
-function encodeSet(children) {
-  return encodeTlv("universal", TAG_SET, true, childrenContent(children, "encodeSet"));
-}
-function encodeSetOf(children) {
-  childrenContent(children, "encodeSetOf");
-  return encodeTlv("universal", TAG_SET, true, concatBytes([...children].sort(compareOctets)));
-}
-function hexToBytes(hex3) {
-  const out = new Uint8Array(hex3.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex3.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-function encodeInteger(value) {
-  let v;
-  if (typeof value === "bigint") {
-    v = value;
-  } else if (typeof value === "number" && Number.isSafeInteger(value)) {
-    v = BigInt(value);
-  } else {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
-  }
-  let hex3;
-  if (v >= 0n) {
-    hex3 = v.toString(16);
-    if (hex3.length % 2 === 1) hex3 = `0${hex3}`;
-    if (parseInt(hex3.slice(0, 2), 16) >= 128) hex3 = `00${hex3}`;
-  } else {
-    let octets = 1;
-    while (v < -(1n << BigInt(octets * 8 - 1))) octets++;
-    hex3 = ((1n << BigInt(octets * 8)) + v).toString(16).padStart(octets * 2, "0");
-  }
-  return encodeTlv("universal", TAG_INTEGER, false, hexToBytes(hex3));
-}
-function encodeBoolean(value) {
-  return encodeTlv("universal", TAG_BOOLEAN, false, Uint8Array.of(value ? 255 : 0));
-}
-function encodeNull() {
-  return encodeTlv("universal", TAG_NULL, false, new Uint8Array(0));
-}
-function encodeBitString(bytes, unusedBits = 0) {
-  const data = assertBytes(bytes, "encodeBitString bytes");
-  if (!Number.isInteger(unusedBits) || unusedBits < 0 || unusedBits > 7 || data.length === 0 && unusedBits !== 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`
-    );
-  }
-  if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & (1 << unusedBits) - 1) !== 0) {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: the ${unusedBits} unused bits of the last octet must be zero in DER (X.690 \xA711.2.1) \u2014 clear them before encoding`
-    );
-  }
-  const content = new Uint8Array(data.length + 1);
-  content[0] = unusedBits;
-  content.set(data, 1);
-  return encodeTlv("universal", TAG_BIT_STRING, false, content);
-}
-function encodeOctetString(bytes) {
-  return encodeTlv("universal", TAG_OCTET_STRING, false, assertBytes(bytes, "encodeOctetString bytes"));
-}
-function encodeEnumerated(value) {
-  return encodeTlv("universal", TAG_ENUMERATED, false, encodeInteger(value).subarray(2));
-}
-function encodeExplicit(tagNumber, inner, options) {
-  return encodeTlv(options?.tagClass ?? "context", tagNumber, true, assertBytes(inner, "encodeExplicit inner"));
-}
-function encodeImplicit(tagNumber, encoded, options) {
-  const bytes = assertBytes(encoded, "encodeImplicit encoded");
-  if (bytes.length < 2) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit needs a complete encoding to re-tag, and got fewer than two octets \u2014 pass the output of another encoder");
-  }
-  const view = byteView(bytes);
-  const identifier = view.getUint8(0);
-  if (view.getUint8(1) === 128) {
-    throw new PkiError("PKI_API_MISUSE", "pkinative: encodeImplicit cannot re-tag an indefinite-length value \u2014 DER has no indefinite form, so encode the inner value definitely first");
-  }
-  const retagged = encodeTlv(options?.tagClass ?? "context", tagNumber, (identifier & 32) !== 0, new Uint8Array(0));
-  const header = retagged.length - 1;
-  const out = new Uint8Array(header + bytes.length - 1);
-  out.set(retagged.subarray(0, header));
-  out.set(bytes.subarray(1), header);
-  return out;
-}
-function encodeNamedBits(bits) {
-  let highest = -1;
-  const positions = [];
-  for (const bit of bits) {
-    if (!Number.isInteger(bit) || bit < 0 || bit > 65535) {
-      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
-    }
-    positions.push(bit);
-    if (bit > highest) highest = bit;
-  }
-  if (highest < 0) return encodeBitString(new Uint8Array(0), 0);
-  const octets = new Uint8Array((highest >> 3) + 1);
-  const view = byteView(octets);
-  for (const bit of positions) view.setUint8(bit >> 3, view.getUint8(bit >> 3) | 128 >> (bit & 7));
-  return encodeBitString(octets, 7 - (highest & 7));
-}
-function encodeObjectIdentifier(oid) {
-  return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
-}
-function encodeRelativeOid(oid) {
-  return encodeTlv("universal", TAG_RELATIVE_OID, false, _encodeRelativeOid(oid));
-}
-function outOfRange(type, index) {
-  return new PkiEncodingError(
-    "PKI_ASN1_VALUE_OUT_OF_RANGE",
-    `pkinative: the character at index ${index} cannot be encoded as ${tagLabel("universal", STRING_TAGS[type])} \u2014 choose a string type whose character set contains it`
-  );
-}
-function encodeString(type, value) {
-  if (typeof value !== "string") {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeString expects a string value, got ${typeof value}`);
-  }
-  let content;
-  switch (type) {
-    case "utf8": {
-      const encoded = encodeUtf8(value);
-      if (encoded === null) throw outOfRange(type, [...value].findIndex((c) => c.length === 1 && c.charCodeAt(0) >= 55296 && c.charCodeAt(0) <= 57343));
-      content = encoded;
-      break;
-    }
-    case "printable":
-    case "ia5":
-    case "visible":
-    case "numeric": {
-      const allowed = type === "printable" ? isPrintableOctet : type === "ia5" ? isIa5Octet : type === "visible" ? isVisibleOctet : isNumericOctet;
-      content = new Uint8Array(value.length);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code > 127 || !allowed(code)) throw outOfRange(type, i);
-        content[i] = code;
-      }
-      break;
-    }
-    case "teletex":
-      content = new Uint8Array(value.length);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code > 255) throw outOfRange(type, i);
-        content[i] = code;
-      }
-      break;
-    case "bmp":
-      content = new Uint8Array(value.length * 2);
-      for (let i = 0; i < value.length; i++) {
-        const code = value.charCodeAt(i);
-        if (code >= 55296 && code <= 57343) throw outOfRange(type, i);
-        content[i * 2] = code >> 8;
-        content[i * 2 + 1] = code & 255;
-      }
-      break;
-    case "universal": {
-      const points = [];
-      let index = 0;
-      for (const ch of value) {
-        const lead = ch.charCodeAt(0);
-        const code = ch.length === 2 ? 65536 + (lead - 55296 << 10) + (ch.charCodeAt(1) - 56320) : lead;
-        if (code >= 55296 && code <= 57343) throw outOfRange(type, index);
-        points.push(code >>> 24, code >> 16 & 255, code >> 8 & 255, code & 255);
-        index += ch.length;
-      }
-      content = Uint8Array.from(points);
-      break;
-    }
-    default:
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(", ")}, got ${String(type)}`);
-  }
-  return encodeTlv("universal", STRING_TAGS[type], false, content);
-}
-function pad(value, width) {
-  return String(value).padStart(width, "0");
-}
-function encodeTime(epochMilliseconds, type = "rfc5280") {
-  if (type !== "UTCTime" && type !== "GeneralizedTime" && type !== "rfc5280") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${String(type)}`);
-  }
-  const date = new Date(typeof epochMilliseconds === "number" ? epochMilliseconds : NaN);
-  const year = date.getUTCFullYear();
-  if (Number.isNaN(date.getTime()) || year < 0 || year > 9999) {
-    throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: ${String(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
-  }
-  const millisecond = date.getUTCMilliseconds();
-  const resolved = type === "rfc5280" ? year >= 1950 && year <= 2049 ? "UTCTime" : "GeneralizedTime" : type;
-  if (millisecond !== 0 && type !== "GeneralizedTime") {
-    throw new PkiEncodingError(
-      "PKI_ASN1_VALUE_OUT_OF_RANGE",
-      `pkinative: ${date.toISOString()} has a fraction of a second, which ${type === "rfc5280" ? "RFC 5280 forbids in certificates" : "UTCTime cannot hold"} \u2014 round to whole seconds`
-    );
-  }
-  const clock = `${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}`;
-  let text;
-  if (resolved === "UTCTime") {
-    if (year < 1950 || year > 2049) {
-      throw new PkiEncodingError("PKI_ASN1_VALUE_OUT_OF_RANGE", `pkinative: UTCTime covers 1950 to 2049 only; ${year} needs GeneralizedTime`);
-    }
-    text = `${pad(year % 100, 2)}${clock}Z`;
-  } else {
-    const fraction = millisecond === 0 ? "" : `.${pad(millisecond, 3).replace(/0+$/, "")}`;
-    text = `${pad(year, 4)}${clock}${fraction}Z`;
-  }
-  const content = new Uint8Array(text.length);
-  for (let i = 0; i < text.length; i++) content[i] = text.charCodeAt(i);
-  return encodeTlv("universal", resolved === "UTCTime" ? TAG_UTC_TIME : TAG_GENERALIZED_TIME, false, content);
-}
-function encodeAsn1Node(node) {
-  const root = assertNode(node, "encodeAsn1Node");
-  const stack = [{ node: root, next: 0, parts: [] }];
-  let result = new Uint8Array(0);
-  while (stack.length > 0) {
-    const top = stack[stack.length - 1];
-    const current = top.node;
-    if (current.indefinite) {
-      throw new PkiError(
-        "PKI_API_MISUSE",
-        `pkinative: the value at offset ${current.offset} was decoded from the BER indefinite length form, which has no DER re-encoding \u2014 decode the original as DER, or keep its bytes`
-      );
-    }
-    let encoded;
-    if (!current.constructed) {
-      encoded = encodeTlv(current.tagClass, current.tagNumber, false, current.content);
-    } else {
-      if (current.tagClass === "universal" && isStringTag(current.tagNumber)) {
-        throw new PkiError(
-          "PKI_API_MISUSE",
-          `pkinative: the ${tagLabel(current.tagClass, current.tagNumber)} at offset ${current.offset} is a constructed string, which has no DER form \u2014 read it with the string reader and encode the result`
-        );
-      }
-      if (top.next < current.children.length) {
-        stack.push({ node: current.children[top.next], next: 0, parts: [] });
-        top.next++;
-        continue;
-      }
-      encoded = encodeTlv(current.tagClass, current.tagNumber, true, concatBytes(top.parts));
-    }
-    stack.pop();
-    const parent = stack[stack.length - 1];
-    if (parent === void 0) result = encoded;
-    else parent.parts.push(encoded);
-  }
-  return result;
-}
-
 // src/build/build-structures.ts
 var PARAMETERS_NULL = /* @__PURE__ */ new Set([
   "1.2.840.113549.1.1.1",
@@ -4867,212 +7360,6 @@ function encodeSubjectAltName(names) {
   }));
 }
 
-// src/hash/hash-shared.ts
-var HIGH_WORD_UNIT = 536870912;
-function writeBitLength(target, end, byteLength) {
-  const view = new DataView(target.buffer, target.byteOffset, target.byteLength);
-  view.setUint32(end - 8, Math.floor(byteLength / HIGH_WORD_UNIT), false);
-  view.setUint32(end - 4, byteLength % HIGH_WORD_UNIT * 8, false);
-}
-function padMessage(input, blockSize, lengthOctets) {
-  const total = Math.ceil((input.length + 1 + lengthOctets) / blockSize) * blockSize;
-  const padded = new Uint8Array(total);
-  padded.set(input);
-  padded[input.length] = 128;
-  writeBitLength(padded, total, input.length);
-  return padded;
-}
-
-// src/hash/sha1.ts
-function rotl(x, n) {
-  return (x << n | x >>> 32 - n) >>> 0;
-}
-function sha1(input) {
-  const padded = padMessage(input, 64, 8);
-  const view = new DataView(padded.buffer);
-  const w = new Uint32Array(80);
-  let h0 = 1732584193;
-  let h1 = 4023233417;
-  let h2 = 2562383102;
-  let h3 = 271733878;
-  let h4 = 3285377520;
-  for (let offset = 0; offset < padded.length; offset += 64) {
-    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
-    for (let j = 16; j < 80; j++) {
-      w[j] = rotl(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
-    }
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    for (let j = 0; j < 80; j++) {
-      let f;
-      let k;
-      if (j < 20) {
-        f = b & c | ~b & d;
-        k = 1518500249;
-      } else if (j < 40) {
-        f = b ^ c ^ d;
-        k = 1859775393;
-      } else if (j < 60) {
-        f = b & c | b & d | c & d;
-        k = 2400959708;
-      } else {
-        f = b ^ c ^ d;
-        k = 3395469782;
-      }
-      const temp = rotl(a, 5) + f + e + k + w[j] >>> 0;
-      e = d;
-      d = c;
-      c = rotl(b, 30);
-      b = a;
-      a = temp;
-    }
-    h0 = h0 + a >>> 0;
-    h1 = h1 + b >>> 0;
-    h2 = h2 + c >>> 0;
-    h3 = h3 + d >>> 0;
-    h4 = h4 + e >>> 0;
-  }
-  const out = new Uint8Array(20);
-  const outView = new DataView(out.buffer);
-  [h0, h1, h2, h3, h4].forEach((word, i) => outView.setUint32(i * 4, word, false));
-  return out;
-}
-
-// src/hash/sha256.ts
-var K = /* @__PURE__ */ new Uint32Array([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-function rotr(x, n) {
-  return x >>> n | x << 32 - n;
-}
-function sha256(input) {
-  const padded = padMessage(input, 64, 8);
-  const view = new DataView(padded.buffer);
-  const w = new Uint32Array(64);
-  let h0 = 1779033703;
-  let h1 = 3144134277;
-  let h2 = 1013904242;
-  let h3 = 2773480762;
-  let h4 = 1359893119;
-  let h5 = 2600822924;
-  let h6 = 528734635;
-  let h7 = 1541459225;
-  for (let offset = 0; offset < padded.length; offset += 64) {
-    for (let j = 0; j < 16; j++) w[j] = view.getUint32(offset + j * 4, false);
-    for (let j = 16; j < 64; j++) {
-      const x = w[j - 15];
-      const y = w[j - 2];
-      const s0 = rotr(x, 7) ^ rotr(x, 18) ^ x >>> 3;
-      const s1 = rotr(y, 17) ^ rotr(y, 19) ^ y >>> 10;
-      w[j] = w[j - 16] + s0 + w[j - 7] + s1 >>> 0;
-    }
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    let f = h5;
-    let g = h6;
-    let h = h7;
-    for (let j = 0; j < 64; j++) {
-      const temp1 = h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[j] + w[j] >>> 0;
-      const temp2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b ^ a & c ^ b & c) >>> 0;
-      h = g;
-      g = f;
-      f = e;
-      e = d + temp1 >>> 0;
-      d = c;
-      c = b;
-      b = a;
-      a = temp1 + temp2 >>> 0;
-    }
-    h0 = h0 + a >>> 0;
-    h1 = h1 + b >>> 0;
-    h2 = h2 + c >>> 0;
-    h3 = h3 + d >>> 0;
-    h4 = h4 + e >>> 0;
-    h5 = h5 + f >>> 0;
-    h6 = h6 + g >>> 0;
-    h7 = h7 + h >>> 0;
-  }
-  const out = new Uint8Array(32);
-  const outView = new DataView(out.buffer);
-  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((word, i) => outView.setUint32(i * 4, word, false));
-  return out;
-}
-
-// src/hash/key-identifier.ts
-function computeKeyIdentifier(publicKeyBits, algorithm = "SHA-1") {
-  assertBytes(publicKeyBits, "publicKeyBits");
-  return algorithm === "SHA-256" ? sha256(publicKeyBits) : sha1(publicKeyBits);
-}
-
 // src/revocation/ocsp-request.ts
 var HASH_OID = Object.freeze({
   "SHA-1": "1.3.14.3.2.26",
@@ -5117,7 +7404,7 @@ function assertParsed(value, what) {
 }
 
 // src/revocation/ocsp-response.ts
-var STRUCTURE2 = "PKI_X509_STRUCTURE_INVALID";
+var STRUCTURE4 = "PKI_X509_STRUCTURE_INVALID";
 var OID_BASIC_RESPONSE = "1.3.6.1.5.5.7.48.1.1";
 var STATUSES = Object.freeze({
   0: "successful",
@@ -5140,7 +7427,7 @@ var REASONS2 = Object.freeze({
   10: "aACompromise"
 });
 function ocspError(path, offset, why) {
-  return new PkiCertificateError(STRUCTURE2, `pkinative: ${path} ${why} \u2014 the input is not an RFC 6960 OCSPResponse`, path, offset);
+  return new PkiCertificateError(STRUCTURE4, `pkinative: ${path} ${why} \u2014 the input is not an RFC 6960 OCSPResponse`, path, offset);
 }
 var decodeAt2 = (der, header, ctx) => decodeValueAt(der, header.offset, ctx);
 function parseOcspResponse(der, options) {
@@ -5229,7 +7516,7 @@ function readBasicResponse(der, ctx) {
     responderId: data.responderId,
     producedAt: data.producedAt,
     responses: data.responses,
-    signatureAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, "BasicOCSPResponse.signatureAlgorithm", STRUCTURE2, outer.offset),
+    signatureAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, "BasicOCSPResponse.signatureAlgorithm", STRUCTURE4, outer.offset),
     signatureValue: Object.freeze({ bytes: signatureNode.content.subarray(1), unusedBits: signatureNode.content[0] ?? 0 }),
     certificates: Object.freeze(certificates),
     extensions: data.extensions
@@ -5239,7 +7526,7 @@ function readResponseData(der, tbs, ctx) {
   const fields = [...walkChildren(der, tbs, "ResponseData")];
   let at = 0;
   if (fields[0]?.tagClass === "context" && fields[0].tagNumber === 0) {
-    readVersion(der, fields[0], ctx);
+    readVersion2(der, fields[0], ctx);
     at += 1;
   }
   const idField = fields[at];
@@ -5265,10 +7552,10 @@ function readResponseData(der, tbs, ctx) {
     index += 1;
   }
   const extensionsField = fields[at];
-  const extensions = extensionsField === void 0 ? [] : readExtensions2(der, extensionsField, ctx, "ResponseData.responseExtensions");
+  const extensions = extensionsField === void 0 ? [] : readExtensions3(der, extensionsField, ctx, "ResponseData.responseExtensions");
   return { responderId, producedAt, responses: Object.freeze(responses), extensions };
 }
-function readVersion(der, field, ctx) {
+function readVersion2(der, field, ctx) {
   const inner = [...walkChildren(der, field, "ResponseData.version")][0];
   if (inner === void 0 || inner.tagClass !== "universal" || inner.tagNumber !== 2) {
     ctx.emitter.emit(ocspVersionNotV1Diagnostic("holds no INTEGER", field.offset));
@@ -5312,7 +7599,7 @@ function readSingleResponse(der, single, ctx, path) {
     status: readCertStatus(der, statusField, ctx, `${path}.certStatus`),
     thisUpdate: _readTime(decodeAt2(der, thisUpdateField, ctx), ctx, void 0),
     nextUpdate,
-    extensions: extensionsField === void 0 ? [] : readExtensions2(der, extensionsField, ctx, `${path}.singleExtensions`)
+    extensions: extensionsField === void 0 ? [] : readExtensions3(der, extensionsField, ctx, `${path}.singleExtensions`)
   });
 }
 function readCertId(der, field, ctx, path) {
@@ -5323,7 +7610,7 @@ function readCertId(der, field, ctx, path) {
   }
   const serialContent = der.subarray(serialField.contentStart, serialField.end);
   return Object.freeze({
-    hashAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, `${path}.hashAlgorithm`, STRUCTURE2, field.offset),
+    hashAlgorithm: _readAlgorithmIdentifier(decodeAt2(der, algorithmField, ctx), ctx, `${path}.hashAlgorithm`, STRUCTURE4, field.offset),
     issuerNameHash: decodeAt2(der, nameHashField, ctx).content,
     issuerKeyHash: decodeAt2(der, keyHashField, ctx).content,
     serialNumber: Object.freeze({
@@ -5349,7 +7636,7 @@ function readCertStatus(der, field, ctx, path) {
   }
   return { kind: "revoked", revocationTime: _readTime(decodeAt2(der, timeField, ctx), ctx, void 0), reason };
 }
-function readExtensions2(der, field, ctx, path) {
+function readExtensions3(der, field, ctx, path) {
   if (field.tagClass !== "context") throw ocspError(path, field.offset, "is not a context-tagged Extensions field");
   const wrapper = [...walkChildren(der, field, path)][0];
   if (wrapper === void 0) return [];
@@ -5928,64 +8215,6 @@ function _intersectWithUserSet(state, initialPolicySet) {
   return copy;
 }
 
-// src/x509/x509-name-format.ts
-var SHORT_NAMES = /* @__PURE__ */ new Map([
-  ["2.5.4.3", "CN"],
-  ["2.5.4.7", "L"],
-  ["2.5.4.8", "ST"],
-  ["2.5.4.10", "O"],
-  ["2.5.4.11", "OU"],
-  ["2.5.4.6", "C"],
-  ["2.5.4.9", "STREET"],
-  ["0.9.2342.19200300.100.1.25", "DC"],
-  ["0.9.2342.19200300.100.1.1", "UID"]
-]);
-var SPECIAL = '"+,;<>\\';
-var BIDI_CONTROLS = /* @__PURE__ */ new Set([1564, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8294, 8295, 8296, 8297]);
-var hex2 = (octet) => `\\${octet.toString(16).padStart(2, "0")}`;
-function hexpairs(code) {
-  if (code < 128) return hex2(code);
-  if (code < 2048) return hex2(192 | code >> 6) + hex2(128 | code & 63);
-  return hex2(224 | code >> 12) + hex2(128 | code >> 6 & 63) + hex2(128 | code & 63);
-}
-function escapeValue(text) {
-  let out = "";
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charAt(i);
-    const code = text.charCodeAt(i);
-    if (code < 32 || code >= 127 && code <= 159 || BIDI_CONTROLS.has(code)) out += hexpairs(code);
-    else if (SPECIAL.includes(ch)) out += `\\${ch}`;
-    else if (i === 0 && (ch === " " || ch === "#") || i === text.length - 1 && ch === " ") out += `\\${ch}`;
-    else out += ch;
-  }
-  return out;
-}
-function formatAttribute(attribute) {
-  const short = SHORT_NAMES.get(attribute.type);
-  if (short === void 0 || attribute.value === void 0) return `${short ?? attribute.type}=#${toHex(attribute.valueDer)}`;
-  return `${short}=${escapeValue(attribute.value.value)}`;
-}
-function formatDistinguishedName(name) {
-  if (typeof name !== "object" || name === null || !Array.isArray(name.rdns)) {
-    throw new PkiError(
-      "PKI_INVALID_INPUT",
-      `pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, got ${name === null ? "null" : typeof name}`
-    );
-  }
-  const parts = [];
-  for (const rdn of name.rdns) {
-    if (!Array.isArray(rdn)) {
-      throw new PkiError(
-        "PKI_INVALID_INPUT",
-        "pkinative: formatDistinguishedName expects the subject or issuer of a parsed certificate, whose rdns are arrays of attributes"
-      );
-    }
-    parts.push(rdn.map(formatAttribute).join("+"));
-  }
-  parts.reverse();
-  return parts.join(",");
-}
-
 // src/path/path-validate.ts
 var EMAIL_ADDRESS = "1.2.840.113549.1.9.1";
 var PROCESSED_CRITICAL_EXTENSIONS = /* @__PURE__ */ new Set([
@@ -6295,7 +8524,7 @@ function hexOf(bytes) {
 }
 
 // src/path/path-server-name.ts
-var OID_COMMON_NAME = "2.5.4.3";
+var OID_COMMON_NAME2 = "2.5.4.3";
 var DEC_OCTET = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
 var IPV4_ADDRESS = new RegExp(`^${DEC_OCTET}(?:\\.${DEC_OCTET}){3}$`);
 var NUMERIC_LABEL = /^(?:0x[0-9a-f]*|[0-9]+)$/i;
@@ -6414,7 +8643,7 @@ function commonNames(certificate) {
   const out = [];
   for (const rdn of certificate.subject.rdns) {
     for (const attribute of rdn) {
-      if (attribute.type === OID_COMMON_NAME && attribute.value !== void 0) out.push(attribute.value.value);
+      if (attribute.type === OID_COMMON_NAME2 && attribute.value !== void 0) out.push(attribute.value.value);
     }
   }
   return out;
@@ -6433,924 +8662,6 @@ function listed(names) {
   }
   const more = hosts.length > 8 ? `, and ${String(hosts.length - 8)} more` : "";
   return `it names ${hosts.slice(0, 8).join(", ")}${more}`;
-}
-
-// src/crypto/crypto-algorithms.ts
-var HASH_BY_OID = /* @__PURE__ */ new Map([
-  ["1.3.14.3.2.26", "SHA-1"],
-  ["2.16.840.1.101.3.4.2.1", "SHA-256"],
-  ["2.16.840.1.101.3.4.2.2", "SHA-384"],
-  ["2.16.840.1.101.3.4.2.3", "SHA-512"]
-]);
-var DEFAULT_PSS_SALT_LENGTH = 20;
-var SIGNATURE_BY_OID = /* @__PURE__ */ new Map([
-  ["1.2.840.113549.1.1.5", { family: "rsa-pkcs1", hash: "SHA-1" }],
-  ["1.2.840.113549.1.1.11", { family: "rsa-pkcs1", hash: "SHA-256" }],
-  ["1.2.840.113549.1.1.12", { family: "rsa-pkcs1", hash: "SHA-384" }],
-  ["1.2.840.113549.1.1.13", { family: "rsa-pkcs1", hash: "SHA-512" }],
-  ["1.2.840.113549.1.1.10", { family: "rsa-pss" }],
-  ["1.2.840.10045.4.1", { family: "ecdsa", hash: "SHA-1" }],
-  ["1.2.840.10045.4.3.2", { family: "ecdsa", hash: "SHA-256" }],
-  ["1.2.840.10045.4.3.3", { family: "ecdsa", hash: "SHA-384" }],
-  ["1.2.840.10045.4.3.4", { family: "ecdsa", hash: "SHA-512" }],
-  ["1.3.101.112", { family: "ed25519" }],
-  ["1.3.101.113", { family: "ed448" }]
-]);
-var hasNoHashParameters = (parameters) => parameters === void 0 || parameters.tagClass === "universal" && parameters.tagNumber === TAG_NULL && parameters.contentLength === 0;
-function unsupported(message, oid) {
-  return new PkiCryptoError("PKI_CRYPTO_ALGORITHM_UNSUPPORTED", `pkinative: ${message} \u2014 verify it with a library that implements it, or ask for it in an issue naming the certificate that needs it`, oid);
-}
-function readPssParams(parameters, oid) {
-  let hash = "SHA-1";
-  let saltLength;
-  let mgfHash = "SHA-1";
-  if (parameters !== void 0) {
-    if (parameters.tagClass !== "universal" || parameters.tagNumber !== TAG_SEQUENCE) {
-      throw unsupported("the RSASSA-PSS parameters are not a SEQUENCE", oid);
-    }
-    let previous = -1;
-    for (const field of parameters.children) {
-      if (field.tagClass !== "context" || field.tagNumber > 3 || field.tagNumber <= previous) {
-        throw unsupported("the RSASSA-PSS parameters hold a field other than [0] to [3], each at most once and in order (RFC 4055 \xA73.1)", oid);
-      }
-      previous = field.tagNumber;
-      if (field.children.length !== 1) {
-        throw unsupported(`the RSASSA-PSS field [${String(field.tagNumber)}] is not one value under an explicit tag (RFC 4055 \xA73.1)`, oid);
-      }
-      const inner = field.children[0];
-      if (field.tagNumber === 0) hash = hashNameOf(inner, oid);
-      else if (field.tagNumber === 1) mgfHash = mgf1HashOf(inner, oid);
-      else if (field.tagNumber === 2) saltLength = pssInteger(inner, "saltLength", oid);
-      else if (pssInteger(inner, "trailerField", oid) !== 1) {
-        throw unsupported("the RSASSA-PSS trailerField is not 1, the only value RFC 4055 defines", oid);
-      }
-    }
-  }
-  if (mgfHash !== hash) {
-    throw unsupported(`the RSASSA-PSS mask generation uses ${mgfHash} while the signature uses ${hash}, and Web Crypto only offers MGF1 over the signature hash`, oid);
-  }
-  if (saltLength === void 0) saltLength = DEFAULT_PSS_SALT_LENGTH;
-  if (saltLength < 0) throw unsupported("the RSASSA-PSS salt length is negative", oid);
-  return { hash, saltLength };
-}
-function pssInteger(node, what, oid) {
-  if (node.tagClass !== "universal" || node.tagNumber !== TAG_INTEGER) {
-    throw unsupported(`the RSASSA-PSS ${what} is not an INTEGER`, oid);
-  }
-  return readSmallInteger(node);
-}
-function hashNameOf(algorithm, oid) {
-  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
-  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID) {
-    throw unsupported("an RSASSA-PSS hash parameter is not an AlgorithmIdentifier", oid);
-  }
-  if (algorithm.children.length > 2 || !hasNoHashParameters(algorithm.children[1])) {
-    throw unsupported("an RSASSA-PSS hash AlgorithmIdentifier carries parameters other than absent or NULL (RFC 4055 \xA72.1)", oid);
-  }
-  const hashOid = readObjectIdentifier(first);
-  const name = HASH_BY_OID.get(hashOid);
-  if (name === void 0) throw unsupported(`the RSASSA-PSS digest ${hashOid} is not one Web Crypto implements`, oid);
-  return name;
-}
-function mgf1HashOf(algorithm, oid) {
-  const first = algorithm.tagClass === "universal" && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : void 0;
-  if (first === void 0 || first.tagClass !== "universal" || first.tagNumber !== TAG_OID || algorithm.children.length > 2) {
-    throw unsupported("the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier", oid);
-  }
-  if (readObjectIdentifier(first) !== "1.2.840.113549.1.1.8") {
-    throw unsupported("the RSASSA-PSS mask generation function is not MGF1, the only one Web Crypto implements", oid);
-  }
-  const inner = algorithm.children[1];
-  return inner === void 0 ? "SHA-1" : hashNameOf(inner, oid);
-}
-var isRsaKey = (key) => key.kind === "rsa" || key.kind === "rsa-pss";
-var isPkcs1Key = (key) => key.kind === "rsa";
-function _refuseWeakRsaExponent(key, oid) {
-  const e = key.publicExponent;
-  if (e < 3n || (e & 1n) === 0n) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: the RSA public exponent is ${e.toString()}; RFC 8017 \xA73.1 requires an odd exponent of at least 3, and under this one a signature proves nothing \u2014 the certificate's key is not one any verifier should accept`,
-      oid
-    );
-  }
-}
-function pssKeyAdmits(key, signature, oid) {
-  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return true;
-  const restriction = readPssParams(key.algorithm.parameters, oid);
-  return signature.hash === restriction.hash && signature.saltLength >= restriction.saltLength;
-}
-function resolveAlgorithm(algorithm, key) {
-  const shape = SIGNATURE_BY_OID.get(algorithm.oid);
-  if (shape === void 0) throw unsupported(`the signature algorithm ${algorithm.oid} is not one pkinative verifies`, algorithm.oid);
-  if (shape.family === "rsa-pss") {
-    if (!isRsaKey(key)) return null;
-    _refuseWeakRsaExponent(key, algorithm.oid);
-    const { hash, saltLength } = readPssParams(algorithm.parameters, algorithm.oid);
-    if (!pssKeyAdmits(key, { hash, saltLength }, algorithm.oid)) return null;
-    const verifyParams = { name: "RSA-PSS", saltLength };
-    return { family: shape.family, importParams: { name: "RSA-PSS", hash: { name: hash } }, verifyParams, curve: void 0, hash };
-  }
-  if (shape.family === "rsa-pkcs1") {
-    if (!isPkcs1Key(key)) return null;
-    _refuseWeakRsaExponent(key, algorithm.oid);
-    const verifyParams = { name: "RSASSA-PKCS1-v1_5" };
-    return { family: shape.family, importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: shape.hash } }, verifyParams, curve: void 0, hash: shape.hash };
-  }
-  if (shape.family === "ecdsa") {
-    if (key.kind !== "ec") return null;
-    const curve = key.curve;
-    if (curve !== "P-256" && curve !== "P-384" && curve !== "P-521") {
-      throw new PkiCryptoError(
-        "PKI_CRYPTO_KEY_UNSUPPORTED",
-        `pkinative: the issuer's EC key is on ${curve ?? "a curve pkinative does not name"}, and Web Crypto verifies ECDSA only on P-256, P-384 and P-521`,
-        algorithm.oid
-      );
-    }
-    const verifyParams = { name: "ECDSA", hash: { name: shape.hash } };
-    return { family: shape.family, importParams: { name: "ECDSA", namedCurve: curve }, verifyParams, curve, hash: shape.hash };
-  }
-  if (key.kind !== shape.family) return null;
-  const name = shape.family === "ed25519" ? "Ed25519" : "Ed448";
-  return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: void 0, hash: void 0 };
-}
-var RSA_ENCRYPTION_IDENTIFIER = /* @__PURE__ */ encodeSequence([encodeObjectIdentifier("1.2.840.113549.1.1.1"), encodeNull()]);
-function _importableSpki(key) {
-  if (key.kind !== "rsa-pss") return key.der;
-  const bitString = encodeTlv("universal", TAG_BIT_STRING, false, concatBytes([Uint8Array.of(key.publicKey.unusedBits), key.publicKey.bytes]));
-  return encodeSequence([RSA_ENCRYPTION_IDENTIFIER, bitString]);
-}
-function _pssKeyHash(key) {
-  if (key.kind !== "rsa-pss" || key.algorithm.parameters === void 0) return void 0;
-  return readPssParams(key.algorithm.parameters, key.algorithm.oid).hash;
-}
-var RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
-var ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
-var ID_ED448 = "1.3.101.113";
-var ID_SHAKE256 = "2.16.840.1.101.3.4.2.12";
-var MD5_OIDS = /* @__PURE__ */ new Set(["1.2.840.113549.1.1.4", "1.2.840.113549.2.5"]);
-function _cmsAlgorithmProblem(digestAlgorithm, signatureAlgorithm) {
-  if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
-    return "MD5 is refused: its collisions have been practical since 2004";
-  }
-  if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
-    return "id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm";
-  }
-  if (signatureAlgorithm.oid === ID_ED448) {
-    if (digestAlgorithm.oid !== ID_SHAKE256) {
-      return `Ed448 requires the id-shake256 digestAlgorithm, SHAKE256 with a 512-bit output (RFC 8419 \xA73.1), not ${digestAlgorithm.oid}`;
-    }
-    return hasNoHashParameters(digestAlgorithm.parameters) ? null : "the id-shake256 digestAlgorithm carries parameters, where RFC 8419 \xA72.1 allows none";
-  }
-  const digest = HASH_BY_OID.get(digestAlgorithm.oid);
-  if (digest === void 0) return null;
-  if (!hasNoHashParameters(digestAlgorithm.parameters)) {
-    return `the ${digest} digestAlgorithm carries parameters, where RFC 5754 \xA72 allows only absent or NULL`;
-  }
-  if (signatureAlgorithm.oid === RSA_ENCRYPTION) return null;
-  const shape = SIGNATURE_BY_OID.get(signatureAlgorithm.oid);
-  if (shape === void 0) return null;
-  if (shape.family === "rsa-pkcs1" || shape.family === "ecdsa") {
-    return shape.hash === digest ? null : `${signatureAlgorithm.oid} signs over ${shape.hash}, but the digestAlgorithm is ${digest}`;
-  }
-  if (shape.family === "rsa-pss") {
-    if (signatureAlgorithm.parameters === void 0) return "RSASSA-PSS without parameters, which RFC 4056 \xA72.2 makes mandatory in CMS";
-    let pssHash;
-    try {
-      pssHash = readPssParams(signatureAlgorithm.parameters, signatureAlgorithm.oid).hash;
-    } catch (error) {
-      _pkiError(error);
-      return null;
-    }
-    return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
-  }
-  return digest === "SHA-512" ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 \xA73.1), not ${digest}`;
-}
-function resolveCmsAlgorithm(digestAlgorithm, signatureAlgorithm, key) {
-  if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
-  const hash = HASH_BY_OID.get(digestAlgorithm.oid);
-  if (hash === void 0) throw unsupported(`the digest algorithm ${digestAlgorithm.oid} is not one pkinative verifies`, RSA_ENCRYPTION);
-  if (!isPkcs1Key(key)) return null;
-  _refuseWeakRsaExponent(key, RSA_ENCRYPTION);
-  return { family: "rsa-pkcs1", importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: hash } }, verifyParams: { name: "RSASSA-PKCS1-v1_5" }, curve: void 0, hash };
-}
-function coordinateBytes(curve) {
-  return curve === "P-256" ? 32 : curve === "P-384" ? 48 : 66;
-}
-var OID_BY_SIGNATURE = /* @__PURE__ */ new Map([
-  ["RSASSA-PKCS1-v1_5/SHA-1", "1.2.840.113549.1.1.5"],
-  ["RSASSA-PKCS1-v1_5/SHA-256", "1.2.840.113549.1.1.11"],
-  ["RSASSA-PKCS1-v1_5/SHA-384", "1.2.840.113549.1.1.12"],
-  ["RSASSA-PKCS1-v1_5/SHA-512", "1.2.840.113549.1.1.13"],
-  ["ECDSA/SHA-1", "1.2.840.10045.4.1"],
-  ["ECDSA/SHA-256", "1.2.840.10045.4.3.2"],
-  ["ECDSA/SHA-384", "1.2.840.10045.4.3.3"],
-  ["ECDSA/SHA-512", "1.2.840.10045.4.3.4"]
-]);
-var EDWARDS_OID = /* @__PURE__ */ Object.freeze({
-  Ed25519: "1.3.101.112",
-  Ed448: "1.3.101.113"
-});
-var OID_BY_HASH = /* @__PURE__ */ new Map([
-  ["SHA-1", "1.3.14.3.2.26"],
-  ["SHA-256", "2.16.840.1.101.3.4.2.1"],
-  ["SHA-384", "2.16.840.1.101.3.4.2.2"],
-  ["SHA-512", "2.16.840.1.101.3.4.2.3"]
-]);
-var HASH_BYTES = /* @__PURE__ */ new Map([
-  ["SHA-1", 20],
-  ["SHA-256", 32],
-  ["SHA-384", 48],
-  ["SHA-512", 64]
-]);
-function resolveSigner(algorithm) {
-  if (algorithm.name === "Ed25519" || algorithm.name === "Ed448") {
-    const name = algorithm.name;
-    return { oid: EDWARDS_OID[name], signParams: { name }, importParams: { name }, curve: void 0, pss: void 0 };
-  }
-  if (algorithm.name === "RSA-PSS") {
-    const hashOid = OID_BY_HASH.get(algorithm.hash);
-    const size = HASH_BYTES.get(algorithm.hash);
-    if (hashOid === void 0 || size === void 0) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, "1.2.840.113549.1.1.10");
-    const saltLength = algorithm.saltLength ?? size;
-    if (!Number.isInteger(saltLength) || saltLength < 0) {
-      throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, "1.2.840.113549.1.1.10");
-    }
-    return {
-      oid: "1.2.840.113549.1.1.10",
-      signParams: { name: "RSA-PSS", saltLength },
-      importParams: { name: "RSA-PSS", hash: { name: algorithm.hash } },
-      curve: void 0,
-      pss: { hashOid, saltLength }
-    };
-  }
-  const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
-  if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
-  if (algorithm.name === "ECDSA") {
-    return {
-      oid,
-      signParams: { name: "ECDSA", hash: { name: algorithm.hash } },
-      importParams: { name: "ECDSA", namedCurve: algorithm.namedCurve },
-      curve: algorithm.namedCurve,
-      pss: void 0
-    };
-  }
-  return {
-    oid,
-    signParams: { name: "RSASSA-PKCS1-v1_5" },
-    importParams: { name: "RSASSA-PKCS1-v1_5", hash: { name: algorithm.hash } },
-    curve: void 0,
-    pss: void 0
-  };
-}
-
-// src/crypto/crypto-signature.ts
-var SEQUENCE_OCTET = 48;
-var INTEGER_OCTET = 2;
-function ecdsaDerToRaw(der, size) {
-  if (der.length < 8) return null;
-  const view = new DataView(der.buffer, der.byteOffset, der.byteLength);
-  if (view.getUint8(0) !== SEQUENCE_OCTET) return null;
-  let at = 2;
-  let content = view.getUint8(1);
-  if (content === 129) {
-    content = view.getUint8(2);
-    at = 3;
-    if (content < 128) return null;
-  } else if (content > 127) {
-    return null;
-  }
-  if (at + content !== der.length) return null;
-  const r = readInteger2(der, view, at, size);
-  if (r === null) return null;
-  const s = readInteger2(der, view, r.next, size);
-  if (s === null || s.next !== der.length) return null;
-  const raw = new Uint8Array(size * 2);
-  raw.set(r.value, size - r.value.length);
-  raw.set(s.value, size * 2 - s.value.length);
-  return raw;
-}
-function ecdsaRawToDer(raw, size) {
-  if (raw.length !== size * 2) {
-    throw new PkiError(
-      "PKI_API_MISUSE",
-      `pkinative: an ECDSA signature on this curve is ${String(size * 2)} bytes and this one is ${String(raw.length)} \u2014 the curve and the signing key disagree`
-    );
-  }
-  const body = concat(derInteger(raw.subarray(0, size)), derInteger(raw.subarray(size)));
-  const header = body.length < 128 ? [SEQUENCE_OCTET, body.length] : [SEQUENCE_OCTET, 129, body.length];
-  return concat(Uint8Array.from(header), body);
-}
-function derInteger(value) {
-  const view = byteView(value);
-  let at = 0;
-  while (at < value.length - 1 && view.getUint8(at) === 0) at++;
-  const trimmed = value.subarray(at);
-  const pad2 = (view.getUint8(at) & 128) !== 0 ? 1 : 0;
-  const out = new Uint8Array(2 + pad2 + trimmed.length);
-  out[0] = INTEGER_OCTET;
-  out[1] = pad2 + trimmed.length;
-  out.set(trimmed, 2 + pad2);
-  return out;
-}
-function concat(...parts) {
-  let length = 0;
-  for (const part of parts) length += part.length;
-  const out = new Uint8Array(length);
-  let at = 0;
-  for (const part of parts) {
-    out.set(part, at);
-    at += part.length;
-  }
-  return out;
-}
-function readInteger2(der, view, at, size) {
-  if (at + 2 > der.length || view.getUint8(at) !== INTEGER_OCTET) return null;
-  const length = view.getUint8(at + 1);
-  if (length === 0 || length > 127) return null;
-  const start = at + 2;
-  const end = start + length;
-  if (end > der.length) return null;
-  const first = view.getUint8(start);
-  if ((first & 128) !== 0) return null;
-  const padded = first === 0 && length > 1;
-  if (padded && (view.getUint8(start + 1) & 128) === 0) return null;
-  const value = der.subarray(padded ? start + 1 : start, end);
-  if (value.length > size) return null;
-  return { value, next: end };
-}
-
-// src/crypto/webcrypto.ts
-function publicKeySubtle() {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.verify !== "function") return null;
-  return subtle;
-}
-function signingSubtle() {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle === void 0 || typeof subtle.sign !== "function") return null;
-  return subtle;
-}
-function canVerify() {
-  return publicKeySubtle() !== null;
-}
-function requireSubtle(oid) {
-  const subtle = publicKeySubtle();
-  if (subtle === null) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_UNAVAILABLE",
-      "pkinative: this runtime exposes no crypto.subtle with importKey and verify, so no signature can be checked \u2014 call canVerify() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
-      oid
-    );
-  }
-  return subtle;
-}
-async function importPublicKey(spkiDer, params, oid) {
-  const subtle = requireSubtle(oid);
-  try {
-    return await subtle.importKey("spki", spkiDer, params, false, ["verify"]);
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`,
-      oid
-    );
-  }
-}
-async function verifySignature(key, params, signature, data) {
-  const subtle = requireSubtle(params.name);
-  try {
-    return await subtle.verify(params, key, signature, data);
-  } catch {
-    return false;
-  }
-}
-function canSign() {
-  return signingSubtle() !== null;
-}
-async function signData(key, params, data) {
-  const subtle = signingSubtle();
-  if (subtle === null) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_UNAVAILABLE",
-      "pkinative: this runtime exposes no crypto.subtle.sign, so nothing can be signed \u2014 call canSign() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
-      params.name
-    );
-  }
-  try {
-    return new Uint8Array(await subtle.sign(params, key, data));
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to sign with the key given for ${params.name} (${String(cause)}) \u2014 check that the key is private, carries the "sign" usage, and matches the algorithm named`,
-      params.name
-    );
-  }
-}
-function passwordSubtle() {
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle === void 0 || typeof subtle.importKey !== "function" || typeof subtle.deriveKey !== "function" || typeof subtle.unwrapKey !== "function" || typeof subtle.decrypt !== "function" || typeof subtle.verify !== "function") {
-    return null;
-  }
-  return subtle;
-}
-function requirePasswordSubtle(oid) {
-  const subtle = passwordSubtle();
-  if (subtle === null) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_UNAVAILABLE",
-      "pkinative: this runtime exposes no crypto.subtle with importKey, deriveKey, unwrapKey, decrypt and verify, so no password-protected key can be opened \u2014 call canDecrypt() first, or run where Web Crypto exists (Node 22+, any browser on a secure origin, Deno, Bun, Workers)",
-      oid
-    );
-  }
-  return subtle;
-}
-function canDecrypt() {
-  return passwordSubtle() !== null;
-}
-async function derivePasswordKey(password, kdf, target, oid) {
-  const subtle = requirePasswordSubtle(oid);
-  try {
-    const base = await subtle.importKey("raw", password, "PBKDF2", false, ["deriveKey"]);
-    const usages = target.name === "HMAC" ? ["verify"] : ["decrypt", "unwrapKey"];
-    return await subtle.deriveKey(kdf, base, target, false, usages);
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
-      `pkinative: this runtime refused to derive a ${target.name} key with PBKDF2 over ${kdf.hash.name} (${String(cause)}) \u2014 the PRF or the key length is not implemented here; try another runtime before concluding the file is at fault`,
-      oid
-    );
-  }
-}
-async function unwrapPrivateKey(wrapped, key, iv, params, oid) {
-  const subtle = requirePasswordSubtle(oid);
-  try {
-    return await subtle.unwrapKey("pkcs8", wrapped, key, { name: "AES-CBC", iv }, params, false, ["sign"]);
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_DECRYPTION_FAILED",
-      `pkinative: the ${params.name} private key could not be decrypted (${String(cause)}) \u2014 the password is wrong, the data was altered, or the key is not an ${params.name} key; AES-CBC cannot tell these apart`,
-      oid
-    );
-  }
-}
-async function importPkcs8Key(pkcs8, params, oid) {
-  const subtle = requirePasswordSubtle(oid);
-  try {
-    return await subtle.importKey("pkcs8", pkcs8, params, false, ["sign"]);
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_KEY_UNSUPPORTED",
-      `pkinative: this runtime refused to import the ${params.name} private key (${String(cause)}) \u2014 the algorithm may not be implemented here, or the key is not a ${params.name} key`,
-      oid
-    );
-  }
-}
-async function decryptContent(key, iv, data, oid) {
-  const subtle = requirePasswordSubtle(oid);
-  try {
-    return new Uint8Array(await subtle.decrypt({ name: "AES-CBC", iv }, key, data));
-  } catch (cause) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_DECRYPTION_FAILED",
-      `pkinative: the encrypted content could not be decrypted (${String(cause)}) \u2014 the password is wrong or the data was altered; AES-CBC cannot tell the two apart`,
-      oid
-    );
-  }
-}
-async function verifyMac(key, mac, data) {
-  const subtle = requirePasswordSubtle("HMAC");
-  try {
-    return await subtle.verify({ name: "HMAC" }, key, mac, data);
-  } catch {
-    return false;
-  }
-}
-
-// src/crypto/x509-verify.ts
-async function verifyCertificateSignature(certificate, issuer, options) {
-  const subject = assertCertificate(certificate, "certificate");
-  const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(subject, signer, resolveOptions(options));
-}
-function resolveOptions(options) {
-  return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
-}
-async function verifySignedStructure(signed, signer, options) {
-  const inner = signed.tbsSignatureAlgorithm;
-  if (options.requireAlgorithmMatch && inner !== void 0 && !bytesEqual(signed.signatureAlgorithm.der, inner.der)) {
-    return false;
-  }
-  if (signed.signatureValue.unusedBits !== 0) return false;
-  const resolved = resolveAlgorithm(signed.signatureAlgorithm, signer.subjectPublicKeyInfo);
-  if (resolved === null) return false;
-  if (resolved.hash === "SHA-1" && !options.allowSha1) {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_ALGORITHM_REFUSED",
-      "pkinative: this signature is over SHA-1, whose collisions have been practical since 2017, so verifying it would assert something it cannot show \u2014 get the certificate reissued under SHA-256, or pass { allowSha1: true } to examine a historical artefact rather than rely on it",
-      signed.signatureAlgorithm.oid
-    );
-  }
-  let signature = signed.signatureValue.bytes;
-  if (resolved.curve !== void 0) {
-    const raw = ecdsaDerToRaw(signature, coordinateBytes(resolved.curve));
-    if (raw === null) return false;
-    signature = raw;
-  }
-  const key = await importPublicKey(_importableSpki(signer.subjectPublicKeyInfo), resolved.importParams, signed.signatureAlgorithm.oid);
-  return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
-}
-async function verifyCrlSignature(crl, issuer, options) {
-  if (typeof crl !== "object" || crl === null || !isBytes(crl.tbsDer)) {
-    throw new PkiError("PKI_INVALID_INPUT", "pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes");
-  }
-  const signer = assertCertificate(issuer, "issuer");
-  return verifySignedStructure(crl, signer, resolveOptions(options));
-}
-async function verifyOcspSignature(basicResponse, responder) {
-  if (typeof basicResponse !== "object" || basicResponse === null || !isBytes(basicResponse.tbsDer)) {
-    throw new PkiError("PKI_INVALID_INPUT", "pkinative: basicResponse must come from parseOcspResponse(), not raw bytes \u2014 and a response whose status is not successful has none");
-  }
-  const signer = assertCertificate(responder, "responder");
-  return verifySignedStructure(basicResponse, signer, { requireAlgorithmMatch: false, allowSha1: false });
-}
-async function verifySelfSignature(certificate, options) {
-  const self = assertCertificate(certificate, "certificate");
-  if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
-  return verifyCertificateSignature(self, self, options);
-}
-function assertCertificate(value, what) {
-  const candidate = value;
-  if (typeof value !== "object" || candidate === null || !isBytes(candidate.tbsDer) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: ${what} must be a certificate from parseCertificate \u2014 pass the parsed value, not its DER`);
-  }
-  return value;
-}
-
-// src/x509/x509-spki.ts
-var CODE3 = "PKI_X509_SPKI_INVALID";
-var OID_RSA = "1.2.840.113549.1.1.1";
-var OID_RSA_PSS = "1.2.840.113549.1.1.10";
-var OID_EC = "1.2.840.10045.2.1";
-var CURVES = /* @__PURE__ */ new Map([
-  ["1.2.840.10045.3.1.7", { curve: "P-256", size: 32 }],
-  ["1.3.132.0.34", { curve: "P-384", size: 48 }],
-  ["1.3.132.0.35", { curve: "P-521", size: 66 }]
-]);
-var OCTET_KEYS = /* @__PURE__ */ new Map([
-  ["1.3.101.110", { kind: "x25519", length: 32, standard: "RFC 8410 \xA73" }],
-  ["1.3.101.111", { kind: "x448", length: 56, standard: "RFC 8410 \xA73" }],
-  ["1.3.101.112", { kind: "ed25519", length: 32, standard: "RFC 8410 \xA73" }],
-  ["1.3.101.113", { kind: "ed448", length: 57, standard: "RFC 8410 \xA73" }],
-  ["2.16.840.1.101.3.4.3.17", { kind: "ml-dsa-44", length: 1312, standard: "RFC 9881 \xA72" }],
-  ["2.16.840.1.101.3.4.3.18", { kind: "ml-dsa-65", length: 1952, standard: "RFC 9881 \xA72" }],
-  ["2.16.840.1.101.3.4.3.19", { kind: "ml-dsa-87", length: 2592, standard: "RFC 9881 \xA72" }]
-]);
-function requireWholeOctets(parts, what) {
-  if (parts.publicKey.unusedBits !== 0) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `has ${parts.publicKey.unusedBits} unused bits; ${what} key is a whole number of octets`);
-  }
-}
-function readRsa(parts, kind, ctx) {
-  requireWholeOctets(parts, "an RSA");
-  try {
-    const key = decodeWithContext(parts.publicKey.bytes, ctx, false);
-    const modulusNode = key.children[0];
-    const exponentNode = key.children[1];
-    if (key.tagClass !== "universal" || key.tagNumber !== TAG_SEQUENCE || key.children.length !== 2 || modulusNode?.tagClass !== "universal" || modulusNode.tagNumber !== TAG_INTEGER || exponentNode?.tagClass !== "universal" || exponentNode.tagNumber !== TAG_INTEGER) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "is not an RSAPublicKey: a SEQUENCE of the modulus and the public exponent, two INTEGERs");
-    }
-    const modulus = _readInteger(modulusNode, ctx);
-    const publicExponent = _readInteger(exponentNode, ctx);
-    if (modulus <= 0n || publicExponent <= 0n) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "has a modulus or public exponent that is not positive");
-    }
-    if (publicExponent < 3n || (publicExponent & 1n) === 0n) {
-      ctx.emitter.emit(spkiRsaExponentWeakDiagnostic(parts.keyPath, publicExponent, parts.keyOffset));
-    }
-    const content = modulusNode.content;
-    const info = {
-      kind,
-      algorithm: parts.algorithm,
-      publicKey: parts.publicKey,
-      der: parts.der,
-      modulus: content[0] === 0 ? content.subarray(1) : content,
-      modulusBits: modulus.toString(2).length,
-      publicExponent
-    };
-    return Object.freeze(info);
-  } catch (error) {
-    if (error instanceof PkiEncodingError) {
-      throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is not a DER RSAPublicKey (${error.code})`);
-    }
-    throw error;
-  }
-}
-function readEc(parts, ctx) {
-  const parameters = parts.algorithm.parameters;
-  if (parameters === void 0) {
-    throw certificateError(CODE3, `${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, parts.keyOffset, "are absent; an EC key names its curve (RFC 5480 \xA72.1.1)");
-  }
-  const namedCurve = parameters.tagClass === "universal" && parameters.tagNumber === TAG_OID ? _readObjectIdentifier(parameters, ctx) : void 0;
-  const spec = namedCurve === void 0 ? void 0 : CURVES.get(namedCurve);
-  requireWholeOctets(parts, "an EC");
-  const point = parts.publicKey.bytes;
-  const first = point[0];
-  let pointFormat;
-  if (first === 4) {
-    pointFormat = "uncompressed";
-    const valid = spec === void 0 ? point.length >= 3 && point.length % 2 === 1 : point.length === 1 + 2 * spec.size;
-    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is an uncompressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
-  } else if (first === 2 || first === 3) {
-    pointFormat = "compressed";
-    const valid = spec === void 0 ? point.length >= 2 : point.length === 1 + spec.size;
-    if (!valid) throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is a compressed point of ${point.length} octets, which ${spec?.curve ?? "no curve"} allows`);
-  } else {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, "does not start with 0x04 (uncompressed) or 0x02/0x03 (compressed); RFC 5480 \xA72.2 allows no other point form");
-  }
-  if (spec === void 0) {
-    ctx.emitter.emit(spkiEcParametersInvalidDiagnostic(`${parts.keyPath.replace(/subjectPublicKey$/, "algorithm")}.parameters`, namedCurve, parameters.offset));
-  }
-  const info = {
-    kind: "ec",
-    algorithm: parts.algorithm,
-    publicKey: parts.publicKey,
-    der: parts.der,
-    namedCurve,
-    curve: spec?.curve,
-    pointFormat,
-    point
-  };
-  return Object.freeze(info);
-}
-function readOctetKey(parts, spec) {
-  if (parts.algorithm.parameters !== void 0) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `belongs to ${spec.kind}, whose AlgorithmIdentifier must omit the parameters (${spec.standard})`);
-  }
-  requireWholeOctets(parts, `an ${spec.kind}`);
-  if (parts.publicKey.bytes.length !== spec.length) {
-    throw certificateError(CODE3, parts.keyPath, parts.keyOffset, `is ${parts.publicKey.bytes.length} octets; an ${spec.kind} key is ${spec.length}`);
-  }
-  const info = { kind: spec.kind, algorithm: parts.algorithm, publicKey: parts.publicKey, der: parts.der, key: parts.publicKey.bytes };
-  return Object.freeze(info);
-}
-function _readSubjectPublicKeyInfo(node, ctx, path, parentOffset) {
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, CODE3, parentOffset);
-  if (seq.children.length > 2) {
-    throw certificateError(CODE3, path, seq.offset, `holds ${seq.children.length} values; SubjectPublicKeyInfo is an AlgorithmIdentifier and a BIT STRING`);
-  }
-  const algorithm = _readAlgorithmIdentifier(seq.children[0], ctx, `${path}.algorithm`, CODE3, seq.offset);
-  const keyPath = `${path}.subjectPublicKey`;
-  const keyNode = expectUniversalField(seq.children[1], TAG_BIT_STRING, keyPath, CODE3, seq.offset);
-  const parts = { algorithm, publicKey: _readBitString(keyNode, ctx), der: seq.bytes, keyPath, keyOffset: keyNode.offset };
-  if (algorithm.oid === OID_RSA) return readRsa(parts, "rsa", ctx);
-  if (algorithm.oid === OID_RSA_PSS) return readRsa(parts, "rsa-pss", ctx);
-  if (algorithm.oid === OID_EC) return readEc(parts, ctx);
-  const octetKey = OCTET_KEYS.get(algorithm.oid);
-  if (octetKey !== void 0) return readOctetKey(parts, octetKey);
-  const info = { kind: "unknown", algorithm, publicKey: parts.publicKey, der: seq.bytes };
-  return Object.freeze(info);
-}
-
-// src/x509/x509-certificate.ts
-var STRUCTURE3 = "PKI_X509_STRUCTURE_INVALID";
-var OID_SUBJECT_ALT_NAME = "2.5.29.17";
-var OID_BASIC_CONSTRAINTS = "2.5.29.19";
-var OID_KEY_USAGE = "2.5.29.15";
-var OID_NAME_CONSTRAINTS = "2.5.29.30";
-var OID_SUBJECT_KEY_IDENTIFIER = "2.5.29.14";
-var OID_AUTHORITY_KEY_IDENTIFIER = "2.5.29.35";
-var OID_CERTIFICATE_POLICIES = "2.5.29.32";
-var OID_POLICY_MAPPINGS = "2.5.29.33";
-var OID_COMMON_NAME2 = "2.5.4.3";
-function looksLikeHost(value) {
-  if (value === "" || /[\s/=,]/.test(value)) return false;
-  return value.includes(":") || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
-}
-function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
-  const find = (oid) => extensions.find((e) => e.oid === oid);
-  const basicConstraints = find(OID_BASIC_CONSTRAINTS);
-  const isCa = basicConstraints?.kind === "basicConstraints" && basicConstraints.cA;
-  if (version === 3) {
-    if (!bytesEqual(subject.der, issuer.der) && find(OID_AUTHORITY_KEY_IDENTIFIER) === void 0) {
-      ctx.emitter.emit(akiMissingDiagnostic());
-    }
-    const hasSki = find(OID_SUBJECT_KEY_IDENTIFIER) !== void 0;
-    if (isCa && !hasSki) ctx.emitter.emit(skiMissingDiagnostic());
-    if (!isCa && !hasSki && (basicConstraints === void 0 || basicConstraints.kind === "basicConstraints")) {
-      ctx.emitter.emit(skiMissingEndEntityDiagnostic());
-    }
-  }
-  const mappings = find(OID_POLICY_MAPPINGS);
-  if (mappings?.kind === "policyMappings") {
-    const policies = find(OID_CERTIFICATE_POLICIES);
-    const asserted = new Set(policies?.kind === "certificatePolicies" ? policies.policies.map((p) => p.policyIdentifier) : []);
-    for (const oid of new Set(mappings.mappings.map((m) => m.issuerDomainPolicy))) {
-      if (!asserted.has(oid)) ctx.emitter.emit(policyMappingNotAssertedDiagnostic(oid));
-    }
-  }
-  if (!isCa && find(OID_NAME_CONSTRAINTS) !== void 0) ctx.emitter.emit(nameConstraintsInEndEntityDiagnostic());
-  const keyUsage = find(OID_KEY_USAGE);
-  if (!isCa && keyUsage?.kind === "keyUsage" && keyUsage.usages.includes("keyCertSign")) {
-    ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
-  }
-  const san = find(OID_SUBJECT_ALT_NAME);
-  if (san?.kind !== "subjectAltName") return;
-  const named = /* @__PURE__ */ new Set();
-  for (const name of san.names) {
-    if (name.kind === "dNSName") named.add(name.value.toLowerCase());
-    else if (name.kind === "iPAddress") named.add(name.address.toLowerCase());
-  }
-  if (named.size === 0) return;
-  for (const rdn of subject.rdns) {
-    for (const attribute of rdn) {
-      if (attribute.type !== OID_COMMON_NAME2 || attribute.value === void 0) continue;
-      const common = attribute.value.value;
-      if (!looksLikeHost(common) || named.has(common.toLowerCase())) continue;
-      ctx.emitter.emit(commonNameNotInSanDiagnostic(common));
-    }
-  }
-}
-var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
-function readVersion2(field, ctx) {
-  const path = "tbsCertificate.version";
-  if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE3, path, field.offset, "is not one INTEGER under the explicit [0] tag");
-  }
-  const node = expectUniversalField(field.children[0], TAG_INTEGER, path, STRUCTURE3, field.offset);
-  const value = _readInteger(node, ctx);
-  if (value !== 0n && value !== 1n && value !== 2n) {
-    throw certificateError("PKI_X509_VERSION_INVALID", path, node.offset, `is ${String(value)}; RFC 5280 defines v1 (0), v2 (1) and v3 (2)`);
-  }
-  if (value === 0n) ctx.emitter.emit(defaultEncodedDiagnostic(path, "v1", field.offset));
-  return Number(value) + 1;
-}
-function readValidityTime(node, ctx, path) {
-  if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
-    throw certificateError("PKI_X509_VALIDITY_INVALID", path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; a certificate time is a UTCTime or a GeneralizedTime`);
-  }
-  const time = _readTime(node, ctx, void 0);
-  if (time.type === "GeneralizedTime") {
-    if (Number(time.text.slice(0, 4)) < 2050) ctx.emitter.emit(generalizedTimeBefore2050Diagnostic(path, time.text, node.offset));
-    if (/[.,]/.test(time.text)) ctx.emitter.emit(generalizedTimeFractionDiagnostic(path, time.text, node.offset));
-  }
-  return time;
-}
-function readValidity(node, ctx, parentOffset) {
-  const path = "tbsCertificate.validity";
-  const seq = expectUniversalField(node, TAG_SEQUENCE, path, "PKI_X509_VALIDITY_INVALID", parentOffset);
-  if (seq.children.length !== 2) {
-    throw certificateError("PKI_X509_VALIDITY_INVALID", path, seq.offset, `holds ${seq.children.length} values; Validity is notBefore and notAfter`);
-  }
-  const notBefore = readValidityTime(seq.children[0], ctx, `${path}.notBefore`);
-  const notAfter = readValidityTime(seq.children[1], ctx, `${path}.notAfter`);
-  if (notBefore.epochMilliseconds > notAfter.epochMilliseconds) ctx.emitter.emit(validityInvertedDiagnostic(notBefore.text, notAfter.text));
-  const validity = { notBefore, notAfter };
-  return Object.freeze(validity);
-}
-function readExtensions3(field, ctx, input, decode) {
-  const path = "tbsCertificate.extensions";
-  if (!field.constructed || field.children.length !== 1) {
-    throw certificateError(STRUCTURE3, path, field.offset, "is not one SEQUENCE under the explicit [3] tag");
-  }
-  const seq = expectUniversalField(field.children[0], TAG_SEQUENCE, path, STRUCTURE3, field.offset);
-  if (seq.children.length === 0) {
-    throw certificateError("PKI_X509_EXTENSIONS_EMPTY", path, seq.offset, "is present but holds no extension; RFC 5280 requires at least one");
-  }
-  enforceLimit(ctx.limits, "maxExtensions", seq.children.length, "the extensions of the certificate");
-  const seen = /* @__PURE__ */ new Set();
-  const extensions = [];
-  for (let i = 0; i < seq.children.length; i++) {
-    const extPath = `${path}[${i}]`;
-    const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE3, seq.offset);
-    if (ext.children.length < 2 || ext.children.length > 3) {
-      throw certificateError(STRUCTURE3, extPath, ext.offset, `holds ${ext.children.length} values; an Extension is extnID, an optional critical flag and extnValue`);
-    }
-    const oid = _readObjectIdentifier(expectUniversalField(ext.children[0], TAG_OID, `${extPath}.extnID`, STRUCTURE3, ext.offset), ctx);
-    let critical = false;
-    if (ext.children.length === 3) {
-      const flag = expectUniversalField(ext.children[1], TAG_BOOLEAN, `${extPath}.critical`, STRUCTURE3, ext.offset);
-      critical = _readBoolean(flag, ctx);
-      if (!critical) ctx.emitter.emit(defaultEncodedDiagnostic(`${extPath}.critical`, "FALSE", flag.offset));
-    }
-    const valueNode = expectUniversalField(ext.children[ext.children.length - 1], TAG_OCTET_STRING, `${extPath}.extnValue`, STRUCTURE3, ext.offset);
-    const valueDer = _readOctetString(valueNode, ctx);
-    if (seen.has(oid)) {
-      throw certificateError("PKI_X509_EXTENSION_DUPLICATE", extPath, ext.offset, `repeats the extension ${oid}; RFC 5280 \xA74.2 allows each extension once`);
-    }
-    seen.add(oid);
-    if (!decode) {
-      const extension = { kind: "raw", oid, critical, valueDer };
-      extensions.push(Object.freeze(extension));
-    } else if (valueNode.constructed) {
-      extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
-    } else {
-      const start = valueNode.offset + valueNode.headerLength;
-      extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
-    }
-  }
-  return Object.freeze(extensions);
-}
-function parseCertificate(der, options) {
-  const bytes = assertBytes(der, "parseCertificate input");
-  const ctx = createAsn1Context(options);
-  const decode = options?.decodeExtensions ?? true;
-  if (typeof decode !== "boolean") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
-  }
-  const cert = expectUniversalField(decodeWithContext(bytes, ctx, false), TAG_SEQUENCE, "certificate", STRUCTURE3, 0);
-  if (cert.children.length !== 3) {
-    throw certificateError(STRUCTURE3, "certificate", cert.offset, `holds ${cert.children.length} values; a Certificate is tbsCertificate, signatureAlgorithm and signatureValue`);
-  }
-  const tbs = expectUniversalField(cert.children[0], TAG_SEQUENCE, "tbsCertificate", STRUCTURE3, cert.offset);
-  const fields = tbs.children;
-  let index = 0;
-  let version = 1;
-  const first = fields[0];
-  if (first !== void 0 && first.tagClass === "context" && first.tagNumber === 0) {
-    version = readVersion2(first, ctx);
-    index = 1;
-  }
-  const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE3, tbs.offset);
-  const serialValue = _readInteger(serialNode, ctx);
-  if (serialNode.contentLength > 20) ctx.emitter.emit(serialTooLongDiagnostic(serialNode.contentLength, serialNode.offset));
-  if (serialValue <= 0n) ctx.emitter.emit(serialNotPositiveDiagnostic(serialNode.offset));
-  const tbsSignatureAlgorithm = _readAlgorithmIdentifier(fields[index++], ctx, "tbsCertificate.signature", STRUCTURE3, tbs.offset);
-  const issuer = _readName(fields[index++], ctx, "tbsCertificate.issuer", tbs.offset);
-  if (issuer.rdns.length === 0) ctx.emitter.emit(emptyIssuerDiagnostic());
-  const validity = readValidity(fields[index++], ctx, tbs.offset);
-  const subject = _readName(fields[index++], ctx, "tbsCertificate.subject", tbs.offset);
-  const subjectPublicKeyInfo = _readSubjectPublicKeyInfo(fields[index++], ctx, "tbsCertificate.subjectPublicKeyInfo", tbs.offset);
-  let issuerUniqueId;
-  let subjectUniqueId;
-  let extensions = NO_EXTENSIONS;
-  let extensionsPresent = false;
-  let rank = 0;
-  for (; index < fields.length; index++) {
-    const field = fields[index];
-    const tag = field.tagClass === "context" ? field.tagNumber : -1;
-    if (tag !== 1 && tag !== 2 && tag !== 3) {
-      throw certificateError(
-        STRUCTURE3,
-        `tbsCertificate[${index}]`,
-        field.offset,
-        `is ${tagLabel(field.tagClass, field.tagNumber)}, where only issuerUniqueID [1], subjectUniqueID [2] or extensions [3] may follow the public key`
-      );
-    }
-    const path = tag === 1 ? "tbsCertificate.issuerUniqueID" : tag === 2 ? "tbsCertificate.subjectUniqueID" : "tbsCertificate.extensions";
-    if (tag <= rank) {
-      throw certificateError(
-        tag === 3 ? STRUCTURE3 : "PKI_X509_UNIQUE_ID_INVALID",
-        path,
-        field.offset,
-        "appears twice or out of order; TBSCertificate orders issuerUniqueID, subjectUniqueID, then extensions"
-      );
-    }
-    rank = tag;
-    if (tag === 3) {
-      extensions = readExtensions3(field, ctx, bytes, decode);
-      extensionsPresent = true;
-      continue;
-    }
-    if (field.constructed && ctx.rules === "der") {
-      throw certificateError("PKI_X509_UNIQUE_ID_INVALID", path, field.offset, "is constructed; a unique identifier is a primitive BIT STRING under its implicit tag");
-    }
-    const id = _readBitString(field, ctx);
-    if (tag === 1) issuerUniqueId = id;
-    else subjectUniqueId = id;
-  }
-  if ((issuerUniqueId !== void 0 || subjectUniqueId !== void 0) && version === 1) ctx.emitter.emit(uniqueIdRequiresV2Diagnostic(version));
-  if (issuerUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.issuerUniqueID"));
-  if (subjectUniqueId !== void 0) ctx.emitter.emit(uniqueIdPresentDiagnostic("tbsCertificate.subjectUniqueID"));
-  if (extensionsPresent && version !== 3) ctx.emitter.emit(extensionsRequireV3Diagnostic(version));
-  const san = extensions.find((e) => e.oid === OID_SUBJECT_ALT_NAME);
-  if (subject.rdns.length === 0 && san?.critical !== true) ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
-  if (subject.rdns.length !== 0 && san?.critical === true) ctx.emitter.emit(sanCriticalDiagnostic());
-  emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
-  const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, "signatureAlgorithm", STRUCTURE3, cert.offset);
-  if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {
-    ctx.emitter.emit(signatureAlgorithmMismatchDiagnostic(signatureAlgorithm.oid, tbsSignatureAlgorithm.oid));
-  }
-  const signatureValue = _readBitString(expectUniversalField(cert.children[2], TAG_BIT_STRING, "signatureValue", STRUCTURE3, cert.offset), ctx);
-  const serialNumber = { bytes: serialNode.content, hex: toHex(serialNode.content), value: serialValue };
-  const certificate = {
-    der: cert.bytes,
-    tbsDer: tbs.bytes,
-    version,
-    serialNumber: Object.freeze(serialNumber),
-    signatureAlgorithm,
-    tbsSignatureAlgorithm,
-    signatureValue,
-    issuer,
-    validity,
-    subject,
-    subjectPublicKeyInfo,
-    issuerUniqueId,
-    subjectUniqueId,
-    extensions,
-    diagnostics: Object.freeze([...ctx.emitter.diagnostics])
-  };
-  return Object.freeze(certificate);
 }
 
 // src/verify/verify-chain.ts
@@ -7394,23 +8705,26 @@ async function verifyCertificateChain(input) {
   ], { limits: input.limits ?? {} });
   const at = input.at ?? Date.now();
   const candidates = input.candidates ?? [];
-  const all = [input.leaf, ...candidates, ...input.trustAnchors];
-  const verdicts = /* @__PURE__ */ new Map();
-  await _collectVerdicts(input.leaf, all, input.allowSha1 === true, verdicts);
-  const signatures = [...verdicts.values()];
-  const report = buildCertificatePath({
+  const verdicts = {
+    allowSha1: input.allowSha1 === true,
+    pending: /* @__PURE__ */ new Map(),
+    settled: [],
+    index: /* @__PURE__ */ new Map()
+  };
+  const search = {
     leaf: input.leaf,
     candidates,
     trustAnchors: input.trustAnchors,
     at,
-    signatures,
     ...input.purposes === void 0 ? {} : { purposes: input.purposes },
     ...input.initialPolicySet === void 0 ? {} : { initialPolicySet: input.initialPolicySet },
     ...input.requireExplicitPolicy === void 0 ? {} : { requireExplicitPolicy: input.requireExplicitPolicy },
     ...input.inhibitPolicyMapping === void 0 ? {} : { inhibitPolicyMapping: input.inhibitPolicyMapping },
     ...input.inhibitAnyPolicy === void 0 ? {} : { inhibitAnyPolicy: input.inhibitAnyPolicy },
     ...input.limits === void 0 ? {} : { limits: input.limits }
-  });
+  };
+  await _searchVerdicts(search, verdicts);
+  const report = buildCertificatePath({ ...search, signatures: [...verdicts.settled] });
   const reasons = [...report.reasons];
   if (input.serverName !== void 0) reasons.push(...checkServerName(input.leaf, input.serverName));
   const anchored = !report.reasons.some((reason) => reason.code === "PKI_REASON_NO_TRUST_ANCHOR");
@@ -7419,7 +8733,7 @@ async function verifyCertificateChain(input) {
     for (const purpose of input.purposes) reasons.push(...checkExtendedKeyUsage(report.path, purpose));
   }
   reasons.push(...await _checkRevocation(input, report.path, at, verdicts));
-  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.size };
+  return { valid: reasons.length === 0, reasons, path: report.path, explored: report.explored, signatureVerifications: verdicts.settled.length };
 }
 async function _crlSignature(crl, issuer, allowSha1) {
   try {
@@ -7457,15 +8771,9 @@ async function _signerStillGood(ctx, candidate) {
   if (ctx.path.some((c) => _hex2(c.der) === mine) || ctx.input.trustAnchors.some((c) => _hex2(c.der) === mine)) return true;
   if (ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds) return false;
   const bag = ctx.input.candidates;
-  await _collectVerdicts(candidate, [candidate, ...bag, ...ctx.input.trustAnchors], ctx.input.allowSha1 === true, ctx.verdicts);
-  const own = buildCertificatePath({
-    leaf: candidate,
-    candidates: bag,
-    trustAnchors: ctx.input.trustAnchors,
-    at: ctx.at,
-    signatures: [...ctx.verdicts.values()],
-    limits: ctx.reading.limits
-  });
+  const search = { leaf: candidate, candidates: bag, trustAnchors: ctx.input.trustAnchors, at: ctx.at, limits: ctx.reading.limits };
+  await _searchVerdicts(search, ctx.verdicts);
+  const own = buildCertificatePath({ ...search, signatures: [...ctx.verdicts.settled] });
   if (!own.valid) return false;
   return await _unrevokedOnLists(ctx, candidate);
 }
@@ -7479,35 +8787,77 @@ async function _unrevokedOnLists(ctx, candidate) {
   }
   return true;
 }
-async function _collectVerdicts(start, all, allowSha1, verdicts) {
+function _verdict(memo, subject, issuer) {
+  const key = `${_hex2(subject.der)}|${_hex2(issuer.der)}`;
+  let pending = memo.pending.get(key);
+  if (pending === void 0) {
+    pending = (async () => {
+      let result;
+      try {
+        const valid = await verifyCertificateSignature(subject, issuer, { allowSha1: memo.allowSha1 });
+        result = { certificate: subject, issuer, verdict: valid ? "valid" : "invalid" };
+      } catch (error) {
+        const refused = _pkiError(error);
+        result = { certificate: subject, issuer, verdict: "not-checked", errorCode: refused.code, detail: refused.message };
+      }
+      memo.settled.push(result);
+      memo.index.set(key, { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail });
+      return result;
+    })();
+    memo.pending.set(key, pending);
+  }
+  return pending;
+}
+async function _searchVerdicts(input, memo) {
+  const limits = resolveLimits(input.limits);
+  const anchors = new Set(input.trustAnchors.map((c) => _hex2(c.der)));
+  const anchorKey = (c) => `${_hex2(c.subject.der)}|${_hex2(c.subjectPublicKeyInfo.der)}`;
+  const anchorKeys = new Set(input.trustAnchors.map(anchorKey));
   const bySubject = /* @__PURE__ */ new Map();
-  for (const certificate of all) {
-    const key = _hex2(certificate.subject.der);
-    bySubject.set(key, [...bySubject.get(key) ?? [], certificate]);
+  for (const candidate of input.candidates) {
+    const key = _hex2(candidate.subject.der);
+    bySubject.set(key, [...bySubject.get(key) ?? [], candidate]);
   }
-  const pairs = [];
-  const walked = /* @__PURE__ */ new Set();
-  const queue = [start];
-  while (queue.length > 0) {
-    const subject = queue.pop();
-    if (walked.has(subject)) continue;
-    walked.add(subject);
-    for (const issuer of bySubject.get(_hex2(subject.issuer.der)) ?? []) {
-      if (issuer === subject) continue;
-      const key = `${_hex2(subject.der)}|${_hex2(issuer.der)}`;
-      if (!verdicts.has(key)) pairs.push([key, subject, issuer]);
-      queue.push(issuer);
-    }
+  for (const anchor of input.trustAnchors) {
+    const key = _hex2(anchor.subject.der);
+    const existing = bySubject.get(key) ?? [];
+    if (!existing.some((c) => bytesEqual(c.der, anchor.der))) bySubject.set(key, [...existing, anchor]);
   }
-  await Promise.all(pairs.map(async ([key, subject, issuer]) => {
-    try {
-      const valid = await verifyCertificateSignature(subject, issuer, { allowSha1 });
-      verdicts.set(key, { certificate: subject, issuer, verdict: valid ? "valid" : "invalid" });
-    } catch (error) {
-      const refused = _pkiError(error);
-      verdicts.set(key, { certificate: subject, issuer, verdict: "not-checked", errorCode: refused.code, detail: refused.message });
+  const accepted = async (path) => {
+    const last = path[path.length - 1];
+    if (!anchorKeys.has(anchorKey(last))) {
+      const wanted = _hex2(last.issuer.der);
+      const anchor = input.trustAnchors.find((candidate) => _hex2(candidate.subject.der) === wanted);
+      if (anchor !== void 0) await _verdict(memo, last, anchor);
     }
-  }));
+    const report = _validateIndexed({ ...input, path }, memo.index);
+    if (!report.valid || input.purposes === void 0) return report.valid;
+    return input.purposes.every((purpose) => [...checkExtendedKeyUsage(report.path, purpose)].length === 0);
+  };
+  if (await accepted([input.leaf])) return;
+  let explored = 1;
+  let limitHit = false;
+  const extend = async (chain, seen) => {
+    if (chain.length >= limits.maxChainLength) return false;
+    const last = chain[chain.length - 1];
+    if (anchors.has(_hex2(last.der)) || anchorKeys.has(anchorKey(last))) return false;
+    for (const issuer of bySubject.get(_hex2(last.issuer.der)) ?? []) {
+      const key = _hex2(issuer.der);
+      if (seen.has(key)) continue;
+      if (explored >= limits.maxPathsExplored) {
+        limitHit = true;
+        return false;
+      }
+      explored += 1;
+      await _verdict(memo, last, issuer);
+      const next = [...chain, issuer];
+      if (await accepted(next)) return true;
+      if (await extend(next, /* @__PURE__ */ new Set([...seen, key]))) return true;
+      if (limitHit) return false;
+    }
+    return false;
+  };
+  await extend([input.leaf], /* @__PURE__ */ new Set([_hex2(input.leaf.der)]));
 }
 var STILL_GOOD_REFUSALS = /* @__PURE__ */ new Set([
   "PKI_REASON_REVOKED",
@@ -7684,7 +9034,10 @@ async function _ocspSigner(basic, issuer, ctx) {
     if (_hex2(delegate.issuer.der) !== _hex2(issuer.subject.der)) continue;
     const purposes = getExtension(delegate, "extendedKeyUsage")?.purposes ?? [];
     if (!purposes.includes(OCSP_SIGNING)) continue;
-    if (at < delegate.validity.notBefore.epochMilliseconds || at > delegate.validity.notAfter.epochMilliseconds) continue;
+    const { notBefore, notAfter } = delegate.validity;
+    const produced = basic.producedAt.epochMilliseconds;
+    if (at < notBefore.epochMilliseconds || at > notAfter.epochMilliseconds) continue;
+    if (produced < notBefore.epochMilliseconds || produced > notAfter.epochMilliseconds) continue;
     let issued;
     try {
       issued = await verifyCertificateSignature(delegate, issuer, { allowSha1 });
@@ -7710,1220 +9063,53 @@ async function _ocspSignature(basic, signer) {
   }
 }
 
-// src/oid/oid-registry.ts
-var GROUPS = [
-  // ── Name attributes ──
-  ["ITU-T X.520", [
-    ["2.5.4.0", "objectClass"],
-    ["2.5.4.3", "commonName"],
-    ["2.5.4.4", "surname"],
-    ["2.5.4.5", "serialNumber"],
-    ["2.5.4.6", "countryName"],
-    ["2.5.4.7", "localityName"],
-    ["2.5.4.8", "stateOrProvinceName"],
-    ["2.5.4.9", "streetAddress"],
-    ["2.5.4.10", "organizationName"],
-    ["2.5.4.11", "organizationalUnitName"],
-    ["2.5.4.12", "title"],
-    ["2.5.4.13", "description"],
-    ["2.5.4.15", "businessCategory"],
-    ["2.5.4.16", "postalAddress"],
-    ["2.5.4.17", "postalCode"],
-    ["2.5.4.18", "postOfficeBox"],
-    ["2.5.4.19", "physicalDeliveryOfficeName"],
-    ["2.5.4.20", "telephoneNumber"],
-    ["2.5.4.36", "userCertificate"],
-    ["2.5.4.37", "cACertificate"],
-    ["2.5.4.38", "authorityRevocationList"],
-    ["2.5.4.39", "certificateRevocationList"],
-    ["2.5.4.40", "crossCertificatePair"],
-    ["2.5.4.41", "name"],
-    ["2.5.4.42", "givenName"],
-    ["2.5.4.43", "initials"],
-    ["2.5.4.44", "generationQualifier"],
-    ["2.5.4.45", "x500UniqueIdentifier"],
-    ["2.5.4.46", "dnQualifier"],
-    ["2.5.4.51", "houseIdentifier"],
-    ["2.5.4.53", "deltaRevocationList"],
-    ["2.5.4.65", "pseudonym"],
-    ["2.5.4.72", "role"],
-    ["2.5.4.97", "organizationIdentifier"]
-  ]],
-  ["RFC 4519", [
-    ["0.9.2342.19200300.100.1.1", "uid"],
-    ["0.9.2342.19200300.100.1.25", "domainComponent"]
-  ]],
-  ["RFC 4524", [
-    ["0.9.2342.19200300.100.1.3", "mail"]
-  ]],
-  ["CA/Browser Forum EV Guidelines", [
-    ["1.3.6.1.4.1.311.60.2.1.1", "jurisdictionLocalityName"],
-    ["1.3.6.1.4.1.311.60.2.1.2", "jurisdictionStateOrProvinceName"],
-    ["1.3.6.1.4.1.311.60.2.1.3", "jurisdictionCountryName"]
-  ]],
-  ["RFC 2985", [
-    ["1.2.840.113549.1.9.1", "emailAddress"],
-    ["1.2.840.113549.1.9.2", "unstructuredName"],
-    ["1.2.840.113549.1.9.3", "contentType"],
-    ["1.2.840.113549.1.9.4", "messageDigest"],
-    ["1.2.840.113549.1.9.5", "signingTime"],
-    ["1.2.840.113549.1.9.6", "counterSignature"],
-    ["1.2.840.113549.1.9.7", "challengePassword"],
-    ["1.2.840.113549.1.9.8", "unstructuredAddress"],
-    ["1.2.840.113549.1.9.14", "extensionRequest"],
-    ["1.2.840.113549.1.9.20", "friendlyName"],
-    ["1.2.840.113549.1.9.21", "localKeyId"],
-    ["1.2.840.113549.1.9.22.1", "x509Certificate"],
-    ["1.2.840.113549.1.9.22.2", "sdsiCertificate"],
-    ["1.2.840.113549.1.9.23.1", "x509Crl"]
-  ]],
-  ["RFC 8551", [
-    ["1.2.840.113549.1.9.15", "smimeCapabilities"]
-  ]],
-  // ── Certificate and CRL extensions ──
-  ["RFC 5280", [
-    ["2.5.29.9", "subjectDirectoryAttributes"],
-    ["2.5.29.14", "subjectKeyIdentifier"],
-    ["2.5.29.15", "keyUsage"],
-    ["2.5.29.16", "privateKeyUsagePeriod"],
-    ["2.5.29.17", "subjectAltName"],
-    ["2.5.29.18", "issuerAltName"],
-    ["2.5.29.19", "basicConstraints"],
-    ["2.5.29.20", "cRLNumber"],
-    ["2.5.29.21", "cRLReasons"],
-    ["2.5.29.23", "holdInstructionCode"],
-    ["2.5.29.24", "invalidityDate"],
-    ["2.5.29.27", "deltaCRLIndicator"],
-    ["2.5.29.28", "issuingDistributionPoint"],
-    ["2.5.29.29", "certificateIssuer"],
-    ["2.5.29.30", "nameConstraints"],
-    ["2.5.29.31", "cRLDistributionPoints"],
-    ["2.5.29.32", "certificatePolicies"],
-    ["2.5.29.32.0", "anyPolicy"],
-    ["2.5.29.33", "policyMappings"],
-    ["2.5.29.35", "authorityKeyIdentifier"],
-    ["2.5.29.36", "policyConstraints"],
-    ["2.5.29.37", "extKeyUsage"],
-    ["2.5.29.37.0", "anyExtendedKeyUsage"],
-    ["2.5.29.46", "freshestCRL"],
-    ["2.5.29.54", "inhibitAnyPolicy"],
-    ["1.3.6.1.5.5.7.1.1", "authorityInfoAccess"],
-    ["1.3.6.1.5.5.7.1.11", "subjectInfoAccess"],
-    ["1.3.6.1.5.5.7.2.1", "cps"],
-    ["1.3.6.1.5.5.7.2.2", "unotice"],
-    ["1.3.6.1.5.5.7.3.1", "serverAuth"],
-    ["1.3.6.1.5.5.7.3.2", "clientAuth"],
-    ["1.3.6.1.5.5.7.3.3", "codeSigning"],
-    ["1.3.6.1.5.5.7.3.4", "emailProtection"],
-    ["1.3.6.1.5.5.7.3.8", "timeStamping"],
-    ["1.3.6.1.5.5.7.3.9", "OCSPSigning"],
-    ["1.3.6.1.5.5.7.48.1", "ocsp"],
-    ["1.3.6.1.5.5.7.48.2", "caIssuers"],
-    ["1.3.6.1.5.5.7.48.3", "id-ad-timeStamping"],
-    ["1.3.6.1.5.5.7.48.5", "caRepository"],
-    ["1.2.840.10040.2.1", "holdInstructionNone"],
-    ["1.2.840.10040.2.2", "holdInstructionCallIssuer"],
-    ["1.2.840.10040.2.3", "holdInstructionReject"]
-  ]],
-  ["RFC 3739", [
-    ["1.3.6.1.5.5.7.1.2", "biometricInfo"],
-    ["1.3.6.1.5.5.7.1.3", "qcStatements"],
-    ["1.3.6.1.5.5.7.11.2", "qcsPkixQCSyntax-v2"],
-    ["1.3.6.1.5.5.7.9.1", "dateOfBirth"],
-    ["1.3.6.1.5.5.7.9.2", "placeOfBirth"],
-    ["1.3.6.1.5.5.7.9.3", "gender"],
-    ["1.3.6.1.5.5.7.9.4", "countryOfCitizenship"],
-    ["1.3.6.1.5.5.7.9.5", "countryOfResidence"]
-  ]],
-  ["RFC 3709", [["1.3.6.1.5.5.7.1.12", "logotype"]]],
-  ["RFC 3779", [
-    ["1.3.6.1.5.5.7.1.7", "ipAddrBlocks"],
-    ["1.3.6.1.5.5.7.1.8", "autonomousSysIds"]
-  ]],
-  ["RFC 6487", [
-    ["1.3.6.1.5.5.7.48.10", "rpkiManifest"],
-    ["1.3.6.1.5.5.7.48.11", "signedObject"]
-  ]],
-  ["RFC 8182", [["1.3.6.1.5.5.7.48.13", "rpkiNotify"]]],
-  ["RFC 7633", [["1.3.6.1.5.5.7.1.24", "tlsFeature"]]],
-  ["RFC 9608", [["2.5.29.56", "noRevAvail"]]],
-  ["RFC 6962", [
-    ["1.3.6.1.4.1.11129.2.4.2", "signedCertificateTimestampList"],
-    ["1.3.6.1.4.1.11129.2.4.3", "ctPrecertificatePoison"],
-    ["1.3.6.1.4.1.11129.2.4.4", "ctPrecertificateSigning"],
-    ["1.3.6.1.4.1.11129.2.4.5", "ocspSignedCertificateTimestampList"]
-  ]],
-  ["RFC 6960", [
-    ["1.3.6.1.5.5.7.48.1.1", "ocspBasic"],
-    ["1.3.6.1.5.5.7.48.1.2", "ocspNonce"],
-    ["1.3.6.1.5.5.7.48.1.3", "ocspCrlId"],
-    ["1.3.6.1.5.5.7.48.1.4", "ocspResponse"],
-    ["1.3.6.1.5.5.7.48.1.5", "ocspNoCheck"],
-    ["1.3.6.1.5.5.7.48.1.6", "ocspArchiveCutoff"],
-    ["1.3.6.1.5.5.7.48.1.7", "ocspServiceLocator"]
-  ]],
-  // ── Extended key usages and other names ──
-  ["RFC 4334", [
-    ["1.3.6.1.5.5.7.3.13", "eapOverPPP"],
-    ["1.3.6.1.5.5.7.3.14", "eapOverLAN"]
-  ]],
-  ["RFC 4945", [["1.3.6.1.5.5.7.3.17", "ipsecIKE"]]],
-  ["RFC 5924", [["1.3.6.1.5.5.7.3.20", "sipDomain"]]],
-  ["RFC 6187", [
-    ["1.3.6.1.5.5.7.3.21", "secureShellClient"],
-    ["1.3.6.1.5.5.7.3.22", "secureShellServer"]
-  ]],
-  ["RFC 6402", [
-    ["1.3.6.1.5.5.7.3.27", "cmcCA"],
-    ["1.3.6.1.5.5.7.3.28", "cmcRA"],
-    ["1.3.6.1.5.5.7.3.29", "cmcArchive"]
-  ]],
-  ["RFC 8209", [["1.3.6.1.5.5.7.3.30", "bgpsecRouter"]]],
-  ["RFC 9336", [["1.3.6.1.5.5.7.3.36", "documentSigning"]]],
-  ["RFC 4043", [["1.3.6.1.5.5.7.8.3", "permanentIdentifier"]]],
-  ["RFC 4108", [["1.3.6.1.5.5.7.8.4", "hardwareModuleName"]]],
-  ["RFC 6120", [["1.3.6.1.5.5.7.8.5", "xmppAddr"]]],
-  ["RFC 4985", [["1.3.6.1.5.5.7.8.7", "srvName"]]],
-  ["RFC 9598", [["1.3.6.1.5.5.7.8.9", "smtpUTF8Mailbox"]]],
-  ["RFC 4556", [
-    ["1.3.6.1.5.2.2", "pkinitSan"],
-    ["1.3.6.1.5.2.3.4", "pkinitKPClientAuth"],
-    ["1.3.6.1.5.2.3.5", "pkinitKPKdc"]
-  ]],
-  ["Microsoft", [
-    ["1.3.6.1.4.1.311.10.3.4", "msEncryptedFileSystem"],
-    ["1.3.6.1.4.1.311.10.3.12", "msDocumentSigning"],
-    ["1.3.6.1.4.1.311.20.2", "msCertificateTemplateName"],
-    ["1.3.6.1.4.1.311.20.2.2", "msSmartcardLogon"],
-    ["1.3.6.1.4.1.311.20.2.3", "msUserPrincipalName"],
-    ["1.3.6.1.4.1.311.21.1", "msCAVersion"],
-    ["1.3.6.1.4.1.311.21.2", "msPreviousCertHash"],
-    ["1.3.6.1.4.1.311.21.7", "msCertificateTemplate"],
-    ["1.3.6.1.4.1.311.21.10", "msApplicationCertPolicies"]
-  ]],
-  ["Netscape", [
-    ["2.16.840.1.113730.1.1", "netscapeCertType"],
-    ["2.16.840.1.113730.1.13", "netscapeComment"]
-  ]],
-  ["Adobe (ISO 32000)", [
-    ["1.2.840.113583.1.1.8", "adbeRevocationInfoArchival"],
-    ["1.2.840.113583.1.1.9.1", "adbeTimestamp"]
-  ]],
-  // ── Certificate policies and qualified certificates ──
-  ["CA/Browser Forum Baseline Requirements", [
-    ["2.23.140.1.1", "extendedValidation"],
-    ["2.23.140.1.2.1", "domainValidated"],
-    ["2.23.140.1.2.2", "organizationValidated"],
-    ["2.23.140.1.2.3", "individualValidated"],
-    ["2.23.140.1.3", "extendedValidationCodeSigning"],
-    ["2.23.140.1.4.1", "codeSigningRequirements"]
-  ]],
-  ["ETSI EN 319 411-1", [
-    ["0.4.0.2042.1.1", "etsiNcp"],
-    ["0.4.0.2042.1.2", "etsiNcpPlus"],
-    ["0.4.0.2042.1.3", "etsiLcp"],
-    ["0.4.0.2042.1.4", "etsiEvcp"],
-    ["0.4.0.2042.1.6", "etsiDvcp"],
-    ["0.4.0.2042.1.7", "etsiOvcp"]
-  ]],
-  ["ETSI EN 319 411-2", [
-    ["0.4.0.194112.1.0", "etsiQcpNatural"],
-    ["0.4.0.194112.1.1", "etsiQcpLegal"],
-    ["0.4.0.194112.1.2", "etsiQcpNaturalQscd"],
-    ["0.4.0.194112.1.3", "etsiQcpLegalQscd"],
-    ["0.4.0.194112.1.4", "etsiQcpWeb"]
-  ]],
-  ["ETSI EN 319 412-1", [
-    ["0.4.0.194121.1.1", "etsiSemanticsIdNatural"],
-    ["0.4.0.194121.1.2", "etsiSemanticsIdLegal"]
-  ]],
-  ["ETSI EN 319 412-5", [
-    ["0.4.0.1862.1.1", "qcCompliance"],
-    ["0.4.0.1862.1.2", "qcLimitValue"],
-    ["0.4.0.1862.1.3", "qcRetentionPeriod"],
-    ["0.4.0.1862.1.4", "qcSSCD"],
-    ["0.4.0.1862.1.5", "qcPDS"],
-    ["0.4.0.1862.1.6", "qcType"],
-    ["0.4.0.1862.1.6.1", "qcTypeESign"],
-    ["0.4.0.1862.1.6.2", "qcTypeESeal"],
-    ["0.4.0.1862.1.6.3", "qcTypeWeb"],
-    ["0.4.0.1862.1.7", "qcCClegislation"]
-  ]],
-  ["ETSI TS 119 495", [["0.4.0.19495.2", "qcsPsd2"]]],
-  // ── CMS, timestamps and signed attributes ──
-  ["RFC 5652", [
-    ["1.2.840.113549.1.7.1", "data"],
-    ["1.2.840.113549.1.7.2", "signedData"],
-    ["1.2.840.113549.1.7.3", "envelopedData"],
-    ["1.2.840.113549.1.7.5", "digestedData"],
-    ["1.2.840.113549.1.7.6", "encryptedData"],
-    ["1.2.840.113549.1.9.16.1.2", "authData"]
-  ]],
-  ["RFC 3274", [["1.2.840.113549.1.9.16.1.9", "compressedData"]]],
-  ["RFC 5083", [["1.2.840.113549.1.9.16.1.23", "authEnvelopedData"]]],
-  ["RFC 3161", [
-    ["1.2.840.113549.1.9.16.1.4", "tstInfo"],
-    ["1.2.840.113549.1.9.16.2.14", "timeStampToken"]
-  ]],
-  ["RFC 6211", [["1.2.840.113549.1.9.52", "cmsAlgorithmProtection"]]],
-  ["RFC 2634", [["1.2.840.113549.1.9.16.2.12", "signingCertificate"]]],
-  ["RFC 5035", [["1.2.840.113549.1.9.16.2.47", "signingCertificateV2"]]],
-  ["RFC 5126", [
-    ["1.2.840.113549.1.9.16.2.15", "sigPolicyId"],
-    ["1.2.840.113549.1.9.16.2.16", "commitmentType"],
-    ["1.2.840.113549.1.9.16.2.17", "signerLocation"],
-    ["1.2.840.113549.1.9.16.2.18", "signerAttr"],
-    ["1.2.840.113549.1.9.16.2.19", "otherSigCert"],
-    ["1.2.840.113549.1.9.16.2.20", "contentTimestamp"],
-    ["1.2.840.113549.1.9.16.2.21", "certificateRefs"],
-    ["1.2.840.113549.1.9.16.2.22", "revocationRefs"],
-    ["1.2.840.113549.1.9.16.2.23", "certValues"],
-    ["1.2.840.113549.1.9.16.2.24", "revocationValues"],
-    ["1.2.840.113549.1.9.16.2.25", "escTimeStamp"],
-    ["1.2.840.113549.1.9.16.2.26", "certCRLTimestamp"],
-    ["1.2.840.113549.1.9.16.2.27", "archiveTimeStamp"],
-    ["1.2.840.113549.1.9.16.6.1", "proofOfOrigin"],
-    ["1.2.840.113549.1.9.16.6.2", "proofOfReceipt"],
-    ["1.2.840.113549.1.9.16.6.3", "proofOfDelivery"],
-    ["1.2.840.113549.1.9.16.6.4", "proofOfSender"],
-    ["1.2.840.113549.1.9.16.6.5", "proofOfApproval"],
-    ["1.2.840.113549.1.9.16.6.6", "proofOfCreation"]
-  ]],
-  // ── PKCS #12 and password-based encryption ──
-  ["RFC 7292", [
-    ["1.2.840.113549.1.12.1.3", "pbeWithSHAAnd3-KeyTripleDES-CBC"],
-    ["1.2.840.113549.1.12.1.6", "pbeWithSHAAnd40BitRC2-CBC"],
-    ["1.2.840.113549.1.12.10.1.1", "keyBag"],
-    ["1.2.840.113549.1.12.10.1.2", "pkcs8ShroudedKeyBag"],
-    ["1.2.840.113549.1.12.10.1.3", "certBag"],
-    ["1.2.840.113549.1.12.10.1.4", "crlBag"],
-    ["1.2.840.113549.1.12.10.1.5", "secretBag"],
-    ["1.2.840.113549.1.12.10.1.6", "safeContentsBag"]
-  ]],
-  ["RFC 8018", [
-    ["1.2.840.113549.1.5.12", "pbkdf2"],
-    ["1.2.840.113549.1.5.13", "pbes2"],
-    ["1.2.840.113549.2.7", "hmacWithSHA1"],
-    ["1.2.840.113549.2.8", "hmacWithSHA224"],
-    ["1.2.840.113549.2.9", "hmacWithSHA256"],
-    ["1.2.840.113549.2.10", "hmacWithSHA384"],
-    ["1.2.840.113549.2.11", "hmacWithSHA512"],
-    ["1.2.840.113549.3.2", "rc2CBC"],
-    ["1.2.840.113549.3.7", "des-EDE3-CBC"]
-  ]],
-  // ── Public-key and signature algorithms ──
-  ["RFC 8017", [
-    ["1.2.840.113549.1.1.1", "rsaEncryption"],
-    ["1.2.840.113549.1.1.2", "md2WithRSAEncryption"],
-    ["1.2.840.113549.1.1.3", "md4WithRSAEncryption"],
-    ["1.2.840.113549.1.1.4", "md5WithRSAEncryption"],
-    ["1.2.840.113549.1.1.5", "sha1WithRSAEncryption"],
-    ["1.2.840.113549.1.1.7", "RSAES-OAEP"],
-    ["1.2.840.113549.1.1.8", "mgf1"],
-    ["1.2.840.113549.1.1.9", "pSpecified"],
-    ["1.2.840.113549.1.1.10", "RSASSA-PSS"],
-    ["1.2.840.113549.1.1.11", "sha256WithRSAEncryption"],
-    ["1.2.840.113549.1.1.12", "sha384WithRSAEncryption"],
-    ["1.2.840.113549.1.1.13", "sha512WithRSAEncryption"],
-    ["1.2.840.113549.1.1.14", "sha224WithRSAEncryption"],
-    ["1.2.840.113549.1.1.15", "sha512-224WithRSAEncryption"],
-    ["1.2.840.113549.1.1.16", "sha512-256WithRSAEncryption"]
-  ]],
-  ["OIW", [["1.3.14.3.2.29", "sha1WithRSASignature"]]],
-  ["RFC 3279", [
-    ["1.2.840.113549.2.2", "md2"],
-    ["1.2.840.113549.2.5", "md5"],
-    ["1.3.14.3.2.26", "sha1"],
-    ["1.2.840.10040.4.1", "dsa"],
-    ["1.2.840.10040.4.3", "dsa-with-sha1"],
-    ["1.2.840.10045.4.1", "ecdsa-with-SHA1"],
-    ["1.2.840.10046.2.1", "dhpublicnumber"]
-  ]],
-  ["RFC 5758", [
-    ["1.2.840.10045.4.3.1", "ecdsa-with-SHA224"],
-    ["1.2.840.10045.4.3.2", "ecdsa-with-SHA256"],
-    ["1.2.840.10045.4.3.3", "ecdsa-with-SHA384"],
-    ["1.2.840.10045.4.3.4", "ecdsa-with-SHA512"],
-    ["2.16.840.1.101.3.4.3.1", "dsa-with-sha224"],
-    ["2.16.840.1.101.3.4.3.2", "dsa-with-sha256"]
-  ]],
-  ["RFC 5480", [
-    ["1.2.840.10045.2.1", "ecPublicKey"],
-    ["1.3.132.1.12", "ecDH"],
-    ["1.3.132.1.13", "ecMQV"],
-    ["1.2.840.10045.3.1.1", "secp192r1"],
-    ["1.3.132.0.33", "secp224r1"],
-    ["1.2.840.10045.3.1.7", "secp256r1"],
-    ["1.3.132.0.34", "secp384r1"],
-    ["1.3.132.0.35", "secp521r1"]
-  ]],
-  ["SEC 2", [["1.3.132.0.10", "secp256k1"]]],
-  ["RFC 5639", [
-    ["1.3.36.3.3.2.8.1.1.7", "brainpoolP256r1"],
-    ["1.3.36.3.3.2.8.1.1.11", "brainpoolP384r1"],
-    ["1.3.36.3.3.2.8.1.1.13", "brainpoolP512r1"]
-  ]],
-  ["RFC 8410", [
-    ["1.3.101.110", "X25519"],
-    ["1.3.101.111", "X448"],
-    ["1.3.101.112", "Ed25519"],
-    ["1.3.101.113", "Ed448"]
-  ]],
-  ["NIST CSOR", [
-    ["2.16.840.1.101.3.4.3.9", "ecdsa-with-SHA3-224"],
-    ["2.16.840.1.101.3.4.3.10", "ecdsa-with-SHA3-256"],
-    ["2.16.840.1.101.3.4.3.11", "ecdsa-with-SHA3-384"],
-    ["2.16.840.1.101.3.4.3.12", "ecdsa-with-SHA3-512"],
-    ["2.16.840.1.101.3.4.3.13", "sha3-224WithRSAEncryption"],
-    ["2.16.840.1.101.3.4.3.14", "sha3-256WithRSAEncryption"],
-    ["2.16.840.1.101.3.4.3.15", "sha3-384WithRSAEncryption"],
-    ["2.16.840.1.101.3.4.3.16", "sha3-512WithRSAEncryption"]
-  ]],
-  ["FIPS 204", [
-    ["2.16.840.1.101.3.4.3.17", "ml-dsa-44"],
-    ["2.16.840.1.101.3.4.3.18", "ml-dsa-65"],
-    ["2.16.840.1.101.3.4.3.19", "ml-dsa-87"]
-  ]],
-  ["FIPS 205", [
-    ["2.16.840.1.101.3.4.3.20", "slh-dsa-sha2-128s"],
-    ["2.16.840.1.101.3.4.3.21", "slh-dsa-sha2-128f"],
-    ["2.16.840.1.101.3.4.3.22", "slh-dsa-sha2-192s"],
-    ["2.16.840.1.101.3.4.3.23", "slh-dsa-sha2-192f"],
-    ["2.16.840.1.101.3.4.3.24", "slh-dsa-sha2-256s"],
-    ["2.16.840.1.101.3.4.3.25", "slh-dsa-sha2-256f"],
-    ["2.16.840.1.101.3.4.3.26", "slh-dsa-shake-128s"],
-    ["2.16.840.1.101.3.4.3.27", "slh-dsa-shake-128f"],
-    ["2.16.840.1.101.3.4.3.28", "slh-dsa-shake-192s"],
-    ["2.16.840.1.101.3.4.3.29", "slh-dsa-shake-192f"],
-    ["2.16.840.1.101.3.4.3.30", "slh-dsa-shake-256s"],
-    ["2.16.840.1.101.3.4.3.31", "slh-dsa-shake-256f"]
-  ]],
-  ["FIPS 203", [
-    ["2.16.840.1.101.3.4.4.1", "ml-kem-512"],
-    ["2.16.840.1.101.3.4.4.2", "ml-kem-768"],
-    ["2.16.840.1.101.3.4.4.3", "ml-kem-1024"]
-  ]],
-  // ── Digests and symmetric algorithms ──
-  ["FIPS 180-4", [
-    ["2.16.840.1.101.3.4.2.1", "sha256"],
-    ["2.16.840.1.101.3.4.2.2", "sha384"],
-    ["2.16.840.1.101.3.4.2.3", "sha512"],
-    ["2.16.840.1.101.3.4.2.4", "sha224"],
-    ["2.16.840.1.101.3.4.2.5", "sha512-224"],
-    ["2.16.840.1.101.3.4.2.6", "sha512-256"]
-  ]],
-  ["FIPS 202", [
-    ["2.16.840.1.101.3.4.2.7", "sha3-224"],
-    ["2.16.840.1.101.3.4.2.8", "sha3-256"],
-    ["2.16.840.1.101.3.4.2.9", "sha3-384"],
-    ["2.16.840.1.101.3.4.2.10", "sha3-512"],
-    ["2.16.840.1.101.3.4.2.11", "shake128"],
-    ["2.16.840.1.101.3.4.2.12", "shake256"],
-    ["2.16.840.1.101.3.4.2.13", "hmacWithSHA3-224"],
-    ["2.16.840.1.101.3.4.2.14", "hmacWithSHA3-256"],
-    ["2.16.840.1.101.3.4.2.15", "hmacWithSHA3-384"],
-    ["2.16.840.1.101.3.4.2.16", "hmacWithSHA3-512"]
-  ]],
-  ["RFC 3565", [
-    ["2.16.840.1.101.3.4.1.2", "aes128-CBC"],
-    ["2.16.840.1.101.3.4.1.22", "aes192-CBC"],
-    ["2.16.840.1.101.3.4.1.42", "aes256-CBC"]
-  ]],
-  ["RFC 3394", [
-    ["2.16.840.1.101.3.4.1.5", "aes128-wrap"],
-    ["2.16.840.1.101.3.4.1.25", "aes192-wrap"],
-    ["2.16.840.1.101.3.4.1.45", "aes256-wrap"]
-  ]],
-  ["RFC 5649", [
-    ["2.16.840.1.101.3.4.1.8", "aes128-wrap-pad"],
-    ["2.16.840.1.101.3.4.1.28", "aes192-wrap-pad"],
-    ["2.16.840.1.101.3.4.1.48", "aes256-wrap-pad"]
-  ]],
-  ["RFC 5084", [
-    ["2.16.840.1.101.3.4.1.6", "aes128-GCM"],
-    ["2.16.840.1.101.3.4.1.26", "aes192-GCM"],
-    ["2.16.840.1.101.3.4.1.46", "aes256-GCM"]
-  ]],
-  ["RFC 8103", [["1.2.840.113549.1.9.16.3.18", "aeadChaCha20Poly1305"]]]
-];
-function buildRegistry(groups) {
-  const entries = [];
-  for (const [standard, pairs] of groups) {
-    for (const [oid, name] of pairs) entries.push(Object.freeze({ oid, name, standard }));
-  }
-  return Object.freeze(entries);
-}
-var OID_REGISTRY = /* @__PURE__ */ buildRegistry(GROUPS);
-
-// src/oid/oid-names.ts
-function indexByOid(entries) {
-  const map = /* @__PURE__ */ new Map();
-  for (const entry of entries) map.set(entry.oid, entry.name);
-  return map;
-}
-var NAME_BY_OID = /* @__PURE__ */ indexByOid(OID_REGISTRY);
-function getOidName(oid) {
-  return typeof oid === "string" ? NAME_BY_OID.get(oid) : void 0;
-}
-
-// src/core/base64.ts
-var ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-function _reverseTable() {
-  const table = new Int16Array(128).fill(-1);
-  for (let i = 0; i < ALPHABET.length; i++) table[ALPHABET.charCodeAt(i)] = i;
-  return table;
-}
-var REVERSE = /* @__PURE__ */ _reverseTable();
-function _sextet(text, index) {
-  const c = text.charCodeAt(index);
-  return c < 128 ? REVERSE[c] ?? -1 : -1;
-}
-function decodeBase64(text) {
-  if (text.length % 4 !== 0) return null;
-  if (text.length === 0) return new Uint8Array(0);
-  let padding = 0;
-  if (text.charCodeAt(text.length - 1) === 61) padding = text.charCodeAt(text.length - 2) === 61 ? 2 : 1;
-  const out = new Uint8Array(text.length / 4 * 3 - padding);
-  let at = 0;
-  for (let i = 0; i < text.length; i += 4) {
-    const last = i + 4 === text.length;
-    const a = _sextet(text, i);
-    const b = _sextet(text, i + 1);
-    const c = last && padding === 2 ? 0 : _sextet(text, i + 2);
-    const d = last && padding >= 1 ? 0 : _sextet(text, i + 3);
-    if (a < 0 || b < 0 || c < 0 || d < 0) return null;
-    if (last && padding === 2 && (b & 15) !== 0) return null;
-    if (last && padding === 1 && (c & 3) !== 0) return null;
-    const triple = a << 18 | b << 12 | c << 6 | d;
-    out[at++] = triple >> 16 & 255;
-    if (!(last && padding === 2)) out[at++] = triple >> 8 & 255;
-    if (!(last && padding >= 1)) out[at++] = triple & 255;
-  }
-  return out;
-}
-function encodeBase64(bytes) {
-  const parts = [];
-  const view = byteView(bytes);
-  for (let i = 0; i < bytes.length; i += 3) {
-    const remaining = bytes.length - i;
-    const b0 = view.getUint8(i);
-    const b1 = remaining > 1 ? view.getUint8(i + 1) : 0;
-    const b2 = remaining > 2 ? view.getUint8(i + 2) : 0;
-    const triple = b0 << 16 | b1 << 8 | b2;
-    parts.push(
-      ALPHABET.charAt(triple >> 18 & 63),
-      ALPHABET.charAt(triple >> 12 & 63),
-      remaining > 1 ? ALPHABET.charAt(triple >> 6 & 63) : "=",
-      remaining > 2 ? ALPHABET.charAt(triple & 63) : "="
-    );
-  }
-  return parts.join("");
-}
-
-// src/pem/pem.ts
-var LABEL = /^(?:[\x21-\x2c\x2e-\x7e](?:[- ]?[\x21-\x2c\x2e-\x7e])*)?$/;
-var BEGIN = /^-----BEGIN .*-----$/;
-var END = /^-----END .*-----$/;
-var BEGIN_PREFIX = "-----BEGIN ".length;
-var END_PREFIX = "-----END ".length;
-var BOUNDARY_SUFFIX = "-----".length;
-var BASE64_LINE = /^[A-Za-z0-9+/=]+$/;
-var HEADER = /^[\x21-\x39\x3b-\x7e]+:[ \t]*.*$/;
-var LAX_WHITESPACE = /[ \t\v\f\r\n]/g;
-var TRAILING_WHITESPACE = /[ \t\v\f]+$/;
-var LEADING_WHITESPACE = /^[ \t\v\f]+/;
-function splitLines(text) {
-  const lines = [];
-  let start = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    if (c !== 10 && c !== 13) continue;
-    lines.push({ text: text.slice(start, i), start });
-    if (c === 13 && text.charCodeAt(i + 1) === 10) i++;
-    start = i + 1;
-  }
-  if (start < text.length) lines.push({ text: text.slice(start), start });
-  return lines;
-}
-function isValidLabel(label) {
-  return LABEL.test(label);
-}
-function deviate(state, what, offset) {
-  if (state.reported.has(what)) return;
-  state.reported.add(what);
-  state.emitter.emit(pemLaxAcceptedDiagnostic(what, offset));
-}
-function decodePem(text, options) {
-  if (typeof text !== "string") {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: decodePem expects PEM text as a string, got ${text === null ? "null" : typeof text} \u2014 for DER bytes, call the DER function directly`);
-  }
+// src/verify/verify-csr.ts
+var PATH2 = "certificationRequest";
+async function verifyCertificationRequest(request, options) {
   if (options !== void 0 && (typeof options !== "object" || options === null)) {
-    throw new PkiError("PKI_INVALID_OPTION", "pkinative: options must be an object \u2014 pass { mode, label, limits, strict, onDiagnostic } or omit it");
+    throw new PkiError("PKI_INVALID_OPTION", "pkinative: options must be an object \u2014 pass { allowSha1, encodingRules, limits, strict, onDiagnostic, decodeExtensions } or omit it");
   }
-  const mode = options?.mode ?? "strict";
-  if (mode !== "strict" && mode !== "lax") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: mode must be 'strict' or 'lax', got ${String(mode)}`);
-  }
-  const wanted = options?.label;
-  if (wanted !== void 0 && (typeof wanted !== "string" || !isValidLabel(wanted))) {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: label must be an RFC 7468 label such as 'CERTIFICATE', got ${JSON.stringify(wanted)}`);
-  }
-  if (options?.strict !== void 0 && typeof options.strict !== "boolean") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: strict must be a boolean, got ${typeof options.strict}`);
-  }
-  if (options?.onDiagnostic !== void 0 && typeof options.onDiagnostic !== "function") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: onDiagnostic must be a function, got ${typeof options.onDiagnostic}`);
-  }
-  const limits = resolveLimits(options?.limits);
-  enforceLimit(limits, "maxInputBytes", text.length, "the PEM text length");
-  const state = { emitter: createDiagnosticEmitter(options?.strict, options?.onDiagnostic), reported: /* @__PURE__ */ new Set() };
-  const lax = mode === "lax";
-  const boundary = (line) => {
-    if (!lax) return line.text;
-    const trimmed = line.text.replace(LEADING_WHITESPACE, "").replace(TRAILING_WHITESPACE, "");
-    if (trimmed !== line.text && (BEGIN.test(trimmed) || END.test(trimmed))) deviate(state, "whitespace around a boundary line", line.start);
-    return trimmed;
-  };
-  const lines = splitLines(text);
-  const blocks = [];
-  for (let i = 0; i < lines.length; i++) {
-    const beginLine = lines[i];
-    const begin = BEGIN.exec(boundary(beginLine));
-    if (begin === null) continue;
-    const label = begin[0].slice(BEGIN_PREFIX, -BOUNDARY_SUFFIX);
-    if (!isValidLabel(label)) {
-      throw new PkiEncodingError(
-        "PKI_PEM_LABEL_INVALID",
-        `pkinative: the BEGIN label ${JSON.stringify(label)} at offset ${beginLine.start} is outside the RFC 7468 label grammar \u2014 printable ASCII joined by single spaces or hyphens`,
-        beginLine.start
-      );
-    }
-    enforceLimit(limits, "maxPemBlocks", blocks.length + 1, "the number of PEM blocks");
-    const body = [];
-    let endLine;
-    let endLabel = "";
-    const bodyStart = i + 1;
-    for (i++; i < lines.length; i++) {
-      const line = lines[i];
-      const shown2 = boundary(line);
-      const end = END.exec(shown2);
-      if (end !== null) {
-        endLine = line;
-        endLabel = end[0].slice(END_PREFIX, -BOUNDARY_SUFFIX);
-        break;
-      }
-      if (BEGIN.test(shown2)) break;
-      body.push(line);
-    }
-    if (endLine === void 0) {
-      if (!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))) {
-        throw new PkiEncodingError(
-          "PKI_PEM_UNTERMINATED",
-          `pkinative: the "${label}" block at offset ${beginLine.start} has an END line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary \u2014 decode with mode: 'lax' to accept it`,
-          beginLine.start
-        );
-      }
-      throw new PkiEncodingError(
-        "PKI_PEM_UNTERMINATED",
-        `pkinative: the "${label}" block at offset ${beginLine.start} has no matching END line \u2014 the text is truncated or spliced`,
-        beginLine.start
-      );
-    }
-    if (endLabel !== label) {
-      throw new PkiEncodingError(
-        "PKI_PEM_LABEL_MISMATCH",
-        `pkinative: the block that begins as "${label}" at offset ${beginLine.start} ends as "${endLabel}" at offset ${endLine.start} \u2014 the text was spliced or corrupted`,
-        endLine.start
-      );
-    }
-    if (wanted !== void 0 && label !== wanted) {
-      throw new PkiEncodingError(
-        "PKI_PEM_UNEXPECTED_LABEL",
-        `pkinative: the block at offset ${beginLine.start} is "${label}", not "${wanted}" \u2014 pass the right block, or omit the label option`,
-        beginLine.start
-      );
-    }
-    const headers = [];
-    let first = 0;
-    if (body.length > 0 && HEADER.test(body[0].text.replace(LEADING_WHITESPACE, ""))) {
-      if (!lax) {
-        throw new PkiEncodingError(
-          "PKI_PEM_HEADERS_FORBIDDEN",
-          `pkinative: the "${label}" block at offset ${beginLine.start} carries RFC 1421 headers, which strict RFC 7468 parsing refuses \u2014 decode with mode: 'lax' to read legacy PEM`,
-          body[0].start
-        );
-      }
-      deviate(state, "RFC 1421 headers", body[0].start);
-      for (; first < body.length; first++) {
-        const raw = body[first].text;
-        if (raw.trim() === "") break;
-        const header = HEADER.exec(raw.replace(LEADING_WHITESPACE, ""));
-        const previous = headers[headers.length - 1];
-        if (header !== null && !LEADING_WHITESPACE.test(raw)) {
-          const colon = header[0].indexOf(":");
-          headers.push([header[0].slice(0, colon), header[0].slice(colon + 1).trim()]);
-        } else if (previous !== void 0 && LEADING_WHITESPACE.test(raw)) headers[headers.length - 1] = [previous[0], `${previous[1]} ${raw.trim()}`];
-        else break;
-      }
-      if (first >= body.length || body[first].text.trim() !== "") {
-        throw new PkiEncodingError(
-          "PKI_PEM_BASE64_INVALID",
-          `pkinative: the headers of the "${label}" block at offset ${beginLine.start} are not followed by a blank line (RFC 1421 \xA74.4)`,
-          beginLine.start
-        );
-      }
-      first++;
-    }
-    let base64 = "";
-    const content = body.slice(first);
-    if (lax) {
-      base64 = content.map((l) => l.text).join("\n");
-      const stripped = base64.replace(LAX_WHITESPACE, "");
-      const lengths = content.map((l) => l.text.length).filter((n) => n > 0);
-      if (stripped !== base64.replace(/\n/g, "")) deviate(state, "whitespace inside the base64 text", beginLine.start);
-      else if (lengths.slice(0, -1).some((n) => n !== 64) || (lengths[lengths.length - 1] ?? 0) > 64 || content.some((l) => l.text.length === 0)) {
-        deviate(state, "base64 lines that are not 64 characters long", beginLine.start);
-      }
-      base64 = stripped;
-    } else {
-      for (let k = 0; k < content.length; k++) {
-        const line = content[k];
-        const last = k === content.length - 1;
-        if (!BASE64_LINE.test(line.text) || line.text.length > 64 || !last && line.text.length !== 64) {
-          throw new PkiEncodingError(
-            "PKI_PEM_BASE64_INVALID",
-            `pkinative: line ${k + 1} of the "${label}" block at offset ${line.start} is not a strict base64 line (64 characters from the base64 alphabet, the last one shorter) \u2014 decode with mode: 'lax' to tolerate whitespace and line lengths`,
-            line.start
-          );
-        }
-        base64 += line.text;
-      }
-    }
-    const bytes = decodeBase64(base64);
-    if (bytes === null) {
-      throw new PkiEncodingError(
-        "PKI_PEM_BASE64_INVALID",
-        `pkinative: the body of the "${label}" block at offset ${beginLine.start} is not canonical base64 (alphabet, padding and zero padding bits, RFC 4648 \xA73.5)`,
-        beginLine.start
-      );
-    }
-    blocks.push(Object.freeze({ label, bytes, headers: Object.freeze(headers), offset: beginLine.start }));
-  }
-  if (blocks.length === 0) {
-    if (!lax && lines.some((l) => BEGIN.test(l.text.trim()))) {
-      throw new PkiEncodingError(
-        "PKI_PEM_NO_BLOCK",
-        "pkinative: the text has a -----BEGIN line with whitespace around it, which strict RFC 7468 parsing does not accept as a boundary \u2014 decode with mode: 'lax' to accept it",
-        0
-      );
-    }
-    throw new PkiEncodingError(
-      "PKI_PEM_NO_BLOCK",
-      "pkinative: the text contains no -----BEGIN line \u2014 pass the PEM text itself, or call the DER function directly for binary input",
-      0
-    );
-  }
-  return Object.freeze(blocks);
-}
-function encodePem(label, bytes) {
-  if (typeof label !== "string" || !isValidLabel(label)) {
-    throw new PkiEncodingError(
-      "PKI_PEM_LABEL_INVALID",
-      `pkinative: ${JSON.stringify(label)} is not an RFC 7468 label \u2014 use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`
-    );
-  }
-  const base64 = encodeBase64(assertBytes(bytes, "encodePem bytes"));
-  const lines = [];
-  for (let i = 0; i < base64.length; i += 64) lines.push(base64.slice(i, i + 64));
-  return `-----BEGIN ${label}-----
-${lines.map((l) => `${l}
-`).join("")}-----END ${label}-----
-`;
-}
-
-// src/hash/sha512.ts
-var K_HI = /* @__PURE__ */ new Uint32Array([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298,
-  3391569614,
-  3515267271,
-  3940187606,
-  4118630271,
-  116418474,
-  174292421,
-  289380356,
-  460393269,
-  685471733,
-  852142971,
-  1017036298,
-  1126000580,
-  1288033470,
-  1501505948,
-  1607167915,
-  1816402316
-]);
-var K_LO = /* @__PURE__ */ new Uint32Array([
-  3609767458,
-  602891725,
-  3964484399,
-  2173295548,
-  4081628472,
-  3053834265,
-  2937671579,
-  3664609560,
-  2734883394,
-  1164996542,
-  1323610764,
-  3590304994,
-  4068182383,
-  991336113,
-  633803317,
-  3479774868,
-  2666613458,
-  944711139,
-  2341262773,
-  2007800933,
-  1495990901,
-  1856431235,
-  3175218132,
-  2198950837,
-  3999719339,
-  766784016,
-  2566594879,
-  3203337956,
-  1034457026,
-  2466948901,
-  3758326383,
-  168717936,
-  1188179964,
-  1546045734,
-  1522805485,
-  2643833823,
-  2343527390,
-  1014477480,
-  1206759142,
-  344077627,
-  1290863460,
-  3158454273,
-  3505952657,
-  106217008,
-  3606008344,
-  1432725776,
-  1467031594,
-  851169720,
-  3100823752,
-  1363258195,
-  3750685593,
-  3785050280,
-  3318307427,
-  3812723403,
-  2003034995,
-  3602036899,
-  1575990012,
-  1125592928,
-  2716904306,
-  442776044,
-  593698344,
-  3733110249,
-  2999351573,
-  3815920427,
-  3928383900,
-  566280711,
-  3454069534,
-  4000239992,
-  1914138554,
-  2731055270,
-  3203993006,
-  320620315,
-  587496836,
-  1086792851,
-  365543100,
-  2618297676,
-  3409855158,
-  4234509866,
-  987167468,
-  1246189591
-]);
-var IV_512 = [
-  1779033703,
-  4089235720,
-  3144134277,
-  2227873595,
-  1013904242,
-  4271175723,
-  2773480762,
-  1595750129,
-  1359893119,
-  2917565137,
-  2600822924,
-  725511199,
-  528734635,
-  4215389547,
-  1541459225,
-  327033209
-];
-var IV_384 = [
-  3418070365,
-  3238371032,
-  1654270250,
-  914150663,
-  2438529370,
-  812702999,
-  355462360,
-  4144912697,
-  1731405415,
-  4290775857,
-  2394180231,
-  1750603025,
-  3675008525,
-  1694076839,
-  1203062813,
-  3204075428
-];
-function add(out, ah, al, bh, bl) {
-  const low = al + bl >>> 0;
-  out[0] = ah + bh + (low < al ? 1 : 0) >>> 0;
-  out[1] = low;
-}
-function core(input, iv, outputLength) {
-  const padded = padMessage(input, 128, 16);
-  const view = new DataView(padded.buffer);
-  const state = Uint32Array.from(iv);
-  const wh = new Uint32Array(80);
-  const wl = new Uint32Array(80);
-  const t = new Uint32Array(2);
-  const fold3 = (i, high, low) => {
-    add(t, state[i], state[i + 1], high, low);
-    state[i] = t[0];
-    state[i + 1] = t[1];
-  };
-  for (let offset = 0; offset < padded.length; offset += 128) {
-    for (let j = 0; j < 16; j++) {
-      wh[j] = view.getUint32(offset + j * 8, false);
-      wl[j] = view.getUint32(offset + j * 8 + 4, false);
-    }
-    for (let j = 16; j < 80; j++) {
-      const xh = wh[j - 15];
-      const xl = wl[j - 15];
-      const s0h = (xh >>> 1 | xl << 31) ^ (xh >>> 8 | xl << 24) ^ xh >>> 7;
-      const s0l = (xl >>> 1 | xh << 31) ^ (xl >>> 8 | xh << 24) ^ (xl >>> 7 | xh << 25);
-      const yh = wh[j - 2];
-      const yl = wl[j - 2];
-      const s1h = (yh >>> 19 | yl << 13) ^ (yl >>> 29 | yh << 3) ^ yh >>> 6;
-      const s1l = (yl >>> 19 | yh << 13) ^ (yh >>> 29 | yl << 3) ^ (yl >>> 6 | yh << 26);
-      add(t, wh[j - 16], wl[j - 16], s0h >>> 0, s0l >>> 0);
-      add(t, t[0], t[1], wh[j - 7], wl[j - 7]);
-      add(t, t[0], t[1], s1h >>> 0, s1l >>> 0);
-      wh[j] = t[0];
-      wl[j] = t[1];
-    }
-    let aH = state[0], aL = state[1];
-    let bH = state[2], bL = state[3];
-    let cH = state[4], cL = state[5];
-    let dH = state[6], dL = state[7];
-    let eH = state[8], eL = state[9];
-    let fH = state[10], fL = state[11];
-    let gH = state[12], gL = state[13];
-    let hH = state[14], hL = state[15];
-    for (let j = 0; j < 80; j++) {
-      const sigma1H = (eH >>> 14 | eL << 18) ^ (eH >>> 18 | eL << 14) ^ (eL >>> 9 | eH << 23);
-      const sigma1L = (eL >>> 14 | eH << 18) ^ (eL >>> 18 | eH << 14) ^ (eH >>> 9 | eL << 23);
-      const choiceH = eH & fH ^ ~eH & gH;
-      const choiceL = eL & fL ^ ~eL & gL;
-      add(t, hH, hL, sigma1H >>> 0, sigma1L >>> 0);
-      add(t, t[0], t[1], choiceH >>> 0, choiceL >>> 0);
-      add(t, t[0], t[1], K_HI[j], K_LO[j]);
-      add(t, t[0], t[1], wh[j], wl[j]);
-      const temp1H = t[0];
-      const temp1L = t[1];
-      const sigma0H = (aH >>> 28 | aL << 4) ^ (aL >>> 2 | aH << 30) ^ (aL >>> 7 | aH << 25);
-      const sigma0L = (aL >>> 28 | aH << 4) ^ (aH >>> 2 | aL << 30) ^ (aH >>> 7 | aL << 25);
-      const majorityH = aH & bH ^ aH & cH ^ bH & cH;
-      const majorityL = aL & bL ^ aL & cL ^ bL & cL;
-      add(t, sigma0H >>> 0, sigma0L >>> 0, majorityH >>> 0, majorityL >>> 0);
-      const temp2H = t[0];
-      const temp2L = t[1];
-      hH = gH;
-      hL = gL;
-      gH = fH;
-      gL = fL;
-      fH = eH;
-      fL = eL;
-      add(t, dH, dL, temp1H, temp1L);
-      eH = t[0];
-      eL = t[1];
-      dH = cH;
-      dL = cL;
-      cH = bH;
-      cL = bL;
-      bH = aH;
-      bL = aL;
-      add(t, temp1H, temp1L, temp2H, temp2L);
-      aH = t[0];
-      aL = t[1];
-    }
-    fold3(0, aH, aL);
-    fold3(2, bH, bL);
-    fold3(4, cH, cL);
-    fold3(6, dH, dL);
-    fold3(8, eH, eL);
-    fold3(10, fH, fL);
-    fold3(12, gH, gL);
-    fold3(14, hH, hL);
-  }
-  const out = new Uint8Array(64);
-  const outView = new DataView(out.buffer);
-  for (let i = 0; i < 16; i++) outView.setUint32(i * 4, state[i], false);
-  return outputLength === 64 ? out : out.slice(0, 48);
-}
-function sha512(input) {
-  return core(input, IV_512, 64);
-}
-function sha384(input) {
-  return core(input, IV_384, 48);
-}
-
-// src/hash/fingerprint.ts
-var ALGORITHMS = ["SHA-1", "SHA-256", "SHA-384", "SHA-512"];
-function digestFunction(algorithm) {
-  switch (algorithm) {
-    case "SHA-1":
-      return sha1;
-    case "SHA-256":
-      return sha256;
-    case "SHA-384":
-      return sha384;
-    case "SHA-512":
-      return sha512;
-    default:
-      throw new PkiError("PKI_INVALID_OPTION", `pkinative: the fingerprint algorithm must be one of ${ALGORITHMS.join(", ")}, got ${String(algorithm)}`);
-  }
-}
-function computeFingerprint(der, algorithm) {
-  const hash = digestFunction(algorithm);
-  return hash(assertBytes(der, "computeFingerprint input"));
-}
-async function computeFingerprintAsync(der, algorithm) {
-  const hash = digestFunction(algorithm);
-  const bytes = assertBytes(der, "computeFingerprintAsync input");
-  const subtle = globalThis.crypto?.subtle;
-  if (subtle !== void 0 && typeof subtle.digest === "function") {
+  const { allowSha1, ...reading } = options ?? {};
+  let parsed;
+  if (isBytes(request)) {
     try {
-      return new Uint8Array(await subtle.digest(algorithm, bytes));
-    } catch {
+      parsed = parseCertificationRequest(request, { ...reading, onDiagnostic: reading.onDiagnostic ?? (() => void 0) });
+    } catch (error) {
+      const refused = _pkiError(error);
+      if (refused.code === "PKI_INVALID_OPTION" || refused.code === "PKI_LIMIT_INVALID") throw refused;
+      return { valid: false, reasons: [inputMalformedReason(refused.code, refused.message, PATH2)], request: void 0, signatureVerifications: 0 };
     }
+  } else {
+    parsed = _assertRequest(request);
   }
-  return hash(bytes);
+  let compatible;
+  try {
+    compatible = resolveAlgorithm(parsed.signatureAlgorithm, parsed.subjectPublicKeyInfo) !== null;
+  } catch (error) {
+    return { valid: false, reasons: [_couldNotAsk(_pkiError(error), `${PATH2}.signatureAlgorithm`)], request: parsed, signatureVerifications: 0 };
+  }
+  if (!compatible) {
+    return { valid: false, reasons: [signatureInvalidReason(`${PATH2}.signatureAlgorithm`)], request: parsed, signatureVerifications: 0 };
+  }
+  const signed = parsed;
+  let verified;
+  try {
+    verified = await verifyCertificateSignature(signed, signed, { allowSha1: allowSha1 === true });
+  } catch (error) {
+    return { valid: false, reasons: [_couldNotAsk(_pkiError(error), `${PATH2}.signature`)], request: parsed, signatureVerifications: 0 };
+  }
+  const reasons = verified ? [] : [signatureInvalidReason(`${PATH2}.signature`)];
+  return { valid: reasons.length === 0, reasons, request: parsed, signatureVerifications: 1 };
 }
-function formatFingerprint(digest, options) {
-  const bytes = assertBytes(digest, "formatFingerprint digest");
-  const separator = options?.separator ?? ":";
-  const letterCase = options?.letterCase ?? "upper";
-  if (typeof separator !== "string") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: separator must be a string, got ${typeof separator}`);
-  }
-  if (letterCase !== "upper" && letterCase !== "lower") {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: letterCase must be 'upper' or 'lower', got ${String(letterCase)}`);
-  }
-  const hex3 = toHex(bytes, separator);
-  return letterCase === "upper" ? hex3.toUpperCase() : hex3;
+function _couldNotAsk(refused, path) {
+  return refused instanceof PkiCryptoError ? signatureNotCheckedReason(path, refused.code, refused.message) : inputMalformedReason(refused.code, refused.message, path);
 }
-
-// src/hash/shake256.ts
-var RC_HI = /* @__PURE__ */ new Uint32Array([
-  0,
-  0,
-  2147483648,
-  2147483648,
-  0,
-  0,
-  2147483648,
-  2147483648,
-  0,
-  0,
-  0,
-  0,
-  0,
-  2147483648,
-  2147483648,
-  2147483648,
-  2147483648,
-  2147483648,
-  0,
-  2147483648,
-  2147483648,
-  2147483648,
-  0,
-  2147483648
-]);
-var RC_LO = /* @__PURE__ */ new Uint32Array([
-  1,
-  32898,
-  32906,
-  2147516416,
-  32907,
-  2147483649,
-  2147516545,
-  32777,
-  138,
-  136,
-  2147516425,
-  2147483658,
-  2147516555,
-  139,
-  32905,
-  32771,
-  32770,
-  128,
-  32778,
-  2147483658,
-  2147516545,
-  32896,
-  2147483649,
-  2147516424
-]);
-var RHO_SHIFT = /* @__PURE__ */ new Uint8Array([0, 1, 30, 28, 27, 4, 12, 6, 23, 20, 3, 10, 11, 25, 7, 9, 13, 15, 21, 8, 18, 2, 29, 24, 14]);
-var RHO_SWAP = /* @__PURE__ */ new Uint8Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0]);
-var PI = /* @__PURE__ */ new Uint8Array([0, 10, 20, 5, 15, 16, 1, 11, 21, 6, 7, 17, 2, 12, 22, 23, 8, 18, 3, 13, 14, 24, 9, 19, 4]);
-var COLUMNS = /* @__PURE__ */ new Uint8Array([0, 1, 2, 3, 4]);
-var ROWS = /* @__PURE__ */ new Uint8Array([0, 5, 10, 15, 20]);
-var RATE = 136;
-var SHAKE_PAD = 31;
-function keccakF(s, c, b) {
-  for (let round = 0; round < 24; round++) {
-    for (const x of COLUMNS) {
-      const i = 2 * x;
-      c[i] = s[i] ^ s[i + 10] ^ s[i + 20] ^ s[i + 30] ^ s[i + 40];
-      c[i + 1] = s[i + 1] ^ s[i + 11] ^ s[i + 21] ^ s[i + 31] ^ s[i + 41];
-    }
-    for (const x of COLUMNS) {
-      const left = 2 * ((x + 4) % 5);
-      const right = 2 * ((x + 1) % 5);
-      const rightLo = c[right];
-      const rightHi = c[right + 1];
-      const dLo = c[left] ^ (rightLo << 1 | rightHi >>> 31);
-      const dHi = c[left + 1] ^ (rightHi << 1 | rightLo >>> 31);
-      for (const y of ROWS) {
-        const i = 2 * (x + y);
-        s[i] = s[i] ^ dLo;
-        s[i + 1] = s[i + 1] ^ dHi;
-      }
-    }
-    for (const lane of PI.keys()) {
-      const swap = RHO_SWAP[lane] === 1;
-      const lo = swap ? s[2 * lane + 1] : s[2 * lane];
-      const hi = swap ? s[2 * lane] : s[2 * lane + 1];
-      const m = RHO_SHIFT[lane];
-      const target = 2 * PI[lane];
-      b[target] = m === 0 ? lo : lo << m | hi >>> 32 - m;
-      b[target + 1] = m === 0 ? hi : hi << m | lo >>> 32 - m;
-    }
-    for (const y of ROWS) {
-      for (const x of COLUMNS) {
-        const i = 2 * (y + x);
-        const next = 2 * (y + (x + 1) % 5);
-        const after = 2 * (y + (x + 2) % 5);
-        s[i] = b[i] ^ ~b[next] & b[after];
-        s[i + 1] = b[i + 1] ^ ~b[next + 1] & b[after + 1];
-      }
-    }
-    s[0] = s[0] ^ RC_LO[round];
-    s[1] = s[1] ^ RC_HI[round];
+function _assertRequest(value) {
+  const candidate = value;
+  if (typeof value !== "object" || candidate === null || !isBytes(candidate.tbsDer) || typeof candidate.signatureAlgorithm !== "object" || candidate.signatureAlgorithm === null || typeof candidate.signatureValue !== "object" || candidate.signatureValue === null || typeof candidate.subjectPublicKeyInfo !== "object" || candidate.subjectPublicKeyInfo === null) {
+    throw new PkiError("PKI_INVALID_INPUT", "pkinative: request must be the DER of a certification request, or the value parseCertificationRequest returned for it");
   }
-}
-function shake256(input, outputLength) {
-  const bytes = assertBytes(input, "shake256 input");
-  if (!Number.isInteger(outputLength) || outputLength < 0) {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: shake256 outputLength must be a non-negative integer number of octets, got ${String(outputLength)} \u2014 an Ed448 CMS signer uses 64`);
-  }
-  const total = Math.ceil((bytes.length + 1) / RATE) * RATE;
-  const padded = new Uint8Array(total);
-  padded.set(bytes);
-  padded[bytes.length] = SHAKE_PAD;
-  padded[total - 1] = padded[total - 1] | 128;
-  const state = new Uint32Array(50);
-  const c = new Uint32Array(10);
-  const b = new Uint32Array(50);
-  const view = new DataView(padded.buffer);
-  for (let offset = 0; offset < total; offset += RATE) {
-    for (let word = 0; word < RATE / 4; word++) {
-      state[word] = state[word] ^ view.getUint32(offset + word * 4, true);
-    }
-    keccakF(state, c, b);
-  }
-  const out = new Uint8Array(outputLength);
-  const block = new Uint8Array(RATE);
-  const blockView = new DataView(block.buffer);
-  const blocks = Math.ceil(outputLength / RATE);
-  for (let index = 0; index < blocks; index++) {
-    if (index > 0) keccakF(state, c, b);
-    for (let word = 0; word < RATE / 4; word++) blockView.setUint32(word * 4, state[word], true);
-    const offset = index * RATE;
-    out.set(block.subarray(0, Math.min(RATE, outputLength - offset)), offset);
-  }
-  return out;
+  return value;
 }
 
 // src/build/build-certificate.ts
@@ -9139,7 +9325,7 @@ function _readAttributes(container, ctx, path) {
   }
   return Object.freeze(out);
 }
-function singleValue(entries, oid) {
+function singleValue2(entries, oid) {
   const matching = entries.filter((entry) => entry.attribute.oid === oid);
   if (matching.length !== 1) return void 0;
   const values = matching[0].valueNodes;
@@ -9157,9 +9343,9 @@ function readRecognised(node, path, read) {
   }
 }
 function _readSignedAttributeFields(entries, ctx, path) {
-  const contentType = readRecognised(singleValue(entries, OID_ATTR_CONTENT_TYPE), `${path}.contentType`, (node) => _readObjectIdentifier(_expectUniversal(node, TAG_OID, `${path}.contentType`, node.offset, "an OBJECT IDENTIFIER"), ctx));
-  const messageDigest = readRecognised(singleValue(entries, OID_ATTR_MESSAGE_DIGEST), `${path}.messageDigest`, (node) => _readOctetString(_expectUniversal(node, TAG_OCTET_STRING, `${path}.messageDigest`, node.offset, "an OCTET STRING"), ctx));
-  const signingTimeNode = singleValue(entries, OID_ATTR_SIGNING_TIME);
+  const contentType = readRecognised(singleValue2(entries, OID_ATTR_CONTENT_TYPE), `${path}.contentType`, (node) => _readObjectIdentifier(_expectUniversal(node, TAG_OID, `${path}.contentType`, node.offset, "an OBJECT IDENTIFIER"), ctx));
+  const messageDigest = readRecognised(singleValue2(entries, OID_ATTR_MESSAGE_DIGEST), `${path}.messageDigest`, (node) => _readOctetString(_expectUniversal(node, TAG_OCTET_STRING, `${path}.messageDigest`, node.offset, "an OCTET STRING"), ctx));
+  const signingTimeNode = singleValue2(entries, OID_ATTR_SIGNING_TIME);
   const signingTime = readRecognised(signingTimeNode, `${path}.signingTime`, (node) => {
     if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
       throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.signingTime`, node.offset, "is not a UTCTime or a GeneralizedTime");
@@ -9172,10 +9358,10 @@ function _readSignedAttributeFields(entries, ctx, path) {
     if (year >= 1950 && year <= 2049) ctx.emitter.emit(cmsSigningTimeNotUtcDiagnostic(`${path}.signingTime`, signingTime.text, offset));
     if (/[.,]/.test(signingTime.text)) ctx.emitter.emit(cmsSigningTimeFractionDiagnostic(`${path}.signingTime`, signingTime.text, offset));
   }
-  const v1 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE), `${path}.signingCertificate`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificate`, 1));
-  const v2 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificateV2`, 2));
+  const v1 = readRecognised(singleValue2(entries, OID_ATTR_SIGNING_CERTIFICATE), `${path}.signingCertificate`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificate`, 1));
+  const v2 = readRecognised(singleValue2(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificateV2`, 2));
   const hasV2 = entries.some((entry) => entry.attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2);
-  const algorithmProtection = readRecognised(singleValue(entries, OID_ATTR_ALGORITHM_PROTECTION), `${path}.CMSAlgorithmProtection`, (node) => readAlgorithmProtection(node, ctx, `${path}.CMSAlgorithmProtection`));
+  const algorithmProtection = readRecognised(singleValue2(entries, OID_ATTR_ALGORITHM_PROTECTION), `${path}.CMSAlgorithmProtection`, (node) => readAlgorithmProtection(node, ctx, `${path}.CMSAlgorithmProtection`));
   return { contentType, messageDigest, signingTime, signingCertificate: hasV2 ? v2 : v1, algorithmProtection };
 }
 function readAlgorithmProtection(node, ctx, path) {
@@ -11740,6 +11926,6 @@ function _report2(reasons, integrity, pkcs12, keys, certificates, crls) {
   });
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeRelativeOid, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readEnumerated, readInteger, readNull, readObjectIdentifier, readOctetString, readRelativeOid, readSmallInteger, readString, readTime, shake256, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeRelativeOid, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseCertificationRequest, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readEnumerated, readInteger, readNull, readObjectIdentifier, readOctetString, readRelativeOid, readSmallInteger, readString, readTime, shake256, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCertificationRequest, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

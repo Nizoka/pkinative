@@ -7,7 +7,7 @@ applyTo: "src/path/**,src/revocation/**,src/verify/**"
 ## Verdicts, not exceptions
 - A report function (`verifyCertificateChain`, `checkRevocation`, `checkOcspStatus`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12`, …) **always resolves** with a report; `tests/fuzzing/reports.test.ts` holds that for every one of them. Only `verify/` turns a `PkiError` into a reason, through `_reasonOf`-style helpers that keep the error's `code` in the report.
 - Reasons are `PKI_REASON_<SUBJECT>_<CONDITION>` in `docs/data/reasons.json`, part of `api.frozen.json`: a reason is never renamed; a new one carries `since` newer than the snapshot's `asOf` — reuse an existing reason before proposing one.
-- A conformance concern inside a decision (responderID ≠ signer, a delegate checked at `producedAt`, a certReq unmet) is a **diagnostic** through the context's emitter, never a verdict change, unless an RFC makes it a MUST that decides validity.
+- A conformance concern inside a decision (responderID ≠ signer, a certReq unmet, an unrequested SingleResponse) is a **diagnostic** through the context's `onDiagnostic` emitter, never a verdict change, unless an RFC makes it a MUST that decides validity — a delegated OCSP responder whose certificate is not valid at `producedAt` (RFC 6960 §4.2.2.2) is such a MUST, and is a reason.
 
 ## Fail closed
 - A host that throws during `verify` is `false`; "no" is a legitimate verdict. Missing evidence is a reason (`…_UNAVAILABLE`, `…_UNCHECKED`), never `good`.
