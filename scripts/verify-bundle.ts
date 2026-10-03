@@ -260,7 +260,8 @@ export const PROBES: readonly Probe[] = [
     { exports: ['parsePrivateKeyInfo', 'parseEncryptedPrivateKeyInfo', 'parsePkcs12'], maxBytes: 46 * 1024, mustNotContain: [MARKERS.x509, MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // Opening them reaches the door and still no certificate parser: a key's
     // algorithm is named by the caller or, in openPkcs12, by its certificate.
-    { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 50 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // Final review (2026-10-04): 50 KB → 51 KB, measured at 50.2 KB — resolveSigner refuses an ECDSA signing key without its curve before anything is signed (PKI_INVALID_OPTION).
+    { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 51 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The one call parses every certificate the file carries, to match each
     // key to the one naming its algorithm: the certificate parser is the price.
     // Final review (2026-10-02): 104 KB → 120 KB, measured at 118.5 KB — the
