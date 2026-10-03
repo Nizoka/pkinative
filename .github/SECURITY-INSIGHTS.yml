@@ -4,8 +4,8 @@
 # the security-insights-parity rule of scripts/verify-docs.ts.
 header:
   schema-version: 2.0.0
-  last-updated: '2026-10-02'
-  last-reviewed: '2026-10-02'
+  last-updated: '2026-10-04'
+  last-reviewed: '2026-10-04'
   url: https://raw.githubusercontent.com/Nizoka/pkinative/main/.github/SECURITY-INSIGHTS.yml
   comment: >-
     Every statement here can be read in the repository: SECURITY.md,

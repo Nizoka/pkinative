@@ -1,7 +1,7 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-09-29",
+  "verifiedOn": "2026-10-04",
   "artefacts": [
     {
       "url": "llms.txt",

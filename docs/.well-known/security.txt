@@ -5,7 +5,7 @@
 
 Contact: https://github.com/Nizoka/pkinative/security/advisories/new
 Contact: mailto:security@pkinative.dev
-Expires: 2027-09-28T00:00:00Z
+Expires: 2027-10-03T00:00:00Z
 Policy: https://github.com/Nizoka/pkinative/blob/main/SECURITY.md
 Preferred-Languages: en
 Canonical: https://pkinative.dev/.well-known/security.txt
