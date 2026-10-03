@@ -285,6 +285,28 @@ describe('verifyCertificateChain', () => {
             expect(report.signatureVerifications).toBe(3);
         });
 
+        it('should carry a path found three links deep straight back up, trying no other issuer of the leaf', async () => {
+            // leaf → ICA1 → ICA2 → the second of two same-name roots: the path is
+            // accepted inside the deepest frame, and each frame above must hand
+            // that answer up unchanged — a frame that swallowed it would let the
+            // leaf's level go on into the decoys that follow ICA1 in the bag.
+            const oldRoot = await selfSigned('Verify Root', 1n);
+            const newRoot = await selfSigned('Verify Root', 2n);
+            const ica2 = await issue({ subject: 'Verify ICA2', issuerDer: newRoot.certificate.subject.der, signer: newRoot.key, ca: true, serial: 3n });
+            const ica1 = await issue({ subject: 'Verify ICA1', issuerDer: ica2.certificate.subject.der, signer: ica2.key, ca: true, serial: 4n });
+            const leaf = await issue({ subject: 'leaf.example', issuerDer: ica1.certificate.subject.der, signer: ica1.key, ca: false, serial: 5n, host: 'leaf.example' });
+            const decoys: Certificate[] = [];
+            for (let i = 0; i < 5; i += 1) decoys.push((await issue({ subject: 'Verify ICA1', issuerDer: ica1.certificate.subject.der, ca: true, serial: BigInt(60 + i) })).certificate);
+            const report = await verifyCertificateChain({
+                leaf: leaf.certificate, candidates: [ica1.certificate, ...decoys, ica2.certificate], trustAnchors: [oldRoot.certificate, newRoot.certificate], at: AT,
+            });
+            expect(codes(report)).toEqual([]);
+            expect(report.path.map((c) => c.serialNumber.hex)).toEqual(['05', '04', '03', '02']);
+            expect(report.explored).toBe(5);
+            // leaf → ICA1, ICA1 → ICA2, ICA2 → old root (refused), ICA2 → new root.
+            expect(report.signatureVerifications).toBe(4);
+        });
+
         it('should spend the exploration budget exactly as the builder does when the anchor is in the bag too', async () => {
             // The real root sits in `candidates` as well as in `trustAnchors`, a
             // decoy under the ICA's name leads to it first, and the budget is the
