@@ -379,6 +379,28 @@ function aliasParts(signature: string): { tp: string; union: string[] } | null {
  * type is compatible too, but proving it takes a type checker, and a false
  * "major" costs a reviewed exception while a false "minor" costs a caller.
  */
+/** One member of a flat union: a string literal or a bare identifier — nothing with brackets, generics or functions. */
+const UNION_MEMBER = /^(?:'[^']*'|"[^"]*"|[A-Za-z_$][\w$]*)$/;
+
+/**
+ * Whether `next` is `frozen` with a literal union that only gained members, in an interface member such as
+ * `readonly kind: 'a' | 'b'` → `readonly kind: 'a' | 'b' | 'c'`. ADR 0018 keeps every union open: a new kind is
+ * a minor, whether the member reaches a parameter (a caller's literal still fits) or a result (a reader's
+ * `switch` gains a case it must already have a default for). Anything but a flat union of literals and
+ * identifiers stays incompatible — proving more takes a type checker.
+ */
+function literalUnionWidened(frozen: string, next: string): boolean {
+    const split = (text: string): { head: string; union: string[] } | null => {
+        const colon = text.indexOf(':');
+        if (colon < 0) return null;
+        const union = text.slice(colon + 1).split('|').map((m) => m.trim());
+        return union.every((m) => UNION_MEMBER.test(m)) ? { head: text.slice(0, colon), union } : null;
+    };
+    const [a, b] = [split(frozen), split(next)];
+    if (a === null || b === null || a.head !== b.head) return false;
+    return a.union.every((m) => b.union.includes(m)) && b.union.length > a.union.length;
+}
+
 export function classify(frozen: FrozenExport, next: FrozenExport, inputs: ReadonlySet<string>): { readonly verdict: 'compatible' | 'incompatible'; readonly detail: string } {
     const no = (detail: string): { verdict: 'incompatible'; detail: string } => ({ verdict: 'incompatible', detail });
     if (frozen.kind === 'function') {
@@ -400,7 +422,7 @@ export function classify(frozen: FrozenExport, next: FrozenExport, inputs: Reado
         for (const [key, member] of a.members) {
             const now = b.members.get(key);
             if (now === undefined) return no(`member ${key} was removed`);
-            if (now.text !== member.text) return no(`member ${key} changed from "${member.text}" to "${now.text}"`);
+            if (now.text !== member.text && !literalUnionWidened(member.text, now.text)) return no(`member ${key} changed from "${member.text}" to "${now.text}"`);
         }
         const added = [...b.members].filter(([key]) => !a.members.has(key));
         const required = added.find(([, m]) => !m.optional);

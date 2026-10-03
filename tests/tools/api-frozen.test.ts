@@ -91,6 +91,17 @@ describe('classify and diffSurface', () => {
         expect(classify(before, ty('Report', 'interface { readonly ok: number }'), new Set()).verdict).toBe('incompatible');
     });
 
+    it('should call a literal union widened inside an interface member compatible, whether or not the type is an input (ADR 0018 open unions)', () => {
+        const before = ty('Key', "interface { readonly kind: 'rsa' | 'ec'; readonly bits?: number }");
+        const widened = ty('Key', "interface { readonly kind: 'rsa' | 'ec' | 'okp'; readonly bits?: number }");
+        expect(classify(before, widened, new Set()).verdict).toBe('compatible');
+        expect(classify(before, widened, new Set(['Key'])).verdict).toBe('compatible');
+        expect(classify(before, ty('Key', "interface { readonly kind: 'rsa'; readonly bits?: number }"), new Set())).toEqual({ verdict: 'incompatible', detail: "member kind changed from \"readonly kind: 'rsa' | 'ec'\" to \"readonly kind: 'rsa'\"" });
+        expect(classify(before, ty('Key', "interface { readonly kind: 'rsa' | 'ec' | Uint8Array[]; readonly bits?: number }"), new Set()).verdict).toBe('incompatible');
+        expect(classify(before, ty('Key', "interface { kind: 'rsa' | 'ec' | 'okp'; readonly bits?: number }"), new Set()).verdict).toBe('incompatible');
+        expect(classify(before, ty('Key', "interface { readonly kind: 'rsa' | 'ec'; readonly bits?: number | bigint }"), new Set()).verdict).toBe('compatible');
+    });
+
     it('should call a widened union compatible and a narrowed one incompatible', () => {
         expect(classify(ty('T', "type = 'a' | 'b'"), ty('T', "type = 'a' | 'b' | 'c'"), new Set()).verdict).toBe('compatible');
         expect(classify(ty('T', "type = 'a'"), ty('T', "type = 'a' | 'b'"), new Set()).verdict).toBe('compatible');
