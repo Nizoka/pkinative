@@ -969,6 +969,42 @@
       "reason": "Semantic: the mutant allocates maxTag slots instead of maxTag + 1; a field [maxTag] is still stored by `fields[child.tagNumber] = child` (a JS array grows on assignment), and an absent one reads as undefined through the callers' positional destructuring, exactly as the filled slot would."
     },
     {
+      "id": "src/x509/x509-extensions.ts:128:98:number+1",
+      "original": "0",
+      "replacement": "1",
+      "reason": "Message-only: `oid.slice(0, 64)` only bounds the OID echoed in the PKI_OID_INVALID message; the refusal is decided by isValidOid on the whole string."
+    },
+    {
+      "id": "src/x509/x509-extensions.ts:128:98:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Message-only: as number+1 at the same position — the slice start only changes the echoed OID text of a PKI_OID_INVALID message."
+    },
+    {
+      "id": "src/x509/x509-extensions.ts:128:101:number+1",
+      "original": "64",
+      "replacement": "65",
+      "reason": "Message-only: the slice end only changes how much of the refused OID the PKI_OID_INVALID message echoes."
+    },
+    {
+      "id": "src/x509/x509-extensions.ts:128:101:number-1",
+      "original": "64",
+      "replacement": "63",
+      "reason": "Message-only: as number+1 at the same position — only the echoed OID text of the message changes."
+    },
+    {
+      "id": "src/x509/x509-extensions.ts:146:132:conditional",
+      "original": "certificate === null ? 'null' : typeof certificate",
+      "replacement": "(certificate === null ? typeof certificate : 'null')",
+      "reason": "Message-only: the expression names the received type in the PKI_INVALID_INPUT message of getExtension; the refusal and its code are decided by the enclosing typeof/null/Array.isArray test."
+    },
+    {
+      "id": "src/x509/x509-extensions.ts:146:144:equality",
+      "original": "===",
+      "replacement": "!==",
+      "reason": "Message-only: as the conditional at 146:132 — the comparison only picks the type name rendered in the message."
+    },
+    {
       "id": "src/x509/x509-name-format.ts:48:14:relational",
       "original": "<",
       "replacement": "<=",
