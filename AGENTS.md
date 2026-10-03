@@ -104,6 +104,6 @@ Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable 
 ## Releasing and governance
 
 CONTRIBUTING.md §Release; Conventional Commits; every runtime change gets a ROADMAP.md entry and a line in the next `release-notes/vX.Y.Z.md`, downstream-visible ones under **Downstream integration notes**.
-Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.
+No version below 1.0.0 was ever tagged or released; `publish.yml` refuses one all the same.
 Human-in-the-loop, enforced: agents never push, tag, open PRs/issues/releases, publish, or add `Co-Authored-By`.
 Protocol [.github/AGENT_RULES.md](.github/AGENT_RULES.md), policy [.github/ai-governance.json](.github/ai-governance.json); issue drafts in `.github/drafts/` (`npm run verify:issue`); security findings follow SECURITY.md.

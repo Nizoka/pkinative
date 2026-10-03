@@ -21,7 +21,7 @@ The handling steps, their timelines, the advisory and the credit are in [Disclos
 |---------|-----------|
 | the latest 1.x minor on npm | ✅ fixes land in its next patch or in the next minor |
 | any older 1.x minor | ❌ upgrade to the latest minor: under the compatibility promise below it breaks nothing |
-| 0.x (git tags only, never on npm) | ❌ |
+| 0.x (never tagged, never released) | ❌ |
 | npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |
 
 ### Supported runtimes and compilers
@@ -240,7 +240,7 @@ There is no external audit and none is planned: pkinative is maintained by one p
 
 **Every release is built from its tag by a workflow, never on a maintainer's machine.** The tag rules ([.github/rulesets/tags.json](.github/rulesets/tags.json)) forbid deleting, moving or updating a `v*` tag, with no bypass — the repository owner included — so a version names one commit forever. The release workflow fails when the tag it runs on and the version in `package.json` disagree.
 
-**Below 1.0.0** a version is a git tag and nothing else: a source snapshot of a milestone, with its release note in `release-notes/`, never released on GitHub or npm, and with no tarball to install or verify.
+**Below 1.0.0** there is nothing to install or verify. Versions 0.1.0 to 0.9.0 were milestones of the preparation of 1.0.0: each has its CHANGELOG entry and its note under `release-notes/`, and none was tagged, released or published — the first tag of this repository is `v1.0.0`.
 
 **From 1.0.0** `.github/workflows/publish.yml` publishes to npm when the maintainer pushes the `vX.Y.Z` tag, in four jobs ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)):
 

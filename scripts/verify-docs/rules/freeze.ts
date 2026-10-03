@@ -205,7 +205,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
         to: [
             '| the latest 1.x minor on npm | ✅ fixes land in its next patch or in the next minor |',
             '| any older 1.x minor | ❌ upgrade to the latest minor: under the compatibility promise below it breaks nothing |',
-            '| 0.x (git tags only, never on npm) | ❌ |',
+            '| 0.x (never tagged, never released) | ❌ |',
             '| npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |',
         ].join('\n'),
     },
@@ -299,7 +299,7 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
     {
         file: 'docs/assets/ecosystem.json', phrase: '"npm": "not published;', at1: 'absent', why: 'packages.pkinative.npm',
         from: '"npm": "not published; pre-1.0 versions are git tags with an attested release tarball, the first npm publication is 1.0.0"',
-        to: '"npm": "published from 1.0.0 by publish.yml, with npm provenance; versions below 1.0.0 are git tags only, never released"',
+        to: '"npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"',
     },
     {
         file: 'docs/assets/ecosystem.json', phrase: 'because pkinative is not on npm before 1.0.0 and there is no CDN to load it from', at1: 'absent', why: 'the playground block\'s $comment',
@@ -316,8 +316,8 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
         from: 'pre-1.0 is a git tag, not an npm release',
         to: 'npm install pkinative',
     },
-    { file: 'AGENTS.md', phrase: 'Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.', at1: 'kept', why: 'the release policy agents follow' },
-    { file: '.github/workflows/publish.yml', phrase: 'pre-1.0 versions are git tags, never npm releases', at1: 'kept', why: 'the refusal step, which still guards a 0.x tag cut from an old branch' },
+    { file: 'AGENTS.md', phrase: 'No version below 1.0.0 was ever tagged or released; `publish.yml` refuses one all the same.', at1: 'kept', why: 'the release policy agents follow' },
+    { file: '.github/workflows/publish.yml', phrase: 'no version below 1.0.0 is released', at1: 'kept', why: 'the refusal step, which still guards a 0.x tag cut from an old branch' },
 ];
 
 const occurrences = (text: string, needle: string): number => text.split(needle).length - 1;

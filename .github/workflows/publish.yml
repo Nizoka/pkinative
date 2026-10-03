@@ -22,9 +22,9 @@ on:
 #   already exists: the maintainer published an empty 0.0.1 name reservation
 #   by hand first.
 #
-# Pre-1.0 policy: versions below 1.0.0 are git tags only, never released on
-# GitHub or npm (ROADMAP.md). The guard refuses such a version, for a tag cut
-# at a commit that already carries this file.
+# Pre-1.0 policy: no version below 1.0.0 was ever tagged or released (ROADMAP.md,
+# CONTRIBUTING.md §Release). The guard refuses such a version all the same, for
+# a tag cut at a commit that already carries this file.
 #
 # Job graph: guard → build → publish → attest.
 #   guard    reads package.json; no token, no environment, nothing installed,
@@ -112,7 +112,7 @@ jobs:
           set -euo pipefail
           MAJOR=$(node -p "require('./package.json').version.split('.')[0]")
           if [ "${MAJOR}" = "0" ]; then
-            echo "::error::pre-1.0 versions are git tags, never npm releases (ROADMAP.md); the first npm publication is 1.0.0"
+            echo "::error::no version below 1.0.0 is released (ROADMAP.md); the first publication is 1.0.0"
             exit 1
           fi
 

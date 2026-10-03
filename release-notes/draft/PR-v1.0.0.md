@@ -6,7 +6,7 @@
 
 ## Summary
 
-This is pkinative's first release, on npm with provenance and on GitHub with attested assets. Versions 0.1 to 0.9 are tagged but never released. Before it, a multi-agent pre-publication audit — nine auditors over standards, consistency, foreign cross-validation in both directions, CVEs, documentation, irreversible decisions, CI and the site, each checked by an adversarial verifier — confirmed 98 findings; every one is fixed here or decided in an ADR. On 2026-10-03 every item the 1.1.x section of ROADMAP.md had deferred was pulled into 1.0.0 — a PKCS#10 reader and verdict, lazy signature verification in the chain search, the fourteen RFC 5652/3161/6960 sentences as thirteen diagnostics, id-RSASSA-PSS keys re-wrapped at the Web Crypto door, Ed448 CMS signers where the host has Ed448 (ADR 0022), an OCSP delegate judged at `producedAt`, the ENUMERATED and RELATIVE-OID readers, two X.520 diagnostics, and the tooling (surface classifier, `schemaVersion`, `check:guides`, the `a11y` job, the Node 26 advisory run, the 0.x tag script) — each under the publish gate, interop `--require-all`, 100 % mutation on the modules it touched and the `api.frozen.json` ratchet, so that it is promised at 1.0.0 and not a minor later.
+This is pkinative's first release, on npm with provenance and on GitHub with attested assets. Versions 0.1 to 0.9 were milestones of the preparation, never tagged nor released. Before it, a multi-agent pre-publication audit — nine auditors over standards, consistency, foreign cross-validation in both directions, CVEs, documentation, irreversible decisions, CI and the site, each checked by an adversarial verifier — confirmed 98 findings; every one is fixed here or decided in an ADR. On 2026-10-03 every item the 1.1.x section of ROADMAP.md had deferred was pulled into 1.0.0 — a PKCS#10 reader and verdict, lazy signature verification in the chain search, the fourteen RFC 5652/3161/6960 sentences as thirteen diagnostics, id-RSASSA-PSS keys re-wrapped at the Web Crypto door, Ed448 CMS signers where the host has Ed448 (ADR 0022), an OCSP delegate judged at `producedAt`, the ENUMERATED and RELATIVE-OID readers, two X.520 diagnostics, and the tooling (surface classifier, `schemaVersion`, `check:guides`, the `a11y` job, the Node 26 advisory run, the 0.x tag script) — each under the publish gate, interop `--require-all`, 100 % mutation on the modules it touched and the `api.frozen.json` ratchet, so that it is promised at 1.0.0 and not a minor later.
 
 - **The three-part compatibility promise** (export surface, error vocabulary, decision surface), each held by a snapshot and a rule, plus what ADR 0018 adds beyond the snapshots: option defaults, open unions, what is not promised.
 - **Security fixes found before anyone could depend on the defect:** the PBKDF2 work of a whole PKCS#12 bounded (`maxPkcs12KdfIterations`, ADR 0020); `PKI_REASON_REVOKED` only from authenticated evidence; three name-constraint bypasses closed; id-RSASSA-PSS keys held to RFC 4055. A CVE-class corpus of 43 published vulnerabilities of comparable libraries.
@@ -47,7 +47,7 @@ Conformance:
 
 - `build-refusals-frozen.ts`; `check-ts-floor.ts` in the publish profile; the interop runner rebuilt over `scripts/lib/interop-*.ts` with ten tools, `REQUIRED_TOOLS` per platform and reviewed `TOOL_LIMITATIONS`; two new L4 validators.
 - 84 rules, among them `option-defaults-parity`, `security-txt-parity`, `cve-class-parity`, `lint-waiver-reviewed`, `stale-milestone`, `standards-evidence`, `errors-guide-complete`, `code-token-registered`, `readme-surfaces`, `copilot-layer-parity`, `design-tokens-parity`, `a11y-structure`, `structured-data`, `architecture-diagram`, `comparison-current`, `refusal-baseline-frozen`, `contracts-shape`, `package-files-parity`, `reuse-shape`, `external-links`, `registry-schema-version` (every `docs/data/*.json` carries `schemaVersion: 1`); `skills-shape` now also fails on an undeclared skill.
-- `scripts/lib/api-surface.ts` classifies a literal union widened inside an interface member as compatible (ADR 0018 updated); `scripts/check-guides.ts` compiles every ```ts fence of README and the guides under lib ES2020 + DOM (gate step `check:guides`, fast, CI and publish; one defect found, a guide variable named `document`); `scripts/a11y-check.ts` runs axe-core 4.13.0 over every page in both palettes; `scripts/tag-history.ts` prepares the eight 0.x tags.
+- `scripts/lib/api-surface.ts` classifies a literal union widened inside an interface member as compatible (ADR 0018 updated); `scripts/check-guides.ts` compiles every ```ts fence of README and the guides under lib ES2020 + DOM (gate step `check:guides`, fast, CI and publish; one defect found, a guide variable named `document`); `scripts/a11y-check.ts` runs axe-core 4.13.0 over every page in both palettes.
 - Bundle budgets raised with the measured cause of each (`scripts/verify-bundle.ts`): `*` 272.9 KB of 280 KB.
 - Requirement inventories for RFC 5652, 3161, 6960, 7292 and 7468 (`scripts/data/rfc*-requirements.json`, `scripts/lib/rfc-requirements.ts` generalised, the L5 runner over all six); `scripts/mutate.ts` targets every executable module of `src/`; the `export-exercised`, `security-insights-parity` and extended `bench-parity` rules; the L4 validators' field masks pinned; gpgsm and keytool required on Linux, .NET's Unix gap declared.
 
@@ -132,7 +132,7 @@ From here, semver applies to all three parts of the promise and to what ADR 0018
 
 ## Human-in-the-loop — steps for the maintainer
 
-This is the first push to an empty repository, so the steps differ from the template. `main` must carry the whole linear history, not a squash, so that each 0.x tag lands on an ancestor of `main`.
+This is the first push to an empty repository, so the steps differ from the template. `main` must carry the whole linear history, not a squash, so that the audited history of the preparation (0.1 to 0.9, never tagged) stays readable.
 
 0. Run `/release-audit release-notes/v1.0.0.md v0.9.0` and record GO/NO-GO above.
 1. Create the mailbox security@pkinative.dev (SECURITY.md and `security.txt` name it), and the `npm-publish` environment: yourself as required reviewer, deployments limited to tags matching `v*`.
@@ -144,18 +144,7 @@ This is the first push to an empty repository, so the steps differ from the temp
 3. The one-time settings of CONTRIBUTING §Branch protection: Dependency graph; private vulnerability reporting (check: `curl -s https://api.github.com/repos/Nizoka/pkinative/private-vulnerability-reporting` answers `{"enabled":true}`); Dependabot alerts and security updates; secret scanning with push protection; the CodeQL advanced set-up; Actions workflow permissions read-only; release immutability; Pages from `main` `/docs` with `pkinative.dev` and Enforce HTTPS.
 4. Import the rulesets: `.github/rulesets/main.json`, then `.github/rulesets/tags.json` (Settings → Rules → Rulesets → Import).
 5. Wait for CI, conformance (three platforms), runtimes, workflow lint, CodeQL and Scorecard to go green on `main`. (`dependency-review` reports on pull requests.)
-6. Tag the 0.x line: `npx tsx scripts/tag-history.ts` (dry run — the eight commands, each verified against the commit's `package.json`, the release note and CHANGELOG), then `npx tsx scripts/tag-history.ts --apply` in your terminal, `git tag -n3` to review, `git push origin --tags`. Annotated tags, **no GitHub Release**. Those commits carry the old `publish.yml`, triggered only by a published release, so the tags start nothing. The table the script holds (CONTRIBUTING.md §Tagging the 0.x line explains the choice of commit):
-
-   | Tag | Commit |
-   |---|---|
-   | `v0.1.0` | `f271a88` |
-   | `v0.2.0` | `adeb55f` |
-   | `v0.3.0` | `de7a7c2` |
-   | `v0.4.0` | `0c63bf5` |
-   | `v0.5.0` | `87b9ff6` |
-   | `v0.7.0` | `448713c` |
-   | `v0.8.0` | `cd9e629` |
-   | `v0.9.0` | `353f36e` |
+6. No 0.x tag. Versions 0.1.0 to 0.9.0 were milestones of the preparation of 1.0.0: each has its CHANGELOG entry and its note under `release-notes/`, and none was tagged, released or published — the first tag of this repository is `v1.0.0`.
 
    **`tags.json` has an empty `bypass_actors`: a pushed tag can never be moved or deleted, by anyone.**
 7. Configure Trusted Publishing on npmjs.com for `pkinative`, bound to `.github/workflows/publish.yml` and the `npm-publish` environment.

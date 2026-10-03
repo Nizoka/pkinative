@@ -588,7 +588,7 @@ describe('verify-docs rule table', () => {
         expect(problems.map((p) => p.file).sort()).toEqual(absent.map((row) => row.file).sort());
         expect(problems.every((p) => p.message.includes('from 1.0.0 pkinative is on npm'))).toBe(true);
         const policy = { ...TREE };
-        edit(policy, 'AGENTS.md', 'Pre-1.0 versions are git tags, never npm releases; `publish.yml` refuses them.', 'Releases go to npm.');
+        edit(policy, 'AGENTS.md', 'No version below 1.0.0 was ever tagged or released; `publish.yml` refuses one all the same.', 'Releases go to npm.');
         const kept = await runRules(createMemoryContext(policy), RULES, 'release-era-prose');
         expect(kept.filter((p) => p.file === 'AGENTS.md').map((p) => p.message)).toEqual([expect.stringContaining('states the pre-1.0 policy')]);
     });

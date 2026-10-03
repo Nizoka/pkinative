@@ -42,7 +42,6 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **feat(gate): `check:guides`** — every ```ts fence of README.md and the guides compiled under `lib: ES2020 + DOM` (`scripts/check-guides.ts`), in the fast, CI and publish profiles.
 - **ci(docs): the `a11y` job** runs axe-core 4.13.0 over every page in both palettes, blocking (`scripts/a11y-check.ts`).
 - **ci: Node.js 26 tested by the advisory `node-current.yml` workflow**, promised by nothing until it enters LTS (`contracts.support.currentLines`, [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md) amended).
-- **chore(release): `scripts/tag-history.ts`** prepares the eight 0.x tags; the maintainer applies them.
 - **docs:** the [standards guide](docs/guides/standards.md), a tooled self-assessment against every ISO/IEC, ITU-T and IETF standard pkinative touches; the ISO/IEC 29147 and 30111 self-assessment in SECURITY.md; `docs/.well-known/security.txt`; REUSE 3.3 compliance (`REUSE.toml`, `reuse-shape`); twenty-two decision records; 84 verify-docs rules in all, `external-links` and `registry-schema-version` among them.
 
 ### Changed
@@ -53,7 +52,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **ci(publish): the release path, hardened before its first use** ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)): triggered by the `v*` tag, a guard before any approval, a build job that cannot publish, a publish job that uploads exactly the tarball handed on, the registry's own bytes attested, `package-manager-cache: false` on every setup-node step, CycloneDX, SPDX and toolchain SBOMs. SLSA Build L2.
 - **ci: no path filter on a required check**; a runtime smoke test on Deno, Bun and headless Chromium; CodeQL over the workflows, zizmor and actionlint; harden-runner on every job, in block mode where the endpoints are known; Dependabot with a seven-day cooldown; a weekly OSV-Scanner pass over the lockfile.
 - **`engines.node` raised to `^22.22.2 || ^24.14.1 || >=25.8.2`**, the first releases fixing CVE-2026-21713.
-- **The 0.x line is tagged, never released**, and `release-assets.yml` is retired.
+- **No version below 1.0.0 was tagged or released**: the 0.x line is history in this file and in `release-notes/`; `release-assets.yml` is retired.
 - **`strict: true` refuses the first `warning` and reports every `info`** — a SHOULD the input did not follow never refuses it.
 - **feat(verify): signatures verified lazily inside `verifyCertificateChain`**, for the links the path search relies on; no verdict changes.
 - **fix(verify): an OCSP delegated responder is judged at `producedAt` as well as at `at`** (RFC 6960 §4.2.2.2) — out of its validity when it signed, the response is `PKI_REASON_REVOCATION_UNKNOWN`.

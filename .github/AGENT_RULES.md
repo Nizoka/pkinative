@@ -100,7 +100,7 @@ the human review gate above always applies.
 - Open, edit, label, close, or comment on issues/PRs autonomously.
 - Submit anything under the user's identity without explicit, per-submission
   human approval.
-- Push, tag or publish. A tag is a release act: `scripts/tag-history.ts`
-  prepares the 0.x tags (dry run), and its `--apply` refuses a shell that is
-  not an interactive terminal — the maintainer runs it, then pushes.
+- Push, tag or publish. Each is the maintainer's act; the repository carries
+  one tag per published version, `v1.0.0` first — no version below it was
+  ever tagged.
 - Bypass local validation or duplicate checks.

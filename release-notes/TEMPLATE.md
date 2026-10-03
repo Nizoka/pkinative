@@ -130,7 +130,7 @@ Thanks to @handle1, @handle2 for contributions to this release.
 - **Security section first** when a release contains security fixes — always include the CWE identifier and mitigation.
 - **Code blocks** for install commands and migration examples only.
 - **Backward-compatibility statement** in the summary paragraph for every release.
-- **Install honesty.** The Install section installs from npm and names `npm audit signatures`; never a git URL, which carries no `dist/`. Versions below 1.0.0 are git tags only and have no install.
+- **Install honesty.** The Install section installs from npm and names `npm audit signatures`; never a git URL, which carries no `dist/`. Versions below 1.0.0 were never tagged or released and have no install.
 
 ## Publication workflow
 

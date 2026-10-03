@@ -479,7 +479,7 @@ describe('publish.yml', () => {
         expect(steps).toHaveLength(4);
         expect([tag, pre1]).toEqual([2, 3]);
         expect(steps[pre1]).toMatch(/\[ "\$\{MAJOR\}" = "0" \][\s\S]*exit 1/);
-        expect(steps[pre1]).toContain('pre-1.0 versions are git tags, never npm releases');
+        expect(steps[pre1]).toContain('no version below 1.0.0 is released');
         expect(guard).toMatch(/^ {6}version:\s*\$\{\{ steps\.version\.outputs\.version \}\}\s*$/m);
     });
 

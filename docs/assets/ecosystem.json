@@ -10,7 +10,7 @@
         "node": "^22.22.2 || ^24.14.1 || >=25.8.2"
       },
       "site": "https://pkinative.dev",
-      "npm": "published from 1.0.0 by publish.yml, with npm provenance; versions below 1.0.0 are git tags only, never released"
+      "npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"
     }
   },
   "family": {
