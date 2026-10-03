@@ -182,6 +182,7 @@ var TAG_NULL = 5;
 var TAG_OID = 6;
 var TAG_ENUMERATED = 10;
 var TAG_UTF8_STRING = 12;
+var TAG_RELATIVE_OID = 13;
 var TAG_SEQUENCE = 16;
 var TAG_SET = 17;
 var TAG_NUMERIC_STRING = 18;
@@ -802,6 +803,26 @@ function countryNameSizeDiagnostic(path, characters, offset) {
     "warning",
     "RFC 5280 Appendix A.1",
     `the countryName is ${String(characters)} characters long; RFC 5280 Appendix A.1 defines it as exactly two, an ISO 3166 alpha-2 code`,
+    path,
+    offset
+  );
+}
+function nameAttributeTooLongDiagnostic(path, attribute, characters, bound, offset) {
+  return _diagnostic(
+    "PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG",
+    "info",
+    "ITU-T X.520 / RFC 5280 Appendix A.1",
+    `the ${attribute} is ${String(characters)} characters long; RFC 5280 Appendix A.1 bounds it at ${String(bound)} \u2014 the value is read as it is, and a reader that enforces the bound refuses the name`,
+    path,
+    offset
+  );
+}
+function countryNameUnknownDiagnostic(path, code, offset) {
+  return _diagnostic(
+    "PKI_DIAG_NAME_COUNTRY_UNKNOWN",
+    "info",
+    "ISO 3166-1:2020",
+    `the countryName "${code}" is not an assigned ISO 3166-1 alpha-2 code (two capital letters) nor a user-assigned one (AA, QM\u2013QZ, XA\u2013XZ, ZZ) \u2014 the value is read as it is`,
     path,
     offset
   );
@@ -1920,18 +1941,18 @@ function _readBoolean(node, ctx) {
 function readBoolean(node, options) {
   return _readBoolean(assertNode(node, "readBoolean"), createAsn1Context(options));
 }
-function _readInteger(node, ctx) {
-  expectUniversal(node, TAG_INTEGER);
-  expectPrimitive(node, "INTEGER");
+function integerValue(node, ctx, tagNumber, what) {
+  expectUniversal(node, tagNumber);
+  expectPrimitive(node, what);
   const content = node.content;
   if (content.length === 0) {
     throw new PkiEncodingError(
       "PKI_ASN1_INTEGER_INVALID",
-      `pkinative: the INTEGER at offset ${node.offset} has no content octet (X.690 \xA78.3.1)`,
+      `pkinative: the ${what} at offset ${node.offset} has no content octet (X.690 \xA78.3.1)`,
       node.offset
     );
   }
-  enforceLimit(ctx.limits, "maxIntegerBytes", content.length, "the INTEGER content length");
+  enforceLimit(ctx.limits, "maxIntegerBytes", content.length, `the ${what} content length`);
   const view = byteView(content);
   const first = view.getUint8(0);
   if (content.length > 1) {
@@ -1939,7 +1960,7 @@ function _readInteger(node, ctx) {
     if (first === 0 && (second & 128) === 0 || first === 255 && (second & 128) !== 0) {
       throw new PkiEncodingError(
         "PKI_ASN1_INTEGER_INVALID",
-        `pkinative: the INTEGER at offset ${node.offset} is not in minimal two's complement form (X.690 \xA78.3.2) \u2014 the encoder is broken`,
+        `pkinative: the ${what} at offset ${node.offset} is not in minimal two's complement form (X.690 \xA78.3.2) \u2014 the encoder is broken`,
         node.offset
       );
     }
@@ -1949,6 +1970,9 @@ function _readInteger(node, ctx) {
   let value = BigInt(`0x${hex3}`);
   if ((first & 128) !== 0) value -= 1n << BigInt(content.length * 8);
   return value;
+}
+function _readInteger(node, ctx) {
+  return integerValue(node, ctx, TAG_INTEGER, "INTEGER");
 }
 function readInteger(node, options) {
   return _readInteger(assertNode(node, "readInteger"), createAsn1Context(options));
@@ -1966,6 +1990,12 @@ function _readSmallInteger(node, ctx) {
 }
 function readSmallInteger(node) {
   return _readSmallInteger(assertNode(node, "readSmallInteger"), createAsn1Context(void 0));
+}
+function _readEnumerated(node, ctx) {
+  return integerValue(node, ctx, TAG_ENUMERATED, "ENUMERATED");
+}
+function readEnumerated(node, options) {
+  return _readEnumerated(assertNode(node, "readEnumerated"), createAsn1Context(options));
 }
 function readNull(node) {
   const checked = assertNode(node, "readNull");
@@ -2296,15 +2326,17 @@ function readTime(node, options) {
 
 // src/asn1/asn1-oid.ts
 var EXACT_LIMIT = 70368744177663;
-function _decodeOid(content, offset, ctx) {
+function decodeArcs(content, offset, ctx, relative) {
+  const what = relative ? "RELATIVE-OID" : "OBJECT IDENTIFIER";
+  const section = relative ? "8.20.2" : "8.19.2";
   if (content.length === 0) {
     throw new PkiEncodingError(
       "PKI_OID_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${offset} has no content octet (X.690 \xA78.19.2)`,
+      `pkinative: the ${what} at offset ${offset} has no content octet (X.690 \xA7${section})`,
       offset
     );
   }
-  enforceLimit(ctx.limits, "maxOidBytes", content.length, "the OBJECT IDENTIFIER content length");
+  enforceLimit(ctx.limits, "maxOidBytes", content.length, `the ${what} content length`);
   const arcs = [];
   let value = 0;
   let big = null;
@@ -2313,7 +2345,7 @@ function _decodeOid(content, offset, ctx) {
     if (!inArc && octet === 128) {
       throw new PkiEncodingError(
         "PKI_OID_INVALID",
-        `pkinative: a subidentifier of the OBJECT IDENTIFIER at offset ${offset} starts with 0x80, a non-minimal form X.690 \xA78.19.2 forbids`,
+        `pkinative: a subidentifier of the ${what} at offset ${offset} starts with 0x80, a non-minimal form X.690 \xA7${section} forbids`,
         offset
       );
     }
@@ -2322,7 +2354,7 @@ function _decodeOid(content, offset, ctx) {
     if (big === null) value = value * 128 + (octet & 127);
     else big = big * 128n + BigInt(octet & 127);
     if ((octet & 128) !== 0) continue;
-    if (arcs.length === 0) {
+    if (arcs.length === 0 && !relative) {
       if (big === null) {
         if (value < 40) arcs.push("0", String(value));
         else if (value < 80) arcs.push("1", String(value - 40));
@@ -2340,51 +2372,49 @@ function _decodeOid(content, offset, ctx) {
   if (inArc) {
     throw new PkiEncodingError(
       "PKI_OID_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${offset} ends inside a subidentifier \u2014 the input is truncated or corrupt`,
+      `pkinative: the ${what} at offset ${offset} ends inside a subidentifier \u2014 the input is truncated or corrupt`,
       offset
     );
   }
   return arcs.join(".");
 }
+function _decodeOid(content, offset, ctx) {
+  return decodeArcs(content, offset, ctx, false);
+}
 function decodeOid(content, options) {
   return _decodeOid(assertBytes(content, "decodeOid content"), 0, createAsn1Context(options));
 }
-function _readObjectIdentifier(node, ctx) {
-  expectUniversal(node, TAG_OID);
+function expectPrimitiveIdentifier(node, what) {
   if (node.constructed) {
     throw new PkiEncodingError(
       "PKI_ASN1_CONSTRUCTED_FORM_INVALID",
-      `pkinative: the OBJECT IDENTIFIER at offset ${node.offset} is constructed, but X.690 encodes it in primitive form only`,
+      `pkinative: the ${what} at offset ${node.offset} is constructed, but X.690 encodes it in primitive form only`,
       node.offset
     );
   }
-  return _decodeOid(node.content, node.offset, ctx);
+}
+function _readObjectIdentifier(node, ctx) {
+  expectUniversal(node, TAG_OID);
+  expectPrimitiveIdentifier(node, "OBJECT IDENTIFIER");
+  return decodeArcs(node.content, node.offset, ctx, false);
 }
 function readObjectIdentifier(node, options) {
   return _readObjectIdentifier(assertNode(node, "readObjectIdentifier"), createAsn1Context(options));
 }
+function _readRelativeOid(node, ctx) {
+  expectUniversal(node, TAG_RELATIVE_OID);
+  expectPrimitiveIdentifier(node, "RELATIVE-OID");
+  return decodeArcs(node.content, node.offset, ctx, true);
+}
+function readRelativeOid(node, options) {
+  return _readRelativeOid(assertNode(node, "readRelativeOid"), createAsn1Context(options));
+}
 var DOTTED = /^(?:[01]\.(?:[0-9]|[123][0-9])|2\.(?:0|[1-9][0-9]*))(?:\.(?:0|[1-9][0-9]*))*$/;
+var RELATIVE_DOTTED = /^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))*$/;
 function isValidOid(oid) {
   return typeof oid === "string" && DOTTED.test(oid);
 }
-function encodeOid(oid) {
-  if (typeof oid !== "string") {
-    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeOid expects a dotted-decimal string, got ${typeof oid}`);
-  }
-  if (!isValidOid(oid)) {
-    throw new PkiEncodingError(
-      "PKI_OID_INVALID",
-      `pkinative: "${oid.length > 64 ? `${oid.slice(0, 61)}\u2026` : oid}" is not a dotted-decimal OID \u2014 use two or more decimal arcs without leading zeros, a first arc of 0, 1 or 2, and a second arc of at most 39 under 0 and 1`
-    );
-  }
-  const subidentifiers = [];
-  let head = null;
-  for (const arc of oid.split(".")) {
-    const value = BigInt(arc);
-    if (head === null) head = value * 40n;
-    else if (subidentifiers.length === 0) subidentifiers.push(head + value);
-    else subidentifiers.push(value);
-  }
+function encodeSubidentifiers(subidentifiers) {
   const out = [];
   for (const sub of subidentifiers) {
     const digits = [];
@@ -2400,6 +2430,41 @@ function encodeOid(oid) {
     }
   }
   return Uint8Array.from(out);
+}
+function shown(oid) {
+  return oid.length > 64 ? `${oid.slice(0, 61)}\u2026` : oid;
+}
+function encodeOid(oid) {
+  if (typeof oid !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeOid expects a dotted-decimal string, got ${typeof oid}`);
+  }
+  if (!isValidOid(oid)) {
+    throw new PkiEncodingError(
+      "PKI_OID_INVALID",
+      `pkinative: "${shown(oid)}" is not a dotted-decimal OID \u2014 use two or more decimal arcs without leading zeros, a first arc of 0, 1 or 2, and a second arc of at most 39 under 0 and 1`
+    );
+  }
+  const subidentifiers = [];
+  let head = null;
+  for (const arc of oid.split(".")) {
+    const value = BigInt(arc);
+    if (head === null) head = value * 40n;
+    else if (subidentifiers.length === 0) subidentifiers.push(head + value);
+    else subidentifiers.push(value);
+  }
+  return encodeSubidentifiers(subidentifiers);
+}
+function _encodeRelativeOid(oid) {
+  if (typeof oid !== "string") {
+    throw new PkiError("PKI_INVALID_INPUT", `pkinative: encodeRelativeOid expects a dotted-decimal string, got ${typeof oid}`);
+  }
+  if (!RELATIVE_DOTTED.test(oid)) {
+    throw new PkiEncodingError(
+      "PKI_OID_INVALID",
+      `pkinative: "${shown(oid)}" is not a dotted-decimal RELATIVE-OID \u2014 use one or more decimal arcs without leading zeros, separated by dots`
+    );
+  }
+  return encodeSubidentifiers(oid.split(".").map((arc) => BigInt(arc)));
 }
 
 // src/core/pki-error-guard.ts
@@ -2646,6 +2711,14 @@ var NAME_ATTRIBUTE_SYNTAX = /* @__PURE__ */ new Map([
 ]);
 var OID_COUNTRY_NAME = "2.5.4.6";
 
+// src/x509/iso3166.ts
+var ASSIGNED = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW";
+var ISO_3166_1_ALPHA2 = /* @__PURE__ */ new Set(ASSIGNED.split(" "));
+var USER_ASSIGNED = /^(?:AA|Q[M-Z]|X[A-Z]|ZZ)$/;
+function isCountryCode(value) {
+  return ISO_3166_1_ALPHA2.has(value) || USER_ASSIGNED.test(value);
+}
+
 // src/x509/x509-name.ts
 var CODE = "PKI_X509_NAME_INVALID";
 function inDerSetOrder(elements) {
@@ -2670,9 +2743,13 @@ function checkAttributeSyntax(type, valueNode, value, ctx, path) {
   if (valueNode.tagClass !== "universal" || !SYNTAX_TAGS[spec.syntax].includes(valueNode.tagNumber)) {
     ctx.emitter.emit(nameAttributeStringTypeDiagnostic(path, spec.name, tagLabel(valueNode.tagClass, valueNode.tagNumber), SYNTAX_LABELS[spec.syntax], valueNode.offset));
   }
-  if (type === OID_COUNTRY_NAME && value !== void 0) {
-    const characters = [...value.value].length;
+  if (value === void 0) return;
+  const characters = [...value.value].length;
+  if (type === OID_COUNTRY_NAME) {
     if (characters !== 2) ctx.emitter.emit(countryNameSizeDiagnostic(path, characters, valueNode.offset));
+    else if (!isCountryCode(value.value)) ctx.emitter.emit(countryNameUnknownDiagnostic(path, value.value, valueNode.offset));
+  } else if (spec.max !== void 0 && characters > spec.max) {
+    ctx.emitter.emit(nameAttributeTooLongDiagnostic(path, spec.name, characters, spec.max, valueNode.offset));
   }
 }
 function readRdn(set, ctx, rdnPath, budget) {
@@ -4464,6 +4541,9 @@ function encodeNamedBits(bits) {
 }
 function encodeObjectIdentifier(oid) {
   return encodeTlv("universal", TAG_OID, false, encodeOid(oid));
+}
+function encodeRelativeOid(oid) {
+  return encodeTlv("universal", TAG_RELATIVE_OID, false, _encodeRelativeOid(oid));
 }
 function outOfRange(type, index) {
   return new PkiEncodingError(
@@ -8225,14 +8305,14 @@ function decodePem(text, options) {
     const bodyStart = i + 1;
     for (i++; i < lines.length; i++) {
       const line = lines[i];
-      const shown = boundary(line);
-      const end = END.exec(shown);
+      const shown2 = boundary(line);
+      const end = END.exec(shown2);
       if (end !== null) {
         endLine = line;
         endLabel = end[0].slice(END_PREFIX, -BOUNDARY_SUFFIX);
         break;
       }
-      if (BEGIN.test(shown)) break;
+      if (BEGIN.test(shown2)) break;
       body.push(line);
     }
     if (endLine === void 0) {
@@ -9545,11 +9625,13 @@ function assertCertificate2(value) {
 
 // src/build/build-signed-data.ts
 var SIGNED_ONLY = SIGNED_ONLY_ATTRIBUTES;
+var SHAKE256_DIGEST_OCTETS = 64;
 var DIGESTS = /* @__PURE__ */ Object.freeze({
   "SHA-1": { oid: "1.3.14.3.2.26", length: 20 },
   "SHA-256": { oid: "2.16.840.1.101.3.4.2.1", length: 32 },
   "SHA-384": { oid: "2.16.840.1.101.3.4.2.2", length: 48 },
-  "SHA-512": { oid: "2.16.840.1.101.3.4.2.3", length: 64 }
+  "SHA-512": { oid: "2.16.840.1.101.3.4.2.3", length: 64 },
+  SHAKE256: { oid: ID_SHAKE256, length: SHAKE256_DIGEST_OCTETS }
 });
 var CERTIFICATE_CHOICES = /* @__PURE__ */ new Map([[48, 1], [160, 1], [161, 3], [162, 4], [163, 5]]);
 var CRL_CHOICES = /* @__PURE__ */ new Map([[48, 1], [161, 5]]);
@@ -9601,14 +9683,12 @@ function bagEntryVersion(der, what, choices) {
 }
 function signerDigest(signer) {
   const algorithm = signer.algorithm;
-  if (algorithm.name === "Ed448") {
-    throw new PkiCryptoError(
-      "PKI_CRYPTO_ALGORITHM_UNSUPPORTED",
-      "pkinative: a CMS signature with Ed448 names SHAKE256 as its digest (RFC 8419 \xA73.1), which neither Web Crypto nor pkinative computes \u2014 sign with Ed25519, ECDSA or RSA instead",
-      "1.3.101.113"
-    );
-  }
-  return algorithm.name === "Ed25519" ? "SHA-512" : algorithm.hash;
+  if (algorithm.name === "Ed25519") return "SHA-512";
+  if (algorithm.name === "Ed448") return "SHAKE256";
+  return algorithm.hash;
+}
+async function digestOf(data, digest) {
+  return digest === "SHAKE256" ? shake256(data, SHAKE256_DIGEST_OCTETS) : computeFingerprintAsync(data, digest);
 }
 function isSubjectKeyIdentifier(extension) {
   return extension.kind === "subjectKeyIdentifier";
@@ -9647,7 +9727,7 @@ async function resolveContent(input, digest) {
     return { eContent: void 0, messageDigest };
   }
   const content = assertBytes(input.content, "content");
-  return { eContent: input.detached === true ? void 0 : content, messageDigest: await computeFingerprintAsync(content, digest) };
+  return { eContent: input.detached === true ? void 0 : content, messageDigest: await digestOf(content, digest) };
 }
 async function createSignedData(input, signer, options) {
   const limits = options?.limits === void 0 ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
@@ -9708,10 +9788,11 @@ async function createSignedData(input, signer, options) {
   ];
   if (input.signingTime !== void 0) signed.push(encodeAttribute(OID_ATTR_SIGNING_TIME, [signingTimeValue(input.signingTime)]));
   if (input.signingCertificateV2 !== false) {
+    const essDigest = digest === "SHAKE256" ? "SHA-256" : digest;
     const essCertIdV2 = encodeSequence([
       // hashAlgorithm DEFAULT id-sha256: DER omits a DEFAULT (X.690 §11.5).
-      ...digest === "SHA-256" ? [] : [digestAlgorithm],
-      encodeOctetString(await computeFingerprintAsync(certificateDer, digest)),
+      ...essDigest === "SHA-256" ? [] : [digestAlgorithm],
+      encodeOctetString(await computeFingerprintAsync(certificateDer, essDigest)),
       // IssuerSerial: the issuer as the one directoryName [4] — explicit,
       // because Name is a CHOICE — and the serial (RFC 5035 §4).
       encodeSequence([encodeSequence([encodeExplicit(4, certificate.issuer.der)]), serial])
@@ -10351,9 +10432,9 @@ var DIGEST_NAMES = /* @__PURE__ */ new Map([
 function _digestName(oid) {
   return DIGEST_NAMES.get(oid);
 }
-var SHAKE256_DIGEST_OCTETS = 64;
+var SHAKE256_DIGEST_OCTETS2 = 64;
 async function _contentDigest(content, oid) {
-  if (oid === ID_SHAKE256) return shake256(content, SHAKE256_DIGEST_OCTETS);
+  if (oid === ID_SHAKE256) return shake256(content, SHAKE256_DIGEST_OCTETS2);
   const name = _digestName(oid);
   return name === void 0 ? void 0 : computeFingerprintAsync(content, name);
 }
@@ -11659,6 +11740,6 @@ function _report2(reasons, integrity, pkcs12, keys, certificates, crls) {
   });
 }
 
-export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readInteger, readNull, readObjectIdentifier, readOctetString, readSmallInteger, readString, readTime, shake256, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
+export { ANY_EXTENDED_KEY_USAGE, DEFAULT_PKI_LIMITS, KEY_PURPOSES, KEY_USAGE_BITS, OCSP_NONCE_OID, OID_REGISTRY, PkiCertificateError, PkiCmsError, PkiCryptoError, PkiEncodingError, PkiError, PkiKeyError, PkiLimitError, addTimeStampToken, addUnsignedAttribute, buildCertificatePath, canDecrypt, canSign, canVerify, checkExtendedKeyUsage, checkOcspStatus, checkRevocation, checkServerName, computeFingerprint, computeFingerprintAsync, computeKeyIdentifier, createCertificate, createCertificationRequest, createOcspRequest, createSignedData, createTimeStampRequest, decodeAsn1, decodeAsn1Sequence, decodeExtensionValue, decodeOid, decodePem, decryptPrivateKey, encodeAlgorithmIdentifier, encodeAsn1Node, encodeAttribute, encodeAuthorityKeyIdentifier, encodeBasicConstraints, encodeBitString, encodeBoolean, encodeDistinguishedName, encodeEnumerated, encodeExplicit, encodeExtendedKeyUsage, encodeExtension, encodeExtensions, encodeImplicit, encodeInteger, encodeKeyUsage, encodeNameAttribute, encodeNamedBits, encodeNull, encodeObjectIdentifier, encodeOcspCertId, encodeOctetString, encodeOid, encodePem, encodeRelativeOid, encodeSequence, encodeSet, encodeSetOf, encodeSignatureAlgorithm, encodeString, encodeSubjectAltName, encodeSubjectKeyIdentifier, encodeSubjectPublicKeyInfo, encodeTime, encodeTlv, encodeValidity, findRevocation, formatDistinguishedName, formatFingerprint, getExtension, getOidName, importPrivateKey, isValidOid, matchDnsName, openPkcs12, openSafeContents, parseCertificate, parseCertificateList, parseEncryptedPrivateKeyInfo, parseOcspResponse, parsePkcs12, parsePrivateKeyInfo, parseSignedData, parseTimeStampResponse, parseTimeStampToken, parseTstInfo, readBitString, readBoolean, readEnumerated, readInteger, readNull, readObjectIdentifier, readOctetString, readRelativeOid, readSmallInteger, readString, readTime, shake256, validateCertificatePath, verifyCertificateChain, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifyPkcs12Mac, verifySelfSignature, verifySignedData, verifySignerInfoSignature, verifyTimeStampToken };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

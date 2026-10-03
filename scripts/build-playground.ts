@@ -160,7 +160,8 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.
         // Scoped to the playgroundBundle object and non-greedy, so the first
         // match after that key is the one rewritten and no sibling block with
         // a same-named field can be reached.
-        const pattern = new RegExp(`("playgroundBundle"[\\s\\S]{0,1200}?"${key}":\\s*)(?:"[^"]*"|\\d+)`);
+        // The window covers the block's $comment, which records every budget raise and grows with them.
+        const pattern = new RegExp(`("playgroundBundle"[\\s\\S]{0,4000}?"${key}":\\s*)(?:"[^"]*"|\\d+)`);
         if (!pattern.test(updated)) {
             console.error(`build-playground: declared.playgroundBundle.${key} not found in ${MANIFEST}`);
             process.exit(2);
