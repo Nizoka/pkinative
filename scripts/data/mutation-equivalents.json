@@ -823,6 +823,12 @@
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: sameBytes returns false on line 511 unless a.length === b.length, so the one extra iteration compares a[a.length] with b[a.length] — both out of range of their typed-array views, so both undefined (an integer-indexed exotic object never reads past its view, whatever the underlying buffer holds) — which is no mismatch; the loop ends and returns true exactly as the original does. The argument of src/core/bytes.ts:86:23."
+    },
+    {
+      "id": "src/revocation/ocsp-request.ts:135:13:throw-guard",
+      "original": "!isBytes(nonce)",
+      "replacement": "false",
+      "reason": "Message-only: with the guard disabled a non-bytes nonce reaches encodeOctetString(nonce) two statements later, before anything is pushed or returned, and that encoder's assertBytes applies the same isBytes predicate and throws the same class (PkiError) with the same code (PKI_INVALID_INPUT); only the wording differs ('the OCSP nonce must be a Uint8Array…' against 'encodeOctetString bytes must be a Uint8Array…'). 'should refuse a nonce that is not bytes' pins class and code."
     }
   ]
 }

@@ -8,6 +8,7 @@ import { sha1 } from '../../src/hash/sha1.js';
 import { sha256 } from '../../src/hash/sha256.js';
 import { createOcspRequest, encodeOcspCertId } from '../../src/revocation/ocsp-request.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
+import { PkiError } from '../../src/types/pki-errors.js';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
@@ -76,6 +77,16 @@ describe('encodeOcspCertId', () => {
     ])('should refuse raw bytes for $what', ({ call }) => {
         expect(call).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
+
+    it.each([
+        { what: 'certificate', call: (): unknown => encodeOcspCertId(null as never, ROOT) },
+        { what: 'issuer', call: (): unknown => createOcspRequest(R12, null as never) },
+    ])('should refuse a null $what as PKI_INVALID_INPUT, never as a TypeError', ({ call }) => {
+        // `typeof null` is 'object', so the null test is what stands between
+        // the caller's mistake and a property read on null.
+        expect(call).toThrow(PkiError);
+        expect(call).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+    });
 });
 
 describe('createOcspRequest', () => {
@@ -113,6 +124,7 @@ describe('createOcspRequest', () => {
     it('should refuse a nonce that is not bytes', () => {
         expect(() => createOcspRequest(R12, ROOT, { nonce: 'random' as never }))
             .toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+        expect(() => createOcspRequest(R12, ROOT, { nonce: [1, 2, 3] as never })).toThrow(PkiError);
     });
 });
 
