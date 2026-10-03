@@ -16,7 +16,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 5 216 tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 191 reviewed equivalents.
+Counts: 294 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 97 diagnostic codes · 22 named limits · 84 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 5 205 tests · 100 % statements, branches, functions and lines · 22 decision records · 62 frozen samples · 79 mutation targets, 191 reviewed equivalents.
 
 Conformance:
 
@@ -83,7 +83,7 @@ Conformance:
 
 - **Pre-publication audit (agents, 2026-09-30):** 9 auditors and 9 adversarial verifiers; 98 findings CONFIRMED or DOWNGRADED — 1 blocker, 10 major, 48 minor, 39 note — all fixed or decided on this branch. The tools it used are recorded with their versions; the cross-validation it ran by hand is now the permanent interop matrix.
 - **Final review (agents, 2026-10-02):** 4 reviewers (parsers; decision logic; crypto, encoders, CMS and keys; methodology, hardening and documentation) and 1 adversarial verifier replaying every finding; 42 findings, 0 rejected — 3 blocker, 4 major, 22 minor, 13 note — all fixed on this branch; the ledgers name the probe that reproduced each.
-- `/release-audit release-notes/v1.0.0.md v0.9.0` — PENDING (the maintainer's GO/NO-GO).
+- Final pre-publication review, 2026-10-04, by the method of `/release-audit` (auditor A claims ↔ code over the 29 `src/` files changed since the 2026-10-02 review, auditor B documentation and machine surfaces, auditor D autonomy pass, an adversarial verifier re-running every finding; ledger in the session's `test-output/.audit/1.0.0/`, not committed): **30 findings re-run, 0 rejected — 2 blockers (one defect: the guide's "Issue a certificate" fence and the `createCertificate` TSDoc example used `Date.now()` for a validity RFC 5280 writes in whole seconds and threw on every call), 2 majors (an ECDSA `SigningKey` without `namedCurve` made three writers emit an artefact whose signature verifies `false`; the "Validate a chain" fence never verified the anchor's link), 14 minors and 8 notes, every one fixed on this branch** (`8bde8ab`, `0badbba`, `f1f720c`, `e019320`); both fences run end to end (20/20 certificates issued and self-verified; the R12 → ISRG Root X1 chain validates with the anchor outside it). **Verdict: GO** — 0 open blocker, 0 open major, 0 waiver; the publish gate passed 16/16 on the fixed tree. `/release-audit release-notes/v1.0.0.md v0.9.0` remains the maintainer's own run before merging.
 
 ## Validation (what actually ran, on Windows 11, Node v22.17.0)
 
@@ -91,10 +91,10 @@ The figures of 2026-10-02 (the final review) were superseded when the 1.1 list w
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | 16/16 passed in 584.0 s (2026-10-03, tip `d2e2051`): typecheck:all, lint, build, dist-check, bundle-check, test:coverage, check:package, verify:bundle, verify:samples, smoke:install, ts-floor, docs:playground-fresh, verify:docs, check:guides, conformance, interop |
-| `npm run gate:fast` (typecheck:all, lint, test, check:guides, verify:samples, verify:docs) | 6/6 passed in 328.9 s (2026-10-03, 5 216 tests); every step re-run inside the publish gate above |
-| `npm run test:coverage` | 5 216 tests; 100.0 % statements, and the 100 % threshold on all four axes held (publish gate, 2026-10-03) |
-| `npx tsx scripts/mutate.ts` (every default target) | 79 modules; every module a lot touched was re-measured on the integrated branch on 2026-10-03 — verify-chain 283 mutants (192 killed, 17 equivalents), x509-certificate 298, asn1-encode 382, crypto-algorithms 263, cms-attributes 271, cms-signed-data 261, x509-csr 69, verify-csr 43, key-import 72, verify-signer 69, verify-pkcs12 97, shake256 156 (0 equivalents) — 100 % killed or argued on each; 191 reviewed equivalents in `scripts/data/mutation-equivalents.json`, 0 stale, 0 refuted; the untouched modules keep their 100 % of 2026-10-03 morning |
+| `npx tsx scripts/gate.ts --publish --require-all` | 16/16 passed in 581.3 s (2026-10-04, tip `e019320`, after the final review's fixes): typecheck:all, lint, build, dist-check, bundle-check, test:coverage, check:package, verify:bundle, verify:samples, smoke:install, ts-floor, docs:playground-fresh, verify:docs, check:guides, conformance, interop — the run of 2026-10-03 on `d2e2051` passed the same 16 in 584.0 s |
+| `npm run gate:fast` (typecheck:all, lint, test, check:guides, verify:samples, verify:docs) | every step re-run inside the publish gate above (2026-10-04) |
+| `npm run test:coverage` | 5 205 tests; 100.0 % statements, and the 100 % threshold on all four axes held (publish gate, 2026-10-04; 5 200 before the final review's five tests, 5 216 before `tag-history.test.ts` was withdrawn) |
+| `npx tsx scripts/mutate.ts` (every default target) | 79 modules; every module a lot touched was re-measured on the integrated branch on 2026-10-03 — verify-chain 283 mutants (192 killed, 17 equivalents), x509-certificate 298, asn1-encode 382, crypto-algorithms 263, cms-attributes 271, cms-signed-data 261, x509-csr 69, verify-csr 43, key-import 72, verify-signer 69, verify-pkcs12 97, shake256 156 (0 equivalents) — 100 % killed or argued on each; the two modules the final review changed on 2026-10-04 re-measured at 100 % (crypto-algorithms 270 mutants, pem 236); 191 reviewed equivalents in `scripts/data/mutation-equivalents.json`, 0 stale, 0 refuted; the untouched modules keep their 100 % of 2026-10-03 |
 | `npm run verify:bundle` | 18 probes within budget (publish gate, 2026-10-03) after one reviewed raise of every budget with its measurement (`cab9a3b`); the whole library re-minifies to 314.6 KB, under the ~320 KB projection written for 1.0 |
 | `npx tsx scripts/verify-docs.ts` | 84 rules, 0 errors, 0 warnings (2026-10-03, Lot C) |
 | `npm run check:guides` | 27 TypeScript fences of README and the guides compiled against `src/index.ts` under lib ES2020 + DOM, 0 errors (publish gate, 2026-10-03) |
@@ -134,7 +134,7 @@ From here, semver applies to all three parts of the promise and to what ADR 0018
 
 This is the first push to an empty repository, so the steps differ from the template. `main` must carry the whole linear history, not a squash, so that the audited history of the preparation (0.1 to 0.9, never tagged) stays readable.
 
-0. Run `/release-audit release-notes/v1.0.0.md v0.9.0` and record GO/NO-GO above.
+0. Run `/release-audit release-notes/v1.0.0.md v0.9.0` and record your own GO/NO-GO above (the review of 2026-10-04 above says GO; the ledger is in `test-output/.audit/1.0.0/` on the release machine). Contra-indications checked before publication: the release date is 2026-10-04 in the five sources; no 0.x tag exists or is planned; npm holds only the `0.0.1` placeholder (`npm view pkinative versions` → `["0.0.1"]`, `check:npm-drift` says "1.0.0 is not published yet", the expected state); `api.frozen.json`, `errors.frozen.json` and `refusals.frozen.json` are ratcheted to 1.0.0; no corpus verdict moved (L1 565, L6 9 158/9 208, L7 195/203, L8 196/204); the local Node.js 22.17.0 is below the declared floor — the release gate that matters runs on the `.nvmrc` line's latest patch in `publish.yml`. What only the publication can show: the first run of every workflow, Scorecard, ClusterFuzzLite, Trusted Publishing and `attest`.
 1. Create the mailbox security@pkinative.dev (SECURITY.md and `security.txt` name it), and the `npm-publish` environment: yourself as required reviewer, deployments limited to tags matching `v*`.
 2. Push `main`:
    - `git remote add origin https://github.com/Nizoka/pkinative.git`
@@ -160,4 +160,4 @@ This is the first push to an empty repository, so the steps differ from the temp
 - [x] `git diff --stat` on the release commit reads as the bump and the regenerated files (plus the two re-rasterised images), nothing else; the audit fixes follow it as their own commits.
 - [x] The release note carries all six mandatory sections and the CHANGELOG entry mirrors it.
 - [x] No `Co-Authored-By` trailer and no "generated with" footer anywhere on the branch.
-- [ ] The independent audit ledger is attached above — `/release-audit` PENDING: this PR is not ready to merge until it is.
+- [x] The independent review's verdict is recorded above (GO, 2026-10-04, every finding fixed); the maintainer's own `/release-audit` run is step 0 below.
