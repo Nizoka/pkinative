@@ -67,9 +67,10 @@
     "4.2.1-5-0f5ff96c": {
       "section": "4.2.1",
       "text": "If no certificates are included, then certs SHOULD be absent.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An empty certs field is accepted silently — a test says so — though the sentence asks for the field to be absent; telling the two apart costs one comparison."
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should diagnose a certs field that is present and empty, and read it as if it were absent (RFC 6960 §4.2.1)",
+      "why": "A certs field present with no certificate in it — an empty SEQUENCE, or an empty [0] — is PKI_DIAG_OCSP_CERTS_EMPTY, an info that strict reports and never throws, and certificates is read empty exactly as for an absent field; a field holding a certificate, or no field, gets nothing."
     },
     "4.2.2.1-1-224ace0f": {
       "section": "4.2.2.1",
@@ -144,9 +145,10 @@
     "4.2.2.2.1-1-ca07eefd": {
       "section": "4.2.2.2.1",
       "text": "This SHOULD be a non-critical extension.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An id-pkix-ocsp-nocheck extension marked critical is read without a diagnostic, though the flag is right there in the delegate certificate's bytes."
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should diagnose a signer whose id-pkix-ocsp-nocheck is critical, and say nothing of one that is not (RFC 6960 §4.2.2.2.1)",
+      "why": "checkOcspStatus, given the certificate that signed the response, reports PKI_DIAG_OCSP_NOCHECK_CRITICAL when its id-pkix-ocsp-nocheck extension is critical and nothing when it is not or is absent; verifyCertificateChain passes the delegate that signed, and the extension is honoured either way."
     },
     "4.2.2.2.1-2-bea22ad1": {
       "section": "4.2.2.2.1",
@@ -159,16 +161,18 @@
     "4.2.2.3-1-11c376b3": {
       "section": "4.2.2.3",
       "text": "o the version of the response syntax, which MUST be v1 (value is 0) for this version of the basic response syntax;",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "An explicit version field in ResponseData is skipped unread — a test says so — so a response declaring v2 is read as v1 without a word."
+      "status": "test",
+      "file": "tests/revocation/ocsp.test.ts",
+      "test": "should diagnose an explicit ResponseData version that is %s, and read the response as v1 (RFC 6960 §4.2.2.3)",
+      "why": "An explicit version is read: v1 written out is the DER DEFAULT diagnostic PKI_DIAG_DEFAULT_ENCODED, and any other content — the value 1, a non-minimal zero, a NULL, nothing — is PKI_DIAG_OCSP_VERSION_NOT_V1, both warnings strict refuses; the fields after it are read where they stand, and a version left to its DEFAULT gets nothing."
     },
     "4.2.2.3-2-9bc719a1": {
       "section": "4.2.2.3",
       "text": "Therefore, the information MUST correspond to the certificate that was used to sign the response.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "responderID is read but never compared with the certificate that verified the signature, so a byName or byKey naming another responder passes, though both are in hand."
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should diagnose a responderID that names neither the subject nor the key hash of the signer, and accept one that does (RFC 6960 §4.2.2.3)",
+      "why": "checkOcspStatus, given the certificate that signed the response, compares byName with its subject bytes and byKey with the SHA-1 of its subjectPublicKey bits, and reports PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH when neither corresponds — with no change to the reasons, since the signature decided who answered; verifyCertificateChain passes the CA or the delegate that both signed and was entitled to."
     },
     "4.2.2.3-3-13154854": {
       "section": "4.2.2.3",
@@ -181,9 +185,10 @@
     "4.2.2.3-4-f1369f55": {
       "section": "4.2.2.3",
       "text": "The response SHOULD NOT include any additional SingleResponse elements, but, for example, OCSP responders that pre-generate status responses might include additional SingleResponse elements if necessary to improve response pre-generation performance or cache efficiency (according to [RFC5019], Section 2.2.1).",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "Extra SingleResponse elements are tolerated — the right answer is found among several — with no diagnostic, though counting them against the one certificate asked about would tell."
+      "status": "test",
+      "file": "tests/revocation/ocsp-check.test.ts",
+      "test": "should diagnose SingleResponse elements about certificates nobody asked about, beside the answer that was (RFC 6960 §4.2.2.3)",
+      "why": "Once the answer about the certificate asked about is found, every other SingleResponse is counted into PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED, an info; a response holding only that answer, or it twice, gets nothing, and a response without it is the mismatch reason alone."
     }
   }
 }

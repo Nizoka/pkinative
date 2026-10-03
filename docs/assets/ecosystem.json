@@ -215,22 +215,22 @@
       "commit": "dbd209ae7844031f51722c4d9e2d1fa3fff3081319851d581f914f5f0147f918",
       "requirements": 50,
       "clauses": 0,
-      "tests": 37,
-      "excluded": 13
+      "tests": 44,
+      "excluded": 6
     },
     "rfc3161": {
       "commit": "39fd17644ff2d654bc83814a78b1c5b5e7517f496741f34ead5064943eb98240",
       "requirements": 38,
       "clauses": 0,
-      "tests": 26,
-      "excluded": 12
+      "tests": 28,
+      "excluded": 10
     },
     "rfc6960": {
       "commit": "7e63ffa1ea2ce2737d9aaf895a63776e9105ddbdfc97b8ae4029e3e825b4cdea",
       "requirements": 23,
       "clauses": 0,
-      "tests": 13,
-      "excluded": 10
+      "tests": 18,
+      "excluded": 5
     },
     "rfc7292": {
       "commit": "168ce6749ac36f9a03c105e29b968ebe6f0d77cefce0200857f1d82d7de6cbad",

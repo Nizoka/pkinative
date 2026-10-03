@@ -105,16 +105,18 @@
     "2.4.1-9-bffb67df": {
       "section": "2.4.1",
       "text": "If the certReq field is present and set to true, the TSA's public key certificate that is referenced by the ESSCertID identifier inside a SigningCertificate attribute in the response MUST be provided by the TSA in the certificates field from the SignedData structure in that response.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "With certReq TRUE in the request, a token lacking the TSA certificate is still verified against certificates the caller passes, and nothing is said; the request and the token together decide it."
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token that carries no certificate, or not the certificate of the TSA, when the request set certReq (RFC 3161 §2.4.1)",
+      "why": "verifyTimeStampToken, given the request with certReq TRUE, reports PKI_DIAG_TSP_CERTREQ_UNMET through onDiagnostic when the token carries no certificate, or certificates that do not include the TSA certificate that verified it; a token carrying it gets nothing, and the verdict is the same in every case because the TSA is also found among the certificates passed."
     },
     "2.4.1-10-a3626a88": {
       "section": "2.4.1",
       "text": "If the certReq field is missing or if the certReq field is present and set to false then the certificates field from the SignedData structure MUST not be present in the response.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "With certReq FALSE or absent, a token that carries certificates anyway is read without a word, though comparing the request with the token's certificate set decides it."
+      "status": "test",
+      "file": "tests/verify/verify-timestamp.test.ts",
+      "test": "should report a token that carries certificates when the request did not set certReq, and accept one that carries none (RFC 3161 §2.4.1)",
+      "why": "verifyTimeStampToken, given a request with certReq FALSE, reports PKI_DIAG_TSP_CERTS_UNREQUESTED through onDiagnostic for a token whose SignedData carries certificates, counting them, and nothing for a token carrying none; the verdict is untouched, since the certificates are read as the TSA's hint."
     },
     "2.4.1-11-b69c46d6": {
       "section": "2.4.1",

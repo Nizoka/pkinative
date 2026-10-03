@@ -38,9 +38,10 @@
     "5.2-1-66010a12": {
       "section": "5.2",
       "text": "In this case, the content type within the EncapsulatedContentInfo value being \"signed\" MUST be id-data (as defined in Section 4), and the content field of the EncapsulatedContentInfo value MUST be omitted.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A SignedData with no signer whose eContentType is not id-data, or that still carries eContent, is read without a word; both halves are decidable from the message."
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a signer-less SignedData whose eContentType is not id-data, and one that still carries an eContent (RFC 5652 §5.2)",
+      "why": "A SignedData with no SignerInfo is read with PKI_DIAG_CMS_CERTS_ONLY_CONTENT once per half the message breaks — an eContentType other than id-data, an eContent present — at the field concerned; a certificates-only message with id-data and no eContent gets nothing, and so does a signed message of another type, whose content type is the signer's contentType attribute to answer for."
     },
     "5.3-1-319cb90b": {
       "section": "5.3",
@@ -108,9 +109,10 @@
     "5.3-9-a6e10a3c": {
       "section": "5.3",
       "text": "However, the content-type attribute MUST NOT be used as part of a countersignature unsigned attribute as defined in Section 11.4.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "The signed attributes inside a countersignature value are carried unparsed — countersignatures are kept, not verified — so a content-type attribute there is never looked for, though the bytes show it."
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a countersignature whose signed attributes carry a content-type attribute, which has no meaning there (RFC 5652 §5.3, §11.4)",
+      "why": "The signed attributes of every countersignature value are looked into as far as their attribute types, and a content-type attribute among them is PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE on the value; the countersignature itself stays carried, not verified, so the sentence of §5.3 that forbids it is a diagnostic and never a refusal."
     },
     "5.5-1-d9430bdf": {
       "section": "5.5",
@@ -264,9 +266,10 @@
     "11.3-2-35c88191": {
       "section": "11.3",
       "text": "Dates between 1 January 1950 and 31 December 2049 (inclusive) MUST be encoded as UTCTime.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A received signing time between 1950 and 2049 encoded as GeneralizedTime is read without a diagnostic, unlike a certificate validity date (PKI_DIAG_GENERALIZED_TIME_BEFORE_2050); createSignedData itself writes UTCTime for those years."
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "should diagnose a signingTime that is %s as RFC 5652 §11.3 asks, and read the instant as written",
+      "why": "A signingTime encoded as GeneralizedTime whose year is 1950 through 2049 is PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC — the rows cover 2026, the first instant of 1950 and the last of 2049 — while 1949, 2050 and every UTCTime get nothing; the instant is read as written in every row, because the signature covers those bytes."
     },
     "11.3-3-03c882bf": {
       "section": "11.3",
@@ -327,9 +330,10 @@
     "11.3-10-4548f473": {
       "section": "11.3",
       "text": "GeneralizedTime values MUST NOT include fractional seconds.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A GeneralizedTime signing time with fractional seconds is read silently to the millisecond; a certificate gets PKI_DIAG_GENERALIZED_TIME_FRACTION for the same thing, a signing time gets nothing. createSignedData writes whole seconds."
+      "status": "test",
+      "file": "tests/cms/cms-attributes.test.ts",
+      "test": "should diagnose a signingTime that is %s as RFC 5652 §11.3 asks, and read the instant as written",
+      "why": "A GeneralizedTime signingTime with fractional seconds is PKI_DIAG_CMS_SIGNING_TIME_FRACTION, beside the UTCTime diagnostic when the year calls for both; the rows read the instant to the millisecond, as the DER form with no trailing zero allows, and a whole-second GeneralizedTime in 2050 gets nothing."
     },
     "11.3-11-1afaa18b": {
       "section": "11.3",
@@ -373,23 +377,26 @@
     "11.4-2-90a9a875": {
       "section": "11.4",
       "text": "The signedAttributes field MUST NOT contain a content-type attribute; there is no content type for countersignatures.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A countersignature's own SignerInfo is carried unparsed, so a content-type attribute among its signed attributes goes unseen, though it is in the bytes of the message."
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a countersignature whose signed attributes carry a content-type attribute, which has no meaning there (RFC 5652 §5.3, §11.4)",
+      "why": "The content-type attribute among a countersignature's signedAttributes is PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE, with the path naming which value of the attribute; the test also holds the value carried unread in the attribute, which is what makes the sentence a diagnostic about a SignerInfo pkinative never verifies."
     },
     "11.4-3-be365987": {
       "section": "11.4",
       "text": "The signedAttributes field MUST contain a message-digest attribute if it contains any other attributes.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "Whether a countersignature's signed attributes include a message-digest attribute is decidable from its SignerInfo, which pkinative carries without reading."
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a countersignature whose signed attributes hold others but no message-digest attribute (RFC 5652 §11.4)",
+      "why": "A countersignature whose signedAttributes hold at least one well-formed attribute and no message-digest attribute is PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST, judged value by value; one holding a message-digest, or no signed attributes at all, gets nothing, and children that are not Attributes count as none."
     },
     "11.4-4-e9e9acb1": {
       "section": "11.4",
       "text": "The syntax is defined as a SET OF AttributeValue, and there MUST be one or more instances of AttributeValue present.",
-      "status": "excluded",
-      "reason": "not-diagnosed",
-      "why": "A countersignature attribute with an empty SET of values is kept as received, like any attribute with no value; §11.4 asks for at least one and nothing says otherwise."
+      "status": "test",
+      "file": "tests/cms/cms-signed-data.test.ts",
+      "test": "should diagnose a countersignature attribute whose SET of values is empty (RFC 5652 §11.4)",
+      "why": "A countersignature attribute whose SET OF AttributeValue is empty is PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY at the attribute, and is kept as received with no value, like any attribute with none; §11.4 asks for one or more and the test holds both the diagnostic and the empty list."
     }
   }
 }

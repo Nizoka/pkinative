@@ -354,7 +354,6 @@ export const EXCLUSION_REASONS = Object.freeze({
     'not-decidable-from-bytes': 'about a certificate or message, but turns on facts outside its encoding (intent, ownership, the world)',
     'covered-elsewhere': 'enforced by pkinative outside the clause table — the sentence names the clause, error or diagnostic',
     'nothing-to-violate': 'its own MAY admits every encoding, or it says what a value means rather than which values are allowed',
-    'not-diagnosed': 'decidable from the bytes pkinative reads — one certificate, message, response or file — and not reported today: a gap, recorded so it stays visible',
     'producer-policy': 'constrains what a signer, TSA, OCSP responder or file writer does, in a way the bytes pkinative reads cannot show, or in a choice pkinative leaves to its caller',
     'not-implemented': 'belongs to a feature pkinative deliberately does not implement — the sentence names the ADR, guide or registry entry that records the decision',
 } as const);
