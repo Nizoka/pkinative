@@ -975,6 +975,24 @@
       "reason": "Semantic: buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
     },
     {
+      "id": "src/verify/verify-chain.ts:601:80:return-boolean",
+      "original": "false",
+      "replacement": "true",
+      "reason": "Control-flow-only: the value returned once limitHit is set is never consulted — every enclosing frame of `extend` reads `limitHit` right after its recursive call and returns too, and the top-level `await extend(...)` discards the value — so no further link is asked for either way; `_searchVerdicts` returns void and the builder receives the same memo (held by the exact-budget tests of tests/verify/verify-chain.test.ts)."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:611:17:if-false",
+      "original": "limitHit",
+      "replacement": "false",
+      "reason": "Control-flow-only: without the early return, the loop goes on to the next sibling, whose iteration tests `explored >= limits.maxPathsExplored` before anything else — true once limitHit is, since explored only grows — and returns without asking for a link; every frame unwinds the same way with no verdict requested, so the memo the builder receives is identical (the exact-budget tests of tests/verify/verify-chain.test.ts pin that memo)."
+    },
+    {
+      "id": "src/verify/verify-chain.ts:611:34:return-boolean",
+      "original": "false",
+      "replacement": "true",
+      "reason": "Control-flow-only: returning true after limitHit makes the parent frame return true as well, where it would have read `limitHit` and returned false — the search unwinds either way without asking for another link, and the top-level `await extend(...)` discards the value; `_searchVerdicts` returns void, so the builder receives the same memo."
+    },
+    {
       "id": "src/verify/verify-chain.ts:629:13:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
