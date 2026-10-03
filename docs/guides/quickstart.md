@@ -10,7 +10,7 @@ pkinative is on npm, published with provenance from the tagged commit after the 
 npm install pkinative
 ```
 
-`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 ## Read a certificate
 

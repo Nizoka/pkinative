@@ -224,6 +224,9 @@ const nodePinParity: Rule = {
         const enginesMajor = Number(/(\d+)/.exec(enginesNode ?? '')?.[1]);
         if (pinned !== null && enginesMajor !== pinned) out.push(error('.nvmrc', `pins ${pinned} but engines.node is "${enginesNode}"`));
         if (!(pkg.value.packageManager ?? '').startsWith('npm@')) out.push(error('package.json', 'packageManager must pin npm (`npm@x.y.z`)'));
+        // A Current line is tested in its own advisory workflow, pinned by its major alone (ADR 0017, amended 2026-10-03).
+        const manifest = readJson<{ contracts?: { support?: { currentLines?: unknown } } }>(ctx, 'docs/assets/ecosystem.json');
+        const currentLines = 'finding' in manifest ? [] : (Array.isArray(manifest.value.contracts?.support?.currentLines) ? manifest.value.contracts.support.currentLines : []).filter((n): n is number => Number.isInteger(n));
         let ciMatrix: number[] = [];
         for (const { file, text } of workflowFiles(ctx)) {
             const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -240,7 +243,9 @@ const nodePinParity: Rule = {
                     if (pinned !== null && !values.includes(pinned)) out.push(error(file, `the node-version matrix [${values.join(', ')}] does not include the pinned ${pinned}`, i + 1));
                     return;
                 }
-                out.push(error(file, 'setup-node must read `node-version-file: .nvmrc` (or a matrix that includes the pinned line)', i + 1));
+                const literal = /node-version:\s*(\d+)\s*$/m.exec(body);
+                if (literal !== null && currentLines.includes(Number(literal[1]))) return;
+                out.push(error(file, 'setup-node must read `node-version-file: .nvmrc`, a matrix that includes the pinned line, or a Current line named in contracts.support.currentLines', i + 1));
             });
         }
         out.push(...checkNodeVersionPin({ nodeVersion: ctx.read('.node-version'), enginesNode, ciMatrix }));

@@ -195,6 +195,7 @@ interface Support {
     readonly adr?: unknown;
     readonly node?: unknown;
     readonly nodeLines?: unknown;
+    readonly currentLines?: unknown;
     readonly typescript?: unknown;
     readonly esTarget?: unknown;
     readonly tested?: unknown;
@@ -240,6 +241,7 @@ const REASON_NOT_FROZEN = /(?:reason vocabulary|PkiReasonCode)[^.\n]{0,60}?\bnot
 const SUPPORT_SECTION = 'Supported runtimes and compilers';
 const TSUP_CONFIG = 'tsup.config.ts';
 const CI_WORKFLOW = '.github/workflows/ci.yml';
+const CURRENT_WORKFLOW = '.github/workflows/node-current.yml';
 
 /** `contracts.support` against package.json, the build, the CI matrix, its record and SECURITY.md (ADR 0017). */
 function checkSupport(ctx: RuleContext, support: Support | undefined, security: string, mLine: (needle: string) => number): Finding[] {
@@ -276,6 +278,18 @@ function checkSupport(ctx: RuleContext, support: Support | undefined, security: 
             if (!new RegExp(`node-version: ${String(line)}\\b`).test(ci)) out.push(error(MANIFEST, `Node.js ${String(line)} is a supported line and ${CI_WORKFLOW} does not test it — a supported runtime is a tested runtime (ADR 0017)`, mLine('"nodeLines"')));
             if (typeof engines === 'string' && !new RegExp(`(?:^|[^\\d.])${String(line)}\\.`).test(engines)) out.push(error(MANIFEST, `Node.js ${String(line)} is a supported line and engines.node "${engines}" gives it no floor`, mLine('"nodeLines"')));
             named('the supported line', `Node.js ${String(line)}`);
+        }
+    }
+
+    // A Current line is tested in its own advisory workflow and promised by nothing (ADR 0017, amended 2026-10-03).
+    const current = ctx.read(CURRENT_WORKFLOW) ?? '';
+    if (!Array.isArray(support.currentLines) || !support.currentLines.every((n) => Number.isInteger(n))) {
+        out.push(error(MANIFEST, 'contracts.support.currentLines must list the Current Node.js majors tested without being promised, e.g. [26] — empty when none is', where));
+    } else {
+        for (const line of support.currentLines as number[]) {
+            if (Array.isArray(support.nodeLines) && (support.nodeLines as unknown[]).includes(line)) out.push(error(MANIFEST, `Node.js ${String(line)} is in both nodeLines and currentLines — a line is supported or Current, not both`, mLine('"currentLines"')));
+            if (!new RegExp(`node-version: ${String(line)}\\b`).test(current)) out.push(error(MANIFEST, `Node.js ${String(line)} is a tested Current line and ${CURRENT_WORKFLOW} does not run it — tested means run (ADR 0017)`, mLine('"currentLines"')));
+            named('the Current line', `Node.js ${String(line)}`);
         }
     }
 

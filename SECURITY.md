@@ -30,7 +30,7 @@ Decided in [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md); `contract
 
 | | 1.x | What a minor may change |
 |---|---|---|
-| Node.js | Every line in Active or Maintenance LTS: Node.js 22 and Node.js 24 at 1.0.0, both run by CI, each from its patched floor (below) | Drop a line after its end of life (Node 22: 2027-04-30), announced one minor ahead; raise the floor of a line to the release that fixes a vulnerability in a Web Crypto operation pkinative calls |
+| Node.js | Every line in Active or Maintenance LTS: Node.js 22 and Node.js 24 at 1.0.0, both run by CI, each from its patched floor (below); the Current line, Node.js 26, is run by the advisory `node-current` workflow and promised by nothing until it enters LTS (2026-10-28) | Drop a line after its end of life (Node 22: 2027-04-30), announced one minor ahead; raise the floor of a line to the release that fixes a vulnerability in a Web Crypto operation pkinative calls |
 | TypeScript (consumers) | TypeScript 5.0 and later, under `moduleResolution` `node16`/`nodenext`, `bundler` and `node10` | Raise the floor, never to a release younger than two years |
 | ECMAScript | ES2020 syntax and library, plus two host APIs: Web Crypto (`globalThis.crypto.subtle`, for signatures, keys, PKCS#12 and asynchronous digests) and `TextDecoder` | Nothing: raising it is major |
 | Deno, Bun, browsers (secure context) | Smoke-tested: the `runtimes` CI job runs the built package on Deno, Bun and headless Chromium (a parse, a verification per signature family, a PKCS#12 opened); the full suite runs on Node.js only, and no version floor is promised | — |

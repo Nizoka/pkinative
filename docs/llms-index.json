@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 225521,
-      "approxTokens": 56380
+      "bytes": 225722,
+      "approxTokens": 56431
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 15983,
-      "approxTokens": 3996
+      "bytes": 16011,
+      "approxTokens": 4003
     }
   ],
   "guides": [
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 13944,
-      "approxTokens": 3486
+      "bytes": 14011,
+      "approxTokens": 3503
     },
     {
       "title": "Use cases",
@@ -201,8 +201,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 5766,
-      "approxTokens": 1442
+      "bytes": 5833,
+      "approxTokens": 1458
     }
   ]
 }

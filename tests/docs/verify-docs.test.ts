@@ -698,11 +698,26 @@ describe('verify-docs rule table', () => {
         expect(await contractProblems(untested)).toEqual(expect.arrayContaining([
             expect.stringContaining('Node.js 26 is a supported line and .github/workflows/ci.yml does not test it'),
             expect.stringContaining('gives it no floor'),
-            expect.stringContaining('does not name the supported line Node.js 26'),
+            expect.stringContaining('Node.js 26 is in both nodeLines and currentLines'),
+        ]));
+        const current = { ...TREE };
+        edit(current, 'docs/assets/ecosystem.json', '"currentLines": [26]', '"currentLines": [22, 27]');
+        expect(await contractProblems(current)).toEqual(expect.arrayContaining([
+            expect.stringContaining('Node.js 22 is in both nodeLines and currentLines'),
+            expect.stringContaining('Node.js 27 is a tested Current line and .github/workflows/node-current.yml does not run it'),
+            expect.stringContaining('does not name the Current line Node.js 27'),
         ]));
         const floor = { ...TREE };
         edit(floor, 'SECURITY.md', /TypeScript 5\.0/g, 'TypeScript 4.7');
         expect(await contractProblems(floor)).toEqual([expect.stringContaining('does not name the TypeScript floor TypeScript 5.0')]);
+    });
+
+    it('should fire node-pin-parity on a setup-node step pinned to a literal major that contracts.support.currentLines does not name', async () => {
+        const files = { ...TREE };
+        edit(files, '.github/workflows/node-current.yml', 'node-version: 26', 'node-version: 27');
+        const problems = (await runRules(createMemoryContext(files), RULES, 'node-pin-parity')).map((p) => p.message);
+        expect(problems).toEqual([expect.stringContaining('a Current line named in contracts.support.currentLines')]);
+        expect(await runRules(createMemoryContext({ ...TREE }), RULES, 'node-pin-parity')).toEqual([]);
     });
 
     it('should fire contracts-shape on the reason vocabulary called "not frozen" again', async () => {

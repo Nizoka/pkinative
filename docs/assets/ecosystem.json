@@ -107,6 +107,7 @@
       "adr": "docs/adr/0017-runtime-and-toolchain-support.md",
       "node": "^22.22.2 || ^24.14.1 || >=25.8.2",
       "nodeLines": [22, 24],
+      "currentLines": [26],
       "typescript": "5.0.4",
       "esTarget": "es2020",
       "tested": ["Node.js", "Deno (smoke test)", "Bun (smoke test)", "headless Chromium (smoke test)"],

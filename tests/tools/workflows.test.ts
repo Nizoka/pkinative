@@ -61,6 +61,7 @@ describe('every workflow', () => {
             'dependency-review.yml',
             'docs.yml',
             'fuzz.yml',
+            'node-current.yml',
             'publish.yml',
             'scorecard.yml',
         ]);

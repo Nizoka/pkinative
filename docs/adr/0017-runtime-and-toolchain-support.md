@@ -37,7 +37,7 @@ Chosen option: 2. Option 1 binds pkinative to Node 22 until 2.0, beyond its end 
 
 ### Node.js
 
-- **Supported lines**: every Node.js line in Active LTS or Maintenance LTS on the day of a pkinative release. At 1.0.0 these are 22 and 24, and CI runs both; Node 26 joins when it enters LTS. A Current (odd-numbered or not yet LTS) line is not supported and not refused.
+- **Supported lines**: every Node.js line in Active LTS or Maintenance LTS on the day of a pkinative release. At 1.0.0 these are 22 and 24, and CI runs both; Node 26 joins when it enters LTS. A Current (odd-numbered or not yet LTS) line is not supported and not refused; since the amendment below it is *tested*: the advisory `node-current` workflow runs the CI gate on it, and `contracts.support.currentLines` names it.
 - **Dropping a line after its end-of-life date is semver-minor.** It is announced in the Downstream integration notes of the minor before the one that drops it. The first 1.x minor after 2027-04-30 may raise the floor to Node 24.
 - **The floor within a line** is the first release of that line that fixes every known vulnerability in a Web Crypto operation pkinative calls: at 1.0.0, `^22.22.2 || ^24.14.1 || >=25.8.2`, the CVE-2026-21713 fixes. Raising it for a later such vulnerability is semver-minor and names the CVE in the release note. A host vulnerability pkinative does not reach does not move the floor, and the deployer should run the latest security release of their line regardless.
 
@@ -76,3 +76,7 @@ Deno, Bun and browsers are **smoke-tested, not fully tested**: the `runtimes` jo
 - [SECURITY.md §Supported runtimes and compilers](../../SECURITY.md#supported-runtimes-and-compilers) — the policy as a user reads it.
 - [ADR 0018](0018-what-the-1-x-promise-covers-beyond-its-snapshots.md) — the rest of what 1.x promises.
 - [Node.js releases](https://nodejs.org/en/about/previous-releases) and `https://nodejs.org/dist/index.json` — the security releases of each line.
+
+## Amendments
+
+- **2026-10-03, before the first publication.** Node 26 is Current until 2026-10-28 and the release note cannot wait for a calendar. The policy gains one state between "not refused" and "supported": a Current line is **tested and not promised** — the `node-current` workflow (`.github/workflows/node-current.yml`) runs the CI gate on it for every push and pull request, is required by no ruleset, and `contracts.support.currentLines` in `docs/assets/ecosystem.json` names it, so that `contracts-shape` holds the workflow, the manifest and SECURITY.md together. On its LTS date the line moves from `currentLines` to `nodeLines`, joins the `ci.yml` matrix and the required checks, and gets its floor in `engines.node` — a one-commit change with a history of green runs behind it. **The decision is unchanged:** supported means Active or Maintenance LTS, and nothing about a Current line is promised.
