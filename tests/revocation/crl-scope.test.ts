@@ -3,6 +3,7 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints } from '../../src/build/build-structures.js';
 import { checkRevocation } from '../../src/revocation/crl-check.js';
 import { findRevocation, parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { _crlScopeProblem, _deltaApplies } from '../../src/revocation/crl-scope.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
@@ -793,5 +794,117 @@ describe('the certificate’s own distribution point reasons (RFC 5280 §6.3.3 (
         ] });
         const crl = buildCrl({ extensions: [extension(OID_IDP, idp({ at: 'http://crl.example/a.crl' }))] });
         expect(partial(cert, crl)).toEqual([['PKI_REASON_REVOCATION_PARTIAL', true, true, false]]);
+    });
+});
+
+describe('the scope verdict, at the edges the mutation pass found', () => {
+    const POINT = 'http://crl.example/one.crl';
+    const OTHER = 'http://crl.example/two.crl';
+    const DELEGATE = 'Indirect CRL Issuer';
+    const OID_CRL_NUMBER = [0x55, 0x1d, 0x14];
+    const OID_DELTA = [0x55, 0x1d, 0x1b];
+    const OID_REASON = [0x55, 0x1d, 0x15];
+    const scopeOf = (cert: Certificate, crlDer: Uint8Array): ReturnType<typeof _crlScopeProblem> =>
+        _crlScopeProblem({ certificate: cert, crl: parseCertificateList(crlDer, quiet) });
+
+    it('should explain an out-of-scope list by the first point the certificate names, in encoded order', async () => {
+        // Two points, two different reasons for not answering either; the
+        // explanation is the first one's, because a CA lists the point it
+        // expects first.
+        const cert = await certificate({ serial: 9n, points: [distributionPoint({ at: OTHER }), distributionPoint({ issuedBy: DELEGATE })] });
+        expect(scopeOf(cert, buildCrl({ extensions: [extension(OID_IDP, idp({ at: POINT }))] }))).toEqual({
+            kind: 'out-of-scope',
+            why: 'no cRLDistributionPoints entry in the certificate is answered by it — the list is scoped to a distribution point this entry does not name',
+        });
+    });
+
+    it('should explain a point that names nothing as naming nothing, not as naming another point', async () => {
+        const cert = await certificate({ serial: 9n, points: [sequence()] });
+        expect(scopeOf(cert, buildCrl({ extensions: [extension(OID_IDP, idp({ at: POINT }))] }))).toEqual({
+            kind: 'out-of-scope',
+            why: 'no cRLDistributionPoints entry in the certificate is answered by it — the list is scoped to a distribution point, and this entry names neither a fullName nor a cRLIssuer to compare it against',
+        });
+    });
+
+    it('should compare the cRLIssuer of a point that names no point of its own against the list\'s fullName (§6.3.3 (b)(2))', async () => {
+        // "If the distribution point name is omitted from the DP, then verify
+        // that one of the names in the IDP matches one of the names in the
+        // cRLIssuer field of the DP." The cRLIssuer stands in for the name.
+        const cert = await certificate({ serial: 9n, points: [distributionPoint({ issuedBy: DELEGATE })] });
+        const named = buildCrl({ issuer: DELEGATE, extensions: [extension(OID_IDP, idp({ names: [directoryName(DELEGATE)], indirect: true }))] });
+        expect(scopeOf(cert, named)).toBeNull();
+        expect(codesFor(cert, named)).toEqual([]);
+        // One past it: a fullName that is not the cRLIssuer.
+        const other = buildCrl({ issuer: DELEGATE, extensions: [extension(OID_IDP, idp({ names: [directoryName('Another Name')], indirect: true }))] });
+        expect(codesFor(cert, other)).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE']);
+    });
+
+    it('should compare every attribute of two multi-valued relative names, not every other one', async () => {
+        // CN=CRL1+O=A against CN=CRL1+O=B: the first attributes agree, the
+        // second do not, and the two points are different points.
+        const CA_DN = dnOf(rdnOf(O_OID, 'Example Org'), rdnOf(CN_OID, 'Example CA'));
+        const multi = (org: string): Uint8Array => tlv(2, true, 0, tlv(2, true, 1, concat(attribute(CN_OID, 'CRL1'), attribute(O_OID, org))));
+        const cert = await certificate({ serial: 9n, issuerDer: CA_DN, points: [sequence(multi('A'))] });
+        const crlFor = (org: string): Uint8Array => buildCrl({ issuerDer: CA_DN, extensions: [extension(OID_IDP, sequence(multi(org)))] });
+        expect(codesFor(cert, crlFor('A'))).toEqual([]);
+        expect(codesFor(cert, crlFor('B'))).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE']);
+    });
+
+    it('should refuse a composed name that differs from the CRL issuer in its second RDN', async () => {
+        // The issuer is O=Example Org, CN=Example CA. The name below agrees on
+        // the first RDN and the relative last one, and is under another CA.
+        const CA_DN = dnOf(rdnOf(O_OID, 'Example Org'), rdnOf(CN_OID, 'Example CA'));
+        const cert = await certificate({ serial: 9n, issuerDer: CA_DN, points: [sequence(tlv(2, true, 0, tlv(2, true, 1, attribute(CN_OID, 'CRL1'))))] });
+        const nameUnder = (ca: string): Uint8Array => tlv(2, true, 4, dnOf(rdnOf(O_OID, 'Example Org'), rdnOf(CN_OID, ca), rdnOf(CN_OID, 'CRL1')));
+        const crlFor = (ca: string): Uint8Array => buildCrl({ issuerDer: CA_DN, extensions: [extension(OID_IDP, idp({ names: [nameUnder(ca)] }))] });
+        expect(codesFor(cert, crlFor('Example CA'))).toEqual([]);
+        expect(codesFor(cert, crlFor('Other CA'))).toEqual(['PKI_REASON_REVOCATION_OUT_OF_SCOPE']);
+    });
+
+    describe('_deltaApplies (RFC 5280 §5.2.4, §6.3.3 (c)(1))', () => {
+        const numbered = (issuer: string, number: number, over?: number): Uint8Array => buildCrl({
+            issuer,
+            extensions: [extension(OID_CRL_NUMBER, int(number), false), ...(over === undefined ? [] : [extension(OID_DELTA, int(over))])],
+        });
+        const parsed = (der: Uint8Array): ReturnType<typeof parseCertificateList> => parseCertificateList(der, quiet);
+
+        it('should pair a delta with the complete list of its own issuer whose number it starts from', () => {
+            expect(_deltaApplies(parsed(numbered('Example CA', 10)), parsed(numbered('Example CA', 12, 10)))).toBe(true);
+        });
+
+        it('should not pair a delta over a base that is itself a delta, numbers agreeing', () => {
+            expect(_deltaApplies(parsed(numbered('Example CA', 10, 5)), parsed(numbered('Example CA', 12, 10)))).toBe(false);
+        });
+
+        it('should not pair two complete lists', () => {
+            expect(_deltaApplies(parsed(numbered('Example CA', 10)), parsed(numbered('Example CA', 12)))).toBe(false);
+        });
+
+        it('should not pair a delta from another issuer, numbers agreeing', () => {
+            expect(_deltaApplies(parsed(numbered('Example CA', 10)), parsed(numbered(DELEGATE, 12, 10)))).toBe(false);
+        });
+
+        it('should not let another CA\'s delta, covering the certificate as an indirect list, withdraw a revocation on the base', async () => {
+            // The certificate sends its revocations to its own CA at one point
+            // and to a delegate at another, so both lists cover it — and only
+            // the issuer test keeps the delegate's delta off the CA's base.
+            // §6.3.3 (c)(1): the delta CRL issuer must match the complete CRL issuer.
+            const cert = await certificate({ serial: 7n, points: [distributionPoint({ at: POINT }), distributionPoint({ issuedBy: DELEGATE })] });
+            const baseDer = buildCrl({ extensions: [extension(OID_CRL_NUMBER, int(4), false)], entries: [entry([0x07])] });
+            const deltaDer = buildCrl({
+                issuer: DELEGATE,
+                extensions: [extension(OID_CRL_NUMBER, int(6), false), extension(OID_DELTA, int(4)), extension(OID_IDP, idp({ indirect: true }))],
+                entries: [entry([0x07],
+                    extension(OID_CERTIFICATE_ISSUER, sequence(directoryName('Example CA'))),
+                    extension(OID_REASON, universal(10, [0x08])))],
+            });
+            const delta = parsed(deltaDer);
+            expect(_crlScopeProblem({ certificate: cert, crl: delta, asDelta: true })).toBeNull();
+            const codes = checkRevocation({
+                certificate: cert, crl: parsed(baseDer), crlDer: baseDer, at: AT, signatureVerified: true,
+                delta: { crl: delta, crlDer: deltaDer, signatureVerified: true }, ...quiet,
+            }).map((reason) => reason.code);
+            expect(codes).toEqual(['PKI_REASON_REVOKED']);
+        });
     });
 });
