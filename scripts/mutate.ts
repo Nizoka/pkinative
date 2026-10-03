@@ -142,6 +142,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/verify/verify-signed-data.ts' },
     { file: 'src/verify/verify-signer.ts' },
     { file: 'src/verify/verify-timestamp.ts' },
+    { file: 'src/x509/iso3166.ts' },
     { file: 'src/x509/x509-algorithm.ts' },
     { file: 'src/x509/x509-certificate.ts' },
     { file: 'src/x509/x509-ext-constraints.ts' },
