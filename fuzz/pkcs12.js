@@ -13,7 +13,7 @@
  * are defined.
  *
  * Real PKCS#12 files are BER often enough (Java, older Windows) that the lax
- * run is the realistic one; the strict DER run escalates every diagnostic.
+ * run is the realistic one; the strict DER run refuses every `warning` diagnostic.
  *
  * See `fuzz/asn1.js` for the contract every target shares: a `PkiError`
  * subclass is a result, anything else is a bug.

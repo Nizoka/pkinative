@@ -26,7 +26,7 @@
  * now killed, is reported as stale.
  *
  * Usage:
- *   npm run mutate                                        # the security-critical default set
+ *   npm run mutate                                        # every executable module of src/
  *   npx tsx scripts/mutate.ts --files src/keys/key-pbes2.ts
  *   npx tsx scripts/mutate.ts --files src/asn1/asn1-decode.ts=80 --seed 7
  *   npx tsx scripts/mutate.ts --files src/cms/cms-check.ts --list

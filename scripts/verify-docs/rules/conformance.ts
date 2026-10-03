@@ -311,7 +311,7 @@ const interopMatrixDeclared: Rule = {
         const guide = ctx.read(GUIDE) ?? '';
         const tables = [
             { table: 'KEY_CONTAINER_CASES', kind: 'key-container', list: KEY_CONTAINER_CASES, shape: /`([a-z0-9-]+:(?:pkcs8|pkcs12|pfx)-[a-z0-9-]+)`/g },
-            { table: 'READ_CASES', kind: 'read', list: READ_CASES, shape: /`([a-z0-9-]+:(?:cms|tsp|ocsp|crl)(?:-[a-z0-9-]+)?)`/g },
+            { table: 'READ_CASES', kind: 'read', list: READ_CASES, shape: /`([a-z0-9-]+:(?:cms|tsp|ocsp|crl|csr)(?:-[a-z0-9-]+)?)`/g },
         ];
         for (const { table, kind, list, shape } of tables) {
             const cases = new Set(list.map((c) => c.id));

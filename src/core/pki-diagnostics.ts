@@ -43,7 +43,7 @@ function _warn(message: string): void {
 /**
  * Create the per-operation diagnostics channel.
  *
- * @param strict  Escalate the first diagnostic to a thrown error.
+ * @param strict  Refuse the first `warning` diagnostic with a thrown error; `info` diagnostics are reported either way.
  * @param handler Receive every diagnostic instead of the console.
  * @returns The emitter to hand down to every layer of the operation.
  */

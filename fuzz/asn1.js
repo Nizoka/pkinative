@@ -30,8 +30,8 @@ export function fuzz(data) {
     // Both rule sets on the same input, in one iteration: BER reaches the
     // indefinite-length and constructed-string paths DER refuses outright, so
     // splitting them across executions would halve the coverage each input
-    // buys. `strict` escalates every diagnostic to a throw, which is what
-    // puts the diagnostic sites themselves on the fuzzer's map.
+    // buys. `strict` refuses every `warning` diagnostic with a throw, which is
+    // what puts the diagnostic sites themselves on the fuzzer's map.
     for (const encodingRules of ['der', 'ber']) {
         try {
             decodeAsn1(bytes, { encodingRules, strict: true });
