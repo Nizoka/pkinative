@@ -6,20 +6,20 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 3707,
-      "approxTokens": 927
+      "bytes": 3969,
+      "approxTokens": 992
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7534,
-      "approxTokens": 1884
+      "bytes": 7558,
+      "approxTokens": 1890
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 232354,
-      "approxTokens": 58089
+      "bytes": 238306,
+      "approxTokens": 59577
     },
     {
       "url": "llms-recipes.txt",
@@ -97,6 +97,7 @@
         "gate-a-der-round-trip",
         "check-one-link-of-a-chain",
         "issue-a-certificate-without-ever-holding-the-key",
+        "read-a-request-before-you-sign-it",
         "validate-a-chain-and-get-told-everything-that-is-wrong-with-it",
         "when-you-have-a-bag-rather-than-a-chain",
         "just-tell-me-whether-to-accept-this-certificate",
@@ -113,8 +114,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 81711,
-      "approxTokens": 20428
+      "bytes": 84852,
+      "approxTokens": 21213
     },
     {
       "title": "Security model",
@@ -130,8 +131,8 @@
         "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15408,
-      "approxTokens": 3852
+      "bytes": 15499,
+      "approxTokens": 3875
     },
     {
       "title": "Conformance",
@@ -163,8 +164,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 16026,
-      "approxTokens": 4007
+      "bytes": 17008,
+      "approxTokens": 4252
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -187,8 +188,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 30559,
-      "approxTokens": 7640
+      "bytes": 31152,
+      "approxTokens": 7788
     },
     {
       "title": "Choosing a PKI library",
@@ -201,8 +202,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 5833,
-      "approxTokens": 1458
+      "bytes": 6080,
+      "approxTokens": 1520
     }
   ]
 }

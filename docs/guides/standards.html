@@ -226,6 +226,13 @@
 <td>The reviewed deviations of <code>scripts/data/pkits-score.json</code> and <code>scripts/data/limbo-score.json</code>; distinguished names compared by encoded bytes rather than by §7.1 preparation (<a href="../adr/0005-names-compared-by-encoded-bytes.md">ADR 0005</a>).</td>
 </tr>
 <tr>
+<td>RFC 2986 — PKCS#10 certification requests (with RFC 2985 §5.4 for <code>extensionRequest</code> and <code>challengePassword</code>)</td>
+<td>Reading, verifying the proof of possession, and building</td>
+<td>applies</td>
+<td><code>src/x509/x509-csr.ts</code>, <code>src/verify/verify-csr.ts</code>; <code>tests/x509/x509-csr.test.ts</code>, <code>tests/verify/verify-csr.test.ts</code>, <code>tests/fuzzing/csr.test.ts</code>, <code>tests/build/build-certificate.test.ts</code>; <code>recipes/csr.ts</code>; the <code>openssl:csr</code> case of the <a href="conformance.html#the-write-direction">interoperability matrix</a> reads back and verifies every request <code>openssl req -new</code> writes, and OpenSSL, .NET, GnuTLS, Go, Python cryptography and Java read the ones pkinative writes</td>
+<td>Attributes other than <code>extensionRequest</code> and <code>challengePassword</code> are kept as DER (<code>CsrAttribute</code>); a request is held to the certificate&#39;s codes and bounds, so a <code>version</code> other than 0 is <code>PKI_X509_VERSION_INVALID</code> and the attributes count against <code>maxExtensions</code>. A valid request proves possession of a key and nothing about who sent it.</td>
+</tr>
+<tr>
 <td>RFC 5652 — CMS SignedData</td>
 <td>Reading, building and verifying</td>
 <td>applies</td>

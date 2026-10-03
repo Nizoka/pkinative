@@ -51,6 +51,7 @@ const OUT_DIR = 'test-output/guides';
 export const GUIDE_INPUTS: Readonly<Record<string, string>> = {
     // bytes and text
     der: 'Uint8Array',
+    csrDer: 'Uint8Array',
     pemText: 'string',
     crlDer: 'Uint8Array',
     baseDer: 'Uint8Array',
