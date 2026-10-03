@@ -616,6 +616,136 @@ function cmsDigestAlgorithmNotListedDiagnostic(path, oid, offset) {
     offset
   );
 }
+function cmsCertsOnlyContentDiagnostic(path, found, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_CERTS_ONLY_CONTENT",
+    "warning",
+    "RFC 5652 \xA75.2",
+    `this SignedData has no signer and ${found}; RFC 5652 \xA75.2 requires a signer-less message to carry id-data and no eContent, and a strict reader may refuse it`,
+    path,
+    offset
+  );
+}
+function cmsCountersignatureContentTypeDiagnostic(path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE",
+    "warning",
+    "RFC 5652 \xA711.4",
+    "this countersignature carries a content-type attribute among its signed attributes; RFC 5652 \xA711.4 forbids one there, since a countersignature has no content type \u2014 the countersignature is carried, not verified",
+    path,
+    offset
+  );
+}
+function cmsCountersignatureNoMessageDigestDiagnostic(path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST",
+    "warning",
+    "RFC 5652 \xA711.4",
+    "this countersignature has signed attributes and none of them is a message-digest attribute, which RFC 5652 \xA711.4 requires whenever any other attribute is signed; a verifier of the countersignature has nothing to bind it to",
+    path,
+    offset
+  );
+}
+function cmsCountersignatureEmptyDiagnostic(path, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY",
+    "warning",
+    "RFC 5652 \xA711.4",
+    "this countersignature attribute holds no value; RFC 5652 \xA711.4 requires one or more SignerInfo values, so the attribute countersigns nothing",
+    path,
+    offset
+  );
+}
+function cmsSigningTimeNotUtcDiagnostic(path, text, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC",
+    "warning",
+    "RFC 5652 \xA711.3",
+    `"${text}" is a GeneralizedTime for a date between 1950 and 2049; RFC 5652 \xA711.3 requires UTCTime for those years \u2014 the instant is read as written, and a strict reader may refuse the attribute`,
+    path,
+    offset
+  );
+}
+function cmsSigningTimeFractionDiagnostic(path, text, offset) {
+  return _diagnostic(
+    "PKI_DIAG_CMS_SIGNING_TIME_FRACTION",
+    "warning",
+    "RFC 5652 \xA711.3",
+    `"${text}" carries fractional seconds, which RFC 5652 \xA711.3 forbids in a signing time; the instant is read to the millisecond`,
+    path,
+    offset
+  );
+}
+function tspCertReqUnmetDiagnostic(path, found) {
+  return _diagnostic(
+    "PKI_DIAG_TSP_CERTREQ_UNMET",
+    "warning",
+    "RFC 3161 \xA72.4.1",
+    `the request set certReq and ${found}; RFC 3161 \xA72.4.1 requires the TSA to include the certificate its SigningCertificate attribute names \u2014 the token verifies against the certificates you pass, but a reader without them cannot`,
+    path,
+    void 0
+  );
+}
+function tspCertsUnrequestedDiagnostic(path, count) {
+  return _diagnostic(
+    "PKI_DIAG_TSP_CERTS_UNREQUESTED",
+    "warning",
+    "RFC 3161 \xA72.4.1",
+    `the request did not set certReq and the token carries ${String(count)} certificate(s); RFC 3161 \xA72.4.1 then forbids the certificates field \u2014 they are read as the TSA's hint, and the token is no less valid for it`,
+    path,
+    void 0
+  );
+}
+function ocspCertsEmptyDiagnostic(offset) {
+  return _diagnostic(
+    "PKI_DIAG_OCSP_CERTS_EMPTY",
+    "info",
+    "RFC 6960 \xA74.2.1",
+    "the certs field is present and empty; RFC 6960 \xA74.2.1 says it should be absent when no certificate is included \u2014 nothing is lost, the responder is found as if the field were absent",
+    "BasicOCSPResponse.certs",
+    offset
+  );
+}
+function ocspVersionNotV1Diagnostic(found, offset) {
+  return _diagnostic(
+    "PKI_DIAG_OCSP_VERSION_NOT_V1",
+    "warning",
+    "RFC 6960 \xA74.2.2.3",
+    `ResponseData.version ${found}; RFC 6960 \xA74.2.2.3 defines v1 (0) only, so the response is read with the v1 syntax \u2014 a strict reader may refuse it`,
+    "ResponseData.version",
+    offset
+  );
+}
+function ocspResponderIdMismatchDiagnostic(path, kind) {
+  return _diagnostic(
+    "PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH",
+    "warning",
+    "RFC 6960 \xA74.2.2.3",
+    kind === "byName" ? "responderID names a subject that is not the subject of the certificate whose key verified the signature; RFC 6960 \xA74.2.2.3 requires it to correspond \u2014 the signature decides who answered, the name here is what the responder claims" : "responderID carries a key hash that is not the SHA-1 of the public key that verified the signature; RFC 6960 \xA74.2.2.3 requires it to correspond \u2014 the signature decides who answered, the hash here is what the responder claims",
+    `${path}.responderID`,
+    void 0
+  );
+}
+function ocspSingleResponseUnrequestedDiagnostic(path, extra) {
+  return _diagnostic(
+    "PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED",
+    "info",
+    "RFC 6960 \xA74.2.2.3",
+    `the response carries ${String(extra)} SingleResponse element(s) about certificates that were not asked about; RFC 6960 \xA74.2.2.3 says a responder should not add them, and allows pre-generated responses to \u2014 the answer about the certificate asked about is the one judged`,
+    `${path}.responses`,
+    void 0
+  );
+}
+function ocspNoCheckCriticalDiagnostic(path) {
+  return _diagnostic(
+    "PKI_DIAG_OCSP_NOCHECK_CRITICAL",
+    "info",
+    "RFC 6960 \xA74.2.2.2.1",
+    "the certificate that signed the response marks id-pkix-ocsp-nocheck critical; RFC 6960 \xA74.2.2.2.1 says the extension should be non-critical \u2014 it is honoured either way, and a reader that does not know it must refuse the certificate",
+    `${path}.signer.ocspNoCheck`,
+    void 0
+  );
+}
 function keyKdfIterationsLowDiagnostic(path, iterations, offset) {
   return _diagnostic(
     "PKI_DIAG_KEY_KDF_ITERATIONS_LOW",
@@ -5006,7 +5136,9 @@ function readBasicResponse(der, ctx) {
   const certsField = parts[3];
   if (certsField !== void 0) {
     const seq = [...walkChildren(der, certsField, "BasicOCSPResponse.certs")][0];
-    for (const certificate of seq === void 0 ? [] : [...walkChildren(der, seq, "BasicOCSPResponse.certs")]) {
+    const entries = seq === void 0 ? [] : [...walkChildren(der, seq, "BasicOCSPResponse.certs")];
+    if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
+    for (const certificate of entries) {
       enforceLimit(ctx.limits, "maxChainLength", certificates.length + 1, "BasicOCSPResponse.certs");
       certificates.push(der.subarray(certificate.offset, certificate.end));
     }
@@ -5026,7 +5158,10 @@ function readBasicResponse(der, ctx) {
 function readResponseData(der, tbs, ctx) {
   const fields = [...walkChildren(der, tbs, "ResponseData")];
   let at = 0;
-  if (fields[0]?.tagClass === "context" && fields[0].tagNumber === 0) at += 1;
+  if (fields[0]?.tagClass === "context" && fields[0].tagNumber === 0) {
+    readVersion(der, fields[0], ctx);
+    at += 1;
+  }
   const idField = fields[at];
   if (idField === void 0 || idField.tagClass !== "context" || idField.tagNumber !== 1 && idField.tagNumber !== 2) {
     throw ocspError("ResponseData.responderID", tbs.offset, "is neither byName [1] nor byKey [2]");
@@ -5052,6 +5187,19 @@ function readResponseData(der, tbs, ctx) {
   const extensionsField = fields[at];
   const extensions = extensionsField === void 0 ? [] : readExtensions2(der, extensionsField, ctx, "ResponseData.responseExtensions");
   return { responderId, producedAt, responses: Object.freeze(responses), extensions };
+}
+function readVersion(der, field, ctx) {
+  const inner = [...walkChildren(der, field, "ResponseData.version")][0];
+  if (inner === void 0 || inner.tagClass !== "universal" || inner.tagNumber !== 2) {
+    ctx.emitter.emit(ocspVersionNotV1Diagnostic("holds no INTEGER", field.offset));
+    return;
+  }
+  const content = der.subarray(inner.contentStart, inner.end);
+  if (content.length === 1 && content[0] === 0) {
+    ctx.emitter.emit(defaultEncodedDiagnostic("ResponseData.version", "v1 (0)", field.offset));
+    return;
+  }
+  ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset));
 }
 function readResponderId(der, field, ctx) {
   const inner = [...walkChildren(der, field, "ResponseData.responderID")][0];
@@ -5173,6 +5321,8 @@ function checkOcspStatus(input) {
     out.push(revocationUnknownReason(path, "the response carries no body"));
     return out;
   }
+  const emitter = createDiagnosticEmitter(void 0, input.onDiagnostic);
+  if (input.signer !== void 0) _signerDiagnostics(basic, input.signer, path, emitter);
   if (input.signatureVerified !== true) {
     out.push(revocationUnknownReason(path, input.signatureVerified === false ? "the responder's signature did not verify against the key it was checked with" : "the responder's signature was never checked, and an unsigned response is something anyone can produce"));
   }
@@ -5186,6 +5336,9 @@ function checkOcspStatus(input) {
     out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
     return out;
   }
+  if (basic.responses.length > answers.length) {
+    emitter.emit(ocspSingleResponseUnrequestedDiagnostic(path, basic.responses.length - answers.length));
+  }
   if (answers.some((other) => other.status.kind !== answer.status.kind)) {
     out.push(revocationUnknownReason(path, "the response answers more than once about this certificate and the answers disagree on its status, so it establishes nothing"));
     return out;
@@ -5198,6 +5351,13 @@ function checkOcspStatus(input) {
     out.push(revocationUnknownReason(path, "the responder answered unknown, meaning it has no record of this certificate \u2014 often a sign the serial does not belong to that CA"));
   }
   return out;
+}
+function _signerDiagnostics(basic, signer, path, emitter) {
+  if (!_responderIdMatches(basic.responderId, signer)) emitter.emit(ocspResponderIdMismatchDiagnostic(path, basic.responderId.kind));
+  if (getExtension(signer, "ocspNoCheck")?.critical === true) emitter.emit(ocspNoCheckCriticalDiagnostic(path));
+}
+function _responderIdMatches(id, signer) {
+  return id.kind === "byName" ? bytesEqual(id.nameDer, signer.subject.der) : bytesEqual(id.keyHash, computeKeyIdentifier(signer.subjectPublicKeyInfo.publicKey.bytes, "SHA-1"));
 }
 function matches(single, expected) {
   return bytesEqual(single.certId.issuerNameHash, expected.issuerNameHash) && bytesEqual(single.certId.issuerKeyHash, expected.issuerKeyHash) && bytesEqual(single.certId.serialNumber.bytes, expected.serialNumber);
@@ -6932,7 +7092,7 @@ function emitProfileDiagnostics(ctx, version, subject, issuer, extensions) {
   }
 }
 var NO_EXTENSIONS = /* @__PURE__ */ Object.freeze([]);
-function readVersion(field, ctx) {
+function readVersion2(field, ctx) {
   const path = "tbsCertificate.version";
   if (!field.constructed || field.children.length !== 1) {
     throw certificateError(STRUCTURE3, path, field.offset, "is not one INTEGER under the explicit [0] tag");
@@ -7028,7 +7188,7 @@ function parseCertificate(der, options) {
   let version = 1;
   const first = fields[0];
   if (first !== void 0 && first.tagClass === "context" && first.tagNumber === 0) {
-    version = readVersion(first, ctx);
+    version = readVersion2(first, ctx);
     index = 1;
   }
   const serialNode = expectUniversalField(fields[index++], TAG_INTEGER, "tbsCertificate.serialNumber", STRUCTURE3, tbs.offset);
@@ -7318,7 +7478,7 @@ async function _checkRevocation(input, path, at, verdicts) {
     }
     return out;
   }
-  const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
+  const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? (() => void 0) };
   const anchors = new Set(input.trustAnchors.map((c) => _hex2(c.der)));
   const covered = /* @__PURE__ */ new Set();
   const parsed = [];
@@ -7388,7 +7548,11 @@ async function _checkRevocation(input, path, at, verdicts) {
         response,
         expected: _certId(input.leaf, issuer, algorithm),
         at,
+        onDiagnostic: reading.onDiagnostic,
         ...authorised === void 0 ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised },
+        // The one certificate that both signed and was entitled to:
+        // what `responderID` must name (RFC 6960 §4.2.2.3).
+        ...authorised?.certificate === void 0 ? {} : { signer: authorised.certificate },
         ...input.ocspNonce === void 0 ? {} : { nonce: input.ocspNonce },
         ...input.requireOcspNonce === void 0 ? {} : { requireNonce: input.requireOcspNonce }
       }).map((reason) => _rooted(reason, "ocsp", where2)));
@@ -7428,7 +7592,7 @@ async function _ocspSigner(basic, issuer, ctx) {
   const { at, reading } = ctx;
   const allowSha1 = ctx.input.allowSha1 === true;
   const direct = await _ocspSignature(basic, issuer);
-  if (direct === true) return { signed: true, authorised: true };
+  if (direct === true) return { signed: true, authorised: true, certificate: issuer };
   for (const der of basic.certificates) {
     let delegate;
     try {
@@ -7453,9 +7617,9 @@ async function _ocspSigner(basic, issuer, ctx) {
     if (usage !== void 0 && !usage.usages.includes("digitalSignature")) continue;
     const signed = await _ocspSignature(basic, delegate);
     if (signed !== true) continue;
-    if (getExtension(delegate, "ocspNoCheck") !== void 0 || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true };
+    if (getExtension(delegate, "ocspNoCheck") !== void 0 || await _unrevokedOnLists(ctx, delegate)) return { signed: true, authorised: true, certificate: delegate };
   }
-  return { signed: direct, authorised: false };
+  return { signed: direct, authorised: false, certificate: void 0 };
 }
 async function _ocspSignature(basic, signer) {
   try {
@@ -8891,7 +9055,7 @@ function _readAttributes(container, ctx, path) {
       values: Object.freeze(set.children.map((value) => value.bytes)),
       der: node.bytes
     };
-    out.push(Object.freeze({ attribute: Object.freeze(attribute), valueNodes: set.children }));
+    out.push(Object.freeze({ attribute: Object.freeze(attribute), valueNodes: set.children, offset: node.offset }));
   }
   return Object.freeze(out);
 }
@@ -8915,12 +9079,19 @@ function readRecognised(node, path, read) {
 function _readSignedAttributeFields(entries, ctx, path) {
   const contentType = readRecognised(singleValue(entries, OID_ATTR_CONTENT_TYPE), `${path}.contentType`, (node) => _readObjectIdentifier(_expectUniversal(node, TAG_OID, `${path}.contentType`, node.offset, "an OBJECT IDENTIFIER"), ctx));
   const messageDigest = readRecognised(singleValue(entries, OID_ATTR_MESSAGE_DIGEST), `${path}.messageDigest`, (node) => _readOctetString(_expectUniversal(node, TAG_OCTET_STRING, `${path}.messageDigest`, node.offset, "an OCTET STRING"), ctx));
-  const signingTime = readRecognised(singleValue(entries, OID_ATTR_SIGNING_TIME), `${path}.signingTime`, (node) => {
+  const signingTimeNode = singleValue(entries, OID_ATTR_SIGNING_TIME);
+  const signingTime = readRecognised(signingTimeNode, `${path}.signingTime`, (node) => {
     if (node.tagClass !== "universal" || node.tagNumber !== TAG_UTC_TIME && node.tagNumber !== TAG_GENERALIZED_TIME) {
       throw _cmsError("PKI_CMS_STRUCTURE_INVALID", `${path}.signingTime`, node.offset, "is not a UTCTime or a GeneralizedTime");
     }
     return _readTime(node, ctx, void 0);
   });
+  if (signingTime?.type === "GeneralizedTime") {
+    const year = Number(signingTime.text.slice(0, 4));
+    const offset = signingTimeNode.offset;
+    if (year >= 1950 && year <= 2049) ctx.emitter.emit(cmsSigningTimeNotUtcDiagnostic(`${path}.signingTime`, signingTime.text, offset));
+    if (/[.,]/.test(signingTime.text)) ctx.emitter.emit(cmsSigningTimeFractionDiagnostic(`${path}.signingTime`, signingTime.text, offset));
+  }
   const v1 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE), `${path}.signingCertificate`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificate`, 1));
   const v2 = readRecognised(singleValue(entries, OID_ATTR_SIGNING_CERTIFICATE_V2), `${path}.signingCertificateV2`, (node) => readSigningCertificate(node, ctx, `${path}.signingCertificateV2`, 2));
   const hasV2 = entries.some((entry) => entry.attribute.oid === OID_ATTR_SIGNING_CERTIFICATE_V2);
@@ -8952,6 +9123,38 @@ function _collectTimeStampTokens(entries) {
     if (entry.attribute.oid === OID_ATTR_TIMESTAMP_TOKEN) tokens.push(...entry.attribute.values);
   }
   return Object.freeze(tokens);
+}
+var CONTENT_TYPE_OID_CONTENT = /* @__PURE__ */ Uint8Array.of(42, 134, 72, 134, 247, 13, 1, 9, 3);
+var MESSAGE_DIGEST_OID_CONTENT = /* @__PURE__ */ Uint8Array.of(42, 134, 72, 134, 247, 13, 1, 9, 4);
+function _countersignatureDiagnostics(entries, ctx, path) {
+  for (const [index, entry] of (entries ?? []).entries()) {
+    if (entry.attribute.oid !== OID_ATTR_COUNTERSIGNATURE) continue;
+    const where2 = `${path}[${String(index)}]`;
+    if (entry.valueNodes.length === 0) {
+      ctx.emitter.emit(cmsCountersignatureEmptyDiagnostic(where2, entry.offset));
+      continue;
+    }
+    for (const [v, value] of entry.valueNodes.entries()) {
+      if (value.tagClass !== "universal" || value.tagNumber !== TAG_SEQUENCE) continue;
+      const signed = value.children[3];
+      if (signed === void 0 || signed.tagClass !== "context" || signed.tagNumber !== 0 || !signed.constructed) continue;
+      let others = false;
+      let contentType = false;
+      let messageDigest = false;
+      for (let i = 0; i < signed.children.length; i++) {
+        enforceLimit(ctx.limits, "maxAttributes", i + 1, `${where2}[${String(v)}].signedAttrs`);
+        const attribute = signed.children[i];
+        const type = attribute.children[0];
+        if (attribute.tagClass !== "universal" || attribute.tagNumber !== TAG_SEQUENCE || type?.tagClass !== "universal" || type.tagNumber !== TAG_OID) continue;
+        others = true;
+        if (bytesEqual(type.content, CONTENT_TYPE_OID_CONTENT)) contentType = true;
+        if (bytesEqual(type.content, MESSAGE_DIGEST_OID_CONTENT)) messageDigest = true;
+      }
+      const valuePath = `${where2}[${String(v)}].signedAttrs`;
+      if (contentType) ctx.emitter.emit(cmsCountersignatureContentTypeDiagnostic(valuePath, signed.offset));
+      if (others && !messageDigest) ctx.emitter.emit(cmsCountersignatureNoMessageDigestDiagnostic(valuePath, signed.offset));
+    }
+  }
 }
 var HASH_NAMES = /* @__PURE__ */ new Map([
   ["1.3.14.3.2.26", "SHA-1"],
@@ -9068,6 +9271,7 @@ function readSignedData(root, seq, ctx) {
   }
   const digestAlgorithms = readDigestAlgorithms(fields[1], ctx, seq.offset);
   const encap = readEncapsulatedContent(fields[2], ctx, seq.offset);
+  const encapNode = fields[2];
   let at = 3;
   const certificatesField = isContext(fields[at], 0) ? fields[at++] : void 0;
   const crlsField = isContext(fields[at], 1) ? fields[at++] : void 0;
@@ -9084,6 +9288,14 @@ function readSignedData(root, seq, ctx) {
     signerInfos.push(readSignerInfo(signerSet.children[i], ctx, path, listed2));
   }
   if (!_inDerSetOrder(signerSet.children)) ctx.emitter.emit(cmsSetNotSortedDiagnostic("content.signerInfos", signerSet.offset));
+  if (signerInfos.length === 0) {
+    if (encap.contentType !== OID_DATA) {
+      ctx.emitter.emit(cmsCertsOnlyContentDiagnostic("content.encapContentInfo.eContentType", `its eContentType is ${encap.contentType}, not id-data`, encapNode.offset));
+    }
+    if (encap.content !== void 0) {
+      ctx.emitter.emit(cmsCertsOnlyContentDiagnostic("content.encapContentInfo.eContent", "it carries an eContent", encapNode.offset));
+    }
+  }
   const derived = bag.hasOtherFormat ? 5 : bag.hasV2AttrCert ? 4 : bag.hasV1AttrCert || signerInfos.some((signer) => signer.version === 3) || encap.contentType !== OID_DATA ? 3 : 1;
   const version = Number(declared);
   if (version !== derived) ctx.emitter.emit(cmsVersionMismatchDiagnostic("content.version", version, derived, versionNode.offset));
@@ -9245,6 +9457,7 @@ function readSignerInfo(node, ctx, path, listed2) {
     signedAttributesDer[0] = 49;
   }
   const unsignedEntries = unsignedNode === void 0 ? void 0 : _readAttributes(unsignedNode, ctx, `${path}.unsignedAttrs`);
+  _countersignatureDiagnostics(unsignedEntries, ctx, `${path}.unsignedAttrs`);
   const convenience = _readSignedAttributeFields(signedEntries ?? [], ctx, `${path}.signedAttrs`);
   return Object.freeze({
     version,
@@ -10222,7 +10435,7 @@ function _under(prefix, reason) {
 // src/verify/verify-timestamp.ts
 var OID_SHA1 = "1.3.14.3.2.26";
 async function verifyTimeStampToken(input) {
-  const reading = { limits: input.limits ?? {}, onDiagnostic: () => void 0 };
+  const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? (() => void 0) };
   const expectation = _expectation(input, reading);
   const reasons = [];
   let token;
@@ -10275,6 +10488,7 @@ async function verifyTimeStampToken(input) {
   reasons.push(...outcome.reasons);
   let signatureVerifications = outcome.signatureVerifications;
   const tsa = outcome.certificate;
+  _certReqDiagnostics(expectation.certReq, signedData.certificates, tsa, createDiagnosticEmitter(void 0, reading.onDiagnostic));
   if (tsa === void 0) return _report(reasons, token, void 0, void 0, signatureVerifications);
   const purpose = _tsaPurposeReason(tsa, input.allowNonCriticalTimeStampingEku === true);
   if (purpose !== null) reasons.push(purpose);
@@ -10301,7 +10515,8 @@ async function verifyTimeStampToken(input) {
     ocspResponses: [...signedData.ocspResponses, ...input.ocspResponses ?? []],
     ...input.requireRevocation === void 0 ? {} : { requireRevocation: input.requireRevocation },
     ...input.allowSha1 === void 0 ? {} : { allowSha1: input.allowSha1 },
-    ...input.limits === void 0 ? {} : { limits: input.limits }
+    ...input.limits === void 0 ? {} : { limits: input.limits },
+    ...input.onDiagnostic === void 0 ? {} : { onDiagnostic: input.onDiagnostic }
   });
   signatureVerifications += chain.signatureVerifications;
   reasons.push(...chain.reasons.map((reason) => _under("token.tsaChain", reason)));
@@ -10355,8 +10570,22 @@ function _expectation(input, reading) {
     requested: request?.messageImprint,
     nonce: request?.nonce,
     policy: request?.policy,
+    certReq: request?.certReq,
     allowSha1: input.allowSha1 === true
   };
+}
+function _certReqDiagnostics(certReq, bag, tsa, emitter) {
+  if (certReq === void 0) return;
+  const where2 = "token.certificates";
+  if (!certReq) {
+    if (bag.length > 0) emitter.emit(tspCertsUnrequestedDiagnostic(where2, bag.length));
+    return;
+  }
+  if (bag.length === 0) {
+    emitter.emit(tspCertReqUnmetDiagnostic(where2, "the token carries no certificate at all"));
+  } else if (tsa !== void 0 && !bag.some((der) => bytesEqual(der, tsa.der))) {
+    emitter.emit(tspCertReqUnmetDiagnostic(where2, `the ${String(bag.length)} certificate(s) the token carries do not include the TSA's, which was found among those you passed`));
+  }
 }
 async function _imprintReasons(stamped, expectation) {
   const out = [];
