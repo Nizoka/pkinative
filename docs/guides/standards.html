@@ -141,9 +141,9 @@
 <tr>
 <td>ITU-T X.680 | ISO/IEC 8824-1 — ASN.1 notation</td>
 <td>The universal tags and the value sets the readers accept</td>
-<td>partial</td>
-<td><code>src/asn1/asn1-tags.ts</code>, <code>src/core/text.ts</code> (the PrintableString set, diagnostic <code>PKI_DIAG_PRINTABLE_STRING_CHARSET</code>); <code>tests/asn1/asn1-tags.test.ts</code>, <code>tests/asn1/asn1-time.test.ts</code></td>
-<td>No typed reader for ENUMERATED, REAL or RELATIVE-OID. Under BER, GeneralizedTime accepts a subset of the forms X.680 allows: hour-only times, fractions of a minute or an hour, and numeric offsets are refused.</td>
+<td>applies</td>
+<td><code>src/asn1/asn1-tags.ts</code>, <code>src/core/text.ts</code> (the PrintableString set, diagnostic <code>PKI_DIAG_PRINTABLE_STRING_CHARSET</code>); a typed reader for every universal type a PKI structure carries, ENUMERATED (<code>readEnumerated</code>, X.690 §8.4) and RELATIVE-OID (<code>readRelativeOid</code>, <code>encodeRelativeOid</code>, X.690 §8.20) included; <code>tests/asn1/asn1-tags.test.ts</code>, <code>tests/asn1/asn1-read.test.ts</code>, <code>tests/asn1/asn1-oid.test.ts</code>, <code>tests/asn1/asn1-time.test.ts</code>, <code>tests/property/asn1-roundtrip.test.ts</code></td>
+<td>Not read, because no PKI structure pkinative reads carries them: REAL has no reader, and under BER the GeneralizedTime forms X.680 allows beyond RFC 5280 §4.1.2.5.2 — hour-only times, fractions of a minute or an hour, numeric offsets — are refused.</td>
 </tr>
 <tr>
 <td>ITU-T X.509 | ISO/IEC 9594-8 — certificate framework</td>
@@ -154,10 +154,10 @@
 </tr>
 <tr>
 <td>ITU-T X.520 | ISO/IEC 9594-6 — attribute types</td>
-<td>Names: every DirectoryString choice is read</td>
-<td>partial</td>
-<td><code>src/x509/x509-name.ts</code>, with the RFC 5280 Appendix A.1 syntax table in <code>src/core/name-oids.ts</code>; <code>tests/x509/x509-name.test.ts</code>, <code>tests/build/build-structures.test.ts</code>; the attribute names in <code>src/oid/</code></td>
-<td>When reading, the attribute syntaxes are diagnosed, not enforced: a value outside its Appendix A.1 string type (a <code>countryName</code> that is not a PrintableString, an <code>emailAddress</code> that is not an IA5String) raises <code>PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE</code>, and a <code>countryName</code> that is not two characters <code>PKI_DIAG_COUNTRY_NAME_SIZE</code>; each is refused only under <code>strict: true</code>. A value past its other <code>ub-*</code> upper bounds is read as it is, with no diagnostic. <code>encodeNameAttribute</code> refuses a wrong type or size when writing.</td>
+<td>Names: every DirectoryString choice is read, each attribute held to its syntax and its upper bound</td>
+<td>applies</td>
+<td><code>src/x509/x509-name.ts</code>, with the RFC 5280 Appendix A.1 syntax and <code>ub-*</code> table in <code>src/core/name-oids.ts</code> and the ISO 3166-1 codes in <code>src/x509/iso3166.ts</code>; <code>tests/x509/x509-name.test.ts</code> (<code>PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE</code>, <code>PKI_DIAG_COUNTRY_NAME_SIZE</code>, <code>PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG</code>, <code>PKI_DIAG_NAME_COUNTRY_UNKNOWN</code>), <code>tests/x509/iso3166.test.ts</code>, <code>tests/build/build-structures.test.ts</code>; the attribute names in <code>src/oid/</code></td>
+<td>Diagnosed, never enforced when reading: a value outside its Appendix A.1 string type raises <code>PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE</code> and a <code>countryName</code> that is not two characters <code>PKI_DIAG_COUNTRY_NAME_SIZE</code>, each refused only under <code>strict: true</code>; a value past its <code>ub-*</code> upper bound, counted in characters, raises <code>PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG</code> and is read as it is, information even under <code>strict</code>. The bounds are RFC 5280 Appendix A.1&#39;s (the five X520name attributes at ub-name, 32768), not the X.400 personal-name lengths. <code>encodeNameAttribute</code> refuses a wrong type or size when writing.</td>
 </tr>
 <tr>
 <td>ITU-T X.660 | ISO/IEC 9834-1 — object identifier arcs</td>
@@ -195,9 +195,9 @@
 <tr>
 <td>ISO 3166-1 alpha-2 (country codes)</td>
 <td><code>countryName</code> values</td>
-<td>partial</td>
-<td><code>src/x509/x509-name.ts</code>; <code>tests/x509/x509-name.test.ts</code>, <code>tests/build/build-structures.test.ts</code></td>
-<td>Only the two-character size is checked: the reader diagnoses any other length (<code>PKI_DIAG_COUNTRY_NAME_SIZE</code>) and <code>encodeNameAttribute</code> refuses it. Neither checks a code against the ISO 3166 list.</td>
+<td>applies</td>
+<td><code>src/x509/iso3166.ts</code> (the 249 officially assigned codes of ISO 3166-1:2020; the user-assigned range AA, QM–QZ, XA–XZ, ZZ of §8.1.3 admitted), <code>src/x509/x509-name.ts</code>; <code>tests/x509/iso3166.test.ts</code> (the count, the range, the reserved codes UK, EU, AN refused), <code>tests/x509/x509-name.test.ts</code> (<code>PKI_DIAG_NAME_COUNTRY_UNKNOWN</code>), <code>tests/build/build-structures.test.ts</code></td>
+<td>Information, not refusal: a two-letter code the list does not hold is reported (<code>PKI_DIAG_NAME_COUNTRY_UNKNOWN</code>) and read as it is, even under <code>strict: true</code>; a wrong size is <code>PKI_DIAG_COUNTRY_NAME_SIZE</code>. The table follows the ISO 3166 Maintenance Agency by hand, so a code assigned after it was written is reported as unknown until the table does. <code>encodeNameAttribute</code> checks the size, not the list.</td>
 </tr>
 <tr>
 <td>RFC 5280 §4.1.2.5 time profile (and ISO 8601 in spirit)</td>
@@ -230,7 +230,7 @@
 <td>Reading, building and verifying</td>
 <td>applies</td>
 <td><code>tests/cms/cms-signed-data.test.ts</code>, <code>tests/cms/cms-check.test.ts</code>, <code>tests/verify/verify-signed-data.test.ts</code>, <code>tests/fuzzing/cms.test.ts</code>; <code>L8</code>, 224 PKITS S/MIME messages verified whole; the pinned text of §5 and §11.1–11.4 held sentence by sentence to a named test (<code>scripts/data/rfc5652-requirements.json</code>)</td>
-<td>DSA signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); an Ed448 signer is verified where the host has Ed448 — Node.js — and reported unchecked where it does not — Bun, Chromium (<a href="../adr/0022-ed448-cms-signers-host-dependent.md">ADR 0022</a>); <code>createSignedData</code> does not sign with Ed448; countersignatures are carried, not verified — their signed attributes are looked into only as far as the §11.4 diagnostics need.</td>
+<td>DSA signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); an Ed448 signer is verified, and written by <code>createSignedData</code>, where the host has Ed448 — Node.js — and reported unchecked, or refused with <code>PKI_CRYPTO_KEY_UNSUPPORTED</code>, where it does not — Bun, Chromium (<a href="../adr/0022-ed448-cms-signers-host-dependent.md">ADR 0022</a>); countersignatures are carried, not verified — their signed attributes are looked into only as far as the §11.4 diagnostics need.</td>
 </tr>
 <tr>
 <td>RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2</td>
@@ -331,9 +331,9 @@
 <tr>
 <td>ISO/IEC 29147 (vulnerability disclosure) and ISO/IEC 30111 (vulnerability handling)</td>
 <td>How a report reaches the maintainer and is handled</td>
-<td>partial</td>
-<td><code>SECURITY.md</code>: a private reporting channel, acknowledgement and fix targets, supported versions, coordinated disclosure</td>
-<td>Not assessed against the text of either standard.</td>
+<td>applies (self-assessed)</td>
+<td><code>SECURITY.md</code> §ISO/IEC 29147 and 30111 self-assessment: each clause of 29147 §5–§7 and 30111 §7.1–§7.5 mapped to where the repository meets it — the policy and <code>docs/.well-known/security.txt</code>, the 48-hour receipt, the verification and remediation steps, the advisory, the CVE-class corpus <code>docs/data/cve-classes.json</code></td>
+<td>A self-assessment by one maintainer against the clauses, with no certification and no second party: both standards describe an organisation&#39;s processes, and the evidence is the repository&#39;s own record, not an audited one.</td>
 </tr>
 <tr>
 <td>ISO/IEC 40500 (WCAG)</td>

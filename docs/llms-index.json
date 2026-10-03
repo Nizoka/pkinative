@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 229600,
-      "approxTokens": 57400
+      "bytes": 231569,
+      "approxTokens": 57892
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 127418,
-      "approxTokens": 31855
+      "bytes": 128010,
+      "approxTokens": 32003
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 295542,
-      "approxTokens": 73886
+      "bytes": 296845,
+      "approxTokens": 74211
     },
     {
       "url": "data/errors.json",
@@ -42,8 +42,8 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 38522,
-      "approxTokens": 9631
+      "bytes": 39982,
+      "approxTokens": 9996
     },
     {
       "url": "data/limits.json",
@@ -54,8 +54,8 @@
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 7879,
-      "approxTokens": 1970
+      "bytes": 7963,
+      "approxTokens": 1991
     },
     {
       "url": "assets/ecosystem.json",
@@ -163,8 +163,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 14407,
-      "approxTokens": 3602
+      "bytes": 16026,
+      "approxTokens": 4007
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -187,8 +187,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 30209,
-      "approxTokens": 7552
+      "bytes": 30559,
+      "approxTokens": 7640
     },
     {
       "title": "Choosing a PKI library",
