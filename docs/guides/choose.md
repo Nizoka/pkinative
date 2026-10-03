@@ -45,7 +45,7 @@ node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinat
 ## When pkinative is the right choice
 
 - You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.
-- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
+- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 87 KB minified, describing a key file about 45 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
 - You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.

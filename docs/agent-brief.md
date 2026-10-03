@@ -33,7 +33,7 @@ export function hostNames(pemText: string): string[] {
 
 ## Catch
 
-Every thrown failure is a `PkiError` or one of its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError` (a verification or decryption that could not run — never one that failed), `PkiCmsError`, `PkiKeyError` — with a stable `code`. Branch on `error.code`, never on the message. Codes and remedies: `docs/data/errors.json`. The one-call verdicts (`verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12`) do not throw for a problem with their input: they return reasons (`PKI_REASON_*`, `docs/data/reasons.json`).
+Every thrown failure is a `PkiError` or one of its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError` (a verification or decryption that could not run — never one that failed), `PkiCmsError`, `PkiKeyError` — with a stable `code`. Branch on `error.code`, never on the message. Codes and remedies: `docs/data/errors.json`. The one-call verdicts (`verifyCertificateChain`, `verifyCertificationRequest`, `verifySignedData`, `verifyTimeStampToken`, `openPkcs12`) do not throw for a problem with their input: they return reasons (`PKI_REASON_*`, `docs/data/reasons.json`). A PKCS#10 request is read with `parseCertificationRequest(der)` and its self-signature judged with `verifyCertificationRequest(request)`; an ECDSA `SigningKey` names its curve (`algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' }`), and the writers refuse one that does not with `PKI_INVALID_OPTION`.
 
 ## Diagnostics are not errors
 

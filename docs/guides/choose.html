@@ -227,7 +227,7 @@
 <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
-<li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 62 KB minified, describing a key file about 40 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
+<li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 87 KB minified, describing a key file about 45 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
 <li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
 <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
 <li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>

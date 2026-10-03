@@ -67,6 +67,7 @@ The fields of the extensions `getExtension` returns:
 | `nameConstraints` | `permittedSubtrees`, `excludedSubtrees`: `{ base, minimum, maximum }`, `base` a GeneralName (an `iPAddress` base carries its `mask`) |
 | `signedCertificateTimestampList` | `list`: the RFC 6962 SCT list in its TLS encoding |
 | `ocspNoCheck` | nothing beyond `oid`, `critical`, `valueDer` |
+| `subjectDirectoryAttributes` | `attributes`: `{ oid, values }` — the X.501 attributes of RFC 5280 §4.2.1.8 (RFC 3739 §3.2.2 identification data), values as DER |
 
 ## Every extension, typed
 
@@ -132,7 +133,7 @@ readInteger(integerNode);                      // 65537n
 
 A node is `{ tagClass, tagNumber, constructed, offset, headerLength, contentLength, indefinite, bytes, content, children }`: `tagClass` is `'universal'`, `'application'`, `'context'` or `'private'`, `bytes` the whole encoding and `content` the content octets, both views of the input. A reader accepts its universal tag or any implicit (non-universal) tag, which it reads as its own type; `readString` and `readTime` need the type of an implicit tag — `readString(node, { stringType: 'ia5' })`, `readTime(node, { timeType: 'GeneralizedTime' })` — and throw `PKI_API_MISUSE` without it.
 
-The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); ENUMERATED, REAL and RELATIVE-OID have no typed reader: read their `content` octets. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` returns blocks of `{ label, bytes, headers, offset }` — `headers` holds the RFC 1421 `[name, value]` pairs lax mode reads; it takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. `OID_REGISTRY` entries are `{ oid, name, standard }`.
+The readers are `readBoolean`, `readInteger` (a bigint), `readSmallInteger` (a number), `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readString` (UTF8String, NumericString, PrintableString, TeletexString, IA5String, VisibleString, UniversalString, BMPString) and `readTime` (UTCTime and GeneralizedTime); `readEnumerated` and `readRelativeOid` read ENUMERATED and RELATIVE-OID (X.690 §8.4, §8.20); REAL has no typed reader: read its `content` octets. For OIDs, `encodeOid` and `decodeOid` convert between dotted text and content octets, `isValidOid` checks a string, and `getOidName` names 300+ registered OIDs. `decodePem` returns blocks of `{ label, bytes, headers, offset }` — `headers` holds the RFC 1421 `[name, value]` pairs lax mode reads; it takes an optional `label` that every block must carry, and `mode: 'lax'` accepts whitespace around and inside the block, long lines and RFC 1421 headers, each reported once per call as a diagnostic. `OID_REGISTRY` entries are `{ oid, name, standard }`.
 
 ## Types you write
 
@@ -140,9 +141,9 @@ Most of what pkinative returns you never name: you reach it through a return val
 
 - **Certificate**: `DistinguishedName` (`subject`, `issuer`), `PkiTime` (both ends of `validity`), `Extension` (the union `certificate.extensions` holds) and `DecodedExtensionKind` (the argument `getExtension` takes).
 - **ASN.1**: `Asn1Node` (what `decodeAsn1` returns and every reader takes), `TagClass` (`node.tagClass`, and the first argument of `encodeTlv`), `Asn1String` and `Asn1StringType` (what `readString` returns, and the eight types it can read), `BitString` (`readBitString`, `encodeBitString`, and `certificate.signatureValue`).
-- **PEM**: `PemBlock` — what `decodePem` yields, and what `encodePem` reverses.
+- **PEM**: `PemBlock` — what `decodePem` yields; `encodePem(label, bytes)` writes one back from its two parts.
 - **Fingerprints**: `FingerprintAlgorithm` — `'SHA-1'`, `'SHA-256'`, `'SHA-384'` or `'SHA-512'`.
-- **Options**, one per function, each extending `PkiParseOptions` (which carries `limits`, `strict` and `onDiagnostic`): `ParseCertificateOptions`, `DecodeExtensionValueOptions`, `DecodeAsn1Options`, `DecodePemOptions`, `ReadStringOptions`, `ReadTimeOptions`, and `FormatFingerprintOptions`.
+- **Options**, one per function, each extending `PkiParseOptions` (which carries `limits`, `strict` and `onDiagnostic`): `ParseCertificateOptions`, `DecodeExtensionValueOptions`, `DecodeAsn1Options`, `DecodePemOptions`, `ReadStringOptions`, `ReadTimeOptions`; and `FormatFingerprintOptions` (`separator`, `letterCase`), which parses nothing and extends nothing.
 
 Error code unions are in the [errors guide](errors.md).
 

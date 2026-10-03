@@ -233,7 +233,7 @@ export function keyPin(der: Uint8Array): string {
 
     <rect x="316" y="124" width="288" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
     <text x="460" y="145" fill="var(--c-text)" text-anchor="middle">extensions</text>
-    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">eighteen decoded kinds, or raw</text>
+    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">nineteen decoded kinds, or raw</text>
 
     <rect x="664" y="44" width="272" height="60" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
     <text x="800" y="70" fill="var(--c-text)" text-anchor="middle">signatureAlgorithm</text>
@@ -279,7 +279,7 @@ export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Prom
 }
 </code></pre>
 <p><strong>Three answers, and the third is the one people get wrong.</strong> <code>true</code> and <code>false</code> are verdicts; a <code>PkiCryptoError</code> is not. A signature whose bytes are malformed, whose issuer key is of the wrong family, or whose two <code>signatureAlgorithm</code> fields disagree is <code>false</code> — fail closed, so a caller who forgets the <code>catch</code> gets &quot;not verified&quot; instead of an exception that some layer above may swallow into a success path.</p>
-<p>Verification runs in <a href="https://www.w3.org/TR/WebCryptoAPI/" target="_blank" rel="noopener">Web Crypto</a>, never in TypeScript: the key is imported from the SubjectPublicKeyInfo with <code>extractable: false</code> and the single usage <code>verify</code>, and pkinative never sees its bits. That is the whole of <a href="https://github.com/Nizoka/pkinative/blob/main/src/crypto/webcrypto.ts" target="_blank" rel="noopener"><code>src/crypto/webcrypto.ts</code></a>, sixty lines, and it is the only file in the library that may name a key operation at all.</p>
+<p>Verification runs in <a href="https://www.w3.org/TR/WebCryptoAPI/" target="_blank" rel="noopener">Web Crypto</a>, never in TypeScript: the key is imported from the SubjectPublicKeyInfo with <code>extractable: false</code> and the single usage <code>verify</code>, and pkinative never sees its bits. That is the whole of <a href="https://github.com/Nizoka/pkinative/blob/main/src/crypto/webcrypto.ts" target="_blank" rel="noopener"><code>src/crypto/webcrypto.ts</code></a>, a few hundred lines, and it is the only file in the library that may name a key operation at all.</p>
 <h2 id="issue-a-certificate-without-ever-holding-the-key">Issue a certificate, without ever holding the key <a class="heading-anchor" href="#issue-a-certificate-without-ever-holding-the-key" aria-label="Link to this section">#</a></h2>
 <p>The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages. A key that arrives as a PEM file or a <code>.p12</code> becomes a <code>SigningKey</code> through <code>importPrivateKey</code>, <code>decryptPrivateKey</code> or <code>openPkcs12</code> — see <a href="#private-keys-and-pkcs12">Private keys and PKCS#12</a>.</p>
 <pre><code class="language-ts">import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from &#39;pkinative&#39;;
@@ -290,11 +290,14 @@ export async function issue(spki: Uint8Array, signer: SigningKey): Promise&lt;Ui
     const serial = crypto.getRandomValues(new Uint8Array(16));
     serial[0] = (serial[0]! &amp; 0x7f) | 0x40;
 
+    // RFC 5280 §4.1.2.5 writes validity in whole seconds: a raw Date.now() carries milliseconds
+    // the encoder refuses (PKI_ASN1_VALUE_OUT_OF_RANGE), so round first.
+    const now = Math.floor(Date.now() / 1000) * 1000;
     const description: CertificateDescription = {
         serialNumber: serial,
         subject: [[{ type: &#39;2.5.4.3&#39;, value: &#39;host.example&#39; }]],
-        notBefore: Date.now(),
-        notAfter: Date.now() + 90 * 86_400_000,
+        notBefore: now,
+        notAfter: now + 90 * 86_400_000,
         subjectPublicKey: spki,          // SubjectPublicKeyInfo DER, not a CryptoKey
         extensions: [
             { oid: &#39;2.5.29.19&#39;, critical: true, value: encodeBasicConstraints({ cA: false }) },
@@ -304,6 +307,7 @@ export async function issue(spki: Uint8Array, signer: SigningKey): Promise&lt;Ui
     return createCertificate(description, signer);
 }
 </code></pre>
+<p><strong>Validity instants are whole seconds.</strong> <code>notBefore</code> and <code>notAfter</code> are <code>epochMilliseconds</code>, but a certificate&#39;s UTCTime and GeneralizedTime carry no fraction (RFC 5280 §4.1.2.5), so <code>createCertificate</code> refuses a millisecond remainder with <code>PKI_ASN1_VALUE_OUT_OF_RANGE</code> rather than rounding silently — <code>Date.now()</code> has one in 999 cases out of 1 000; <code>Date.UTC(2026, 0, 1)</code> or the rounding above does not.</p>
 <p><strong><code>subjectPublicKey</code> is DER, and that is the point.</strong> pkinative cannot take your <code>CryptoKey</code> and pull the public half out of it, because <code>exportKey</code> is refused inside <code>src/</code> in every version — the same rule that refuses <code>generateKey</code>. So the one line that extracts it is <em>yours</em>, in your code, where you can see it:</p>
 <pre><code class="language-ts">const spki = new Uint8Array(await crypto.subtle.exportKey(&#39;spki&#39;, publicKey));
 </code></pre>
@@ -324,13 +328,19 @@ console.log(request.subjectPublicKeyInfo.kind, request.extensions?.length ?? 0, 
 <p>A <a href="../assets/api.json"><code>CertificationRequest</code></a> is read like a certificate: a version other than 0 is <code>PKI_X509_VERSION_INVALID</code>, a repeated attribute or extension <code>PKI_X509_EXTENSION_DUPLICATE</code>, an empty <code>extensionRequest</code> <code>PKI_X509_EXTENSIONS_EMPTY</code>, and <code>maxExtensions</code> bounds the attributes as it bounds the extensions. The <a href="../assets/api.json"><code>VerifyCertificationRequestReport</code></a> never throws for bad bytes: malformed input is <code>PKI_REASON_INPUT_MALFORMED</code>, a key and algorithm that disagree (RFC 2986 §4.2) <code>PKI_REASON_SIGNATURE_INVALID</code> at <code>certificationRequest.signatureAlgorithm</code>, and a host that cannot check the algorithm <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code>. A valid request proves possession of a key and nothing about who sent it; what to certify, and under which extensions, stays the CA&#39;s decision. <a href="https://github.com/Nizoka/pkinative/blob/main/recipes/csr.ts" target="_blank" rel="noopener"><code>recipes/csr.ts</code></a> writes one and reads it back.</p>
 <h2 id="validate-a-chain-and-get-told-everything-that-is-wrong-with-it">Validate a chain, and get told everything that is wrong with it <a class="heading-anchor" href="#validate-a-chain-and-get-told-everything-that-is-wrong-with-it" aria-label="Link to this section">#</a></h2>
 <p>The job: decide whether a chain of certificates leads to something you trust.</p>
-<pre><code class="language-ts">import { validateCertificatePath, verifyCertificateSignature } from &#39;pkinative&#39;;
+<pre><code class="language-ts">import { validateCertificatePath, verifyCertificateSignature, type Certificate } from &#39;pkinative&#39;;
 
-// Check every link first: the validator takes verdicts, not keys, so the order is yours.
-const signatures = await Promise.all(chain.slice(0, -1).map(async (subject, i) =&gt; ({
-    certificate: subject,
-    verdict: await verifyCertificateSignature(subject, chain[i + 1]!) ? &#39;valid&#39; as const : &#39;invalid&#39; as const,
-})));
+// Check every link first: the validator takes verdicts, not keys, so the order is yours. The
+// last certificate&#39;s issuer is one of your anchors when the chain stops at the intermediate,
+// which is how most servers send it — that link needs its verdict too.
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean =&gt; a.length === b.length &amp;&amp; a.every((octet, j) =&gt; octet === b[j]);
+const issuerOf = (subject: Certificate, i: number): Certificate | undefined =&gt;
+    chain[i + 1] ?? roots.find((root) =&gt; sameBytes(root.subject.der, subject.issuer.der));
+const signatures = (await Promise.all(chain.map(async (subject, i) =&gt; {
+    const issuer = issuerOf(subject, i);
+    if (issuer === undefined) return [];   // nobody to check against: the validator says NOT_CHECKED, never &quot;valid&quot;
+    return [{ certificate: subject, verdict: await verifyCertificateSignature(subject, issuer) ? &#39;valid&#39; as const : &#39;invalid&#39; as const }];
+}))).flat();
 
 const report = validateCertificatePath({ path: chain, trustAnchors: roots, at: Date.now(), signatures });
 if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
@@ -357,7 +367,7 @@ console.log(report.valid, report.explored);
 </ul>
 <p>The input is a <a href="../assets/api.json"><code>ValidateCertificatePathInput</code></a> and the answer a <a href="../assets/api.json"><code>ValidateCertificatePathReport</code></a>; <code>maxChainLength</code> (default 10) bounds the walk and <code>maxPolicyNodes</code> (default 4 096) bounds the policy tree, which is the part of §6 that actually explodes combinatorially; <code>PKI_REASON_LIMIT_EXCEEDED</code> names whichever one stopped the search. <code>recipes/validate-path.ts</code> runs all of this on the real Let&#39;s Encrypt hierarchy.</p>
 <p><strong>Certificate policies are off by default, and that is the right default.</strong> <code>requireExplicitPolicy</code> is what turns policy processing into a verdict: without it, a path that establishes no policy is still valid, because §6.1.5 (a) says the question was never asked. Turning it on by default would reject most of the public web. When you do need it, <code>initialPolicySet</code> is your <code>user-initial-policy-set</code>, and <code>PKI_REASON_NO_VALID_POLICY</code> is the answer when nothing survives.</p>
-<p><strong>What it refuses rather than ignores.</strong> RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and <code>PROCESSED_CRITICAL_EXTENSIONS</code> is the exact boundary of what a chain may rely on: <code>basicConstraints</code>, <code>keyUsage</code>, <code>subjectAltName</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code> and <code>extKeyUsage</code>. Anything else marked critical comes back <code>PKI_REASON_UNKNOWN_CRITICAL_EXTENSION</code> — including <code>cRLDistributionPoints</code>, until revocation lands. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer &quot;valid&quot; for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.</p>
+<p><strong>What it refuses rather than ignores.</strong> RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and the set the path validator processes is the exact boundary of what a chain may rely on: <code>basicConstraints</code>, <code>keyUsage</code>, <code>subjectAltName</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code> and <code>extKeyUsage</code>. Anything else marked critical comes back <code>PKI_REASON_UNKNOWN_CRITICAL_EXTENSION</code> — <code>cRLDistributionPoints</code> included: §6 never processes it, and <code>checkRevocation</code> reads it from the certificate, not from the path. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer &quot;valid&quot; for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.</p>
 <h2 id="just-tell-me-whether-to-accept-this-certificate">Just tell me whether to accept this certificate <a class="heading-anchor" href="#just-tell-me-whether-to-accept-this-certificate" aria-label="Link to this section">#</a></h2>
 <p>The job: you have a certificate a server presented, a trust store, and a host name. You want one answer.</p>
 <pre><code class="language-ts">import { verifyCertificateChain, KEY_PURPOSES } from &#39;pkinative&#39;;
@@ -512,6 +522,7 @@ const reasons = checkOcspStatus({
     at: Date.now(),
     signatureVerified,        // you computed it
     responderAuthorized,      // your policy decided it
+    signer: responderCertificate, // the certificate that verified: responderID and id-pkix-ocsp-nocheck are checked against it (RFC 6960 §4.2)
     nonce,
 });
 </code></pre>
@@ -596,7 +607,8 @@ const report = await verifySignedData({ signedData: stamped, content: signedCont
 <p>The job: somebody handed you the key to sign with — a <code>PRIVATE KEY</code> or <code>ENCRYPTED PRIVATE KEY</code> PEM file, or a <code>.p12</code>/<code>.pfx</code> and its password — and <code>createCertificate</code>, <code>createCertificationRequest</code> or <code>createSignedData</code> needs a <code>SigningKey</code>.</p>
 <pre><code class="language-ts">import { createSignedData, openPkcs12 } from &#39;pkinative&#39;;
 
-// An RSA key needs its scheme named: the certificate does not say it, and pkinative does not guess.
+// An rsaEncryption key needs its scheme named: that certificate does not say it, and pkinative does not guess
+// (an id-RSASSA-PSS certificate does — see below).
 const report = await openPkcs12(p12Bytes, { password, rsaAlgorithm: { name: &#39;RSASSA-PKCS1-v1_5&#39;, hash: &#39;SHA-256&#39; } });
 if (!report.valid) throw new Error(report.reasons.map((r) =&gt; `${r.code} at ${r.path}`).join(&#39;; &#39;));
 const [{ signingKey, certificate }] = report.keys;

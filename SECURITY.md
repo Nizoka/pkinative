@@ -134,7 +134,7 @@ pkinative **never implements secret-dependent cryptography in TypeScript**. Ther
 `globalThis.crypto` has one door too: only `src/crypto/webcrypto.ts` and `src/hash/fingerprint.ts` may reach it, so everything pkinative asks of a host is readable in two files.
 
 - Signature verification and certificate creation go through Web Crypto (`crypto.subtle`), whose implementations run in constant time in the host. Keys are imported from `spki` — the public half — with `extractable: false` and the single usage `['verify']`.
-- Hashing (SHA-1, SHA-256, SHA-384, SHA-512) is implemented in TypeScript for synchronous fingerprints of **public** data only; these functions are not exported as general-purpose hashes.
+- Hashing is implemented in TypeScript over **public** data only: SHA-1, SHA-256, SHA-384 and SHA-512 for synchronous fingerprints (not exported as general-purpose hashes), and SHAKE256 for Ed448 CMS signers, exported as `shake256(data, outputLength)` since 1.0.0.
 - The DER ↔ P1363 ECDSA signature converter (`src/crypto/crypto-signature.ts`) is TypeScript, and legal: a signature is public, there is no key in it, and it performs no arithmetic beyond copying bytes.
 - This is a deliberate departure from pdfnative's pure-TypeScript RSA and ECDSA, whose `BigInt` arithmetic is not constant-time; that code is not, and will not be, ported.
 

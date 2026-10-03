@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7558,
-      "approxTokens": 1890
+      "bytes": 7904,
+      "approxTokens": 1976
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 238306,
-      "approxTokens": 59577
+      "bytes": 240549,
+      "approxTokens": 60137
     },
     {
       "url": "llms-recipes.txt",
@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 305343,
-      "approxTokens": 76336
+      "bytes": 305525,
+      "approxTokens": 76381
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 28905,
-      "approxTokens": 7226
+      "bytes": 29039,
+      "approxTokens": 7260
     },
     {
       "url": "data/diagnostics.json",
@@ -82,8 +82,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 14038,
-      "approxTokens": 3510
+      "bytes": 14370,
+      "approxTokens": 3593
     },
     {
       "title": "Use cases",
@@ -114,8 +114,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 84852,
-      "approxTokens": 21213
+      "bytes": 86405,
+      "approxTokens": 21601
     },
     {
       "title": "Security model",
@@ -131,8 +131,8 @@
         "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15499,
-      "approxTokens": 3875
+      "bytes": 15860,
+      "approxTokens": 3965
     },
     {
       "title": "Conformance",
@@ -188,8 +188,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 31152,
-      "approxTokens": 7788
+      "bytes": 31149,
+      "approxTokens": 7787
     },
     {
       "title": "Choosing a PKI library",

@@ -27,10 +27,24 @@
     },
     {
       "option": "onDiagnostic",
-      "in": ["PkiParseOptions", "DecodePemOptions"],
+      "in": ["PkiParseOptions", "DecodePemOptions", "CheckOcspStatusInput"],
       "default": "console.warn, once per diagnostic code per operation",
       "semver": "not-promised",
       "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (!warned.has(diagnostic.code)) {" }]
+    },
+    {
+      "option": "onDiagnostic",
+      "in": ["VerifyCertificateChainInput", "VerifyTimeStampTokenInput"],
+      "default": "silent — no handler, no console: a verdict call reports through its result, and a given handler receives every diagnostic the call raises or reads",
+      "semver": "not-promised",
+      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }, { "file": "src/verify/verify-timestamp.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }]
+    },
+    {
+      "option": "signer",
+      "in": ["CheckOcspStatusInput"],
+      "default": "undefined — the responderID and id-pkix-ocsp-nocheck checks of RFC 6960 §4.2 run only when the signer certificate is given",
+      "semver": "not-promised",
+      "evidence": [{ "file": "src/revocation/ocsp-check.ts", "text": "if (input.signer !== undefined) _signerDiagnostics(" }]
     },
     {
       "option": "allowTrailingData",

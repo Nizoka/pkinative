@@ -19,7 +19,7 @@ The rule this establishes, and that every composed operation follows:
 Two consequences worth knowing before you write a `catch`:
 
 - **A reason message never starts with `pkinative: `.** That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. `reason-parity` refuses it.
-- **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 47 encoding codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
+- **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 57 error codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
 
 Unlike `PkiErrorCode`, frozen whole since 0.8, the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
 
