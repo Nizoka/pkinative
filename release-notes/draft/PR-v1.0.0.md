@@ -16,7 +16,7 @@ This is pkinative's first release, on npm with provenance and on GitHub with att
 - **The release path** split so the job that builds cannot publish (ADR 0019), with CycloneDX, SPDX and toolchain SBOMs and the Sigstore bundle on a draft release.
 - **Compatibility:** zero runtime dependencies; no error code added or changed.
 
-Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 82 diagnostic codes · 22 named limits · 83 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 4 604 tests · 100 % statements, branches, functions and lines · 21 decision records.
+Counts: 284 public exports · 57 error codes (frozen since 0.8.0) · 43 reason codes · 82 diagnostic codes · 22 named limits · 83 verify-docs rules · 61 L5 clauses · six RFC requirement inventories · 18 bundle probes · 4 880 tests · 100 % statements, branches, functions and lines · 21 decision records.
 
 Conformance:
 
@@ -68,7 +68,7 @@ Conformance:
 ### Tests and conformance
 
 - `tests/security/cve-classes.test.ts` (43 classes), `tests/tools/dual-package.test.ts`, `tests/tools/exported-constants.test.ts`, `tests/tools/interop.test.ts`, `tests/conformance/guide-counts.test.ts`, `tests/tools/check-ts-floor.test.ts`; mutation testing back to 100 % on every module the fixes touched, `verify-chain.ts` (213 mutants) and `verify-timestamp.ts` (131) included — 22 reviewed equivalents in all, each with its argument in `scripts/data/mutation-equivalents.json`.
-- `tests/performance/budgets.test.ts` (a time budget at every named limit), `tests/property/repeatability.test.ts` (two runs and two builds write the same bytes), `tests/x509/x509-profile.test.ts` (the 34 profile diagnostics, each with its twin and its strict verdict), `tests/core/uri.test.ts`; `openPkcs12` under adversarial files; 59 frozen samples; 2 new benchmark files with the 1.0.0 section of `bench/RESULTS.md`; mutation at 100 % on every module the review touched, 49 argued equivalents.
+- `tests/performance/budgets.test.ts` (a time budget at every named limit), `tests/property/repeatability.test.ts` (two runs and two builds write the same bytes), `tests/x509/x509-profile.test.ts` (the 34 profile diagnostics, each with its twin and its strict verdict), `tests/core/uri.test.ts`; `openPkcs12` under adversarial files; 59 frozen samples; 2 new benchmark files with the 1.0.0 section of `bench/RESULTS.md`; mutation at 100 % on every executable module of `src/` (74 files, about 8 950 mutants), 185 argued equivalents; the pass found and fixed a realm-bound byte check in `addTimeStampToken`, an unchecked `extnValue` tag in the TSTInfo, CRL and OCSP extension readers, and a `TypeError` where `maxPolicyNodes` met a user policy set.
 
 ### Documentation
 
@@ -86,8 +86,9 @@ Conformance:
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 533.5 s` |
-| `npm run test:coverage` | 4 604 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
+| `npx tsx scripts/gate.ts --publish --require-all` | `gate: 15 passed, 0 skipped in 559.0 s` |
+| `npm run test:coverage` | 4 880 tests; 100.0 % statements, and the 100 % threshold on all four axes held |
+| `npx tsx scripts/mutate.ts` (every default target, in two passes plus the per-file confirming runs of seven agents) | 74 modules, about 8 950 mutants, 100 % on every one; 185 reviewed equivalents in `scripts/data/mutation-equivalents.json`; four defects found and fixed on the way |
 | `npm run verify:bundle` | 18 probes within budget; `*` 296.3 KB of 300 KB, `openPkcs12` 118.5 KB of 120 KB, `parseCertificate` 84.2 KB of 86 KB |
 | `npx tsx scripts/verify-docs.ts` | 83 rules, 0 errors, 0 warnings |
 | `npx tsx scripts/validate-certs.ts --level 8 --require-all` | PASSED: 0 failures, 0 skips, 2 not applicable (the Linux L4 validators on win32); L5 six inventories, 0 todo |
