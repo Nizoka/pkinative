@@ -39,6 +39,78 @@
       "reason": "Semantic: limitHit is set only when explored has reached maxPathsExplored, and explored never decreases. Without the early return the loop goes on to its next issuer, where a revisited one is skipped without effect and any other meets the same explored >= maxPathsExplored test, sets limitHit again and returns null; a loop with no issuer left returns null as well. The search, explored and the report are identical."
     },
     {
+      "id": "src/path/path-policies.ts:135:17:if-false",
+      "original": "!node.alive",
+      "replacement": "false",
+      "reason": "Semantic: the mutant also filters a dead node's children and marks it dead again. Every dead node a state reachable through the exported steps holds has no children (pruning empties them before killing, a mapping kill is at the childless deepest level, and a growth the bound stopped unlinks its parents), so the filter is a no-op; the one exception is the private copy _intersectWithUserSet kills subtrees on, where nothing reads a dead node's children after the prune — only the deepest level's alive flags."
+    },
+    {
+      "id": "src/path/path-policies.ts:249:13:if-false",
+      "original": "!node.alive",
+      "replacement": "false",
+      "reason": "Semantic: the mutant also gives a dead node the mapped expectedPolicySet (or marks it dead again when mapping is inhibited). expectedPolicySet is read only by growPolicyTree (the match, the fallback and the anyPolicy copy), each of which skips a dead parent first, and no node is ever made alive again — so the rewritten set is never read."
+    },
+    {
+      "id": "src/path/path-policies.ts:255:9:if-true",
+      "original": "state.policyMapping === 0",
+      "replacement": "true",
+      "reason": "Semantic: with mapping allowed the loop kills nothing, so the extra prune runs on the tree as it arrived, and every state reaches applyPolicyMappings already pruned (initialPolicyState is one level; growPolicyTree ends in a prune or, at the bound, adds no level; a mapping kill prunes). prunePolicyTree on a pruned tree is idempotent — pinned by 'should be idempotent on a healthy tree'."
+    },
+    {
+      "id": "src/path/path-policies.ts:284:58:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra case is requireExplicit === state.explicitPolicy, where the mutant assigns the counter the value it already holds."
+    },
+    {
+      "id": "src/path/path-policies.ts:285:56:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra case is inhibitMapping === state.policyMapping, where the mutant assigns the counter the value it already holds."
+    },
+    {
+      "id": "src/path/path-policies.ts:286:48:relational",
+      "original": "<",
+      "replacement": "<=",
+      "reason": "Semantic: the extra case is inhibitAny === state.inhibitAnyPolicy, where the mutant assigns the counter the value it already holds."
+    },
+    {
+      "id": "src/path/path-policies.ts:318:47:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Semantic: the two operands agree on every tree wrapUpPolicies can see. A NULL tree has no deepest level, so surviving is empty; a non-NULL tree is pruned (every step ends in a prune or adds no level, and _intersectWithUserSet prunes its copy), and pruning leaves every live node above the deepest level with a live child, so a live root implies a live node at the deepest level — surviving is non-empty exactly when levels is not null."
+    },
+    {
+      "id": "src/path/path-policies.ts:318:65:relational",
+      "original": ">",
+      "replacement": ">=",
+      "reason": "Semantic: `surviving.size >= 0` is always true, leaving `tree.levels !== null`, which is equivalent to `surviving.size > 0` by the pruning invariant argued for 318:47:logical."
+    },
+    {
+      "id": "src/path/path-policies.ts:318:67:number-1",
+      "original": "0",
+      "replacement": "-1",
+      "reason": "Semantic: `surviving.size > -1` is always true, as for 318:65:relational."
+    },
+    {
+      "id": "src/path/path-policies.ts:355:13:if-false",
+      "original": "depth === levels.length - 1",
+      "replacement": "false",
+      "reason": "Semantic: without the break the loop also visits the deepest level, whose nodes have no children (children are only ever added to the level a growth extends, and a growth the bound stopped unlinks them), so the inner loop over parent.children has nothing to visit and levels[depth + 1] is never read."
+    },
+    {
+      "id": "src/path/path-policies.ts:355:39:number-1",
+      "original": "1",
+      "replacement": "0",
+      "reason": "Semantic: depth never reaches levels.length, so the mutant never breaks — the same loop as 355:13:if-false, equivalent for the same reason."
+    },
+    {
+      "id": "src/path/path-policies.ts:378:72:logical",
+      "original": "&&",
+      "replacement": "||",
+      "reason": "Semantic: a dead candidate cannot list the live wildcard as a child (a step (2) kill takes the whole subtree, a pruned node has no children), so the mutant finds the first live node of depth n-1, which may not be the wildcard's parent. The added nodes stay alive whoever adopts them — pruning never touches the deepest level — and the adopter, being live, has a live chain to the root and keeps it after the prune; wrapUpPolicies reads only the deepest level's alive flags, so the returned set and the null verdict are the same."
+    },
+    {
       "id": "src/verify/verify-chain.ts:406:13:if-true",
       "original": "verified === false",
       "replacement": "true",

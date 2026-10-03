@@ -168,7 +168,15 @@ export function growPolicyTree(state: PolicyState, policies: readonly PolicyInfo
 
     const next: PolicyNode[] = [];
     const push = (node: PolicyNode, parentIndex: number): boolean => {
-        if (state.nodeCount >= maxNodes) return false;
+        if (state.nodeCount >= maxNodes) {
+            // The level the bound stopped is never added, so no parent may keep
+            // an index into it: the deepest level has no children before it
+            // grows, and a stale index left here made the §6.1.5 (g)(iii)
+            // intersection walk into a level that does not exist — a TypeError
+            // out of a call that promises a report.
+            for (const parent of parents) parent.children = [];
+            return false;
+        }
         parents[parentIndex]?.children.push(next.length);
         next.push(node);
         state.nodeCount += 1;

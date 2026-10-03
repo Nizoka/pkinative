@@ -868,6 +868,25 @@ describe('validateCertificatePath', () => {
         expect(reason).toBeDefined();
     });
 
+    it('should report maxPolicyNodes reached at the leaf and still intersect the user\'s policy set without throwing', () => {
+        // The bound stopping the leaf's level used to leave the CA's nodes
+        // pointing into that level, which is never added; the §6.1.5 (g)(iii)
+        // intersection then killed a policy the user did not ask for together
+        // with its "children" and walked into a level that does not exist — a
+        // TypeError out of a call that promises a report.
+        const asserting = (ids: readonly string[]): unknown => ({ oid: '2.5.29.32', critical: false, valueDer: new Uint8Array(0), kind: 'certificatePolicies',
+            policies: ids.map((policyIdentifier) => ({ policyIdentifier, qualifiers: [] })) });
+        const ids = ['1.3.6.1.4.1.1', '1.3.6.1.4.1.2', '1.3.6.1.4.1.3'];
+        const ca = { ...R12, extensions: R12.extensions.map((e) => (e.kind === 'certificatePolicies' ? asserting(ids) : e)) } as unknown as Certificate;
+        const leaf = { ...LEAF, extensions: [...LEAF.extensions, asserting(ids)] } as unknown as Certificate;
+        // The root, three nodes under it and one under the first: the leaf's second policy would be the sixth node.
+        const report = validateCertificatePath({
+            path: [leaf, ca, ROOT_X1], trustAnchors: [ROOT_X1], at: AT, signatures: valid(leaf, ca),
+            limits: { maxPolicyNodes: 5 }, initialPolicySet: ['1.3.6.1.4.1.2'],
+        });
+        expect(report.reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_LIMIT_EXCEEDED', 'path[0].certificatePolicies']]);
+    });
+
     it('should name the last certificate walked when no anchor is reached', () => {
         const report = validateCertificatePath({ path: [LEAF, R12], trustAnchors: [], at: AT, signatures: valid(LEAF, R12) });
         expect(report.reasons.map((r) => [r.code, r.path])).toEqual([['PKI_REASON_NO_TRUST_ANCHOR', 'path[1]']]);

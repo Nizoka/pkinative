@@ -131,6 +131,50 @@ describe('growPolicyTree — §6.1.3 (d)', () => {
         expect(growPolicyTree(state, many, 10)).toBe('limit');
         expect(countPolicyNodes(state)).toBeLessThanOrEqual(10);
     });
+
+    it('should allow exactly maxPolicyNodes nodes, the root included, and stop at the one past it', () => {
+        const exact = fresh();
+        expect(growPolicyTree(exact, [policy(P1), policy(P2)], 3)).toBe('ok');
+        expect(exact.nodeCount).toBe(3);
+        expect(countPolicyNodes(exact)).toBe(3);
+        const over = fresh();
+        expect(growPolicyTree(over, [policy(P1), policy(P2)], 2)).toBe('limit');
+        expect(over.nodeCount).toBe(2);
+    });
+
+    it('should leave no parent pointing into a level the bound stopped', () => {
+        // The level is never added, so an index into it names nothing; the
+        // §6.1.5 (g)(iii) intersection used to follow one into a level that
+        // does not exist and throw a TypeError.
+        const state = initialPolicyState(2, true, false, false);
+        growPolicyTree(state, [policy(P1), policy(P2)], MAX);
+        expect(growPolicyTree(state, [policy(P1), policy(P2), policy(P3)], 4)).toBe('limit');
+        expect(state.levels).toHaveLength(2);
+        expect((state.levels?.[1] ?? []).map((n) => n.children)).toEqual([[], []]);
+        expect(wrapUpPolicies(state, [P2])).toEqual([P2]);
+    });
+
+    it('should not also hang an exactly matched policy under an anyPolicy sibling (§6.1.3 (d)(1)(ii))', () => {
+        // Certificate 1 asserts P1 and anyPolicy, certificate 2 only P1. The
+        // fallback to an anyPolicy parent is for a policy NO node expects; P1
+        // has its own parent, so the anyPolicy node gets no child and dies.
+        const state = fresh();
+        growPolicyTree(state, [policy(P1), policy(ANY_POLICY)], MAX);
+        growPolicyTree(state, [policy(P1)], MAX);
+        expect(leaves(state)).toEqual([P1]);
+        expect((state.levels?.[1] ?? []).filter((n) => n.alive).map((n) => n.validPolicy)).toEqual([P1]);
+        expect(countPolicyNodes(state)).toBe(3);
+    });
+
+    it('should still honour an anyPolicy assertion while inhibitAnyPolicy is 1', () => {
+        // §6.1.3 (d)(2): "inhibit_anyPolicy is greater than 0" — 1 is the last
+        // certificate that may still use it.
+        const state = fresh();
+        growPolicyTree(state, [policy(P1)], MAX);
+        state.inhibitAnyPolicy = 1;
+        growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+        expect(leaves(state)).toEqual([P1]);
+    });
 });
 
 describe('growPolicyTree over a tree that has already been pruned', () => {
@@ -318,6 +362,16 @@ describe('applyPolicyMappings — §6.1.4 (a), (b)', () => {
         expect(() => { applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }]); }).not.toThrow();
     });
 
+    it('should still map while policyMapping is 1', () => {
+        // §6.1.4 (b)(1): "policy_mapping is greater than 0" — 1 is the last
+        // certificate that may still map.
+        const state = fresh();
+        growPolicyTree(state, [policy(P1)], MAX);
+        state.policyMapping = 1;
+        applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }]);
+        expect(state.levels?.[1]?.[0]).toMatchObject({ alive: true, expectedPolicySet: [P2] });
+    });
+
     it('should leave a node no mapping names alone', () => {
         const state = fresh();
         growPolicyTree(state, [policy(P1)], MAX);
@@ -338,6 +392,13 @@ describe('advancePolicyCounters — §6.1.4 (h), (i), (j)', () => {
         const state = initialPolicyState(3, false, false, false);
         advancePolicyCounters(state, true, undefined, undefined, undefined);
         expect([state.explicitPolicy, state.policyMapping, state.inhibitAnyPolicy]).toEqual([4, 4, 4]);
+    });
+
+    it('should take every counter from 1 to 0', () => {
+        // n = 0 starts every counter at 1: the next certificate spends the last step.
+        const state = initialPolicyState(0, false, false, false);
+        advancePolicyCounters(state, false, undefined, undefined, undefined);
+        expect([state.explicitPolicy, state.policyMapping, state.inhibitAnyPolicy]).toEqual([0, 0, 0]);
     });
 
     it('should never go below zero', () => {
@@ -460,5 +521,38 @@ describe('wrapUpPolicies — §6.1.5', () => {
         applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P3 }]);
         expect(wrapUpPolicies(state, [P2])).toEqual([P2]);
         expect(wrapUpPolicies(state, [P1])).toBeNull();
+    });
+
+    describe.each([true, false])('§6.1.5 (g)(iii) shapes, requireExplicitPolicy %s', (requireExplicit) => {
+        it('should replace an anyPolicy leaf at depth 1 — a one-certificate path', () => {
+            const state = initialPolicyState(1, requireExplicit, false, false);
+            growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+            expect(wrapUpPolicies(state, [P1])).toEqual([P1]);
+        });
+
+        it('should hang a single requested policy under the anyPolicy leaf\'s parent, so that it survives the prune', () => {
+            // One policy is the case where the new node is the parent's only
+            // live child: link it anywhere else and the parent, then the
+            // root, are pruned.
+            const state = initialPolicyState(2, requireExplicit, false, false);
+            growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+            growPolicyTree(state, [policy(ANY_POLICY)], MAX);
+            expect(wrapUpPolicies(state, [P1])).toEqual([P1]);
+        });
+
+        it('should not add a policy named under the root that a mapping renamed below it', () => {
+            // Certificate 1 asserts P1 and anyPolicy and maps P1 → P2;
+            // certificate 2 asserts P2 and anyPolicy. The user's P1 is a node
+            // whose parent is anyPolicy, and the chain satisfies it as P2:
+            // the anyPolicy leaf stands for nothing more, and adding P1 at the
+            // leaf would report a policy the leaf's domain never asserted.
+            const state = initialPolicyState(2, requireExplicit, false, false);
+            growPolicyTree(state, [policy(P1), policy(ANY_POLICY)], MAX);
+            applyPolicyMappings(state, [{ issuerDomainPolicy: P1, subjectDomainPolicy: P2 }]);
+            growPolicyTree(state, [policy(P2), policy(ANY_POLICY)], MAX);
+            expect(wrapUpPolicies(state, [P1])).toEqual([P2]);
+            // A policy nobody named under the root is what the anyPolicy leaf stands for.
+            expect(wrapUpPolicies(state, [P3])).toEqual([P3]);
+        });
     });
 });
