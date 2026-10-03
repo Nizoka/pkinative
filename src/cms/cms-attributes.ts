@@ -380,7 +380,7 @@ export function _countersignatureDiagnostics(entries: readonly _AttributeEntry[]
             if (value.tagClass !== 'universal' || value.tagNumber !== TAG_SEQUENCE) continue;
             const signed = value.children[3];
             if (signed === undefined || signed.tagClass !== 'context' || signed.tagNumber !== 0 || !signed.constructed) continue;
-            let attributes = 0;
+            let others = false;
             let contentType = false;
             let messageDigest = false;
             for (let i = 0; i < signed.children.length; i++) {
@@ -390,13 +390,13 @@ export function _countersignatureDiagnostics(entries: readonly _AttributeEntry[]
                 // Anything that is not `SEQUENCE { OID, … }` is no attribute, and
                 // is passed over: a malformed countersignature is still carried.
                 if (attribute.tagClass !== 'universal' || attribute.tagNumber !== TAG_SEQUENCE || type?.tagClass !== 'universal' || type.tagNumber !== TAG_OID) continue;
-                attributes += 1;
+                others = true;
                 if (bytesEqual(type.content, CONTENT_TYPE_OID_CONTENT)) contentType = true;
                 if (bytesEqual(type.content, MESSAGE_DIGEST_OID_CONTENT)) messageDigest = true;
             }
             const valuePath = `${where}[${String(v)}].signedAttrs`;
             if (contentType) ctx.emitter.emit(cmsCountersignatureContentTypeDiagnostic(valuePath, signed.offset));
-            if (attributes > 0 && !messageDigest) ctx.emitter.emit(cmsCountersignatureNoMessageDigestDiagnostic(valuePath, signed.offset));
+            if (others && !messageDigest) ctx.emitter.emit(cmsCountersignatureNoMessageDigestDiagnostic(valuePath, signed.offset));
         }
     }
 }

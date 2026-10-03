@@ -331,6 +331,16 @@ describe('parseSignedData — countersignatures (RFC 5652 §11.4)', () => {
         // Children of the set that are not Attributes are passed over, and
         // count as no attribute: nothing to require a message-digest beside.
         expect(codesOf([signerInfo({ signedAttrs: [int(1), sequence(int(1), set())] })])).toEqual([]);
+        // The shape test is on the class and the number together: a SET, or a
+        // [16], standing where the SignerInfo SEQUENCE goes is not one; a
+        // constructed [1] or [2] standing where the [0] goes is not the signed
+        // attributes; a [16] standing where an Attribute goes is none.
+        const fields = [int(1), issuerAndSerial(), alg(OIDS.sha256)];
+        expect(codesOf([set(...fields, context(0, true, contentTypeAttr))])).toEqual([]);
+        expect(codesOf([tlv(2, true, 16, concat(...fields, context(0, true, contentTypeAttr)))])).toEqual([]);
+        expect(codesOf([sequence(...fields, context(1, true, contentTypeAttr))])).toEqual([]);
+        expect(codesOf([sequence(...fields, context(2, true, contentTypeAttr))])).toEqual([]);
+        expect(codesOf([signerInfo({ signedAttrs: [tlv(2, true, 16, concat(oid(OIDS.contentType), set()))] })])).toEqual([]);
         // The same attributes in the signer's own set are the verifier's
         // business (cms-check), not a countersignature's diagnostic.
         expect(parse(contentInfo(signedData({ signers: [signerInfo({ unsignedAttrs: [attribute(OIDS.timeStampToken, signerInfo({ signedAttrs: [contentTypeAttr] }))] })] }))).codes).toEqual([]);
@@ -346,6 +356,8 @@ describe('parseSignedData — countersignatures (RFC 5652 §11.4)', () => {
         const three = signerInfo({ signedAttrs: [digestAttr, timeAttr, attribute('1.2.3', int(1))] });
         expect(codesOf([three])).toEqual([]);
         expect(() => countersigned([three], { limits: { maxAttributes: 2 } })).toThrow(expect.objectContaining({ code: 'PKI_LIMIT_EXCEEDED' }));
+        // Exactly at the bound nothing is refused: the limit counts attributes, not one more.
+        expect(countersigned([signerInfo({ signedAttrs: [digestAttr, timeAttr] })], { limits: { maxAttributes: 2 } }).diagnostics).toEqual([]);
     });
 });
 
