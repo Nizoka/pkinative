@@ -921,7 +921,7 @@ const response = parseTimeStampResponse(new Uint8Array(await (await fetch(tsaUrl
 if (response.tokenDer === undefined) return `the TSA declined: ${response.status} ${response.failInfo.join(',')}`;
 
 const stamped = addTimeStampToken(p7s, 0, response.tokenDer);
-const report = await verifySignedData({ signedData: stamped, content: document, trustAnchors: roots, atTimeStamp: true });
+const report = await verifySignedData({ signedData: stamped, content: signedContent, trustAnchors: roots, atTimeStamp: true });
 ```
 
 **What is stamped is the hash of the signature value** (RFC 3161 Appendix A) — the `signature` octets of the `SignerInfo`, not the document and not the signed attributes. `createTimeStampRequest` takes that hash, never the data, and a [`CreateTimeStampRequestOptions`](../assets/api.json): `hashAlgorithm` (SHA-256 by default; SHA-384 and SHA-512 offered, SHA-1 not, because a collision would let one token cover two documents), `nonce`, `policy`, and `certReq` — **`true` by default**, which is not the grammar's default: with `certReq` false the TSA must leave its certificate out, and the verifier must then be given it through `certificates`. **Supply a nonce of at least 64 random bits**: without one, nothing says a response answers *this* request, and a replayed answer is indistinguishable from a fresh one. pkinative generates none.

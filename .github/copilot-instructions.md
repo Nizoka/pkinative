@@ -83,7 +83,7 @@ and host globals (`process`, `Buffer`, `fetch`, `eval`, `Function`).
 
 ```bash
 npm ci                     # install (dev dependencies only)
-npm run gate:fast          # typecheck:all, lint, test, verify:samples, verify:docs — before every commit
+npm run gate:fast          # typecheck:all, lint, test, verify:samples, verify:docs, check:guides — before every commit
 npm run gate               # the CI profile
 npm run test:coverage      # vitest with the coverage thresholds of vitest.config.ts
 npm run build              # tsup → dist/ (ESM + CJS + declarations)

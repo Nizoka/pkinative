@@ -181,6 +181,8 @@ export const STEPS: readonly Step[] = [
     // playground runs the published build" actually claims.
     { id: 'docs:playground-fresh', npmScript: 'docs:playground-fresh', profiles: ['ci', 'publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
+    // Every ```ts fence of README and the guides, type-checked against src/index.ts under lib ES2020 + DOM.
+    { id: 'check:guides', npmScript: 'check:guides', profiles: ['fast', 'ci', 'publish'] },
     {
         // Needs the network once (npm run conformance:fetch), so it stays out of
         // the hermetic CI profile; conformance.yml runs it on every change.

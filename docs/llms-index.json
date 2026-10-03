@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 225722,
-      "approxTokens": 56431
+      "bytes": 225727,
+      "approxTokens": 56432
     },
     {
       "url": "llms-recipes.txt",
@@ -113,8 +113,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 81706,
-      "approxTokens": 20427
+      "bytes": 81711,
+      "approxTokens": 20428
     },
     {
       "title": "Security model",

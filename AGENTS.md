@@ -26,7 +26,7 @@ third library of the *native* family ([pdfnative](https://github.com/Nizoka/pdfn
 
 | Profile | Command | Runs |
 |---|---|---|
-| Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:samples, verify:docs |
+| Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:samples, verify:docs, check:guides |
 | CI — the default | `npm run gate` | the CI profile |
 | Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | everything |
 
