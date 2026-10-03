@@ -32,7 +32,7 @@ import { TAG_BIT_STRING, TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '..
 import { concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import type { Asn1Node } from '../types/asn1-types.js';
-import { PkiCryptoError } from '../types/pki-errors.js';
+import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
 import type { SignatureAlgorithm, SignatureHash } from '../types/crypto-types.js';
 import type { AlgorithmIdentifier, RsaPublicKeyInfo, SubjectPublicKeyInfo } from '../types/x509-types.js';
@@ -605,6 +605,10 @@ export interface ResolvedSigner {
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
  *   combination has no RFC 5280 OID — every ECDSA and PKCS#1 v1.5 digest
  *   pairing does, so this is reachable only through an unchecked cast.
+ * @throws {PkiError} `PKI_INVALID_OPTION` for an ECDSA algorithm whose
+ *   `namedCurve` is not P-256, P-384 or P-521 — a JavaScript caller can omit
+ *   what the type requires, and the signature would then be written in a
+ *   form no verifier accepts.
  */
 export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     if (algorithm.name === 'Ed25519' || algorithm.name === 'Ed448') {
@@ -632,6 +636,12 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
     if (oid === undefined) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, '');
     if (algorithm.name === 'ECDSA') {
+        // The type requires the curve; a JavaScript caller or a cast can omit it. Without it the
+        // r‖s the host returns would be written as it stands, a signature no verifier accepts —
+        // an artefact that fails closed everywhere, which is still a lie in the writer's output.
+        if (algorithm.namedCurve !== 'P-256' && algorithm.namedCurve !== 'P-384' && algorithm.namedCurve !== 'P-521') {
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: an ECDSA signing key names its curve — algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${String(algorithm.namedCurve)}`);
+        }
         return {
             oid,
             signParams: { name: 'ECDSA', hash: { name: algorithm.hash } },

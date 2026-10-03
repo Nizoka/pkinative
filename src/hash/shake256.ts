@@ -143,7 +143,9 @@ function keccakF(s: Uint32Array, c: Uint32Array, b: Uint32Array): void {
  * ```
  *
  * @param input The octets to hash.
- * @param outputLength How many octets to produce — 64 for an Ed448 CMS signer.
+ * @param outputLength How many octets to produce — 64 for an Ed448 CMS signer. The caller's
+ *   number, not a bound on input: the output buffer is this size, and a large value costs the
+ *   memory and the time of squeezing it (about 136 octets per Keccak permutation).
  * @returns `outputLength` octets of SHAKE256 output.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `input` is not a Uint8Array;
  *   `PKI_INVALID_OPTION` when `outputLength` is not a non-negative integer.

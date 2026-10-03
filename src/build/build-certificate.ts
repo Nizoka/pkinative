@@ -174,8 +174,9 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  * const der = await createCertificate({
  *     serialNumber: 0x0123456789abcdefn,
  *     subject: [[{ type: '2.5.4.3', value: 'Example Root' }]],
- *     notBefore: Date.now(),
- *     notAfter: Date.now() + 365 * 86_400_000,
+ *     // Whole seconds: RFC 5280 writes no fraction, and a raw Date.now() is refused.
+ *     notBefore: Date.UTC(2026, 0, 1),
+ *     notAfter: Date.UTC(2027, 0, 1),
  *     subjectPublicKey: spki,
  * }, { key: privateKey, algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' } });
  * ```

@@ -3386,9 +3386,10 @@ function decodePem(text, options) {
 }
 function encodePem(label, bytes) {
   if (typeof label !== "string" || !isValidLabel(label)) {
+    const shown2 = typeof label === "string" ? JSON.stringify(label.length > 64 ? `${label.slice(0, 64)}\u2026` : label) : `a ${typeof label}`;
     throw new PkiEncodingError(
       "PKI_PEM_LABEL_INVALID",
-      `pkinative: ${JSON.stringify(label)} is not an RFC 7468 label \u2014 use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`
+      `pkinative: ${shown2} is not an RFC 7468 label \u2014 use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`
     );
   }
   const base64 = encodeBase64(assertBytes(bytes, "encodePem bytes"));
@@ -5894,6 +5895,9 @@ function resolveSigner(algorithm) {
   const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
   if (oid === void 0) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, "");
   if (algorithm.name === "ECDSA") {
+    if (algorithm.namedCurve !== "P-256" && algorithm.namedCurve !== "P-384" && algorithm.namedCurve !== "P-521") {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: an ECDSA signing key names its curve \u2014 algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${String(algorithm.namedCurve)}`);
+    }
     return {
       oid,
       signParams: { name: "ECDSA", hash: { name: algorithm.hash } },

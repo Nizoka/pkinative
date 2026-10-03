@@ -253,8 +253,11 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
  */
 export function encodePem(label: string, bytes: Uint8Array): string {
     if (typeof label !== 'string' || !isValidLabel(label)) {
+        // The message quotes at most 64 characters: a label is the caller's, but a message
+        // that reproduces an arbitrary value whole is a message nobody can read.
+        const shown = typeof label === 'string' ? JSON.stringify(label.length > 64 ? `${label.slice(0, 64)}…` : label) : `a ${typeof label}`;
         throw new PkiEncodingError('PKI_PEM_LABEL_INVALID',
-            `pkinative: ${JSON.stringify(label)} is not an RFC 7468 label — use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`);
+            `pkinative: ${shown} is not an RFC 7468 label — use printable ASCII joined by single spaces or hyphens, such as 'CERTIFICATE'`);
     }
     const base64 = encodeBase64(assertBytes(bytes, 'encodePem bytes'));
     const lines: string[] = [];

@@ -8486,7 +8486,7 @@
         },
         {
           "name": "outputLength",
-          "description": "How many octets to produce — 64 for an Ed448 CMS signer."
+          "description": "How many octets to produce — 64 for an Ed448 CMS signer. The caller's number, not a bound on input: the output buffer is this size, and a large value costs the memory and the time of squeezing it (about 136 octets per Keccak permutation)."
         }
       ],
       "returns": "`outputLength` octets of SHAKE256 output.",
