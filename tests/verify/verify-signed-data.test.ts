@@ -4,6 +4,7 @@ import { addTimeStampToken, createSignedData, type CreateSignedDataInput } from 
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { PkiError } from '../../src/types/pki-errors.js';
+import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { verifySignedData, type VerifySignedDataInput } from '../../src/verify/verify-signed-data.js';
 import {
@@ -34,6 +35,7 @@ import {
     issueTsa,
     keyPair,
     makeCrl,
+    makeOcspResponse,
     makeRoot,
     makeToken,
     OID,
@@ -144,6 +146,19 @@ describe('verifySignedData', () => {
         it('should read a message under BER when asked', async () => {
             const w = await world();
             expect(codes(await verify(w, await sign(w), { encodingRules: 'ber' }))).toEqual([]);
+        });
+
+        it('should read a message only BER allows under encodingRules: \'ber\', and refuse it under the DER default', async () => {
+            // The outer ContentInfo re-wrapped with an indefinite length (X.690
+            // §8.1.3.6), which DER forbids; nothing the signature covers moves.
+            const w = await world();
+            const der = await sign(w);
+            const header = (der[1] as number) < 0x80 ? 2 : 2 + ((der[1] as number) & 0x7f);
+            const ber = Uint8Array.from([0x30, 0x80, ...der.subarray(header), 0x00, 0x00]);
+            expect(codes(await verify(w, ber, { encodingRules: 'ber' }))).toEqual([]);
+            const refused = await verify(w, ber);
+            expect(codes(refused)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+            expect(refused.reasons[0]?.errorCode).toBe('PKI_ASN1_INDEFINITE_LENGTH_FORBIDDEN');
         });
 
         it('should judge each signer of a multi-signer message, and call the message valid only when every one is', async () => {
@@ -606,6 +621,54 @@ describe('verifySignedData', () => {
             expect(paths(report).filter((path) => path.startsWith('signerInfos[0].unsignedAttrs.timeStampToken[0].'))).toHaveLength(1);
             expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);
             expect(codes(await verify(s.w, stamped, { requireRevocation: true, crls: [await makeCrl(s.w.root)] }))).toEqual([]);
+        });
+
+        it('should hand the caller\'s OCSP responses on to each timestamp: a TSA they say is revoked proves no time', async () => {
+            const s = await stampable();
+            const stamped = addTimeStampToken(s.p7s, 0, await stamp(s, AT));
+            const report = await verify(s.w, stamped, { ocspResponses: [await makeOcspResponse(s.w.root, s.tsa.certificate, 'revoked')] });
+            // The signer's chain is handed the same response, which is about another certificate.
+            expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual([
+                'PKI_REASON_REVOKED@signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain.ocspResponses[0]',
+                'PKI_REASON_REVOCATION_MISMATCH@signerInfos[0].chain.ocspResponses[0]',
+            ]);
+            expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);
+            // The canary: the same responder saying "good" leaves the stamp standing.
+            const good = await verify(s.w, stamped, { ocspResponses: [await makeOcspResponse(s.w.root, s.tsa.certificate, 'good')] });
+            expect(good.reasons.map((r) => `${r.code}@${r.path}`)).toEqual(['PKI_REASON_REVOCATION_MISMATCH@signerInfos[0].chain.ocspResponses[0]']);
+            expect(good.signers[0]?.timeStamps[0]?.valid).toBe(true);
+        });
+
+        it('should hand the caller\'s limits on to the signer\'s chain and to each timestamp\'s', async () => {
+            // maxChainLength: 1 leaves no room for an end entity under a root,
+            // so each of the two chains reports the limit where it stands.
+            const s = await stampable();
+            const stamped = addTimeStampToken(s.p7s, 0, await stamp(s, AT));
+            const report = await verify(s.w, stamped, { limits: { maxChainLength: 1 } });
+            expect(report.reasons.map((r) => `${r.code}@${r.path}`)).toEqual([
+                'PKI_REASON_LIMIT_EXCEEDED@signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain.path[1]',
+                'PKI_REASON_LIMIT_EXCEEDED@signerInfos[0].chain.path[1]',
+            ]);
+            expect(report.reasons.map((r) => r.limit)).toEqual(['maxChainLength', 'maxChainLength']);
+        });
+
+        it('should hand allowSha1 on to the signer\'s chain and to each timestamp\'s', async () => {
+            // An ECDSA root that certified both the signer and the TSA over
+            // SHA-1; the signature and the token themselves are SHA-256.
+            const root = await makeRoot('CMS SHA-1 Root', 'ECDSA');
+            const sha1: SignatureAlgorithm = { name: 'ECDSA', hash: 'SHA-1', namedCurve: 'P-256' };
+            const w = { root, signer: await issue(root, { signWith: sha1 }) };
+            const tsa = await issueTsa(root, { signWith: sha1 });
+            const p7s = await sign(w);
+            const imprint = await sha('SHA-256', parseSignedData(p7s).signerInfos[0]?.signature as Uint8Array);
+            const stamped = addTimeStampToken(p7s, 0, await makeToken(tsa, tstInfo({ imprint, genTime: AT })));
+            expect(codes(await verify(w, stamped, { allowSha1: true }))).toEqual([]);
+            const refused = await verify(w, stamped);
+            expect(refused.reasons.map((r) => `${r.code}@${r.path}`)).toEqual([
+                'PKI_REASON_SIGNATURE_NOT_CHECKED@signerInfos[0].unsignedAttrs.timeStampToken[0].token.tsaChain.path[0]',
+                'PKI_REASON_SIGNATURE_NOT_CHECKED@signerInfos[0].chain.path[0]',
+            ]);
+            expect(refused.reasons.map((r) => r.errorCode)).toEqual(['PKI_CRYPTO_ALGORITHM_REFUSED', 'PKI_CRYPTO_ALGORITHM_REFUSED']);
         });
     });
 });

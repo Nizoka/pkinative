@@ -14,8 +14,10 @@ import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import {
     encodeBitString,
     encodeBoolean,
+    encodeEnumerated,
     encodeExplicit,
     encodeInteger,
+    encodeNull,
     encodeObjectIdentifier,
     encodeOctetString,
     encodeSequence,
@@ -106,9 +108,12 @@ export interface Holder {
     readonly signer: SigningKey;
 }
 
-/** A self-signed Ed25519 root that may sign certificates and CRLs, valid AT ± 30 days. */
-export async function makeRoot(cn = 'CMS Test Root'): Promise<Authority> {
-    const pair = await keyPair('Ed25519');
+/**
+ * A self-signed root that may sign certificates and CRLs, valid AT ± 30 days:
+ * Ed25519 by default, ECDSA P-256 when it must be able to sign over SHA-1.
+ */
+export async function makeRoot(cn = 'CMS Test Root', family: 'Ed25519' | 'ECDSA' = 'Ed25519'): Promise<Authority> {
+    const pair = await keyPair(family);
     const name = [[{ type: '2.5.4.3', value: cn }]];
     const der = await createCertificate({
         serialNumber: 1n, issuer: name, subject: name,
@@ -118,7 +123,7 @@ export async function makeRoot(cn = 'CMS Test Root'): Promise<Authority> {
             { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
             { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
         ],
-    }, { key: pair.privateKey, algorithm: { name: 'Ed25519' } });
+    }, { key: pair.privateKey, algorithm: SIGN_WITH[family] });
     return { certificate: parseCertificate(der, quiet), key: pair.privateKey };
 }
 
@@ -133,6 +138,8 @@ export interface IssueOptions {
     readonly extensions?: readonly ExtensionDescription[];
     /** A subjectKeyIdentifier, so the certificate can be named by `sid: 'subjectKeyIdentifier'`. */
     readonly ski?: Uint8Array;
+    /** How `ca` signs the certificate; Ed25519 by default, which only an Ed25519 `ca` can do. */
+    readonly signWith?: SignatureAlgorithm;
 }
 
 /** An end-entity certificate issued by `ca`, valid AT − 1 day to AT + 1 day unless told otherwise. */
@@ -151,7 +158,7 @@ export async function issue(ca: Authority, options: IssueOptions = {}): Promise<
             ...(options.ski === undefined ? [] : [{ oid: '2.5.29.14', value: encodeSubjectKeyIdentifier(options.ski) }]),
             ...(options.extensions ?? []),
         ],
-    }, { key: ca.key, algorithm: { name: 'Ed25519' } });
+    }, { key: ca.key, algorithm: options.signWith ?? { name: 'Ed25519' } });
     return { certificate: parseCertificate(der, quiet), pair, signer: { key: pair.privateKey, algorithm: SIGN_WITH[family] } };
 }
 
@@ -223,6 +230,42 @@ export async function makeCrl(ca: Authority, revoked: readonly Certificate[] = [
         ...(entries.length === 0 ? [] : [encodeSequence(entries)]),
     ]);
     return encodeSequence([tbs, ED25519, encodeBitString(await rawSign({ name: 'Ed25519' }, ca.key, tbs))]);
+}
+
+// ── OCSP ──
+
+/**
+ * A successful BasicOCSPResponse (RFC 6960 §4.2.1) about `certificate`, signed
+ * by the Ed25519 `ca` that issued it, current at AT ± 1 day.
+ */
+export async function makeOcspResponse(ca: Authority, certificate: Certificate, status: 'good' | 'revoked'): Promise<Uint8Array> {
+    const keyHash = await sha('SHA-1', ca.certificate.subjectPublicKeyInfo.publicKey.bytes);
+    const certId = encodeSequence([
+        encodeSequence([encodeObjectIdentifier(OID.sha1), encodeNull()]),
+        encodeOctetString(await sha('SHA-1', ca.certificate.subject.der)),
+        encodeOctetString(keyHash),
+        encodeTlv('universal', 2, false, certificate.serialNumber.bytes),
+    ]);
+    // CertStatus ::= CHOICE { good [0] IMPLICIT NULL, revoked [1] IMPLICIT RevokedInfo { revocationTime } }
+    const certStatus = status === 'good'
+        ? encodeTlv('context', 0, false, new Uint8Array(0))
+        : encodeTlv('context', 1, true, encodeTime(AT - 2 * DAY, 'GeneralizedTime'));
+    const tbs = encodeSequence([
+        // responderID ::= [2] KeyHash
+        encodeExplicit(2, encodeOctetString(keyHash), { tagClass: 'context' }),
+        encodeTime(AT - DAY, 'GeneralizedTime'),
+        encodeSequence([encodeSequence([
+            certId,
+            certStatus,
+            encodeTime(AT - DAY, 'GeneralizedTime'),
+            encodeExplicit(0, encodeTime(AT + DAY, 'GeneralizedTime'), { tagClass: 'context' }),
+        ])]),
+    ]);
+    const basic = encodeSequence([tbs, ED25519, encodeBitString(await rawSign({ name: 'Ed25519' }, ca.key, tbs))]);
+    return encodeSequence([
+        encodeEnumerated(0),
+        encodeExplicit(0, encodeSequence([encodeObjectIdentifier('1.3.6.1.5.5.7.48.1.1'), encodeOctetString(basic)]), { tagClass: 'context' }),
+    ]);
 }
 
 // ── Surgery on a SignedData ──
