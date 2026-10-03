@@ -870,8 +870,8 @@ describe('clause-table-complete, the RFC requirement inventories', () => {
     });
 
     it('should fire on a count the ecosystem declares and the inventory does not hold', async () => {
-        const problems = await fire((f) => edit(f, 'docs/assets/ecosystem.json', /("rfc3161": \{[^}]*"tests": )26/, '$127'));
-        expect(problems).toEqual([expect.stringContaining('declared.rfc3161.tests is 27; scripts/data/rfc3161-requirements.json holds 26')]);
+        const problems = await fire((f) => edit(f, 'docs/assets/ecosystem.json', /("rfc3161": \{[^}]*"tests": )28/, '$129'));
+        expect(problems).toEqual([expect.stringContaining('declared.rfc3161.tests is 29; scripts/data/rfc3161-requirements.json holds 28')]);
     });
 
     it('should fire on a guide whose exclusions by reason drifted from the inventory', async () => {

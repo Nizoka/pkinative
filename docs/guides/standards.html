@@ -230,7 +230,7 @@
 <td>Reading, building and verifying</td>
 <td>applies</td>
 <td><code>tests/cms/cms-signed-data.test.ts</code>, <code>tests/cms/cms-check.test.ts</code>, <code>tests/verify/verify-signed-data.test.ts</code>, <code>tests/fuzzing/cms.test.ts</code>; <code>L8</code>, 224 PKITS S/MIME messages verified whole; the pinned text of §5 and §11.1–11.4 held sentence by sentence to a named test (<code>scripts/data/rfc5652-requirements.json</code>)</td>
-<td>DSA signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); an Ed448 signer is verified where the host has Ed448 — Node.js — and reported unchecked where it does not — Bun, Chromium (<a href="../adr/0022-ed448-cms-signers-host-dependent.md">ADR 0022</a>); <code>createSignedData</code> does not sign with Ed448; countersignatures are carried, not read; the requirements the inventory records as <code>not-diagnosed</code>.</td>
+<td>DSA signers are not verified (<a href="../adr/0004-dsa-and-ed448-cms-signers-not-verified.md">ADR 0004</a>); an Ed448 signer is verified where the host has Ed448 — Node.js — and reported unchecked where it does not — Bun, Chromium (<a href="../adr/0022-ed448-cms-signers-host-dependent.md">ADR 0022</a>); <code>createSignedData</code> does not sign with Ed448; countersignatures are carried, not verified — their signed attributes are looked into only as far as the §11.4 diagnostics need.</td>
 </tr>
 <tr>
 <td>RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2</td>
@@ -244,14 +244,14 @@
 <td>Requests, responses, tokens and their verification</td>
 <td>applies</td>
 <td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
-<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is not checked (<code>not-diagnosed</code>).</td>
+<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason.</td>
 </tr>
 <tr>
 <td>RFC 6960 — OCSP</td>
 <td>Requests, responses and the client&#39;s §3.2 checks</td>
 <td>applies</td>
 <td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
-<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); responderID is not compared with the signer, and the other §4.2 requirements the inventory records as <code>not-diagnosed</code>.</td>
+<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); the responderID is compared with the signer only when <code>checkOcspStatus</code> is given it, as <code>verifyCertificateChain</code> does, and the comparison is a diagnostic, never a reason.</td>
 </tr>
 <tr>
 <td>RFC 7468 — PEM</td>
