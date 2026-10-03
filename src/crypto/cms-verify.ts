@@ -18,7 +18,7 @@
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { SignerInfo } from '../types/cms-types.js';
 import type { Certificate } from '../types/x509-types.js';
-import { _cmsAlgorithmProblem, _importRefusal, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
+import { _cmsAlgorithmProblem, _importableSpki, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
 import { isBytes } from '../core/bytes.js';
@@ -81,14 +81,15 @@ export interface VerifySignerInfoSignatureOptions {
  *   `content` was given.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no
  *   Web Crypto; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm Web Crypto
- *   does not run (DSA, Ed448, SHA-224, an unknown OID);
+ *   does not run (DSA, SHA-224, an unknown OID);
  *   `PKI_CRYPTO_ALGORITHM_REFUSED` for SHA-1 without `allowSha1`;
- *   `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses to import the key —
- *   always for a signer certificate whose key is `id-RSASSA-PSS`, which the
- *   W3C Web Crypto specification does not import (see
- *   `verifyCertificateSignature`). Such a key signing with PKCS#1
- *   v1.5, or under RSASSA-PSS parameters its own exclude, is `false`
- *   (RFC 4055 §1.2 and §3.3, RFC 4056 §3).
+ *   `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses to import the key — an
+ *   Ed448 signer on a runtime without Ed448 (Bun, Chromium), as for an Ed448
+ *   certificate signature. A signer certificate whose key is `id-RSASSA-PSS`
+ *   is imported under `rsaEncryption` once held to its parameters (see
+ *   `verifyCertificateSignature`); such a key signing with PKCS#1 v1.5, or
+ *   under RSASSA-PSS parameters its own exclude, is `false` (RFC 4055 §1.2
+ *   and §3.3, RFC 4056 §3).
  * @throws {PkiEncodingError} When the signature algorithm's parameters are
  *   malformed DER.
  */
@@ -127,7 +128,7 @@ export async function verifySignerInfoSignature(
         signature = raw;
     }
 
-    const key = await importPublicKey(certificate.subjectPublicKeyInfo.der, resolved.importParams, info.signatureAlgorithm.oid, _importRefusal(certificate.subjectPublicKeyInfo));
+    const key = await importPublicKey(_importableSpki(certificate.subjectPublicKeyInfo), resolved.importParams, info.signatureAlgorithm.oid);
     return verifySignature(key, resolved.verifyParams, signature, covered);
 }
 

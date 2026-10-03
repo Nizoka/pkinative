@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
-import { _cmsAlgorithmProblem, coordinateBytes, resolveAlgorithm, resolveCmsAlgorithm } from '../../src/crypto/crypto-algorithms.js';
+import { _cmsAlgorithmProblem, _importableSpki, _pssKeyHash, coordinateBytes, ID_SHAKE256, resolveAlgorithm, resolveCmsAlgorithm } from '../../src/crypto/crypto-algorithms.js';
 import { PkiCryptoError } from '../../src/types/pki-errors.js';
 import type { AlgorithmIdentifier, SubjectPublicKeyInfo } from '../../src/types/x509-types.js';
-import { algorithm, nullValue, oid } from '../helpers/cert-builder.js';
+import { algorithm, bitString, nullValue, oid } from '../helpers/cert-builder.js';
 import { concat, sequence, universal } from '../helpers/raw-der-builder.js';
 
 /**
@@ -34,6 +34,56 @@ const lengthOf = (body: Uint8Array): number[] => (body.length < 0x80 ? [body.len
 const SHA256 = '2.16.840.1.101.3.4.2.1';
 const PSS = '1.2.840.113549.1.1.10';
 const MGF1_OID = '1.2.840.113549.1.1.8';
+const ED448 = '1.3.101.113';
+
+describe('_importableSpki', () => {
+    const KEY_BITS = Uint8Array.from({ length: 20 }, (_, i) => 0x30 + i);
+    const pssSpki = (parameters?: Uint8Array): SubjectPublicKeyInfo => ({
+        kind: 'rsa-pss', algorithm: identifier(PSS, parameters), publicKey: { bytes: KEY_BITS, unusedBits: 0 }, der: Uint8Array.of(0x30, 0x00), publicExponent: 65537n,
+    }) as unknown as SubjectPublicKeyInfo;
+
+    it('should hand every key but id-RSASSA-PSS to the host as the certificate published it', () => {
+        expect(_importableSpki(RSA_KEY)).toBe(RSA_KEY.der);
+        const ec = EC_KEY('P-256');
+        expect(_importableSpki(ec)).toBe(ec.der);
+        const ed = ED_KEY('ed25519');
+        expect(_importableSpki(ed)).toBe(ed.der);
+    });
+
+    it('should re-wrap an id-RSASSA-PSS key under rsaEncryption with its subjectPublicKey copied as it stands (RFC 4055 §1.2)', () => {
+        const expected = sequence(algorithm('1.2.840.113549.1.1.1', nullValue()), bitString(KEY_BITS));
+        expect(_importableSpki(pssSpki(pssParams(SHA256, 32)))).toEqual(expected);
+        // The key's own parameters do not travel: the host has no field for them, and resolveAlgorithm already held the signature to them.
+        expect(_importableSpki(pssSpki())).toEqual(expected);
+    });
+
+    it('should copy the BIT STRING as it stands — unused-bits count included, with no DER judgement of its own', () => {
+        // Under BER a key BIT STRING may carry an unused-bits count; the host
+        // gets exactly what the certificate said, and judges it as it judges
+        // every other key.
+        const key = { ...pssSpki(), publicKey: { bytes: KEY_BITS, unusedBits: 3 } } as unknown as SubjectPublicKeyInfo;
+        expect(_importableSpki(key)).toEqual(sequence(algorithm('1.2.840.113549.1.1.1', nullValue()), bitString(KEY_BITS, 3)));
+    });
+});
+
+describe('_pssKeyHash', () => {
+    it('should read the digest an id-RSASSA-PSS key\'s parameters bind it to', () => {
+        expect(_pssKeyHash(PSS_KEY(pssParams(SHA384, 48)))).toBe('SHA-384');
+        expect(_pssKeyHash(PSS_KEY(pssParams(SHA256, 32)))).toBe('SHA-256');
+        expect(_pssKeyHash(PSS_KEY(sequence()))).toBe('SHA-1');
+    });
+
+    it('should answer undefined for a key without parameters, and for a key of another kind', () => {
+        expect(_pssKeyHash(PSS_KEY())).toBeUndefined();
+        expect(_pssKeyHash(RSA_KEY)).toBeUndefined();
+        expect(_pssKeyHash(EC_KEY('P-256'))).toBeUndefined();
+    });
+
+    it('should refuse parameters Web Crypto cannot express, with the resolver\'s code', () => {
+        expect(() => _pssKeyHash(PSS_KEY(sequence(tagged(0, algorithm(SHA256)), tagged(1, algorithm(MGF1_OID, algorithm(SHA1)))))))
+            .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', algorithm: PSS }));
+    });
+});
 
 describe('resolveAlgorithm', () => {
     it.each([
@@ -332,12 +382,30 @@ describe('_cmsAlgorithmProblem', () => {
     it.each([
         ['a digest Web Crypto does not compute (SHA-224)', SHA224, identifier('1.2.840.113549.1.1.14', nullValue())],
         ['DSA, which Web Crypto does not run', SHA256, identifier('2.16.840.1.101.3.4.3.2')],
-        ['Ed448, whose CMS digest is SHAKE256', SHA512, identifier('1.3.101.113')],
         ['RSASSA-PSS parameters Web Crypto cannot express', SHA256, identifier(PSS, sequence(tagged(0, algorithm(SHA256))))],
         ['a digest Web Crypto does not compute (SHA-224) under a signature it does', SHA224, identifier('1.2.840.113549.1.1.11', nullValue())],
-        ['Ed448 over a SHA-256 digest', SHA256, identifier('1.3.101.113')],
     ])('should leave %s to resolution: unsupported is not inconsistent', (_what, digest, signature) => {
         expect(_cmsAlgorithmProblem(identifier(digest), signature)).toBeNull();
+    });
+
+    describe('an Ed448 signer, whose digest is SHAKE256 (RFC 8419 §3.1)', () => {
+        it('should accept id-shake256 with absent or NULL parameters', () => {
+            expect(_cmsAlgorithmProblem(identifier(ID_SHAKE256), identifier(ED448))).toBeNull();
+            expect(_cmsAlgorithmProblem(identifier(ID_SHAKE256, nullValue()), identifier(ED448))).toBeNull();
+        });
+
+        it.each([
+            ['a SHA-512 digest — Ed25519\'s, not Ed448\'s', identifier(SHA512)],
+            ['a SHA-256 digest', identifier(SHA256)],
+            ['id-shake256-len, another identifier whose INTEGER chooses the length', identifier('2.16.840.1.101.3.4.2.18', universal(2, [64]))],
+            ['id-shake256 carrying parameters', identifier(ID_SHAKE256, oid('1.2.3'))],
+        ])('should name the problem with %s', (_what, digest) => {
+            expect(_cmsAlgorithmProblem(digest, identifier(ED448))).toMatch(/RFC 8419/u);
+        });
+
+        it('should still call MD5 the problem when an Ed448 signer names it', () => {
+            expect(_cmsAlgorithmProblem(identifier('1.2.840.113549.2.5', nullValue()), identifier(ED448))).toMatch(/MD5/u);
+        });
     });
 });
 
@@ -368,9 +436,12 @@ describe('resolveCmsAlgorithm', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
     });
 
-    it('should refuse Ed448, whose CMS digest is SHAKE256', () => {
-        expect(() => resolveCmsAlgorithm(identifier(SHA512), identifier('1.3.101.113'), ED_KEY('ed448')))
-            .toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', algorithm: '1.3.101.113' }));
+    it('should resolve an Ed448 signer as the host\'s Ed448, its SHAKE256 digest being the verifier\'s to compute', () => {
+        const resolved = resolveCmsAlgorithm(identifier(ID_SHAKE256), identifier(ED448), ED_KEY('ed448'));
+        expect(resolved?.importParams).toEqual({ name: 'Ed448' });
+        expect(resolved?.verifyParams).toEqual({ name: 'Ed448' });
+        expect(resolved?.hash).toBeUndefined();
+        expect(resolveCmsAlgorithm(identifier(ID_SHAKE256), identifier(ED448), ED_KEY('ed25519'))).toBeNull();
     });
 
     it('should resolve a combined OID through the X.509 table', () => {

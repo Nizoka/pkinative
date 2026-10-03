@@ -9,30 +9,38 @@
  *
  * RSASSA-PSS is the one entry whose parameters are not implied by the OID
  * (RFC 4055 §3.1), so its hash and salt length are read out of the
- * certificate — the one place this layer touches ASN.1.
+ * certificate — the one place this layer touches ASN.1. An `id-RSASSA-PSS`
+ * **key** is the other: the W3C Web Crypto specification imports an RSA
+ * SubjectPublicKeyInfo only under `rsaEncryption`, so once RFC 4055 has been
+ * held to, the same key bits are handed to the host under that identifier
+ * ({@link _importableSpki}) — the one re-encoding this layer performs.
  *
  * CMS reads the same table with two differences (RFC 5652 §5.3): a signer
  * names its digest separately, and may name the bare key algorithm
  * `rsaEncryption` as its signature algorithm. The CMS entry points below add
- * exactly that, and the check that the two named hashes agree.
+ * exactly that, and the check that the two named hashes agree — including
+ * the one digest Web Crypto does not compute, SHAKE256, which RFC 8419 §3.1
+ * ties to Ed448 and `src/hash/shake256.ts` computes.
  *
  * @module crypto/crypto-algorithms
  */
 
+import { encodeNull, encodeObjectIdentifier, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
-import { TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { TAG_BIT_STRING, TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError } from '../types/pki-errors.js';
 import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
-import type { SignatureAlgorithm } from '../types/crypto-types.js';
+import type { SignatureAlgorithm, SignatureHash } from '../types/crypto-types.js';
 import type { AlgorithmIdentifier, RsaPublicKeyInfo, SubjectPublicKeyInfo } from '../types/x509-types.js';
 
 // ── The digests ──────────────────────────────────────────────────────
 
 /** NIST and OIW hash OIDs, to Web Crypto names. */
-const HASH_BY_OID: ReadonlyMap<string, string> = /*#__PURE__*/ new Map([
+const HASH_BY_OID: ReadonlyMap<string, SignatureHash> = /*#__PURE__*/ new Map<string, SignatureHash>([
     ['1.3.14.3.2.26', 'SHA-1'],
     ['2.16.840.1.101.3.4.2.1', 'SHA-256'],
     ['2.16.840.1.101.3.4.2.2', 'SHA-384'],
@@ -131,10 +139,10 @@ function unsupported(message: string, oid: string): PkiCryptoError {
  * skips a stray child or lets a repeated field win reads parameters another
  * verifier reads differently (CWE-436).
  */
-function readPssParams(parameters: Asn1Node | undefined, oid: string): { hash: string; saltLength: number } {
-    let hash = 'SHA-1';
+function readPssParams(parameters: Asn1Node | undefined, oid: string): { hash: SignatureHash; saltLength: number } {
+    let hash: SignatureHash = 'SHA-1';
     let saltLength: number | undefined;
-    let mgfHash = 'SHA-1';
+    let mgfHash: SignatureHash = 'SHA-1';
 
     if (parameters !== undefined) {
         if (parameters.tagClass !== 'universal' || parameters.tagNumber !== TAG_SEQUENCE) {
@@ -180,7 +188,7 @@ function pssInteger(node: Asn1Node, what: string, oid: string): number {
  * The Web Crypto hash name of an AlgorithmIdentifier SEQUENCE, whose
  * parameters are absent or NULL (RFC 4055 §2.1) — never anything else.
  */
-function hashNameOf(algorithm: Asn1Node, oid: string): string {
+function hashNameOf(algorithm: Asn1Node, oid: string): SignatureHash {
     const first = algorithm.tagClass === 'universal' && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : undefined;
     if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID) {
         throw unsupported('an RSASSA-PSS hash parameter is not an AlgorithmIdentifier', oid);
@@ -195,7 +203,7 @@ function hashNameOf(algorithm: Asn1Node, oid: string): string {
 }
 
 /** MGF1's digest, from `id-mgf1` with an AlgorithmIdentifier parameter. */
-function mgf1HashOf(algorithm: Asn1Node, oid: string): string {
+function mgf1HashOf(algorithm: Asn1Node, oid: string): SignatureHash {
     const first = algorithm.tagClass === 'universal' && algorithm.tagNumber === TAG_SEQUENCE ? algorithm.children[0] : undefined;
     if (first === undefined || first.tagClass !== 'universal' || first.tagNumber !== TAG_OID || algorithm.children.length > 2) {
         throw unsupported('the RSASSA-PSS maskGenAlgorithm is not an AlgorithmIdentifier', oid);
@@ -332,25 +340,52 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
     return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined };
 }
 
+/** `rsaEncryption` with its NULL parameters — the one AlgorithmIdentifier Web Crypto imports an RSA key under. */
+const RSA_ENCRYPTION_IDENTIFIER = /*#__PURE__*/ encodeSequence([encodeObjectIdentifier('1.2.840.113549.1.1.1'), encodeNull()]);
+
 /**
- * Why the host will refuse to import this key, when that is known before
- * asking — today, one case.
+ * The SubjectPublicKeyInfo to hand the host for this key.
  *
- * The W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only
- * when its algorithm is `rsaEncryption`, and throws a DataError otherwise
- * (RSA-PSS "import key", format "spki"). An `id-RSASSA-PSS` key — what
+ * Every key goes as the certificate published it, with one exception. The
+ * W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only when
+ * its algorithm is `rsaEncryption`, and throws a DataError otherwise
+ * (RSA-PSS "import key", format "spki"); an `id-RSASSA-PSS` key — what
  * `openssl genpkey -algorithm RSA-PSS`, GnuTLS `certtool --key-type=rsa-pss`
  * and `keytool -keyalg RSASSA-PSS` write — is therefore refused by every
- * conforming runtime, Node.js 22 included ("DataError: Invalid key type"), and
- * no signature it made can be checked here. The certificate is not at fault,
- * and trying another runtime will not help; saying so is the point.
+ * conforming runtime, Node.js 22 included ("DataError: Invalid key type").
+ * RFC 4055 §1.2 says what such a key is: the same RSA public key, restricted
+ * by its identifier to RSASSA-PSS. So once {@link resolveAlgorithm} has held
+ * the signature to that restriction — PSS only, and under the parameters the
+ * key's own parameters admit (§3.3) — the restriction has done its work, and
+ * the key bits are re-wrapped under `rsaEncryption`, unchanged, for the host
+ * to import as RSA-PSS with the signature's hash. Nothing about the key is
+ * guessed, and nothing is judged: the `subjectPublicKey` BIT STRING is copied
+ * as it stands, unused-bits octet included, and the host judges the key as it
+ * judges every other.
  *
  * @internal
  */
-export function _importRefusal(key: SubjectPublicKeyInfo): string | undefined {
-    return key.kind === 'rsa-pss'
-        ? 'the key is id-RSASSA-PSS (RFC 4055 §1.2), and the W3C Web Crypto specification imports an RSA SubjectPublicKeyInfo only as rsaEncryption, so no conforming runtime checks a signature this key made; the certificate is not at fault — check it with a library that implements id-RSASSA-PSS keys (OpenSSL, for one)'
-        : undefined;
+export function _importableSpki(key: SubjectPublicKeyInfo): Uint8Array {
+    if (key.kind !== 'rsa-pss') return key.der;
+    const bitString = encodeTlv('universal', TAG_BIT_STRING, false, concatBytes([Uint8Array.of(key.publicKey.unusedBits), key.publicKey.bytes]));
+    return encodeSequence([RSA_ENCRYPTION_IDENTIFIER, bitString]);
+}
+
+/**
+ * The digest an `id-RSASSA-PSS` key's own parameters bind it to, or
+ * `undefined` for a key without parameters (which RFC 4055 §3.1 leaves to
+ * sign over any digest) or a key of another kind.
+ *
+ * What a PKCS#12 reader needs: a private key under such a certificate signs
+ * RSA-PSS, and over this digest when the certificate names one.
+ *
+ * @internal
+ * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
+ *   parameters name something Web Crypto cannot do, as {@link resolveAlgorithm}.
+ */
+export function _pssKeyHash(key: SubjectPublicKeyInfo): SignatureHash | undefined {
+    if (key.kind !== 'rsa-pss' || key.algorithm.parameters === undefined) return undefined;
+    return readPssParams(key.algorithm.parameters, key.algorithm.oid).hash;
 }
 
 // ── The same table, under CMS (0.7) ──────────────────────────────────
@@ -364,6 +399,18 @@ export function _importRefusal(key: SubjectPublicKeyInfo): string | undefined {
 const RSA_ENCRYPTION = '1.2.840.113549.1.1.1';
 const ID_EC_PUBLIC_KEY = '1.2.840.10045.2.1';
 const ID_ED448 = '1.3.101.113';
+
+/**
+ * `id-shake256` (NIST CSOR): SHAKE256 with a 512-bit output when it stands
+ * as a digest algorithm, parameters absent (RFC 8419 §2.1, RFC 8702 §3.1).
+ * The one CMS digest Web Crypto does not compute and pkinative does, and the
+ * only one RFC 8419 §3.1 allows an Ed448 signer. `id-shake256-len`
+ * (…4.2.18), whose INTEGER parameter chooses the length, is not that
+ * identifier and is held to be another algorithm.
+ *
+ * @internal
+ */
+export const ID_SHAKE256 = '2.16.840.1.101.3.4.2.12';
 
 /** `md5WithRSAEncryption` and `id-md5`: refused as inconsistent, never reported as merely unsupported. */
 const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1.4', '1.2.840.113549.2.5']);
@@ -379,11 +426,17 @@ const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1
  * describes a computation that did not happen; accepting it would let the
  * unsigned `digestAlgorithm` field be rewritten under a valid signature.
  *
- * `null` does not mean *supported*. DSA, Ed448, SHA-224 and unknown OIDs are
- * not inconsistent, they are outside what Web Crypto runs, and
+ * `null` does not mean *supported*. DSA, SHA-224 and unknown OIDs are not
+ * inconsistent, they are outside what Web Crypto runs, and
  * {@link resolveCmsAlgorithm} says so by throwing. Keeping the two answers
  * apart is what lets a report distinguish "this signer is wrong" from "this
  * signer could not be checked here".
+ *
+ * Ed448 is the one signer whose digest is not a Web Crypto hash: RFC 8419
+ * §3.1 makes it `id-shake256` (512-bit output), which `src/hash/shake256.ts`
+ * computes. It is judged first, because the table below only knows the FIPS
+ * 180-4 digests and would otherwise leave an Ed448 signer over SHA-512 — a
+ * computation RFC 8419 forbids — to a resolver that cannot tell.
  *
  * @internal
  * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
@@ -398,6 +451,12 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
     }
     if (signatureAlgorithm.oid === ID_EC_PUBLIC_KEY) {
         return 'id-ecPublicKey is a key algorithm, not a signature algorithm, and no RFC lets it stand for ECDSA with the hash left to the unsigned digestAlgorithm';
+    }
+    if (signatureAlgorithm.oid === ID_ED448) {
+        if (digestAlgorithm.oid !== ID_SHAKE256) {
+            return `Ed448 requires the id-shake256 digestAlgorithm, SHAKE256 with a 512-bit output (RFC 8419 §3.1), not ${digestAlgorithm.oid}`;
+        }
+        return hasNoHashParameters(digestAlgorithm.parameters) ? null : 'the id-shake256 digestAlgorithm carries parameters, where RFC 8419 §2.1 allows none';
     }
 
     const digest = HASH_BY_OID.get(digestAlgorithm.oid);
@@ -430,10 +489,8 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
         }
         return pssHash === digest ? null : `RSASSA-PSS over ${pssHash}, but the digestAlgorithm is ${digest}`;
     }
-    if (shape.family === 'ed25519') {
-        return digest === 'SHA-512' ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 §3.1), not ${digest}`;
-    }
-    return null;
+    // Ed25519 is what remains: Ed448 was judged above, before the table.
+    return digest === 'SHA-512' ? null : `Ed25519 requires a SHA-512 digestAlgorithm (RFC 8419 §3.1), not ${digest}`;
 }
 
 /**
@@ -448,17 +505,24 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
  * @param key The signer certificate's `subjectPublicKeyInfo`.
  * @returns The import and verify parameters, or `null` when this key cannot
  *   have signed under this algorithm.
- * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for Ed448 (its
- *   CMS digest is SHAKE256), for `rsaEncryption` over a digest Web Crypto
- *   does not compute, and wherever {@link resolveAlgorithm} throws it;
- *   `PKI_CRYPTO_KEY_UNSUPPORTED` as {@link resolveAlgorithm}.
+ * An Ed448 signer resolves like an Ed448 certificate signature — `{ name:
+ * 'Ed448' }` for the host, whose refusal on a runtime without Ed448 is the
+ * same `PKI_CRYPTO_KEY_UNSUPPORTED` either way. Its SHAKE256 content digest
+ * is not the host's concern: `verifySignedData` computes it.
+ *
+ * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
+ * @param signatureAlgorithm The SignerInfo's `signatureAlgorithm`.
+ * @param key The signer certificate's `subjectPublicKeyInfo`.
+ * @returns The import and verify parameters, or `null` when this key cannot
+ *   have signed under this algorithm.
+ * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for
+ *   `rsaEncryption` over a digest Web Crypto does not compute, and wherever
+ *   {@link resolveAlgorithm} throws it; `PKI_CRYPTO_KEY_UNSUPPORTED` as
+ *   {@link resolveAlgorithm}.
  * @throws {PkiEncodingError} When the signature algorithm's parameters are
  *   malformed DER.
  */
 export function resolveCmsAlgorithm(digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier, key: SubjectPublicKeyInfo): ResolvedAlgorithm | null {
-    if (signatureAlgorithm.oid === ID_ED448) {
-        throw unsupported('an Ed448 CMS signer digests with SHAKE256 (RFC 8419 §3.1), which neither Web Crypto nor pkinative computes', ID_ED448);
-    }
     if (signatureAlgorithm.oid !== RSA_ENCRYPTION) return resolveAlgorithm(signatureAlgorithm, key);
 
     const hash = HASH_BY_OID.get(digestAlgorithm.oid);

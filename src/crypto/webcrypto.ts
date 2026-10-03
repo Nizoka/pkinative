@@ -80,26 +80,25 @@ function requireSubtle(oid: string): SubtlePublicKey {
  * Import a SubjectPublicKeyInfo as a non-extractable verification key.
  *
  * @param spkiDer The complete SubjectPublicKeyInfo encoding — the `der` of a
- *   parsed certificate's `subjectPublicKeyInfo`, not the key bits alone.
+ *   parsed certificate's `subjectPublicKeyInfo`, not the key bits alone; for
+ *   an `id-RSASSA-PSS` key, the same bits under `rsaEncryption`, which is the
+ *   only identifier the W3C Web Crypto specification imports an RSA key under
+ *   (`_importableSpki` in crypto-algorithms.ts).
  * @param params What Web Crypto must be told the key is.
  * @param oid The signature algorithm OID, carried into any error.
- * @param refusal Why a refusal is to be expected, when the caller knows —
- *   it replaces the generic "try another runtime" advice in the error.
  * @returns An opaque handle. pkinative never sees the key's bits.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the host cannot
  *   verify; `PKI_CRYPTO_KEY_UNSUPPORTED` when it refuses the key — an
  *   algorithm it does not implement (Ed448 and, on several runtimes still,
- *   Ed25519), an `id-RSASSA-PSS` SubjectPublicKeyInfo, which the W3C Web
- *   Crypto specification refuses in every runtime that follows it, or key
- *   bytes it will not accept.
+ *   Ed25519), or key bytes it will not accept.
  */
-export async function importPublicKey(spkiDer: Uint8Array, params: ImportParams, oid: string, refusal?: string): Promise<CryptoKeyHandle> {
+export async function importPublicKey(spkiDer: Uint8Array, params: ImportParams, oid: string): Promise<CryptoKeyHandle> {
     const subtle = requireSubtle(oid);
     try {
         return await subtle.importKey('spki', spkiDer, params, false, ['verify']);
     } catch (cause) {
         throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
-            `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) — ${refusal ?? 'the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault'}`, oid);
+            `pkinative: this runtime refused to import the issuer's ${params.name} public key (${String(cause)}) — the algorithm may not be implemented here, or the key may be malformed; try another runtime before concluding the certificate is at fault`, oid);
     }
 }
 

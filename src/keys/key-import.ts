@@ -5,17 +5,23 @@
  * `SigningKey`: a non-extractable `CryptoKey` whose single usage is `sign`,
  * and the algorithm it signs with.
  *
- * The key's bits are never handled here. An unencrypted PKCS#8 is the
- * caller's own buffer and goes to the host as it came; an encrypted one is
- * unwrapped by the host straight into a handle, so its plaintext never exists
- * in JavaScript at all. What this module decides is the one thing the host
- * cannot: which signature algorithm the key is for. An EC or Edwards key says
- * so; an RSA key does not — PKCS#1 v1.5 or PSS, over any digest — and a
- * guess there is a signature a relying party refuses, so the caller names it.
+ * The key's bits are never read here. An unencrypted PKCS#8 is the caller's
+ * own buffer and goes to the host as it came — with one envelope change: an
+ * `id-RSASSA-PSS` key, which no conforming Web Crypto imports under that
+ * identifier, goes under `rsaEncryption` with its key octets copied as they
+ * stand, and the copy is wiped once the host holds the key. An encrypted
+ * PKCS#8 is unwrapped by the host straight into a handle, so its plaintext
+ * never exists in JavaScript at all. What this module decides is the one
+ * thing the host cannot: which signature algorithm the key is for. An EC or
+ * Edwards key says so; an RSA key does not — PKCS#1 v1.5 or PSS, over any
+ * digest — and a guess there is a signature a relying party refuses, so the
+ * caller names it.
  *
  * @module keys/key-import
  */
 
+import { decodeAsn1 } from '../asn1/asn1-decode.js';
+import { encodeNull, encodeObjectIdentifier, encodeSequence } from '../asn1/asn1-encode.js';
 import { resolveSigner } from '../crypto/crypto-algorithms.js';
 import { importPkcs8Key, unwrapPrivateKey } from '../crypto/webcrypto.js';
 import type { SignatureAlgorithm, SignatureHash, SigningKey } from '../types/crypto-types.js';
@@ -141,8 +147,43 @@ export async function importPrivateKey(der: Uint8Array, options?: ImportPrivateK
     _checkAlgorithmOption(options?.algorithm, false);
     const algorithm = _signingAlgorithm(info, options?.algorithm);
     const { importParams } = resolveSigner(algorithm);
-    const key = await importPkcs8Key(info.der, importParams, info.algorithm.oid);
-    return Object.freeze({ key, algorithm });
+    const pkcs8 = info.kind === 'rsa-pss' ? _underRsaEncryption(info, options) : info.der;
+    try {
+        const key = await importPkcs8Key(pkcs8, importParams, info.algorithm.oid);
+        return Object.freeze({ key, algorithm });
+    } finally {
+        // The re-wrapped copy is this function's own, and holds the key in
+        // the clear: wiped once the host has taken its copy, a best effort
+        // since the engine may have copied it already. The caller's buffer is
+        // the caller's to wipe.
+        if (pkcs8 !== info.der) pkcs8.fill(0);
+    }
+}
+
+/** `rsaEncryption` with its NULL parameters, as a PrivateKeyInfo names an RSA key the host will import. */
+const RSA_ENCRYPTION_IDENTIFIER = /*#__PURE__*/ encodeSequence([encodeObjectIdentifier('1.2.840.113549.1.1.1'), encodeNull()]);
+
+/**
+ * The same PrivateKeyInfo with `rsaEncryption` as its algorithm.
+ *
+ * An `id-RSASSA-PSS` private key is an RSA private key restricted by its
+ * identifier (RFC 4055 §1.2; the `privateKey` octets are the same
+ * `RSAPrivateKey`), and the W3C Web Crypto specification imports a PKCS#8
+ * only under `rsaEncryption` — Node.js 22 answers "DataError: Invalid key
+ * type" to the PSS identifier. The restriction is held by
+ * {@link _signingAlgorithm}, which lets such a key sign RSA-PSS only; what
+ * remains is the envelope, and this re-encodes it: the version, the
+ * `privateKey` OCTET STRING and any attributes or public key are copied as
+ * they stand, and only the AlgorithmIdentifier changes. Nothing is read out
+ * of the key octets. A key under PBES2 cannot be treated this way — it is
+ * unwrapped by the host without ever being decrypted into JavaScript — so
+ * `decryptPrivateKey` hands the identifier to the host as it is.
+ */
+function _underRsaEncryption(info: PrivateKeyInfo, options: ImportPrivateKeyOptions | undefined): Uint8Array {
+    // Decoded once more, under the caller's rules, for the fields' encodings:
+    // the parsed description deliberately carries no view of the key octets.
+    const fields = decodeAsn1(info.der, options).children.map((field) => field.bytes);
+    return encodeSequence([fields[0] as Uint8Array, RSA_ENCRYPTION_IDENTIFIER, ...fields.slice(2)]);
 }
 
 /**
@@ -180,9 +221,14 @@ export async function importPrivateKey(der: Uint8Array, options?: ImportPrivateK
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxKdfIterations` or another named limit.
  * @throws {PkiCryptoError} `PKI_CRYPTO_DECRYPTION_FAILED` for a wrong password,
  *   altered data, or a key that is not the algorithm named — AES-CBC cannot
- *   tell them apart; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for a PRF or AES size
- *   the host does not implement, or an algorithm with no RFC 5280 OID;
- *   `PKI_CRYPTO_UNAVAILABLE` when the runtime has no Web Crypto.
+ *   tell them apart; and, on a runtime that imports an RSA PKCS#8 only under
+ *   `rsaEncryption` (Node.js 22 among them), for an `id-RSASSA-PSS` key,
+ *   which only `importPrivateKey` can re-wrap because only there is the
+ *   PKCS#8 in the clear — re-export such a key under `rsaEncryption`, or
+ *   decrypt it with the tool that holds it; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED`
+ *   for a PRF or AES size the host does not implement, or an algorithm with
+ *   no RFC 5280 OID; `PKI_CRYPTO_UNAVAILABLE` when the runtime has no Web
+ *   Crypto.
  */
 export async function decryptPrivateKey(der: Uint8Array, options: DecryptPrivateKeyOptions): Promise<SigningKey> {
     if (typeof options !== 'object' || options === null) {

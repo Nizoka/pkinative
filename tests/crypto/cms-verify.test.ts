@@ -1,5 +1,5 @@
-import type { webcrypto } from 'node:crypto';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { constants, generateKeyPairSync, sign as nodeSign, type webcrypto } from 'node:crypto';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { verifySignerInfoSignature } from '../../src/crypto/cms-verify.js';
@@ -30,6 +30,8 @@ const PSS = '1.2.840.113549.1.1.10';
 const ECDSA_SHA256 = '1.2.840.10045.4.3.2';
 const ECDSA_SHA384 = '1.2.840.10045.4.3.3';
 const ED25519 = '1.3.101.112';
+const ED448 = '1.3.101.113';
+const SHAKE256 = '2.16.840.1.101.3.4.2.12';
 
 /** An AlgorithmIdentifier as the parser would hand one over. */
 function identifier(dotted: string, parameters?: Uint8Array): AlgorithmIdentifier {
@@ -134,14 +136,17 @@ let rsa: Signer;
 let p256: Signer;
 let p384: Signer;
 let ed25519: Signer;
+let ed448: Signer;
 
 beforeAll(async () => {
-    [rsa, p256, p384, ed25519] = await Promise.all([
+    [rsa, p256, p384, ed25519, ed448] = await Promise.all([
         makeSigner({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: Uint8Array.of(1, 0, 1), hash: 'SHA-256' },
             { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }),
         makeSigner({ name: 'ECDSA', namedCurve: 'P-256' }, { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' }),
         makeSigner({ name: 'ECDSA', namedCurve: 'P-384' }, { name: 'ECDSA', hash: 'SHA-384', namedCurve: 'P-384' }),
         makeSigner({ name: 'Ed25519' } as GenerateParams, { name: 'Ed25519' }),
+        // Node has Ed448 (behind an experimental warning); Bun and Chromium do not, and the host-stub test below is their case.
+        makeSigner({ name: 'Ed448' } as GenerateParams, { name: 'Ed448' }),
     ]);
 });
 
@@ -280,13 +285,92 @@ describe('verifySignerInfoSignature', () => {
 
     describe('algorithms Web Crypto does not run', () => {
         it.each([
-            ['Ed448, whose CMS digest is SHAKE256', SHA512, '1.3.101.113'],
             ['DSA', SHA256, '2.16.840.1.101.3.4.3.2'],
             ['rsaEncryption over SHA-224', SHA224, RSA_ENCRYPTION],
         ])('should refuse %s by code rather than answer', async (_what, digest, dotted) => {
             const info = signerInfo({ digest: identifier(digest), signatureAlgorithm: identifier(dotted), signature: new Uint8Array(64) });
             await expect(verifySignerInfoSignature(info, ed25519.certificate))
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+        });
+    });
+
+    describe('an Ed448 signer, whose digest is SHAKE256 (RFC 8419 §3.1)', () => {
+        const ed448Info = async (digest: AlgorithmIdentifier): Promise<SignerInfo> => signerInfo({
+            digest, signatureAlgorithm: identifier(ED448),
+            signature: new Uint8Array(await crypto.subtle.sign({ name: 'Ed448' }, ed448.privateKey, SIGNED_ATTRIBUTES)),
+        });
+
+        it('should verify it with the id-shake256 digestAlgorithm, where the runtime has Ed448', async () => {
+            // The digest is the content's concern (verifySignedData computes
+            // it); the signature here is pure Ed448 over the attributes, and
+            // the host checks it exactly as it checks an Ed448 certificate.
+            await expect(verifySignerInfoSignature(await ed448Info(identifier(SHAKE256)), ed448.certificate)).resolves.toBe(true);
+        });
+
+        it('should answer false under a SHA-512 digestAlgorithm, which RFC 8419 §3.1 forbids an Ed448 signer', async () => {
+            await expect(verifySignerInfoSignature(await ed448Info(identifier(SHA512)), ed448.certificate)).resolves.toBe(false);
+        });
+
+        it('should answer false against an Ed25519 certificate: that key cannot have made it', async () => {
+            await expect(verifySignerInfoSignature(await ed448Info(identifier(SHAKE256)), ed25519.certificate)).resolves.toBe(false);
+        });
+
+        it('should refuse it as PKI_CRYPTO_KEY_UNSUPPORTED on a host without Ed448, as for an Ed448 certificate — never as a verdict', async () => {
+            // Bun and Chromium: `importKey` rejects the algorithm by name. The
+            // same path a certificate signed with Ed448 takes there.
+            const real = crypto.subtle.importKey.bind(crypto.subtle);
+            const spy = vi.spyOn(crypto.subtle, 'importKey').mockImplementation(((format, data, algorithm, extractable, usages) =>
+                (algorithm as { readonly name: string }).name === 'Ed448'
+                    ? Promise.reject(new DOMException('Unrecognized algorithm name', 'NotSupportedError'))
+                    : real(format as never, data as never, algorithm as never, extractable, usages)) as typeof crypto.subtle.importKey);
+            try {
+                await expect(verifySignerInfoSignature(await ed448Info(identifier(SHAKE256)), ed448.certificate))
+                    .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: ED448, message: expect.stringContaining('NotSupportedError') }));
+            } finally {
+                spy.mockRestore();
+            }
+        });
+    });
+
+    describe('a signer certificate whose key is id-RSASSA-PSS (RFC 4055 §1.2, RFC 4056 §3)', () => {
+        // Node's own rsa-pss key: the SPKI carries the restriction (SHA-256,
+        // MGF1-SHA-256, salt 32), and no Web Crypto imports it as it stands.
+        const pss = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha256', mgf1HashAlgorithm: 'sha256' });
+        const pssSign = (data: Uint8Array): Uint8Array => new Uint8Array(nodeSign('sha256', data, { key: pss.privateKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }));
+        let certificate: Certificate;
+        beforeAll(async () => {
+            const der = await createCertificate({
+                serialNumber: 2n, issuer: [[{ type: '2.5.4.3', value: 'PSS Signer' }]], subject: [[{ type: '2.5.4.3', value: 'PSS Signer' }]],
+                notBefore: Date.UTC(2025, 0, 1), notAfter: Date.UTC(2035, 0, 1),
+                subjectPublicKey: new Uint8Array(pss.publicKey.export({ type: 'spki', format: 'der' })),
+            }, { algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 32 }, produceSignature: pssSign });
+            certificate = parseCertificate(der, { onDiagnostic: () => undefined });
+            expect(certificate.subjectPublicKeyInfo.kind).toBe('rsa-pss');
+        });
+
+        it('should verify an RSASSA-PSS signer under the parameters the key admits, through the key re-wrapped as rsaEncryption', async () => {
+            const info = signerInfo({ digest: identifier(SHA256), signatureAlgorithm: PSS_SHA256, signature: pssSign(SIGNED_ATTRIBUTES) });
+            await expect(verifySignerInfoSignature(info, certificate)).resolves.toBe(true);
+        });
+
+        it('should answer false for a tampered signature', async () => {
+            const signature = pssSign(SIGNED_ATTRIBUTES);
+            signature[7] = (signature[7] ?? 0) ^ 0x80;
+            const info = signerInfo({ digest: identifier(SHA256), signatureAlgorithm: PSS_SHA256, signature });
+            await expect(verifySignerInfoSignature(info, certificate)).resolves.toBe(false);
+        });
+
+        it('should answer false for rsaEncryption — PKCS#1 v1.5 — under such a key, before asking the host', async () => {
+            const info = signerInfo({ digest: identifier(SHA256), signatureAlgorithm: identifier(RSA_ENCRYPTION, nullValue()), signature: new Uint8Array(256).fill(1) });
+            await expect(verifySignerInfoSignature(info, certificate)).resolves.toBe(false);
+        });
+
+        it('should answer false for a salt shorter than the key\'s (RFC 4056 §3), before asking the host', async () => {
+            const shortSalt = identifier(PSS, sequence(
+                tagged(0, algorithm(SHA256)), tagged(1, algorithm('1.2.840.113549.1.1.8', algorithm(SHA256))), tagged(2, universal(2, [20])),
+            ));
+            const info = signerInfo({ digest: identifier(SHA256), signatureAlgorithm: shortSalt, signature: new Uint8Array(256).fill(1) });
+            await expect(verifySignerInfoSignature(info, certificate)).resolves.toBe(false);
         });
     });
 

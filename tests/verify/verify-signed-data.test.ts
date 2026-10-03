@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { encodeTlv } from '../../src/asn1/asn1-encode.js';
 import { addTimeStampToken, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
+import { shake256 } from '../../src/hash/shake256.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { PkiError } from '../../src/types/pki-errors.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
@@ -363,6 +364,85 @@ describe('verifySignedData', () => {
         /** A message the builder helper assembles around one hand-made SignerInfo, carrying `certificate`. */
         const message = (certificate: Certificate, info: Uint8Array, digest: string, attached: boolean): Uint8Array =>
             contentInfo(signedDataOf({ digestAlgorithms: [alg(digest)], eContent: attached ? octets(HELLO) : null, certificates: [certificate.der], signers: [info] }));
+
+        describe('an Ed448 signer, digesting with SHAKE256 (RFC 8419 §3.1)', () => {
+            const SHAKE256 = '2.16.840.1.101.3.4.2.12';
+            const ED448 = '1.3.101.113';
+            /** The signer's two attributes over HELLO, DER-sorted, as the SET OF they are signed under. */
+            const attributes = (digest: Uint8Array): Uint8Array[] => sorted([
+                attribute(OIDS.contentType, oid(OIDS.data)),
+                attribute(OIDS.messageDigest, octets(digest)),
+            ]);
+
+            /** A world whose signer holds an Ed448 key under an Ed25519-signed certificate, and its message with a hand-signed Ed448 SignerInfo. */
+            async function ed448World(digestOid = SHAKE256, digest = shake256(HELLO, 64), attached = true): Promise<{ w: World; p7s: Uint8Array; signature: Uint8Array }> {
+                const w = await world({ pair: await keyPair('Ed25519', { name: 'Ed448' }), family: 'Ed25519' });
+                const attrs = attributes(digest);
+                // RFC 5652 §5.4: signed under the SET OF tag, transmitted under [0].
+                const signature = await rawSign({ name: 'Ed448' }, w.signer.pair.privateKey, set(...attrs));
+                const info = signerInfo({
+                    sid: sidOf(w.signer.certificate), digestAlgorithm: alg(digestOid, null), signedAttrs: attrs,
+                    signatureAlgorithm: alg(ED448, null), signature: octets(signature),
+                });
+                return { w, p7s: message(w.signer.certificate, info, digestOid, attached), signature };
+            }
+
+            it('should verify it, computing the content digest with SHAKE256 — where the runtime has Ed448', async () => {
+                const { w, p7s } = await ed448World();
+                const report = await verify(w, p7s);
+                expect(codes(report)).toEqual([]);
+                expect(report.valid).toBe(true);
+                expect(report.signers[0]?.intact).toBe(true);
+                expect(report.signers[0]?.certificate?.subjectPublicKeyInfo.kind).toBe('ed448');
+                // The signer's signature, and the root's over the signer's certificate.
+                expect(report.signatureVerifications).toBe(2);
+            });
+
+            it('should verify detached content from its SHAKE256 digest, which shake256 lets the caller compute', async () => {
+                const { w, p7s } = await ed448World(SHAKE256, shake256(HELLO, 64), false);
+                expect(codes(await verify(w, p7s, { content: HELLO }))).toEqual([]);
+                expect(codes(await verify(w, p7s, { contentDigest: shake256(HELLO, 64) }))).toEqual([]);
+                expect(codes(await verify(w, p7s, { contentDigest: shake256(CONTENT, 64) }))).toEqual(['PKI_REASON_CMS_DIGEST_MISMATCH']);
+            });
+
+            it('should report a messageDigest that is not the SHAKE256 of the content as CMS_DIGEST_MISMATCH', async () => {
+                const { w, p7s } = await ed448World(SHAKE256, shake256(CONTENT, 64));
+                const report = await verify(w, p7s);
+                expect(codes(report)).toEqual(['PKI_REASON_CMS_DIGEST_MISMATCH']);
+                expect(report.valid).toBe(false);
+            });
+
+            it('should report an Ed448 signer over a SHA-512 digestAlgorithm as CMS_ALGORITHM_MISMATCH, with no signature checked', async () => {
+                const { w, p7s } = await ed448World(OIDS.sha512, await sha('SHA-512', HELLO));
+                const report = await verify(w, p7s);
+                expect(codes(report)).toEqual(['PKI_REASON_CMS_ALGORITHM_MISMATCH']);
+                expect(report.reasons[0]?.message).toContain('RFC 8419');
+                expect(report.signatureVerifications).toBe(0);
+            });
+
+            it('should report a tampered signature as SIGNATURE_INVALID', async () => {
+                const { w, p7s, signature } = await ed448World();
+                expect(codes(await verify(w, flipLastOctetOf(p7s, signature)))).toEqual(['PKI_REASON_SIGNATURE_INVALID']);
+            });
+
+            it('should report SIGNATURE_NOT_CHECKED with PKI_CRYPTO_KEY_UNSUPPORTED on a host without Ed448 — Bun, Chromium — never a verdict', async () => {
+                const { w, p7s } = await ed448World();
+                const real = crypto.subtle.importKey.bind(crypto.subtle);
+                const spy = vi.spyOn(crypto.subtle, 'importKey').mockImplementation(((format, data, algorithm, extractable, usages) =>
+                    (algorithm as { readonly name: string }).name === 'Ed448'
+                        ? Promise.reject(new DOMException('Unrecognized algorithm name', 'NotSupportedError'))
+                        : real(format as never, data as never, algorithm as never, extractable, usages)) as typeof crypto.subtle.importKey);
+                try {
+                    const report = await verify(w, p7s);
+                    expect(report.reasons).toHaveLength(1);
+                    expect(report.reasons[0]).toMatchObject({ code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', path: 'signerInfos[0].signature', errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED' });
+                    expect(report.valid).toBe(false);
+                    expect(report.signers[0]?.certificate).toBeUndefined();
+                } finally {
+                    spy.mockRestore();
+                }
+            });
+        });
 
         it('should report an algorithm pair that contradicts itself as CMS_ALGORITHM_MISMATCH before any signature is checked', async () => {
             const w = await world();

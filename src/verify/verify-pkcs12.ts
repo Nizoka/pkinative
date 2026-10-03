@@ -44,10 +44,11 @@ import {
     pkcs12MacMismatchReason,
     pkcs12RsaSchemeUnspecifiedReason,
 } from '../core/pki-reasons.js';
+import { _pssKeyHash } from '../crypto/crypto-algorithms.js';
 import { canDecrypt } from '../crypto/webcrypto.js';
 import { decryptPrivateKey, importPrivateKey } from '../keys/key-import.js';
 import { openSafeContents, parsePkcs12, verifyPkcs12Mac } from '../keys/key-pkcs12.js';
-import type { SignatureAlgorithm, SigningKey } from '../types/crypto-types.js';
+import type { SignatureAlgorithm, SignatureHash, SigningKey } from '../types/crypto-types.js';
 import type { Pbes2Parameters, Pkcs12, SafeBag } from '../types/key-types.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -278,7 +279,7 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
         }
         if (algorithm === undefined) {
             reasons.push(pkcs12KeyUnsupportedReason(bag.path,
-                `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${certificate.subjectPublicKeyInfo.kind === 'ec' ? ' on a curve Web Crypto does not sign with' : ''}, which Web Crypto cannot import as a signing key`));
+                `the key's certificate carries a ${certificate.subjectPublicKeyInfo.kind} key${_keyQualifier(certificate.subjectPublicKeyInfo.kind)}, which Web Crypto cannot import as a signing key`));
             keys.push(Object.freeze({ ...entry, signingKey: undefined }));
             continue;
         }
@@ -374,16 +375,39 @@ function _openingReason(refused: PkiError, path: string, scheme: string): PkiRea
     }
 }
 
+/** Why a key of this kind reached the unsupported reason, when the kind alone does not say. */
+function _keyQualifier(kind: Certificate['subjectPublicKeyInfo']['kind']): string {
+    if (kind === 'ec') return ' on a curve Web Crypto does not sign with';
+    if (kind === 'rsa-pss') return ' whose RSASSA-PSS parameters name a digest or a mask generation function Web Crypto cannot express';
+    return '';
+}
+
 /**
  * What a key signs with, read from its certificate: the curve for ECDSA, the
  * name for EdDSA, and the caller's choice for RSA — `'unspecified'` when the
- * caller made none. `undefined` for a key Web Crypto cannot sign with.
+ * caller made none. An `id-RSASSA-PSS` certificate (RFC 4055 §1.2) names
+ * the scheme itself, and the digest when its parameters carry one; without
+ * parameters it signs PSS over any digest, so the caller's choice decides,
+ * and a PKCS#1 v1.5 choice is then the key's to refuse. `undefined` for a
+ * key Web Crypto cannot sign with.
  */
 function _algorithmOf(certificate: Certificate, rsa: OpenPkcs12Options['rsaAlgorithm']): SignatureAlgorithm | 'unspecified' | undefined {
     const spki = certificate.subjectPublicKeyInfo;
     switch (spki.kind) {
         case 'rsa':
             return rsa ?? 'unspecified';
+        case 'rsa-pss': {
+            let hash: SignatureHash | undefined;
+            try {
+                hash = _pssKeyHash(spki);
+            } catch (error) {
+                // Parameters naming a digest or a mask Web Crypto cannot
+                // express: a key it cannot sign with, reported as such.
+                _pkiError(error);
+                return undefined;
+            }
+            return hash === undefined ? rsa ?? 'unspecified' : { name: 'RSA-PSS', hash };
+        }
         case 'ec':
             return spki.curve === undefined ? undefined : { name: 'ECDSA', namedCurve: spki.curve, hash: CURVE_HASH[spki.curve] };
         case 'ed25519':

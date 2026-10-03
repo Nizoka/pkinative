@@ -1,12 +1,13 @@
 import { constants, generateKeyPairSync, verify as nodeVerify, type KeyObject, type webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { resolveSigner } from '../../src/crypto/crypto-algorithms.js';
 import { signData } from '../../src/crypto/webcrypto.js';
 import { decryptPrivateKey, importPrivateKey } from '../../src/keys/key-import.js';
 import type { SignatureAlgorithm, SigningKey } from '../../src/types/crypto-types.js';
 import { PkiCryptoError, PkiError, PkiKeyError } from '../../src/types/pki-errors.js';
-import { alg, int, octets, oid } from '../helpers/cms-signed-data-builder.js';
-import { sequence } from '../helpers/raw-der-builder.js';
+import { alg, attribute, context, int, octets, oid } from '../helpers/cms-signed-data-builder.js';
+import { sequence, universal } from '../helpers/raw-der-builder.js';
 
 /**
  * PKCS#8 keys written by an independent implementation — Node's OpenSSL,
@@ -181,15 +182,33 @@ describe('importPrivateKey — the caller names the algorithm', () => {
         expect(error.message).toMatch(/RSA-PSS/u);
     });
 
-    it('should hand an id-RSASSA-PSS key to the host for RSA-PSS, which signs with it or refuses it cleanly', async () => {
-        const pending = importPrivateKey(plain(KEYS.rsaPss), { algorithm: { name: 'RSA-PSS', hash: 'SHA-256' } });
-        try {
-            expect(await signsFor(await pending, KEYS.rsaPss.publicKey)).toBe(true);
-        } catch (error) {
-            // Node 22 and the browsers refuse the id-RSASSA-PSS OID in Web Crypto.
-            expect(error).toBeInstanceOf(PkiCryptoError);
-            expect(error).toMatchObject({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: '1.2.840.113549.1.1.10' });
-        }
+    it('should import an id-RSASSA-PSS key for RSA-PSS through its envelope re-wrapped as rsaEncryption, and sign with it', async () => {
+        // Node 22 and the browsers refuse the id-RSASSA-PSS OID in Web Crypto
+        // ("DataError: Invalid key type"); the same RSAPrivateKey under
+        // rsaEncryption is the same key, RFC 4055 §1.2, and the restriction to
+        // PSS is held by _signingAlgorithm before the host is asked.
+        const signer = await importPrivateKey(plain(KEYS.rsaPss), { algorithm: { name: 'RSA-PSS', hash: 'SHA-256' } });
+        expect(signer.algorithm).toEqual({ name: 'RSA-PSS', hash: 'SHA-256' });
+        expect(await signsFor(signer, KEYS.rsaPss.publicKey)).toBe(true);
+        expect(await signsFor(await importPrivateKey(plain(KEYS.rsaPss), { algorithm: { name: 'RSA-PSS', hash: 'SHA-384', saltLength: 48 } }), KEYS.rsaPss.publicKey)).toBe(true);
+    });
+
+    it('should carry an id-RSASSA-PSS key\'s attributes through the re-wrap, and leave the caller\'s buffer untouched', async () => {
+        const original = plain(KEYS.rsaPss);
+        const fields = decodeAsn1(original).children.map((field) => field.bytes);
+        // RFC 5958 §2: `attributes [0] IMPLICIT Attributes OPTIONAL` — a friendlyName, as PKCS#12 writers add.
+        const withAttributes = sequence(fields[0] as Uint8Array, fields[1] as Uint8Array, fields[2] as Uint8Array,
+            context(0, true, attribute('1.2.840.113549.1.9.20', universal(30, [0, 0x50, 0, 0x53, 0, 0x53]))));
+        const copy = Uint8Array.from(withAttributes);
+        const signer = await importPrivateKey(withAttributes, { algorithm: { name: 'RSA-PSS', hash: 'SHA-256' } });
+        expect(await signsFor(signer, KEYS.rsaPss.publicKey)).toBe(true);
+        expect(withAttributes).toEqual(copy);
+    });
+
+    it('should import an id-RSASSA-PSS key whose parameters restrict it, under the digest they name', async () => {
+        const restricted = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha384', mgf1HashAlgorithm: 'sha384' });
+        const signer = await importPrivateKey(plain(restricted), { algorithm: { name: 'RSA-PSS', hash: 'SHA-384', saltLength: 48 } });
+        expect(await signsFor(signer, restricted.publicKey)).toBe(true);
     });
 
     it('should refuse an algorithm with no RFC 5280 OID', async () => {

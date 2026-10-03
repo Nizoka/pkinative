@@ -1,4 +1,4 @@
-import { constants, generateKeyPairSync, sign as nodeSign, webcrypto } from 'node:crypto';
+import { constants, generateKeyPairSync, type KeyObject, sign as nodeSign, webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -328,36 +328,68 @@ describe('a host that misbehaves', () => {
 
 describe('an id-RSASSA-PSS issuer key (RFC 4055)', () => {
     // What `openssl genpkey -algorithm RSA-PSS` writes: the key restricted by
-    // its OID, with its parameters in the SubjectPublicKeyInfo.
+    // its OID, with its parameters in the SubjectPublicKeyInfo — and, with
+    // no parameters named, the same key restricted to PSS over any digest.
     const pss = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha256', mgf1HashAlgorithm: 'sha256' });
-    const spki = new Uint8Array(pss.publicKey.export({ type: 'spki', format: 'der' }));
-    const selfSigned = async (signer: ExternalSigner): Promise<Certificate> => parseCertificate(await createCertificate({
+    const pss384 = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha384', mgf1HashAlgorithm: 'sha384' });
+    const bare = generateKeyPairSync('rsa-pss', { modulusLength: 2048 });
+    const spkiOf = (pair: { publicKey: KeyObject }): Uint8Array => new Uint8Array(pair.publicKey.export({ type: 'spki', format: 'der' }));
+    const selfSigned = async (spki: Uint8Array, signer: ExternalSigner): Promise<Certificate> => parseCertificate(await createCertificate({
         serialNumber: 7n,
         subject: [[{ type: '2.5.4.3', value: 'PSS key' }]],
         notBefore: Date.UTC(2026, 0, 1),
         notAfter: Date.UTC(2027, 0, 1),
         subjectPublicKey: spki,
     }, signer), { onDiagnostic: () => undefined });
+    /** node:crypto's RSASSA-PSS over `hash`, with the salt a modern signer uses — the digest's length. */
+    const pssSigner = (key: KeyObject, hash: 'sha256' | 'sha384', saltLength: number): ExternalSigner => ({
+        algorithm: { name: 'RSA-PSS', hash: hash === 'sha256' ? 'SHA-256' : 'SHA-384', saltLength },
+        produceSignature: (data) => new Uint8Array(nodeSign(hash, data, { key, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength })),
+    });
 
-    it('should say why the runtime refuses the key, instead of suggesting another runtime', async () => {
-        const cert = await selfSigned({
-            algorithm: { name: 'RSA-PSS', hash: 'SHA-256' },
-            produceSignature: (data) => new Uint8Array(nodeSign('sha256', data, { key: pss.privateKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 })),
-        });
-        expect(cert.subjectPublicKeyInfo.kind).toBe('rsa-pss');
+    it('should verify a PSS signature the key\'s parameters admit, through the key re-wrapped as rsaEncryption', async () => {
         // The W3C Web Crypto specification imports an RSA SPKI only under
-        // rsaEncryption; Node 22 answers "DataError: Invalid key type".
-        await expect(verifySelfSignature(cert)).rejects.toThrow(expect.objectContaining({
-            code: 'PKI_CRYPTO_KEY_UNSUPPORTED',
-            message: expect.stringContaining('the key is id-RSASSA-PSS (RFC 4055 §1.2)'),
-        }));
+        // rsaEncryption (Node 22: "DataError: Invalid key type" otherwise); the
+        // same bits under that identifier are the same key, RFC 4055 §1.2.
+        const cert = await selfSigned(spkiOf(pss), pssSigner(pss.privateKey, 'sha256', 32));
+        expect(cert.subjectPublicKeyInfo.kind).toBe('rsa-pss');
+        expect(cert.subjectPublicKeyInfo.algorithm.parameters).toBeDefined();
+        await expect(verifySelfSignature(cert)).resolves.toBe(true);
+    });
+
+    it('should verify a key without parameters under whichever digest the signature names (RFC 4055 §3.1)', async () => {
+        const sha256 = await selfSigned(spkiOf(bare), pssSigner(bare.privateKey, 'sha256', 32));
+        expect(sha256.subjectPublicKeyInfo.algorithm.parameters).toBeUndefined();
+        await expect(verifySelfSignature(sha256)).resolves.toBe(true);
+        const sha384 = await selfSigned(spkiOf(bare), pssSigner(bare.privateKey, 'sha384', 48));
+        await expect(verifySelfSignature(sha384)).resolves.toBe(true);
+    });
+
+    it('should answer false for a tampered signature under such a key — the re-wrap changes nothing about what verifies', async () => {
+        const good = await selfSigned(spkiOf(pss), pssSigner(pss.privateKey, 'sha256', 32));
+        const der = Uint8Array.from(good.der);
+        der[der.length - 1] = (der[der.length - 1] as number) ^ 0x01;
+        await expect(verifySelfSignature(parseCertificate(der, { onDiagnostic: () => undefined }))).resolves.toBe(false);
+    });
+
+    it('should answer false for a signature over a digest the key\'s parameters exclude, before asking the host (RFC 4055 §3.3)', async () => {
+        // The key is restricted to SHA-384; the signature says SHA-256. The
+        // bytes do not matter — OpenSSL refuses to make this signature — and
+        // the answer is decided before import, as it was before 1.0.
+        const cert = await selfSigned(spkiOf(pss384), { algorithm: { name: 'RSA-PSS', hash: 'SHA-256', saltLength: 32 }, produceSignature: () => new Uint8Array(256).fill(1) });
+        await expect(verifySelfSignature(cert)).resolves.toBe(false);
+        // And the salt: shorter than the key's 48 is excluded, longer is admitted.
+        const shortSalt = await selfSigned(spkiOf(pss384), { algorithm: { name: 'RSA-PSS', hash: 'SHA-384', saltLength: 20 }, produceSignature: () => new Uint8Array(256).fill(1) });
+        await expect(verifySelfSignature(shortSalt)).resolves.toBe(false);
+        const longSalt = await selfSigned(spkiOf(pss384), pssSigner(pss384.privateKey, 'sha384', 64));
+        await expect(verifySelfSignature(longSalt)).resolves.toBe(true);
     });
 
     it('should answer false for a PKCS#1 v1.5 signature under it, before asking the host (RFC 4055 §1.2)', async () => {
         // No tool will make this signature (OpenSSL refuses PKCS#1 padding
         // with an RSA-PSS key), so its bytes do not matter: the key may only
         // be used for RSASSA-PSS, and the answer is decided before import.
-        const cert = await selfSigned({ algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, produceSignature: () => new Uint8Array(256).fill(1) });
+        const cert = await selfSigned(spkiOf(pss), { algorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, produceSignature: () => new Uint8Array(256).fill(1) });
         await expect(verifySelfSignature(cert)).resolves.toBe(false);
     });
 });

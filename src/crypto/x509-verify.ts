@@ -31,7 +31,7 @@ import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { OcspBasicResponse } from '../types/ocsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
-import { _importRefusal, coordinateBytes, resolveAlgorithm } from './crypto-algorithms.js';
+import { _importableSpki, coordinateBytes, resolveAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
 
@@ -85,15 +85,15 @@ export interface VerifyCertificateSignatureOptions {
  * (RFC 4055) is held to what it was certified for: a PKCS#1 v1.5 signature
  * under it is `false` (§1.2), and so is a PSS signature whose hash differs
  * from the key's parameters or whose salt is shorter (§3.3). A signature that
- * passes those checks still cannot be verified: the W3C Web Crypto
- * specification imports an RSA key only under `rsaEncryption`, so every
- * conforming runtime — Node.js 22 included — refuses the key and this throws
- * `PKI_CRYPTO_KEY_UNSUPPORTED` naming the cause. Certificates, CRLs, OCSP
- * responses and CMS signed by such a key (what `openssl genpkey -algorithm
- * RSA-PSS`, GnuTLS `certtool --key-type=rsa-pss` and `keytool -keyalg
- * RSASSA-PSS` produce) are reported `PKI_REASON_SIGNATURE_NOT_CHECKED` by the
- * validators. An issuer key under `rsaEncryption` signing with RSASSA-PSS —
- * what CAs issuing PSS certificates generally use — verifies normally.
+ * passes those checks is verified: the W3C Web Crypto specification imports
+ * an RSA key only under `rsaEncryption`, so the same key bits are handed to
+ * the host under that identifier — RFC 4055 §1.2 says the key *is* that RSA
+ * key, restricted — with the hash the key's parameters name, or the
+ * signature's when the key has none. Certificates, CRLs, OCSP responses and
+ * CMS signed by such a key (what `openssl genpkey -algorithm RSA-PSS`, GnuTLS
+ * `certtool --key-type=rsa-pss` and `keytool -keyalg RSASSA-PSS` produce)
+ * therefore verify on every runtime, as a `rsaEncryption` key signing with
+ * RSASSA-PSS — what CAs issuing PSS certificates generally use — always did.
  *
  * **ECDSA signatures are malleable.** `(r, s)` and `(r, n − s)` are both
  * valid for the same message — nothing in the X.509 profiles requires a low
@@ -123,7 +123,7 @@ export interface VerifyCertificateSignatureOptions {
  *   Web Crypto; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the signature
  *   algorithm is outside the supported set; `PKI_CRYPTO_KEY_UNSUPPORTED`
  *   when the issuer's key cannot carry this signature or the host refuses
- *   to import it — every `id-RSASSA-PSS` issuer key among them.
+ *   to import it.
  * @throws {PkiEncodingError} When the signature algorithm's parameters are
  *   malformed DER — `parseCertificate` leaves them undecoded, so this is
  *   the first reader to look inside them.
@@ -209,7 +209,7 @@ async function verifySignedStructure(
         signature = raw;
     }
 
-    const key = await importPublicKey(signer.subjectPublicKeyInfo.der, resolved.importParams, signed.signatureAlgorithm.oid, _importRefusal(signer.subjectPublicKeyInfo));
+    const key = await importPublicKey(_importableSpki(signer.subjectPublicKeyInfo), resolved.importParams, signed.signatureAlgorithm.oid);
     return verifySignature(key, resolved.verifyParams, signature, signed.tbsDer);
 }
 

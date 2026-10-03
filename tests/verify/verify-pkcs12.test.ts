@@ -1,5 +1,6 @@
-import { generateKeyPairSync, webcrypto } from 'node:crypto';
+import { constants, generateKeyPairSync, type KeyPairKeyObjectResult, verify as nodeVerify, webcrypto } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeKeyUsage } from '../../src/build/build-structures.js';
 import { signData } from '../../src/crypto/webcrypto.js';
@@ -29,7 +30,8 @@ import {
     shroudedKeyBag,
     shroudKey,
 } from '../helpers/pkcs12-builder.js';
-import { sequence } from '../helpers/raw-der-builder.js';
+import { algorithm } from '../helpers/cert-builder.js';
+import { concat, sequence } from '../helpers/raw-der-builder.js';
 
 /** Run with some `crypto.subtle` members replaced — or, given `undefined`, with no Web Crypto at all. */
 async function withHost(overrides: Record<string, unknown> | undefined, run: () => Promise<void>): Promise<void> {
@@ -450,6 +452,91 @@ describe('openPkcs12 — what it reports instead of throwing', () => {
         const report = await read(await file({ holder }));
         expect(codes(report)).toEqual([]);
         expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'Ed448' });
+    });
+});
+
+describe('openPkcs12 — a key under an id-RSASSA-PSS certificate (RFC 4055 §1.2)', () => {
+    const PSS = '1.2.840.113549.1.1.10';
+    const SHA256 = '2.16.840.1.101.3.4.2.1';
+    const SHA1 = '1.3.14.3.2.26';
+    const MGF1 = '1.2.840.113549.1.1.8';
+    const tagged = (tag: number, child: Uint8Array): Uint8Array => concat([0xa0 + tag, child.length], child);
+    type NodePair = KeyPairKeyObjectResult;
+
+    /** The certificate the root issues over `spki`, and the plain-keyBag file holding it beside `pkcs8`. */
+    async function pssFile(root: Authority, spki: Uint8Array, pkcs8: Uint8Array): Promise<Uint8Array> {
+        const der = await createCertificate({
+            serialNumber: 11n, issuerDer: root.certificate.subject.der, subject: [[{ type: '2.5.4.3', value: 'PSS holder' }]],
+            notBefore: AT - DAY, notAfter: AT + DAY, subjectPublicKey: spki,
+            extensions: [{ oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) }],
+        }, { key: root.key, algorithm: { name: 'Ed25519' } });
+        // A plain keyBag: the one form whose PKCS#8 is in the clear, so its
+        // envelope can be re-wrapped for a host that refuses the PSS identifier.
+        const auth = authenticatedSafe(dataInfo(safeContents(certBag(der, [localKeyId(ID)]), keyBag(pkcs8, [localKeyId(ID)]))));
+        return pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) });
+    }
+    const spkiOf = (pair: NodePair): Uint8Array => new Uint8Array(pair.publicKey.export({ type: 'spki', format: 'der' }));
+    const pkcs8Of = (pair: NodePair): Uint8Array => new Uint8Array(pair.privateKey.export({ type: 'pkcs8', format: 'der' }));
+
+    /** Sign through the key the file held, verify with node:crypto against the original public key. */
+    async function signsAsPss(report: Awaited<ReturnType<typeof openPkcs12>>, pair: NodePair, hash: 'sha256' | 'sha384', saltLength: number): Promise<boolean> {
+        const signingKey = report.keys[0]?.signingKey;
+        if (signingKey === undefined) return false;
+        const data = new TextEncoder().encode('signed with the PSS key the file held');
+        const signature = await signData(signingKey.key, { name: 'RSA-PSS', saltLength }, data);
+        return nodeVerify(hash, data, { key: pair.publicKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength }, signature);
+    }
+
+    it('should take RSA-PSS and the digest from the certificate\'s parameters, and hand back a key that signs', async () => {
+        const pair = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha256', mgf1HashAlgorithm: 'sha256' });
+        const report = await read(await pssFile(await makeRoot(), spkiOf(pair), pkcs8Of(pair)));
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(report.keys[0]?.certificate?.subjectPublicKeyInfo.kind).toBe('rsa-pss');
+        expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'RSA-PSS', hash: 'SHA-256' });
+        expect(await signsAsPss(report, pair, 'sha256', 32)).toBe(true);
+    });
+
+    it('should prefer the certificate\'s digest to the caller\'s rsaAlgorithm, which is for rsaEncryption keys', async () => {
+        const pair = generateKeyPairSync('rsa-pss', { modulusLength: 2048, hashAlgorithm: 'sha384', mgf1HashAlgorithm: 'sha384' });
+        const report = await read(await pssFile(await makeRoot(), spkiOf(pair), pkcs8Of(pair)), { rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } });
+        expect(codes(report)).toEqual([]);
+        expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'RSA-PSS', hash: 'SHA-384' });
+        expect(await signsAsPss(report, pair, 'sha384', 48)).toBe(true);
+    });
+
+    describe('a certificate whose id-RSASSA-PSS key names no parameters — PSS over any digest (RFC 4055 §3.1)', () => {
+        const pair = generateKeyPairSync('rsa-pss', { modulusLength: 2048 });
+
+        it('should not guess the digest: the key stays shut and the report names the option', async () => {
+            const report = await read(await pssFile(await makeRoot(), spkiOf(pair), pkcs8Of(pair)));
+            expect(codes(report)).toEqual(['PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED']);
+            expect(report.keys[0]?.signingKey).toBeUndefined();
+        });
+
+        it('should bind the key to the RSA-PSS digest the caller names', async () => {
+            const report = await read(await pssFile(await makeRoot(), spkiOf(pair), pkcs8Of(pair)), { rsaAlgorithm: { name: 'RSA-PSS', hash: 'SHA-384' } });
+            expect(codes(report)).toEqual([]);
+            expect(report.keys[0]?.signingKey?.algorithm).toEqual({ name: 'RSA-PSS', hash: 'SHA-384' });
+            expect(await signsAsPss(report, pair, 'sha384', 48)).toBe(true);
+        });
+
+        it('should refuse a PKCS#1 v1.5 choice: the key signs PSS only (RFC 4055 §1.2)', async () => {
+            const report = await read(await pssFile(await makeRoot(), spkiOf(pair), pkcs8Of(pair)), { rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } });
+            expect(codes(report)).toEqual(['PKI_REASON_PKCS12_KEY_UNSUPPORTED']);
+            expect(report.reasons[0]?.message).toContain('do not belong together');
+        });
+    });
+
+    it('should report a certificate whose PSS parameters Web Crypto cannot express as KEY_UNSUPPORTED, naming the parameters', async () => {
+        const pair = generateKeyPairSync('rsa-pss', { modulusLength: 2048 });
+        // The key bits of Node's SPKI under parameters whose MGF1 digest (SHA-1) is not the hash (SHA-256).
+        const keyBits = decodeAsn1(spkiOf(pair)).children[1]?.bytes as Uint8Array;
+        const spki = sequence(algorithm(PSS, sequence(tagged(0, algorithm(SHA256)), tagged(1, algorithm(MGF1, algorithm(SHA1))))), keyBits);
+        const report = await read(await pssFile(await makeRoot(), spki, pkcs8Of(pair)));
+        expect(codes(report)).toEqual(['PKI_REASON_PKCS12_KEY_UNSUPPORTED']);
+        expect(report.reasons[0]?.message).toContain('RSASSA-PSS parameters');
+        expect(report.keys[0]?.signingKey).toBeUndefined();
     });
 });
 

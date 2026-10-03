@@ -32,8 +32,9 @@ import {
     signatureNotCheckedReason,
 } from '../core/pki-reasons.js';
 import { verifySignerInfoSignature } from '../crypto/cms-verify.js';
-import { _cmsAlgorithmProblem } from '../crypto/crypto-algorithms.js';
+import { _cmsAlgorithmProblem, ID_SHAKE256 } from '../crypto/crypto-algorithms.js';
 import { computeFingerprintAsync } from '../hash/fingerprint.js';
+import { shake256 } from '../hash/shake256.js';
 import type { SignedData, SignerInfo } from '../types/cms-types.js';
 import type { FingerprintAlgorithm } from '../types/hash-types.js';
 import type { PkiError } from '../types/pki-errors.js';
@@ -52,6 +53,21 @@ const DIGEST_NAMES: ReadonlyMap<string, FingerprintAlgorithm> = /*#__PURE__*/ ne
 /** The digest a parsed `AlgorithmIdentifier` names, as the hash layer names it; `undefined` for one it does not compute. @internal */
 export function _digestName(oid: string): FingerprintAlgorithm | undefined {
     return DIGEST_NAMES.get(oid);
+}
+
+/** The output length of `id-shake256` as a CMS digest algorithm: 512 bits (RFC 8419 §2.1, RFC 8702 §3.1). */
+const SHAKE256_DIGEST_OCTETS = 64;
+
+/**
+ * The content digest under the signer's `digestAlgorithm`, or `undefined` for
+ * one pkinative does not compute. The FIPS 180-4 digests go through the host
+ * when it has them; `id-shake256` — the digest of an Ed448 signer, RFC 8419
+ * §3.1 — is computed here, since Web Crypto offers no SHAKE.
+ */
+async function _contentDigest(content: Uint8Array, oid: string): Promise<Uint8Array | undefined> {
+    if (oid === ID_SHAKE256) return shake256(content, SHAKE256_DIGEST_OCTETS);
+    const name = _digestName(oid);
+    return name === undefined ? undefined : computeFingerprintAsync(content, name);
 }
 
 /** What one signer is judged against. */
@@ -116,14 +132,12 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
 
     // ── The content ──
     const hasAttributes = signer.signedAttributes !== undefined;
-    const digestName = _digestName(signer.digestAlgorithm.oid);
     let computed: Uint8Array | undefined;
     if (ctx.content !== undefined) {
-        if (digestName === undefined) {
+        computed = await _contentDigest(ctx.content, signer.digestAlgorithm.oid);
+        if (computed === undefined) {
             reasons.push(signatureNotCheckedReason(`${path}.digestAlgorithm`, 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED',
                 `the content digest ${signer.digestAlgorithm.oid} is one pkinative does not compute, so the content cannot be tied to this signature`));
-        } else {
-            computed = await computeFingerprintAsync(ctx.content, digestName);
         }
     } else if (ctx.contentDigest !== undefined && hasAttributes) {
         computed = ctx.contentDigest;
