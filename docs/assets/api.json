@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 288,
+  "exportCount": 294,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -795,6 +795,84 @@
       ]
     },
     {
+      "name": "CertificationRequest",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface CertificationRequest",
+      "summary": "A parsed PKCS#10 certification request (RFC 2986 §4).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole request encoding."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The certificationRequestInfo encoding — the bytes the signature covers."
+        },
+        {
+          "name": "version",
+          "type": "0",
+          "optional": false,
+          "summary": "The encoded version: `0`, the only one RFC 2986 defines (v1)."
+        },
+        {
+          "name": "subject",
+          "type": "DistinguishedName",
+          "optional": false,
+          "summary": "The name the requester asks to be certified under; its `der` is what a CA copies into the certificate."
+        },
+        {
+          "name": "subjectPublicKeyInfo",
+          "type": "SubjectPublicKeyInfo",
+          "optional": false,
+          "summary": "The public key the requester asks to have certified — and the key its signature is checked with."
+        },
+        {
+          "name": "attributes",
+          "type": "readonly CsrAttribute[]",
+          "optional": false,
+          "summary": "Every attribute in encoded order; empty when the request asks for nothing beyond its subject and key."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[] | undefined",
+          "optional": false,
+          "summary": "The extensions requested through the `extensionRequest` attribute (RFC 2985 §5.4.2), decoded as a certificate's would be; `undefined` when the request carries none."
+        },
+        {
+          "name": "challengePassword",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "The `challengePassword` attribute (RFC 2985 §5.4.1), or `undefined` when absent."
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The signature algorithm."
+        },
+        {
+          "name": "signatureValue",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The signature over `tbsDer`, made with the private half of `subjectPublicKeyInfo`."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Every diagnostic the parse recorded, in emission order."
+        }
+      ]
+    },
+    {
       "name": "CertificationRequestDescription",
       "kind": "type",
       "module": "src/types/build-types.ts",
@@ -1260,6 +1338,30 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "CsrAttribute",
+      "kind": "type",
+      "module": "src/types/x509-types.ts",
+      "signature": "export interface CsrAttribute",
+      "summary": "One attribute of a PKCS#10 request (RFC 2986 §4.1): a type and its values, kept as DER.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type OID, e.g. `1.2.840.113549.1.9.14` (extensionRequest)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "The exact encoding of each value — tag, length and content — in encoded order."
+        }
+      ]
     },
     {
       "name": "DEFAULT_PKI_LIMITS",
@@ -3054,7 +3156,7 @@
       "kind": "type",
       "module": "src/types/x509-types.ts",
       "signature": "export interface ParseCertificateOptions extends PkiParseOptions",
-      "summary": "Options of `parseCertificate`.",
+      "summary": "Options of `parseCertificate` and `parseCertificationRequest`.",
       "throws": null,
       "params": null,
       "returns": null,
@@ -5916,6 +6018,90 @@
       ]
     },
     {
+      "name": "VerifyCertificationRequestOptions",
+      "kind": "type",
+      "module": "src/verify/verify-csr.ts",
+      "signature": "export interface VerifyCertificationRequestOptions extends ParseCertificateOptions",
+      "summary": "Options of verifyCertificationRequest: how to read the request, and whether SHA-1 counts.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "encodingRules",
+          "type": "EncodingRules | undefined",
+          "optional": true,
+          "summary": "`'der'` (default) or `'ber'`."
+        },
+        {
+          "name": "limits",
+          "type": "Partial<PkiLimits> | undefined",
+          "optional": true,
+          "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic instead of the default once-per-code `console.warn`."
+        },
+        {
+          "name": "decodeExtensions",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Decode every recognised extension (default `true`)."
+        },
+        {
+          "name": "allowSha1",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Treat a SHA-1 signature as evidence."
+        }
+      ]
+    },
+    {
+      "name": "VerifyCertificationRequestReport",
+      "kind": "type",
+      "module": "src/verify/verify-csr.ts",
+      "signature": "export interface VerifyCertificationRequestReport",
+      "summary": "The verdict on a certification request, and the request it was about.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "valid",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the request's signature verifies under the key the request carries."
+        },
+        {
+          "name": "reasons",
+          "type": "readonly PkiReason[]",
+          "optional": false,
+          "summary": "Every reason it does not; empty when `valid`."
+        },
+        {
+          "name": "request",
+          "type": "CertificationRequest | undefined",
+          "optional": false,
+          "summary": "The request, parsed; `undefined` when the bytes could not be read as one."
+        },
+        {
+          "name": "signatureVerifications",
+          "type": "number",
+          "optional": false,
+          "summary": "How many signature verifications this cost: one, or none when the question could not be put."
+        }
+      ]
+    },
+    {
       "name": "VerifySignedDataInput",
       "kind": "type",
       "module": "src/verify/verify-signed-data.ts",
@@ -7820,6 +8006,31 @@
       "members": null
     },
     {
+      "name": "parseCertificationRequest",
+      "kind": "function",
+      "module": "src/x509/x509-csr.ts",
+      "signature": "export function parseCertificationRequest(der: Uint8Array, options?: ParseCertificateOptions): CertificationRequest",
+      "summary": "Parse a DER-encoded PKCS#10 certification request (RFC 2986 §4).",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The request encoding. The result holds zero-copy views of it: do not mutate it while you use the result."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules (`'der'` by default), limits, `strict`, `onDiagnostic` and `decodeExtensions` (default `true`)."
+        }
+      ],
+      "returns": "The frozen request, with every diagnostic of the parse on `diagnostics`.",
+      "members": null
+    },
+    {
       "name": "parseEncryptedPrivateKeyInfo",
       "kind": "function",
       "module": "src/keys/key-pkcs8.ts",
@@ -8343,6 +8554,28 @@
         }
       ],
       "returns": "Whether the issuer's key signed this certificate's `tbsCertificate`.",
+      "members": null
+    },
+    {
+      "name": "verifyCertificationRequest",
+      "kind": "function",
+      "module": "src/verify/verify-csr.ts",
+      "signature": "export async function verifyCertificationRequest( request: CertificationRequest | Uint8Array, options?: VerifyCertificationRequestOptions, ): Promise<VerifyCertificationRequestReport>",
+      "summary": "Verify a PKCS#10 certification request: the proof of possession, checked with the key inside the request.",
+      "throws": [
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "request",
+          "description": "The request, as the DER bytes or as `parseCertificationRequest` returned it."
+        },
+        {
+          "name": "options",
+          "description": "See {@link VerifyCertificationRequestOptions}; the reading options apply when `request` is DER."
+        }
+      ],
+      "returns": "The verdict, every reason behind it and the parsed request.",
       "members": null
     },
     {
