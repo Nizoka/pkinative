@@ -37,6 +37,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # A Current line is not in the runner's tool cache: setup-node downloads
+      # it from the actions/node-versions release (served from
+      # release-assets.githubusercontent.com) and falls back to nodejs.org.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -44,6 +47,8 @@ jobs:
           allowed-endpoints: >
             github.com:443
             api.github.com:443
+            release-assets.githubusercontent.com:443
+            nodejs.org:443
             registry.npmjs.org:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
