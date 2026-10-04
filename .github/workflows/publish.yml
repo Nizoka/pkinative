@@ -1,14 +1,13 @@
 name: Publish
 
-# The maintainer drafts the GitHub Release, then pushes the `vX.Y.Z` tag (the
-# trigger); nothing here creates, edits or publishes a release. A tag push,
-# not `release: published`, because once the repository turns on release
-# immutability a published release accepts no new asset — so the files are
-# attached to the DRAFT, and the maintainer publishes it last (GitHub's
-# documented draft → attach → publish order).
+# The maintainer publishes the GitHub Release `vX.Y.Z` (which creates the tag)
+# and that publication is the trigger, as in pdfnative; nothing here creates,
+# edits or publishes a release. The `attest` job attaches its files to that
+# published release afterwards, so release immutability stays off: an
+# immutable release accepts no asset once published (ADR 0019, amended).
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 # Trusted Publishing (npmjs.com OIDC):
@@ -42,7 +41,7 @@ on:
 #            and uploads exactly it.
 #   attest   fetches the published tarball back from the registry, checks it
 #            against the same digests and the registry signatures, writes the
-#            SBOMs, attests them and attaches them to the draft release. It
+#            SBOMs, attests them and attaches them to the release. It
 #            holds id-token: write to sign that attestation (Sigstore), outside
 #            the `npm-publish` environment, so its token cannot publish.
 #
@@ -387,7 +386,7 @@ jobs:
   # Attests the tarball npm published — fetched back from the registry, so the
   # attested bytes ARE the published ones — checks it against the build job's
   # digests and the registry signatures, writes the SBOMs from the same
-  # commit's lockfile, and attaches everything to the draft release. Kept
+  # commit's lockfile, and attaches everything to the release. Kept
   # apart from `publish`: the release-write and attestation permissions are
   # never held next to the npm token.
   attest:
@@ -396,7 +395,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write # Attach the files to the draft release.
+      contents: write # Attach the files to the release.
       id-token: write # Sign the attestation with the workflow identity (Sigstore).
       attestations: write # Store the attestation with the repository.
     env:
@@ -484,29 +483,26 @@ jobs:
             pkinative-${{ env.VERSION }}.spdx.json
             pkinative-${{ env.VERSION }}.toolchain.cdx.json
 
-      # The draft release is created and, after this job, published by the
-      # maintainer (human-in-the-loop). Only a DRAFT receives the files: a
-      # published release may be immutable, and replacing an asset someone has
-      # already downloaded is what immutability exists to prevent — so nothing
-      # is ever overwritten. The Sigstore bundle goes with them, so the release
-      # carries its own verifiable signature.
-      - name: Attach the tarball, the SBOMs and the attestation to the draft release
+      # The release the maintainer published, which started this run, receives
+      # the files. The Sigstore bundle goes with them, so the release carries
+      # its own verifiable signature.
+      - name: Attach the tarball, the SBOMs and the attestation to the release
         env:
           GH_TOKEN: ${{ github.token }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           set -euo pipefail
           cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"
-          if ! DRAFT=$(gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null); then
-            echo "::notice::No GitHub release v${VERSION} exists; the files are attested but not attached."
-          elif [ "${DRAFT}" != "true" ]; then
-            echo "::warning::Release v${VERSION} is already published; files go to a draft only, so they stay in the attestation store."
-          else
+          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            # --clobber: a re-run of this job replaces the files it attached
+            # before with the ones it has just attested.
             gh release upload "v${VERSION}" \
               "pkinative-${VERSION}.tgz" \
               "pkinative-${VERSION}.cdx.json" \
               "pkinative-${VERSION}.spdx.json" \
               "pkinative-${VERSION}.toolchain.cdx.json" \
               "pkinative-${VERSION}.sigstore.json" \
-              --repo "${GITHUB_REPOSITORY}"
+              --clobber --repo "${GITHUB_REPOSITORY}"
+          else
+            echo "::notice::No GitHub release v${VERSION} exists; the files are attested but not attached."
           fi

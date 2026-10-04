@@ -242,12 +242,12 @@ There is no external audit and none is planned: pkinative is maintained by one p
 
 **Below 1.0.0** there is nothing to install or verify. Versions 0.1.0 to 0.9.0 were milestones of the preparation of 1.0.0: each has its CHANGELOG entry and its note under `release-notes/`, and none was tagged, released or published — the first tag of this repository is `v1.0.0`.
 
-**From 1.0.0** `.github/workflows/publish.yml` publishes to npm when the maintainer pushes the `vX.Y.Z` tag, in four jobs ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)):
+**From 1.0.0** `.github/workflows/publish.yml` publishes to npm when the maintainer publishes the `vX.Y.Z` GitHub Release, in four jobs ([ADR 0019](docs/adr/0019-release-integrity-slsa-build-l2.md)):
 
 1. **guard** refuses a ref that is not a tag, a tag that disagrees with `package.json` and any version below 1.0.0 — before any approval is asked, with no token and nothing installed.
 2. **build** holds no publishing permission. It installs the dev toolchain from the lockfile with `--ignore-scripts`, runs the full publish gate (the install smoke test of its own build included), packs the tarball once and hands it on with its SHA-256 and SHA-512 digests.
 3. **publish** is the only job that can mint the npm token: it waits for the protected `npm-publish` environment, checks out `.nvmrc` and nothing else, runs no repository script, checks the tarball against both digests and its own version, and uploads that exact file through npm Trusted Publishing (OIDC, no long-lived token) with `--provenance`, using an npm client pinned by the SHA-512 of its registry tarball. The registry therefore carries a signed provenance statement tying the tarball to this repository, the workflow and the commit.
-4. **attest**, holding the release-write and attestation permissions the publishing job never has, fetches the tarball back from the registry (`npm pack pkinative@X.Y.Z`), checks it against the build job's digests and the registry's integrity, runs `npm audit signatures` on a fresh install of it, writes the SBOMs from the lockfile, attests them with Sigstore build provenance and attaches them, with the Sigstore bundle, to the **draft** GitHub Release — which the maintainer publishes afterwards, so a repository with release immutability on holds the assets unchanged from then on.
+4. **attest**, holding the release-write and attestation permissions the publishing job never has, fetches the tarball back from the registry (`npm pack pkinative@X.Y.Z`), checks it against the build job's digests and the registry's integrity, runs `npm audit signatures` on a fresh install of it, writes the SBOMs from the lockfile, attests them with Sigstore build provenance and attaches them, with the Sigstore bundle, to that GitHub Release. Each attached file is covered by the attestation, so `gh attestation verify` below proves it unchanged whatever happens to the release afterwards.
 
 The attested tarball is the byte stream npm serves, not a rebuild, and npm's provenance and the GitHub attestation cover the same bytes. No release job restores a dependency cache: every `setup-node` step disables the automatic npm cache explicitly. Every release job runs `harden-runner` with egress blocked to the hosts it needs.
 
@@ -255,7 +255,7 @@ This is **SLSA Build L2** — a hosted build platform that generates and signs t
 
 The SBOMs: `pkinative-X.Y.Z.cdx.json` (CycloneDX 1.5) and `pkinative-X.Y.Z.spdx.json` (SPDX 2.3) describe the runtime dependency set, and are **empty by design** — pkinative has no runtime dependency, and the empty SBOM is the evidence. `pkinative-X.Y.Z.toolchain.cdx.json` records the dev packages that built `dist/`.
 
-> **None of this has run yet.** At the time of writing the GitHub repository has no pushed history, so no workflow — CI, conformance, CodeQL, Scorecard or publish — has executed. Everything above is what the files say and what `tests/tools/workflows.test.ts`, zizmor and actionlint check locally; the first release tag is the publish workflow's first run, and this note stands until it has succeeded.
+The workflow first ran for 1.0.0 on 2026-10-04: `pkinative@1.0.0` carries npm's SLSA provenance and the registry signatures.
 
 To verify:
 
@@ -267,9 +267,9 @@ gh attestation verify pkinative-X.Y.Z.cdx.json --repo Nizoka/pkinative
 # The same, against the Sigstore bundle attached to the release
 gh attestation verify pkinative-X.Y.Z.tgz --repo Nizoka/pkinative --bundle pkinative-X.Y.Z.sigstore.json
 
-# An immutable release, and a local file against its asset
-gh release verify vX.Y.Z --repo Nizoka/pkinative
-gh release verify-asset vX.Y.Z pkinative-X.Y.Z.tgz --repo Nizoka/pkinative
+# The tarball npm serves, fetched and checked against the same attestation
+npm pack pkinative@X.Y.Z
+gh attestation verify pkinative-X.Y.Z.tgz --repo Nizoka/pkinative
 
 # The registry signatures and provenance of what npm installed
 npm audit signatures

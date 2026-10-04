@@ -428,11 +428,11 @@ describe('publish.yml', () => {
     const stepIndex = (job: string, needle: string | RegExp): number =>
         (jobs.get(job) ?? []).findIndex((s) => (typeof needle === 'string' ? s.includes(needle) : needle.test(s)));
 
-    it('should start from a pushed v* tag or a manual run, never from a published release', () => {
-        // A published release is immutable once release immutability is on:
-        // files are attached to the draft, which the maintainer publishes last.
-        expect(publish).toMatch(/^on:\s*\n\s+push:\s*\n\s+tags: \['v\*'\]\s*\n\s+workflow_dispatch:\s*$/m);
-        expect(publish).not.toMatch(/^\s+release:\s*$/m);
+    it('should start from a published release or a manual run, never from a bare tag push', () => {
+        // The maintainer publishes the release, which creates the tag; the
+        // attest job attaches its files to that release afterwards (ADR 0019).
+        expect(publish).toMatch(/^on:\s*\n\s+release:\s*\n\s+types: \[published\]\s*\n\s+workflow_dispatch:\s*$/m);
+        expect(publish).not.toMatch(/^\s+push:\s*$/m);
     });
 
     it('should mint an OIDC token and never read an NPM_TOKEN secret', () => {
@@ -597,14 +597,14 @@ describe('publish.yml', () => {
         expect(subjects).toEqual(['pkinative-${{ env.VERSION }}.tgz', 'pkinative-${{ env.VERSION }}.cdx.json', 'pkinative-${{ env.VERSION }}.spdx.json', 'pkinative-${{ env.VERSION }}.toolchain.cdx.json']);
     });
 
-    it('should attach the files and the Sigstore bundle to a DRAFT release only, never replacing an asset', () => {
+    it('should attach the files and the Sigstore bundle to the release, and never create, edit or delete one', () => {
         const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
         expect(attach).toContain('BUNDLE: ${{ steps.attest.outputs.bundle-path }}');
         expect(attach).toContain('cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"');
-        expect(attach).toMatch(/--json isDraft --jq \.isDraft/);
-        expect(attach).toMatch(/elif \[ "\$\{DRAFT\}" != "true" \]; then\s*\n\s*echo "::warning::/);
+        expect(attach).toMatch(/if gh release view "v\$\{VERSION\}"/);
         for (const f of ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json']) expect(attach).toContain(`"pkinative-\${VERSION}${f}"`);
-        expect(publish).not.toContain('--clobber');
+        // A re-run replaces only what this job attached, under the same names.
+        expect(attach).toContain('--clobber --repo "${GITHUB_REPOSITORY}"');
         expect(publish).not.toMatch(/gh release (create|edit|delete)/);
     });
 

@@ -39,18 +39,22 @@ Build L3 is **not** claimed. The `build` job no longer sees the signing identity
 
 - Good, because a compromised dev dependency can no longer mint the token that publishes pkinative: the code that runs the toolchain and the job that can publish are different jobs on different runners.
 - Good, because the uploaded bytes are provably the gated bytes (two digests checked before upload) and provably the served bytes (the registry's integrity and the file's SHA-256 checked after), with no reproducible-build assumption.
-- Good, because the release carries `pkinative-X.Y.Z.sigstore.json` next to the tarball, so the release itself is verifiable offline, and the files are attached before the release becomes immutable.
+- Good, because the release carries `pkinative-X.Y.Z.sigstore.json` next to the tarball, so the release itself is verifiable offline.
 - Good, because the SBOMs say plainly what they cover: the runtime CycloneDX and SPDX documents are empty by design — pkinative has no runtime dependency — and `pkinative-X.Y.Z.toolchain.cdx.json` records the dev packages that built `dist/`. npm writes CycloneDX 1.5 and SPDX 2.3; nothing claims ECMA-424, which specifies a later CycloneDX.
 - Bad, because the workflow is longer, and a release now crosses an artifact store between two jobs; the digests in job outputs are what make that crossing checkable.
-- Bad, because the trigger moves from a published release to a pushed tag: the maintainer drafts the release first and publishes it after the run, one more manual step in [CONTRIBUTING.md §Release](../../CONTRIBUTING.md#release).
+- Bad, because the trigger moves from a published release to a pushed tag: the maintainer drafts the release first and publishes it after the run, one more manual step in [CONTRIBUTING.md §Release](../../CONTRIBUTING.md#release) — reversed by the amendment below.
 - Neutral, because none of this had executed when it was written: the repository had no pushed history, and the first release tag is the first run.
 
 ### Confirmation
 
-`tests/tools/workflows.test.ts` holds the shape: four jobs in order, `id-token: write` only in `publish` and `attest`, no lockfile install, script or gate in `publish`, the effective setup-node cache behaviour computed from `package.json` rather than from the spelling `cache: npm`, the digest checks before the upload and after the registry fetch, the content-pinned npm client, the draft-only attachment without overwrite, block-mode egress with the exact host list of each release job, and the wording "SLSA Build L2". The `workflow lint` check of `ci.yml` runs zizmor and actionlint on every pull request, and CodeQL analyses the `actions` language.
+`tests/tools/workflows.test.ts` holds the shape: four jobs in order, `id-token: write` only in `publish` and `attest`, no lockfile install, script or gate in `publish`, the effective setup-node cache behaviour computed from `package.json` rather than from the spelling `cache: npm`, the digest checks before the upload and after the registry fetch, the content-pinned npm client, the attachment to the published release (see Amendments), block-mode egress with the exact host list of each release job, and the wording "SLSA Build L2". The `workflow lint` check of `ci.yml` runs zizmor and actionlint on every pull request, and CodeQL analyses the `actions` language.
 
 ## More Information
 
 - Reaching L3 means moving `build` and `attest` into a reusable workflow called from `publish.yml`, so that the attestation names the reusable workflow's identity, and keeping the npm upload as it is. It is revisited when a second maintainer joins or when npm accepts provenance from such a workflow without loss of the Trusted Publishing binding.
 - [SECURITY.md §Release integrity](../../SECURITY.md#release-integrity) is the user-facing account of the same design, with the verification commands.
 - Audit findings P-01, P-04, P-10, P-15 and P-16 of the 1.0.0 pre-publication audit are what this record answers.
+
+## Amendments
+
+- **2026-10-04, after the 1.0.0 release: the trigger is the published release again, and release immutability is off.** The draft → tag push → publish order above was not what GitHub's release form leads a maintainer to do: "Publish release" creates the tag and publishes in one step, and the 1.0.0 run then found a published release and attached nothing. `publish.yml` now starts on `release: published`, as pdfnative's does, and `attest` attaches its files to that release, replacing on a re-run only what it attached itself (`--clobber`). Release immutability is off, since an immutable release refuses assets once published. What this gives up is GitHub's release attestation (`gh release verify`); what remains covers the same bytes: every attached file is the subject of the Sigstore build-provenance attestation (`gh attestation verify`), and npm's provenance and registry signatures cover the tarball. The four-job separation, the digest checks and the Trusted Publishing binding are unchanged.
