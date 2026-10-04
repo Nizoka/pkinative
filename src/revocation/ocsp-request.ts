@@ -109,7 +109,7 @@ const NULL_PARAMETERS = /*#__PURE__*/ encodeTlv('universal', 5, false, new Uint8
  *
  * ```ts
  * const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
- * await fetch(url, { method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body });
+ * await fetch(url, { method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body: body.slice() });
  * ```
  *
  * The request is **unsigned**. RFC 6960 §4.1.2 makes the signature optional,
@@ -134,6 +134,11 @@ export function createOcspRequest(certificate: Certificate, issuer: Certificate,
     if (nonce !== undefined) {
         if (!isBytes(nonce)) {
             throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the OCSP nonce must be a Uint8Array of random bytes — pkinative generates none, so this is yours to produce with crypto.getRandomValues');
+        }
+        // RFC 8954 §2.1: 1 to 32 octets. A longer nonce is one a conforming responder refuses, and one whose
+        // echo this library's own checkOcspStatus would read wrong (review of 2026-10-04).
+        if (nonce.length < 1 || nonce.length > 32) {
+            throw new PkiError('PKI_API_MISUSE', `pkinative: the OCSP nonce must be 1 to 32 octets (RFC 8954 §2.1), got ${String(nonce.length)} — 16 random octets is the usual choice`);
         }
         // requestExtensions [2] EXPLICIT Extensions, holding id-pkix-ocsp-nonce
         // (1.3.6.1.5.5.7.48.1.2). The nonce value is itself an OCTET STRING

@@ -470,6 +470,7 @@ The job: OCSP. One question, one answer, no megabyte of CRL.
 ```ts
 import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from 'pkinative';
 
+// Inside your async handler: pkinative sends nothing, the fetch is yours.
 const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
 const bytes = new Uint8Array(await (await fetch(url, {
     method: 'POST', headers: { 'content-type': 'application/ocsp-request' }, body: body.slice(),
@@ -571,6 +572,7 @@ The job: a signature has to outlive its certificate. A signing certificate lives
 ```ts
 import { addTimeStampToken, createTimeStampRequest, parseSignedData, parseTimeStampResponse, verifySignedData } from 'pkinative';
 
+// Inside your async handler: pkinative sends nothing, the fetch is yours.
 const signature = parseSignedData(p7s).signerInfos[0]!.signature;
 const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signature.slice()));
 const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);

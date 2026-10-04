@@ -213,6 +213,31 @@ describe('encodeExtension and encodeExtensions', () => {
             .toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
 
+    it.each([
+        ['two values', Uint8Array.of(0x05, 0x00, 0x05, 0x00)],
+        ['a truncated value', Uint8Array.of(0x30, 0x05)],
+        ['no bytes at all', new Uint8Array(0)],
+        ['a long-form tag cut short', Uint8Array.of(0x1f)],
+        ['a long-form tag cut short after a continuation octet', Uint8Array.of(0x1f, 0x81)],
+        ['a tag without its length', Uint8Array.of(0x04)],
+        ['an indefinite length (BER, X.690 §8.1.3.6)', Uint8Array.of(0x30, 0x80, 0x05, 0x00, 0x00, 0x00)],
+        ['a length cut short', Uint8Array.of(0x04, 0x82, 0x01)],
+        ['a length of five octets', Uint8Array.of(0x04, 0x85, 0x00, 0x00, 0x00, 0x00, 0x01, 0xaa)],
+    ])('should refuse a value that is not exactly one DER value (%s) as PKI_API_MISUSE, before any reader refuses the extension', (_what, value) => {
+        expect(() => encodeExtension({ oid: '2.5.29.19', value }))
+            .toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('one DER value') }));
+    });
+
+    it.each([
+        ['a long-form tag ([31] constructed, empty)', Uint8Array.of(0xbf, 0x1f, 0x00)],
+        ['a two-octet long-form tag ([200] constructed, empty)', Uint8Array.of(0xbf, 0x81, 0x48, 0x00)],
+        ['a two-octet length', Uint8Array.of(0x04, 0x82, 0x01, 0x00, ...new Uint8Array(256))],
+        ['a four-octet length', Uint8Array.of(0x04, 0x84, 0x00, 0x00, 0x01, 0x00, ...new Uint8Array(256))],
+    ])('should accept %s — one value by X.690 §8.1 arithmetic alone, no decoder in the builder', (_what, value) => {
+        const out = encodeExtension({ oid: '1.2.3.4', value });
+        expect(Array.from(out.subarray(out.length - value.length))).toEqual(Array.from(value));
+    });
+
     it('should bound the count by maxExtensions', () => {
         const many = Array.from({ length: 3 }, (_, i) => ({ oid: `2.5.29.${String(i + 10)}`, value: Uint8Array.of(0x05, 0x00) }));
         expect(() => encodeExtensions(many, { limits: { maxExtensions: 2 } }))

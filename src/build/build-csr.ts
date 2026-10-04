@@ -19,7 +19,7 @@ import { assertBytes } from '../core/bytes.js';
 import type { CertificationRequestDescription, PkiBuildOptions } from '../types/build-types.js';
 import type { Signer } from '../types/crypto-types.js';
 import { signAndWrap } from './build-certificate.js';
-import { encodeAttribute, encodeDistinguishedName, encodeExtensions } from './build-structures.js';
+import { _wholeValue, encodeAttribute, encodeDistinguishedName, encodeExtensions } from './build-structures.js';
 
 /** PKCS#9 `extensionRequest` — how a CSR asks for extensions (RFC 2985 §5.4.2). */
 const EXTENSION_REQUEST = '1.2.840.113549.1.9.14';
@@ -73,7 +73,7 @@ export async function createCertificationRequest(
         // it is not DEFAULT: it is written even when it is zero.
         encodeInteger(0),
         subject,
-        assertBytes(description.subjectPublicKey, 'subjectPublicKey'),
+        _wholeValue(assertBytes(description.subjectPublicKey, 'subjectPublicKey'), 'subjectPublicKey', 'a SubjectPublicKeyInfo DER, as crypto.subtle.exportKey(\'spki\', key) returns it', 0x30),
         // `attributes [0] IMPLICIT SET OF Attribute` — RFC 2986's module is
         // IMPLICIT TAGS, so [0] *replaces* the SET's tag rather than wrapping
         // it: the content is the sorted attribute encodings directly, and the

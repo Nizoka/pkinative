@@ -52,6 +52,7 @@
  */
 
 import { bytesEqual } from '../core/bytes.js';
+import { PkiError } from '../types/pki-errors.js';
 import {
     createDiagnosticEmitter,
     ocspNoCheckCriticalDiagnostic,
@@ -337,6 +338,12 @@ function unwrapOctetString(bytes: Uint8Array): Uint8Array | null {
 /** §3.2: `thisUpdate` recent enough, `nextUpdate` not passed. */
 function checkFreshness(answer: OcspSingleResponse, input: CheckOcspStatusInput, path: string): PkiReason[] {
     const out: PkiReason[] = [];
+    // A tolerance is the caller's; NaN or a negative one would silently disable the check it tunes.
+    for (const [name, value] of [['futureTolerance', input.futureTolerance], ['staleTolerance', input.staleTolerance]] as const) {
+        if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${name} must be a finite number of milliseconds, zero or more, got ${String(value)} — leave it out for the default`);
+        }
+    }
     const future = input.futureTolerance ?? MINUTE;
     if (answer.thisUpdate.epochMilliseconds > input.at + future) {
         out.push(revocationStaleReason(path, undefined, input.at));

@@ -105,3 +105,7 @@ The file counts are the tracked, hand-written files whose text changed for that 
 - [ADR 0012](0012-frozen-error-vocabulary.md) — the four vocabularies and when each stops being free; its wording on diagnostic codes ("not frozen") was corrected with this record to "additions-only", which is what its table already said.
 - [scripts/build-api-frozen.ts](../../scripts/build-api-frozen.ts) — `--rebaseline`, and why a hand edit of the snapshot is not an option.
 - [ROADMAP.md §0.9.x](../../ROADMAP.md) — the band's "propose here every rename you will ever want".
+
+## Amendments
+
+- **2026-10-04, before the first publication.** "Pre-1.0 versions are git tags" described the intention when this record was written; in the end no 0.x tag was created at all (zipnative's model — the 0.x versions exist only as commits in the history, and 1.0.0 is the first tag and the first npm release). The argument stands a fortiori: there is no installed base an alias would protect.

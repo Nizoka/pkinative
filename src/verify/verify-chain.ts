@@ -255,13 +255,14 @@ const _hex = (bytes: Uint8Array): string => {
  * statements, and both are judged.
  */
 function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> {
-    const seen = new Set<string>();
+    // Compared byte for byte against the ones already kept, and only those of the same length:
+    // the hex of every list was the key before (1.8 GiB of strings for a 32 MiB input, before any
+    // reader had refused it — review of 2026-10-04), and a digest would still read every octet of
+    // every list through SHA-256. A comparison reads at most the shorter common prefix, allocates
+    // nothing, and the count of lists is the caller's own.
     const out: Array<[number, Uint8Array]> = [];
     for (const [index, der] of ders.entries()) {
-        const key = _hex(der);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push([index, der]);
+        if (!out.some(([, kept]) => bytesEqual(kept, der))) out.push([index, der]);
     }
     return out;
 }

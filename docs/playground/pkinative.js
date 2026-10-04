@@ -4059,10 +4059,11 @@ function keccakF(s, c, b) {
     s[1] = s[1] ^ RC_HI[round];
   }
 }
+var MAX_OUTPUT_OCTETS = 1048576;
 function shake256(input, outputLength) {
   const bytes = assertBytes(input, "shake256 input");
-  if (!Number.isInteger(outputLength) || outputLength < 0) {
-    throw new PkiError("PKI_INVALID_OPTION", `pkinative: shake256 outputLength must be a non-negative integer number of octets, got ${String(outputLength)} \u2014 an Ed448 CMS signer uses 64`);
+  if (!Number.isInteger(outputLength) || outputLength < 0 || outputLength > MAX_OUTPUT_OCTETS) {
+    throw new PkiError("PKI_INVALID_OPTION", `pkinative: shake256 outputLength must be an integer number of octets from 0 to ${String(MAX_OUTPUT_OCTETS)}, got ${String(outputLength)} \u2014 an Ed448 CMS signer uses 64, and a digest is not a stream`);
   }
   const total = Math.ceil((bytes.length + 1) / RATE) * RATE;
   const padded = new Uint8Array(total);
@@ -7265,10 +7266,38 @@ function encodeValidity(notBefore, notAfter) {
   }
   return encodeSequence([encodeTime(notBefore), encodeTime(notAfter)]);
 }
+function _oneValueEnd(bytes) {
+  const tag = bytes[0];
+  if (tag === void 0) return -1;
+  let i = 1;
+  if ((tag & 31) === 31) {
+    while ((bytes[i] ?? 0) & 128) i++;
+    i++;
+  }
+  const first = bytes[i];
+  if (first === void 0) return -1;
+  i++;
+  if ((first & 128) === 0) return i + first;
+  const count = first & 127;
+  if (count === 0 || count > 4) return -1;
+  let length = 0;
+  for (let k = 0; k < count; k++) {
+    const octet = bytes[i + k];
+    if (octet === void 0) return -1;
+    length = length * 256 + octet;
+  }
+  return i + count + length;
+}
+function _wholeValue(bytes, what, expected, tag) {
+  if (_oneValueEnd(bytes) !== bytes.length || tag !== void 0 && bytes[0] !== tag) {
+    throw new PkiError("PKI_API_MISUSE", `pkinative: ${what} must be ${expected} \u2014 one DER value spanning the bytes, not ${String(bytes.length)} octets of something else`);
+  }
+  return bytes;
+}
 function encodeExtension(extension) {
   const fields = [encodeObjectIdentifier(extension.oid)];
   if (extension.critical === true) fields.push(encodeBoolean(true));
-  fields.push(encodeOctetString(assertBytes(extension.value, `extension ${extension.oid} value`)));
+  fields.push(encodeOctetString(_wholeValue(assertBytes(extension.value, `extension ${extension.oid} value`), `extension ${extension.oid} value`, "the DER of one value, as encodeBasicConstraints and the other extension encoders return it")));
   return encodeSequence(fields);
 }
 function encodeExtensions(extensions, options) {
@@ -7406,6 +7435,9 @@ function createOcspRequest(certificate, issuer, options) {
     if (!isBytes(nonce)) {
       throw new PkiError("PKI_INVALID_INPUT", "pkinative: the OCSP nonce must be a Uint8Array of random bytes \u2014 pkinative generates none, so this is yours to produce with crypto.getRandomValues");
     }
+    if (nonce.length < 1 || nonce.length > 32) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: the OCSP nonce must be 1 to 32 octets (RFC 8954 \xA72.1), got ${String(nonce.length)} \u2014 16 random octets is the usual choice`);
+    }
     fields.push(encodeTlv("context", 2, true, encodeSequence([
       encodeSequence([
         encodeTlv("universal", 6, false, Uint8Array.of(43, 6, 1, 5, 5, 7, 48, 1, 2)),
@@ -7531,12 +7563,13 @@ function readBasicResponse(der, ctx) {
   const certsField = parts[3];
   if (certsField !== void 0) {
     const seq = fieldsOf2(der, certsField, "BasicOCSPResponse.certs", 1)[0];
-    const entries = seq === void 0 ? [] : fieldsOf2(der, seq, "BasicOCSPResponse.certs", ctx.limits.maxChainLength + 1);
-    if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
-    for (const certificate of entries) {
-      enforceLimit(ctx.limits, "maxChainLength", certificates.length + 1, "BasicOCSPResponse.certs");
-      certificates.push(der.subarray(certificate.offset, certificate.end));
+    if (seq !== void 0) {
+      for (const certificate of walkChildren(der, seq, "BasicOCSPResponse.certs")) {
+        enforceLimit(ctx.limits, "maxChainLength", certificates.length + 1, "BasicOCSPResponse.certs");
+        certificates.push(der.subarray(certificate.offset, certificate.end));
+      }
     }
+    if (certificates.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
   }
   const data = readResponseData(der, tbs, ctx);
   return Object.freeze({
@@ -7794,6 +7827,11 @@ function unwrapOctetString(bytes) {
 }
 function checkFreshness(answer, input, path) {
   const out = [];
+  for (const [name, value] of [["futureTolerance", input.futureTolerance], ["staleTolerance", input.staleTolerance]]) {
+    if (value !== void 0 && (!Number.isFinite(value) || value < 0)) {
+      throw new PkiError("PKI_INVALID_OPTION", `pkinative: ${name} must be a finite number of milliseconds, zero or more, got ${String(value)} \u2014 leave it out for the default`);
+    }
+  }
   const future = input.futureTolerance ?? MINUTE;
   if (answer.thisUpdate.epochMilliseconds > input.at + future) {
     out.push(revocationStaleReason(path, void 0, input.at));
@@ -8712,13 +8750,9 @@ var _hex2 = (bytes) => {
   return out;
 };
 function _firstOfEach(ders) {
-  const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const [index, der] of ders.entries()) {
-    const key = _hex2(der);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push([index, der]);
+    if (!out.some(([, kept]) => bytesEqual(kept, der))) out.push([index, der]);
   }
   return out;
 }
@@ -9176,9 +9210,16 @@ function encodeSerial(serial) {
 function isByteArray(value) {
   return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]";
 }
-function checkExternalSignature(produced, curve) {
+var EDWARDS_SIGNATURE_OCTETS = { Ed25519: 64, Ed448: 114 };
+function checkExternalSignature(produced, curve, family) {
   if (!isByteArray(produced) || produced.length === 0) {
     throw new PkiError("PKI_API_MISUSE", "pkinative: an ExternalSigner's produceSignature must return a non-empty Uint8Array \u2014 the signature as crypto.subtle.sign would produce it; wrap an ArrayBuffer in new Uint8Array(\u2026)");
+  }
+  if (family === "Ed25519" || family === "Ed448") {
+    const expected = EDWARDS_SIGNATURE_OCTETS[family];
+    if (produced.length !== expected) {
+      throw new PkiError("PKI_API_MISUSE", `pkinative: an ExternalSigner for ${family} must return exactly ${String(expected)} octets, as crypto.subtle.sign would, and returned ${String(produced.length)}`);
+    }
   }
   if (curve !== void 0) {
     const expected = 2 * coordinateBytes(curve);
@@ -9190,7 +9231,7 @@ function checkExternalSignature(produced, curve) {
 }
 async function computeSignatureValue(data, signer) {
   const resolved = resolveSigner(signer.algorithm);
-  const raw = "produceSignature" in signer ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve) : await signData(signer.key, resolved.signParams, data);
+  const raw = "produceSignature" in signer ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve, resolved.signParams.name) : await signData(signer.key, resolved.signParams, data);
   return resolved.curve === void 0 ? raw : ecdsaRawToDer(raw, coordinateBytes(resolved.curve));
 }
 async function signAndWrap(tbs, signer) {
@@ -9215,7 +9256,7 @@ async function createCertificate(description, signer, options) {
     issuer,
     encodeValidity(description.notBefore, description.notAfter),
     subject,
-    assertBytes(description.subjectPublicKey, "subjectPublicKey")
+    _wholeValue(assertBytes(description.subjectPublicKey, "subjectPublicKey"), "subjectPublicKey", "a SubjectPublicKeyInfo DER, as crypto.subtle.exportKey('spki', key) returns it", 48)
   ];
   if (extensions.length > 0) fields.push(encodeExplicit(3, encodeExtensions(extensions, limits)));
   return signAndWrap(encodeSequence(fields), signer);
@@ -9233,7 +9274,7 @@ async function createCertificationRequest(description, signer, options) {
     // it is not DEFAULT: it is written even when it is zero.
     encodeInteger(0),
     subject,
-    assertBytes(description.subjectPublicKey, "subjectPublicKey"),
+    _wholeValue(assertBytes(description.subjectPublicKey, "subjectPublicKey"), "subjectPublicKey", "a SubjectPublicKeyInfo DER, as crypto.subtle.exportKey('spki', key) returns it", 48),
     // `attributes [0] IMPLICIT SET OF Attribute` — RFC 2986's module is
     // IMPLICIT TAGS, so [0] *replaces* the SET's tag rather than wrapping
     // it: the content is the sorted attribute encodings directly, and the

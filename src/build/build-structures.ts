@@ -187,6 +187,52 @@ export function encodeValidity(notBefore: number, notAfter: number): Uint8Array 
 }
 
 /**
+ * Where the one DER value `bytes` begins with ends, or -1 when `bytes` does
+ * not begin with one: an identifier (X.690 §8.1.2, long-form tag numbers
+ * included) and a definite length (§8.1.3) of at most four octets — the
+ * indefinite form is BER, and nothing this library signs is longer than
+ * 4 GiB. Arithmetic only: the builder ships no decoder, and `verify:bundle`
+ * holds it to that.
+ */
+function _oneValueEnd(bytes: Uint8Array): number {
+    const tag = bytes[0];
+    if (tag === undefined) return -1;
+    let i = 1;
+    if ((tag & 0x1f) === 0x1f) {
+        while ((bytes[i] ?? 0) & 0x80) i++;
+        i++;
+    }
+    const first = bytes[i];
+    if (first === undefined) return -1;
+    i++;
+    if ((first & 0x80) === 0) return i + first;
+    const count = first & 0x7f;
+    if (count === 0 || count > 4) return -1;
+    let length = 0;
+    for (let k = 0; k < count; k++) {
+        const octet = bytes[i + k];
+        if (octet === undefined) return -1;
+        length = length * 256 + octet;
+    }
+    return i + count + length;
+}
+
+/**
+ * `bytes` refused unless they are exactly one DER value — of `tag` when one
+ * is named — spanning the whole array. The writer does not decode what it
+ * wraps (that is the reader's job), but it will not sign junk into a structure
+ * that its own reader, and every other, then refuses (review of 2026-10-04).
+ *
+ * @internal
+ */
+export function _wholeValue(bytes: Uint8Array, what: string, expected: string, tag?: number): Uint8Array {
+    if (_oneValueEnd(bytes) !== bytes.length || (tag !== undefined && bytes[0] !== tag)) {
+        throw new PkiError('PKI_API_MISUSE', `pkinative: ${what} must be ${expected} — one DER value spanning the bytes, not ${String(bytes.length)} octets of something else`);
+    }
+    return bytes;
+}
+
+/**
  * Encode one `Extension`.
  *
  * `critical` is omitted when false, as DER requires of a DEFAULT: encoding
@@ -195,13 +241,14 @@ export function encodeValidity(notBefore: number, notAfter: number): Uint8Array 
  *
  * @param extension The OID, the criticality and the value's DER.
  * @returns The `Extension` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when the value is not a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the value is not a Uint8Array;
+ *   `PKI_API_MISUSE` when it is not exactly one DER value.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed OID.
  */
 export function encodeExtension(extension: ExtensionDescription): Uint8Array {
     const fields = [encodeObjectIdentifier(extension.oid)];
     if (extension.critical === true) fields.push(encodeBoolean(true));
-    fields.push(encodeOctetString(assertBytes(extension.value, `extension ${extension.oid} value`)));
+    fields.push(encodeOctetString(_wholeValue(assertBytes(extension.value, `extension ${extension.oid} value`), `extension ${extension.oid} value`, 'the DER of one value, as encodeBasicConstraints and the other extension encoders return it')));
     return encodeSequence(fields);
 }
 

@@ -120,7 +120,8 @@ export const PROBES: readonly Probe[] = [
     // written in its Appendix A string type and held to its SIZE bounds, with the
     // messages that say which.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 24 KB → 25 KB, measured at 24.1 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
-    { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 25 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.0.0, the second review (2026-10-04): 25 KB → 26 KB, measured at 25.5 KB — the shape guards on `subjectPublicKey` and every extension value (`_wholeValue`, X.690 §8.1 arithmetic, no decoder) and the Edwards signature sizes an ExternalSigner is held to.
+    { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 26 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "§6 is synchronous and pure", weighed. The Web Crypto marker is the one
     // that matters: signature verdicts reach `validateCertificatePath` as
     // data, so a bundle that retained the bridge would mean the claim had

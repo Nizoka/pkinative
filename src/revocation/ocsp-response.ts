@@ -189,15 +189,16 @@ function readBasicResponse(der: Uint8Array, ctx: Asn1Context): OcspBasicResponse
     const certsField = parts[3];
     if (certsField !== undefined) {
         const seq = fieldsOf(der, certsField, 'BasicOCSPResponse.certs', 1)[0];
-        // One past the limit, so that `maxChainLength` below is the refusal a caller sees, not the shape.
-        const entries = seq === undefined ? [] : fieldsOf(der, seq, 'BasicOCSPResponse.certs', ctx.limits.maxChainLength + 1);
+        // Walked lazily: the limit is charged before each certificate is kept, so nothing is allocated past it.
+        if (seq !== undefined) {
+            for (const certificate of walkChildren(der, seq, 'BasicOCSPResponse.certs')) {
+                enforceLimit(ctx.limits, 'maxChainLength', certificates.length + 1, 'BasicOCSPResponse.certs');
+                certificates.push(der.subarray(certificate.offset, certificate.end));
+            }
+        }
         // RFC 6960 §4.2.1: "If no certificates are included, then certs SHOULD
         // be absent." Present and empty reads exactly as absent, and is said.
-        if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
-        for (const certificate of entries) {
-            enforceLimit(ctx.limits, 'maxChainLength', certificates.length + 1, 'BasicOCSPResponse.certs');
-            certificates.push(der.subarray(certificate.offset, certificate.end));
-        }
+        if (certificates.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
     }
 
     const data = readResponseData(der, tbs, ctx);

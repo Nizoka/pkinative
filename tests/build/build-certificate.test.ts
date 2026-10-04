@@ -32,6 +32,8 @@ import type { ExternalSigner } from '../../src/types/crypto-types.js';
 const CN = '2.5.4.3';
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 0, 1);
+/** One empty SEQUENCE: the shape a subjectPublicKey must have, for tests about what comes after it. */
+const EMPTY_SPKI = Uint8Array.of(0x30, 0x00);
 
 interface Material { readonly signer: SigningKey; readonly spki: Uint8Array }
 
@@ -449,7 +451,7 @@ describe('an ExternalSigner', () => {
     it('should refuse an ECDSA signature returned as DER, naming the length it expected', async () => {
         const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as GeneratedPair;
         const key = KeyObject.from(pair.privateKey);
-        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: EMPTY_SPKI }, {
             algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
             produceSignature: (data) => new Uint8Array(nodeSign('sha256', data, key)),
         })).rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('exactly 64 octets') }));
@@ -459,7 +461,7 @@ describe('an ExternalSigner', () => {
         ['an Int8Array', new Int8Array(64)],
         ['a DataView', new DataView(new ArrayBuffer(64))],
     ])('should refuse a signature returned as %s rather than a Uint8Array', async (_what, produced) => {
-        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: EMPTY_SPKI }, {
             algorithm: { name: 'Ed25519' },
             produceSignature: () => produced as unknown as Uint8Array,
         })).rejects.toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('non-empty Uint8Array') }));
@@ -467,7 +469,7 @@ describe('an ExternalSigner', () => {
 
     it('should let an error the signer throws reach the caller unchanged', async () => {
         const failure = new Error('HSM offline');
-        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: new Uint8Array(0) }, {
+        await expect(createCertificationRequest({ subject: [[{ type: CN, value: 'a' }]], subjectPublicKey: EMPTY_SPKI }, {
             algorithm: { name: 'Ed25519' },
             produceSignature: () => Promise.reject(failure),
         })).rejects.toBe(failure);

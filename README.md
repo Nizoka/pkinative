@@ -51,7 +51,7 @@ npm install pkinative
 npm audit signatures   # optional: verify the registry signatures and provenance of what you installed
 ```
 
-Every GitHub release also carries that same tarball, fetched back from the registry, and a CycloneDX SBOM, both attested with Sigstore build provenance:
+Every GitHub release also carries that same tarball, fetched back from the registry, and three SBOMs — CycloneDX and SPDX for the package, CycloneDX for the toolchain that built it — all attested with Sigstore build provenance:
 
 ```bash
 npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz

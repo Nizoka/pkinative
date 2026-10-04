@@ -173,7 +173,7 @@ const BUDGETS: readonly Budget[] = [
     {
         limit: 'maxInputBytes', budgetMs: 1000,
         // The largest single value an 8 MiB input can hold, decoded whole; one byte over a limit set at 8 MiB is refused before a byte is read.
-        run: (clock) => {
+        run: async (clock) => {
             const eight = 8 * 1024 * 1024;
             const big = tlv(0, false, 4, new Uint8Array(eight - 6));
             const over = new Uint8Array(eight + 1);
@@ -188,6 +188,14 @@ const BUDGETS: readonly Budget[] = [
             for (const read of [parseCertificateList, parseOcspResponse]) {
                 expect(() => clock.sync(() => read(hostile))).toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID' }));
             }
+            // The same bytes through the chain report, which once keyed every list by its hex before any
+            // reader saw it (1.8 GiB of strings for 32 MiB): compared byte for byte now, the same list once.
+            const certs = await chain(2);
+            const report = await clock.async(() => verifyCertificateChain({
+                leaf: certs[1] as Certificate, candidates: [], trustAnchors: [certs[0] as Certificate], at: AT,
+                crls: [hostile, hostile], ocspResponses: [hostile],
+            }));
+            expect(report.reasons.filter((r) => r.code === 'PKI_REASON_INPUT_MALFORMED').map((r) => r.path).sort()).toEqual(['crls[0]', 'ocspResponses[0]']);
         },
     },
     {

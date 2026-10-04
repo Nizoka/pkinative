@@ -491,3 +491,20 @@ describe('checkOcspStatus — what the response says about itself (RFC 6960 §4.
             .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
     });
 });
+
+describe('the freshness tolerances', () => {
+    // A NaN compares false with everything and a negative tolerance moves the window the wrong way:
+    // either one silently disables the check it tunes, so both are the caller's mistake, said as such.
+    it.each([
+        ['futureTolerance', Number.NaN],
+        ['futureTolerance', -1],
+        ['staleTolerance', Number.POSITIVE_INFINITY],
+        ['staleTolerance', -0.5],
+    ] as const)('should refuse %s = %s as PKI_INVALID_OPTION', (name, value) => {
+        expect(() => check(build(), { [name]: value })).toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION', message: expect.stringContaining(name) }));
+    });
+
+    it('should accept zero for both — the strictest window', () => {
+        expect(() => check(build(), { futureTolerance: 0, staleTolerance: 0 })).not.toThrow();
+    });
+});

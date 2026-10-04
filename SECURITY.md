@@ -22,7 +22,7 @@ The handling steps, their timelines, the advisory and the credit are in [Disclos
 | the latest 1.x minor on npm | ✅ fixes land in its next patch or in the next minor |
 | any older 1.x minor | ❌ upgrade to the latest minor: under the compatibility promise below it breaks nothing |
 | 0.x (never tagged, never released) | ❌ |
-| npm `0.0.1` (name reservation, deprecated) | ❌ contains no code |
+| npm `0.0.1` (name reservation, deprecated once 1.0.0 is published) | ❌ contains no code |
 
 ### Supported runtimes and compilers
 

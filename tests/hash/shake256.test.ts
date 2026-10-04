@@ -89,4 +89,9 @@ describe('arguments', () => {
         expect(() => shake256(new Uint8Array(0), outputLength)).toThrow(PkiError);
         expect(() => shake256(new Uint8Array(0), outputLength)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION', message: expect.stringContaining('outputLength') }));
     });
+
+    it('should squeeze at most 1 048 576 octets — a digest, not a stream — and exactly that many at the bound', () => {
+        expect(() => shake256(new Uint8Array(0), 1_048_577)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION', message: expect.stringContaining('1048576') }));
+        expect(shake256(new Uint8Array(0), 1_048_576)).toHaveLength(1_048_576);
+    });
 });

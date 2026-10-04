@@ -492,6 +492,7 @@ const reasons = checkRevocation({ certificate, crl, crlDer, at: Date.now(), sign
 <p>The job: OCSP. One question, one answer, no megabyte of CRL.</p>
 <pre><code class="language-ts">import { createOcspRequest, parseOcspResponse, verifyOcspSignature } from &#39;pkinative&#39;;
 
+// Inside your async handler: pkinative sends nothing, the fetch is yours.
 const body = createOcspRequest(certificate, issuer, { nonce: crypto.getRandomValues(new Uint8Array(16)) });
 const bytes = new Uint8Array(await (await fetch(url, {
     method: &#39;POST&#39;, headers: { &#39;content-type&#39;: &#39;application/ocsp-request&#39; }, body: body.slice(),
@@ -583,6 +584,7 @@ if (!report.valid) for (const reason of report.reasons) console.log(reason.code,
 <p>The job: a signature has to outlive its certificate. A signing certificate lives a year or two; a contract, an invoice or a PDF must still verify after that. An RFC 3161 timestamp over the signature proves it existed <strong>before</strong> the certificate expired — CAdES-T, PAdES B-T.</p>
 <pre><code class="language-ts">import { addTimeStampToken, createTimeStampRequest, parseSignedData, parseTimeStampResponse, verifySignedData } from &#39;pkinative&#39;;
 
+// Inside your async handler: pkinative sends nothing, the fetch is yours.
 const signature = parseSignedData(p7s).signerInfos[0]!.signature;
 const hash = new Uint8Array(await crypto.subtle.digest(&#39;SHA-256&#39;, signature.slice()));
 const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);

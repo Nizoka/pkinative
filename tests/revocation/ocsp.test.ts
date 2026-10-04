@@ -91,6 +91,15 @@ describe('encodeOcspCertId', () => {
 });
 
 describe('createOcspRequest', () => {
+    it.each([0, 33])('should refuse a nonce of %i octets as PKI_API_MISUSE — RFC 8954 §2.1 allows 1 to 32', (length) => {
+        expect(() => createOcspRequest(R12, ROOT, { nonce: new Uint8Array(length) }))
+            .toThrow(expect.objectContaining({ code: 'PKI_API_MISUSE', message: expect.stringContaining('1 to 32 octets') }));
+    });
+
+    it.each([1, 32])('should accept a nonce of %i octets', (length) => {
+        expect(createOcspRequest(R12, ROOT, { nonce: new Uint8Array(length) })[0]).toBe(0x30);
+    });
+
     it('should omit the version field, which takes its DEFAULT', () => {
         const request = decodeAsn1(createOcspRequest(R12, ROOT), quiet);
         const tbs = request.children[0];

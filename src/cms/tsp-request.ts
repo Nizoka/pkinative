@@ -80,10 +80,10 @@ export interface CreateTimeStampRequestOptions {
  * Build an RFC 3161 `TimeStampReq` for a hash.
  *
  * ```ts
- * const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', document));
+ * const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', document.slice()));
  * const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0);
  * const body = createTimeStampRequest(hash, { nonce });
- * const response = await fetch(tsaUrl, { method: 'POST', headers: { 'content-type': 'application/timestamp-query' }, body });
+ * const response = await fetch(tsaUrl, { method: 'POST', headers: { 'content-type': 'application/timestamp-query' }, body: body.slice() });
  * ```
  *
  * It takes the **hash**, not the data: a timestamp is over a digest, the data

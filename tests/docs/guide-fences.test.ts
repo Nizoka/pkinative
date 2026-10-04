@@ -36,9 +36,9 @@ const EXPECT_SILENT = new Set<string>([
     'README.md:67', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:95',
     'docs/guides/use-cases.md:178', 'docs/guides/use-cases.md:204', 'docs/guides/use-cases.md:235',
     'docs/guides/use-cases.md:266', 'docs/guides/use-cases.md:325', 'docs/guides/use-cases.md:407',
-    'docs/guides/use-cases.md:498', 'docs/guides/use-cases.md:528', 'docs/guides/use-cases.md:571', 'docs/guides/use-cases.md:607',
-    'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:272', 'src/verify/verify-signed-data.ts:145',
-    'src/revocation/ocsp-check.ts:153', 'src/verify/verify-pkcs12.ts:128',
+    'docs/guides/use-cases.md:499', 'docs/guides/use-cases.md:529', 'docs/guides/use-cases.md:572', 'docs/guides/use-cases.md:609',
+    'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:273', 'src/verify/verify-signed-data.ts:145',
+    'src/revocation/ocsp-check.ts:154', 'src/verify/verify-pkcs12.ts:128',
     'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:55',
 ]);
 

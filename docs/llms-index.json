@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 7904,
-      "approxTokens": 1976
+      "bytes": 7957,
+      "approxTokens": 1989
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 240555,
-      "approxTokens": 60139
+      "bytes": 240784,
+      "approxTokens": 60196
     },
     {
       "url": "llms-recipes.txt",
@@ -36,8 +36,8 @@
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 29039,
-      "approxTokens": 7260
+      "bytes": 29338,
+      "approxTokens": 7335
     },
     {
       "url": "data/diagnostics.json",
@@ -114,8 +114,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 86411,
-      "approxTokens": 21603
+      "bytes": 86561,
+      "approxTokens": 21640
     },
     {
       "title": "Security model",

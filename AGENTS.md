@@ -8,7 +8,7 @@ Claude Code loads [CLAUDE.md](CLAUDE.md), which imports this file.
 pkinative is a zero-runtime-dependency TypeScript toolkit for PKI data — X.690 DER/BER, RFC 7468 PEM, OIDs, RFC 5280 certificates, paths and revocation, CMS and timestamps, PKCS#8/#12 —
 third library of the *native* family ([pdfnative](https://github.com/Nizoka/pdfnative), [zipnative](https://github.com/Nizoka/zipnative)).
 
-- **Zero deps.** Never add a runtime dependency; a dev dependency needs a written justification.
+- **Zero deps.** Never add a runtime dependency; a dev dependency needs a written justification in the pull request that adds it.
 - **No secret-dependent cryptography.** No key generation, no arithmetic on secrets, no signature algorithm in TypeScript: signing and verification are one Web Crypto call with the caller's key;
   hashing covers public data only.
 - **No classes, no module-level side effects.** Closure factories; the only classes are the `PkiError` family (`src/types/pki-errors.ts`).

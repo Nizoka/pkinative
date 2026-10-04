@@ -25,6 +25,7 @@ import type { CertificateDescription, PkiBuildOptions } from '../types/build-typ
 import type { Signer } from '../types/crypto-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import {
+    _wholeValue,
     encodeAlgorithmIdentifier,
     encodeDistinguishedName,
     encodeExtensions,
@@ -112,10 +113,19 @@ function isByteArray(value: unknown): value is Uint8Array {
     return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === '[object Uint8Array]';
 }
 
+/** The signature sizes Web Crypto produces for the Edwards curves (RFC 8032 §5.1.6, §5.2.6). */
+const EDWARDS_SIGNATURE_OCTETS: Readonly<Record<'Ed25519' | 'Ed448', number>> = { Ed25519: 64, Ed448: 114 };
+
 /** What an `ExternalSigner` returned, refused unless it has the shape `crypto.subtle.sign` produces. */
-function checkExternalSignature(produced: unknown, curve: 'P-256' | 'P-384' | 'P-521' | undefined): Uint8Array {
+function checkExternalSignature(produced: unknown, curve: 'P-256' | 'P-384' | 'P-521' | undefined, family: string): Uint8Array {
     if (!isByteArray(produced) || produced.length === 0) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: an ExternalSigner\'s produceSignature must return a non-empty Uint8Array — the signature as crypto.subtle.sign would produce it; wrap an ArrayBuffer in new Uint8Array(…)');
+    }
+    if (family === 'Ed25519' || family === 'Ed448') {
+        const expected = EDWARDS_SIGNATURE_OCTETS[family];
+        if (produced.length !== expected) {
+            throw new PkiError('PKI_API_MISUSE', `pkinative: an ExternalSigner for ${family} must return exactly ${String(expected)} octets, as crypto.subtle.sign would, and returned ${String(produced.length)}`);
+        }
     }
     if (curve !== undefined) {
         const expected = 2 * coordinateBytes(curve);
@@ -145,7 +155,7 @@ export async function computeSignatureValue(data: Uint8Array, signer: Signer): P
     // A copy for the external signer, so that one which scribbles on its
     // argument cannot change the bytes embedded next to its signature.
     const raw = 'produceSignature' in signer
-        ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve)
+        ? checkExternalSignature(await signer.produceSignature(data.slice()), resolved.curve, resolved.signParams.name)
         : await signData(signer.key, resolved.signParams, data);
     // Web Crypto returns ECDSA as raw r‖s; X.509 and CMS carry DER. Every
     // other family is already in the form the structure wants.
@@ -231,7 +241,7 @@ export async function createCertificate(description: CertificateDescription, sig
         issuer,
         encodeValidity(description.notBefore, description.notAfter),
         subject,
-        assertBytes(description.subjectPublicKey, 'subjectPublicKey'),
+        _wholeValue(assertBytes(description.subjectPublicKey, 'subjectPublicKey'), 'subjectPublicKey', 'a SubjectPublicKeyInfo DER, as crypto.subtle.exportKey(\'spki\', key) returns it', 0x30),
     ];
     if (extensions.length > 0) fields.push(encodeExplicit(3, encodeExtensions(extensions, limits)));
 

@@ -125,6 +125,9 @@ function keccakF(s: Uint32Array, c: Uint32Array, b: Uint32Array): void {
 
 // ── The sponge ───────────────────────────────────────────────────────
 
+/** The most octets one call squeezes: 1 MiB, far past any digest and short of the host's allocation limit. */
+const MAX_OUTPUT_OCTETS = 1_048_576;
+
 /**
  * SHAKE256 of public data, with the output length the caller names.
  *
@@ -148,12 +151,14 @@ function keccakF(s: Uint32Array, c: Uint32Array, b: Uint32Array): void {
  *   memory and the time of squeezing it (about 136 octets per Keccak permutation).
  * @returns `outputLength` octets of SHAKE256 output.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `input` is not a Uint8Array;
- *   `PKI_INVALID_OPTION` when `outputLength` is not a non-negative integer.
+ *   `PKI_INVALID_OPTION` when `outputLength` is not an integer from 0 to
+ *   1 048 576 — a digest, not a stream: past a mebibyte the host's allocation
+ *   would fail with a RangeError, and every thrown value here is a PkiError.
  */
 export function shake256(input: Uint8Array, outputLength: number): Uint8Array {
     const bytes = assertBytes(input, 'shake256 input');
-    if (!Number.isInteger(outputLength) || outputLength < 0) {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: shake256 outputLength must be a non-negative integer number of octets, got ${String(outputLength)} — an Ed448 CMS signer uses 64`);
+    if (!Number.isInteger(outputLength) || outputLength < 0 || outputLength > MAX_OUTPUT_OCTETS) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: shake256 outputLength must be an integer number of octets from 0 to ${String(MAX_OUTPUT_OCTETS)}, got ${String(outputLength)} — an Ed448 CMS signer uses 64, and a digest is not a stream`);
     }
 
     // Pad: the message, the domain separator with the first pad bit, zeros,

@@ -652,8 +652,9 @@ export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: num
  *
  * ```ts
  * const signerInfo = parseSignedData(p7s).signerInfos[0];
- * const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signerInfo.signature));
+ * const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', signerInfo.signature.slice()));
  * const response = parseTimeStampResponse(await askYourTsa(createTimeStampRequest(hash, { nonce })));
+ * if (response.tokenDer === undefined) throw new Error(`the TSA declined: ${response.status}`);
  * const stamped = addTimeStampToken(p7s, 0, response.tokenDer);
  * ```
  *
