@@ -140,7 +140,7 @@
 <tbody><tr>
 <td>A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC</td>
 <td>Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript (<a href="../adr/0002-pkcs12-pbes2-only.md">ADR 0002</a>)</td>
-<td>Convert it once: <code>openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
+<td>Convert it once: <code>openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
 </tr>
 <tr>
 <td>To write a PKCS#8 or PKCS#12, or to generate or export a key</td>

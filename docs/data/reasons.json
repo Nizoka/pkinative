@@ -253,7 +253,7 @@
       "code": "PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED",
       "since": "0.8.0",
       "returnedWhen": "A key or a bag of certificates in the container is encrypted with a scheme other than PBES2 with PBKDF2 and AES-CBC — an RFC 7292 Appendix C scheme, PBES1, or public-key privacy mode — or with a PBES2 scheme whose cipher or PRF this runtime's Web Crypto does not implement, such as AES-192 on several browsers; the message says which. The rest of the container is still read.",
-      "remedy": "Convert the file once with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 (the key in bundle.pem stays encrypted under the passphrase you give; PBES2 with AES-256-CBC is already the default; delete bundle.pem afterwards). pkinative will not implement the Appendix B KDF, in any version.",
+      "remedy": "Convert the file once with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 (-aes256 keeps the key in bundle.pem under AES-256-CBC and the passphrase you give, where -legacy alone would pick 3DES; the export is PBES2 with AES-256-CBC by default; delete bundle.pem afterwards). pkinative will not implement the Appendix B KDF, in any version.",
       "standard": "RFC 8018 §6.2"
     },
     {

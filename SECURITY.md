@@ -168,7 +168,7 @@ An encrypted private key or a PKCS#12 file is opened only where every step is on
 | `pbeWithSHA1AndRC2-CBC` (PBES1, RFC 8018 §6.1) | `1.2.840.113549.1.5.11` | refuses |
 | RFC 7292 Appendix B MAC | — | refuses |
 
-The refusals are a consequence of the scope above, not a backlog. The RFC 7292 Appendix B key derivation, behind both the Appendix C ciphers and the legacy PKCS#12 MAC, is iterated hashing with byte arithmetic over the password — secret-dependent code that Web Crypto does not offer and that pkinative would have to write in TypeScript; PBES1 adds DES, RC2 and MD2 besides. A legacy file converts in two commands, verified against OpenSSL 4.0.0: `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12`.
+The refusals are a consequence of the scope above, not a backlog. The RFC 7292 Appendix B key derivation, behind both the Appendix C ciphers and the legacy PKCS#12 MAC, is iterated hashing with byte arithmetic over the password — secret-dependent code that Web Crypto does not offer and that pkinative would have to write in TypeScript; PBES1 adds DES, RC2 and MD2 besides. A legacy file converts in two commands, verified against OpenSSL 3.5.5, 3.6.4 and 4.0.0: `openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12`.
 
 ### Parser Safety
 

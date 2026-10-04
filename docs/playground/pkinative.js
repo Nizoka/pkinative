@@ -11145,7 +11145,7 @@ var EC_CURVE_OIDS = /* @__PURE__ */ new Map([
 var REMEDIES3 = /* @__PURE__ */ Object.freeze({
   PKI_KEY_STRUCTURE_INVALID: "the input is not the RFC 5958 or RFC 7292 structure it was read as; check that it is DER and not its PEM or base64 text, and that the PEM label matched",
   PKI_KEY_VERSION_UNSUPPORTED: "the syntax defines no such version, so what follows cannot be read; re-export the file from the tool that owns the key",
-  PKI_KEY_ENCRYPTION_UNSUPPORTED: "pkinative opens PBES2 with PBKDF2 and AES-CBC only, by policy; convert the file with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 \u2014 or, for a key alone, openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256",
+  PKI_KEY_ENCRYPTION_UNSUPPORTED: "pkinative opens PBES2 with PBKDF2 and AES-CBC only, by policy; convert the file with OpenSSL 3.4 or later: openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem, then openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12 \u2014 or, for a key alone, openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256",
   PKI_KEY_MAC_UNSUPPORTED: "pkinative verifies RFC 9579 PBMAC1 only; re-export with openssl pkcs12 -export -pbmac1_pbkdf2 (OpenSSL 3.4 or later)"
 });
 function _keyError(code, path, offset, why) {

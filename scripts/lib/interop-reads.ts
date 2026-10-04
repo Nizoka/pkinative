@@ -250,6 +250,11 @@ function opensslWrites(o: Host, dir: string, reference: boolean): Written {
     ];
     for (const [id, args, detached] of cms) {
         const r = o.run(args);
+        if (r.status !== 0 && id === 'openssl:cms-ed25519' && /eddsa_digest_signverify_init:invalid digest|no default digest/.test(`${r.stdout}\n${r.stderr}`)) {
+            // The limitation TOOL_LIMITATIONS reviews for openssl: no EdDSA in CMS (OpenSSL 3.0).
+            skipped.set(id, `this openssl has no EdDSA in CMS (${firstLine(r)})`);
+            continue;
+        }
         if (r.status !== 0) { giveUp([id], r); continue; }
         const out = args[args.indexOf('-out') + 1] ?? '';
         cases.set(id, async () => expectValid(id, await verifySignedData({ signedData: read(out), ...(detached ? { content: data } : {}), trustAnchors: [root()] })));
