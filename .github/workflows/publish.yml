@@ -133,9 +133,11 @@ jobs:
 
     steps:
       # Every endpoint this job reaches: the checkout, the registry for
-      # `npm ci`, and the corpus hosts of scripts/lib/corpora.ts (GitHub raw
-      # files, NIST PKITS, the RFC Editor). setup-node takes Node from the
-      # runner's tool cache; nodejs.org is its documented fallback.
+      # `npm ci`, the corpus hosts of scripts/lib/corpora.ts (GitHub raw
+      # files, NIST PKITS, the RFC Editor), and PyPI for the pinned
+      # pyca/cryptography the L4 conformance validator imports. setup-node
+      # takes Node from the runner's tool cache; nodejs.org is its documented
+      # fallback.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -148,6 +150,8 @@ jobs:
             csrc.nist.gov:443
             www.rfc-editor.org:443
             nodejs.org:443
+            pypi.org:443
+            files.pythonhosted.org:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -187,6 +191,20 @@ jobs:
       # corpora; without them --require-all fails the release, as it should.
       - name: Fetch the pinned conformance corpora
         run: npm run conformance:fetch
+
+      # The L4 validator scripts/validators/python-cryptography.py imports
+      # cryptography.x509.verification (pyca/cryptography 42 and later); the
+      # image's system package is older, and --require-all fails the release
+      # on it. The same pinned file conformance.yml installs: every version and
+      # the SHA-256 of every wheel (--require-hashes), --only-binary so nothing
+      # is built, in a venv so nothing touches the system Python.
+      - name: Install the pinned Python validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/conformance-python"
+          "$RUNNER_TEMP/conformance-python/bin/python" -m pip install --require-hashes --no-deps --only-binary :all: -r scripts/data/interop-python-requirements.txt
+          echo "$RUNNER_TEMP/conformance-python/bin" >> "$GITHUB_PATH"
 
       # Every gate step — typecheck, lint, coverage, build, package checks,
       # bundle, install smoke test, docs, conformance. --require-all: a missing

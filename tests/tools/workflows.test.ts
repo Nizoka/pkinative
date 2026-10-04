@@ -199,7 +199,7 @@ describe('every workflow job', () => {
         };
         const SIGSTORE = ['fulcio.sigstore.dev:443', 'rekor.sigstore.dev:443', 'tuf-repo-cdn.sigstore.dev:443'];
         expect(allowed('guard')).toEqual(['api.github.com:443', 'github.com:443']);
-        expect(allowed('build')).toEqual(['api.github.com:443', 'csrc.nist.gov:443', 'github.com:443', 'nodejs.org:443', 'raw.githubusercontent.com:443', 'registry.npmjs.org:443', 'www.rfc-editor.org:443']);
+        expect(allowed('build')).toEqual(['api.github.com:443', 'csrc.nist.gov:443', 'files.pythonhosted.org:443', 'github.com:443', 'nodejs.org:443', 'pypi.org:443', 'raw.githubusercontent.com:443', 'registry.npmjs.org:443', 'www.rfc-editor.org:443']);
         expect(allowed('publish')).toEqual(['github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', ...SIGSTORE].sort());
         expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', 'uploads.github.com:443', ...SIGSTORE].sort());
         // The corpus hosts are real: a corpus moved elsewhere must move here too.
