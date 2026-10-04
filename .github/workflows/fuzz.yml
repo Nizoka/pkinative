@@ -41,6 +41,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # `sanitizer: address` is the value CIFuzz accepts (config_utils.SANITIZERS:
+  # address, memory, undefined, coverage — `none` is refused as an invalid
+  # configuration). A Jazzer.js target is a wrapper script over pure
+  # JavaScript: OSS-Fuzz's bad_build_check skips the sanitizer and architecture
+  # checks for javascript, so nothing native is instrumented either way.
+  #
   # Five minutes per sanitizer on the code a pull request changed. Short on
   # purpose: this runs on every push to a branch, and a fuzzer that makes
   # contributors wait is a fuzzer contributors route around.
@@ -64,16 +70,17 @@ jobs:
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
         with:
           language: javascript
-          sanitizer: none
+          sanitizer: address
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run the fuzzers
         uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
         with:
+          language: javascript
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fuzz-seconds: 300
           mode: code-change
-          sanitizer: none
+          sanitizer: address
           output-sarif: true
 
   # The run that actually finds things. Thirty minutes a week against a corpus
@@ -97,12 +104,13 @@ jobs:
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
         with:
           language: javascript
-          sanitizer: none
+          sanitizer: address
 
       - name: Run the fuzzers
         uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
         with:
+          language: javascript
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fuzz-seconds: 1800
           mode: batch
-          sanitizer: none
+          sanitizer: address
