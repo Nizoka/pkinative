@@ -311,7 +311,7 @@
 <tr>
 <td><code>openssl:pkcs12-converted</code></td>
 <td>the conversion SECURITY.md documents: <code>openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem</code>, then <code>openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12</code></td>
-<td>valid, integrity <code>verified</code>, the key signs</td>
+<td>valid, integrity <code>verified</code>, the key signs; when the conversion fails, a failure — unless that openssl cannot run the second command on an encrypted PEM key it wrote itself with <code>pkey -aes256</code>, and then a skip naming it</td>
 </tr>
 <tr>
 <td><code>openssl:pkcs8-pbes2</code></td>

@@ -376,9 +376,29 @@ const OPENSSL_WRITER: Writer = {
                 ? run('openssl', ['pkcs12', '-export', '-in', bundle, '-pbmac1_pbkdf2', '-out', modern, '-passin', `pass:${pemPass}`, '-passout', `pass:${PASSWORD}`])
                 : step1;
             if (step2.status !== 0) {
-                // The documented commands failing is a finding about the
-                // documentation, not a tool that cannot do something.
-                failures.push(`openssl:pkcs12-converted: the conversion SECURITY.md and docs/data/errors.json document fails on this openssl (${firstLine(step2)})`);
+                // The control: the second command alone, over the same key
+                // encrypted by this openssl's own `pkey -aes256` under the same
+                // passphrase — no legacy file, no first step. If that fails
+                // too, this openssl cannot export from an encrypted PEM key
+                // whatever the documentation says, and the tool, not the
+                // conversion, is what this run has found out about.
+                const control = file('control.pem');
+                const wrote = run('openssl', ['pkey', '-in', keyPem, '-aes256', '-passout', `pass:${pemPass}`, '-out', control]);
+                const reads = wrote.status === 0
+                    ? run('openssl', ['pkcs12', '-export', '-in', certPem, '-inkey', control, '-pbmac1_pbkdf2', '-out', file('control.p12'), '-passin', `pass:${pemPass}`, '-passout', `pass:${PASSWORD}`])
+                    : wrote;
+                const version = run('openssl', ['version']).stdout.trim();
+                if (reads.status !== 0) {
+                    skipped.push({ caseId: 'openssl:pkcs12-converted', why: `${version} cannot export from an encrypted PEM key it wrote itself (${firstLine(reads)}), which is the conversion's second command` });
+                } else {
+                    // The documented commands failing is a finding about the
+                    // documentation, not a tool that cannot do something.
+                    const labels = step1.status === 0 && existsSync(bundle) ? [...readFileSync(bundle, 'utf8').matchAll(/-----BEGIN ([A-Z ]+)-----/g)].map((m) => m[1]).join(', ') : '';
+                    // "Could not find private key" is also what a wrong passphrase prints.
+                    const underImportPassword = step1.status === 0
+                        && run('openssl', ['pkey', '-in', bundle, '-passin', `pass:${PASSWORD}`, '-noout']).status === 0;
+                    failures.push(`openssl:pkcs12-converted: the conversion SECURITY.md and docs/data/errors.json document fails on ${version} at step ${step1.status === 0 ? 2 : 1} (${firstLine(step2)}); bundle.pem holds [${labels}]${underImportPassword ? ', its key encrypted under the -passin password instead of -passout' : ''}, and this openssl exports from an encrypted PEM key it wrote itself`);
+                }
             } else {
                 pkcs12Case('openssl:pkcs12-converted', key, modern, cert, info(modern), { kind: 'opens' });
             }
