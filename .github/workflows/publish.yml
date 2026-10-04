@@ -134,10 +134,12 @@ jobs:
     steps:
       # Every endpoint this job reaches: the checkout, the registry for
       # `npm ci`, the corpus hosts of scripts/lib/corpora.ts (GitHub raw
-      # files, NIST PKITS, the RFC Editor), and PyPI for the pinned
-      # pyca/cryptography the L4 conformance validator imports. setup-node
-      # takes Node from the runner's tool cache; nodejs.org is its documented
-      # fallback.
+      # files, NIST PKITS, the RFC Editor), and the interoperability readers
+      # the gate requires: the Ubuntu archive over HTTPS (GnuTLS, gpgsm), the
+      # Go release setup-go fetches (release-assets.githubusercontent.com), the
+      # Go module proxy and checksum database (zlint), PyPI (pyca/cryptography,
+      # pkilint). setup-node takes Node from the runner's tool cache; nodejs.org
+      # is its documented fallback.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -150,6 +152,11 @@ jobs:
             csrc.nist.gov:443
             www.rfc-editor.org:443
             nodejs.org:443
+            archive.ubuntu.com:443
+            security.ubuntu.com:443
+            release-assets.githubusercontent.com:443
+            proxy.golang.org:443
+            sum.golang.org:443
             pypi.org:443
             files.pythonhosted.org:443
 
@@ -192,16 +199,47 @@ jobs:
       - name: Fetch the pinned conformance corpora
         run: npm run conformance:fetch
 
-      # The L4 validator scripts/validators/python-cryptography.py imports
-      # cryptography.x509.verification (pyca/cryptography 42 and later); the
-      # image's system package is older, and --require-all fails the release
-      # on it. The same pinned file conformance.yml installs: every version and
-      # the SHA-256 of every wheel (--require-hashes), --only-binary so nothing
-      # is built, in a venv so nothing touches the system Python.
-      - name: Install the pinned Python validator
+      # The publish gate runs `conformance` and `interop` with --require-all,
+      # so this job installs every Linux reader conformance.yml installs —
+      # REQUIRED_TOOLS.linux in scripts/lib/interop.ts; a missing one fails
+      # the release. GnuTLS and gpgsm come from the Ubuntu archive alone, over
+      # HTTPS and checked against the Ubuntu archive key: the image's other
+      # apt sources and its http mirror are outside this job's egress list.
+      - name: Install the Linux interoperability readers (GnuTLS, gpgsm)
         shell: bash
         run: |
           set -euo pipefail
+          CODENAME=$(. /etc/os-release && echo "${VERSION_CODENAME}")
+          SOURCES="${RUNNER_TEMP}/apt-sources.d"
+          mkdir -p "${SOURCES}"
+          printf '%s\n' \
+            'Types: deb' 'URIs: https://archive.ubuntu.com/ubuntu/' "Suites: ${CODENAME} ${CODENAME}-updates" \
+            'Components: main universe' 'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' '' \
+            'Types: deb' 'URIs: https://security.ubuntu.com/ubuntu/' "Suites: ${CODENAME}-security" \
+            'Components: main universe' 'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+            > "${SOURCES}/ubuntu-https.sources"
+          APT=(-o Dir::Etc::SourceList=/dev/null -o "Dir::Etc::SourceParts=${SOURCES}")
+          sudo apt-get "${APT[@]}" update -q
+          sudo apt-get "${APT[@]}" install -y -q --no-install-recommends gnutls-bin gpgsm
+
+      - name: Setup Go (crypto/x509 reader, zlint)
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      # zlint by its module version, which the Go checksum database verifies;
+      # pyca/cryptography and pkilint from the file conformance.yml installs —
+      # every version and the SHA-256 of every wheel (--require-hashes),
+      # --only-binary so nothing is built, in a venv so nothing touches the
+      # system Python, whose cryptography predates the x509.verification API
+      # the L4 validator imports.
+      - name: Install zlint and the Python readers (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/zmap/zlint/v3/cmd/zlint@v3.7.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           python3 -m venv "$RUNNER_TEMP/conformance-python"
           "$RUNNER_TEMP/conformance-python/bin/python" -m pip install --require-hashes --no-deps --only-binary :all: -r scripts/data/interop-python-requirements.txt
           echo "$RUNNER_TEMP/conformance-python/bin" >> "$GITHUB_PATH"
