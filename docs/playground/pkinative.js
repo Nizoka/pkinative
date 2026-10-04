@@ -6503,6 +6503,14 @@ var CRL_OWN_EXTENSIONS = /* @__PURE__ */ new Set([
   OID_ISSUING_DISTRIBUTION_POINT,
   OID_CERTIFICATE_ISSUER
 ]);
+function fieldsOf(der, parent, path, max) {
+  const fields = [];
+  for (const field of walkChildren(der, parent, path)) {
+    if (fields.length === max) throw crlError(path, field.offset, `holds more than ${String(max)} values, where RFC 5280 \xA75.1 defines at most ${String(max)}`);
+    fields.push(field);
+  }
+  return fields;
+}
 function crlError(path, offset, why) {
   return new PkiCertificateError(STRUCTURE3, `pkinative: ${path} ${why} \u2014 the input is not an RFC 5280 CertificateList`, path, offset);
 }
@@ -6511,12 +6519,12 @@ function decodeAt(der, header, ctx) {
 }
 var isTime = (header) => header.tagClass === "universal" && (header.tagNumber === 23 || header.tagNumber === 24);
 function locate(der, outer) {
-  const parts = [...walkChildren(der, outer, "CertificateList")];
+  const parts = fieldsOf(der, outer, "CertificateList", 3);
   const tbs = parts[0];
   if (parts.length !== 3 || tbs === void 0) {
     throw crlError("CertificateList", outer.offset, `holds ${String(parts.length)} values where RFC 5280 \xA75.1 defines exactly three`);
   }
-  const fields = [...walkChildren(der, tbs, "tbsCertList")];
+  const fields = fieldsOf(der, tbs, "tbsCertList", 7);
   let at = 0;
   const take = (what) => {
     const field = fields[at];
@@ -6577,6 +6585,7 @@ function countEntries(der, revoked, ctx) {
 function parseCertificateList(der, options) {
   der = assertBytes(der, "parseCertificateList input");
   const ctx = createAsn1Context(options);
+  enforceLimit(ctx.limits, "maxInputBytes", der.length, "the input size");
   const outer = readTlvHeader(der, 0, "CertificateList");
   if (!outer.constructed || outer.tagClass !== "universal" || outer.tagNumber !== 16) {
     throw crlError("CertificateList", 0, "is not a SEQUENCE");
@@ -6587,7 +6596,7 @@ function parseCertificateList(der, options) {
   const issuer = _readName(decodeAt(der, fields[env.signatureIndex + 1], ctx), ctx, "tbsCertList.issuer", env.tbs.offset);
   const thisUpdate = _readTime(decodeAt(der, env.thisUpdateAt, ctx), ctx, void 0);
   const nextUpdate = env.nextUpdateAt === void 0 ? void 0 : _readTime(decodeAt(der, env.nextUpdateAt, ctx), ctx, void 0);
-  const parts = [...walkChildren(der, outer, "CertificateList")];
+  const parts = fieldsOf(der, outer, "CertificateList", 3);
   const signatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, parts[1], ctx), ctx, "signatureAlgorithm", STRUCTURE3, outer.offset);
   const signatureNode = decodeAt(der, parts[2], ctx);
   if (signatureNode.tagClass !== "universal" || signatureNode.tagNumber !== 3) {
@@ -6627,7 +6636,7 @@ function parseCertificateList(der, options) {
 }
 function readExtensions2(der, field, ctx, path) {
   if (field === void 0) return [];
-  const wrapper = field.tagClass === "context" ? [...walkChildren(der, field, path)][0] : field;
+  const wrapper = field.tagClass === "context" ? fieldsOf(der, field, path, 1)[0] : field;
   if (wrapper === void 0) return [];
   const out = [];
   let index = 0;
@@ -6677,7 +6686,10 @@ function readIntegerValue(extension, ctx, path, name) {
   }
 }
 function findRevocation(der, serial, options) {
+  der = assertBytes(der, "findRevocation input");
+  serial = assertBytes(serial, "findRevocation serial");
   const ctx = createAsn1Context(options);
+  enforceLimit(ctx.limits, "maxInputBytes", der.length, "the input size");
   const outer = readTlvHeader(der, 0, "CertificateList");
   const env = locate(der, outer);
   if (env.revoked === void 0) return void 0;
@@ -6691,7 +6703,7 @@ function findRevocation(der, serial, options) {
   for (const entry of walkChildren(der, env.revoked, "tbsCertList.revokedCertificates")) {
     enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, `tbsCertList.revokedCertificates[${String(index)}]`);
     const path = `tbsCertList.revokedCertificates[${String(index)}]`;
-    const parts = [...walkChildren(der, entry, path)];
+    const parts = fieldsOf(der, entry, path, 3);
     const serialField = parts[0];
     const dateField = parts[1];
     if (serialField === void 0 || dateField === void 0) {
@@ -6719,7 +6731,9 @@ function findRevocation(der, serial, options) {
 }
 var ENTRY_EXTENSIONS = /* @__PURE__ */ new Set([OID_CRL_REASON, OID_INVALIDITY_DATE, OID_CERTIFICATE_ISSUER]);
 function _unknownCriticalEntryExtension(der, options) {
+  der = assertBytes(der, "_unknownCriticalEntryExtension input");
   const ctx = createAsn1Context(options);
+  enforceLimit(ctx.limits, "maxInputBytes", der.length, "the input size");
   const env = locate(der, readTlvHeader(der, 0, "CertificateList"));
   if (env.revoked === void 0) return void 0;
   let index = 0;
@@ -6727,7 +6741,7 @@ function _unknownCriticalEntryExtension(der, options) {
     const path = `tbsCertList.revokedCertificates[${String(index)}]`;
     enforceLimit(ctx.limits, "maxRevokedCertificates", index + 1, path);
     index += 1;
-    const field = [...walkChildren(der, entry, path)][2];
+    const field = fieldsOf(der, entry, path, 3)[2];
     for (const extension of readExtensions2(der, field, ctx, `${path}.crlEntryExtensions`)) {
       if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
     }
@@ -7430,17 +7444,27 @@ var REASONS2 = Object.freeze({
   9: "privilegeWithdrawn",
   10: "aACompromise"
 });
+function fieldsOf2(der, parent, path, max) {
+  const fields = [];
+  for (const field of walkChildren(der, parent, path)) {
+    if (fields.length === max) throw ocspError(path, field.offset, `holds more than ${String(max)} values, where RFC 6960 \xA74.2.1 defines at most ${String(max)}`);
+    fields.push(field);
+  }
+  return fields;
+}
 function ocspError(path, offset, why) {
   return new PkiCertificateError(STRUCTURE4, `pkinative: ${path} ${why} \u2014 the input is not an RFC 6960 OCSPResponse`, path, offset);
 }
 var decodeAt2 = (der, header, ctx) => decodeValueAt(der, header.offset, ctx);
 function parseOcspResponse(der, options) {
+  der = assertBytes(der, "parseOcspResponse input");
   const ctx = createAsn1Context(options);
+  enforceLimit(ctx.limits, "maxInputBytes", der.length, "the input size");
   const outer = readTlvHeader(der, 0, "OCSPResponse");
   if (!outer.constructed || outer.tagClass !== "universal" || outer.tagNumber !== 16) {
     throw ocspError("OCSPResponse", 0, "is not a SEQUENCE");
   }
-  const parts = [...walkChildren(der, outer, "OCSPResponse")];
+  const parts = fieldsOf2(der, outer, "OCSPResponse", 2);
   const statusField = parts[0];
   if (statusField === void 0 || statusField.tagClass !== "universal" || statusField.tagNumber !== 10) {
     throw ocspError("OCSPResponse.responseStatus", outer.offset, "is not an ENUMERATED");
@@ -7475,9 +7499,9 @@ function parseOcspResponse(der, options) {
   });
 }
 function readResponseBytes(der, field, ctx) {
-  const wrapper = [...walkChildren(der, field, "OCSPResponse.responseBytes")][0];
+  const wrapper = fieldsOf2(der, field, "OCSPResponse.responseBytes", 1)[0];
   if (wrapper === void 0) throw ocspError("OCSPResponse.responseBytes", field.offset, "is empty");
-  const inner = [...walkChildren(der, wrapper, "ResponseBytes")];
+  const inner = fieldsOf2(der, wrapper, "ResponseBytes", 2);
   const typeField = inner[0];
   const valueField = inner[1];
   if (typeField === void 0 || valueField === void 0) {
@@ -7492,7 +7516,7 @@ function readResponseBytes(der, field, ctx) {
 }
 function readBasicResponse(der, ctx) {
   const outer = readTlvHeader(der, 0, "BasicOCSPResponse");
-  const parts = [...walkChildren(der, outer, "BasicOCSPResponse")];
+  const parts = fieldsOf2(der, outer, "BasicOCSPResponse", 4);
   const tbs = parts[0];
   const algorithmField = parts[1];
   const signatureField = parts[2];
@@ -7506,8 +7530,8 @@ function readBasicResponse(der, ctx) {
   const certificates = [];
   const certsField = parts[3];
   if (certsField !== void 0) {
-    const seq = [...walkChildren(der, certsField, "BasicOCSPResponse.certs")][0];
-    const entries = seq === void 0 ? [] : [...walkChildren(der, seq, "BasicOCSPResponse.certs")];
+    const seq = fieldsOf2(der, certsField, "BasicOCSPResponse.certs", 1)[0];
+    const entries = seq === void 0 ? [] : fieldsOf2(der, seq, "BasicOCSPResponse.certs", ctx.limits.maxChainLength + 1);
     if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
     for (const certificate of entries) {
       enforceLimit(ctx.limits, "maxChainLength", certificates.length + 1, "BasicOCSPResponse.certs");
@@ -7527,7 +7551,7 @@ function readBasicResponse(der, ctx) {
   });
 }
 function readResponseData(der, tbs, ctx) {
-  const fields = [...walkChildren(der, tbs, "ResponseData")];
+  const fields = fieldsOf2(der, tbs, "ResponseData", 5);
   let at = 0;
   if (fields[0]?.tagClass === "context" && fields[0].tagNumber === 0) {
     readVersion2(der, fields[0], ctx);
@@ -7560,7 +7584,7 @@ function readResponseData(der, tbs, ctx) {
   return { responderId, producedAt, responses: Object.freeze(responses), extensions };
 }
 function readVersion2(der, field, ctx) {
-  const inner = [...walkChildren(der, field, "ResponseData.version")][0];
+  const inner = fieldsOf2(der, field, "ResponseData.version", 1)[0];
   if (inner === void 0 || inner.tagClass !== "universal" || inner.tagNumber !== 2) {
     ctx.emitter.emit(ocspVersionNotV1Diagnostic("holds no INTEGER", field.offset));
     return;
@@ -7573,7 +7597,7 @@ function readVersion2(der, field, ctx) {
   ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset));
 }
 function readResponderId(der, field, ctx) {
-  const inner = [...walkChildren(der, field, "ResponseData.responderID")][0];
+  const inner = fieldsOf2(der, field, "ResponseData.responderID", 1)[0];
   if (inner === void 0) throw ocspError("ResponseData.responderID", field.offset, "is empty");
   if (field.tagNumber === 1) return { kind: "byName", nameDer: der.subarray(inner.offset, inner.end) };
   const node = decodeAt2(der, inner, ctx);
@@ -7583,7 +7607,7 @@ function readResponderId(der, field, ctx) {
   return { kind: "byKey", keyHash: node.content };
 }
 function readSingleResponse(der, single, ctx, path) {
-  const fields = [...walkChildren(der, single, path)];
+  const fields = fieldsOf2(der, single, path, 5);
   const idField = fields[0];
   const statusField = fields[1];
   const thisUpdateField = fields[2];
@@ -7593,7 +7617,7 @@ function readSingleResponse(der, single, ctx, path) {
   let at = 3;
   let nextUpdate;
   if (fields[at]?.tagClass === "context" && fields[at]?.tagNumber === 0) {
-    const inner = [...walkChildren(der, fields[at], `${path}.nextUpdate`)][0];
+    const inner = fieldsOf2(der, fields[at], `${path}.nextUpdate`, 1)[0];
     if (inner !== void 0) nextUpdate = _readTime(decodeAt2(der, inner, ctx), ctx, void 0);
     at += 1;
   }
@@ -7607,7 +7631,7 @@ function readSingleResponse(der, single, ctx, path) {
   });
 }
 function readCertId(der, field, ctx, path) {
-  const parts = [...walkChildren(der, field, path)];
+  const parts = fieldsOf2(der, field, path, 4);
   const [algorithmField, nameHashField, keyHashField, serialField] = parts;
   if (parts.length !== 4 || algorithmField === void 0 || nameHashField === void 0 || keyHashField === void 0 || serialField === void 0) {
     throw ocspError(path, field.offset, `holds ${String(parts.length)} values where a CertID has four`);
@@ -7629,20 +7653,20 @@ function readCertStatus(der, field, ctx, path) {
   if (field.tagNumber === 0) return { kind: "good" };
   if (field.tagNumber === 2) return { kind: "unknown" };
   if (field.tagNumber !== 1) throw ocspError(path, field.offset, `is [${String(field.tagNumber)}]; RFC 6960 defines [0] good, [1] revoked and [2] unknown`);
-  const parts = [...walkChildren(der, field, path)];
+  const parts = fieldsOf2(der, field, path, 2);
   const timeField = parts[0];
   if (timeField === void 0) throw ocspError(path, field.offset, "is revoked and carries no revocationTime");
   let reason;
   const reasonField = parts[1];
   if (reasonField !== void 0 && reasonField.tagClass === "context" && reasonField.tagNumber === 0) {
-    const inner = [...walkChildren(der, reasonField, `${path}.revocationReason`)][0];
+    const inner = fieldsOf2(der, reasonField, `${path}.revocationReason`, 1)[0];
     if (inner !== void 0 && inner.length === 1) reason = REASONS2[der[inner.contentStart]];
   }
   return { kind: "revoked", revocationTime: _readTime(decodeAt2(der, timeField, ctx), ctx, void 0), reason };
 }
 function readExtensions3(der, field, ctx, path) {
   if (field.tagClass !== "context") throw ocspError(path, field.offset, "is not a context-tagged Extensions field");
-  const wrapper = [...walkChildren(der, field, path)][0];
+  const wrapper = fieldsOf2(der, field, path, 1)[0];
   if (wrapper === void 0) return [];
   const out = [];
   let index = 0;
@@ -10028,7 +10052,7 @@ function structure(path, expected, offset) {
     offset
   );
 }
-function fieldsOf(data, parent, path, max) {
+function fieldsOf3(data, parent, path, max) {
   const fields = [];
   for (const field of walkChildren(data, parent, path)) {
     if (fields.length === max) throw structure(path, `a value of at most ${String(max)} fields`, field.offset);
@@ -10056,7 +10080,7 @@ function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options)
   const contentInfo = readTlvHeader(der, 0, "contentInfo");
   if (!isTag(contentInfo, "universal", TAG_SEQUENCE, true)) throw structure("contentInfo", "a SEQUENCE", 0);
   if (contentInfo.end !== der.length) throw structure("contentInfo", "the whole input \u2014 bytes follow it", contentInfo.end);
-  const [typeField, contentField] = fieldsOf(der, contentInfo, "contentInfo", 2);
+  const [typeField, contentField] = fieldsOf3(der, contentInfo, "contentInfo", 2);
   const contentTypeField = expectTag(typeField, "universal", TAG_OID, false, "contentInfo.contentType", "an OBJECT IDENTIFIER", contentInfo);
   const contentType = decodeOid(der.subarray(contentTypeField.contentStart, contentTypeField.end));
   if (contentType !== OID_SIGNED_DATA) {
@@ -10068,8 +10092,8 @@ function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options)
     );
   }
   const explicit = expectTag(contentField, "context", 0, true, "contentInfo.content", "a [0] EXPLICIT value", contentInfo);
-  const signedData = expectTag(fieldsOf(der, explicit, "contentInfo.content", 1)[0], "universal", TAG_SEQUENCE, true, "signedData", "a SEQUENCE", explicit);
-  const fields = fieldsOf(der, signedData, "signedData", 6);
+  const signedData = expectTag(fieldsOf3(der, explicit, "contentInfo.content", 1)[0], "universal", TAG_SEQUENCE, true, "signedData", "a SEQUENCE", explicit);
+  const fields = fieldsOf3(der, signedData, "signedData", 6);
   expectTag(fields[0], "universal", TAG_INTEGER, false, "signedData.version", "an INTEGER", signedData);
   expectTag(fields[1], "universal", TAG_SET, true, "signedData.digestAlgorithms", "a SET", signedData);
   expectTag(fields[2], "universal", TAG_SEQUENCE, true, "signedData.encapContentInfo", "a SEQUENCE", signedData);
@@ -10091,7 +10115,7 @@ function addUnsignedAttribute(signedDataDer, signerIndex, attributeDer, options)
     throw misuse(`signerIndex ${String(signerIndex)} is out of range \u2014 this SignedData has ${String(infos.length)} signer(s), counted from 0`);
   }
   const path = `signerInfos[${String(signerIndex)}]`;
-  const parts = fieldsOf(der, target, path, 7);
+  const parts = fieldsOf3(der, target, path, 7);
   expectTag(parts[0], "universal", TAG_INTEGER, false, `${path}.version`, "an INTEGER", target);
   if (!isTag(parts[1], "context", 0, false)) expectTag(parts[1], "universal", TAG_SEQUENCE, true, `${path}.sid`, "an IssuerAndSerialNumber or a [0] SubjectKeyIdentifier", target);
   expectTag(parts[2], "universal", TAG_SEQUENCE, true, `${path}.digestAlgorithm`, "an AlgorithmIdentifier", target);

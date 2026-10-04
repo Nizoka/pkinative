@@ -217,7 +217,7 @@ async function verifySignedStructure(
  * Verify that a CA's key signed this revocation list.
  *
  * ```ts
- * const crl = parseCertificateList(der);
+ * const crl = parseCertificateList(crlDer);
  * if (!await verifyCrlSignature(crl, caCertificate)) return 'this list is not from that CA';
  * ```
  *

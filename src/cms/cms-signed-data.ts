@@ -92,7 +92,7 @@ interface Bag {
  * ```ts
  * import { parseSignedData } from 'pkinative';
  *
- * const signed = parseSignedData(der);
+ * const signed = parseSignedData(p7s);
  * if (signed.content === undefined) console.log('detached: the signed bytes travel separately');
  * for (const signer of signed.signerInfos) console.log(signer.sid.kind, signer.messageDigest);
  * ```

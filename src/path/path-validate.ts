@@ -396,10 +396,14 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * ```ts
  * import { validateCertificatePath, verifyCertificateSignature } from 'pkinative';
  *
- * const signatures = await Promise.all(chain.slice(0, -1).map(async (cert, i) => ({
- *     certificate: cert,
- *     verdict: await verifyCertificateSignature(cert, chain[i + 1]) ? 'valid' as const : 'invalid' as const,
- * })));
+ * // Every link gets a verdict, the last one against the anchor it names: a chain that stops at the
+ * // intermediate — how most servers send it — is anchored by `roots`, not by its own last element.
+ * const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((octet, j) => octet === b[j]);
+ * const signatures = (await Promise.all(chain.map(async (cert, i) => {
+ *     const issuer = chain[i + 1] ?? roots.find((root) => sameBytes(root.subject.der, cert.issuer.der));
+ *     if (issuer === undefined) return [];   // nobody to check against: the validator reports NOT_CHECKED, never "valid"
+ *     return [{ certificate: cert, verdict: await verifyCertificateSignature(cert, issuer) ? 'valid' as const : 'invalid' as const }];
+ * }))).flat();
  * const report = validateCertificatePath({ path: chain, trustAnchors: roots, at: Date.now(), signatures });
  * if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
  * ```

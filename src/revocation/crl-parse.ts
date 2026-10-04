@@ -213,8 +213,8 @@ function countEntries(der: Uint8Array, revoked: TlvHeader | undefined, ctx: Asn1
  * ```ts
  * import { findRevocation, parseCertificateList } from 'pkinative';
  *
- * const crl = parseCertificateList(der);
- * const entry = findRevocation(crl, certificate.serialNumber);
+ * const crl = parseCertificateList(crlDer);
+ * const entry = findRevocation(crlDer, certificate.serialNumber.bytes);   // the DER again, and the serial's octets
  * if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.revocationDate.epochMilliseconds));
  * ```
  *
@@ -417,6 +417,9 @@ export interface FindRevocationOptions extends PkiParseOptions {
  */
 export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: FindRevocationOptions): RevokedCertificate | undefined {
     der = assertBytes(der, 'findRevocation input');
+    // The serial is `certificate.serialNumber.bytes`, not the `serialNumber` object: a wrong type here once
+    // returned `undefined` — a revocation silently missed — where the input rule says PKI_INVALID_INPUT.
+    serial = assertBytes(serial, 'findRevocation serial');
     const ctx = createAsn1Context(options);
     enforceLimit(ctx.limits, 'maxInputBytes', der.length, 'the input size');
     const outer = readTlvHeader(der, 0, 'CertificateList');

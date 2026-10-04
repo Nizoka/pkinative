@@ -223,6 +223,15 @@ describe('parseCertificateList', () => {
 });
 
 describe('findRevocation', () => {
+    it('should refuse a serial that is not bytes with PKI_INVALID_INPUT — the serialNumber object instead of its .bytes once returned undefined, a revocation silently missed', () => {
+        const crl = sequence(sequence(universal(2, [1]), sequence(universal(6, [0x2b, 0x65, 0x70]), universal(5, [])), sequence(), universal(23, ascii('260101000000Z'))), sequence(universal(6, [0x2b, 0x65, 0x70])), universal(3, [0, 1]));
+        for (const bad of [{ bytes: new Uint8Array([1]), hex: '01', value: 1n }, '01', 1, null]) {
+            let caught: unknown;
+            try { findRevocation(crl, bad as unknown as Uint8Array); } catch (err) { caught = err; }
+            expect(caught, String(bad)).toMatchObject({ code: 'PKI_INVALID_INPUT' });
+        }
+    });
+
     const der = crl({ entries: [
         entry([0x01]),
         entry([0x02], '260602000000Z', extension([0x55, 0x1d, 0x15], universal(10, [0x01]))),
