@@ -754,10 +754,10 @@ The job: a CA published a CRL, and you want to know whether this certificate is 
 ```ts
 import { findRevocation, parseCertificateList } from 'pkinative';
 
-const crl = parseCertificateList(der);
+const crl = parseCertificateList(crlDer);
 console.log(crl.issuer, crl.thisUpdate, crl.nextUpdate, crl.entryCount);
 
-const entry = findRevocation(der, certificate.serialNumber.bytes);
+const entry = findRevocation(crlDer, certificate.serialNumber.bytes);
 if (entry !== undefined) console.log('revoked', entry.reason, new Date(entry.revocationDate.epochMilliseconds));
 ```
 

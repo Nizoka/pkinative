@@ -411,10 +411,10 @@ if (problems.length &gt; 0) for (const reason of problems) console.log(reason.co
 <p>The job: a CA published a CRL, and you want to know whether this certificate is on it.</p>
 <pre><code class="language-ts">import { findRevocation, parseCertificateList } from &#39;pkinative&#39;;
 
-const crl = parseCertificateList(der);
+const crl = parseCertificateList(crlDer);
 console.log(crl.issuer, crl.thisUpdate, crl.nextUpdate, crl.entryCount);
 
-const entry = findRevocation(der, certificate.serialNumber.bytes);
+const entry = findRevocation(crlDer, certificate.serialNumber.bytes);
 if (entry !== undefined) console.log(&#39;revoked&#39;, entry.reason, new Date(entry.revocationDate.epochMilliseconds));
 </code></pre>
 <p><strong>There is no array of entries, on purpose.</strong> A CRL entry costs three ASN.1 nodes, so decoding the list into a tree hits <code>maxNodes</code> (200 000) at roughly 65 000 entries — while <code>maxInputBytes</code> would allow millions, and real CRLs sit in between. So the envelope is decoded and the list is <strong>walked</strong>, one TLV header at a time, in constant memory, bounded by <code>maxRevokedCertificates</code> (default 1 000 000). Exposing an array would either cap the library below real-world sizes or allocate hundreds of megabytes to answer one yes-or-no. <code>entryCount</code> is there when you genuinely want the size, and it is counted by walking.</p>

@@ -155,7 +155,7 @@ A change to decoding or parsing behaviour that moves a refusal regenerates the b
 - [ ] Type check passes (`npm run typecheck:all`)
 - [ ] Lint passes (`npm run lint`)
 - [ ] New code has tests, and every new error code, diagnostic or limit is raised by at least one of them
-- [ ] Every ```ts fence of README.md and `docs/guides/*.md` compiles (`npm run check:guides`, a gate step): a fence may use the inputs named in `GUIDE_INPUTS` (`scripts/check-guides.ts`) — the bytes, certificates and keys the prose around it names — and nothing else undeclared; a new input is a reviewed line in that table
+- [ ] Every ```ts fence of README.md and `docs/guides/*.md` compiles (`npm run check:guides`, a gate step) and runs (`tests/docs/guide-fences.test.ts` executes each one against a test PKI; a fence that throws, prints a reason or returns a failure message fails `npm test`): a fence may use the inputs named in `GUIDE_INPUTS` (`scripts/check-guides.ts`) — the bytes, certificates and keys the prose around it names — and nothing else undeclared; a new input is a reviewed line in that table
 - [ ] No `any` types introduced
 - [ ] No new runtime dependencies added
 - [ ] Every new loop over untrusted bytes consults a named limit, with its CWE, a fuzzing test and a SECURITY.md row (see [Security](#security))

@@ -21,7 +21,7 @@ tests/
 ├── performance/    # a time budget per named limit (library time only); excluded from the mutation runner
 ├── conformance/    # offline differential against node:crypto and the pinned corpora' baselines
 ├── tools/          # guard hook, workflows, agent config, architecture, api-surface, mutate, verify-issue
-├── docs/           # verify-docs rules (one perturbation per rule), recipes, fixture budget
+├── docs/           # verify-docs rules (one perturbation per rule), recipes, guide fences executed, fixture budget
 ├── helpers/        # raw DER builder, PRNG, certificate templates — NEVER import src/
 └── fixtures/       # public certificates only, with PROVENANCE.md
 ```
