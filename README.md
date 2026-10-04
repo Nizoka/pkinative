@@ -137,6 +137,7 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 - **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a `warning` (refused under `strict: true`); a value past its RFC 5280 Appendix A.1 upper bound, or a country code outside ISO 3166-1, is read as it is with an `info` (`PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG`, `PKI_DIAG_NAME_COUNTRY_UNKNOWN`). TeletexString is read as Latin-1, with a diagnostic.
 - **The Certificate Transparency SCT list** is kept in its TLS encoding, neither decoded nor verified.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
+- **Attribute certificates** (ITU-T X.509 §12 and RFC 5755) are not read; the scope and priority are determined when a consumer requests one.
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.
 
 ## What pkinative will NOT do
