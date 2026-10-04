@@ -30,6 +30,11 @@ describe('an ExternalSigner for an Edwards curve', () => {
             .rejects.toThrow(misuse(`exactly ${String(expected)} octets`));
     });
 
+    it('should refuse an empty signature from a signer of any family — a certificate that verifies nowhere has no safe falsy value', async () => {
+        await expect(createCertificationRequest({ subject, subjectPublicKey: EMPTY_SPKI }, external({ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, 0)))
+            .rejects.toThrow(misuse('non-empty Uint8Array'));
+    });
+
     it('should accept a signature of the right size from a key it never sees', async () => {
         const csr = await createCertificationRequest({ subject, subjectPublicKey: EMPTY_SPKI }, external({ name: 'Ed448' }, 114));
         expect(csr[0]).toBe(0x30);

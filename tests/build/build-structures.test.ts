@@ -221,6 +221,7 @@ describe('encodeExtension and encodeExtensions', () => {
         ['a long-form tag cut short after a continuation octet', Uint8Array.of(0x1f, 0x81)],
         ['a tag without its length', Uint8Array.of(0x04)],
         ['an indefinite length (BER, X.690 §8.1.3.6)', Uint8Array.of(0x30, 0x80, 0x05, 0x00, 0x00, 0x00)],
+        ['an indefinite length and nothing after it', Uint8Array.of(0x04, 0x80)],
         ['a length cut short', Uint8Array.of(0x04, 0x82, 0x01)],
         ['a length of five octets', Uint8Array.of(0x04, 0x85, 0x00, 0x00, 0x00, 0x00, 0x01, 0xaa)],
     ])('should refuse a value that is not exactly one DER value (%s) as PKI_API_MISUSE, before any reader refuses the extension', (_what, value) => {
