@@ -65,6 +65,14 @@ jobs:
         with:
           egress-policy: audit # 2026-10-01: the ClusterFuzzLite base images and its filestore are not baselined yet
 
+      # ClusterFuzzLite clones the repository itself, but reads
+      # .clusterfuzzlite/project.yaml (base_os_version) from the workspace
+      # before that clone: without this checkout it finds no file, falls back
+      # to the legacy Ubuntu 20.04 images, and Jazzer.js cannot load there.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
       - name: Build the fuzzers
         id: build
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
@@ -99,6 +107,14 @@ jobs:
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit # 2026-10-01: the ClusterFuzzLite base images and its filestore are not baselined yet
+
+      # ClusterFuzzLite clones the repository itself, but reads
+      # .clusterfuzzlite/project.yaml (base_os_version) from the workspace
+      # before that clone: without this checkout it finds no file, falls back
+      # to the legacy Ubuntu 20.04 images, and Jazzer.js cannot load there.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Build the fuzzers
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
