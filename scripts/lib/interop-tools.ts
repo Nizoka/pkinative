@@ -230,6 +230,26 @@ export function opensslReference(version: string): boolean {
     return m !== null && Number(m[1]) >= 3;
 }
 
+/**
+ * Why this openssl cannot sign a CMS SignedData with Ed25519 itself, or
+ * undefined when it can. OpenSSL 3.0 refuses every digest for EdDSA in CMS
+ * ("eddsa_digest_signverify_init: invalid digest"), so it can verify no
+ * Ed25519 SignedData either, whoever wrote it.
+ */
+export function opensslCmsEddsa(o: Host, work: string): string | undefined {
+    const f = (name: string): string => join(work, `openssl-eddsa-probe-${name}`);
+    writeFileSync(f('data.txt'), 'probe');
+    for (const args of [
+        ['genpkey', '-algorithm', 'ED25519', '-out', f('key.pem')],
+        ['req', '-x509', '-new', '-key', f('key.pem'), '-subj', '/CN=pkinative eddsa probe', '-days', '1', '-out', f('cert.pem')],
+        ['cms', '-sign', '-binary', '-in', f('data.txt'), '-signer', f('cert.pem'), '-inkey', f('key.pem'), '-md', 'sha512', '-outform', 'DER', '-out', f('cms.der')],
+    ]) {
+        const r = o.run(args);
+        if (r.status !== 0) return `this openssl cannot sign a CMS SignedData with Ed25519 itself (${firstLine(r)})`;
+    }
+    return undefined;
+}
+
 function opensslTool(): WriteTool {
     let host: Host | null = null;
     return {
@@ -247,6 +267,7 @@ function opensslTool(): WriteTool {
             const out: CheckResult[] = [];
             const ids = byId(set);
             const nameopt = ['-nameopt', 'RFC2253,-esc_msb'];
+            const noCmsEddsa = opensslCmsEddsa(o, work);
             for (const a of set.artefacts) {
                 if (a.kind === 'cert') {
                     const r = o.run(['x509', '-inform', 'DER', '-in', a.der, '-noout', '-serial', '-subject', ...nameopt, '-ext', 'subjectAltName']);
@@ -281,7 +302,7 @@ function opensslTool(): WriteTool {
                     const issuer = ids.get(a.issuer ?? '');
                     const content = join(work, `openssl-${a.id.replace('/', '-')}.out`);
                     const r = o.run(['cms', '-verify', '-binary', '-inform', 'DER', '-in', a.der, ...(a.detached === true && a.content !== undefined ? ['-content', a.content] : []), '-CAfile', issuer?.pem ?? '', '-purpose', 'any', '-out', content]);
-                    if (r.status !== 0) out.push(refusal(a.id, 'cms.verify', r));
+                    if (r.status !== 0) out.push({ ...refusal(a.id, 'cms.verify', r), ...(noCmsEddsa !== undefined && a.profile === 'ed25519' ? { unsupported: noCmsEddsa } : {}) });
                     else out.push({ artefact: a.id, check: 'cms.verify', ok: true, facts: { contentSha256: sha256(new Uint8Array(readFileSync(content))) } });
                 } else if (a.kind === 'ocsp-request') {
                     const r = o.run(['ocsp', '-reqin', a.der, '-req_text']);
@@ -562,7 +583,12 @@ function gpgsmTool(): WriteTool {
             const trust: string[] = [];
             for (const a of certs(set).filter((x) => !isSample(x))) {
                 const r = G(['--import', g.path(a.der)]);
-                out.push(r.status === 0 && /IMPORT_OK/.test(r.stdout) ? { artefact: a.id, check: 'cert.import', ok: true } : refusal(a.id, 'cert.import', r));
+                const imported = /IMPORT_OK/.test(r.stdout);
+                // gpgsm logs this for every multi-valued RDN; 2.4.4 then exits 2, after IMPORT_OK.
+                const multiValuedRdn = imported && /no subject found in certificate/.test(`${r.stdout}\n${r.stderr}`)
+                    ? { unsupported: 'gpgsm imported it (IMPORT_OK), then exited non-zero on "no subject found in certificate", which it logs for a multi-valued RDN' }
+                    : {};
+                out.push(r.status === 0 && imported ? { artefact: a.id, check: 'cert.import', ok: true } : { ...refusal(a.id, 'cert.import', r), ...multiValuedRdn });
                 if (a.shape !== 'ca') continue;
                 const listed = G(['--with-colons', '--list-keys', a.expect['commonName'] ?? '']);
                 const fpr = /^fpr:+([0-9A-F]{40}):/m.exec(listed.stdout)?.[1];

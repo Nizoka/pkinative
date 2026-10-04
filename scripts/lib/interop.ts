@@ -152,6 +152,13 @@ export const TOOL_LIMITATIONS: readonly ToolLimitation[] = Object.freeze([
         proof: 'KeyFactory.getInstance("Ed25519") throws NoSuchAlgorithmException on JDK 13.0.1',
     },
     {
+        tool: 'openssl',
+        match: ['cms.verify@ed25519/*'],
+        when: 'self-declared',
+        reason: 'OpenSSL 3.0 refuses every digest for EdDSA in CMS ("eddsa_digest_signverify_init: invalid digest"), so it can neither sign nor verify an Ed25519 SignedData; the runner declares it only after this openssl fails to sign one itself, and the ubuntu-24.04 image ships 3.0.13',
+        proof: 'an Ed25519 SignedData written by openssl cms -sign -md sha512 on OpenSSL 3.5.5, which 3.5.5 verifies, fails openssl cms -verify with the same error on OpenSSL 3.0.13 (the Ubuntu 24.04 build, 3.0.13-0ubuntu3.16), which cannot sign one either (2026-10-04)',
+    },
+    {
         tool: 'python-cryptography',
         match: ['cms.certificates@*/cms-ski'],
         when: 'always',
@@ -164,6 +171,13 @@ export const TOOL_LIMITATIONS: readonly ToolLimitation[] = Object.freeze([
         when: 'always',
         reason: 'libksba 1.6 cannot parse a SignerInfo whose sid is the [0] subjectKeyIdentifier choice: "ksba: ber-decoder: TLV length too large"',
         proof: 'openssl cms -sign -keyid output fails gpgsm --verify identically with gpgsm 2.4.8 / libksba 1.6.7 (auditor W)',
+    },
+    {
+        tool: 'gpgsm',
+        match: ['cert.import@*/leaf-rich'],
+        when: 'self-declared',
+        reason: 'gpgsm logs "no subject found in certificate" for every certificate whose subject has a multi-valued RDN, and gpgsm 2.4.4 (the Ubuntu 24.04 build, libksba 1.6.6) turns that line into exit status 2 after it has imported the certificate (IMPORT_OK); gpgsm 2.4.8 logs it and exits 0',
+        proof: 'a leaf issued by an OpenSSL CA to the plain-ASCII subject C=FR, O=Plain Org, OU=Eng+L=Paris, CN=www.example.com imports with IMPORT_OK and exit status 2 on gpgsm 2.4.4 / libksba 1.6.6, and exit status 0 on gpgsm 2.4.8 / libksba 1.6.7; the same subject without the multi-valued RDN exits 0 on both (2026-10-04)',
     },
     {
         tool: 'gpgsm',
@@ -220,7 +234,7 @@ export const KEY_CONTAINER_CASES: readonly KeyContainerCase[] = Object.freeze([
     { id: 'openssl:pkcs12-default', tool: 'openssl', writes: 'openssl pkcs12 -export (EC P-256, RSA 2048, Ed25519)', expect: 'what the tool says it wrote decides: under PBES2, integrity unverified and valid with allowUnverifiedIntegrity; under the legacy schemes, as openssl:pkcs12-legacy' },
     { id: 'openssl:pkcs12-legacy', tool: 'openssl', writes: 'openssl pkcs12 -export -legacy, with the legacy provider', expect: 'reported, never thrown: PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED naming each refused scheme' },
     { id: 'openssl:pkcs12-wrong-password', tool: 'openssl', writes: 'openssl pkcs12 -export -pbmac1_pbkdf2, read with another password', expect: 'PKI_REASON_PKCS12_MAC_MISMATCH, nothing decrypted' },
-    { id: 'openssl:pkcs12-converted', tool: 'openssl', writes: 'the conversion SECURITY.md documents: pkcs12 -in legacy.p12 -legacy -out bundle.pem, then pkcs12 -export -in bundle.pem -pbmac1_pbkdf2', expect: 'valid, integrity verified, the key signs' },
+    { id: 'openssl:pkcs12-converted', tool: 'openssl', writes: 'the conversion SECURITY.md documents: pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem, then pkcs12 -export -in bundle.pem -pbmac1_pbkdf2', expect: 'valid, integrity verified, the key signs' },
     { id: 'openssl:pkcs8-pbes2', tool: 'openssl', writes: 'openssl pkcs8 -topk8 -v2 aes-256-cbc -v2prf hmacWithSHA256 (EC P-256, RSA 2048, Ed25519)', expect: 'decryptPrivateKey returns a key that signs' },
     { id: 'openssl:pkcs8-pbes1', tool: 'openssl', writes: 'openssl pkcs8 -topk8 -v1 PBE-SHA1-3DES', expect: 'decryptPrivateKey throws PKI_KEY_ENCRYPTION_UNSUPPORTED naming the scheme' },
     { id: 'windows-cryptoapi:pfx-export', tool: 'windows-cryptoapi', writes: 'X509Certificate2.Export(X509ContentType.Pkcs12, password) from Windows PowerShell, .NET Framework over CryptoAPI (EC P-256, RSA 2048)', expect: 'reported, never thrown: the 3DES contents and key named, integrity unverified' },
