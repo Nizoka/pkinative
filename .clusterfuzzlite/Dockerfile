@@ -13,7 +13,7 @@
 #   curl -sI -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
 #     https://gcr.io/v2/oss-fuzz-base/base-builder-javascript/manifests/latest \
 #     | grep -i docker-content-digest
-FROM gcr.io/oss-fuzz-base/base-builder-javascript@sha256:abb373b596ba4238718641c6006f77f3281d66914c55ebf51ae4d57f52af9942
+FROM gcr.io/oss-fuzz-base/base-builder-javascript@sha256:996430057980c50be3b814068d517d8a05d3b32528e666f815f7b9b0b26e6166
 
 COPY . $SRC/pkinative
 COPY .clusterfuzzlite/build.sh $SRC/build.sh
