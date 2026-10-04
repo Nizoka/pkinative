@@ -27,10 +27,10 @@ The interop run measured what real writers produce by default: OpenSSL `-export`
 
 ## Decision Outcome
 
-Chosen option: 2, with the fail-closed branch of 3. Option 1 is the secret-dependent cryptography this library exists without, so the refusal is a policy and not a gap. Every refused scheme is still recognised, so `parseEncryptedPrivateKeyInfo` and `parsePkcs12` say what protects a file, and opening one throws `PKI_KEY_ENCRYPTION_UNSUPPORTED` (a MAC that is not PBMAC1, `PKI_KEY_MAC_UNSUPPORTED`) with a conversion in the remedy, verified against OpenSSL 4.0.0:
+Chosen option: 2, with the fail-closed branch of 3. Option 1 is the secret-dependent cryptography this library exists without, so the refusal is a policy and not a gap. Every refused scheme is still recognised, so `parseEncryptedPrivateKeyInfo` and `parsePkcs12` say what protects a file, and opening one throws `PKI_KEY_ENCRYPTION_UNSUPPORTED` (a MAC that is not PBMAC1, `PKI_KEY_MAC_UNSUPPORTED`) with a conversion in the remedy, verified against OpenSSL 3.5.5, 3.6.4 and 4.0.0:
 
 ```bash
-openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem
+openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem
 openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 ```
 

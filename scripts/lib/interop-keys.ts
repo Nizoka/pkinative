@@ -371,7 +371,7 @@ const OPENSSL_WRITER: Writer = {
             const bundle = file('bundle.pem');
             const modern = file('modern.p12');
             const pemPass = 'pem pass phrase';
-            const step1 = run('openssl', ['pkcs12', '-in', leg, '-legacy', '-out', bundle, '-passin', `pass:${PASSWORD}`, '-passout', `pass:${pemPass}`], legacy.env);
+            const step1 = run('openssl', ['pkcs12', '-in', leg, '-legacy', '-aes256', '-out', bundle, '-passin', `pass:${PASSWORD}`, '-passout', `pass:${pemPass}`], legacy.env);
             const step2 = step1.status === 0
                 ? run('openssl', ['pkcs12', '-export', '-in', bundle, '-pbmac1_pbkdf2', '-out', modern, '-passin', `pass:${pemPass}`, '-passout', `pass:${PASSWORD}`])
                 : step1;

@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 240784,
-      "approxTokens": 60196
+      "bytes": 241271,
+      "approxTokens": 60318
     },
     {
       "url": "llms-recipes.txt",
@@ -36,8 +36,8 @@
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 29338,
-      "approxTokens": 7335
+      "bytes": 29399,
+      "approxTokens": 7350
     },
     {
       "url": "data/diagnostics.json",
@@ -114,8 +114,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 86561,
-      "approxTokens": 21640
+      "bytes": 86651,
+      "approxTokens": 21663
     },
     {
       "title": "Security model",
@@ -149,8 +149,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 46168,
-      "approxTokens": 11542
+      "bytes": 46406,
+      "approxTokens": 11602
     },
     {
       "title": "Standards",
@@ -188,8 +188,8 @@
         "diagnostics",
         "reasons"
       ],
-      "bytes": 31149,
-      "approxTokens": 7787
+      "bytes": 31157,
+      "approxTokens": 7789
     },
     {
       "title": "Choosing a PKI library",
@@ -202,8 +202,8 @@
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice"
       ],
-      "bytes": 6080,
-      "approxTokens": 1520
+      "bytes": 6088,
+      "approxTokens": 1522
     }
   ]
 }

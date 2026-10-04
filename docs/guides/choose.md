@@ -20,7 +20,7 @@ Each of these is a recorded decision, not a gap on a roadmap: the [decision reco
 
 | You need | Why pkinative will not | Instead |
 |---|---|---|
-| A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC | Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript ([ADR 0002](../adr/0002-pkcs12-pbes2-only.md)) | Convert it once: `openssl pkcs12 -in legacy.p12 -legacy -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12` |
+| A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC | Its KDF is iterated hashing with byte arithmetic over the password — secret-dependent cryptography in JavaScript ([ADR 0002](../adr/0002-pkcs12-pbes2-only.md)) | Convert it once: `openssl pkcs12 -in legacy.p12 -legacy -aes256 -out bundle.pem`, then `openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12` |
 | To write a PKCS#8 or PKCS#12, or to generate or export a key | Web Crypto's `encrypt`, `wrapKey`, `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md), [ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)) | Web Crypto or `node:crypto` in your own code, or OpenSSL |
 | To verify DSA signatures | Web Crypto implements none of it, and pkinative implements no signature algorithm ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)) | `node:crypto` on Node.js |
 | To fetch a CRL, an OCSP response, a missing intermediate or a timestamp | The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker's choosing ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)) | Fetch them yourself and pass the bytes |
