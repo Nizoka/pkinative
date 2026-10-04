@@ -24,7 +24,7 @@ import { decodeValueAt } from '../asn1/asn1-decode.js';
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readInteger } from '../asn1/asn1-read.js';
 import { _readTime } from '../asn1/asn1-time.js';
-import { toHex } from '../core/bytes.js';
+import { assertBytes, toHex } from '../core/bytes.js';
 import { defaultEncodedDiagnostic, ocspCertsEmptyDiagnostic, ocspVersionNotV1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -61,6 +61,19 @@ const REASONS: Readonly<Record<number, CrlReason>> = Object.freeze({
     8: 'removeFromCRL', 9: 'privilegeWithdrawn', 10: 'aACompromise',
 });
 
+/**
+ * The children of `parent`, refused past `max` — the most the field can hold by its ASN.1 definition,
+ * which bounds the walk before anything is allocated (see the same helper in crl-parse.ts; review of 2026-10-04).
+ */
+function fieldsOf(der: Uint8Array, parent: TlvHeader, path: string, max: number): TlvHeader[] {
+    const fields: TlvHeader[] = [];
+    for (const field of walkChildren(der, parent, path)) {
+        if (fields.length === max) throw ocspError(path, field.offset, `holds more than ${String(max)} values, where RFC 6960 §4.2.1 defines at most ${String(max)}`);
+        fields.push(field);
+    }
+    return fields;
+}
+
 function ocspError(path: string, offset: number, why: string): PkiCertificateError {
     return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} — the input is not an RFC 6960 OCSPResponse`, path, offset);
 }
@@ -91,12 +104,14 @@ const decodeAt = (der: Uint8Array, header: TlvHeader, ctx: Asn1Context): Asn1Nod
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxOcspSingleResponses` or `maxExtensions`.
  */
 export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): OcspResponse {
+    der = assertBytes(der, 'parseOcspResponse input');
     const ctx = createAsn1Context(options);
+    enforceLimit(ctx.limits, 'maxInputBytes', der.length, 'the input size');
     const outer = readTlvHeader(der, 0, 'OCSPResponse');
     if (!outer.constructed || outer.tagClass !== 'universal' || outer.tagNumber !== 16) {
         throw ocspError('OCSPResponse', 0, 'is not a SEQUENCE');
     }
-    const parts = [...walkChildren(der, outer, 'OCSPResponse')];
+    const parts = fieldsOf(der, outer, 'OCSPResponse', 2);
     const statusField = parts[0];
     if (statusField === undefined || statusField.tagClass !== 'universal' || statusField.tagNumber !== 10) {
         throw ocspError('OCSPResponse.responseStatus', outer.offset, 'is not an ENUMERATED');
@@ -136,9 +151,9 @@ export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): O
 
 /** `ResponseBytes ::= SEQUENCE { responseType OID, response OCTET STRING }`. */
 function readResponseBytes(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): OcspBasicResponse {
-    const wrapper = [...walkChildren(der, field, 'OCSPResponse.responseBytes')][0];
+    const wrapper = fieldsOf(der, field, 'OCSPResponse.responseBytes', 1)[0];
     if (wrapper === undefined) throw ocspError('OCSPResponse.responseBytes', field.offset, 'is empty');
-    const inner = [...walkChildren(der, wrapper, 'ResponseBytes')];
+    const inner = fieldsOf(der, wrapper, 'ResponseBytes', 2);
     const typeField = inner[0];
     const valueField = inner[1];
     if (typeField === undefined || valueField === undefined) {
@@ -158,7 +173,7 @@ function readResponseBytes(der: Uint8Array, field: TlvHeader, ctx: Asn1Context):
 /** `BasicOCSPResponse ::= SEQUENCE { tbsResponseData, signatureAlgorithm, signature, certs [0] OPTIONAL }`. */
 function readBasicResponse(der: Uint8Array, ctx: Asn1Context): OcspBasicResponse {
     const outer = readTlvHeader(der, 0, 'BasicOCSPResponse');
-    const parts = [...walkChildren(der, outer, 'BasicOCSPResponse')];
+    const parts = fieldsOf(der, outer, 'BasicOCSPResponse', 4);
     const tbs = parts[0];
     const algorithmField = parts[1];
     const signatureField = parts[2];
@@ -173,8 +188,9 @@ function readBasicResponse(der: Uint8Array, ctx: Asn1Context): OcspBasicResponse
     const certificates: Uint8Array[] = [];
     const certsField = parts[3];
     if (certsField !== undefined) {
-        const seq = [...walkChildren(der, certsField, 'BasicOCSPResponse.certs')][0];
-        const entries = seq === undefined ? [] : [...walkChildren(der, seq, 'BasicOCSPResponse.certs')];
+        const seq = fieldsOf(der, certsField, 'BasicOCSPResponse.certs', 1)[0];
+        // One past the limit, so that `maxChainLength` below is the refusal a caller sees, not the shape.
+        const entries = seq === undefined ? [] : fieldsOf(der, seq, 'BasicOCSPResponse.certs', ctx.limits.maxChainLength + 1);
         // RFC 6960 §4.2.1: "If no certificates are included, then certs SHOULD
         // be absent." Present and empty reads exactly as absent, and is said.
         if (entries.length === 0) ctx.emitter.emit(ocspCertsEmptyDiagnostic(certsField.offset));
@@ -209,7 +225,7 @@ interface ResponseData {
  * responses SEQUENCE OF SingleResponse, responseExtensions [1] OPTIONAL }`.
  */
 function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): ResponseData {
-    const fields = [...walkChildren(der, tbs, 'ResponseData')];
+    const fields = fieldsOf(der, tbs, 'ResponseData', 5);
     let at = 0;
     // version [0] EXPLICIT is the only context-0 field here, and responderID
     // is context 1 or 2, so one tag test separates them.
@@ -261,7 +277,7 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
  * could only add a refusal where a diagnostic was promised.
  */
 function readVersion(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): void {
-    const inner = [...walkChildren(der, field, 'ResponseData.version')][0];
+    const inner = fieldsOf(der, field, 'ResponseData.version', 1)[0];
     if (inner === undefined || inner.tagClass !== 'universal' || inner.tagNumber !== 2) {
         ctx.emitter.emit(ocspVersionNotV1Diagnostic('holds no INTEGER', field.offset));
         return;
@@ -275,7 +291,7 @@ function readVersion(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): void 
 }
 
 function readResponderId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): OcspResponderId {
-    const inner = [...walkChildren(der, field, 'ResponseData.responderID')][0];
+    const inner = fieldsOf(der, field, 'ResponseData.responderID', 1)[0];
     if (inner === undefined) throw ocspError('ResponseData.responderID', field.offset, 'is empty');
     if (field.tagNumber === 1) return { kind: 'byName', nameDer: der.subarray(inner.offset, inner.end) };
     const node = decodeAt(der, inner, ctx);
@@ -290,7 +306,7 @@ function readResponderId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): O
  * nextUpdate [0] OPTIONAL, singleExtensions [1] OPTIONAL }`.
  */
 function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context, path: string): OcspSingleResponse {
-    const fields = [...walkChildren(der, single, path)];
+    const fields = fieldsOf(der, single, path, 5);
     const idField = fields[0];
     const statusField = fields[1];
     const thisUpdateField = fields[2];
@@ -300,7 +316,7 @@ function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context
     let at = 3;
     let nextUpdate: ReturnType<typeof _readTime> | undefined;
     if (fields[at]?.tagClass === 'context' && fields[at]?.tagNumber === 0) {
-        const inner = [...walkChildren(der, fields[at] as TlvHeader, `${path}.nextUpdate`)][0];
+        const inner = fieldsOf(der, fields[at] as TlvHeader, `${path}.nextUpdate`, 1)[0];
         if (inner !== undefined) nextUpdate = _readTime(decodeAt(der, inner, ctx), ctx, undefined);
         at += 1;
     }
@@ -315,7 +331,7 @@ function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context
 }
 
 function readCertId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): OcspCertId {
-    const parts = [...walkChildren(der, field, path)];
+    const parts = fieldsOf(der, field, path, 4);
     const [algorithmField, nameHashField, keyHashField, serialField] = parts;
     if (parts.length !== 4 || algorithmField === undefined || nameHashField === undefined || keyHashField === undefined || serialField === undefined) {
         throw ocspError(path, field.offset, `holds ${String(parts.length)} values where a CertID has four`);
@@ -348,13 +364,13 @@ function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
 
     // RevokedInfo ::= SEQUENCE { revocationTime GeneralizedTime,
     //                            revocationReason [0] EXPLICIT CRLReason OPTIONAL }
-    const parts = [...walkChildren(der, field, path)];
+    const parts = fieldsOf(der, field, path, 2);
     const timeField = parts[0];
     if (timeField === undefined) throw ocspError(path, field.offset, 'is revoked and carries no revocationTime');
     let reason: CrlReason | undefined;
     const reasonField = parts[1];
     if (reasonField !== undefined && reasonField.tagClass === 'context' && reasonField.tagNumber === 0) {
-        const inner = [...walkChildren(der, reasonField, `${path}.revocationReason`)][0];
+        const inner = fieldsOf(der, reasonField, `${path}.revocationReason`, 1)[0];
         if (inner !== undefined && inner.length === 1) reason = REASONS[der[inner.contentStart] as number];
     }
     return { kind: 'revoked', revocationTime: _readTime(decodeAt(der, timeField, ctx), ctx, undefined), reason };
@@ -369,7 +385,7 @@ function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
  */
 function readExtensions(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): readonly Extension[] {
     if (field.tagClass !== 'context') throw ocspError(path, field.offset, 'is not a context-tagged Extensions field');
-    const wrapper = [...walkChildren(der, field, path)][0];
+    const wrapper = fieldsOf(der, field, path, 1)[0];
     if (wrapper === undefined) return [];
     const out: Extension[] = [];
     let index = 0;

@@ -179,6 +179,15 @@ const BUDGETS: readonly Budget[] = [
             const over = new Uint8Array(eight + 1);
             expect(clock.sync(() => decodeAsn1(big)).contentLength).toBe(eight - 6);
             refused('maxInputBytes', () => clock.sync(() => decodeAsn1(over, { limits: { maxInputBytes: eight } })));
+            // The CRL and OCSP readers walk the root with the cursor, not the node decoder: the same
+            // size refusal first, and a root of four million two-octet values refused at the field
+            // bound (review of 2026-10-04: it once cost seconds and gigabytes per reader).
+            refused('maxInputBytes', () => clock.sync(() => parseCertificateList(over, { limits: { maxInputBytes: eight } })));
+            refused('maxInputBytes', () => clock.sync(() => parseOcspResponse(over, { limits: { maxInputBytes: eight } })));
+            const hostile = tlv(0, true, 16, new Uint8Array(eight - 6).map((_, i) => (i % 2 === 0 ? 0x05 : 0x00)));
+            for (const read of [parseCertificateList, parseOcspResponse]) {
+                expect(() => clock.sync(() => read(hostile))).toThrow(expect.objectContaining({ code: 'PKI_X509_STRUCTURE_INVALID' }));
+            }
         },
     },
     {

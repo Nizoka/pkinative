@@ -78,6 +78,21 @@ const CRL_OWN_EXTENSIONS: ReadonlySet<string> = new Set([
     OID_CERTIFICATE_ISSUER,
 ]);
 
+/**
+ * The children of `parent`, refused past `max` — the most the field can hold by its ASN.1 definition,
+ * which bounds the walk before anything is allocated. A spread of `walkChildren` would materialise one
+ * header per child first: a root SEQUENCE of millions of two-octet values cost seconds and gigabytes
+ * where `parseCertificate`, which decodes through `maxNodes`, refused in milliseconds (review of 2026-10-04).
+ */
+function fieldsOf(der: Uint8Array, parent: TlvHeader, path: string, max: number): TlvHeader[] {
+    const fields: TlvHeader[] = [];
+    for (const field of walkChildren(der, parent, path)) {
+        if (fields.length === max) throw crlError(path, field.offset, `holds more than ${String(max)} values, where RFC 5280 §5.1 defines at most ${String(max)}`);
+        fields.push(field);
+    }
+    return fields;
+}
+
 function crlError(path: string, offset: number, why: string): PkiCertificateError {
     return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} — the input is not an RFC 5280 CertificateList`, path, offset);
 }
@@ -120,12 +135,12 @@ interface Envelope {
  * index into a decoded array.
  */
 function locate(der: Uint8Array, outer: TlvHeader): Envelope {
-    const parts = [...walkChildren(der, outer, 'CertificateList')];
+    const parts = fieldsOf(der, outer, 'CertificateList', 3);
     const tbs = parts[0];
     if (parts.length !== 3 || tbs === undefined) {
         throw crlError('CertificateList', outer.offset, `holds ${String(parts.length)} values where RFC 5280 §5.1 defines exactly three`);
     }
-    const fields = [...walkChildren(der, tbs, 'tbsCertList')];
+    const fields = fieldsOf(der, tbs, 'tbsCertList', 7);
     let at = 0;
     const take = (what: string): TlvHeader => {
         const field = fields[at];
@@ -225,6 +240,7 @@ function countEntries(der: Uint8Array, revoked: TlvHeader | undefined, ctx: Asn1
 export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions): CertificateList {
     der = assertBytes(der, 'parseCertificateList input');
     const ctx = createAsn1Context(options);
+    enforceLimit(ctx.limits, 'maxInputBytes', der.length, 'the input size');
     const outer = readTlvHeader(der, 0, 'CertificateList');
     if (!outer.constructed || outer.tagClass !== 'universal' || outer.tagNumber !== 16) {
         throw crlError('CertificateList', 0, 'is not a SEQUENCE');
@@ -237,7 +253,7 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
     const thisUpdate = _readTime(decodeAt(der, env.thisUpdateAt, ctx), ctx, undefined);
     const nextUpdate = env.nextUpdateAt === undefined ? undefined : _readTime(decodeAt(der, env.nextUpdateAt, ctx), ctx, undefined);
 
-    const parts = [...walkChildren(der, outer, 'CertificateList')];
+    const parts = fieldsOf(der, outer, 'CertificateList', 3);
     const signatureAlgorithm = _readAlgorithmIdentifier(decodeAt(der, parts[1] as TlvHeader, ctx), ctx, 'signatureAlgorithm', STRUCTURE, outer.offset);
     const signatureNode = decodeAt(der, parts[2] as TlvHeader, ctx);
     if (signatureNode.tagClass !== 'universal' || signatureNode.tagNumber !== 3) {
@@ -281,7 +297,7 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
 /** Decode an `Extensions` field, or return an empty list when it is absent. */
 function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1Context, path: string): readonly Extension[] {
     if (field === undefined) return [];
-    const wrapper = field.tagClass === 'context' ? [...walkChildren(der, field, path)][0] : field;
+    const wrapper = field.tagClass === 'context' ? fieldsOf(der, field, path, 1)[0] : field;
     if (wrapper === undefined) return [];
     const out: Extension[] = [];
     let index = 0;
@@ -400,7 +416,9 @@ export interface FindRevocationOptions extends PkiParseOptions {
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
  */
 export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: FindRevocationOptions): RevokedCertificate | undefined {
+    der = assertBytes(der, 'findRevocation input');
     const ctx = createAsn1Context(options);
+    enforceLimit(ctx.limits, 'maxInputBytes', der.length, 'the input size');
     const outer = readTlvHeader(der, 0, 'CertificateList');
     const env = locate(der, outer);
     if (env.revoked === undefined) return undefined;
@@ -425,7 +443,7 @@ export function findRevocation(der: Uint8Array, serial: Uint8Array, options?: Fi
     for (const entry of walkChildren(der, env.revoked, 'tbsCertList.revokedCertificates')) {
         enforceLimit(ctx.limits, 'maxRevokedCertificates', index + 1, `tbsCertList.revokedCertificates[${String(index)}]`);
         const path = `tbsCertList.revokedCertificates[${String(index)}]`;
-        const parts = [...walkChildren(der, entry, path)];
+        const parts = fieldsOf(der, entry, path, 3);
         const serialField = parts[0];
         const dateField = parts[1];
         if (serialField === undefined || dateField === undefined) {
@@ -489,7 +507,9 @@ const ENTRY_EXTENSIONS: ReadonlySet<string> = new Set([OID_CRL_REASON, OID_INVAL
  * @internal
  */
 export function _unknownCriticalEntryExtension(der: Uint8Array, options?: PkiParseOptions): string | undefined {
+    der = assertBytes(der, '_unknownCriticalEntryExtension input');
     const ctx = createAsn1Context(options);
+    enforceLimit(ctx.limits, 'maxInputBytes', der.length, 'the input size');
     const env = locate(der, readTlvHeader(der, 0, 'CertificateList'));
     if (env.revoked === undefined) return undefined;
     let index = 0;
@@ -499,7 +519,7 @@ export function _unknownCriticalEntryExtension(der: Uint8Array, options?: PkiPar
         index += 1;
         // Bounded by the entry's own length. An entry without the optional
         // third field reads as no extensions, and nothing is decoded for it.
-        const field = [...walkChildren(der, entry, path)][2];
+        const field = fieldsOf(der, entry, path, 3)[2];
         for (const extension of readExtensions(der, field, ctx, `${path}.crlEntryExtensions`)) {
             if (extension.critical && !ENTRY_EXTENSIONS.has(extension.oid)) return extension.oid;
         }
