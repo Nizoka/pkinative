@@ -12,14 +12,14 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 8762,
-      "approxTokens": 2191
+      "bytes": 8754,
+      "approxTokens": 2189
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 408353,
-      "approxTokens": 102088
+      "bytes": 408520,
+      "approxTokens": 102130
     },
     {
       "url": "llms-recipes.txt",
@@ -56,6 +56,12 @@
       "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
       "bytes": 13643,
       "approxTokens": 3411
+    },
+    {
+      "url": "data/playgrounds.json",
+      "description": "The playgrounds: what each runs, its controls by DOM id, and the exports, command lines or tools it drives.",
+      "bytes": 10457,
+      "approxTokens": 2614
     },
     {
       "url": "data/cli-surface.json",
@@ -153,8 +159,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 63933,
-      "approxTokens": 15983
+      "bytes": 64091,
+      "approxTokens": 16023
     },
     {
       "title": "CLI use cases",
@@ -324,8 +330,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35002,
-      "approxTokens": 8751
+      "bytes": 35011,
+      "approxTokens": 8753
     },
     {
       "title": "Choosing a PKI library",

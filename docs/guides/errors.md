@@ -172,7 +172,7 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 
 The three vocabularies are the engine's, and they travel unchanged through every surface built on it: [pkinative-cli](cli.md) and [pkinative-mcp](mcp.md) add a class of their own for the failures the engine does not own — usage, files, the sandbox — but never rename, merge or drop a `PKI_*` code.
 
-| | Library | CLI | MCP server |
+| Question | Library | CLI | MCP server |
 |---|---|---|---|
 | **The coarse class** | The `PkiError` subclass thrown (`PkiEncodingError`, `PkiCertificateError`, …) | `error.code` in the `--json` envelope: one of 13 `E_*` classes, `E_USAGE` exit 2, the others exit 1 | `_meta.error.data.errorClass` (`usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`) |
 | **The exact cause** | `err.code`, a `PKI_*` code | `error.pkiCode`, the same code verbatim; `E_IO`, `E_NOT_FOUND` and `E_VERIFY_FAILED` are the CLI's own and carry none | `_meta.error.code` — the same `PKI_*` code verbatim, or one of the server's 21 wrapper codes (`VALIDATION_ERROR`, `SECURITY_VIOLATION`, `SECRET_REQUIRED`, …) |

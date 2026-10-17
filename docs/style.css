@@ -639,6 +639,25 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 
 .pg-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
 .pg-facts dt { color: var(--c-text-dim); font-weight: 600; }
+
+/* ── Playground forms (cli.html, toolkit.html) ─────────────── */
+.cli-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 18px; margin: 0; }
+.cli-form + .cli-form, .pg-section > .cli-field + .cli-form { margin-top: 14px; }
+.cli-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cli-field > label { font-size: 13px; font-weight: 600; color: var(--c-text); }
+.cli-field > label code { font-size: 12.5px; }
+.cli-field .pg-picker { flex: 0 0 auto; width: 100%; min-width: 0; cursor: text; }
+.cli-field select.pg-picker { cursor: pointer; }
+.cli-field .cli-lines { min-height: 64px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.cli-value { font-weight: 400; color: var(--c-text-dim); }
+.cli-check { flex-direction: row; align-items: center; gap: 8px; }
+.cli-check > label { font-weight: 500; }
+.cli-check input { width: 16px; height: 16px; accent-color: var(--c-primary); flex: 0 0 auto; }
+details.pg-section > summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--c-text); }
+details.pg-section[open] > summary { margin-bottom: 14px; }
+.pg-section h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--c-text-dim); }
+.pg-fieldset { border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 10px 14px 12px; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.pg-fieldset legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: var(--c-text-dim); }
 .pg-facts dd {
   margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
   word-break: break-all; color: var(--c-text);

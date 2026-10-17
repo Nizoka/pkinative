@@ -1,0 +1,298 @@
+{
+  "$comment": "Machine-readable inventory of the playgrounds under docs/playgrounds/ (redirect stubs excluded), in switcher order — the convention pdfnative started. Hand-maintained; the playgrounds-manifest rule of npm run verify:docs holds it to PLAYGROUNDS of scripts/build-guides.ts, to the hub cards and the hub ItemList, and every control id to an element of its page. surface says which package a page demonstrates; engine says what runs in the tab — the published pkinative package loaded from a CDN by load-engine.js (ADR 0023), or nothing. exercises names what a page drives: public exports for a library page, command lines or tools for a satellite page.",
+  "schemaVersion": 1,
+  "engine": {
+    "package": "pkinative",
+    "version": "1.0.0",
+    "loader": "docs/playgrounds/load-engine.js",
+    "cdn": ["esm.sh", "cdn.jsdelivr.net"]
+  },
+  "playgrounds": [
+    {
+      "id": "certificate",
+      "file": "certificate.html",
+      "url": "https://pkinative.dev/playgrounds/certificate.html",
+      "title": "Certificate inspector",
+      "surface": "library",
+      "engine": "pkinative",
+      "purpose": "Read every field pkinative decodes from a pasted certificate — names, validity, public key, fingerprints, every decoded extension and every conformance diagnostic with its clause — and see a refusal as its PkiError code, class and offset.",
+      "controls": [
+        {
+          "id": "sample",
+          "kind": "select",
+          "meaning": "a sample certificate from the test fixtures"
+        },
+        {
+          "id": "input",
+          "kind": "textarea",
+          "meaning": "PEM, hexadecimal or base64"
+        },
+        {
+          "id": "clear",
+          "kind": "button"
+        }
+      ],
+      "exercises": ["decodePem", "parseCertificate", "getExtension", "formatDistinguishedName", "computeFingerprint", "formatFingerprint", "getOidName"],
+      "output": "decoded fields in #output; status in #status"
+    },
+    {
+      "id": "asn1",
+      "file": "asn1.html",
+      "url": "https://pkinative.dev/playgrounds/asn1.html",
+      "title": "ASN.1 tree",
+      "surface": "library",
+      "engine": "pkinative",
+      "purpose": "Walk a DER value tag by tag with every offset and length, object identifiers resolved, and a switch that shows strict DER refusing what BER accepts.",
+      "controls": [
+        {
+          "id": "sample",
+          "kind": "select"
+        },
+        {
+          "id": "input",
+          "kind": "textarea",
+          "meaning": "PEM, hexadecimal or base64"
+        },
+        {
+          "id": "ber",
+          "kind": "checkbox",
+          "meaning": "decode as BER instead of strict DER"
+        },
+        {
+          "id": "clear",
+          "kind": "button"
+        }
+      ],
+      "exercises": ["decodePem", "decodeAsn1", "decodeOid", "getOidName"],
+      "output": "the tree in #output; status in #status"
+    },
+    {
+      "id": "toolkit",
+      "file": "toolkit.html",
+      "url": "https://pkinative.dev/playgrounds/toolkit.html",
+      "title": "PKI toolkit",
+      "surface": "library",
+      "engine": "pkinative",
+      "purpose": "PEM, DER, hexadecimal and base64 conversion; OID resolution and encoding; fingerprints and key identifiers; a certification request, a CRL or an OCSP response read and its signature checked; a certification request built with a key the page generates; and a chain verdict with every reason code.",
+      "controls": [
+        {
+          "id": "conv-sample",
+          "kind": "select"
+        },
+        {
+          "id": "conv-mode",
+          "kind": "select",
+          "meaning": "strict or lax PEM"
+        },
+        {
+          "id": "conv-label",
+          "kind": "text",
+          "meaning": "PEM label to encode with"
+        },
+        {
+          "id": "conv-input",
+          "kind": "textarea"
+        },
+        {
+          "id": "oid-input",
+          "kind": "text",
+          "meaning": "a dotted OID, hexadecimal octets or a name"
+        },
+        {
+          "id": "fp-sample",
+          "kind": "select"
+        },
+        {
+          "id": "fp-separator",
+          "kind": "select"
+        },
+        {
+          "id": "fp-case",
+          "kind": "select"
+        },
+        {
+          "id": "fp-input",
+          "kind": "textarea"
+        },
+        {
+          "id": "csr-cn",
+          "kind": "text",
+          "meaning": "common name of the request the page builds"
+        },
+        {
+          "id": "csr-make",
+          "kind": "button"
+        },
+        {
+          "id": "insp-kind",
+          "kind": "select",
+          "meaning": "certification request, CRL or OCSP response"
+        },
+        {
+          "id": "insp-file",
+          "kind": "file"
+        },
+        {
+          "id": "insp-input",
+          "kind": "textarea"
+        },
+        {
+          "id": "insp-issuer",
+          "kind": "select"
+        },
+        {
+          "id": "insp-serial",
+          "kind": "text"
+        },
+        {
+          "id": "chain-scenario",
+          "kind": "select"
+        },
+        {
+          "id": "chain-leaf",
+          "kind": "select"
+        },
+        {
+          "id": "chain-at",
+          "kind": "text",
+          "meaning": "validation instant"
+        },
+        {
+          "id": "chain-host",
+          "kind": "text",
+          "meaning": "host name or IPv4 address to check"
+        },
+        {
+          "id": "chain-extra",
+          "kind": "textarea",
+          "meaning": "extra certificates as PEM"
+        },
+        {
+          "id": "chain-run",
+          "kind": "button"
+        }
+      ],
+      "exercises": ["decodePem", "encodePem", "isValidOid", "getOidName", "encodeOid", "encodeObjectIdentifier", "decodeOid", "OID_REGISTRY", "computeFingerprint", "computeFingerprintAsync", "formatFingerprint", "computeKeyIdentifier", "parseCertificate", "parseCertificationRequest", "verifyCertificationRequest", "createCertificationRequest", "encodeSubjectAltName", "parseCertificateList", "findRevocation", "verifyCrlSignature", "parseOcspResponse", "verifyOcspSignature", "verifyCertificateChain"],
+      "output": "one result panel per tool; the chain verdict with its reasons table"
+    },
+    {
+      "id": "cli",
+      "file": "cli.html",
+      "url": "https://pkinative.dev/playgrounds/cli.html",
+      "title": "CLI command builder",
+      "surface": "cli",
+      "engine": "none",
+      "purpose": "Build any pkinative-cli invocation from its own command surface (docs/data/cli-surface.json): flags, operands, the password source, POSIX or PowerShell quoting, with the combinations the CLI refuses with exit 2 flagged before the line is run. Nothing is executed.",
+      "controls": [
+        {
+          "id": "preset",
+          "kind": "select",
+          "meaning": "a preset taken from the CLI samples"
+        },
+        {
+          "id": "reset",
+          "kind": "button"
+        },
+        {
+          "id": "command",
+          "kind": "select"
+        },
+        {
+          "id": "sub",
+          "kind": "select",
+          "meaning": "subcommand"
+        },
+        {
+          "id": "invoke",
+          "kind": "select",
+          "meaning": "pkinative or npx -y pkinative-cli"
+        },
+        {
+          "id": "pipe",
+          "kind": "text",
+          "meaning": "a file to pipe on stdin"
+        },
+        {
+          "id": "password-source",
+          "kind": "select",
+          "meaning": "password file, stdin or PKINATIVE_PASSWORD, never argv"
+        },
+        {
+          "id": "password-file",
+          "kind": "text"
+        },
+        {
+          "id": "shell",
+          "kind": "select",
+          "meaning": "POSIX or PowerShell"
+        },
+        {
+          "id": "copy",
+          "kind": "button"
+        }
+      ],
+      "exercises": ["docs/data/cli-surface.json", "every command and subcommand of pkinative-cli", "global flags", "exit-2 refusals", "password sources"],
+      "output": "the command line, its warnings and notes"
+    },
+    {
+      "id": "mcp",
+      "file": "mcp.html",
+      "url": "https://pkinative.dev/playgrounds/mcp.html",
+      "title": "MCP tool explorer",
+      "surface": "mcp",
+      "engine": "pkinative",
+      "purpose": "Configure an MCP client for pkinative-mcp, then take each of its tools: the tools/call payload, and the engine call behind it run in the tab on a sample, an object the page builds or a file you drop, with what only the Node server can do (the sandbox, the cache, operator ceilings, files on disk) answered as BROWSER_LIMITATION.",
+      "controls": [
+        {
+          "id": "tab-desktop",
+          "kind": "tab",
+          "meaning": "Claude Desktop"
+        },
+        {
+          "id": "tab-code",
+          "kind": "tab",
+          "meaning": "Claude Code"
+        },
+        {
+          "id": "tab-cursor",
+          "kind": "tab",
+          "meaning": "Cursor and compatible clients"
+        },
+        {
+          "id": "tab-vscode",
+          "kind": "tab",
+          "meaning": "VS Code"
+        },
+        {
+          "id": "tab-http",
+          "kind": "tab",
+          "meaning": "Streamable HTTP"
+        },
+        {
+          "id": "copy-config",
+          "kind": "button"
+        },
+        {
+          "id": "sample",
+          "kind": "select"
+        },
+        {
+          "id": "file",
+          "kind": "file",
+          "meaning": "a CRL, an OCSP response, a token, a key or a PKCS#12"
+        },
+        {
+          "id": "forget",
+          "kind": "button"
+        },
+        {
+          "id": "p12-password",
+          "kind": "password",
+          "meaning": "stays in the tab, never in a payload"
+        }
+      ],
+      "exercises": ["convert_pem", "resolve_oid", "compute_fingerprint", "decode_asn1", "encode_asn1", "inspect_certificate", "create_certificate", "encode_x509_structure", "decode_extension", "check_certificate_name", "check_certificate_purpose", "inspect_csr", "create_csr", "verify_certificate_chain", "build_certificate_path", "validate_certificate_path", "inspect_crl", "check_crl_revocation", "create_ocsp_request", "inspect_ocsp_response", "check_ocsp_status", "sign_cms", "verify_cms", "inspect_cms", "amend_cms", "create_timestamp_request", "inspect_timestamp", "verify_timestamp", "inspect_private_key", "inspect_pkcs12", "open_pkcs12", "describe_engine", "explain_code", "draft_governance_issue"],
+      "output": "one card per tool: prompt, tools/call payload, result"
+    }
+  ]
+}

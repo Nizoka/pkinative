@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI command builder — pkinative playground</title>
+  <meta name="description" content="Assemble a pkinative-cli 1.0.0 command line from the CLI's own capability manifest: every command, subcommand and flag, presets from its samples, live checks for the combinations it refuses with exit 2, and a copyable POSIX or PowerShell line.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/playgrounds/cli.html">
+  <meta property="og:title" content="CLI command builder — pkinative playground">
+  <meta property="og:description" content="Build a pkinative-cli command line flag by flag, checked against the combinations the CLI refuses. Nothing is executed.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CLI command builder — pkinative playground">
+  <meta name="twitter:description" content="Build a pkinative-cli command line flag by flag. Nothing is executed.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/playgrounds/cli.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/playgrounds/cli.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/playgrounds/cli.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playgrounds",
+            "item": "https://pkinative.dev/playgrounds/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "CLI command builder",
+            "item": "https://pkinative.dev/playgrounds/cli.html"
+          }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://pkinative.dev/playgrounds/cli.html",
+        "url": "https://pkinative.dev/playgrounds/cli.html",
+        "name": "CLI command builder — pkinative playground",
+        "description": "Assemble a pkinative-cli 1.0.0 command line from the CLI's own capability manifest: every command, subcommand and flag, presets from its samples, live checks for the combinations it refuses with exit 2, and a copyable POSIX or PowerShell line.",
+        "inLanguage": "en",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires JavaScript and ES modules",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "name": "pkinative-cli",
+          "softwareVersion": "1.0.0",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Node.js",
+          "url": "https://github.com/Nizoka/pkinative-cli"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body data-playground="cli">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="../playgrounds/" aria-current="page">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › CLI command builder</p>
+
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./certificate.html">Certificate inspector</a>
+      <a href="./asn1.html">ASN.1 tree</a>
+      <a href="./toolkit.html">PKI toolkit</a>
+      <a href="./cli.html" aria-current="page">CLI builder</a>
+      <a href="./mcp.html">MCP explorer</a>
+      <a class="playground-switcher-all" href="./">All →</a>
+    </nav>
+
+    <div class="guide-content">
+      <h1>CLI command builder</h1>
+      <p>Pick a command, fill in its flags, copy the line. The form is generated from <a href="../data/cli-surface.json"><code>cli-surface.json</code></a>, the projection of <code>pkinative schema manifest</code> of pkinative-cli 1.0.0, so it offers the 18 commands and 53 invocations of the published CLI and every flag they accept — no more, no fewer. Combinations the CLI refuses with exit 2 (<code>E_USAGE</code>) are flagged as you type, each with the CLI source line that refuses it. Nothing is executed and nothing leaves this tab.</p>
+    </div>
+
+    <div class="pg-toolbar">
+      <label class="sr-only" for="preset">Preset</label>
+      <select class="pg-picker" id="preset">
+        <option value="">Start from a preset taken from the CLI's samples…</option>
+      </select>
+      <button class="btn btn-secondary" id="reset" type="button">Reset</button>
+    </div>
+    <p class="pg-status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="pg-section" aria-labelledby="h-command">
+      <h2 id="h-command">Command</h2>
+      <div class="cli-form">
+        <div class="cli-field">
+          <label for="command">Command</label>
+          <select class="pg-picker" id="command"></select>
+        </div>
+        <div class="cli-field" id="sub-wrap">
+          <label for="sub">Subcommand</label>
+          <select class="pg-picker" id="sub"></select>
+        </div>
+        <div class="cli-field">
+          <label for="invoke">Invoke as</label>
+          <select class="pg-picker" id="invoke">
+            <option value="pkinative">pkinative (installed globally)</option>
+            <option value="npx -y pkinative-cli">npx -y pkinative-cli (no install)</option>
+          </select>
+        </div>
+        <div class="cli-field">
+          <label for="pipe">Pipe stdin from (optional)</label>
+          <input class="pg-picker" id="pipe" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. cat leaf.crt.pem">
+        </div>
+      </div>
+      <p class="pg-note" id="summary"></p>
+    </section>
+
+    <section class="pg-section" aria-labelledby="h-options">
+      <h2 id="h-options">Arguments and flags</h2>
+      <div class="cli-field" id="operands-wrap"></div>
+      <div class="cli-form" id="flags"></div>
+      <div class="cli-form" id="password-wrap">
+        <div class="cli-field">
+          <label for="password-source">Password source</label>
+          <select class="pg-picker" id="password-source">
+            <option value="">none</option>
+            <option value="file">--password-file &lt;file&gt; (first line of the file)</option>
+            <option value="stdin">--password-stdin (first line of stdin)</option>
+            <option value="env">PKINATIVE_PASSWORD (environment variable)</option>
+          </select>
+        </div>
+        <div class="cli-field" id="password-file-wrap">
+          <label for="password-file">Password file</label>
+          <input class="pg-picker" id="password-file" type="text" spellcheck="false" autocomplete="off" placeholder="p12.pass">
+        </div>
+      </div>
+      <p class="pg-note" id="password-note">This invocation reads a password. There is no field for the password itself, by design — see <a href="#passwords">why</a>.</p>
+    </section>
+
+    <details class="pg-section">
+      <summary>Global options (every invocation accepts them)</summary>
+      <div class="cli-form" id="globals"></div>
+    </details>
+
+    <section class="pg-section" aria-labelledby="h-checks">
+      <h2 id="h-checks">Checks</h2>
+      <div id="validation"></div>
+    </section>
+
+    <section class="pg-section" aria-labelledby="h-line">
+      <h2 id="h-line">Command line</h2>
+      <div class="pg-toolbar">
+        <label class="sr-only" for="shell">Shell</label>
+        <select class="pg-picker" id="shell">
+          <option value="posix">POSIX shell (bash, zsh, sh)</option>
+          <option value="pwsh">PowerShell</option>
+        </select>
+        <button class="btn btn-primary" id="copy" type="button">Copy</button>
+      </div>
+      <pre class="pg-output" id="output" tabindex="0" aria-label="Generated command line"></pre>
+      <p class="pg-note" id="copy-note" role="status" aria-live="polite"></p>
+      <p class="pg-note">File paths and values are quoted for the shell you pick: single quotes in a POSIX shell, single quotes with <code>''</code> doubled in PowerShell. A value that begins with a dash is written <code>--flag=value</code>, the explicit form the CLI accepts, so it is never read as a flag.</p>
+    </section>
+
+    <div class="guide-content">
+      <h2 id="passwords">Why there is no password field</h2>
+      <p>The CLI refuses <code>--password</code>, <code>--pass</code>, <code>--passin</code> and <code>--key-password</code> with exit 2 before any command runs: a password on the command line is readable by every process on the machine through the process list, and it lands in shell history. This page follows the same rule. The three sources it offers are the three the CLI reads — <code>--password-file &lt;file&gt;</code> (the first line), <code>--password-stdin</code> (the first line of a pipe) and the <code>PKINATIVE_PASSWORD</code> environment variable — and giving two at once is itself a usage error. The environment source prints no value: set the variable from your secret store before you run the line.</p>
+
+      <h2 id="not-done">What this page does not do</h2>
+      <p>It does not run the CLI. pkinative-cli is a Node.js process with a filesystem, exit codes and a JSON envelope on stderr; a browser tab is none of those, and pretending otherwise would teach the wrong contract. The checks above cover every refusal the CLI can decide from the command line alone. The refusals that depend on your files — an RSA key without <code>--rsa-scheme</code>, an encrypted key without a password, an output file that already exists — are named as notes, and only the real run can decide them. <code>pkinative &lt;command&gt; --help</code> stays the authority.</p>
+      <p>To see the engine itself run in your browser, use the <a href="./toolkit.html">PKI toolkit</a> or the <a href="./certificate.html">certificate inspector</a>.</p>
+
+      <h2 id="reading">Further reading</h2>
+      <ul>
+        <li><a href="../guides/cli.html">CLI reference</a> — every command and flag, the agent contract, and the <a href="../guides/cli.html#refused-combinations">refused combinations</a> this page checks</li>
+        <li><a href="../guides/use-cases-cli.html">CLI use cases</a> — a CI chain gate, offline revocation, CMS and timestamps in a pipeline, a PKCS#12 audit</li>
+        <li><a href="../guides/use-cases.html">Library use cases</a> — the same tasks in TypeScript, on the engine the CLI wraps</li>
+        <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli on GitHub</a> — the samples every preset comes from</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">loading…</span></span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="../app.js" defer></script>
+  <script type="module" src="cli.js"></script>
+</body>
+</html>

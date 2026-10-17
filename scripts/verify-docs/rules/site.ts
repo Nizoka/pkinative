@@ -15,7 +15,7 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, guideAnchors, guideOutputs, isRedirectStub, navHtml, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
+import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
@@ -312,6 +312,9 @@ const HAND_WRITTEN_PAGES: ReadonlyArray<readonly [path: string, prefix: string, 
     ['docs/playgrounds/index.html', '../', 'playgrounds'],
     ['docs/playgrounds/certificate.html', '../', 'playgrounds'],
     ['docs/playgrounds/asn1.html', '../', 'playgrounds'],
+    ['docs/playgrounds/toolkit.html', '../', 'playgrounds'],
+    ['docs/playgrounds/cli.html', '../', 'playgrounds'],
+    ['docs/playgrounds/mcp.html', '../', 'playgrounds'],
 ];
 
 const chromeParity: Rule = {
@@ -538,6 +541,70 @@ const cdnPin: Rule = {
     },
 };
 
+const PLAYGROUNDS_MANIFEST = 'docs/data/playgrounds.json';
+const HUB = 'docs/playgrounds/index.html';
+
+interface PlaygroundEntry {
+    readonly id?: string;
+    readonly file?: string;
+    readonly url?: string;
+    readonly title?: string;
+    readonly surface?: string;
+    readonly controls?: ReadonlyArray<{ readonly id?: string }>;
+    readonly exercises?: readonly string[];
+}
+
+/**
+ * docs/data/playgrounds.json is how an agent learns a playground exists, what
+ * it drives and through which controls (pdfnative's convention). It, the
+ * switcher (PLAYGROUNDS of build-guides.ts), the hub's cards and the hub's
+ * ItemList are four views of one list; this rule keeps them one.
+ */
+const playgroundsManifest: Rule = {
+    id: 'playgrounds-manifest',
+    summary: 'docs/data/playgrounds.json lists exactly the playgrounds of PLAYGROUNDS (scripts/build-guides.ts), in that order, each at its URL with a title, a surface, controls that are real ids of its page and what it exercises — a library page only real exports; and the hub shows one card per playground in that order, titled alike, mirrored by its JSON-LD ItemList.',
+    check(ctx) {
+        const parsed = readJson<{ playgrounds?: PlaygroundEntry[] }>(ctx, PLAYGROUNDS_MANIFEST);
+        if ('finding' in parsed) return [parsed.finding];
+        const api = readJson<{ exports?: Array<{ name: string }> }>(ctx, 'docs/assets/api.json');
+        if ('finding' in api) return [api.finding];
+        const exported = new Set((api.value.exports ?? []).map((e) => e.name));
+        const out: Finding[] = [];
+        const entries = parsed.value.playgrounds ?? [];
+        const files = PLAYGROUNDS.map(([file]) => file);
+        if (entries.map((e) => e.file).join(' ') !== files.join(' ')) out.push(error(PLAYGROUNDS_MANIFEST, `lists ${entries.map((e) => String(e.file)).join(', ')}; the switcher lists ${files.join(', ')} — one list, one order`));
+        for (const entry of entries) {
+            const where = `"${String(entry.id)}"`;
+            const page = ctx.read(`docs/playgrounds/${String(entry.file)}`);
+            if (page === null) { out.push(error(PLAYGROUNDS_MANIFEST, `${where} names ${String(entry.file)}, which does not exist`)); continue; }
+            if (entry.url !== `${SITE}/playgrounds/${String(entry.file)}`) out.push(error(PLAYGROUNDS_MANIFEST, `${where} has the url ${String(entry.url)}`));
+            if (!['library', 'cli', 'mcp'].includes(String(entry.surface))) out.push(error(PLAYGROUNDS_MANIFEST, `${where} has the surface ${String(entry.surface)}; it is library, cli or mcp`));
+            const ids = new Set([...page.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+            for (const control of entry.controls ?? []) if (!ids.has(control.id ?? '')) out.push(error(PLAYGROUNDS_MANIFEST, `${where} names the control #${String(control.id)}, which ${String(entry.file)} does not contain`));
+            if ((entry.exercises ?? []).length === 0) out.push(error(PLAYGROUNDS_MANIFEST, `${where} lists nothing under exercises`));
+            if (entry.surface === 'library') for (const name of entry.exercises ?? []) if (!exported.has(name)) out.push(error(PLAYGROUNDS_MANIFEST, `${where} exercises ${name}, which is not a public export`));
+        }
+        const hub = ctx.read(HUB) ?? '';
+        const cards = [...hub.matchAll(/<a class="pg-card" href="([^"]+)">[\s\S]*?<h2>([^<]+)<\/h2>/g)].map((m) => [m[1] ?? '', m[2] ?? ''] as const);
+        if (cards.map(([href]) => href).join(' ') !== files.join(' ')) out.push(error(HUB, `its cards link ${cards.map(([href]) => href).join(', ')}; the playgrounds are ${files.join(', ')}`));
+        for (const [href, title] of cards) {
+            const entry = entries.find((e) => e.file === href);
+            if (entry !== undefined && entry.title !== title) out.push(error(HUB, `the ${href} card is titled "${title}"; playgrounds.json says "${String(entry.title)}"`, lineContaining(hub, `href="${href}"`)));
+        }
+        const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(hub)?.[1] ?? '{}';
+        let list: { numberOfItems?: unknown; itemListElement?: Array<{ position?: unknown; name?: unknown; url?: unknown }> } | undefined;
+        try {
+            const graph = (JSON.parse(block) as { '@graph'?: Array<Record<string, unknown>> })['@graph'] ?? [];
+            list = graph.map((n) => n['mainEntity']).find((m): m is NonNullable<typeof list> => typeof m === 'object' && m !== null && (m as Record<string, unknown>)['@type'] === 'ItemList');
+        } catch { /* structured-data reports the JSON */ }
+        const items = list?.itemListElement ?? [];
+        const expected = cards.map(([href, title], i) => `${String(i + 1)} ${title} ${SITE}/playgrounds/${href}`);
+        const actual = items.map((item) => `${String(item.position)} ${String(item.name)} ${String(item.url)}`);
+        if (list === undefined || list.numberOfItems !== cards.length || actual.join('\n') !== expected.join('\n')) out.push(error(HUB, 'its JSON-LD ItemList is not its cards — same order, positions from 1, each card\'s title and URL, numberOfItems the card count', lineContaining(hub, 'ItemList')));
+        return out;
+    },
+};
+
 /**
  * The URLs the site retired stay served: each is a noindex stub that
  * refreshes to its replacement and names it as canonical, so a link anyone
@@ -648,5 +715,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, cdnPin, redirectStubs, releaseNotes, releasePrDrafts,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, cdnPin, redirectStubs, playgroundsManifest, releaseNotes, releasePrDrafts,
 ];

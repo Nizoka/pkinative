@@ -168,7 +168,7 @@ Usage errors are `E_USAGE`, exit 2, and they are detected before anything is wri
 | `ocsp` | `request` or `cert-id` without `--issuer`; a nonce outside 1–32 octets (RFC 8954), also for `chain verify --ocsp-nonce`; `check` without `--cert` and `--issuer` |
 | `cms` | `sign` without `--content` or `--content-digest`, with both, or with `--content-digest` but no `--detached`; `sign` without a signer certificate (`--cert`, or a `--p12` that holds it); `verify` without `--trust`; `verify-signer` without `--cert`; `add-attribute` without `--attribute`; `add-timestamp` without `--token` |
 | `tsp` | `request` with both, or neither, of `--data` and `--digest`; `verify` with both, or neither, of `--token` and `--response`, without `--trust`, or without what was stamped (`--request`, `--data` or `--digest`) |
-| `p12` | `verify-mac`, `bags` or `open` without a password; `open` on an RSA key without `--rsa-scheme` |
+| `p12` | `verify-mac`, `bags` or `open` without a password. (`open` on an RSA key without `--rsa-scheme` is not a usage error: the report carries `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`, the key stays unimported, and the exit code is 1) |
 | `explain` | neither a code nor `--list` |
 | `schema` | an unknown subject; an argument after a subject other than `report` and `summary`; `report` or `summary` without a known invocation |
 | `completion` | no shell, or a shell other than `bash`, `zsh`, `fish`, `powershell` (`pwsh` is accepted for PowerShell) |
@@ -723,7 +723,7 @@ The CLI computes no verdict of its own, so the engine's conformance — x509-lim
 
 ## Not supported
 
-| | |
+| Not supported | Instead |
 |---|---|
 | Network access | None, in any mode: you fetch CRLs, OCSP responses, timestamps and intermediates |
 | Key generation, key export | Bring keys from an HSM, a KMS or `openssl genpkey` |

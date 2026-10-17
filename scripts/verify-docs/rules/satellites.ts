@@ -26,6 +26,8 @@ export const CLI_SURFACE = 'docs/data/cli-surface.json';
 const SURFACES = 'docs/data/surfaces.json';
 export const CLI_GUIDE = 'docs/guides/cli.md';
 export const MCP_GUIDE = 'docs/guides/mcp.md';
+const CLI_BUILDER = 'docs/playgrounds/cli.js';
+const MCP_EXPLORER = 'docs/playgrounds/mcp.js';
 
 /** `packages.pkinative-cli` of the manifest. */
 export interface CliPackage {
@@ -235,7 +237,7 @@ const surfacesShape: Rule = {
 
 const cliSurfaceParity: Rule = {
     id: 'cli-surface-parity',
-    summary: 'docs/guides/cli.md documents the whole surface of docs/data/cli-surface.json: a `#### `pkinative <command>`` section per command in the CLI\'s order, every command line, every flag, every global flag and every error class — and names no command the CLI does not ship.',
+    summary: 'docs/guides/cli.md documents the whole surface of docs/data/cli-surface.json, and the command builder (docs/playgrounds/cli.js) loads that file: a `#### `pkinative <command>`` section per command in the CLI\'s order, every command line, every flag, every global flag and every error class — and names no command the CLI does not ship.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
@@ -261,6 +263,10 @@ const cliSurfaceParity: Rule = {
         ]);
         for (const flag of flags) if (!new RegExp(`--${flag}\\b`).test(guide)) out.push(error(CLI_GUIDE, `never names the flag --${flag}, which the CLI accepts`));
         for (const { code } of sat.surface.errorClasses ?? []) if (!guide.includes(`\`${code}\``)) out.push(error(CLI_GUIDE, `never names the error class ${code}`));
+        // The builder reads the snapshot itself rather than a copy that could drift from it.
+        const builder = ctx.read(CLI_BUILDER);
+        if (builder === null) out.push(error(CLI_BUILDER, 'missing — the CLI command builder'));
+        else if (!/^const SURFACE_URL = '\.\.\/data\/cli-surface\.json';$/m.test(builder)) out.push(error(CLI_BUILDER, 'does not load ../data/cli-surface.json (const SURFACE_URL) — the builder must offer exactly the surface the snapshot records'));
         return out;
     },
 };
@@ -269,7 +275,7 @@ const cliSurfaceParity: Rule = {
 
 const mcpSurfaceParity: Rule = {
     id: 'mcp-surface-parity',
-    summary: 'docs/guides/mcp.md has exactly one `### `tool`` heading per tool of packages.pkinative-mcp.tools, in tools/list order, and names every prompt, every environment variable and every resource template the manifest records.',
+    summary: 'docs/guides/mcp.md has exactly one `### `tool`` heading per tool of packages.pkinative-mcp.tools, in tools/list order, and names every prompt, every environment variable and every resource template the manifest records; the tool explorer (docs/playgrounds/mcp.js) has one card per tool in the same order.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
@@ -286,6 +292,13 @@ const mcpSurfaceParity: Rule = {
         for (const prompt of sat.mcp.prompts ?? []) if (!guide.includes(`\`${prompt}\``)) out.push(error(MCP_GUIDE, `never names the prompt ${prompt}`));
         for (const env of sat.mcp.envVars ?? []) if (!guide.includes(env)) out.push(error(MCP_GUIDE, `never names the environment variable ${env}`));
         for (const template of sat.mcp.resourceTemplates ?? []) if (!guide.includes(template)) out.push(error(MCP_GUIDE, `never names the resource template ${template}`));
+        // The explorer: one card per tool, in tools/list order.
+        const explorer = ctx.read(MCP_EXPLORER);
+        if (explorer === null) out.push(error(MCP_EXPLORER, 'missing — the MCP tool explorer'));
+        else {
+            const cards = [...explorer.matchAll(/^ {4}id: '([a-z0-9_]+)',$/gm)].map((m) => m[1] ?? '');
+            if (cards.join(' ') !== tools.join(' ')) out.push(error(MCP_EXPLORER, `its tool cards are ${cards.join(', ')}; the server registers ${tools.join(', ')} in that order`));
+        }
         return out;
     },
 };

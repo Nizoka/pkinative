@@ -509,7 +509,7 @@ pkinative schema summary cert inspect
 </tr>
 <tr>
 <td><code>p12</code></td>
-<td><code>verify-mac</code>, <code>bags</code> or <code>open</code> without a password; <code>open</code> on an RSA key without <code>--rsa-scheme</code></td>
+<td><code>verify-mac</code>, <code>bags</code> or <code>open</code> without a password. (<code>open</code> on an RSA key without <code>--rsa-scheme</code> is not a usage error: the report carries <code>PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED</code>, the key stays unimported, and the exit code is 1)</td>
 </tr>
 <tr>
 <td><code>explain</code></td>
@@ -1839,8 +1839,8 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
 <table>
 <thead>
 <tr>
-<th></th>
-<th></th>
+<th>Not supported</th>
+<th>Instead</th>
 </tr>
 </thead>
 <tbody><tr>

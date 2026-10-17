@@ -99,8 +99,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'member-tsdoc': (f) => edit(f, 'docs/assets/api.json', /"summary": "The algorithm OID[^"]*"/, '"summary": null'),
     // encodeSetOf is named in exactly one hand-written file, the primitives recipe.
     'export-named': (f) => edit(f, 'recipes/asn1-primitives.ts', /encodeSetOf/g, 'encodeSetOfXX'),
-    // A field the quick start alone names: `allowTrailingData` is also the PDF /Contents option of the CMS docs now.
-    'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'timeType', 'timeTypeXX'),
+    // A field only the quick start and the MCP guide name: `allowTrailingData` is also the PDF /Contents option of the CMS docs now.
+    'option-fields-named': (f) => { edit(f, 'docs/guides/quickstart.md', /timeType/g, 'timeTypeXX'); edit(f, 'docs/guides/mcp.md', /timeType/g, 'timeTypeXX'); },
     'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
     'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
     'install-url-version': (f) => edit(f, 'README.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
@@ -147,6 +147,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
     // A tool documented under a name the server does not register.
     'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
+    // A control renamed on the page while the agent-facing inventory keeps the old id.
+    'playgrounds-manifest': (f) => edit(f, 'docs/data/playgrounds.json', '"id": "chain-run"', '"id": "chain-go"'),
     // A satellite release recorded in the manifest and not in the widget a reader sees without the registry.
     'versions-widget': (f) => edit(f, 'docs/assets/versions.js', "'pkinative-mcp': { version: '1.0.0'", "'pkinative-mcp': { version: '0.9.0'"),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
@@ -997,5 +999,25 @@ describe('satellite-counts reads a count only where it counts the satellite', ()
 
     it('should fire on a wrong CLI command count', async () => {
         expect(await count('docs/guides/cli.md', 'pkinative-cli ships 17 commands.')).toEqual([expect.stringContaining('"17 commands"')]);
+    });
+});
+
+describe('the playground views of one list', () => {
+    const run = async (mutate: Mutation, rule: string): Promise<string[]> => {
+        const files = { ...TREE };
+        mutate(files);
+        return (await runRules(createMemoryContext(files), RULES, rule)).map((p) => `${p.file}: ${p.message}`);
+    };
+
+    it('should fire playgrounds-manifest when the hub ItemList drifts from the cards', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/index.html', '"numberOfItems": 5', '"numberOfItems": 4'), 'playgrounds-manifest')).toEqual([expect.stringContaining('ItemList is not its cards')]);
+    });
+
+    it('should fire mcp-surface-parity when the explorer drops a tool card', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/mcp.js', /^ {4}id: 'open_pkcs12',$/m, "    id: 'open_pfx',"), 'mcp-surface-parity')).toEqual([expect.stringContaining('its tool cards are')]);
+    });
+
+    it('should fire cli-surface-parity when the builder stops reading the snapshot', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/cli.js', "const SURFACE_URL = '../data/cli-surface.json';", "const SURFACE_URL = './surface.json';"), 'cli-surface-parity')).toEqual([expect.stringContaining('does not load ../data/cli-surface.json')]);
     });
 });
