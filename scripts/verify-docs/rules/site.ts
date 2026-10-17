@@ -566,6 +566,7 @@ const siteScriptSyntax: Rule = {
 
 const PLAYGROUNDS_MANIFEST = 'docs/data/playgrounds.json';
 const HUB = 'docs/playgrounds/index.html';
+const GUIDES_INDEX = 'docs/guides/index.html';
 
 interface PlaygroundEntry {
     readonly id?: string;
@@ -585,7 +586,7 @@ interface PlaygroundEntry {
  */
 const playgroundsManifest: Rule = {
     id: 'playgrounds-manifest',
-    summary: 'docs/data/playgrounds.json lists exactly the playgrounds of PLAYGROUNDS (scripts/build-guides.ts), in that order, each at its URL with a title, a surface, controls that are real ids of its page and what it exercises — a library page only real exports; and the hub shows one card per playground in that order, titled alike, mirrored by its JSON-LD ItemList.',
+    summary: 'docs/data/playgrounds.json lists exactly the playgrounds of PLAYGROUNDS (scripts/build-guides.ts), in that order, each at its URL with a title, a surface, controls that are real ids of its page and what it exercises — a library page only real exports; the hub shows one card per playground in that order, titled alike, mirrored by its JSON-LD ItemList; and the guides index lists them all, in that order, under Interactive playgrounds.',
     check(ctx) {
         const parsed = readJson<{ playgrounds?: PlaygroundEntry[] }>(ctx, PLAYGROUNDS_MANIFEST);
         if ('finding' in parsed) return [parsed.finding];
@@ -624,6 +625,12 @@ const playgroundsManifest: Rule = {
         const expected = cards.map(([href, title], i) => `${String(i + 1)} ${title} ${SITE}/playgrounds/${href}`);
         const actual = items.map((item) => `${String(item.position)} ${String(item.name)} ${String(item.url)}`);
         if (list === undefined || list.numberOfItems !== cards.length || actual.join('\n') !== expected.join('\n')) out.push(error(HUB, 'its JSON-LD ItemList is not its cards — same order, positions from 1, each card\'s title and URL, numberOfItems the card count', lineContaining(hub, 'ItemList')));
+        // The guides index's "Interactive playgrounds" section, pdfnative's: a fourth view of the list.
+        const index = ctx.read(GUIDES_INDEX) ?? '';
+        const section = /<h2 id="playgrounds">[\s\S]*?<\/ul>/.exec(index)?.[0] ?? '';
+        const listed = [...section.matchAll(/<a href="\.\.\/playgrounds\/([^"]+)">([^<]+) →<\/a>/g)].map((m) => `${m[1] ?? ''} ${m[2] ?? ''}`);
+        const wanted = entries.map((e) => `${String(e.file)} ${String(e.title)}`);
+        if (listed.join('\n') !== wanted.join('\n')) out.push(error(GUIDES_INDEX, `its Interactive playgrounds section lists ${listed.length === 0 ? 'nothing' : listed.join(', ')}; the inventory is ${wanted.join(', ')}`, lineContaining(index, 'id="playgrounds"')));
         return out;
     },
 };

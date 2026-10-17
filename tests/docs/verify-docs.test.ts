@@ -1037,3 +1037,12 @@ describe('redirect-stubs and the script that keeps a deep link', () => {
         expect(problems).toEqual([expect.stringContaining('its script redirects to ../playgrounds/asn1.html')]);
     });
 });
+
+describe('playgrounds-manifest and the guides index', () => {
+    it('should fire when the guides index drops a playground from its Interactive playgrounds section', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/index.html', /\s*<li><a href="\.\.\/playgrounds\/mcp\.html">[^\n]*<\/li>/, '');
+        const problems = (await runRules(createMemoryContext(files), RULES, 'playgrounds-manifest')).map((p) => p.message);
+        expect(problems).toEqual([expect.stringContaining('its Interactive playgrounds section lists')]);
+    });
+});

@@ -441,6 +441,22 @@ export function renderGuidePage(read: Reader, name: string): string {
 }
 
 /** docs/guides/index.html: every guide with its lede. */
+/**
+ * The guides index's "Interactive playgrounds" section (pdfnative's): one
+ * entry per playground in PLAYGROUNDS order, titled and described from
+ * docs/data/playgrounds.json — the inventory `playgrounds-manifest` holds —
+ * so it is one more view of the same list, never a fourth hand-kept copy.
+ */
+function playgroundsSection(read: Reader): string {
+    const inventory = JSON.parse(read('docs/data/playgrounds.json') ?? '{}') as { playgrounds?: Array<{ file?: string; title?: string; purpose?: string }> };
+    const items = PLAYGROUNDS.map(([file, label]) => {
+        const entry = inventory.playgrounds?.find((p) => p.file === file);
+        return `        <li><a href="../playgrounds/${file}">${escapeHtml(entry?.title ?? label)} →</a>`
+            + `<span class="guide-toc-desc">${escapeHtml(entry?.purpose ?? '')}</span></li>`;
+    }).join('\n');
+    return `      <h2 id="playgrounds">Interactive playgrounds</h2>\n      <p>The library and the satellites, tried in the browser — the library pages and the MCP explorer run the published package from a CDN; the CLI builder writes command lines and runs nothing.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`;
+}
+
 export function renderGuidesIndex(read: Reader): string {
     const items = GUIDES.map((name) => {
         const md = lf(read(`docs/guides/${name}.md`) ?? '');
@@ -455,7 +471,7 @@ export function renderGuidesIndex(read: Reader): string {
         // loses a path segment and 404s every relative stylesheet.
         path: 'guides/',
         items: GUIDES.map((name) => ({ name: guideTitle(lf(read(`docs/guides/${name}.md`) ?? '')), url: `${SITE}/guides/${name}.html` })),
-        body:`      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`,
+        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n${playgroundsSection(read)}`,
         current: 'index',
     });
 }
