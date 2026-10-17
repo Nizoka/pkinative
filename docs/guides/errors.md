@@ -167,3 +167,26 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 **`PKI_REASON_REVOCATION_UNKNOWN` is not "not revoked" either**, for the same reason: a missing or unsigned list is an absence of evidence, and reporting it as a clean answer would make the soft-fail decision on your behalf, invisibly.
 
 `docs/data/reasons.json` gives each one's cause, remedy and the clause it cites. Which of them a real chain actually earns is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, and a reviewed subset is pinned on its reason code rather than on the pass/fail boolean — because *rejected for the wrong reason* is a defect no count can see.
+
+## Where the codes surface
+
+The three vocabularies are the engine's, and they travel unchanged through every surface built on it: [pkinative-cli](cli.md) and [pkinative-mcp](mcp.md) add a class of their own for the failures the engine does not own — usage, files, the sandbox — but never rename, merge or drop a `PKI_*` code.
+
+| | Library | CLI | MCP server |
+|---|---|---|---|
+| **The coarse class** | The `PkiError` subclass thrown (`PkiEncodingError`, `PkiCertificateError`, …) | `error.code` in the `--json` envelope: one of 13 `E_*` classes, `E_USAGE` exit 2, the others exit 1 | `_meta.error.data.errorClass` (`usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`) |
+| **The exact cause** | `err.code`, a `PKI_*` code | `error.pkiCode`, the same code verbatim; `E_IO`, `E_NOT_FOUND` and `E_VERIFY_FAILED` are the CLI's own and carry none | `_meta.error.code` — the same `PKI_*` code verbatim, or one of the server's 21 wrapper codes (`VALIDATION_ERROR`, `SECURITY_VIOLATION`, `SECRET_REQUIRED`, …) |
+| **Structured detail** | The subclass's fields (`offset`, `path`, `limit`, `configured`, `observed`, `algorithm`) | `error.detail`, with `detail.flag` naming the `--max-*` flag of a limit | `_meta.error.data` (`path`, `offset`, `algorithm`, `limit`, `configured`, `observed`, `env`) |
+| **The remedy** | The registry's `remedy`, in the message | `error.remedy`: the CLI flag that lifts the refusal (`--ber`, `--allow-sha1`, `--max-depth <value>`) | `data.remedy`: the MCP input that lifts it (`encodingRules:'ber'`, `allowSha1:true`, `limits.<limit>`) |
+| **A negative verdict** | A report with `valid: false` and `reasons[]` — never thrown | The report on stdout **and** exit 1, the envelope's `error.code` `E_VERIFY_FAILED` or `E_CHECK_FAILED`, `error.reasons` the `PKI_REASON_*` list | `valid: false` and `reasons[]` in `structuredContent` — **never** `isError` |
+| **Diagnostics** | `onDiagnostic`, or `console.warn` | `diagnostics[]` in the envelope, one `warning PKI_DIAG_…` line each on stderr; `--strict` escalates the first warning to `E_CHECK_FAILED` with `PKI_STRICT_DIAGNOSTIC` | `diagnostics[]` and `diagnosticCounts` in every result; `strict: true` escalates to `PKI_STRICT_DIAGNOSTIC` |
+| **Explain a code** | `docs/data/errors.json`, `reasons.json`, `diagnostics.json` and this guide | `pkinative explain <code>`, and `pkinative explain --list` | The `explain_code` tool, with `list: true` |
+
+One failure, three surfaces — a private key passed where a certificate is expected. The library's `decodePem` with `{ label: 'CERTIFICATE' }` throws a `PkiEncodingError` whose `code` is `PKI_PEM_UNEXPECTED_LABEL`; the CLI's envelope and the server's tool result (its `content` text omitted) carry the same code — output of pkinative-cli 1.0.0 and pkinative-mcp 1.0.0:
+
+```json
+{"ok":false,"command":"cert inspect","error":{"code":"E_INPUT","message":"leaf.key.pem holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).","pkiCode":"PKI_PEM_UNEXPECTED_LABEL","remedy":"pkinative pem decode <file> (lists the labels present)"},"diagnostics":[]}
+{"isError":true,"_meta":{"error":{"code":"PKI_PEM_UNEXPECTED_LABEL","message":"certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).","data":{"errorClass":"input","path":"certificate","remedy":"convert_pem mode:'decode' (lists the labels present)"}}}}
+```
+
+Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The [CLI guide](cli.md#error-classes-codes-and-remedies) maps the 57 error codes to the 13 classes one by one, and the [MCP guide](mcp.md#error-model) lists the 21 wrapper codes.

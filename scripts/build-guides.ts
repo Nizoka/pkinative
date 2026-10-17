@@ -39,8 +39,12 @@ export const SITE = 'https://pkinative.dev';
 export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
 export const NPM = 'https://www.npmjs.com/package/pkinative';
 
-/** The guides, in navigation order. */
-export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'standards', 'errors', 'choose'];
+/** The guides, in navigation order: the library first, then its two satellites, then the reference. */
+export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'cli', 'use-cases-cli', 'mcp', 'use-cases-mcp', 'security', 'conformance', 'standards', 'errors', 'choose'];
+
+/** The satellites' packages, linked from every footer. */
+export const CLI_REPOSITORY = 'https://github.com/Nizoka/pkinative-cli';
+export const MCP_REPOSITORY = 'https://github.com/Nizoka/pkinative-mcp';
 
 const markdown = new Marked({ gfm: true, breaks: false });
 
@@ -191,6 +195,17 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
           </ul>
         </div>
         <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="${CLI_REPOSITORY}" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="${MCP_REPOSITORY}" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="${prefix}playgrounds/">Playgrounds</a></li>
+            <li><a href="${prefix}playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="${prefix}playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="${prefix}data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
           <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="${prefix}llms.txt">llms.txt</a></li>
@@ -220,6 +235,9 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
 export const PLAYGROUNDS: ReadonlyArray<readonly [file: string, label: string]> = [
     ['certificate.html', 'Certificate inspector'],
     ['asn1.html', 'ASN.1 tree'],
+    ['toolkit.html', 'PKI toolkit'],
+    ['cli.html', 'CLI builder'],
+    ['mcp.html', 'MCP explorer'],
 ];
 
 /**
@@ -242,8 +260,9 @@ export const ENGINE_SOURCE_SLOT = ' · engine: <span id="engine-source">loading�
 /**
  * Prism, pinned by SRI.
  *
- * The guides fence only `ts` and `bash`, so these three files are the whole
- * set; a new language means a new tag and a new hash, computed with
+ * The guides fence `ts`, `bash`, `json` (the MCP payloads and client
+ * configurations) and `powershell` (the CLI on Windows), so these five files
+ * are the whole set; a new language means a new tag and a new hash, computed with
  * `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A` —
  * never guessed. The `cdn-sri` rule fails on any remote load without
  * `integrity` and `crossorigin`.
@@ -257,13 +276,16 @@ export function prismTags(): { head: string; tail: string } {
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>',
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>',
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>',
         ].join('\n'),
     };
 }
 
 /** The label a guide carries in the nav, the footer and the index. */
 function guideNavLabel(name: string): string {
-    return name === 'quickstart' ? 'Quick start' : `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
+    const special: Readonly<Record<string, string>> = { 'quickstart': 'Quick start', 'cli': 'CLI', 'mcp': 'MCP server', 'use-cases-cli': 'CLI use cases', 'use-cases-mcp': 'MCP use cases' };
+    return special[name] ?? `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
 }
 
 /** One `ListItem` of a schema.org BreadcrumbList: the visible label and its URL. */
@@ -277,6 +299,15 @@ export function breadcrumbList(crumbs: readonly Crumb[]): Record<string, unknown
     return {
         '@type': 'BreadcrumbList',
         itemListElement: crumbs.map((crumb, i) => ({ '@type': 'ListItem', position: i + 1, name: crumb.name, item: crumb.url })),
+    };
+}
+
+/** The schema.org ItemList of a hub page: its cards, in the order they are shown. */
+export function itemList(items: readonly Crumb[]): Record<string, unknown> {
+    return {
+        '@type': 'ItemList',
+        numberOfItems: items.length,
+        itemListElement: items.map((item, i) => ({ '@type': 'ListItem', position: i + 1, name: item.name, url: item.url })),
     };
 }
 
@@ -299,7 +330,7 @@ export function jsonLdBlock(graph: ReadonlyArray<Record<string, unknown>>): stri
     return `  <script type="application/ld+json">\n${json.split('\n').map((l) => `  ${l}`).join('\n')}\n  </script>`;
 }
 
-function page(options: { title: string; description: string; path: string; body: string; current: string }): string {
+function page(options: { title: string; description: string; path: string; body: string; current: string; items?: readonly Crumb[] }): string {
     const url = `${SITE}/${options.path}`;
     const prism = prismTags();
     const isIndex = options.current === 'index';
@@ -312,7 +343,10 @@ function page(options: { title: string; description: string; path: string; body:
     const ld = jsonLdBlock([
         breadcrumbList(crumbs),
         isIndex
-            ? { '@type': 'CollectionPage', '@id': url, url, name: heading, description: options.description, inLanguage: 'en', isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` } }
+            ? {
+                '@type': 'CollectionPage', '@id': url, url, name: heading, description: options.description, inLanguage: 'en', isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` },
+                mainEntity: itemList(options.items ?? []),
+            }
             : {
                 '@type': 'TechArticle',
                 headline: heading,
@@ -415,12 +449,13 @@ export function renderGuidesIndex(read: Reader): string {
     }).join('\n');
     return page({
         title: 'Guides — pkinative',
-        description: 'The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.',
+        description: 'The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.',
         // The URL, not the output path: under `cleanUrls` (npm run docs:serve,
         // and most static hosts) /guides/index.html is served at /guides, which
         // loses a path segment and 404s every relative stylesheet.
         path: 'guides/',
-        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`,
+        items: GUIDES.map((name) => ({ name: guideTitle(lf(read(`docs/guides/${name}.md`) ?? '')), url: `${SITE}/guides/${name}.html` })),
+        body:`      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`,
         current: 'index',
     });
 }

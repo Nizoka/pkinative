@@ -49,3 +49,44 @@ node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinat
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
 - You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.
+
+## Choosing your surface
+
+pkinative reaches you three ways, and all three run the same engine: a verdict, a refusal code or an artefact does not depend on the surface that produced it. Pick the one that matches where your bytes live and who drives the call.
+
+| Surface | For | Pick it when |
+|---|---|---|
+| **The library**, `npm install pkinative` | Applications and services on any runtime with Web Crypto — Node.js, Deno, Bun, browsers, edge workers | The bytes live in memory, you want the whole typed API, or the key sits in an HSM or a remote service behind an `ExternalSigner` — which only the library takes. You own the I/O: the engine reads no file and opens no socket |
+| **[pkinative-cli](cli.md)**, the `pkinative` binary | Shell scripts, CI jobs, operators, and programs in any language that can run a process | Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, `--dry-run` and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv |
+| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, ChatGPT over Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22 or later |
+
+The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
+
+Every capability `docs/data/surfaces.json` lists, by surface:
+
+| Capability | Library | CLI | MCP |
+|---|---|---|---|
+| `errors` — typed errors with stable codes | `PkiError` and its subclasses | every command: `error.pkiCode` in the `--json` envelope; `explain` | every tool: `_meta.error.code`; `explain_code` |
+| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 `--max-*` flags; `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
+| `asn1-decode` | `decodeAsn1`, `decodeAsn1Sequence` | `asn1 decode` (`--sequence`) | `decode_asn1` (`sequence`) |
+| `asn1-read` | `readInteger`, `readTime` and the other typed readers | `asn1 decode --path … --read …` | `decode_asn1` (`nodePath`, `read`) |
+| `asn1-encode` | `encodeSequence`, `encodeAsn1Node` and the other encoders | `asn1 encode`; `asn1 decode --reencode` | `encode_asn1`; `decode_asn1` (`reencode`) |
+| `oid` | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName`, `OID_REGISTRY` | `oid name`, `encode`, `decode`, `validate`, `list` | `resolve_oid` |
+| `pem` | `decodePem`, `encodePem` | `pem decode`, `pem encode` | `convert_pem` |
+| `fingerprint` | `computeFingerprint`, `computeFingerprintAsync`, `formatFingerprint`, `computeKeyIdentifier`, `shake256` | `fingerprint` (`--key-id`, `--shake256`, `--webcrypto`) | `compute_fingerprint`; `inspect_certificate` (`fingerprints`) |
+| `x509-parse` | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` | `cert inspect`, `cert decode-extension` | `inspect_certificate`, `decode_extension` |
+| `x509-verify` | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` | `cert verify-signature`; `doctor` | `inspect_certificate` (`issuer`, `checkSelfSignature`); `describe_engine` |
+| `x509-create` | `createCertificate`, `createCertificationRequest`, the X.509 encoders, `canSign` | `cert create`, `csr create`, `cert encode`; `doctor` | `create_certificate`, `create_csr`, `encode_x509_structure`; `describe_engine` |
+| `x509-csr` | `parseCertificationRequest`, `verifyCertificationRequest` | `csr inspect`, `csr verify` | `inspect_csr` |
+| `x509-verify-chain` | `verifyCertificateChain` | `chain verify` | `verify_certificate_chain` |
+| `x509-path` | `buildCertificatePath`, `validateCertificatePath` | `chain build`, `chain validate` | `build_certificate_path`, `validate_certificate_path` |
+| `x509-server-name` | `checkServerName`, `matchDnsName` | `cert check-name`, `cert match-name`; `chain verify --host` | `check_certificate_name`; `verify_certificate_chain` (`serverName`) |
+| `x509-purpose` | `checkExtendedKeyUsage`, `KEY_PURPOSES`, `ANY_EXTENDED_KEY_USAGE` | `cert check-purpose`; `--purpose` on `chain` and `cms verify` | `check_certificate_purpose`; `purposes` on `verify_certificate_chain`, `build_certificate_path` and `verify_cms` |
+| `x509-crl` | `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` | `crl inspect`, `find`, `verify-signature`, `check` | `inspect_crl` (`find`, `issuer`), `check_crl_revocation` |
+| `x509-ocsp` | `createOcspRequest`, `encodeOcspCertId`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus` | `ocsp request`, `cert-id`, `inspect`, `verify-signature`, `check` | `create_ocsp_request` (`certIdOnly`), `inspect_ocsp_response` (`responder`), `check_ocsp_status` |
+| `cms-signed-data` | `createSignedData`, `parseSignedData`, `verifySignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute` | `cms sign`, `verify`, `inspect`, `verify-signer`, `add-attribute` | `sign_cms`, `verify_cms`, `inspect_cms` (`signerCertificate`), `amend_cms` (`add-unsigned-attribute`) |
+| `cms-timestamp` | `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken` | `tsp request`, `inspect`, `verify`; `cms add-timestamp` | `create_timestamp_request`, `inspect_timestamp`, `verify_timestamp`; `amend_cms` (`add-timestamp`) |
+| `keys-pkcs8` | `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey`, `canDecrypt` | `key inspect`, `key check`; `--key` on the signing commands; `doctor` | `inspect_private_key` (`tryImport`); `signer.key` on the signing tools; `describe_engine` |
+| `keys-pkcs12` | `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`, `openPkcs12` | `p12 inspect`, `verify-mac`, `bags`, `open`; `--p12` on the signing commands | `inspect_pkcs12`, `open_pkcs12`; `signer.p12` on the signing tools |
+
+The [CLI guide](cli.md) and the [MCP guide](mcp.md) document every command and tool; [CLI use cases](use-cases-cli.md) and [MCP use cases](use-cases-mcp.md) put them to work.

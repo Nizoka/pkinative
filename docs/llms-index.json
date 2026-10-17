@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 241450,
-      "approxTokens": 60363
+      "bytes": 403722,
+      "approxTokens": 100931
     },
     {
       "url": "llms-recipes.txt",
@@ -53,15 +53,21 @@
     },
     {
       "url": "data/surfaces.json",
-      "description": "What pkinative does, the exports that do it, and since which version.",
-      "bytes": 8414,
-      "approxTokens": 2104
+      "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
+      "bytes": 13643,
+      "approxTokens": 3411
+    },
+    {
+      "url": "data/cli-surface.json",
+      "description": "The pkinative-cli command surface — commands, flags, exit codes, error classes — from its own capability manifest.",
+      "bytes": 51317,
+      "approxTokens": 12829
     },
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 15206,
-      "approxTokens": 3802
+      "bytes": 20040,
+      "approxTokens": 5010
     }
   ],
   "guides": [
@@ -116,6 +122,135 @@
       ],
       "bytes": 86651,
       "approxTokens": 21663
+    },
+    {
+      "title": "pkinative-cli — Command-line reference",
+      "summary": "pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable --json contract for scripts, CI and AI agents. It pins pkinative ^1.0.0, its only runtime dependency.",
+      "html": "guides/cli.html",
+      "markdown": "guides/cli.md",
+      "anchors": [
+        "installation",
+        "when-to-use-the-cli",
+        "quick-start",
+        "the-agent-contract",
+        "the-schema-subjects",
+        "refused-combinations",
+        "error-classes-codes-and-remedies",
+        "command-reference",
+        "encodings",
+        "certificates",
+        "paths--revocation",
+        "signatures--time-stamps",
+        "keys",
+        "meta",
+        "global-options",
+        "configuration-file",
+        "environment",
+        "security-posture",
+        "shell-completion",
+        "conformance",
+        "not-supported",
+        "versioning",
+        "further-reading"
+      ],
+      "bytes": 63933,
+      "approxTokens": 15983
+    },
+    {
+      "title": "CLI use cases",
+      "summary": "Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.",
+      "html": "guides/use-cases-cli.html",
+      "markdown": "guides/use-cases-cli.md",
+      "anchors": [
+        "case-1--a-ci-gate-on-a-certificate-chain-and-its-expiry",
+        "case-2--offline-and-air-gapped-revocation-checking",
+        "case-3--cms-signature-and-rfc-3161-timestamp-in-a-release-pipeline",
+        "case-4--a-pkcs12-audit-with---password-file",
+        "see-also"
+      ],
+      "bytes": 18494,
+      "approxTokens": 4624
+    },
+    {
+      "title": "pkinative-mcp — AI client integration",
+      "summary": "pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.",
+      "html": "guides/mcp.html",
+      "markdown": "guides/mcp.md",
+      "anchors": [
+        "installation",
+        "configuration-by-client",
+        "claude-desktop",
+        "claude-code",
+        "cursor--continue--zed--windsurf--cline--roo-code",
+        "vs-code",
+        "streamable-http-chatgpt-and-other-http-hosts",
+        "environment-variables",
+        "protocol-and-transport",
+        "tool-reference",
+        "encodings",
+        "convert_pem",
+        "resolve_oid",
+        "compute_fingerprint",
+        "decode_asn1",
+        "encode_asn1",
+        "certificates-and-requests",
+        "inspect_certificate",
+        "create_certificate",
+        "encode_x509_structure",
+        "decode_extension",
+        "check_certificate_name",
+        "check_certificate_purpose",
+        "inspect_csr",
+        "create_csr",
+        "paths-crls-and-ocsp",
+        "verify_certificate_chain",
+        "build_certificate_path",
+        "validate_certificate_path",
+        "inspect_crl",
+        "check_crl_revocation",
+        "create_ocsp_request",
+        "inspect_ocsp_response",
+        "check_ocsp_status",
+        "cms-and-timestamps",
+        "sign_cms",
+        "verify_cms",
+        "inspect_cms",
+        "amend_cms",
+        "create_timestamp_request",
+        "inspect_timestamp",
+        "verify_timestamp",
+        "private-keys-and-pkcs12",
+        "inspect_private_key",
+        "inspect_pkcs12",
+        "open_pkcs12",
+        "meta",
+        "describe_engine",
+        "explain_code",
+        "draft_governance_issue",
+        "prompts",
+        "resources",
+        "token-frugal-reads",
+        "error-model",
+        "security-model",
+        "further-reading"
+      ],
+      "bytes": 50033,
+      "approxTokens": 12508
+    },
+    {
+      "title": "MCP use cases",
+      "summary": "Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.",
+      "html": "guides/use-cases-mcp.html",
+      "markdown": "guides/use-cases-mcp.md",
+      "anchors": [
+        "case-1--an-agent-triages-a-failing-tls-chain",
+        "case-2--issuing-a-test-certificate",
+        "case-3--offline-revocation",
+        "case-4--opening-keys-safely",
+        "see-also"
+      ],
+      "bytes": 19142,
+      "approxTokens": 4786
     },
     {
       "title": "Security model",
@@ -186,10 +321,11 @@
         "cms-and-timestamps",
         "private-keys-and-pkcs12",
         "diagnostics",
-        "reasons"
+        "reasons",
+        "where-the-codes-surface"
       ],
-      "bytes": 31157,
-      "approxTokens": 7789
+      "bytes": 35002,
+      "approxTokens": 8751
     },
     {
       "title": "Choosing a PKI library",
@@ -200,10 +336,11 @@
         "what-pkinative-does",
         "what-it-does-not-do-by-design",
         "the-alternatives-by-the-facts",
-        "when-pkinative-is-the-right-choice"
+        "when-pkinative-is-the-right-choice",
+        "choosing-your-surface"
       ],
-      "bytes": 6088,
-      "approxTokens": 1522
+      "bytes": 12725,
+      "approxTokens": 3181
     }
   ]
 }

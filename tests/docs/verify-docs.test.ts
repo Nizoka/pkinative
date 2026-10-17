@@ -137,6 +137,16 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'cdn-pin': (f) => edit(f, 'docs/playgrounds/load-engine.js', /^const VERSION = '[^']+';$/m, "const VERSION = '0.9.0';"),
     // A live page linking a retired URL: the redirect stub would stay load-bearing forever.
     'redirect-stubs': (f) => edit(f, 'docs/playgrounds/index.html', 'href="certificate.html"', 'href="../playground/certificate.html"'),
+    // A command counted in the manifest that its own groups do not list.
+    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commandCount": 18', '"commandCount": 19'),
+    // pdfnative's defect, replayed: the site advertises one tool count, the server registers another.
+    'satellite-counts': (f) => edit(f, 'docs/guides/mcp.md', /\b34 tools\b/, '35 tools'),
+    // A tool dropped from the matrix: the reader choosing a surface no longer sees it exists.
+    'surfaces-shape': (f) => edit(f, 'docs/data/surfaces.json', '["inspect_pkcs12", "open_pkcs12"]', '["inspect_pkcs12"]'),
+    // An error class the CLI raises, gone from its guide.
+    'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
+    // A tool documented under a name the server does not register.
+    'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
     // The defect this rule exists for: a release whose pull-request body is
     // not in the record, so nobody can check a year later whether a figure
@@ -962,5 +972,28 @@ describe('reuse-shape, what it holds', () => {
         mutate(files);
         const problems = await runRules(createMemoryContext(files), RULES, 'reuse-shape');
         expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ file, message: expect.stringContaining(message) })]));
+    });
+});
+
+describe('satellite-counts reads a count only where it counts the satellite', () => {
+    const count = async (path: string, line: string): Promise<string[]> => {
+        const files = { ...TREE, [path]: `${TREE[path] ?? ''}\n${line}\n` };
+        return (await runRules(createMemoryContext(files), RULES, 'satellite-counts')).map((p) => p.message);
+    };
+
+    it('should fire on a count in words on a line about the MCP server', async () => {
+        expect(await count('README.md', 'The MCP server registers thirty-five tools.')).toEqual([expect.stringContaining('"thirty-five tools"')]);
+    });
+
+    it('should leave a tool count alone on a line that is not about a satellite', async () => {
+        expect(await count('ROADMAP.md', 'The interop matrix: ten tools run on three platforms.')).toEqual([]);
+    });
+
+    it('should not read "the 6 commands that take none" as the command count', async () => {
+        expect(await count('docs/guides/cli.md', 'The CLI has 53 invocations: 47 subcommands and the 6 commands that take none.')).toEqual([]);
+    });
+
+    it('should fire on a wrong CLI command count', async () => {
+        expect(await count('docs/guides/cli.md', 'pkinative-cli ships 17 commands.')).toEqual([expect.stringContaining('"17 commands"')]);
     });
 });

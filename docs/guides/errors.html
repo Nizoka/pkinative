@@ -335,6 +335,65 @@
 <p><strong><code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> is not a rejection.</strong> A runtime with no Web Crypto, or one that refuses Ed448 — Bun and Chromium today, for a certificate signature as for a CMS signer — says nothing about whether a signature is good. Treating it as <code>PKI_REASON_SIGNATURE_INVALID</code> turns &quot;ask me elsewhere&quot; into &quot;this certificate is bad&quot;, which is the most expensive confusion available in this vocabulary — the same distinction <code>PkiCryptoError</code> draws on the throwing side.</p>
 <p><strong><code>PKI_REASON_REVOCATION_UNKNOWN</code> is not &quot;not revoked&quot; either</strong>, for the same reason: a missing or unsigned list is an absence of evidence, and reporting it as a clean answer would make the soft-fail decision on your behalf, invisibly.</p>
 <p><code>docs/data/reasons.json</code> gives each one&#39;s cause, remedy and the clause it cites. Which of them a real chain actually earns is measured rather than asserted: every case of the x509-limbo corpus is scored on each release, and a reviewed subset is pinned on its reason code rather than on the pass/fail boolean — because <em>rejected for the wrong reason</em> is a defect no count can see.</p>
+<h2 id="where-the-codes-surface">Where the codes surface <a class="heading-anchor" href="#where-the-codes-surface" aria-label="Link to this section">#</a></h2>
+<p>The three vocabularies are the engine&#39;s, and they travel unchanged through every surface built on it: <a href="cli.html">pkinative-cli</a> and <a href="mcp.html">pkinative-mcp</a> add a class of their own for the failures the engine does not own — usage, files, the sandbox — but never rename, merge or drop a <code>PKI_*</code> code.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Library</th>
+<th>CLI</th>
+<th>MCP server</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>The coarse class</strong></td>
+<td>The <code>PkiError</code> subclass thrown (<code>PkiEncodingError</code>, <code>PkiCertificateError</code>, …)</td>
+<td><code>error.code</code> in the <code>--json</code> envelope: one of 13 <code>E_*</code> classes, <code>E_USAGE</code> exit 2, the others exit 1</td>
+<td><code>_meta.error.data.errorClass</code> (<code>usage</code>, <code>input</code>, <code>parse</code>, <code>security</code>, <code>limit</code>, <code>unsupported</code>, <code>crypto</code>, <code>password</code>, <code>check</code>, <code>internal</code>)</td>
+</tr>
+<tr>
+<td><strong>The exact cause</strong></td>
+<td><code>err.code</code>, a <code>PKI_*</code> code</td>
+<td><code>error.pkiCode</code>, the same code verbatim; <code>E_IO</code>, <code>E_NOT_FOUND</code> and <code>E_VERIFY_FAILED</code> are the CLI&#39;s own and carry none</td>
+<td><code>_meta.error.code</code> — the same <code>PKI_*</code> code verbatim, or one of the server&#39;s 21 wrapper codes (<code>VALIDATION_ERROR</code>, <code>SECURITY_VIOLATION</code>, <code>SECRET_REQUIRED</code>, …)</td>
+</tr>
+<tr>
+<td><strong>Structured detail</strong></td>
+<td>The subclass&#39;s fields (<code>offset</code>, <code>path</code>, <code>limit</code>, <code>configured</code>, <code>observed</code>, <code>algorithm</code>)</td>
+<td><code>error.detail</code>, with <code>detail.flag</code> naming the <code>--max-*</code> flag of a limit</td>
+<td><code>_meta.error.data</code> (<code>path</code>, <code>offset</code>, <code>algorithm</code>, <code>limit</code>, <code>configured</code>, <code>observed</code>, <code>env</code>)</td>
+</tr>
+<tr>
+<td><strong>The remedy</strong></td>
+<td>The registry&#39;s <code>remedy</code>, in the message</td>
+<td><code>error.remedy</code>: the CLI flag that lifts the refusal (<code>--ber</code>, <code>--allow-sha1</code>, <code>--max-depth &lt;value&gt;</code>)</td>
+<td><code>data.remedy</code>: the MCP input that lifts it (<code>encodingRules:&#39;ber&#39;</code>, <code>allowSha1:true</code>, <code>limits.&lt;limit&gt;</code>)</td>
+</tr>
+<tr>
+<td><strong>A negative verdict</strong></td>
+<td>A report with <code>valid: false</code> and <code>reasons[]</code> — never thrown</td>
+<td>The report on stdout <strong>and</strong> exit 1, the envelope&#39;s <code>error.code</code> <code>E_VERIFY_FAILED</code> or <code>E_CHECK_FAILED</code>, <code>error.reasons</code> the <code>PKI_REASON_*</code> list</td>
+<td><code>valid: false</code> and <code>reasons[]</code> in <code>structuredContent</code> — <strong>never</strong> <code>isError</code></td>
+</tr>
+<tr>
+<td><strong>Diagnostics</strong></td>
+<td><code>onDiagnostic</code>, or <code>console.warn</code></td>
+<td><code>diagnostics[]</code> in the envelope, one <code>warning PKI_DIAG_…</code> line each on stderr; <code>--strict</code> escalates the first warning to <code>E_CHECK_FAILED</code> with <code>PKI_STRICT_DIAGNOSTIC</code></td>
+<td><code>diagnostics[]</code> and <code>diagnosticCounts</code> in every result; <code>strict: true</code> escalates to <code>PKI_STRICT_DIAGNOSTIC</code></td>
+</tr>
+<tr>
+<td><strong>Explain a code</strong></td>
+<td><code>docs/data/errors.json</code>, <code>reasons.json</code>, <code>diagnostics.json</code> and this guide</td>
+<td><code>pkinative explain &lt;code&gt;</code>, and <code>pkinative explain --list</code></td>
+<td>The <code>explain_code</code> tool, with <code>list: true</code></td>
+</tr>
+</tbody></table>
+<p>One failure, three surfaces — a private key passed where a certificate is expected. The library&#39;s <code>decodePem</code> with <code>{ label: &#39;CERTIFICATE&#39; }</code> throws a <code>PkiEncodingError</code> whose <code>code</code> is <code>PKI_PEM_UNEXPECTED_LABEL</code>; the CLI&#39;s envelope and the server&#39;s tool result (its <code>content</code> text omitted) carry the same code — output of pkinative-cli 1.0.0 and pkinative-mcp 1.0.0:</p>
+<pre><code class="language-json">{&quot;ok&quot;:false,&quot;command&quot;:&quot;cert inspect&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_INPUT&quot;,&quot;message&quot;:&quot;leaf.key.pem holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).&quot;,&quot;pkiCode&quot;:&quot;PKI_PEM_UNEXPECTED_LABEL&quot;,&quot;remedy&quot;:&quot;pkinative pem decode &lt;file&gt; (lists the labels present)&quot;},&quot;diagnostics&quot;:[]}
+{&quot;isError&quot;:true,&quot;_meta&quot;:{&quot;error&quot;:{&quot;code&quot;:&quot;PKI_PEM_UNEXPECTED_LABEL&quot;,&quot;message&quot;:&quot;certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).&quot;,&quot;data&quot;:{&quot;errorClass&quot;:&quot;input&quot;,&quot;path&quot;:&quot;certificate&quot;,&quot;remedy&quot;:&quot;convert_pem mode:&#39;decode&#39; (lists the labels present)&quot;}}}}
+</code></pre>
+<p>Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The <a href="cli.html#error-classes-codes-and-remedies">CLI guide</a> maps the 57 error codes to the 13 classes one by one, and the <a href="mcp.html#error-model">MCP guide</a> lists the 21 wrapper codes.</p>
     </article>
   </main>
   <footer class="footer">
@@ -358,11 +417,26 @@
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -387,6 +461,8 @@
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
   <script src="guide.js" defer></script>
 </body>
 </html>

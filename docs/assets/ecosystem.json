@@ -11,6 +11,84 @@
       },
       "site": "https://pkinative.dev",
       "npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"
+    },
+    "pkinative-cli": {
+      "$comment": "The command-line companion, a separate repository. Every count here is read from its source at the tag (src/commands/registry.ts, docs/data/errors.json, the capability manifest `pkinative schema manifest`, snapshotted in docs/data/cli-surface.json); satellite-counts holds the prose to commandCount, cli-surface-parity holds the guide and the builder to the snapshot. invocationCount is every runnable command line: 47 subcommands plus the 6 commands that take none.",
+      "version": "1.0.0",
+      "released": "2026-10-08",
+      "repo": "https://github.com/Nizoka/pkinative-cli",
+      "npmPackage": "https://www.npmjs.com/package/pkinative-cli",
+      "status": "published",
+      "binary": "pkinative",
+      "install": "npm install --global pkinative-cli",
+      "pinField": "dependencies",
+      "pin": "^1.0.0",
+      "runtimeDependencies": ["pkinative"],
+      "engine": {
+        "node": "^22.22.2 || ^24.14.1 || >=25.8.2"
+      },
+      "commandCount": 18,
+      "invocationCount": 53,
+      "commandGroups": {
+        "Encodings": ["pem", "oid", "fingerprint", "asn1"],
+        "Certificates": ["cert", "csr"],
+        "Paths & revocation": ["chain", "crl", "ocsp"],
+        "Signatures & time-stamps": ["cms", "tsp"],
+        "Keys": ["key", "p12"],
+        "Meta": ["doctor", "limits", "explain", "schema", "completion"]
+      },
+      "errorClassCount": 13,
+      "schemaSubjects": 12,
+      "completionShells": ["bash", "zsh", "fish", "powershell"],
+      "envVars": ["PKINATIVE_JSON", "PKINATIVE_QUIET", "PKINATIVE_PASSWORD", "PKINATIVE_DEBUG"],
+      "exitCodes": [0, 1, 2, 130, 143]
+    },
+    "pkinative-mcp": {
+      "$comment": "The Model Context Protocol server, a separate repository. Tools in tools/list order (src/tools/_registry.ts), each with its annotation class: readOnly 23, writes a deterministic artefact 6, produces a non-idempotent artefact 5, all openWorldHint false. satellite-counts holds the prose to toolCount and promptCount; mcp-surface-parity holds the MCP guide and explorer to tools, prompts, envVars and resourceTemplates. wrapperCodeCount is the server's own error codes (src/wrapper-codes.ts); pkinative's PKI_* codes, reasons and diagnostics pass through verbatim.",
+      "version": "1.0.0",
+      "released": "2026-10-13",
+      "repo": "https://github.com/Nizoka/pkinative-mcp",
+      "npmPackage": "https://www.npmjs.com/package/pkinative-mcp",
+      "status": "published",
+      "binary": "pkinative-mcp",
+      "install": "npx -y pkinative-mcp",
+      "registryName": "io.github.Nizoka/pkinative-mcp",
+      "pinField": "dependencies",
+      "pin": "^1.0.0",
+      "runtimeDependencies": ["pkinative", "@modelcontextprotocol/server", "zod"],
+      "engine": {
+        "node": ">=22"
+      },
+      "toolCount": 34,
+      "tools": [
+        "convert_pem", "resolve_oid", "compute_fingerprint", "decode_asn1", "encode_asn1",
+        "inspect_certificate", "create_certificate", "encode_x509_structure", "decode_extension", "check_certificate_name", "check_certificate_purpose", "inspect_csr", "create_csr",
+        "verify_certificate_chain", "build_certificate_path", "validate_certificate_path", "inspect_crl", "check_crl_revocation", "create_ocsp_request", "inspect_ocsp_response", "check_ocsp_status",
+        "sign_cms", "verify_cms", "inspect_cms", "amend_cms", "create_timestamp_request", "inspect_timestamp", "verify_timestamp",
+        "inspect_private_key", "inspect_pkcs12", "open_pkcs12",
+        "describe_engine", "explain_code", "draft_governance_issue"
+      ],
+      "toolGroups": {
+        "Encodings": 5,
+        "Certificates and requests": 8,
+        "Paths, CRLs and OCSP": 8,
+        "CMS and time-stamps": 7,
+        "Keys": 3,
+        "Meta": 3
+      },
+      "toolAnnotations": {
+        "readOnly": 23,
+        "writes": ["amend_cms", "convert_pem", "draft_governance_issue", "encode_asn1", "encode_x509_structure", "open_pkcs12"],
+        "produces": ["create_certificate", "create_csr", "create_ocsp_request", "create_timestamp_request", "sign_cms"]
+      },
+      "promptCount": 7,
+      "prompts": ["governance_contract", "draft_issue_workflow", "verify_before_trust", "issue_certificate", "sign_and_timestamp", "offline_revocation", "open_keys_safely"],
+      "resourceTemplates": ["pkinative://output/{+path}"],
+      "transports": ["stdio", "streamable-http"],
+      "mcpRevision": "2026-07-28",
+      "legacyRevisions": ["2024-10-07", "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"],
+      "envVars": ["PKINATIVE_MCP_OUTPUT_DIR", "PKINATIVE_MCP_CACHE_DIR", "PKINATIVE_MCP_PORT", "PKINATIVE_MCP_HTTP_TOKEN", "PKINATIVE_MCP_PASSWORD", "PKINATIVE_MCP_AT", "PKINATIVE_MCP_MAX_INPUT_BYTES", "PKINATIVE_MCP_MAX_KDF_ITERATIONS", "PKINATIVE_MCP_MAX_PATHS_EXPLORED"],
+      "wrapperCodeCount": 21
     }
   },
   "family": {

@@ -351,22 +351,41 @@ const chromeParity: Rule = {
 
 const jsonLdVersion: Rule = {
     id: 'jsonld-version',
-    summary: 'The JSON-LD of docs/index.html parses and declares the softwareVersion of docs/assets/ecosystem.json.',
+    summary: 'Every schema.org node under docs/ that declares a softwareVersion — the library, pkinative-cli, pkinative-mcp, on any page and at any depth (about, mainEntity) — names a package of docs/assets/ecosystem.json and declares that package\'s version; the landing page declares the library\'s.',
     check(ctx) {
-        const html = ctx.read('docs/index.html') ?? '';
-        const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1];
-        const ecosystem = readJson<{ packages?: { pkinative?: { version?: string } } }>(ctx, 'docs/assets/ecosystem.json');
+        const ecosystem = readJson<{ packages?: Record<string, { version?: string }> }>(ctx, MANIFEST);
         if ('finding' in ecosystem) return [ecosystem.finding];
-        if (block === undefined) return [error('docs/index.html', 'has no JSON-LD block')];
-        let declared: string | undefined;
-        try {
-            const graph = (JSON.parse(block) as { '@graph'?: Array<{ softwareVersion?: string }> })['@graph'] ?? [];
-            declared = graph.find((node) => node.softwareVersion !== undefined)?.softwareVersion;
-        } catch (err) {
-            return [error('docs/index.html', `JSON-LD is not valid JSON — ${(err as Error).message}`, lineContaining(html, 'ld+json'))];
+        const packages = ecosystem.value.packages ?? {};
+        const out: Finding[] = [];
+        let libraryOnLanding = false;
+        for (const path of sitePages(ctx)) {
+            const html = ctx.read(path) ?? '';
+            for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
+                let root: unknown;
+                try {
+                    root = JSON.parse(m[1] ?? '');
+                } catch (err) {
+                    out.push(error(path, `JSON-LD is not valid JSON — ${(err as Error).message}`, lineContaining(html, 'ld+json')));
+                    continue;
+                }
+                const walk = (node: unknown): void => {
+                    if (Array.isArray(node)) { node.forEach(walk); return; }
+                    if (typeof node !== 'object' || node === null) return;
+                    const record = node as Record<string, unknown>;
+                    if (typeof record['softwareVersion'] === 'string') {
+                        const name = String(record['name']);
+                        const want = packages[name]?.version;
+                        if (want === undefined) out.push(error(path, `JSON-LD declares softwareVersion for "${name}", which is not a package of ${MANIFEST}`, lineContaining(html, `"name": "${name}"`)));
+                        else if (record['softwareVersion'] !== want) out.push(error(path, `JSON-LD says ${name} is ${String(record['softwareVersion'])}; ${MANIFEST} says ${want}`, lineContaining(html, 'softwareVersion')));
+                        if (path === 'docs/index.html' && name === 'pkinative' && record['softwareVersion'] === want) libraryOnLanding = true;
+                    }
+                    for (const value of Object.values(record)) walk(value);
+                };
+                walk(root);
+            }
         }
-        const version = ecosystem.value.packages?.pkinative?.version;
-        return declared === version ? [] : [error('docs/index.html', `JSON-LD softwareVersion is ${String(declared)}; ecosystem.json says ${String(version)}`, lineContaining(html, 'softwareVersion'))];
+        if (!libraryOnLanding) out.push(error('docs/index.html', `its JSON-LD declares no softwareVersion for pkinative equal to ${String(packages['pkinative']?.version)}`));
+        return out;
     },
 };
 
@@ -384,7 +403,7 @@ const verifiedOnParity: Rule = {
 
 // ── Names and numbers the docs quote ─────────────────────────────────
 
-const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html' || /^docs\/playgrounds\/[^/]+\.html$/.test(p))];
+export const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html' || /^docs\/playgrounds\/[^/]+\.html$/.test(p))];
 
 const apiExists: Rule = {
     id: 'api-exists',
@@ -418,7 +437,7 @@ const NUMBER_WORDS: readonly string[] = ['zero', 'one', 'two', 'three', 'four', 
 const TENS_WORDS: readonly string[] = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
 const COMPOUND = `(?:${TENS_WORDS.join('|')})-(?:${NUMBER_WORDS.slice(1, 10).join('|')})`;
 // The compound form comes first: otherwise `Twenty-one` is read as `one`.
-const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.join('|')}|${TENS_WORDS.join('|')})`;
+export const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.join('|')}|${TENS_WORDS.join('|')})`;
 
 /**
  * The changelog is history: an entry for a released version records what that
@@ -426,13 +445,13 @@ const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.
  * today's eight would force a lie into the record. Only the entry at the top,
  * the one still being written, is held to the current counts.
  */
-function topEntryOnly(path: string, text: string): string {
+export function topEntryOnly(path: string, text: string): string {
     if (path !== 'CHANGELOG.md') return text;
     const entries = [...text.matchAll(/^## \[/gm)];
     return entries.length < 2 ? text : text.slice(0, entries[1]?.index);
 }
 
-function quotedValue(token: string): number {
+export function quotedValue(token: string): number {
     const [head = '', unit] = token.toLowerCase().split('-');
     const tens = TENS_WORDS.indexOf(head);
     if (tens >= 0) return 20 + tens * 10 + (unit === undefined ? 0 : NUMBER_WORDS.indexOf(unit));

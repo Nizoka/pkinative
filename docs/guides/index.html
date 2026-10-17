@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guides — pkinative</title>
-  <meta name="description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
+  <meta name="description" content="The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/">
   <meta property="og:title" content="Guides — pkinative">
-  <meta property="og:description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
+  <meta property="og:description" content="The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Guides — pkinative">
-  <meta name="twitter:description" content="The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.">
+  <meta name="twitter:description" content="The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/">
@@ -54,12 +54,84 @@
         "@id": "https://pkinative.dev/guides/",
         "url": "https://pkinative.dev/guides/",
         "name": "Guides",
-        "description": "The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.",
+        "description": "The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.",
         "inLanguage": "en",
         "isPartOf": {
           "@type": "WebSite",
           "name": "pkinative",
           "url": "https://pkinative.dev/"
+        },
+        "mainEntity": {
+          "@type": "ItemList",
+          "numberOfItems": 11,
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Quick start",
+              "url": "https://pkinative.dev/guides/quickstart.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Use cases",
+              "url": "https://pkinative.dev/guides/use-cases.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": "pkinative-cli — Command-line reference",
+              "url": "https://pkinative.dev/guides/cli.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": "CLI use cases",
+              "url": "https://pkinative.dev/guides/use-cases-cli.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 5,
+              "name": "pkinative-mcp — AI client integration",
+              "url": "https://pkinative.dev/guides/mcp.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 6,
+              "name": "MCP use cases",
+              "url": "https://pkinative.dev/guides/use-cases-mcp.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 7,
+              "name": "Security model",
+              "url": "https://pkinative.dev/guides/security.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 8,
+              "name": "Conformance",
+              "url": "https://pkinative.dev/guides/conformance.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 9,
+              "name": "Standards",
+              "url": "https://pkinative.dev/guides/standards.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 10,
+              "name": "Errors, diagnostics and reasons",
+              "url": "https://pkinative.dev/guides/errors.html"
+            },
+            {
+              "@type": "ListItem",
+              "position": 11,
+              "name": "Choosing a PKI library",
+              "url": "https://pkinative.dev/guides/choose.html"
+            }
+          ]
         }
       }
     ]
@@ -95,6 +167,10 @@
       <ul class="guide-toc-list">
         <li><a href="quickstart.html">Quick start</a><span class="guide-toc-desc">Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.</span></li>
         <li><a href="use-cases.html">Use cases</a><span class="guide-toc-desc">The jobs pkinative does today, with the code that does them and the guarantee behind each. Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, sign, verify and timestamp CMS messages, and open the PKCS#8 keys and PKCS#12 files that sign them.</span></li>
+        <li><a href="cli.html">pkinative-cli — Command-line reference</a><span class="guide-toc-desc">pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable --json contract for scripts, CI and AI agents. It pins pkinative ^1.0.0, its only runtime dependency.</span></li>
+        <li><a href="use-cases-cli.html">CLI use cases</a><span class="guide-toc-desc">Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.</span></li>
+        <li><a href="mcp.html">pkinative-mcp — AI client integration</a><span class="guide-toc-desc">pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.</span></li>
+        <li><a href="use-cases-mcp.html">MCP use cases</a><span class="guide-toc-desc">Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.</span></li>
         <li><a href="security.html">Security model</a><span class="guide-toc-desc">Every certificate, PEM text and DER blob pkinative reads is treated as attacker-controlled. This guide explains what that means in practice: strict decoding, bounded resources, typed failures, and a hard line around cryptography.</span></li>
         <li><a href="conformance.html">Conformance</a><span class="guide-toc-desc">pkinative is held to corpora it did not write and to parsers it does not share code with. A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.</span></li>
         <li><a href="standards.html">Standards</a><span class="guide-toc-desc">A tooled self-assessment, not a certification. Every ISO/IEC, ITU-T and IETF standard pkinative touches, the evidence that holds each — a test, a rule or a conformance level — and the gaps it leaves.</span></li>
@@ -124,11 +200,26 @@
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -153,6 +244,8 @@
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
   <script src="guide.js" defer></script>
 </body>
 </html>

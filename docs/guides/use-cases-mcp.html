@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP use cases — pkinative</title>
+  <meta name="description" content="Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/guides/use-cases-mcp.html">
+  <meta property="og:title" content="MCP use cases — pkinative">
+  <meta property="og:description" content="Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MCP use cases — pkinative">
+  <meta name="twitter:description" content="Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/guides/use-cases-mcp.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases-mcp.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/use-cases-mcp.html">
+  <link rel="alternate" type="text/markdown" href="use-cases-mcp.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "MCP use cases",
+            "item": "https://pkinative.dev/guides/use-cases-mcp.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "MCP use cases",
+        "description": "Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/use-cases-mcp.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › MCP use cases</p>
+    <article id="guide-content" class="guide-content" data-md="use-cases-mcp.md" data-prerendered="true">
+<h1 id="mcp-use-cases">MCP use cases</h1>
+<blockquote>
+<p><strong>Four conversations built from the pkinative-mcp examples and prompts: triaging a failing TLS chain, issuing a test certificate, checking revocation offline, and opening keys without leaking a byte.</strong></p>
+</blockquote>
+<p>pkinative-mcp 1.0.0 ships an <code>examples/</code> directory of executable tool calls that its test suite runs against the server, and seven prompts, five of which are PKI recipes naming the tools in order. Each case below follows one prompt, with the calls taken from those examples. The examples address the test PKI as <code>fixtures/…</code> inside the sandbox (<code>PKINATIVE_MCP_OUTPUT_DIR</code>), where their runner copies it; <code>test-only-password</code> is that PKI&#39;s published password. Every payload is a <code>tools/call</code> request&#39;s <code>params</code>, every result was printed by the 1.0.0 server, and the tools and their inputs are documented in the <a href="mcp.html">MCP guide</a>.</p>
+<h2 id="case-1--an-agent-triages-a-failing-tls-chain">Case 1 — An agent triages a failing TLS chain <a class="heading-anchor" href="#case-1--an-agent-triages-a-failing-tls-chain" aria-label="Link to this section">#</a></h2>
+<p>A user pastes a server certificate and says their TLS client rejects it. The <code>verify_before_trust</code> prompt gives the agent the order: describe the certificate, then ask for the verdict at a pinned instant, then bring revocation evidence — and branch on <code>reasons[].code</code>, never on message text.</p>
+<p><strong>Describe first</strong> (<code>examples/inspect-certificate-summary.json</code>):</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;inspect_certificate&quot;, &quot;arguments&quot;: { &quot;certificate&quot;: { &quot;path&quot;: &quot;fixtures/leaf.crt.pem&quot; }, &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;serialNumberHex&quot;:&quot;1001&quot;,&quot;subjectString&quot;:&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;issuerString&quot;:&quot;CN=Test Intermediate CA,O=pkinative-cli test,C=FR&quot;,&quot;notBefore&quot;:&quot;2026-01-01T00:00:00.000Z&quot;,&quot;notAfter&quot;:&quot;2046-01-01T00:00:00.000Z&quot;,&quot;publicKey&quot;:&quot;ec&quot;,&quot;extensionKinds&quot;:[&quot;basicConstraints&quot;,&quot;keyUsage&quot;,&quot;extendedKeyUsage&quot;,&quot;subjectAltName&quot;,&quot;subjectKeyIdentifier&quot;,&quot;authorityKeyIdentifier&quot;,&quot;crlDistributionPoints&quot;,&quot;authorityInfoAccess&quot;],&quot;selfIssued&quot;:false,&quot;diagnosticCount&quot;:0}
+</code></pre>
+<p><strong>Then the verdict</strong> (<code>examples/verify-certificate-chain-server.json</code>) — the leaf, the intermediates the server sent as <code>candidates</code>, the roots the client trusts, the host and the purpose:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;verify_certificate_chain&quot;, &quot;arguments&quot;: { &quot;leaf&quot;: { &quot;path&quot;: &quot;fixtures/leaf.crt.pem&quot; }, &quot;candidates&quot;: [{ &quot;path&quot;: &quot;fixtures/inter.crt.pem&quot; }], &quot;trustAnchors&quot;: [{ &quot;path&quot;: &quot;fixtures/root.crt.pem&quot; }], &quot;at&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;serverName&quot;: { &quot;host&quot;: &quot;a.wild.example.test&quot; }, &quot;purposes&quot;: [&quot;serverAuth&quot;], &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:true,&quot;reasonCodes&quot;:[],&quot;pathLength&quot;:3,&quot;evaluatedAt&quot;:&quot;2027-01-01T00:00:00.000Z&quot;,&quot;revocationEvidence&quot;:{&quot;crls&quot;:0,&quot;ocspResponses&quot;:0,&quot;required&quot;:false},&quot;diagnosticCount&quot;:0}
+</code></pre>
+<p>When the client rejects it, the same call answers why, and each reason code sends the agent to its next call. A negative verdict is <code>valid: false</code> in <code>structuredContent</code>, never <code>isError</code>:</p>
+<table>
+<thead>
+<tr>
+<th><code>reasonCodes</code></th>
+<th>What it means</th>
+<th>Next call</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PKI_REASON_NO_TRUST_ANCHOR</code></td>
+<td>No path reaches the anchors: the server did not send its intermediate, or the client trusts another root. The same call without <code>candidates</code> answers <code>[&quot;PKI_REASON_SIGNATURE_NOT_CHECKED&quot;,&quot;PKI_REASON_NO_TRUST_ANCHOR&quot;]</code> with <code>pathLength: 1</code></td>
+<td><code>build_certificate_path</code>, to see how far the path gets (<code>examples/build-certificate-path-no-anchor.json</code>: <code>found: false</code>, <code>structuralReasons</code> <code>PKI_REASON_NO_TRUST_ANCHOR</code>)</td>
+</tr>
+<tr>
+<td><code>PKI_REASON_EXPIRED</code>, <code>PKI_REASON_NOT_YET_VALID</code></td>
+<td>A certificate of the path is outside its validity at <code>at</code> (<code>examples/verify-certificate-chain-expired.json</code>, with <code>at</code> 2050-01-01, answers one <code>PKI_REASON_EXPIRED</code> per certificate)</td>
+<td><code>inspect_certificate</code> on each, for <code>notBefore</code> and <code>notAfter</code></td>
+</tr>
+<tr>
+<td><code>PKI_REASON_NAME_MISMATCH</code></td>
+<td>The chain is sound and the certificate is for another host</td>
+<td><code>check_certificate_name</code>, whose reason lists the names the certificate holds</td>
+</tr>
+<tr>
+<td><code>PKI_REASON_PURPOSE_NOT_PERMITTED</code></td>
+<td>The certificate, or a CA above it, does not allow <code>serverAuth</code></td>
+<td><code>check_certificate_purpose</code></td>
+</tr>
+<tr>
+<td><code>PKI_REASON_REVOCATION_UNKNOWN</code></td>
+<td><code>requireRevocation</code> was asked and no evidence covers the leaf</td>
+<td>Case 3</td>
+</tr>
+</tbody></table>
+<p>The name check (<code>examples/check-certificate-name-mismatch.json</code>):</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;check_certificate_name&quot;, &quot;arguments&quot;: { &quot;certificate&quot;: { &quot;path&quot;: &quot;fixtures/leaf.crt.der&quot; }, &quot;host&quot;: &quot;evil.test&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;form&quot;:&quot;certificate&quot;,&quot;valid&quot;:false,&quot;reasons&quot;:[{&quot;code&quot;:&quot;PKI_REASON_NAME_MISMATCH&quot;,&quot;message&quot;:&quot;the certificate does not name the DNS name \&quot;evil.test\&quot;: it names \&quot;example.test\&quot;, \&quot;*.wild.example.test\&quot;, 192.0.2.1. A chain that verifies still says nothing about which host the certificate is for&quot;,&quot;standard&quot;:&quot;RFC 6125 §6&quot;,&quot;path&quot;:&quot;certificate.subjectAltName&quot;}],&quot;reference&quot;:{&quot;kind&quot;:&quot;dns&quot;,&quot;value&quot;:&quot;evil.test&quot;},&quot;subject&quot;:&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;diagnostics&quot;:[],&quot;diagnosticCounts&quot;:{}}
+</code></pre>
+<p><strong>Why pin <code>at</code>.</strong> A verdict depends on the instant. A pinned <code>at</code> — or the operator&#39;s <code>PKINATIVE_MCP_AT</code> — makes it reproducible and cacheable; an omitted one is the wall clock, reported in <code>evaluatedAtSource</code>, and never cached. <strong>Limits:</strong> the server never fetches the intermediate a server forgot to send, nor the root: the agent asks the user for them, and the verdict is only ever relative to the anchors named in the call. A <code>signature.valid</code> from <code>inspect_certificate</code> is one signature against one key, not trust.</p>
+<h2 id="case-2--issuing-a-test-certificate">Case 2 — Issuing a test certificate <a class="heading-anchor" href="#case-2--issuing-a-test-certificate" aria-label="Link to this section">#</a></h2>
+<p>A developer needs a CA and a TLS server certificate for an integration test, from keys they already have. The <code>issue_certificate</code> prompt chains three calls; the server generates no key and exports none, and each artefact is verified before its bytes are returned. The calls below are <code>examples/create-certificate-self-signed-ca.json</code>, <code>examples/create-csr-round-trip.json</code> and <code>examples/create-certificate-issue-leaf.json</code>, written into the sandbox with <code>outputMode: &#39;file&#39;</code> and chained as the prompt describes — the leaf issued by the new CA — so no artefact travels back through the model&#39;s context.</p>
+<p><strong>The CA</strong>, self-signed because no <code>issuerCertificate</code> is given; serial and <code>notBefore</code> are pinned, so its bytes are reproducible:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;create_certificate&quot;, &quot;arguments&quot;: { &quot;spec&quot;: { &quot;serialNumber&quot;: 1, &quot;subject&quot;: { &quot;C&quot;: &quot;FR&quot;, &quot;O&quot;: &quot;Acme&quot;, &quot;CN&quot;: &quot;Acme Test CA&quot; }, &quot;notBefore&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;validityDays&quot;: 3650, &quot;extensions&quot;: { &quot;basicConstraints&quot;: { &quot;ca&quot;: true, &quot;pathLen&quot;: 0 }, &quot;keyUsage&quot;: [&quot;keyCertSign&quot;, &quot;cRLSign&quot;] } }, &quot;signer&quot;: { &quot;key&quot;: { &quot;path&quot;: &quot;fixtures/ed25519.key.pem&quot; } }, &quot;outputMode&quot;: &quot;file&quot;, &quot;outputPath&quot;: &quot;out/acme-ca.pem&quot;, &quot;encoding&quot;: &quot;pem&quot; } }
+</code></pre>
+<p>The result carries a <code>resource_link</code> to <code>pkinative://output/out/acme-ca.pem</code> and, in <code>structuredContent</code>, the size, the SHA-256 of the DER and a summary:</p>
+<pre><code class="language-json">{&quot;encoding&quot;:&quot;pem&quot;,&quot;sizeBytes&quot;:350,&quot;sha256&quot;:&quot;694fa39766a751eaaf6be471061639f5b3bdce183549d0a15272fbca5e79e0b8&quot;,&quot;mode&quot;:&quot;file&quot;,&quot;summary&quot;:{&quot;serialNumber&quot;:&quot;01&quot;,&quot;randomSerial&quot;:false,&quot;subject&quot;:&quot;CN=Acme Test CA,O=Acme,C=FR&quot;,&quot;issuer&quot;:&quot;CN=Acme Test CA,O=Acme,C=FR&quot;,&quot;selfSigned&quot;:true,&quot;signatureAlgorithm&quot;:{&quot;oid&quot;:&quot;1.3.101.112&quot;,&quot;name&quot;:&quot;Ed25519&quot;,&quot;hasParameters&quot;:false},&quot;notBefore&quot;:&quot;2027-01-01T00:00:00.000Z&quot;,&quot;notAfter&quot;:&quot;2036-12-29T00:00:00.000Z&quot;,&quot;notBeforeSource&quot;:&quot;input&quot;,&quot;extensions&quot;:[&quot;basicConstraints&quot;,&quot;keyUsage&quot;,&quot;subjectKeyIdentifier&quot;],&quot;signatureVerified&quot;:true,&quot;publicKeyFrom&quot;:&quot;signer&quot;},&quot;diagnostics&quot;:[],&quot;diagnosticCounts&quot;:{}}
+</code></pre>
+<p><strong>The request</strong>, on the subject&#39;s side; the proof of possession is verified before the bytes return:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;create_csr&quot;, &quot;arguments&quot;: { &quot;spec&quot;: { &quot;subject&quot;: { &quot;C&quot;: &quot;FR&quot;, &quot;O&quot;: &quot;Acme&quot;, &quot;CN&quot;: &quot;svc.example.test&quot; }, &quot;extensions&quot;: { &quot;subjectAltName&quot;: { &quot;dns&quot;: [&quot;svc.example.test&quot;, &quot;www.svc.example.test&quot;] }, &quot;keyUsage&quot;: [&quot;digitalSignature&quot;], &quot;extendedKeyUsage&quot;: [&quot;serverAuth&quot;] } }, &quot;signer&quot;: { &quot;key&quot;: { &quot;path&quot;: &quot;fixtures/leaf.key.pem&quot; } }, &quot;outputMode&quot;: &quot;file&quot;, &quot;outputPath&quot;: &quot;out/svc.csr.pem&quot;, &quot;encoding&quot;: &quot;pem&quot; } }
+</code></pre>
+<p><strong>The leaf</strong>, its public key taken from the request, signed by the CA&#39;s key; the <code>authorityKeyIdentifier</code> is added, and the certificate is verified against the issuer before it is written (<code>summary.signatureVerified: true</code>, <code>publicKeyFrom: &quot;csr&quot;</code>):</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;create_certificate&quot;, &quot;arguments&quot;: { &quot;spec&quot;: { &quot;serialNumber&quot;: &quot;0x1a2b3c&quot;, &quot;subject&quot;: { &quot;C&quot;: &quot;FR&quot;, &quot;O&quot;: &quot;Acme&quot;, &quot;CN&quot;: &quot;svc.example.test&quot; }, &quot;notBefore&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;validityDays&quot;: 90, &quot;extensions&quot;: { &quot;subjectAltName&quot;: { &quot;dns&quot;: [&quot;svc.example.test&quot;, &quot;www.svc.example.test&quot;] }, &quot;extendedKeyUsage&quot;: [&quot;serverAuth&quot;], &quot;keyUsage&quot;: [&quot;digitalSignature&quot;] } }, &quot;issuerCertificate&quot;: { &quot;path&quot;: &quot;out/acme-ca.pem&quot; }, &quot;subjectPublicKey&quot;: { &quot;path&quot;: &quot;out/svc.csr.pem&quot; }, &quot;signer&quot;: { &quot;key&quot;: { &quot;path&quot;: &quot;fixtures/ed25519.key.pem&quot; } }, &quot;outputMode&quot;: &quot;file&quot;, &quot;outputPath&quot;: &quot;out/svc.crt.pem&quot;, &quot;encoding&quot;: &quot;pem&quot; } }
+</code></pre>
+<p><strong>Prove it</strong>, as the prompt&#39;s last step asks — the leaf against the new CA, for its host and purpose:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;verify_certificate_chain&quot;, &quot;arguments&quot;: { &quot;leaf&quot;: { &quot;path&quot;: &quot;out/svc.crt.pem&quot; }, &quot;trustAnchors&quot;: [{ &quot;path&quot;: &quot;out/acme-ca.pem&quot; }], &quot;at&quot;: &quot;2027-02-01T00:00:00Z&quot;, &quot;serverName&quot;: { &quot;host&quot;: &quot;www.svc.example.test&quot; }, &quot;purposes&quot;: [&quot;serverAuth&quot;], &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:true,&quot;reasonCodes&quot;:[],&quot;pathLength&quot;:2,&quot;evaluatedAt&quot;:&quot;2027-02-01T00:00:00.000Z&quot;,&quot;revocationEvidence&quot;:{&quot;crls&quot;:0,&quot;ocspResponses&quot;:0,&quot;required&quot;:false},&quot;diagnosticCount&quot;:0}
+</code></pre>
+<p><strong>What is reproducible.</strong> The CA and the leaf are signed with Ed25519 and have pinned serials and dates: run again, they hash the same. The request is signed with an ECDSA key, whose signatures are randomised, so its SHA-256 changes on every run — which is why <code>create_csr</code>, like <code>create_certificate</code> with its default <code>&#39;random&#39;</code> serial, is annotated as producing a non-idempotent artefact. <strong>Refusals the agent meets:</strong> an RSA signer without <code>rsaScheme</code> is <code>RSA_SCHEME_REQUIRED</code> (<code>data.remedy</code>: <code>rsaScheme:&#39;pkcs1&#39;|&#39;pss&#39;</code>); an encrypted key without a password is <code>SECRET_REQUIRED</code>, without a type <code>KEY_TYPE_REQUIRED</code>; a key that does not belong to the issuer is <code>KEY_MISMATCH</code>; an <code>outputPath</code> that already exists is <code>OUTPUT_EXISTS</code> — the server never overwrites. SHA-1 needs <code>allowSha1: true</code>.</p>
+<h2 id="case-3--offline-revocation">Case 3 — Offline revocation <a class="heading-anchor" href="#case-3--offline-revocation" aria-label="Link to this section">#</a></h2>
+<p>An agent working on an air-gapped or egress-restricted host is asked whether a certificate has been revoked. The server has no network code path; the <code>offline_revocation</code> prompt tells the agent where the evidence comes from and which tool judges it.</p>
+<p><strong>Where to fetch.</strong> <code>inspect_certificate</code> lists the <code>crlDistributionPoints</code> and <code>authorityInfoAccess</code> extensions — the CRL and OCSP responder URLs. The user, or another tool with network access, fetches the CRL; for OCSP, the server builds the request to send (<code>examples/create-ocsp-request.json</code>):</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;create_ocsp_request&quot;, &quot;arguments&quot;: { &quot;certificate&quot;: { &quot;path&quot;: &quot;fixtures/leaf.crt.pem&quot; }, &quot;issuer&quot;: { &quot;path&quot;: &quot;fixtures/inter.crt.pem&quot; }, &quot;hashAlgorithm&quot;: &quot;SHA-256&quot;, &quot;nonce&quot;: &quot;random&quot;, &quot;encoding&quot;: &quot;hex&quot; } }
+</code></pre>
+<p>The request&#39;s bytes land in <code>structuredContent.hex</code>, POSTed by the user as <code>application/ocsp-request</code>; the summary keeps what the answer must match:</p>
+<pre><code class="language-json">{&quot;certIdHex&quot;:&quot;3057300d0609608648016503040201050004206445323505d6fdd731e1330cfe6724f37cef7f6086d287b50353561b96e64e1904201c0b32ab5ee79c8e1de725b94e5ef34ce779d13fef4d97c290fe5931cc4c47c402021001&quot;,&quot;hashAlgorithm&quot;:&quot;SHA-256&quot;,&quot;nonceHex&quot;:&quot;1dc290a3e07935fff3bae7572d4101bb&quot;,&quot;randomNonce&quot;:true,&quot;certIdOnly&quot;:false,&quot;serialNumber&quot;:&quot;1001&quot;,&quot;subject&quot;:&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;issuer&quot;:&quot;CN=Test Intermediate CA,O=pkinative-cli test,C=FR&quot;,&quot;sizeBytes&quot;:136}
+</code></pre>
+<p><strong>Judge the CRL</strong> (<code>examples/check-crl-revocation.json</code>, second step) — scope, freshness, the signature against <code>issuer</code>, the serial:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;check_crl_revocation&quot;, &quot;arguments&quot;: { &quot;certificate&quot;: { &quot;path&quot;: &quot;fixtures/revoked.crt.pem&quot; }, &quot;crl&quot;: { &quot;path&quot;: &quot;fixtures/inter.crl.der&quot; }, &quot;issuer&quot;: { &quot;path&quot;: &quot;fixtures/inter.crt.pem&quot; }, &quot;at&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;fields&quot;: [&quot;valid&quot;, &quot;reasons.code&quot;, &quot;signatureVerified&quot;, &quot;crlNumber&quot;] } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:false,&quot;reasons&quot;:[{&quot;code&quot;:&quot;PKI_REASON_REVOKED&quot;}],&quot;signatureVerified&quot;:true,&quot;crlNumber&quot;:&quot;1&quot;}
+</code></pre>
+<p><strong>Judge the OCSP response</strong> (<code>examples/check-ocsp-status.json</code>) — the CertID recomputed from <code>issuer</code>, the signature, the responder&#39;s authorisation, freshness, and the nonce the request carried:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;check_ocsp_status&quot;, &quot;arguments&quot;: { &quot;response&quot;: { &quot;path&quot;: &quot;fixtures/leaf.ocsp.der&quot; }, &quot;certificate&quot;: { &quot;path&quot;: &quot;fixtures/leaf.crt.pem&quot; }, &quot;issuer&quot;: { &quot;path&quot;: &quot;fixtures/inter.crt.pem&quot; }, &quot;nonce&quot;: &quot;1538349c433373ed058c291909df5b3e&quot;, &quot;requireNonce&quot;: true, &quot;at&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:true,&quot;reasonCodes&quot;:[],&quot;status&quot;:&quot;good&quot;,&quot;signatureVerified&quot;:true,&quot;responderAuthorized&quot;:true,&quot;responder&quot;:&quot;CN=Test OCSP Responder,O=pkinative-cli test,C=FR&quot;,&quot;evaluatedAt&quot;:&quot;2027-01-01T00:00:00.000Z&quot;,&quot;diagnosticCount&quot;:0}
+</code></pre>
+<p>The responder here is a delegate the intermediate issued with the OCSPSigning purpose, embedded in the response; the server accepts the CA itself or such a delegate (RFC 6960 §4.2.2.2), and any other signer only with <code>responderTrusted: true</code>.</p>
+<p><strong>Or in one call</strong> (<code>examples/verify-certificate-chain-revoked.json</code>): the chain verdict with the evidence attached and <code>requireRevocation</code>, which demands evidence for the end-entity certificate:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;verify_certificate_chain&quot;, &quot;arguments&quot;: { &quot;leaf&quot;: { &quot;path&quot;: &quot;fixtures/revoked.crt.pem&quot; }, &quot;candidates&quot;: [{ &quot;path&quot;: &quot;fixtures/inter.crt.pem&quot; }], &quot;trustAnchors&quot;: [{ &quot;path&quot;: &quot;fixtures/root.crt.pem&quot; }], &quot;crls&quot;: [{ &quot;path&quot;: &quot;fixtures/inter.crl.pem&quot; }], &quot;ocspResponses&quot;: [{ &quot;path&quot;: &quot;fixtures/revoked.ocsp.der&quot; }], &quot;requireRevocation&quot;: true, &quot;at&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;fields&quot;: [&quot;valid&quot;, &quot;reasons.code&quot;, &quot;revocationEvidence&quot;, &quot;pathLength&quot;] } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:false,&quot;reasons&quot;:[{&quot;code&quot;:&quot;PKI_REASON_REVOKED&quot;},{&quot;code&quot;:&quot;PKI_REASON_REVOKED&quot;}],&quot;revocationEvidence&quot;:{&quot;crls&quot;:1,&quot;ocspResponses&quot;:1,&quot;required&quot;:true},&quot;pathLength&quot;:3}
+</code></pre>
+<p><strong>Limits.</strong> <code>PKI_REASON_REVOKED</code> is reported only from authenticated evidence; with none covering a certificate, the reason is <code>PKI_REASON_REVOCATION_UNKNOWN</code> — an absence of evidence, never &quot;not revoked&quot;. <code>check_crl_revocation</code> without <code>issuer</code> does not accept the list as evidence, and a delta CRL whose signature does not verify is not applied.</p>
+<h2 id="case-4--opening-keys-safely">Case 4 — Opening keys safely <a class="heading-anchor" href="#case-4--opening-keys-safely" aria-label="Link to this section">#</a></h2>
+<p>A user hands the agent a <code>.p12</code> and an encrypted key from an old export and asks what they hold. The <code>open_keys_safely</code> prompt says: describe before opening, open without exporting, and keep the password out of the transcript where possible.</p>
+<p><strong>Describe without a password</strong> (<code>examples/inspect-pkcs12-describe.json</code>, <code>examples/inspect-private-key-describe.json</code>). <code>PKINATIVE_MCP_PASSWORD</code> counts as the password of every password-accepting tool, so describing a file without one needs it unset:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;inspect_pkcs12&quot;, &quot;arguments&quot;: { &quot;pkcs12&quot;: { &quot;path&quot;: &quot;fixtures/leaf.p12&quot; }, &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;version&quot;:3,&quot;macKind&quot;:&quot;pbmac1&quot;,&quot;contentCount&quot;:2,&quot;bagCount&quot;:1,&quot;bagKinds&quot;:[&quot;pkcs8ShroudedKeyBag&quot;],&quot;diagnosticCount&quot;:0}
+</code></pre>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;inspect_private_key&quot;, &quot;arguments&quot;: { &quot;key&quot;: { &quot;path&quot;: &quot;fixtures/leaf.key.enc.pem&quot; } } }
+</code></pre>
+<p>The key report names the scheme — <code>PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)</code>, 2048 PBKDF2 iterations, 144 encrypted bytes — and neither its kind nor its curve, which an encrypted PKCS#8 key reveals only once decrypted. A legacy file is recognised before anyone types a password (<code>examples/inspect-pkcs12-legacy.json</code>):</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;inspect_pkcs12&quot;, &quot;arguments&quot;: { &quot;pkcs12&quot;: { &quot;path&quot;: &quot;fixtures/legacy.p12&quot; }, &quot;fields&quot;: [&quot;mac.kind&quot;, &quot;contents.path&quot;, &quot;contents.encryption.scheme&quot;] } }
+</code></pre>
+<pre><code class="language-json">{&quot;mac&quot;:{&quot;kind&quot;:&quot;pkcs12-kdf&quot;},&quot;contents&quot;:[{&quot;path&quot;:&quot;authSafe[0]&quot;,&quot;encryption&quot;:{&quot;scheme&quot;:&quot;pbeWithSHAAnd40BitRC2-CBC&quot;}},{&quot;path&quot;:&quot;authSafe[1]&quot;}]}
+</code></pre>
+<p><strong>Open</strong> (<code>examples/inspect-private-key-import.json</code>, and <code>examples/open-pkcs12-file.json</code> inline): the key is decrypted straight into a non-extractable Web Crypto key, described and never exported:</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;inspect_private_key&quot;, &quot;arguments&quot;: { &quot;key&quot;: { &quot;path&quot;: &quot;fixtures/leaf.key.enc.pem&quot; }, &quot;tryImport&quot;: true, &quot;password&quot;: &quot;test-only-password&quot;, &quot;keyType&quot;: &quot;ec-p256&quot;, &quot;fields&quot;: [&quot;imported&quot;, &quot;encryption.scheme&quot;] } }
+</code></pre>
+<pre><code class="language-json">{&quot;imported&quot;:{&quot;ok&quot;:true,&quot;encrypted&quot;:true,&quot;algorithm&quot;:{&quot;name&quot;:&quot;ECDSA&quot;,&quot;hash&quot;:&quot;SHA-256&quot;,&quot;namedCurve&quot;:&quot;P-256&quot;},&quot;key&quot;:{&quot;type&quot;:&quot;private&quot;,&quot;algorithm&quot;:&quot;ECDSA&quot;,&quot;extractable&quot;:false,&quot;usages&quot;:[&quot;sign&quot;]}},&quot;encryption&quot;:{&quot;scheme&quot;:&quot;PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)&quot;}}
+</code></pre>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;open_pkcs12&quot;, &quot;arguments&quot;: { &quot;pkcs12&quot;: { &quot;path&quot;: &quot;fixtures/leaf.p12&quot; }, &quot;password&quot;: &quot;test-only-password&quot;, &quot;exportCertificates&quot;: true, &quot;verbosity&quot;: &quot;summary&quot; } }
+</code></pre>
+<pre><code class="language-json">{&quot;valid&quot;:true,&quot;integrity&quot;:&quot;verified&quot;,&quot;reasonCodes&quot;:[],&quot;keyCount&quot;:1,&quot;certificateCount&quot;:2,&quot;crlCount&quot;:0,&quot;diagnosticCount&quot;:0}
+</code></pre>
+<p><code>exportCertificates: true</code> attaches a PEM bundle of the certificates and CRLs — never a key — as an embedded resource, or as a sandbox file with <code>outputMode: &#39;file&#39;</code>.</p>
+<p><strong>What goes wrong, and how it says so.</strong> Opening is a verdict, so most failures are <code>valid: false</code> with a reason, not <code>isError</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>No password from either channel (<code>examples/open-pkcs12-no-password.json</code>)</td>
+<td><code>isError</code>, <code>SECRET_REQUIRED</code>, before anything is read</td>
+</tr>
+<tr>
+<td>A wrong password on <code>open_pkcs12</code></td>
+<td><code>valid: false</code>, <code>integrity: &quot;mismatch&quot;</code>, <code>PKI_REASON_PKCS12_MAC_MISMATCH</code> — nothing is decrypted</td>
+</tr>
+<tr>
+<td>A wrong password on <code>inspect_pkcs12</code> or <code>inspect_private_key</code></td>
+<td><code>isError</code>, <code>PKI_CRYPTO_DECRYPTION_FAILED</code> (<code>data.errorClass: &quot;password&quot;</code>)</td>
+</tr>
+<tr>
+<td>The legacy file opened</td>
+<td><code>valid: false</code>, <code>integrity: &quot;unverified&quot;</code>, <code>PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</code> and <code>PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED</code>; <code>explain_code</code> gives the OpenSSL 3.4 conversion</td>
+</tr>
+<tr>
+<td>An RSA key without <code>rsaScheme</code> (<code>fixtures/rsa.p12</code>)</td>
+<td><code>valid: false</code>, <code>PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED</code>; with <code>rsaScheme: &quot;pkcs1&quot;</code> (<code>examples/open-pkcs12-rsa.json</code>) it opens</td>
+</tr>
+</tbody></table>
+<p><strong>Passwords.</strong> A <code>password</code> input lands in the host&#39;s transcript; <code>PKINATIVE_MCP_PASSWORD</code>, set in the server&#39;s environment by the operator, does not. Never both — that is <code>VALIDATION_ERROR</code>. A call carrying a password is never cached, and the value is never echoed, logged or served. <strong>Limits:</strong> key-bearing files (<code>.key .p8 .p12 .pfx</code>) in the sandbox are read by the key and signer tools only, never listed or served as resources, and nothing in the server writes one: a converted PKCS#12 comes from OpenSSL.</p>
+<h2 id="see-also">See also <a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="mcp.html">MCP guide</a> — every tool, prompt, variable and error code.</li>
+<li><a href="use-cases-cli.html">CLI use cases</a> — the same workflows from a shell or a CI job.</li>
+<li><a href="use-cases.html">Use cases</a> — the library in applications.</li>
+<li><a href="errors.html">Errors, diagnostics and reasons</a> — every <code>PKI_*</code> code these cases return.</li>
+<li>The server&#39;s <a href="https://github.com/Nizoka/pkinative-mcp/tree/main/examples" target="_blank" rel="noopener">examples</a>, its <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AI_GUIDE.md" target="_blank" rel="noopener">AI agent guide</a> and its <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a>.</li>
+</ul>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

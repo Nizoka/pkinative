@@ -68,7 +68,8 @@ export function buildLlmsIndex(read: Reader, generated: ReadonlyMap<string, stri
         ['data/errors.json', 'docs/data/errors.json', 'Every error code with its class, cause, remedy, standard and CWE.'],
         ['data/diagnostics.json', 'docs/data/diagnostics.json', 'Every diagnostic code with its severity, cause, remedy and standard.'],
         ['data/limits.json', 'docs/data/limits.json', 'The named resource limits with their defaults and CWE.'],
-        ['data/surfaces.json', 'docs/data/surfaces.json', 'What pkinative does, the exports that do it, and since which version.'],
+        ['data/surfaces.json', 'docs/data/surfaces.json', 'What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.'],
+        ['data/cli-surface.json', 'docs/data/cli-surface.json', 'The pkinative-cli command surface — commands, flags, exit codes, error classes — from its own capability manifest.'],
         ['assets/ecosystem.json', 'docs/assets/ecosystem.json', 'Versions, milestones, contracts, corpus pins and counts — the single source of truth.'],
     ];
     const index = {

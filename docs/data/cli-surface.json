@@ -1,0 +1,2220 @@
+{
+  "$comment": "The command surface of pkinative-cli 1.0.0, projected from its own capability manifest (`pkinative schema manifest`) by scripts/build-cli-surface.ts — never hand-edited. The per-command report and summary JSON Schemas are left out: `pkinative schema report <command> [<sub>]` serves them. cli-surface-parity holds the CLI guide and the command builder to this file.",
+  "schemaVersion": 1,
+  "package": "pkinative-cli",
+  "version": "1.0.0",
+  "binary": "pkinative",
+  "pkinative": "1.0.0",
+  "offline": true,
+  "wire": {
+    "bigint": "decimal string",
+    "bytes": "lowercase hex",
+    "epochMilliseconds": "number",
+    "absentOptional": "omitted",
+    "memberNames": "unchanged (pkinative ADR 0018)"
+  },
+  "exitCodes": {
+    "0": "success",
+    "1": "failure (any E_* but E_USAGE)",
+    "2": "usage error (E_USAGE)",
+    "130": "SIGINT",
+    "143": "SIGTERM"
+  },
+  "errorClasses": [
+    {
+      "code": "E_USAGE",
+      "meaning": "A flag, argument or option value is missing or invalid (exit 2)."
+    },
+    {
+      "code": "E_INPUT",
+      "meaning": "A value you supplied is not acceptable: a spec document, a label, a range, a key that does not match."
+    },
+    {
+      "code": "E_PARSE",
+      "meaning": "The bytes are not the DER, PEM or JSON structure they claim to be."
+    },
+    {
+      "code": "E_IO",
+      "meaning": "A filesystem or stream failure, including a refused overwrite."
+    },
+    {
+      "code": "E_SECURITY",
+      "meaning": "A security policy refused the input: SHA-1 without --allow-sha1, PBES1, a legacy PKCS#12 MAC."
+    },
+    {
+      "code": "E_LIMIT",
+      "meaning": "A named bound was exceeded: one of the 22 pkinative limits, or --max-content-size."
+    },
+    {
+      "code": "E_UNSUPPORTED",
+      "meaning": "The runtime or pkinative does not support the algorithm, key or structure."
+    },
+    {
+      "code": "E_CRYPTO",
+      "meaning": "Web Crypto could not run the operation the input requires."
+    },
+    {
+      "code": "E_PASSWORD",
+      "meaning": "A password is wrong, or a MAC does not match it."
+    },
+    {
+      "code": "E_NOT_FOUND",
+      "meaning": "A named item does not exist: an extension, a PEM block, a signer, a code."
+    },
+    {
+      "code": "E_VERIFY_FAILED",
+      "meaning": "A signature, chain, request, time-stamp or MAC verdict is negative; the report says why."
+    },
+    {
+      "code": "E_CHECK_FAILED",
+      "meaning": "A check returned reasons (revocation, OCSP, name, purpose) or --strict escalated a warning."
+    },
+    {
+      "code": "E_RUNTIME",
+      "meaning": "Anything else (exit 1); PKINATIVE_DEBUG=1 prints the stack."
+    }
+  ],
+  "globalFlags": [
+    {
+      "name": "help",
+      "alias": "h"
+    },
+    {
+      "name": "version",
+      "alias": "V"
+    },
+    {
+      "name": "json"
+    },
+    {
+      "name": "pretty"
+    },
+    {
+      "name": "quiet",
+      "alias": "q"
+    },
+    {
+      "name": "no-color"
+    },
+    {
+      "name": "dry-run"
+    },
+    {
+      "name": "strict"
+    },
+    {
+      "name": "ber"
+    },
+    {
+      "name": "pem-mode",
+      "value": "strict|lax"
+    },
+    {
+      "name": "allow-sha1"
+    },
+    {
+      "name": "overwrite"
+    },
+    {
+      "name": "config",
+      "value": "file"
+    },
+    {
+      "name": "no-config"
+    },
+    {
+      "name": "fields",
+      "value": "a,b.c"
+    },
+    {
+      "name": "summary"
+    },
+    {
+      "name": "max-content-size",
+      "value": "size"
+    },
+    {
+      "name": "max-input-bytes",
+      "value": "n"
+    },
+    {
+      "name": "max-depth",
+      "value": "n"
+    },
+    {
+      "name": "max-nodes",
+      "value": "n"
+    },
+    {
+      "name": "max-integer-bytes",
+      "value": "n"
+    },
+    {
+      "name": "max-oid-bytes",
+      "value": "n"
+    },
+    {
+      "name": "max-ber-segments",
+      "value": "n"
+    },
+    {
+      "name": "max-pem-blocks",
+      "value": "n"
+    },
+    {
+      "name": "max-extensions",
+      "value": "n"
+    },
+    {
+      "name": "max-general-names",
+      "value": "n"
+    },
+    {
+      "name": "max-name-attributes",
+      "value": "n"
+    },
+    {
+      "name": "max-policies",
+      "value": "n"
+    },
+    {
+      "name": "max-chain-length",
+      "value": "n"
+    },
+    {
+      "name": "max-policy-nodes",
+      "value": "n"
+    },
+    {
+      "name": "max-revoked-certificates",
+      "value": "n"
+    },
+    {
+      "name": "max-ocsp-single-responses",
+      "value": "n"
+    },
+    {
+      "name": "max-paths-explored",
+      "value": "n"
+    },
+    {
+      "name": "max-signer-infos",
+      "value": "n"
+    },
+    {
+      "name": "max-attributes",
+      "value": "n"
+    },
+    {
+      "name": "max-cms-certificates-and-crls",
+      "value": "n"
+    },
+    {
+      "name": "max-kdf-iterations",
+      "value": "n"
+    },
+    {
+      "name": "max-pkcs12-bags",
+      "value": "n"
+    },
+    {
+      "name": "max-pkcs12-kdf-iterations",
+      "value": "n"
+    }
+  ],
+  "commands": [
+    {
+      "name": "pem",
+      "group": "Encodings",
+      "summary": "Decode or encode RFC 7468 PEM text",
+      "subcommands": [
+        {
+          "name": "decode",
+          "summary": "List the PEM blocks, or extract one as DER",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            },
+            {
+              "name": "index",
+              "value": "n"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "encode",
+          "summary": "Wrap DER bytes in a PEM block",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "oid",
+      "group": "Encodings",
+      "summary": "Name, encode, decode, validate and list object identifiers",
+      "subcommands": [
+        {
+          "name": "name",
+          "summary": "The registered name of each OID",
+          "flags": [
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": null
+          }
+        },
+        {
+          "name": "encode",
+          "summary": "Encode a dotted OID (content octets, or TLV)",
+          "flags": [
+            {
+              "name": "tlv"
+            },
+            {
+              "name": "relative"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": null
+          }
+        },
+        {
+          "name": "decode",
+          "summary": "Decode OID bytes (hex argument or --input file)",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "tlv"
+            },
+            {
+              "name": "relative"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "validate",
+          "summary": "Check dotted OIDs; exit 1 when one is invalid",
+          "flags": [
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": null
+          }
+        },
+        {
+          "name": "list",
+          "summary": "The OID registry, optionally filtered",
+          "flags": [
+            {
+              "name": "filter",
+              "value": "text"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "fingerprint",
+      "group": "Encodings",
+      "summary": "Fingerprint, key identifier or SHAKE256 of an object",
+      "flags": [
+        {
+          "name": "input",
+          "alias": "i",
+          "value": "file"
+        },
+        {
+          "name": "format",
+          "alias": "f",
+          "value": "text|json"
+        },
+        {
+          "name": "alg",
+          "value": "SHA-1|SHA-256|SHA-384|SHA-512"
+        },
+        {
+          "name": "separator",
+          "value": "text"
+        },
+        {
+          "name": "case",
+          "value": "upper|lower"
+        },
+        {
+          "name": "webcrypto"
+        },
+        {
+          "name": "key-id"
+        },
+        {
+          "name": "shake256",
+          "value": "bytes"
+        }
+      ],
+      "operands": {
+        "max": 1,
+        "for": [
+          "input"
+        ]
+      }
+    },
+    {
+      "name": "asn1",
+      "group": "Encodings",
+      "summary": "Decode DER/BER to a tree, read a value, or encode a JSON spec",
+      "subcommands": [
+        {
+          "name": "decode",
+          "summary": "Print the ASN.1 tree, read one node, or re-encode it",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            },
+            {
+              "name": "sequence"
+            },
+            {
+              "name": "allow-trailing"
+            },
+            {
+              "name": "path",
+              "value": "i.j.k"
+            },
+            {
+              "name": "read",
+              "value": "type"
+            },
+            {
+              "name": "string-type",
+              "value": "type"
+            },
+            {
+              "name": "time-type",
+              "value": "UTCTime|GeneralizedTime"
+            },
+            {
+              "name": "reencode"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "encode",
+          "summary": "Encode a JSON node spec to DER",
+          "flags": [
+            {
+              "name": "spec",
+              "value": "file"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "spec"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cert",
+      "group": "Certificates",
+      "summary": "Inspect, create, encode, verify and check X.509 certificates",
+      "subcommands": [
+        {
+          "name": "inspect",
+          "summary": "Decode a certificate (one extension with --extension)",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            },
+            {
+              "name": "raw-extensions"
+            },
+            {
+              "name": "extension",
+              "value": "kind"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "create",
+          "summary": "Issue a certificate from a JSON spec",
+          "flags": [
+            {
+              "name": "spec",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "public-key",
+              "value": "file"
+            },
+            {
+              "name": "key",
+              "value": "file"
+            },
+            {
+              "name": "p12",
+              "value": "file"
+            },
+            {
+              "name": "key-type",
+              "value": "type"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "salt-length",
+              "value": "n"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        },
+        {
+          "name": "encode",
+          "summary": "Encode one X.509 building block to DER",
+          "flags": [
+            {
+              "name": "spec",
+              "value": "file"
+            },
+            {
+              "name": "key",
+              "value": "file"
+            },
+            {
+              "name": "p12",
+              "value": "file"
+            },
+            {
+              "name": "key-type",
+              "value": "type"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "salt-length",
+              "value": "n"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1
+          }
+        },
+        {
+          "name": "decode-extension",
+          "summary": "Decode an extension value by OID",
+          "flags": [
+            {
+              "name": "oid",
+              "value": "oid"
+            },
+            {
+              "name": "value",
+              "value": "hex"
+            },
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "critical"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        },
+        {
+          "name": "verify-signature",
+          "summary": "Verify a signature against its issuer (or itself)",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "allow-algorithm-mismatch"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "check-name",
+          "summary": "Check a certificate against a host name or IP (RFC 6125)",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "host",
+              "value": "name"
+            },
+            {
+              "name": "ip",
+              "value": "address"
+            },
+            {
+              "name": "chain",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "allow-cn-fallback"
+            },
+            {
+              "name": "no-wildcards"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "match-name",
+          "summary": "Match a presented DNS name against a reference",
+          "flags": [
+            {
+              "name": "no-wildcards"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 2
+          }
+        },
+        {
+          "name": "check-purpose",
+          "summary": "Check extended key usage along a path",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "chain",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "purpose",
+              "value": "name|oid"
+            },
+            {
+              "name": "no-restrict-issuers"
+            },
+            {
+              "name": "require-explicit-purpose"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "csr",
+      "group": "Certificates",
+      "summary": "Inspect, create and verify PKCS#10 requests",
+      "subcommands": [
+        {
+          "name": "inspect",
+          "summary": "Decode a request",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            },
+            {
+              "name": "raw-extensions"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "create",
+          "summary": "Create a request from a JSON spec",
+          "flags": [
+            {
+              "name": "spec",
+              "value": "file"
+            },
+            {
+              "name": "public-key",
+              "value": "file"
+            },
+            {
+              "name": "key",
+              "value": "file"
+            },
+            {
+              "name": "p12",
+              "value": "file"
+            },
+            {
+              "name": "key-type",
+              "value": "type"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "salt-length",
+              "value": "n"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        },
+        {
+          "name": "verify",
+          "summary": "Verify the request self-signature",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "chain",
+      "group": "Paths & revocation",
+      "summary": "Verify, build and validate certification paths (RFC 5280)",
+      "subcommands": [
+        {
+          "name": "verify",
+          "summary": "One-call verdict: path, signatures, name, purpose, revocation",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "trust",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "purpose",
+              "value": "name|oid",
+              "repeatable": true
+            },
+            {
+              "name": "policy",
+              "value": "oid",
+              "repeatable": true
+            },
+            {
+              "name": "require-explicit-policy"
+            },
+            {
+              "name": "inhibit-policy-mapping"
+            },
+            {
+              "name": "inhibit-any-policy"
+            },
+            {
+              "name": "untrusted",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "host",
+              "value": "name"
+            },
+            {
+              "name": "ip",
+              "value": "address"
+            },
+            {
+              "name": "crl",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "ocsp",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "ocsp-nonce",
+              "value": "hex"
+            },
+            {
+              "name": "require-ocsp-nonce"
+            },
+            {
+              "name": "require-revocation"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "build",
+          "summary": "Find a path from the leaf to a trust anchor",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "trust",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "purpose",
+              "value": "name|oid",
+              "repeatable": true
+            },
+            {
+              "name": "policy",
+              "value": "oid",
+              "repeatable": true
+            },
+            {
+              "name": "require-explicit-policy"
+            },
+            {
+              "name": "inhibit-policy-mapping"
+            },
+            {
+              "name": "inhibit-any-policy"
+            },
+            {
+              "name": "untrusted",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "validate",
+          "summary": "Validate a given path, leaf first, signatures included",
+          "flags": [
+            {
+              "name": "path",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "trust",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "purpose",
+              "value": "name|oid",
+              "repeatable": true
+            },
+            {
+              "name": "policy",
+              "value": "oid",
+              "repeatable": true
+            },
+            {
+              "name": "require-explicit-policy"
+            },
+            {
+              "name": "inhibit-policy-mapping"
+            },
+            {
+              "name": "inhibit-any-policy"
+            },
+            {
+              "name": "no-signatures"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": null,
+            "for": [
+              "path"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "crl",
+      "group": "Paths & revocation",
+      "summary": "Inspect, search, verify and apply certificate revocation lists",
+      "subcommands": [
+        {
+          "name": "inspect",
+          "summary": "Decode a CRL",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "find",
+          "summary": "Look a serial number up in a CRL",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "serial",
+              "value": "hex"
+            },
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "verify-signature",
+          "summary": "Verify the CRL signature against its issuer",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "check",
+          "summary": "Decide a certificate status from a CRL (and a delta)",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "delta",
+              "value": "file"
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "stale-tolerance",
+              "value": "ms"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ocsp",
+      "group": "Paths & revocation",
+      "summary": "Build OCSP requests and judge OCSP responses (RFC 6960)",
+      "subcommands": [
+        {
+          "name": "request",
+          "summary": "Build an OCSP request for a certificate",
+          "flags": [
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-1|SHA-256"
+            },
+            {
+              "name": "nonce",
+              "value": "hex|random"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "cert"
+            ]
+          }
+        },
+        {
+          "name": "cert-id",
+          "summary": "Encode the CertID of a certificate",
+          "flags": [
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-1|SHA-256"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "cert"
+            ]
+          }
+        },
+        {
+          "name": "inspect",
+          "summary": "Decode an OCSP response",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "verify-signature",
+          "summary": "Verify the responder signature",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "responder",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "check",
+          "summary": "Decide a certificate status from an OCSP response",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "issuer",
+              "value": "file"
+            },
+            {
+              "name": "responder",
+              "value": "file"
+            },
+            {
+              "name": "responder-trusted"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-1|SHA-256"
+            },
+            {
+              "name": "nonce",
+              "value": "hex"
+            },
+            {
+              "name": "require-nonce"
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "stale-tolerance",
+              "value": "ms"
+            },
+            {
+              "name": "future-tolerance",
+              "value": "ms"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cms",
+      "group": "Signatures & time-stamps",
+      "summary": "Sign, verify and inspect CMS SignedData (RFC 5652)",
+      "subcommands": [
+        {
+          "name": "sign",
+          "summary": "Sign content into a SignedData",
+          "flags": [
+            {
+              "name": "content",
+              "value": "file"
+            },
+            {
+              "name": "content-digest",
+              "value": "hex"
+            },
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "chain",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "crl",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "detached"
+            },
+            {
+              "name": "content-type",
+              "value": "oid"
+            },
+            {
+              "name": "sid",
+              "value": "issuer-serial|ski"
+            },
+            {
+              "name": "signing-time",
+              "value": "instant|now|none"
+            },
+            {
+              "name": "no-signing-certificate"
+            },
+            {
+              "name": "no-algorithm-protection"
+            },
+            {
+              "name": "signed-attribute",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "unsigned-attribute",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "key",
+              "value": "file"
+            },
+            {
+              "name": "p12",
+              "value": "file"
+            },
+            {
+              "name": "key-type",
+              "value": "type"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "salt-length",
+              "value": "n"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        },
+        {
+          "name": "verify",
+          "summary": "Verify a SignedData: signatures, chains, time-stamps",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "content",
+              "value": "file"
+            },
+            {
+              "name": "content-digest",
+              "value": "hex"
+            },
+            {
+              "name": "trust",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "untrusted",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "purpose",
+              "value": "name|oid",
+              "repeatable": true
+            },
+            {
+              "name": "crl",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "ocsp",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "require-revocation"
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "at-timestamp"
+            },
+            {
+              "name": "require-signing-certificate"
+            },
+            {
+              "name": "require-algorithm-protection"
+            },
+            {
+              "name": "allow-trailing"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "inspect",
+          "summary": "Decode a SignedData",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "allow-trailing"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "verify-signer",
+          "summary": "Verify one signer signature against a certificate",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "cert",
+              "value": "file"
+            },
+            {
+              "name": "signer-index",
+              "value": "n"
+            },
+            {
+              "name": "content",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "add-attribute",
+          "summary": "Add an unsigned attribute to a signer",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "signer-index",
+              "value": "n"
+            },
+            {
+              "name": "attribute",
+              "value": "file"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "add-timestamp",
+          "summary": "Add an RFC 3161 counter time-stamp to a signer",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "signer-index",
+              "value": "n"
+            },
+            {
+              "name": "token",
+              "value": "file"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tsp",
+      "group": "Signatures & time-stamps",
+      "summary": "RFC 3161 time-stamp requests, tokens and verdicts",
+      "subcommands": [
+        {
+          "name": "request",
+          "summary": "Build a time-stamp request",
+          "flags": [
+            {
+              "name": "data",
+              "value": "file"
+            },
+            {
+              "name": "digest",
+              "value": "hex"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "nonce",
+              "value": "n|random"
+            },
+            {
+              "name": "policy",
+              "value": "oid"
+            },
+            {
+              "name": "no-cert-req"
+            },
+            {
+              "name": "output",
+              "alias": "o",
+              "value": "file"
+            },
+            {
+              "name": "encoding",
+              "value": "pem|der|hex"
+            },
+            {
+              "name": "label",
+              "value": "LABEL"
+            }
+          ],
+          "operands": {
+            "max": 0
+          }
+        },
+        {
+          "name": "inspect",
+          "summary": "Decode a response, a token or a TSTInfo",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "as",
+              "value": "response|token|tstinfo"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "verify",
+          "summary": "Verify a time-stamp token or response",
+          "flags": [
+            {
+              "name": "token",
+              "value": "file"
+            },
+            {
+              "name": "response",
+              "value": "file"
+            },
+            {
+              "name": "request",
+              "value": "file"
+            },
+            {
+              "name": "data",
+              "value": "file"
+            },
+            {
+              "name": "digest",
+              "value": "hex"
+            },
+            {
+              "name": "trust",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "untrusted",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "crl",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "ocsp",
+              "value": "file",
+              "repeatable": true
+            },
+            {
+              "name": "require-revocation"
+            },
+            {
+              "name": "at",
+              "value": "instant"
+            },
+            {
+              "name": "allow-noncritical-eku"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "response",
+              "token"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "key",
+      "group": "Keys",
+      "summary": "Inspect and test-import PKCS#8 private keys (never printed)",
+      "subcommands": [
+        {
+          "name": "inspect",
+          "summary": "Describe a key: algorithm, curve, encryption",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "check",
+          "summary": "Import or decrypt a key to prove it is usable",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "key-type",
+              "value": "type"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "salt-length",
+              "value": "n"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "p12",
+      "group": "Keys",
+      "summary": "Inspect, verify and open PKCS#12 files (PBES2, PBMAC1)",
+      "subcommands": [
+        {
+          "name": "inspect",
+          "summary": "Describe the structure without the password",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "verify-mac",
+          "summary": "Verify the integrity MAC",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "bags",
+          "summary": "List every bag, decrypting the encrypted contents",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        },
+        {
+          "name": "open",
+          "summary": "Open: verify, decrypt, import keys, export certificates",
+          "flags": [
+            {
+              "name": "input",
+              "alias": "i",
+              "value": "file"
+            },
+            {
+              "name": "password-file",
+              "value": "file"
+            },
+            {
+              "name": "password-stdin"
+            },
+            {
+              "name": "allow-unverified-integrity"
+            },
+            {
+              "name": "rsa-scheme",
+              "value": "pkcs1|pss"
+            },
+            {
+              "name": "hash",
+              "value": "SHA-256|SHA-384|SHA-512"
+            },
+            {
+              "name": "certs-out",
+              "value": "file"
+            },
+            {
+              "name": "format",
+              "alias": "f",
+              "value": "text|json"
+            }
+          ],
+          "operands": {
+            "max": 1,
+            "for": [
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "doctor",
+      "group": "Meta",
+      "summary": "Offline preflight: Node.js floor, pkinative, Web Crypto",
+      "flags": [
+        {
+          "name": "format",
+          "alias": "f",
+          "value": "text|json"
+        }
+      ],
+      "operands": {
+        "max": 0
+      }
+    },
+    {
+      "name": "limits",
+      "group": "Meta",
+      "summary": "The 22 pkinative security bounds: flags, defaults, effective",
+      "flags": [
+        {
+          "name": "format",
+          "alias": "f",
+          "value": "text|json"
+        }
+      ],
+      "operands": {
+        "max": 0
+      }
+    },
+    {
+      "name": "explain",
+      "group": "Meta",
+      "summary": "Explain any E_*, PKI_*, PKI_REASON_* or PKI_DIAG_* code",
+      "flags": [
+        {
+          "name": "list"
+        },
+        {
+          "name": "kind",
+          "value": "error|reason|diagnostic|cli"
+        },
+        {
+          "name": "format",
+          "alias": "f",
+          "value": "text|json"
+        }
+      ],
+      "operands": {
+        "max": 1,
+        "for": [
+          "list"
+        ]
+      }
+    },
+    {
+      "name": "schema",
+      "group": "Meta",
+      "summary": "JSON Schemas, the capability manifest, the error catalogue",
+      "flags": [],
+      "operands": {
+        "max": 3
+      }
+    },
+    {
+      "name": "completion",
+      "group": "Meta",
+      "summary": "Shell completion script (bash, zsh, fish, powershell)",
+      "flags": [],
+      "operands": {
+        "max": 1
+      }
+    }
+  ]
+}
