@@ -30,7 +30,7 @@ Chosen option: 2, the pattern pdfnative and zipnative already ship. `docs/playgr
 
 ### Consequences
 
-- Good, because the playgrounds run exactly the npm artefact, as the siblings' do, and the repository loses 543 kB of generated code and the tooling that policed it.
+- Good, because the playgrounds run the npm release at its exact version (the CDN's ES-module build of its tarball), as the siblings' do, and the repository loses 543 kB of generated code and the tooling that policed it.
 - Good, because a version bump is one line, moved by the release script and refused by `cdn-pin` if forgotten.
 - Bad, because an export under `[Unreleased]` cannot be demonstrated until it ships, and the playgrounds depend on two CDNs being reachable; the failure is loud, not silent.
 - Bad, because the engine import carries no integrity hash. It is pinned to an exact version on two independent CDNs serving npm's immutable tarball; `cdn-sri` keeps requiring SRI on every `<script src>` and stylesheet.

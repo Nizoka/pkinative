@@ -1211,13 +1211,13 @@ const TOOLS = [{
     purpose: 'The RFC 3161 TimeStampReq you POST to a TSA yourself: an imprint over the data or a digest (SHA-256 / 384 / 512), a nonce, a policy, certReq.',
     prompt: 'Prepare a time-stamp request for this text with a random nonce.',
     args: () => ({ data: { text: PAGE_TEXT }, nonce: 'random', encoding: 'hex' }),
-    note: 'Runs `computeFingerprint` over the data (public bytes) and `createTimeStampRequest`. The 64-bit nonce comes from `crypto.getRandomValues` here — the engine draws no randomness.',
+    note: 'Runs `computeFingerprint` over the data (public bytes) and `createTimeStampRequest`. The 63-bit positive nonce (as the server draws it) comes from `crypto.getRandomValues` here — the engine draws no randomness.',
     run(args, ctx) {
         const hashAlgorithm = args.hashAlgorithm ?? 'SHA-256';
         const data = args.data ? contentBytes(args.data, 'data', ctx) : undefined;
         const imprint = data ? E.computeFingerprint(data, hashAlgorithm) : fromHex(args.digestHex);
         const random = args.nonce === 'random';
-        const nonce = args.nonce === undefined ? undefined : random ? new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0) : /^\d+$/.test(args.nonce) ? BigInt(args.nonce) : BigInt(`0x${args.nonce}`);
+        const nonce = args.nonce === undefined ? undefined : random ? (() => { const b = crypto.getRandomValues(new Uint8Array(8)); b[0] &= 0x7f; const v = new DataView(b.buffer).getBigUint64(0); return v === 0n ? 1n : v; })() : /^\d+$/.test(args.nonce) ? BigInt(args.nonce) : BigInt(`0x${args.nonce}`);
         const der = E.createTimeStampRequest(imprint, { hashAlgorithm, ...(nonce !== undefined ? { nonce } : {}), ...(args.policy ? { policy: args.policy } : {}), certReq: args.certReq ?? true });
         return artefact(der, args, { encoding: 'der', label: 'TIMESTAMP REQUEST', mime: 'application/timestamp-query' }, {
             hashAlgorithm, imprintHex: hex(imprint), nonce: nonce === undefined ? null : nonce.toString(10), randomNonce: random, policy: args.policy ?? null, certReq: args.certReq ?? true, dataBytes: data ? data.length : null,

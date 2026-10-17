@@ -6,7 +6,8 @@
    esm.sh and then jsDelivr's +esm build. Each candidate is verified by
    a capability probe — a stale or wrong CDN build must fail loudly,
    never half-load. There is no local fallback: what runs here is the
-   npm artefact a reader installs, nothing else (ADR 0023).
+   npm release a reader installs, as the CDN builds it for the browser,
+   nothing else (ADR 0023).
 
    VERSION is held to packages.pkinative.version of
    docs/assets/ecosystem.json by the `cdn-pin` verify-docs rule, and

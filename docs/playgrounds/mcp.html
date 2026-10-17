@@ -84,7 +84,7 @@
           "name": "pkinative-mcp",
           "softwareVersion": "1.0.0",
           "applicationCategory": "DeveloperApplication",
-          "operatingSystem": "Node.js 22 or later",
+          "operatingSystem": "Node.js ^22.22.2, ^24.14.1 or >=25.8.2",
           "url": "https://github.com/Nizoka/pkinative-mcp",
           "downloadUrl": "https://www.npmjs.com/package/pkinative-mcp",
           "license": "https://opensource.org/licenses/MIT"
@@ -135,7 +135,7 @@
       <p>Each card below shows what the tool is for, a prompt that makes an assistant reach for it, the <code>tools/call</code> arguments it would send — they validate against the server's own schemas — and a <strong>Run</strong> button that performs the engine call behind the tool in this tab, on the published <a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">pkinative</a> build. No install, no model, nothing uploaded. The <a href="../guides/mcp.html">MCP guide</a> holds the full reference.</p>
 
       <h2 id="configure">Configure your client</h2>
-      <p>Paste the snippet into your client's MCP configuration and restart it. <code>npx -y</code> fetches the server on first use; it needs Node.js 22 or later. <code>PKINATIVE_MCP_OUTPUT_DIR</code> is optional: without it every tool works on inline PEM or base64 and nothing touches the filesystem.</p>
+      <p>Paste the snippet into your client's MCP configuration and restart it. <code>npx -y</code> fetches the server on first use; it needs Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor). <code>PKINATIVE_MCP_OUTPUT_DIR</code> is optional: without it every tool works on inline PEM or base64 and nothing touches the filesystem.</p>
       <div class="table-wrap">
       <div class="tab-bar" role="tablist" aria-label="MCP client" id="config-tabs">
         <button class="tab-btn active" type="button" role="tab" id="tab-desktop" aria-controls="panel-desktop" aria-selected="true">Claude Desktop</button>
@@ -146,7 +146,7 @@
       </div>
       </div>
       <div id="config-panels">
-        <div class="tab-panel active" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop" tabindex="0"><pre><code>// claude_desktop_config.json — ~/Library/Application Support/Claude/ (macOS), %APPDATA%\Claude\ (Windows)
+        <div class="tab-panel active" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop"><pre tabindex="0" aria-label="Claude Desktop configuration"><code>// claude_desktop_config.json — ~/Library/Application Support/Claude/ (macOS), %APPDATA%\Claude\ (Windows)
 {
   "mcpServers": {
     "pkinative": {
@@ -158,18 +158,18 @@
     }
   }
 }</code></pre></div>
-        <div class="tab-panel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" tabindex="0" hidden><pre><code>// .mcp.json at the root of the project
+        <div class="tab-panel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" hidden><pre tabindex="0" aria-label="Claude Code configuration"><code>// .mcp.json at the root of the project
 {
   "mcpServers": {
     "pkinative": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "pkinative-mcp"],
-      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "${CLAUDE_PROJECT_DIR}/.mcp-pki" }
+      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "/absolute/path/to/your/project/.mcp-pki" }
     }
   }
 }</code></pre></div>
-        <div class="tab-panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" tabindex="0" hidden><pre><code>// ~/.cursor/mcp.json
+        <div class="tab-panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" hidden><pre tabindex="0" aria-label="Cursor configuration"><code>// ~/.cursor/mcp.json
 {
   "mcpServers": {
     "pkinative": {
@@ -179,7 +179,7 @@
     }
   }
 }</code></pre></div>
-        <div class="tab-panel" role="tabpanel" id="panel-vscode" aria-labelledby="tab-vscode" tabindex="0" hidden><pre><code>// .vscode/mcp.json — the top-level key is "servers"
+        <div class="tab-panel" role="tabpanel" id="panel-vscode" aria-labelledby="tab-vscode" hidden><pre tabindex="0" aria-label="VS Code configuration"><code>// .vscode/mcp.json — the top-level key is "servers"
 {
   "servers": {
     "pkinative": {
@@ -190,7 +190,7 @@
     }
   }
 }</code></pre></div>
-        <div class="tab-panel" role="tabpanel" id="panel-http" aria-labelledby="tab-http" tabindex="0" hidden><pre><code>PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINATIVE_MCP_OUTPUT_DIR=/srv/pki npx -y pkinative-mcp
+        <div class="tab-panel" role="tabpanel" id="panel-http" aria-labelledby="tab-http" hidden><pre tabindex="0" aria-label="Streamable HTTP launch command"><code>PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINATIVE_MCP_OUTPUT_DIR=/srv/pki npx -y pkinative-mcp
 # stderr: [pkinative-mcp] ready (HTTP transport, MCP 2026-07-28 + legacy) on http://127.0.0.1:3000/mcp — bearer token required
 # every request: POST /mcp with Authorization: Bearer &lt;token&gt;</code></pre></div>
       </div>
@@ -198,6 +198,7 @@
         <button class="btn btn-secondary" id="copy-config" type="button">Copy snippet</button>
         <span class="pg-note" id="copy-status" role="status" aria-live="polite"></span>
       </div>
+      <p>For Claude Code the value must be absolute: Claude Code does not expand <code>${CLAUDE_PROJECT_DIR}</code> here (it sets that variable only in the server's environment), and the server refuses a relative path.</p>
       <p>Continue, Zed, Windsurf, Cline and Roo Code take the same <code>command</code> + <code>args</code> + <code>env</code> triple in their own files. Over HTTP the endpoint binds <code>127.0.0.1</code> only and answers <code>POST /mcp</code>; <strong>without <code>PKINATIVE_MCP_HTTP_TOKEN</code> it has no authentication</strong>, and other local processes can reach it. The server speaks MCP 2026-07-28 and falls back to every 2024–2025 revision a client opens with <code>initialize</code>. Its registry name is <code>io.github.Nizoka/pkinative-mcp</code>. More in <a href="../guides/mcp.html#configuration-by-client">Configuration by client</a>.</p>
 
       <h2 id="environment">Operator environment</h2>
@@ -206,7 +207,7 @@
         <table class="pg-table">
           <thead><tr><th scope="col">Variable</th><th scope="col">Default</th><th scope="col">Meaning</th></tr></thead>
           <tbody>
-            <tr><td>PKINATIVE_MCP_OUTPUT_DIR</td><td>unset</td><td class="pg-wrap">The one sandbox: every <code>path</code> input is read from it and <code>outputMode: 'file'</code> artefacts are written under it, never overwritten. A planted symlink or junction is <code>SECURITY_VIOLATION</code>; key-bearing files (<code>.key .p8 .p12 .pfx</code>) are read by the key tools only, never written, never served. Unset: inline PEM and base64 only.</td></tr>
+            <tr><td>PKINATIVE_MCP_OUTPUT_DIR</td><td>unset</td><td class="pg-wrap">The one sandbox: every <code>path</code> input is read from it and <code>outputMode: 'file'</code> artefacts are written under it, never overwritten. A planted symlink or junction is <code>SECURITY_VIOLATION</code>; key-bearing files (<code>.key .p8 .p12 .pfx</code>) may be named by any <code>path</code> input — no tool returns their key bytes — but are never written, never listed and never served as resources. Unset: inline PEM and base64 only.</td></tr>
             <tr><td>PKINATIVE_MCP_CACHE_DIR</td><td>unset</td><td class="pg-wrap">Opt-in content-addressed response cache (SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest). Never caches a path input, file output, a password or a signer, a random serial or nonce, an unpinned instant, <code>describe_engine</code> or <code>draft_governance_issue</code>.</td></tr>
             <tr><td>PKINATIVE_MCP_PORT</td><td>unset → stdio</td><td class="pg-wrap">Serve Streamable HTTP on <code>http://127.0.0.1:&lt;port&gt;/mcp</code> instead of stdio. Unauthenticated unless the token below is set.</td></tr>
             <tr><td>PKINATIVE_MCP_HTTP_TOKEN</td><td>unset</td><td class="pg-wrap">Secret. Bearer token for HTTP: at least 16 characters, no whitespace; compared in constant time, never logged. Without it on a request, 401.</td></tr>

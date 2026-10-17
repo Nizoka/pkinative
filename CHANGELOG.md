@@ -2,15 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 are git tags and are not published to npm.
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 were never tagged or published; `0.0.1` on npm is the name reservation.
 
 ## [Unreleased]
 
 ### Documentation
 
-- **docs: pkinative-cli 1.0.0 and pkinative-mcp 1.0.0 on the site.** The two satellites, published on 2026-10-08 and 2026-10-13, are recorded in `docs/assets/ecosystem.json` and documented on pkinative.dev: a CLI reference and an MCP guide, a use-case guide for each, a capability × surface matrix in the choosing guide and `docs/data/surfaces.json`, the CLI's command surface in `docs/data/cli-surface.json`, a landing-page section and install switcher, live npm versions, and the satellites in the architecture diagram and the social cards. No change to the package: `src/` is untouched.
+- **docs: pkinative-cli 1.0.0 and pkinative-mcp 1.0.0 on the site.** The two satellites, published on 2026-10-08 and 2026-10-17, are recorded in `docs/assets/ecosystem.json` and documented on pkinative.dev: a CLI reference and an MCP guide, a use-case guide for each, a capability × surface matrix in the choosing guide and `docs/data/surfaces.json`, the CLI's command surface in `docs/data/cli-surface.json`, a landing-page section and install switcher, live npm versions, and the satellites in the architecture diagram and the social cards. No change to the package: `src/` is untouched.
 - **docs(site): the playgrounds load the published package from a CDN** — `pkinative@1.0.0` from esm.sh, then jsDelivr — instead of a committed copy of `dist/index.js` ([ADR 0023](docs/adr/0023-playgrounds-load-the-published-package.md)); they moved from `/playground/` to `/playgrounds/`, the family's path, and the old URLs redirect. A PKI toolkit, a CLI command builder and an MCP tool explorer join the certificate inspector and the ASN.1 tree.
-- **chore(docs): new verify-docs rules** — `cdn-pin`, `redirect-stubs`, `satellite-manifest`, `satellite-counts`, `surfaces-shape`, `cli-surface-parity`, `mcp-surface-parity`, `versions-widget` and `playgrounds-manifest` — hold every count, version and name the site quotes from the satellites to their records; `jsonld-version` now reads every node of every page; `check-npm-drift` also watches the satellites.
+- **chore(docs): new verify-docs rules** — `cdn-pin`, `redirect-stubs`, `satellite-manifest`, `satellite-counts`, `surfaces-shape`, `cli-surface-parity`, `mcp-surface-parity`, `versions-widget`, `playgrounds-manifest` and `site-script-syntax` — hold every count, version and name the site quotes from the satellites to their records; `jsonld-version` now reads every node of every page; `check-npm-drift` also watches the satellites.
 
 ## [1.0.0] – 2026-10-04
 

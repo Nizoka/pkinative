@@ -15,6 +15,7 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
+import ts from 'typescript';
 import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
@@ -541,6 +542,28 @@ const cdnPin: Rule = {
     },
 };
 
+/**
+ * The site's own JavaScript — the playgrounds, the landing page, the versions
+ * widget — is hand-written, ESLint ignores docs/, and a syntax error in it
+ * fails only in a reader's browser. zipnative's `playground-syntax`, parsed
+ * from the text so the in-memory perturbation can break it.
+ */
+const siteScriptSyntax: Rule = {
+    id: 'site-script-syntax',
+    summary: 'Every JavaScript file under docs/ — the playground scripts, app.js, assets/versions.js — parses as an ES module (ESLint does not lint docs/, so this is the net under 4 000 lines a reader\'s browser runs).',
+    check(ctx) {
+        const out: Finding[] = [];
+        for (const path of ctx.list('docs').filter((p) => p.endsWith('.js'))) {
+            const { diagnostics = [] } = ts.transpileModule(ctx.read(path) ?? '', { reportDiagnostics: true, fileName: path, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, allowJs: true } });
+            for (const d of diagnostics.filter((x) => x.category === ts.DiagnosticCategory.Error)) {
+                const line = d.file !== undefined && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 1;
+                out.push(error(path, `does not parse: ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`, line));
+            }
+        }
+        return out;
+    },
+};
+
 const PLAYGROUNDS_MANIFEST = 'docs/data/playgrounds.json';
 const HUB = 'docs/playgrounds/index.html';
 
@@ -613,7 +636,7 @@ const playgroundsManifest: Rule = {
  */
 const redirectStubs: Rule = {
     id: 'redirect-stubs',
-    summary: 'Every noindex page under docs/ is a redirect stub: it refreshes at once to a page that exists, declares that page\'s URL as canonical and links to it; and no other page or guide links to a stub.',
+    summary: 'Every noindex page under docs/ is a redirect stub: it refreshes at once to a page that exists, declares that page\'s URL as canonical and links to it, and any script that keeps the query and fragment goes to the same page; and no other page or guide links to a stub.',
     check(ctx) {
         const out: Finding[] = [];
         const stubs = htmlPages(ctx).filter((p) => isRedirectStub(ctx.read(p) ?? ''));
@@ -627,6 +650,10 @@ const redirectStubs: Rule = {
             const url = `${SITE}/${resolved.replace(/^docs\//, '')}${target.endsWith('/') ? '/' : ''}`;
             if (canonicalOf(html) !== url) out.push(error(path, `declares the canonical URL ${String(canonicalOf(html))}; a stub names its replacement, ${url}`));
             if (!html.includes(`href="${target}"`)) out.push(error(path, `does not link ${target}; a reader whose browser ignores the refresh must still find the page`));
+            // The script that keeps an old deep link's query and fragment must go where the refresh goes.
+            for (const m of html.matchAll(/location\.replace\('([^']+)'/g)) {
+                if (m[1] !== target) out.push(error(path, `its script redirects to ${m[1] ?? ''}; the refresh goes to ${target}`, lineContaining(html, 'location.replace')));
+            }
         }
         for (const path of LINK_SOURCES(ctx)) {
             const text = ctx.read(path);
@@ -715,5 +742,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, cdnPin, redirectStubs, playgroundsManifest, releaseNotes, releasePrDrafts,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, cdnPin, redirectStubs, playgroundsManifest, siteScriptSyntax, releaseNotes, releasePrDrafts,
 ];

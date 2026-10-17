@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 408520,
-      "approxTokens": 102130
+      "bytes": 411947,
+      "approxTokens": 102987
     },
     {
       "url": "llms-recipes.txt",
@@ -60,8 +60,8 @@
     {
       "url": "data/playgrounds.json",
       "description": "The playgrounds: what each runs, its controls by DOM id, and the exports, command lines or tools it drives.",
-      "bytes": 10457,
-      "approxTokens": 2614
+      "bytes": 10500,
+      "approxTokens": 2625
     },
     {
       "url": "data/cli-surface.json",
@@ -94,8 +94,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 14370,
-      "approxTokens": 3593
+      "bytes": 14441,
+      "approxTokens": 3610
     },
     {
       "title": "Use cases",
@@ -159,8 +159,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 64091,
-      "approxTokens": 16023
+      "bytes": 65273,
+      "approxTokens": 16318
     },
     {
       "title": "CLI use cases",
@@ -174,8 +174,8 @@
         "case-4--a-pkcs12-audit-with---password-file",
         "see-also"
       ],
-      "bytes": 18494,
-      "approxTokens": 4624
+      "bytes": 18671,
+      "approxTokens": 4668
     },
     {
       "title": "pkinative-mcp — AI client integration",
@@ -189,7 +189,7 @@
         "claude-code",
         "cursor--continue--zed--windsurf--cline--roo-code",
         "vs-code",
-        "streamable-http-chatgpt-and-other-http-hosts",
+        "streamable-http-local-http-clients",
         "environment-variables",
         "protocol-and-transport",
         "tool-reference",
@@ -240,8 +240,8 @@
         "security-model",
         "further-reading"
       ],
-      "bytes": 50033,
-      "approxTokens": 12508
+      "bytes": 51392,
+      "approxTokens": 12848
     },
     {
       "title": "MCP use cases",
@@ -255,8 +255,8 @@
         "case-4--opening-keys-safely",
         "see-also"
       ],
-      "bytes": 19142,
-      "approxTokens": 4786
+      "bytes": 19224,
+      "approxTokens": 4806
     },
     {
       "title": "Security model",
@@ -330,11 +330,11 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35011,
-      "approxTokens": 8753
+      "bytes": 35079,
+      "approxTokens": 8770
     },
     {
-      "title": "Choosing a PKI library",
+      "title": "Choosing a library and a surface",
       "summary": "Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.",
       "html": "guides/choose.html",
       "markdown": "guides/choose.md",
@@ -345,8 +345,8 @@
         "when-pkinative-is-the-right-choice",
         "choosing-your-surface"
       ],
-      "bytes": 12725,
-      "approxTokens": 3181
+      "bytes": 12917,
+      "approxTokens": 3229
     }
   ]
 }

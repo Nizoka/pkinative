@@ -60,7 +60,7 @@ A developer needs a CA and a TLS server certificate for an integration test, fro
 { "name": "create_certificate", "arguments": { "spec": { "serialNumber": 1, "subject": { "C": "FR", "O": "Acme", "CN": "Acme Test CA" }, "notBefore": "2027-01-01T00:00:00Z", "validityDays": 3650, "extensions": { "basicConstraints": { "ca": true, "pathLen": 0 }, "keyUsage": ["keyCertSign", "cRLSign"] } }, "signer": { "key": { "path": "fixtures/ed25519.key.pem" } }, "outputMode": "file", "outputPath": "out/acme-ca.pem", "encoding": "pem" } }
 ```
 
-The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and, in `structuredContent`, the size, the SHA-256 of the DER and a summary:
+The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and, in `structuredContent`, the size, the SHA-256 of the DER, the absolute `filePath` written and a summary (`filePath` elided below):
 
 ```json
 {"encoding":"pem","sizeBytes":350,"sha256":"694fa39766a751eaaf6be471061639f5b3bdce183549d0a15272fbca5e79e0b8","mode":"file","summary":{"serialNumber":"01","randomSerial":false,"subject":"CN=Acme Test CA,O=Acme,C=FR","issuer":"CN=Acme Test CA,O=Acme,C=FR","selfSigned":true,"signatureAlgorithm":{"oid":"1.3.101.112","name":"Ed25519","hasParameters":false},"notBefore":"2027-01-01T00:00:00.000Z","notAfter":"2036-12-29T00:00:00.000Z","notBeforeSource":"input","extensions":["basicConstraints","keyUsage","subjectKeyIdentifier"],"signatureVerified":true,"publicKeyFrom":"signer"},"diagnostics":[],"diagnosticCounts":{}}
@@ -198,7 +198,7 @@ The key report names the scheme — `PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CB
 | The legacy file opened | `valid: false`, `integrity: "unverified"`, `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` and `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED`; `explain_code` gives the OpenSSL 3.4 conversion |
 | An RSA key without `rsaScheme` (`fixtures/rsa.p12`) | `valid: false`, `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`; with `rsaScheme: "pkcs1"` (`examples/open-pkcs12-rsa.json`) it opens |
 
-**Passwords.** A `password` input lands in the host's transcript; `PKINATIVE_MCP_PASSWORD`, set in the server's environment by the operator, does not. Never both — that is `VALIDATION_ERROR`. A call carrying a password is never cached, and the value is never echoed, logged or served. **Limits:** key-bearing files (`.key .p8 .p12 .pfx`) in the sandbox are read by the key and signer tools only, never listed or served as resources, and nothing in the server writes one: a converted PKCS#12 comes from OpenSSL.
+**Passwords.** A `password` input lands in the host's transcript; `PKINATIVE_MCP_PASSWORD`, set in the server's environment by the operator, does not. Never both — that is `VALIDATION_ERROR`. A call carrying a password is never cached, and the value is never echoed, logged or served. **Limits:** key-bearing files (`.key .p8 .p12 .pfx`) in the sandbox may be named by any `path` input — no tool returns their key bytes — but are never written (a converted PKCS#12 comes from OpenSSL), never listed and never served as resources.
 
 ## See also
 

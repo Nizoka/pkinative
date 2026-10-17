@@ -32,10 +32,10 @@ Add `--json --summary` and the first sample's verdict is two lines, stdout then 
 {"ok":true,"command":"chain verify","valid":true,"pathLength":3,"signaturesChecked":true,"diagnostics":[]}
 ```
 
-**Expiry is a question of `--at`.** The verdict is computed at the instant `--at` names — ISO 8601, epoch milliseconds or `now` — so an expiry gate is the same command asked about the future. Moving the first sample's `--at` past the leaf's `notAfter` (2046-01-01) gives exit 1, `E_VERIFY_FAILED`, and one `PKI_REASON_EXPIRED` per certificate of the path:
+**Expiry is a question of `--at`.** The verdict is computed at the instant `--at` names — ISO 8601, epoch milliseconds or `now` — so an expiry gate is the same command asked about the future. Moving the first sample's `--at` past the leaf's `notAfter` (2046-01-01) gives exit 1, `E_VERIFY_FAILED`, one `PKI_REASON_EXPIRED` per certificate of the path, and two `PKI_REASON_REVOCATION_UNKNOWN` on the OCSP response, whose delegated responder certificate has expired too:
 
 ```json
-{"valid":false,"reasons":["PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_EXPIRED"],"path":["CN=example.test,O=pkinative-cli test,C=FR","CN=Test Intermediate CA,O=pkinative-cli test,C=FR","CN=Test Root CA,O=pkinative-cli test,C=FR"],"explored":3,"signatureVerifications":2}
+{"valid":false,"reasons":["PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_REVOCATION_UNKNOWN","PKI_REASON_REVOCATION_UNKNOWN"],"path":["CN=example.test,O=pkinative-cli test,C=FR","CN=Test Intermediate CA,O=pkinative-cli test,C=FR","CN=Test Root CA,O=pkinative-cli test,C=FR"],"explored":3,"signatureVerifications":2}
 ```
 
 A CI step built on those pieces — verify the chain as it will stand 30 days from now, and fail with the reason codes when it does not (GNU `date` and `jq` assumed on the runner):

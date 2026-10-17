@@ -368,7 +368,7 @@ function operandList() {
     return current().operands.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
-/** A token the CLI would read as a flag rather than a value (src/utils/args.ts:54). */
+/** A token the CLI would read as a flag rather than a value (src/utils/args.ts:53). */
 const looksLikeFlag = (v) => v.startsWith('-') && v !== '-' && !/^-\d/.test(v);
 
 /**
@@ -393,7 +393,7 @@ function buildGroups() {
         if (state.password.source === 'stdin') groups.push(['--password-stdin']);
     }
     for (const flag of GLOBAL_FLAGS) emit(flag, state.globals[flag.name]);
-    // `--` ends the flags (args.ts:51), so an operand that begins with a
+    // `--` ends the flags (args.ts:57), so an operand that begins with a
     // dash goes after it, and is then never read as a flag.
     if (protect) groups.push(['--', ...operands]);
     return groups;
@@ -682,7 +682,7 @@ function check() {
         }
         case 'p12 verify-mac': case 'p12 bags': case 'p12 open':
             if (pw === '') refuse(`\`${key}\` needs the password: \`--password-file <file>\`, \`--password-stdin\` or \`PKINATIVE_PASSWORD\`.`, 'commands/p12.ts:38');
-            if (key === 'p12 open' && !has('rsa-scheme')) note('If the PKCS#12 holds an RSA key, name its scheme with `--rsa-scheme pkcs1|pss`: without it the key is not imported and the report carries `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED` — a negative verdict (exit 1), not a usage error. Only the file can tell.', 'commands/p12.ts:128');
+            if (key === 'p12 open' && !has('rsa-scheme')) note('If the PKCS#12 holds an RSA key, name its scheme with `--rsa-scheme pkcs1|pss`: without it the report carries `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`, the key is not imported, and the CLI then exits 2 (`E_USAGE`). Only the file can tell.', 'utils/pkierr.ts:160');
             break;
         case 'key check':
             if (pw === '') note('An encrypted key needs its password (`--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`); an unencrypted one does not. Only the file can tell.', 'utils/signer.ts:138');

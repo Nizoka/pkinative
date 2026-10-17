@@ -1,4 +1,4 @@
-# Choosing a PKI library
+# Choosing a library and a surface
 
 > **Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.**
 
@@ -12,7 +12,7 @@
 
 Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
-`docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
+`docs/data/surfaces.json` lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.
 
 ## What it does not do, by design
 
@@ -58,7 +58,7 @@ pkinative reaches you three ways, and all three run the same engine: a verdict, 
 |---|---|---|
 | **The library**, `npm install pkinative` | Applications and services on any runtime with Web Crypto — Node.js, Deno, Bun, browsers, edge workers | The bytes live in memory, you want the whole typed API, or the key sits in an HSM or a remote service behind an `ExternalSigner` — which only the library takes. You own the I/O: the engine reads no file and opens no socket |
 | **[pkinative-cli](cli.md)**, the `pkinative` binary | Shell scripts, CI jobs, operators, and programs in any language that can run a process | Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, `--dry-run` and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv |
-| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, ChatGPT over Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22 or later |
+| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor) |
 
 The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
 
@@ -67,7 +67,7 @@ Every capability `docs/data/surfaces.json` lists, by surface:
 | Capability | Library | CLI | MCP |
 |---|---|---|---|
 | `errors` — typed errors with stable codes | `PkiError` and its subclasses | every command: `error.pkiCode` in the `--json` envelope; `explain` | every tool: `_meta.error.code`; `explain_code` |
-| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 `--max-*` flags; `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
+| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 engine-limit `--max-*` flags (plus the CLI's `--max-content-size`); `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
 | `asn1-decode` | `decodeAsn1`, `decodeAsn1Sequence` | `asn1 decode` (`--sequence`) | `decode_asn1` (`sequence`) |
 | `asn1-read` | `readInteger`, `readTime` and the other typed readers | `asn1 decode --path … --read …` | `decode_asn1` (`nodePath`, `read`) |
 | `asn1-encode` | `encodeSequence`, `encodeAsn1Node` and the other encoders | `asn1 encode`; `asn1 decode --reencode` | `encode_asn1`; `decode_asn1` (`reencode`) |

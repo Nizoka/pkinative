@@ -147,6 +147,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
     // A tool documented under a name the server does not register.
     'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
+    // A typo in hand-written site JavaScript that only a reader's browser would have found.
+    'site-script-syntax': (f) => edit(f, 'docs/assets/versions.js', "var NPM = 'https://registry.npmjs.org/';", "var NPM = = 'https://registry.npmjs.org/';"),
     // A control renamed on the page while the agent-facing inventory keeps the old id.
     'playgrounds-manifest': (f) => edit(f, 'docs/data/playgrounds.json', '"id": "chain-run"', '"id": "chain-go"'),
     // A satellite release recorded in the manifest and not in the widget a reader sees without the registry.
@@ -1024,5 +1026,14 @@ describe('the playground views of one list', () => {
 
     it('should fire cli-surface-parity when the builder stops reading the snapshot', async () => {
         expect(await run((f) => edit(f, 'docs/playgrounds/cli.js', "const SURFACE_URL = '../data/cli-surface.json';", "const SURFACE_URL = './surface.json';"), 'cli-surface-parity')).toEqual([expect.stringContaining('does not load ../data/cli-surface.json')]);
+    });
+});
+
+describe('redirect-stubs and the script that keeps a deep link', () => {
+    it('should fire when the stub script goes elsewhere than its refresh', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/playground/certificate.html', "location.replace('../playgrounds/certificate.html'", "location.replace('../playgrounds/asn1.html'");
+        const problems = (await runRules(createMemoryContext(files), RULES, 'redirect-stubs')).map((p) => p.message);
+        expect(problems).toEqual([expect.stringContaining('its script redirects to ../playgrounds/asn1.html')]);
     });
 });

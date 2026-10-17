@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choosing a PKI library — pkinative</title>
+  <title>Choosing a library and a surface — pkinative</title>
   <meta name="description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
@@ -11,13 +11,13 @@
   <meta property="og:site_name" content="pkinative">
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/choose.html">
-  <meta property="og:title" content="Choosing a PKI library — pkinative">
+  <meta property="og:title" content="Choosing a library and a surface — pkinative">
   <meta property="og:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Choosing a PKI library — pkinative">
+  <meta name="twitter:title" content="Choosing a library and a surface — pkinative">
   <meta name="twitter:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/choose.html">
@@ -51,14 +51,14 @@
           {
             "@type": "ListItem",
             "position": 3,
-            "name": "Choosing a PKI library",
+            "name": "Choosing a library and a surface",
             "item": "https://pkinative.dev/guides/choose.html"
           }
         ]
       },
       {
         "@type": "TechArticle",
-        "headline": "Choosing a PKI library",
+        "headline": "Choosing a library and a surface",
         "description": "Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.",
         "inLanguage": "en",
         "author": {
@@ -112,9 +112,9 @@
     </div>
   </nav>
   <main class="guide-shell" id="main-content" tabindex="-1">
-    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing a PKI library</p>
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing a library and a surface</p>
     <article id="guide-content" class="guide-content" data-md="choose.md" data-prerendered="true">
-<h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
+<h1 id="choosing-a-library-and-a-surface">Choosing a library and a surface</h1>
 <blockquote>
 <p><strong>Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</strong></p>
 </blockquote>
@@ -127,7 +127,7 @@
 <li>Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</li>
 </ul>
 <p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
-<p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
+<p><code>docs/data/surfaces.json</code> lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.</p>
 <h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
 <p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
 <table>
@@ -255,8 +255,8 @@
 </tr>
 <tr>
 <td><strong><a href="mcp.html">pkinative-mcp</a></strong>, the <code>pkinative-mcp</code> server</td>
-<td>AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, ChatGPT over Streamable HTTP</td>
-<td>A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22 or later</td>
+<td>AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP</td>
+<td>A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine&#39;s floor)</td>
 </tr>
 </tbody></table>
 <p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
@@ -279,7 +279,7 @@
 <tr>
 <td><code>limits</code> — named, CWE-tagged bounds</td>
 <td><code>DEFAULT_PKI_LIMITS</code>, the <code>limits</code> option</td>
-<td>the 22 <code>--max-*</code> flags; <code>limits</code></td>
+<td>the 22 engine-limit <code>--max-*</code> flags (plus the CLI&#39;s <code>--max-content-size</code>); <code>limits</code></td>
 <td>the <code>limits</code> input of every engine tool, under the operator ceilings; <code>describe_engine</code></td>
 </tr>
 <tr>

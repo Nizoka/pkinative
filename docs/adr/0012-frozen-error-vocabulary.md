@@ -56,4 +56,4 @@ Chosen option: 2, decided in the 0.2.0 roadmap change and taken at 0.8.0.
 
 ## Amendments
 
-- **2026-10-17, the satellites shipped.** `pkinative-cli` 1.0.0 (2026-10-08) and `pkinative-mcp` 1.0.0 (2026-10-13) consume the registries as this record anticipated: both vendor `docs/data/errors.json`, `reasons.json`, `diagnostics.json` and `limits.json` at `v1.0.0` and carry every `PKI_*` code verbatim — the CLI in `error.pkiCode` beside its own 13 `E_*` classes, the MCP server in its results beside its own wrapper codes. **The decision is unchanged**; it now has two downstream readers that break the day a frozen name moves.
+- **2026-10-17, the satellites shipped.** `pkinative-cli` 1.0.0 (2026-10-08) and `pkinative-mcp` 1.0.0 (2026-10-17) consume the registries as this record anticipated: both vendor `docs/data/errors.json`, `reasons.json`, `diagnostics.json` and `limits.json` at `v1.0.0` and carry every `PKI_*` code verbatim — the CLI in `error.pkiCode` beside its own 13 `E_*` classes, the MCP server in its results beside its own wrapper codes. **The decision is unchanged**; it now has two downstream readers that break the day a frozen name moves.

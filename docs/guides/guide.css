@@ -57,6 +57,12 @@
    no break opportunity, and at 375 px it widened four guides to 626 px.
    Inline code may break anywhere; code blocks keep scrolling inside. */
 .guide-content :not(pre) > code { overflow-wrap: anywhere; }
+/* …except in a table cell: `anywhere` lowers a column's min-content to one
+   character, so a column of identifiers collapses letter by letter. There a
+   token breaks only when it alone overflows, and a narrow table scrolls
+   inside itself (below). */
+.guide-content td > code,
+.guide-content th > code { overflow-wrap: break-word; }
 
 /* A code span inside a link: the dark --c-primary is 4.07:1 on --c-surface,
    so linked code sits on --c-bg-alt (5.75:1) instead. */

@@ -118,7 +118,7 @@
 <blockquote>
 <p><strong>pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable <code>--json</code> contract for scripts, CI and AI agents.</strong> It pins pkinative ^1.0.0, its only runtime dependency.</p>
 </blockquote>
-<p><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a> is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine&#39;s; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine&#39;s <code>PKI_*</code> code verbatim. Its 18 commands reach every export of pkinative 1.0.0, and a test in the CLI repository proves it.</p>
+<p><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a> is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine&#39;s; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine&#39;s <code>PKI_*</code> code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the <code>PkiError</code> family, 6 constants), and a test in the CLI repository proves it.</p>
 <table>
 <thead>
 <tr>
@@ -368,7 +368,7 @@ pkinative chain verify server.pem --trust root.pem --untrusted ca.pem --json --s
 </tbody></table>
 <p>Command-specific success fields — <code>valid</code>, <code>pathLength</code>, <code>signaturesChecked</code>, <code>output</code>, <code>bytes</code> (the DER length of an artefact), <code>encoding</code>, <code>nonce</code>, <code>count</code>, <code>dryRun</code>, … — are listed per invocation by <code>pkinative schema manifest</code>. Without <code>--json</code>, a failure prints <code>error E_&lt;CLASS&gt; (PKI_&lt;CODE&gt;): &lt;message&gt;</code> on stderr, then a <code>remedy: …</code> line when there is one.</p>
 <p><strong>JSON reports use pkinative&#39;s wire form:</strong> <code>bigint</code> becomes a decimal string, <code>Uint8Array</code> lowercase hex, <code>epochMilliseconds</code> stays a number, absent optional members are omitted and member names are unchanged. The CLI adds nothing to an engine result except where it is a CLI view: <code>key</code> and <code>p12</code> reports are allow-list views that never carry key bytes, and command-level wrappers (<code>{ blocks }</code>, <code>{ oids }</code>, <code>{ valid, reasons }</code>) are documented per command.</p>
-<p><strong>Token economy.</strong> <code>--summary</code> prints the command&#39;s minimal JSON shape (codes instead of full reasons, names instead of objects); <code>--fields a,b.c</code> keeps only these dot-paths, a segment on an array mapping over it and an unknown path being omitted; <code>--pretty</code> indents; <code>--quiet</code> silences text notes and diagnostics on stderr, while the envelope still carries the diagnostics.</p>
+<p><strong>Token economy.</strong> <code>--summary</code> prints the command&#39;s minimal JSON shape (codes instead of full reasons, names instead of objects); <code>--fields a,b.c</code> keeps only these dot-paths, a segment on an array mapping over it; an unknown path is omitted, except under an array, where each element it matches nothing in becomes <code>null</code>; <code>--pretty</code> indents; <code>--quiet</code> silences text notes and diagnostics on stderr, while the envelope still carries the diagnostics.</p>
 <p><strong>Inputs.</strong> A PKI input is a path, <code>-</code> for stdin, or stdin when the path is absent — refused on an interactive terminal. It is PEM when its first non-blank bytes are <code>-----BEGIN </code>, DER otherwise. Where one object is expected, a PEM file with several matching blocks is refused (<code>E_INPUT</code>) rather than reduced to its first block; <code>pem decode --index</code> extracts one. The repeatable inputs (<code>--trust</code>, <code>--untrusted</code>, <code>--chain</code>, <code>--crl</code>, <code>--ocsp</code>) accept PEM bundles. Time is <code>--at &lt;ISO 8601 | epoch ms | now&gt;</code>, UTC unless zoned: pin it for reproducible verdicts.</p>
 <p><strong>Parsing rules.</strong> Global flags and subcommand flags may sit anywhere on the line; a boolean flag never consumes the next token; <code>--flag=value</code> is the explicit form; a lone <code>-</code> is a value (stdin or stdout); <code>--</code> ends the flags. Short aliases: <code>-i</code> (<code>--input</code>), <code>-o</code> (<code>--output</code>), <code>-f</code> (<code>--format</code>), <code>-q</code>, <code>-h</code>, <code>-V</code>. Each flag is given once unless the manifest marks it repeatable, and a subcommand takes at most the operands the manifest declares, so a verdict never depends on argument order.</p>
 <h3 id="the-schema-subjects">The <code>schema</code> subjects <a class="heading-anchor" href="#the-schema-subjects" aria-label="Link to this section">#</a></h3>
@@ -447,7 +447,7 @@ pkinative schema report chain verify
 pkinative schema summary cert inspect
 </code></pre>
 <h3 id="refused-combinations">Refused combinations <a class="heading-anchor" href="#refused-combinations" aria-label="Link to this section">#</a></h3>
-<p>Usage errors are <code>E_USAGE</code>, exit 2, and they are detected before anything is written. Beyond an unknown flag, a malformed value or a missing required flag, the CLI refuses:</p>
+<p>Usage errors are <code>E_USAGE</code>, exit 2, and they are detected before anything is written — save the one only the input can reveal, <code>p12 open</code> on an RSA key without <code>--rsa-scheme</code> (below). Beyond an unknown flag, a malformed value or a missing required flag, the CLI refuses:</p>
 <table>
 <thead>
 <tr>
@@ -509,7 +509,7 @@ pkinative schema summary cert inspect
 </tr>
 <tr>
 <td><code>p12</code></td>
-<td><code>verify-mac</code>, <code>bags</code> or <code>open</code> without a password. (<code>open</code> on an RSA key without <code>--rsa-scheme</code> is not a usage error: the report carries <code>PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED</code>, the key stays unimported, and the exit code is 1)</td>
+<td><code>verify-mac</code>, <code>bags</code> or <code>open</code> without a password; <code>open</code> on an RSA key without <code>--rsa-scheme</code> — only the file can reveal it, so the report (<code>PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED</code>, the key not imported) is printed first, then <code>E_USAGE</code> exits 2 with the remedy <code>--rsa-scheme pkcs1|pss</code>, and no <code>--certs-out</code> is written</td>
 </tr>
 <tr>
 <td><code>explain</code></td>
@@ -1306,7 +1306,7 @@ pkinative chain validate --path &lt;leaf&gt; --path &lt;ca&gt;... --trust &lt;ro
 <td>✓</td>
 <td></td>
 <td></td>
-<td>OCSP responses, DER</td>
+<td>OCSP responses, DER or PEM (a PEM bundle is accepted)</td>
 </tr>
 <tr>
 <td><code>--ocsp-nonce &lt;hex&gt;</code></td>
@@ -1401,7 +1401,7 @@ pkinative ocsp check [&lt;response&gt;] --cert &lt;file&gt; --issuer &lt;ca&gt; 
 </tr>
 <tr>
 <td><code>inspect</code></td>
-<td><code>--input</code>, <code>-i &lt;file&gt;</code> (the response, DER; default the operand); <code>--format</code>, <code>-f text|json</code></td>
+<td><code>--input</code>, <code>-i &lt;file&gt;</code> (the response, DER or PEM; default the operand); <code>--format</code>, <code>-f text|json</code></td>
 </tr>
 <tr>
 <td><code>verify-signature</code></td>
@@ -1622,7 +1622,7 @@ pkinative key check [&lt;file&gt;] [--key-type &lt;type&gt;] [--rsa-scheme pkcs1
 </tr>
 </tbody></table>
 <h4 id="pkinative-p12"><code>pkinative p12</code> <a class="heading-anchor" href="#pkinative-p12" aria-label="Link to this section">#</a></h4>
-<p>PKCS#12 (RFC 7292) under PBES2 and PBMAC1 (RFC 9579) only. <code>inspect</code> needs no password; the others read it from <code>--password-file</code>, <code>--password-stdin</code> or <code>PKINATIVE_PASSWORD</code>. The legacy RC2 and 3DES ciphers and the RFC 7292 Appendix B MAC are refused by doctrine (<code>E_SECURITY</code>, with the two-step OpenSSL conversion as <code>remedy</code>). No report ever contains a key byte.</p>
+<p>PKCS#12 (RFC 7292) under PBES2 and PBMAC1 (RFC 9579) only. <code>inspect</code> needs no password; the others read it from <code>--password-file</code>, <code>--password-stdin</code> or <code>PKINATIVE_PASSWORD</code>. The legacy RC2 and 3DES ciphers are refused by doctrine (<code>E_SECURITY</code>, with the two-step OpenSSL conversion as <code>remedy</code>). A MAC keyed with the RFC 7292 Appendix B KDF is never checked: <code>verify-mac</code> refuses it (<code>E_SECURITY</code>, <code>PKI_KEY_MAC_UNSUPPORTED</code>), and <code>open</code> reports it as unverified integrity (<code>E_VERIFY_FAILED</code>) unless <code>--allow-unverified-integrity</code> is given. No report ever contains a key byte.</p>
 <pre><code class="language-bash">pkinative p12 inspect [&lt;file&gt;]
 pkinative p12 verify-mac [&lt;file&gt;]
 pkinative p12 bags [&lt;file&gt;]
@@ -1649,7 +1649,7 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 </tr>
 <tr>
 <td><code>open</code></td>
-<td><code>--input</code>, <code>-i</code>; <code>--password-file</code>; <code>--password-stdin</code>; <code>--allow-unverified-integrity</code> (accept a file whose MAC cannot be checked); <code>--rsa-scheme pkcs1|pss</code> (import an RSA key for this scheme); <code>--hash SHA-256|SHA-384|SHA-512</code> (the RSA key&#39;s digest, default <code>SHA-256</code>); <code>--certs-out &lt;file&gt;</code> (write the certificates and CRLs as PEM, only from a file that opened); <code>--format</code>, <code>-f</code>. Exit 1 unless everything opened (<code>E_PASSWORD</code> on a MAC mismatch)</td>
+<td><code>--input</code>, <code>-i</code>; <code>--password-file</code>; <code>--password-stdin</code>; <code>--allow-unverified-integrity</code> (accept a file whose MAC cannot be checked); <code>--rsa-scheme pkcs1|pss</code> (import an RSA key for this scheme); <code>--hash SHA-256|SHA-384|SHA-512</code> (the RSA key&#39;s digest, default <code>SHA-256</code>); <code>--certs-out &lt;file&gt;</code> (write the certificates and CRLs as PEM, only from a file that opened); <code>--format</code>, <code>-f</code>. Exit 0 only when everything opened; otherwise exit 1 — <code>E_PASSWORD</code> on a MAC mismatch, <code>E_VERIFY_FAILED</code> when the MAC cannot be checked, <code>E_SECURITY</code> for a legacy cipher — except an RSA key without <code>--rsa-scheme</code>: <code>E_USAGE</code>, exit 2</td>
 </tr>
 </tbody></table>
 <h3 id="meta">Meta <a class="heading-anchor" href="#meta" aria-label="Link to this section">#</a></h3>
@@ -1805,7 +1805,7 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 </tr>
 <tr>
 <td><code>NO_COLOR</code> / <code>FORCE_COLOR</code> / <code>TERM=dumb</code></td>
-<td>Colour of the stderr text</td>
+<td>Colour of the text report, which is otherwise on when stdout is a terminal (<code>--no-color</code> also turns it off)</td>
 </tr>
 </tbody></table>
 <p>The recommended loop for an agent: run <code>pkinative doctor --json</code> once per environment; run the command with <code>--json</code> (and <code>--summary</code> when only the verdict matters); on exit 1 read <code>error.code</code>, then <code>error.pkiCode</code> and <code>error.reasons</code>, and apply <code>error.remedy</code> only when the input is trusted and the policy allows it; on exit 2 fix the invocation and never retry it unchanged.</p>
@@ -1814,8 +1814,8 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 <li><strong>Offline, always.</strong> No module of the CLI opens a socket or makes a request; <code>node:net</code> is imported only to classify an IP address. It never fetches a CRL, an OCSP response, a timestamp, an intermediate or an AIA URL: revocation evidence and timestamps are files you supply, and <code>ocsp request</code> and <code>tsp request</code> write the requests you send yourself. There is no SSRF surface and no verdict that changes with the network.</li>
 <li><strong>No key generation, no key export.</strong> Bring keys from your HSM, KMS or <code>openssl genpkey</code>; the CLI imports them into non-extractable Web Crypto keys. There is no PKCS#8 or PKCS#12 writer, and <code>key</code> and <code>p12</code> reports are allow-list views that never contain a key byte.</li>
 <li><strong>No secret on argv.</strong> <code>--password</code>, <code>--pass</code>, <code>--passin</code> and <code>--key-password</code> are refused (exit 2) before any command runs, because argv is readable by other users and lands in shell history. The sources are <code>--password-file &lt;file&gt;</code> (first line), <code>--password-stdin</code> and <code>PKINATIVE_PASSWORD</code>; a password is never written to stdout, stderr or an envelope, and an argument mistakenly typed after <code>--password-stdin</code> is never echoed.</li>
-<li><strong>Doctrine kept, never relaxed by configuration.</strong> No SHA-1 signature made or accepted without <code>--allow-sha1</code>; no RC2 or 3DES PKCS#12 and no RFC 7292 Appendix B MAC (<code>E_SECURITY</code>, and no flag lifts it); no default RSA signature scheme (<code>--rsa-scheme</code> is required). A created certificate, request or SignedData is verified before it is written.</li>
-<li><strong>Every read is bounded.</strong> PKI inputs by <code>--max-input-bytes</code> before the file is read, stdin as it streams; content and JSON specs by <code>--max-content-size</code>; JSON specs are depth-bounded by <code>maxDepth</code>. Unknown flags are refused, so a misspelt security flag is an error rather than a silent no-op.</li>
+<li><strong>Doctrine kept, never relaxed by configuration.</strong> No SHA-1 signature made or accepted without <code>--allow-sha1</code>; no RC2 or 3DES PKCS#12 (<code>E_SECURITY</code>, and no flag lifts it); an RFC 7292 Appendix B MAC is never checked, and <code>p12 open</code> accepts such a file only under <code>--allow-unverified-integrity</code>, a decision about its origin; no default RSA signature scheme (<code>--rsa-scheme</code> is required). A created certificate, request or SignedData is verified before it is written.</li>
+<li><strong>Every read is bounded.</strong> PKI inputs by <code>--max-input-bytes</code> before the file is read, stdin as it streams; content and JSON specs by <code>--max-content-size</code>; the <code>asn1 encode</code> spec is depth-bounded by <code>maxDepth</code> (<code>--max-depth</code>). Unknown flags are refused, so a misspelt security flag is an error rather than a silent no-op.</li>
 <li><strong>Writes are exclusive or atomic.</strong> Without <code>--overwrite</code>, an existing output path — a dangling symlink included — is refused (<code>E_IO</code>); with it, the bytes go to a temporary file in the same directory and a rename replaces the target, never following a link. A file being written when SIGINT or SIGTERM arrives is removed.</li>
 </ul>
 <p>The CLI repository&#39;s <code>SECURITY.md</code> and threat model hold the full posture; the <a href="security.html">security guide</a> covers the engine underneath.</p>
@@ -1856,8 +1856,8 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
 <td>Use OpenSSL; the CLI opens and verifies them</td>
 </tr>
 <tr>
-<td>Legacy PKCS#12 (RC2, 3DES, the RFC 7292 Appendix B MAC) and PBES1 keys</td>
-<td>Refused by doctrine; the <code>remedy</code> gives the one-time OpenSSL conversion</td>
+<td>Legacy PKCS#12 ciphers (RC2, 3DES) and PBES1 keys; checking an RFC 7292 Appendix B MAC</td>
+<td>Refused by doctrine; the <code>remedy</code> gives the one-time OpenSSL conversion (a file with an Appendix B MAC opens, unverified, under <code>--allow-unverified-integrity</code>)</td>
 </tr>
 <tr>
 <td>An RSA signature without a named scheme</td>
@@ -1885,10 +1885,10 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
 <p>pkinative-cli follows Semantic Versioning, and its agent contract is stable across 1.x: the commands and their flags, the exit codes, the 13 <code>E_*</code> classes and the <code>PKI_*</code> → <code>E_*</code> mapping, the envelope fields, the <code>schema</code> subjects and the configuration keys; fields are only ever added. pkinative-cli 1.0.0, released on 2026-10-08, pins pkinative ^1.0.0; security fixes land on the latest 1.x minor, for as long as the engine&#39;s 1.x line is supported.</p>
 <h2 id="further-reading">Further reading <a class="heading-anchor" href="#further-reading" aria-label="Link to this section">#</a></h2>
 <ul>
-<li><a href="../playgrounds/cli.html">CLI playground</a> — assemble a command line and copy it.</li>
+<li><a href="../playgrounds/cli.html">CLI command builder</a> — assemble a command line, checked against the CLI&#39;s refusals, and copy it.</li>
 <li><a href="use-cases-cli.html">CLI use cases</a> — a CI chain gate, offline revocation, a signed and timestamped release, a PKCS#12 audit.</li>
 <li><a href="mcp.html">MCP guide</a> — the same engine for AI assistants.</li>
-<li><a href="choose.html">Choosing a PKI library</a> — library, CLI or MCP server, per capability.</li>
+<li><a href="choose.html#choosing-your-surface">Choosing a library and a surface</a> — library, CLI or MCP server, per capability.</li>
 <li><a href="errors.html">Errors, diagnostics and reasons</a> · <a href="security.html">Security model</a> · <a href="conformance.html">Conformance</a>.</li>
 <li>The CLI&#39;s <a href="https://github.com/Nizoka/pkinative-cli/blob/main/README.md" target="_blank" rel="noopener">README</a>, its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a> and its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt" target="_blank" rel="noopener">llms.txt</a>.</li>
 </ul>

@@ -64,7 +64,7 @@ pkinative is the engine; two published satellites, each its own repository and n
 
 Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). Versions below 1.0.0 are git tags only — source snapshots of each milestone, never released on GitHub or npm. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
+> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
 
 pkinative reads certificates and verifies them the whole way: signatures, RFC 5280 §6 paths, CRL and OCSP revocation, host names and key purposes. It reads, builds and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files into non-extractable Web Crypto keys, and creates certificates and certification requests — with Web Crypto doing every signature.
 
@@ -214,7 +214,7 @@ No runtime dependency. No TypeScript implementation of signing, key generation o
 | [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
 | [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
 
-Both satellites pin `pkinative ^1.0.0` in their `dependencies`, vendor its registries at the tag, and add no cryptography: the engine stays dependency-free by exiling the shell and the protocol to separate repositories — the pdfnative ecosystem pattern. [docs/guides/choose.md](docs/guides/choose.md#choosing-your-surface) says which surface fits which job; versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`. The [playgrounds](https://pkinative.dev/playgrounds/) run the library in a browser tab and build CLI command lines and MCP tool calls.
+Both satellites pin `pkinative ^1.0.0` in their `dependencies`, vendor its registries at the tag, and implement no cryptography of their own — beyond the engine, they call `node:crypto` only for random serials and nonces, the public key of a plain PKCS#8 signer and, in the MCP server, SHA-256 cache keys and a constant-time token check. The engine stays dependency-free by exiling the shell and the protocol to separate repositories — the pdfnative ecosystem pattern. [docs/guides/choose.md](docs/guides/choose.md#choosing-your-surface) says which surface fits which job; versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`. The [playgrounds](https://pkinative.dev/playgrounds/) run the library in a browser tab and build CLI command lines and MCP tool calls.
 
 The *native* family:
 
@@ -398,7 +398,7 @@ Error code unions are in the [errors guide](errors.md).
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.
-- [Choosing a library](choose.md) — when pkinative is the right tool, and when another one is.
+- [Choosing a library and a surface](choose.md) — when pkinative is the right tool, when another one is, and whether to call it as a library, a CLI or an MCP server.
 
 ---
 <!-- source: docs/guides/use-cases.md -->
@@ -1087,7 +1087,7 @@ How well the path validator actually agrees with the world is measured rather th
 
 > **pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable `--json` contract for scripts, CI and AI agents.** It pins pkinative ^1.0.0, its only runtime dependency.
 
-[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every export of pkinative 1.0.0, and a test in the CLI repository proves it.
+[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the `PkiError` family, 6 constants), and a test in the CLI repository proves it.
 
 | Command | Subcommands | Engine API behind it |
 |---|---|---|
@@ -1203,7 +1203,7 @@ Command-specific success fields — `valid`, `pathLength`, `signaturesChecked`, 
 
 **JSON reports use pkinative's wire form:** `bigint` becomes a decimal string, `Uint8Array` lowercase hex, `epochMilliseconds` stays a number, absent optional members are omitted and member names are unchanged. The CLI adds nothing to an engine result except where it is a CLI view: `key` and `p12` reports are allow-list views that never carry key bytes, and command-level wrappers (`{ blocks }`, `{ oids }`, `{ valid, reasons }`) are documented per command.
 
-**Token economy.** `--summary` prints the command's minimal JSON shape (codes instead of full reasons, names instead of objects); `--fields a,b.c` keeps only these dot-paths, a segment on an array mapping over it and an unknown path being omitted; `--pretty` indents; `--quiet` silences text notes and diagnostics on stderr, while the envelope still carries the diagnostics.
+**Token economy.** `--summary` prints the command's minimal JSON shape (codes instead of full reasons, names instead of objects); `--fields a,b.c` keeps only these dot-paths, a segment on an array mapping over it; an unknown path is omitted, except under an array, where each element it matches nothing in becomes `null`; `--pretty` indents; `--quiet` silences text notes and diagnostics on stderr, while the envelope still carries the diagnostics.
 
 **Inputs.** A PKI input is a path, `-` for stdin, or stdin when the path is absent — refused on an interactive terminal. It is PEM when its first non-blank bytes are `-----BEGIN `, DER otherwise. Where one object is expected, a PEM file with several matching blocks is refused (`E_INPUT`) rather than reduced to its first block; `pem decode --index` extracts one. The repeatable inputs (`--trust`, `--untrusted`, `--chain`, `--crl`, `--ocsp`) accept PEM bundles. Time is `--at <ISO 8601 | epoch ms | now>`, UTC unless zoned: pin it for reproducible verdicts.
 
@@ -1236,7 +1236,7 @@ pkinative schema summary cert inspect
 
 ### Refused combinations
 
-Usage errors are `E_USAGE`, exit 2, and they are detected before anything is written. Beyond an unknown flag, a malformed value or a missing required flag, the CLI refuses:
+Usage errors are `E_USAGE`, exit 2, and they are detected before anything is written — save the one only the input can reveal, `p12 open` on an RSA key without `--rsa-scheme` (below). Beyond an unknown flag, a malformed value or a missing required flag, the CLI refuses:
 
 | Where | Refused |
 |---|---|
@@ -1253,7 +1253,7 @@ Usage errors are `E_USAGE`, exit 2, and they are detected before anything is wri
 | `ocsp` | `request` or `cert-id` without `--issuer`; a nonce outside 1–32 octets (RFC 8954), also for `chain verify --ocsp-nonce`; `check` without `--cert` and `--issuer` |
 | `cms` | `sign` without `--content` or `--content-digest`, with both, or with `--content-digest` but no `--detached`; `sign` without a signer certificate (`--cert`, or a `--p12` that holds it); `verify` without `--trust`; `verify-signer` without `--cert`; `add-attribute` without `--attribute`; `add-timestamp` without `--token` |
 | `tsp` | `request` with both, or neither, of `--data` and `--digest`; `verify` with both, or neither, of `--token` and `--response`, without `--trust`, or without what was stamped (`--request`, `--data` or `--digest`) |
-| `p12` | `verify-mac`, `bags` or `open` without a password. (`open` on an RSA key without `--rsa-scheme` is not a usage error: the report carries `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`, the key stays unimported, and the exit code is 1) |
+| `p12` | `verify-mac`, `bags` or `open` without a password; `open` on an RSA key without `--rsa-scheme` — only the file can reveal it, so the report (`PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`, the key not imported) is printed first, then `E_USAGE` exits 2 with the remedy `--rsa-scheme pkcs1\|pss`, and no `--certs-out` is written |
 | `explain` | neither a code nor `--list` |
 | `schema` | an unknown subject; an argument after a subject other than `report` and `summary`; `report` or `summary` without a known invocation |
 | `completion` | no shell, or a shell other than `bash`, `zsh`, `fish`, `powershell` (`pwsh` is accepted for PowerShell) |
@@ -1551,7 +1551,7 @@ pkinative chain validate --path <leaf> --path <ca>... --trust <roots>
 | `--require-explicit-policy`, `--inhibit-policy-mapping`, `--inhibit-any-policy` | ✓ | ✓ | ✓ | RFC 5280 §6.1.1 policy inputs |
 | `--host <name>` / `--ip <address>` | ✓ | | | The DNS name or IP address the leaf must hold |
 | `--crl <file>` *(repeatable)* | ✓ | | | CRLs, PEM bundle or DER |
-| `--ocsp <file>` *(repeatable)* | ✓ | | | OCSP responses, DER |
+| `--ocsp <file>` *(repeatable)* | ✓ | | | OCSP responses, DER or PEM (a PEM bundle is accepted) |
 | `--ocsp-nonce <hex>` | ✓ | | | The nonce the OCSP request carried (1–32 octets) |
 | `--require-ocsp-nonce` | ✓ | | | Refuse an OCSP response without that nonce |
 | `--require-revocation` | ✓ | | | Fail when a certificate's status is unknown |
@@ -1594,7 +1594,7 @@ pkinative ocsp check [<response>] --cert <file> --issuer <ca> [--responder <cert
 |---|---|
 | `request` | `--cert <file>` (or the operand); `--issuer <file>` (required); `--hash SHA-1\|SHA-256` (CertID hash, default `SHA-1`, as responders expect); `--nonce <hex>\|random` (an RFC 8954 nonce of 1 to 32 octets, printed in the status); `--output`, `-o <file>`; `--encoding pem\|der\|hex` (default `der`); `--label <LABEL>` |
 | `cert-id` | `--cert <file>` (or the operand); `--issuer <file>`; `--hash SHA-1\|SHA-256`; `--output`, `-o`; `--encoding` (default `hex`); `--label` |
-| `inspect` | `--input`, `-i <file>` (the response, DER; default the operand); `--format`, `-f text\|json` |
+| `inspect` | `--input`, `-i <file>` (the response, DER or PEM; default the operand); `--format`, `-f text\|json` |
 | `verify-signature` | `--input`, `-i`; `--responder <file>` (default: the certificates the response embeds); `--format`, `-f`. Exit 1 (`E_VERIFY_FAILED`) when no responder certificate verifies it |
 | `check` | `--input`, `-i`; `--cert <file>`, `--issuer <file>` (both required); `--responder <file>` (default: the embedded certificates, then the issuer); `--responder-trusted` (trust the responder out of band; otherwise it must be the CA or a delegate the CA issued with OCSPSigning, RFC 6960 §4.2.2.2); `--hash SHA-1\|SHA-256` (default: the response's own); `--nonce <hex>`; `--require-nonce`; `--at <instant>`; `--stale-tolerance <ms>`; `--future-tolerance <ms>` (accept a thisUpdate this far ahead, default 60000); `--format`, `-f` |
 
@@ -1693,7 +1693,7 @@ pkinative key check [<file>] [--key-type <type>] [--rsa-scheme pkcs1|pss]
 
 #### `pkinative p12`
 
-PKCS#12 (RFC 7292) under PBES2 and PBMAC1 (RFC 9579) only. `inspect` needs no password; the others read it from `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`. The legacy RC2 and 3DES ciphers and the RFC 7292 Appendix B MAC are refused by doctrine (`E_SECURITY`, with the two-step OpenSSL conversion as `remedy`). No report ever contains a key byte.
+PKCS#12 (RFC 7292) under PBES2 and PBMAC1 (RFC 9579) only. `inspect` needs no password; the others read it from `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`. The legacy RC2 and 3DES ciphers are refused by doctrine (`E_SECURITY`, with the two-step OpenSSL conversion as `remedy`). A MAC keyed with the RFC 7292 Appendix B KDF is never checked: `verify-mac` refuses it (`E_SECURITY`, `PKI_KEY_MAC_UNSUPPORTED`), and `open` reports it as unverified integrity (`E_VERIFY_FAILED`) unless `--allow-unverified-integrity` is given. No report ever contains a key byte.
 
 ```bash
 pkinative p12 inspect [<file>]
@@ -1707,7 +1707,7 @@ pkinative p12 open [<file>] [--certs-out <bundle.pem>] [--rsa-scheme pkcs1|pss]
 | `inspect` | `--input`, `-i <file>` (default the operand); `--format`, `-f text\|json` |
 | `verify-mac` | `--input`, `-i`; `--password-file <file>`; `--password-stdin`; `--format`, `-f`. Exit 1: `E_PASSWORD` when the MAC does not match (a wrong password or an altered file), `E_VERIFY_FAILED` when the file carries no MAC |
 | `bags` | `--input`, `-i`; `--password-file`; `--password-stdin`; `--format`, `-f`. Lists every bag, decrypting the encrypted contents |
-| `open` | `--input`, `-i`; `--password-file`; `--password-stdin`; `--allow-unverified-integrity` (accept a file whose MAC cannot be checked); `--rsa-scheme pkcs1\|pss` (import an RSA key for this scheme); `--hash SHA-256\|SHA-384\|SHA-512` (the RSA key's digest, default `SHA-256`); `--certs-out <file>` (write the certificates and CRLs as PEM, only from a file that opened); `--format`, `-f`. Exit 1 unless everything opened (`E_PASSWORD` on a MAC mismatch) |
+| `open` | `--input`, `-i`; `--password-file`; `--password-stdin`; `--allow-unverified-integrity` (accept a file whose MAC cannot be checked); `--rsa-scheme pkcs1\|pss` (import an RSA key for this scheme); `--hash SHA-256\|SHA-384\|SHA-512` (the RSA key's digest, default `SHA-256`); `--certs-out <file>` (write the certificates and CRLs as PEM, only from a file that opened); `--format`, `-f`. Exit 0 only when everything opened; otherwise exit 1 — `E_PASSWORD` on a MAC mismatch, `E_VERIFY_FAILED` when the MAC cannot be checked, `E_SECURITY` for a legacy cipher — except an RSA key without `--rsa-scheme`: `E_USAGE`, exit 2 |
 
 ### Meta
 
@@ -1768,7 +1768,7 @@ A top-level key applies to every command; a key naming a command (`"cert"`) or a
 | `PKINATIVE_QUIET=1` | Same as `--quiet` |
 | `PKINATIVE_PASSWORD` | The third password source, beside `--password-file` and `--password-stdin`; giving two sources is `E_USAGE` |
 | `PKINATIVE_DEBUG=1` | Adds the stack trace of a failure to stderr |
-| `NO_COLOR` / `FORCE_COLOR` / `TERM=dumb` | Colour of the stderr text |
+| `NO_COLOR` / `FORCE_COLOR` / `TERM=dumb` | Colour of the text report, which is otherwise on when stdout is a terminal (`--no-color` also turns it off) |
 
 The recommended loop for an agent: run `pkinative doctor --json` once per environment; run the command with `--json` (and `--summary` when only the verdict matters); on exit 1 read `error.code`, then `error.pkiCode` and `error.reasons`, and apply `error.remedy` only when the input is trusted and the policy allows it; on exit 2 fix the invocation and never retry it unchanged.
 
@@ -1777,8 +1777,8 @@ The recommended loop for an agent: run `pkinative doctor --json` once per enviro
 - **Offline, always.** No module of the CLI opens a socket or makes a request; `node:net` is imported only to classify an IP address. It never fetches a CRL, an OCSP response, a timestamp, an intermediate or an AIA URL: revocation evidence and timestamps are files you supply, and `ocsp request` and `tsp request` write the requests you send yourself. There is no SSRF surface and no verdict that changes with the network.
 - **No key generation, no key export.** Bring keys from your HSM, KMS or `openssl genpkey`; the CLI imports them into non-extractable Web Crypto keys. There is no PKCS#8 or PKCS#12 writer, and `key` and `p12` reports are allow-list views that never contain a key byte.
 - **No secret on argv.** `--password`, `--pass`, `--passin` and `--key-password` are refused (exit 2) before any command runs, because argv is readable by other users and lands in shell history. The sources are `--password-file <file>` (first line), `--password-stdin` and `PKINATIVE_PASSWORD`; a password is never written to stdout, stderr or an envelope, and an argument mistakenly typed after `--password-stdin` is never echoed.
-- **Doctrine kept, never relaxed by configuration.** No SHA-1 signature made or accepted without `--allow-sha1`; no RC2 or 3DES PKCS#12 and no RFC 7292 Appendix B MAC (`E_SECURITY`, and no flag lifts it); no default RSA signature scheme (`--rsa-scheme` is required). A created certificate, request or SignedData is verified before it is written.
-- **Every read is bounded.** PKI inputs by `--max-input-bytes` before the file is read, stdin as it streams; content and JSON specs by `--max-content-size`; JSON specs are depth-bounded by `maxDepth`. Unknown flags are refused, so a misspelt security flag is an error rather than a silent no-op.
+- **Doctrine kept, never relaxed by configuration.** No SHA-1 signature made or accepted without `--allow-sha1`; no RC2 or 3DES PKCS#12 (`E_SECURITY`, and no flag lifts it); an RFC 7292 Appendix B MAC is never checked, and `p12 open` accepts such a file only under `--allow-unverified-integrity`, a decision about its origin; no default RSA signature scheme (`--rsa-scheme` is required). A created certificate, request or SignedData is verified before it is written.
+- **Every read is bounded.** PKI inputs by `--max-input-bytes` before the file is read, stdin as it streams; content and JSON specs by `--max-content-size`; the `asn1 encode` spec is depth-bounded by `maxDepth` (`--max-depth`). Unknown flags are refused, so a misspelt security flag is an error rather than a silent no-op.
 - **Writes are exclusive or atomic.** Without `--overwrite`, an existing output path — a dangling symlink included — is refused (`E_IO`); with it, the bytes go to a temporary file in the same directory and a rename replaces the target, never following a link. A file being written when SIGINT or SIGTERM arrives is removed.
 
 The CLI repository's `SECURITY.md` and threat model hold the full posture; the [security guide](security.md) covers the engine underneath.
@@ -1813,7 +1813,7 @@ The CLI computes no verdict of its own, so the engine's conformance — x509-lim
 | Network access | None, in any mode: you fetch CRLs, OCSP responses, timestamps and intermediates |
 | Key generation, key export | Bring keys from an HSM, a KMS or `openssl genpkey` |
 | Writing a PKCS#8 or PKCS#12 | Use OpenSSL; the CLI opens and verifies them |
-| Legacy PKCS#12 (RC2, 3DES, the RFC 7292 Appendix B MAC) and PBES1 keys | Refused by doctrine; the `remedy` gives the one-time OpenSSL conversion |
+| Legacy PKCS#12 ciphers (RC2, 3DES) and PBES1 keys; checking an RFC 7292 Appendix B MAC | Refused by doctrine; the `remedy` gives the one-time OpenSSL conversion (a file with an Appendix B MAC opens, unverified, under `--allow-unverified-integrity`) |
 | An RSA signature without a named scheme | `--rsa-scheme pkcs1\|pss` is required |
 | SHA-1 signatures by default | `--allow-sha1`, for legacy material you already trust |
 | A password on the command line | `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD` |
@@ -1828,10 +1828,10 @@ pkinative-cli follows Semantic Versioning, and its agent contract is stable acro
 
 ## Further reading
 
-- [CLI playground](../playgrounds/cli.html) — assemble a command line and copy it.
+- [CLI command builder](../playgrounds/cli.html) — assemble a command line, checked against the CLI's refusals, and copy it.
 - [CLI use cases](use-cases-cli.md) — a CI chain gate, offline revocation, a signed and timestamped release, a PKCS#12 audit.
 - [MCP guide](mcp.md) — the same engine for AI assistants.
-- [Choosing a PKI library](choose.md) — library, CLI or MCP server, per capability.
+- [Choosing a library and a surface](choose.md#choosing-your-surface) — library, CLI or MCP server, per capability.
 - [Errors, diagnostics and reasons](errors.md) · [Security model](security.md) · [Conformance](conformance.md).
 - The CLI's [README](https://github.com/Nizoka/pkinative-cli/blob/main/README.md), its [agent contract](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md) and its [llms.txt](https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt).
 
@@ -1872,10 +1872,10 @@ Add `--json --summary` and the first sample's verdict is two lines, stdout then 
 {"ok":true,"command":"chain verify","valid":true,"pathLength":3,"signaturesChecked":true,"diagnostics":[]}
 ```
 
-**Expiry is a question of `--at`.** The verdict is computed at the instant `--at` names — ISO 8601, epoch milliseconds or `now` — so an expiry gate is the same command asked about the future. Moving the first sample's `--at` past the leaf's `notAfter` (2046-01-01) gives exit 1, `E_VERIFY_FAILED`, and one `PKI_REASON_EXPIRED` per certificate of the path:
+**Expiry is a question of `--at`.** The verdict is computed at the instant `--at` names — ISO 8601, epoch milliseconds or `now` — so an expiry gate is the same command asked about the future. Moving the first sample's `--at` past the leaf's `notAfter` (2046-01-01) gives exit 1, `E_VERIFY_FAILED`, one `PKI_REASON_EXPIRED` per certificate of the path, and two `PKI_REASON_REVOCATION_UNKNOWN` on the OCSP response, whose delegated responder certificate has expired too:
 
 ```json
-{"valid":false,"reasons":["PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_EXPIRED"],"path":["CN=example.test,O=pkinative-cli test,C=FR","CN=Test Intermediate CA,O=pkinative-cli test,C=FR","CN=Test Root CA,O=pkinative-cli test,C=FR"],"explored":3,"signatureVerifications":2}
+{"valid":false,"reasons":["PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_EXPIRED","PKI_REASON_REVOCATION_UNKNOWN","PKI_REASON_REVOCATION_UNKNOWN"],"path":["CN=example.test,O=pkinative-cli test,C=FR","CN=Test Intermediate CA,O=pkinative-cli test,C=FR","CN=Test Root CA,O=pkinative-cli test,C=FR"],"explored":3,"signatureVerifications":2}
 ```
 
 A CI step built on those pieces — verify the chain as it will stand 30 days from now, and fail with the reason codes when it does not (GNU `date` and `jq` assumed on the runner):
@@ -2069,7 +2069,7 @@ A wrong password is `E_PASSWORD` [1]; a password on argv is `E_USAGE` [2]. A leg
 
 > **pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever.** It pins pkinative ^1.0.0.
 
-[pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) exposes the engine to any client that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, ChatGPT over Streamable HTTP, the MCP Inspector, or anything built on the MCP SDKs. With it installed an assistant can be asked *"Is this server certificate trustworthy for this host today, given the CRL I fetched?"* and answer by calling `verify_certificate_chain`, reasoning on a typed verdict instead of prose.
+[pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) exposes the engine to any client that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP. With it installed an assistant can be asked *"Is this server certificate trustworthy for this host today, given the CRL I fetched?"* and answer by calling `verify_certificate_chain`, reasoning on a typed verdict instead of prose.
 
 All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of pkinative 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
 
@@ -2119,11 +2119,13 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "pkinative-mcp"],
-      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "${CLAUDE_PROJECT_DIR}/.mcp-pki" }
+      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "/absolute/path/to/your/project/.mcp-pki" }
     }
   }
 }
 ```
+
+The value must be absolute: Claude Code does not expand `${CLAUDE_PROJECT_DIR}` here (it sets that variable only in the server's environment), and the server refuses a relative path.
 
 ### Cursor · Continue · Zed · Windsurf · Cline · Roo Code
 
@@ -2160,7 +2162,7 @@ Windsurf, Cline and Roo Code use the same shape inside their own MCP configurati
 }
 ```
 
-### Streamable HTTP (ChatGPT and other HTTP hosts)
+### Streamable HTTP (local HTTP clients)
 
 ```bash
 PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINATIVE_MCP_OUTPUT_DIR=/srv/pki npx -y pkinative-mcp
@@ -2168,7 +2170,9 @@ PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINA
 # every request: POST /mcp with Authorization: Bearer <token>
 ```
 
-The endpoint binds `127.0.0.1` only and accepts `POST /mcp`; `GET` and `DELETE` answer 405 (the server is stateless, with no SSE resumability), a foreign `Host` or `Origin` answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. **Without `PKINATIVE_MCP_HTTP_TOKEN` the endpoint has no authentication**, and other local processes can reach it; with the token, a missing or wrong bearer answers 401 with `WWW-Authenticate: Bearer realm="pkinative-mcp"`.
+The endpoint binds `127.0.0.1` only and accepts `POST /mcp`; `GET` and `DELETE` answer 405 (the server is stateless, with no SSE resumability), a foreign `Host` or `Origin` answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. **Without `PKINATIVE_MCP_HTTP_TOKEN` the endpoint has no authentication**, and other local processes can reach it; with the token, a missing bearer answers 401 with `WWW-Authenticate: Bearer realm="pkinative-mcp"`, a wrong one adds `error="invalid_token"`.
+
+A hosted client such as ChatGPT connects from its own infrastructure: this endpoint answers a non-loopback `Host` or `Origin` with 403, so it is not reachable from there as shipped.
 
 ## Environment variables
 
@@ -2176,7 +2180,7 @@ All nine are declared in `server.json` and read once at startup; an invalid valu
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PKINATIVE_MCP_OUTPUT_DIR` | *(unset)* | Absolute path of the one sandbox: every `path` input is read from it, `outputMode: 'file'` artefacts are written under it (exclusive create, never overwritten), and `resources/*` list and serve it. The real path of every file read and of every parent written must stay inside — a planted symlink or junction is `SECURITY_VIOLATION`. Key-bearing files (`.key .p8 .p12 .pfx`) are read by the key and signer tools only, never written, never served. Unset: inline PEM and base64 only |
+| `PKINATIVE_MCP_OUTPUT_DIR` | *(unset)* | Absolute path of the one sandbox: every `path` input is read from it, `outputMode: 'file'` artefacts are written under it (exclusive create, never overwritten), and `resources/*` list and serve it. The real path of every file read and of every parent written must stay inside — a planted symlink or junction is `SECURITY_VIOLATION`. Key-bearing files (`.key .p8 .p12 .pfx`) may be named by any `path` input — no tool returns their key bytes — but are never written, never listed and never served as resources. Unset: inline PEM and base64 only |
 | `PKINATIVE_MCP_CACHE_DIR` | *(unset)* | Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a `path` input, file output, a call carrying a `password` or a `signer`, a `'random'` serial or nonce, a `'now'` or unpinned instant, `describe_engine`, `draft_governance_issue`, nor any password-accepting tool while `PKINATIVE_MCP_PASSWORD` is set. A hit carries `_meta.cached: true` |
 | `PKINATIVE_MCP_PORT` | *(unset → stdio)* | Serve Streamable HTTP on `127.0.0.1:<port>/mcp` instead of stdio |
 | `PKINATIVE_MCP_HTTP_TOKEN` | *(unset)* | *(secret)* Opt-in bearer token for HTTP: at least 16 characters, no whitespace (a weaker value refuses to start); compared in constant time, never logged |
@@ -2186,7 +2190,7 @@ All nine are declared in `server.json` and read once at startup; an invalid valu
 | `PKINATIVE_MCP_MAX_KDF_ITERATIONS` | `10000000` | Operator ceiling for `limits.maxKdfIterations` and `limits.maxPkcs12KdfIterations`: the CPU bound of a hostile PBES2 key or PKCS#12 file; integer ≥ 1 |
 | `PKINATIVE_MCP_MAX_PATHS_EXPLORED` | `1000` | Operator ceiling for `limits.maxPathsExplored`: the RFC 5280 §6 path-building work bound; integer ≥ 1 |
 
-**The operator ceilings.** A call may raise any of the engine's 22 limits through its `limits` input, for trusted input only; three of them are capped by the ceilings above, and a value above a ceiling is refused with `LIMIT_CEILING_EXCEEDED`, `data.env` naming the variable an operator would raise. There is no "unbounded", and no ceiling a tool argument can move.
+**The operator ceilings.** A call may raise any of the engine's 22 limits through its `limits` input, for trusted input only; four of them are capped by the three ceilings above (`PKINATIVE_MCP_MAX_KDF_ITERATIONS` bounds both KDF limits), and a value above a ceiling is refused with `LIMIT_CEILING_EXCEEDED`, `data.env` naming the variable an operator would raise. There is no "unbounded", and no ceiling a tool argument can move.
 
 ## Protocol and transport
 
@@ -2195,7 +2199,7 @@ All nine are declared in `server.json` and read once at startup; an invalid valu
 - **stdio is the default transport**, with the frame cap raised to 256 MiB so a multi-MiB base64 CMS message or PKCS#12 fits in one call; stdout carries JSON-RPC frames only.
 - **Schemas.** Every tool advertises an `inputSchema` and an `outputSchema`; every object input is closed (an unknown or misspelt key at any depth is `VALIDATION_ERROR` naming the path), and input schemas carry no `$schema` keyword and no `$ref`, because some hosts forward them to function-calling APIs. Every `structuredContent` validates against the tool's `outputSchema`, projections included. Every tool carries `_meta.apiVersion` (`1.0.0`) and up to two executable `_meta.examples`.
 - **Instructions.** The `initialize` / `server/discover` response carries a server-instructions block — which tool answers which question, the security posture and the pitfalls — and the seven prompts repeat that material on demand.
-- **Protocol errors** are JSON-RPC errors: an unknown tool is `-32602` with `[UNKNOWN_TOOL] Unknown tool: …`, an unknown resource URI `-32602` carrying `UNKNOWN_RESOURCE`. `isError: true` is reserved for execution failures.
+- **Protocol errors** are JSON-RPC errors: an unknown tool is `-32602` with `[UNKNOWN_TOOL] Unknown tool: …`, an unknown resource URI `-32602` with `data.uri` (the server's `UNKNOWN_RESOURCE` code is not sent on the wire). `isError: true` is reserved for execution failures.
 
 ## Tool reference
 
@@ -2215,20 +2219,20 @@ A tool's **kind** says how its result is shaped: a *read* tool returns facts in 
 |---|---|---|
 | PKI input | `{ pem }` \| `{ derBase64 }` \| `{ path }` | Exactly one. `pem` is RFC 7468 text; `derBase64` is the DER as base64, exactly once (no `data:` URI, not PEM); `path` is relative to the sandbox, with an allow-listed extension. The label is checked before any byte is parsed (`PKI_PEM_UNEXPECTED_LABEL`); a PEM text holding several blocks where one object is expected is refused |
 | PKI bundle | 1–256 PKI inputs | `trustAnchors`, `candidates`, `crls`, `ocspResponses`, `chain`, `path`: every PEM block of every item is taken, in order |
-| Content input | `{ text }` \| `{ base64 }` \| `{ path }` | The bytes to sign, verify or timestamp: UTF-8 text, base64 (≤ 128 MiB decoded) or a sandbox file (≤ 1 GiB); content holding key material is `SECURITY_VIOLATION` |
+| Content input | `{ text }` \| `{ base64 }` \| `{ path }` | The bytes to sign, verify or timestamp: UTF-8 text, base64 (≤ 128 MiB decoded) or a sandbox file (≤ 1 GiB); a sandbox file that is key-bearing by extension or holds key material is `SECURITY_VIOLATION` (inline `text` and `base64` are taken as given) |
 | Parse options | `encodingRules`, `pemMode`, `strict`, `limits` | `'der'` (default) or `'ber'`; `'strict'` (default) or `'lax'` PEM; `strict: true` escalates the first engine warning to `PKI_STRICT_DIAGNOSTIC`; `limits` raises the engine's named bounds under the operator ceilings |
 | Signer | `{ key }` \| `{ p12 }`, plus `password`, `keyType`, `hash`, `rsaScheme`, `saltLength` | A PKCS#8 key (plain or PBES2) or a PKCS#12 (PBES2 and PBMAC1), imported as a non-extractable Web Crypto key. The algorithm follows the key; RSA requires `rsaScheme` (`'pkcs1'` \| `'pss'`); an encrypted key needs a password and a `keyType` unless a certificate or public key input names it |
-| Trust | `trustAnchors`, `candidates`, `crls`, `ocspResponses`, `at`, `requireRevocation`, `purposes`, `policy` | A verdict is relative to the anchors you name. `at` is ISO 8601 (UTC unless zoned), epoch milliseconds or `'now'`; omitted, `PKINATIVE_MCP_AT`, else the wall clock |
+| Trust | `trustAnchors`, `candidates`, `crls`, `ocspResponses`, `at`, `requireRevocation`, `purposes`, `policy` | A verdict is relative to the anchors you name. `at` is a string: ISO 8601 (UTC unless zoned), epoch milliseconds as digits, or `'now'`; omitted, `PKINATIVE_MCP_AT`, else the wall clock |
 | Projection | `verbosity`, `fields` | See [Token-frugal reads](#token-frugal-reads) |
 | Output | `outputMode`, `outputPath`, `encoding` | `'base64'` (default, inline ≤ 50 MiB) or `'file'` (a relative `outputPath` in the sandbox, never overwritten, ≤ 1 GiB); `encoding` `'pem'`, `'der'` or `'hex'` (inline only, ≤ 64 KiB, in `structuredContent.hex`) |
 
-Every result also carries `diagnostics[]` (de-duplicated by code and path, at most 200) and `diagnosticCounts`.
+Every engine tool's result also carries `diagnostics[]` (de-duplicated by code and path, at most 200) and `diagnosticCounts` (`describe_engine`, `explain_code` and `draft_governance_issue` carry none).
 
 ## Encodings
 
 ### `convert_pem`
 
-**Purpose:** the RFC 7468 layer. `mode: 'decode'` lists every block of a PEM text (label, DER size, offset, SHA-256) and `extractIndex` delivers one as DER, PEM or hex; `mode: 'encode'` wraps exactly one DER value into one strict block under `label`. **Key inputs:** `mode`, `input` (PKI input), `label`, `extractIndex`, parse options, projection, output. **Output:** `blocks[]`, `count`, `extracted`, and the artefact when a block is extracted or DER is wrapped. **Annotation:** writes a deterministic artefact (kind: read). A private-key block is listed, never extracted and never produced: key material anywhere in the input is `SECURITY_VIOLATION`; an index past the last block is `NOT_FOUND`.
+**Purpose:** the RFC 7468 layer. `mode: 'decode'` lists every block of a PEM text (label, DER size, offset, SHA-256) and `extractIndex` delivers one as DER, PEM or hex; `mode: 'encode'` wraps exactly one DER value into one strict block under `label`. **Key inputs:** `mode`, `input` (PKI input), `label`, `extractIndex`, parse options, projection, output. **Output:** `blocks[]`, `count`, `extracted`, and the artefact when a block is extracted or DER is wrapped. **Annotation:** writes a deterministic artefact (kind: read). A private-key block is listed (label, size, offset, SHA-256), never extracted and never produced: `extractIndex` on it, or `encode` of DER that holds key material or under a key label, is `SECURITY_VIOLATION`; an index past the last block is `NOT_FOUND`.
 
 ### `resolve_oid`
 
@@ -2236,7 +2240,7 @@ Every result also carries `diagnostics[]` (de-duplicated by code and path, at mo
 
 ### `compute_fingerprint`
 
-**Purpose:** the digest of one object. **Key inputs:** `input` (any label or DER; a bundle is refused), `mode` (`fingerprint` \| `key-id` \| `shake256`), `algorithm` (SHA-256 by default; SHA-1, SHA-384, SHA-512), `webcrypto`, `outputLength` (≤ 1 MiB, SHAKE256), `separator`, `letterCase`. **Output:** `hex`, `formatted`, `algorithm`, `sizeBytes`, `label`, and `from` (where a key identifier's public key came from). **Annotation:** read-only. No input byte is returned.
+**Purpose:** the digest of one object. **Key inputs:** `input` (any label or DER; a bundle is refused), `mode` (`fingerprint` \| `key-id` \| `shake256`), `algorithm` (fingerprint: SHA-256 by default, or SHA-1, SHA-384, SHA-512; key-id: SHA-1 by default — RFC 5280 method 1 — or SHA-256; refused with `shake256`), `webcrypto`, `outputLength` (≤ 1 MiB, SHAKE256), `separator`, `letterCase`. **Output:** `hex`, `formatted`, `algorithm`, `sizeBytes`, `label`, and `from` (where a key identifier's public key came from). **Annotation:** read-only. No input byte is returned.
 
 ### `decode_asn1`
 
@@ -2366,7 +2370,7 @@ Every result also carries `diagnostics[]` (de-duplicated by code and path, at mo
 
 ### `explain_code`
 
-**Purpose:** any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`). **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
+**Purpose:** any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
 
 ### `draft_governance_issue`
 
@@ -2394,7 +2398,7 @@ With `PKINATIVE_MCP_OUTPUT_DIR` set, every regular file under the sandbox is a r
 
 ## Token-frugal reads
 
-The read, verdict and engine tools accept two optional inputs:
+The read, verdict and engine tools, `explain_code` included, accept two optional inputs:
 
 - **`verbosity: 'summary'`** keeps the tool's canonical scalar subset and drops the heavy arrays. `verify_certificate_chain` then answers `{ valid, reasonCodes, pathLength, evaluatedAt, revocationEvidence, diagnosticCount }`; `inspect_certificate` answers the serial, subject and issuer strings, validity, key kind and extension kinds.
 - **`fields: ['a', 'b.c']`** projects the result to at most 16 dot-paths, applied after `verbosity`; an array segment maps over every element. A path that matched nothing is omitted and reported in `_meta.unmatchedFields`, with `_meta.availableFields`; a `__proto__`, `constructor` or `prototype` segment is `VALIDATION_ERROR`.
@@ -2427,7 +2431,7 @@ A refused call is a tool result with `isError: true`, `content[0].text` = `<tool
 | `MISSING_OUTPUT_PATH` | `outputMode: 'file'` without `outputPath` |
 | `IO_ERROR` | A filesystem operation failed; the message carries the errno, never an absolute path |
 | `LIMIT_CEILING_EXCEEDED` | A `limits.*` value above its operator ceiling (`data.env` names the variable) |
-| `UNKNOWN_RESOURCE` | `resources/read` outside `pkinative://output/`, or of a missing file — a JSON-RPC `-32602` |
+| `UNKNOWN_RESOURCE` | `resources/read` outside `pkinative://output/`, or of a missing file — surfaced as JSON-RPC `-32602` with `data: { uri }`; the code name itself is not sent |
 | `GOVERNANCE_VIOLATION` | A `draft_governance_issue` draft breaks the AI-governance contract |
 | `SECRET_REQUIRED` | An encrypted key, a PKCS#12 or a MAC check needs a password and none was given |
 | `KEY_TYPE_REQUIRED` | An encrypted PKCS#8 key whose type nothing names (`signer.keyType`, a certificate or a public key) |
@@ -2452,9 +2456,9 @@ Two real results, from the 1.0.0 server. The first `PKI_*` code is raised by the
 ## Security model
 
 - **No network, ever.** The server has no network code path: no CRL, OCSP, AIA or TSA fetch, no telemetry, no GitHub, no update check, no URL from any tool argument, no operator-configurable endpoint. `describe_engine` reports `network: 'none'` and every tool advertises `openWorldHint: false`. Revocation evidence and timestamp tokens are inputs you fetched; `create_ocsp_request` and `create_timestamp_request` produce the bytes you transport.
-- **No key byte is ever returned.** Signing keys are imported into non-extractable Web Crypto handles; every key and PKCS#12 report is an allow-list view built field by field; key-bearing files are never written and never served as resources; `convert_pem`, `decode_asn1` and `encode_asn1` refuse private-key material. There is no key generation and no key export, and the test suite proves with needles computed from the fixtures that no key byte, scalar, JWK member or password reaches a result, stderr, a cache file or the stdio transcript.
+- **No key byte is ever returned.** Signing keys are imported into non-extractable Web Crypto handles; every key and PKCS#12 report is an allow-list view built field by field; key-bearing files are never written and never served as resources; `convert_pem` never extracts or wraps private-key material, and `decode_asn1` and `encode_asn1` refuse it. There is no key generation and no key export, and the test suite proves with needles computed from the fixtures that no key byte, scalar, JWK member or password reaches a result, stderr, a cache file or the stdio transcript.
 - **Two password channels, never a third.** The per-call `password` input, or the operator's `PKINATIVE_MCP_PASSWORD` — one per call. A password is never echoed, logged, cached or served; a call carrying one is never cached.
-- **One sandbox.** `PKINATIVE_MCP_OUTPUT_DIR` is the only filesystem boundary, for reads (every `path` input, `resources/read`) and writes (`outputPath`, governance drafts): relative paths only, no traversal, NUL bytes or unlisted extensions, the real path of every file read and of every parent written inside it, exclusive creates, and a partial file removed when a write fails. Unset, no tool touches the filesystem; the opt-in response cache under `PKINATIVE_MCP_CACHE_DIR` is the only other I/O the server performs.
+- **One sandbox.** `PKINATIVE_MCP_OUTPUT_DIR` is the only filesystem boundary, for reads (every `path` input, `resources/read`) and writes (`outputPath`, governance drafts): relative paths only, no traversal, NUL bytes or unlisted extensions, the real path of every file read and of every parent written inside it, exclusive creates, and a partial file removed when a write fails. In `outputMode: 'file'` a result names the absolute path it wrote, in `structuredContent.filePath` and in its text; that is the one place a host path reaches the transcript. Unset, no tool touches the filesystem; the opt-in response cache under `PKINATIVE_MCP_CACHE_DIR` is the only other I/O the server performs.
 - **Ceilings and caps.** The engine's 22 limits apply to every call and rise only by explicit input, never above the operator ceilings; every byte and count the wrapper bounds is a constant `describe_engine.caps` advertises — 256 MiB per stdio frame or HTTP body, 128 MiB of inline PKI input per call, 50 MiB per inline artefact, 1 GiB per file output, 64 KiB per hex artefact.
 - **The engine's doctrine, surfaced.** SHA-1 only with `allowSha1: true`; RSA only with an explicit `rsaScheme`; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA and ML-DSA parsed, never verified; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. `describe_engine.refusals` lists each line with its remedy.
 
@@ -2462,10 +2466,10 @@ The server's own conformance gate has OpenSSL 3 read back every artefact it writ
 
 ## Further reading
 
-- [MCP playground](../playgrounds/mcp.html) — build a tool call and read its shape.
+- [MCP tool explorer](../playgrounds/mcp.html) — the client configuration, and each tool's `tools/call` payload with the engine call behind it run in your tab.
 - [MCP use cases](use-cases-mcp.md) — a failing TLS chain, a test certificate, offline revocation, keys opened safely.
 - [CLI guide](cli.md) — the same engine on the command line.
-- [Choosing a PKI library](choose.md#choosing-your-surface) — library, CLI or MCP server, per capability.
+- [Choosing a library and a surface](choose.md#choosing-your-surface) — library, CLI or MCP server, per capability.
 - The server's [agent contract](https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md), its [AI agent guide](https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AI_GUIDE.md), its [llms.txt](https://github.com/Nizoka/pkinative-mcp/blob/main/llms.txt) and its [README](https://github.com/Nizoka/pkinative-mcp/blob/main/README.md).
 
 ---
@@ -2533,7 +2537,7 @@ A developer needs a CA and a TLS server certificate for an integration test, fro
 { "name": "create_certificate", "arguments": { "spec": { "serialNumber": 1, "subject": { "C": "FR", "O": "Acme", "CN": "Acme Test CA" }, "notBefore": "2027-01-01T00:00:00Z", "validityDays": 3650, "extensions": { "basicConstraints": { "ca": true, "pathLen": 0 }, "keyUsage": ["keyCertSign", "cRLSign"] } }, "signer": { "key": { "path": "fixtures/ed25519.key.pem" } }, "outputMode": "file", "outputPath": "out/acme-ca.pem", "encoding": "pem" } }
 ```
 
-The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and, in `structuredContent`, the size, the SHA-256 of the DER and a summary:
+The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and, in `structuredContent`, the size, the SHA-256 of the DER, the absolute `filePath` written and a summary (`filePath` elided below):
 
 ```json
 {"encoding":"pem","sizeBytes":350,"sha256":"694fa39766a751eaaf6be471061639f5b3bdce183549d0a15272fbca5e79e0b8","mode":"file","summary":{"serialNumber":"01","randomSerial":false,"subject":"CN=Acme Test CA,O=Acme,C=FR","issuer":"CN=Acme Test CA,O=Acme,C=FR","selfSigned":true,"signatureAlgorithm":{"oid":"1.3.101.112","name":"Ed25519","hasParameters":false},"notBefore":"2027-01-01T00:00:00.000Z","notAfter":"2036-12-29T00:00:00.000Z","notBeforeSource":"input","extensions":["basicConstraints","keyUsage","subjectKeyIdentifier"],"signatureVerified":true,"publicKeyFrom":"signer"},"diagnostics":[],"diagnosticCounts":{}}
@@ -2671,7 +2675,7 @@ The key report names the scheme — `PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CB
 | The legacy file opened | `valid: false`, `integrity: "unverified"`, `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` and `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED`; `explain_code` gives the OpenSSL 3.4 conversion |
 | An RSA key without `rsaScheme` (`fixtures/rsa.p12`) | `valid: false`, `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED`; with `rsaScheme: "pkcs1"` (`examples/open-pkcs12-rsa.json`) it opens |
 
-**Passwords.** A `password` input lands in the host's transcript; `PKINATIVE_MCP_PASSWORD`, set in the server's environment by the operator, does not. Never both — that is `VALIDATION_ERROR`. A call carrying a password is never cached, and the value is never echoed, logged or served. **Limits:** key-bearing files (`.key .p8 .p12 .pfx`) in the sandbox are read by the key and signer tools only, never listed or served as resources, and nothing in the server writes one: a converted PKCS#12 comes from OpenSSL.
+**Passwords.** A `password` input lands in the host's transcript; `PKINATIVE_MCP_PASSWORD`, set in the server's environment by the operator, does not. Never both — that is `VALIDATION_ERROR`. A call carrying a password is never cached, and the value is never echoed, logged or served. **Limits:** key-bearing files (`.key .p8 .p12 .pfx`) in the sandbox may be named by any `path` input — no tool returns their key bytes — but are never written (a converted PKCS#12 comes from OpenSSL), never listed and never served as resources.
 
 ## See also
 
@@ -3242,12 +3246,12 @@ The three vocabularies are the engine's, and they travel unchanged through every
 
 | Question | Library | CLI | MCP server |
 |---|---|---|---|
-| **The coarse class** | The `PkiError` subclass thrown (`PkiEncodingError`, `PkiCertificateError`, …) | `error.code` in the `--json` envelope: one of 13 `E_*` classes, `E_USAGE` exit 2, the others exit 1 | `_meta.error.data.errorClass` (`usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`) |
+| **The coarse class** | The `PkiError` subclass thrown (`PkiEncodingError`, `PkiCertificateError`, …) | `error.code` in the `--json` envelope: one of 13 `E_*` classes, `E_USAGE` exit 2, the others exit 1 | `_meta.error.data.errorClass` on a `PKI_*` code (`usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`); the wrapper's own codes carry none |
 | **The exact cause** | `err.code`, a `PKI_*` code | `error.pkiCode`, the same code verbatim; `E_IO`, `E_NOT_FOUND` and `E_VERIFY_FAILED` are the CLI's own and carry none | `_meta.error.code` — the same `PKI_*` code verbatim, or one of the server's 21 wrapper codes (`VALIDATION_ERROR`, `SECURITY_VIOLATION`, `SECRET_REQUIRED`, …) |
 | **Structured detail** | The subclass's fields (`offset`, `path`, `limit`, `configured`, `observed`, `algorithm`) | `error.detail`, with `detail.flag` naming the `--max-*` flag of a limit | `_meta.error.data` (`path`, `offset`, `algorithm`, `limit`, `configured`, `observed`, `env`) |
 | **The remedy** | The registry's `remedy`, in the message | `error.remedy`: the CLI flag that lifts the refusal (`--ber`, `--allow-sha1`, `--max-depth <value>`) | `data.remedy`: the MCP input that lifts it (`encodingRules:'ber'`, `allowSha1:true`, `limits.<limit>`) |
 | **A negative verdict** | A report with `valid: false` and `reasons[]` — never thrown | The report on stdout **and** exit 1, the envelope's `error.code` `E_VERIFY_FAILED` or `E_CHECK_FAILED`, `error.reasons` the `PKI_REASON_*` list | `valid: false` and `reasons[]` in `structuredContent` — **never** `isError` |
-| **Diagnostics** | `onDiagnostic`, or `console.warn` | `diagnostics[]` in the envelope, one `warning PKI_DIAG_…` line each on stderr; `--strict` escalates the first warning to `E_CHECK_FAILED` with `PKI_STRICT_DIAGNOSTIC` | `diagnostics[]` and `diagnosticCounts` in every result; `strict: true` escalates to `PKI_STRICT_DIAGNOSTIC` |
+| **Diagnostics** | `onDiagnostic`, or `console.warn` | `diagnostics[]` in the envelope, one `warning PKI_DIAG_…` line each on stderr; `--strict` escalates the first warning to `E_CHECK_FAILED` with `PKI_STRICT_DIAGNOSTIC` | `diagnostics[]` and `diagnosticCounts` in every engine tool's result; `strict: true` escalates to `PKI_STRICT_DIAGNOSTIC` |
 | **Explain a code** | `docs/data/errors.json`, `reasons.json`, `diagnostics.json` and this guide | `pkinative explain <code>`, and `pkinative explain --list` | The `explain_code` tool, with `list: true` |
 
 One failure, three surfaces — a private key passed where a certificate is expected. The library's `decodePem` with `{ label: 'CERTIFICATE' }` throws a `PkiEncodingError` whose `code` is `PKI_PEM_UNEXPECTED_LABEL`; the CLI's envelope and the server's tool result (its `content` text omitted) carry the same code — output of pkinative-cli 1.0.0 and pkinative-mcp 1.0.0:
@@ -3262,7 +3266,7 @@ Branch on the code, on every surface: the class says which kind of failure it is
 ---
 <!-- source: docs/guides/choose.md -->
 
-# Choosing a PKI library
+# Choosing a library and a surface
 
 > **Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.**
 
@@ -3276,7 +3280,7 @@ Branch on the code, on every surface: the class says which kind of failure it is
 
 Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
-`docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
+`docs/data/surfaces.json` lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.
 
 ## What it does not do, by design
 
@@ -3322,7 +3326,7 @@ pkinative reaches you three ways, and all three run the same engine: a verdict, 
 |---|---|---|
 | **The library**, `npm install pkinative` | Applications and services on any runtime with Web Crypto — Node.js, Deno, Bun, browsers, edge workers | The bytes live in memory, you want the whole typed API, or the key sits in an HSM or a remote service behind an `ExternalSigner` — which only the library takes. You own the I/O: the engine reads no file and opens no socket |
 | **[pkinative-cli](cli.md)**, the `pkinative` binary | Shell scripts, CI jobs, operators, and programs in any language that can run a process | Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, `--dry-run` and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv |
-| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, ChatGPT over Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22 or later |
+| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor) |
 
 The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
 
@@ -3331,7 +3335,7 @@ Every capability `docs/data/surfaces.json` lists, by surface:
 | Capability | Library | CLI | MCP |
 |---|---|---|---|
 | `errors` — typed errors with stable codes | `PkiError` and its subclasses | every command: `error.pkiCode` in the `--json` envelope; `explain` | every tool: `_meta.error.code`; `explain_code` |
-| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 `--max-*` flags; `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
+| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 engine-limit `--max-*` flags (plus the CLI's `--max-content-size`); `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
 | `asn1-decode` | `decodeAsn1`, `decodeAsn1Sequence` | `asn1 decode` (`--sequence`) | `decode_asn1` (`sequence`) |
 | `asn1-read` | `readInteger`, `readTime` and the other typed readers | `asn1 decode --path … --read …` | `decode_asn1` (`nodePath`, `read`) |
 | `asn1-encode` | `encodeSequence`, `encodeAsn1Node` and the other encoders | `asn1 encode`; `asn1 decode --reencode` | `encode_asn1`; `decode_asn1` (`reencode`) |

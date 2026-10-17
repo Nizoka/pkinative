@@ -350,7 +350,7 @@
 <td><strong>The coarse class</strong></td>
 <td>The <code>PkiError</code> subclass thrown (<code>PkiEncodingError</code>, <code>PkiCertificateError</code>, …)</td>
 <td><code>error.code</code> in the <code>--json</code> envelope: one of 13 <code>E_*</code> classes, <code>E_USAGE</code> exit 2, the others exit 1</td>
-<td><code>_meta.error.data.errorClass</code> (<code>usage</code>, <code>input</code>, <code>parse</code>, <code>security</code>, <code>limit</code>, <code>unsupported</code>, <code>crypto</code>, <code>password</code>, <code>check</code>, <code>internal</code>)</td>
+<td><code>_meta.error.data.errorClass</code> on a <code>PKI_*</code> code (<code>usage</code>, <code>input</code>, <code>parse</code>, <code>security</code>, <code>limit</code>, <code>unsupported</code>, <code>crypto</code>, <code>password</code>, <code>check</code>, <code>internal</code>); the wrapper&#39;s own codes carry none</td>
 </tr>
 <tr>
 <td><strong>The exact cause</strong></td>
@@ -380,7 +380,7 @@
 <td><strong>Diagnostics</strong></td>
 <td><code>onDiagnostic</code>, or <code>console.warn</code></td>
 <td><code>diagnostics[]</code> in the envelope, one <code>warning PKI_DIAG_…</code> line each on stderr; <code>--strict</code> escalates the first warning to <code>E_CHECK_FAILED</code> with <code>PKI_STRICT_DIAGNOSTIC</code></td>
-<td><code>diagnostics[]</code> and <code>diagnosticCounts</code> in every result; <code>strict: true</code> escalates to <code>PKI_STRICT_DIAGNOSTIC</code></td>
+<td><code>diagnostics[]</code> and <code>diagnosticCounts</code> in every engine tool&#39;s result; <code>strict: true</code> escalates to <code>PKI_STRICT_DIAGNOSTIC</code></td>
 </tr>
 <tr>
 <td><strong>Explain a code</strong></td>

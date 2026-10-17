@@ -46,7 +46,7 @@
     "pkinative-mcp": {
       "$comment": "The Model Context Protocol server, a separate repository. Tools in tools/list order (src/tools/_registry.ts), each with its annotation class: readOnly 23, writes a deterministic artefact 6, produces a non-idempotent artefact 5, all openWorldHint false. satellite-counts holds the prose to toolCount and promptCount; mcp-surface-parity holds the MCP guide and explorer to tools, prompts, envVars and resourceTemplates. wrapperCodeCount is the server's own error codes (src/wrapper-codes.ts); pkinative's PKI_* codes, reasons and diagnostics pass through verbatim.",
       "version": "1.0.0",
-      "released": "2026-10-13",
+      "released": "2026-10-17",
       "repo": "https://github.com/Nizoka/pkinative-mcp",
       "npmPackage": "https://www.npmjs.com/package/pkinative-mcp",
       "status": "published",

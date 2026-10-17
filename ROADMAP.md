@@ -1,6 +1,6 @@
 # Roadmap
 
-pkinative grows in milestones, each one a git tag with its own release note. Versions below 1.0.0 are never published: each is a git tag — a source snapshot with its release note in `release-notes/` — with no GitHub release and nothing on npm, and 1.0.0 is the first release, on npm and on GitHub. Every milestone ships under the same gate, the same limits discipline and the same conformance corpora.
+pkinative grows in milestones, each with its own release note. No version below 1.0.0 was tagged or published: each milestone is history in `release-notes/` and CHANGELOG.md, with no tag, no GitHub release and nothing on npm but the `0.0.1` name reservation, and 1.0.0 is the first release, on npm and on GitHub. Every milestone ships under the same gate, the same limits discipline and the same conformance corpora.
 
 ## 0.1.x — M1: Read-only foundation *(0.1.0)*
 
@@ -155,7 +155,7 @@ There is **no external security audit** at 1.0, and the line that once promised 
 Published after the engine, as separate repositories and npm packages pinning `pkinative ^1.0.0` — the order both elders used. Each vendors the engine's machine-readable contracts at the tag (the error, reason, diagnostic and limit registries, and for the CLI the frozen API surface, [ADR 0018](docs/adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)); their versions and inventories are recorded in `docs/assets/ecosystem.json → packages` and documented on this site.
 
 - [x] [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) 1.0.0 *(published 2026-10-08)* — the `pkinative` command: 18 commands in six groups, 53 invocations reaching every export, a `--json` envelope whose 13 error classes carry the `PKI_*` code verbatim, `--summary` / `--fields` projection, `doctor` / `limits` / `explain` / `schema` / `completion`, passwords never on the command line ([CLI guide](docs/guides/cli.md))
-- [x] [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) 1.0.0 *(published 2026-10-13)* — Model Context Protocol server `io.github.Nizoka/pkinative-mcp`: 34 tools, seven prompts, sandboxed `pkinative://output/` resources, stdio and loopback Streamable HTTP, a negative verdict returned as data, no network call and no key byte returned ([MCP guide](docs/guides/mcp.md))
+- [x] [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) 1.0.0 *(published 2026-10-17)* — Model Context Protocol server `io.github.Nizoka/pkinative-mcp`: 34 tools, seven prompts, sandboxed `pkinative://output/` resources, stdio and loopback Streamable HTTP, a negative verdict returned as data, no network call and no key byte returned ([MCP guide](docs/guides/mcp.md))
 - [x] The site documents both — guides, use cases, a capability × surface matrix (`docs/data/surfaces.json`), a CLI command builder and an MCP tool explorer — and its playgrounds load the published engine from a CDN ([ADR 0023](docs/adr/0023-playgrounds-load-the-published-package.md))
 
 ## 1.1.x — next, additive by construction

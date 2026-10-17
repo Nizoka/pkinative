@@ -279,7 +279,7 @@
         {
           "id": "file",
           "kind": "file",
-          "meaning": "a CRL, an OCSP response, a token, a key or a PKCS#12"
+          "meaning": "a certificate, a CSR, a CRL, an OCSP response, a CMS .p7s, a .tsr, a test key or a test PKCS#12"
         },
         {
           "id": "forget",
