@@ -204,16 +204,21 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'copilot-layer-parity': (f) => edit(f, '.github/copilot-instructions.md', /^x509 +→ .+$/m, 'x509   → types, core, asn1, oid'),
 };
 
+// Every rule over the whole repository: about 8 s alone, several times that
+// under coverage instrumentation beside the other workers — the default 30 s
+// is the budget of one unit test, not of the documentation gate.
+const WHOLE_TREE_TIMEOUT = 120_000;
+
 describe('verify-docs on the repository', () => {
     it('should report no error', async () => {
         const problems = await runRules(createFsContext(ROOT));
         expect(problems.filter((p) => p.severity === 'error')).toEqual([]);
-    });
+    }, WHOLE_TREE_TIMEOUT);
 
     it('should report no error on the in-memory copy either (the perturbation baseline)', async () => {
         const problems = await runRules(createMemoryContext(TREE));
         expect(problems.filter((p) => p.severity === 'error')).toEqual([]);
-    });
+    }, WHOLE_TREE_TIMEOUT);
 });
 
 describe('verify-docs rule table', () => {
