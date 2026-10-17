@@ -130,7 +130,7 @@
 <p><code>docs/data/surfaces.json</code> lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.</p>
 <h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
 <p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>You need</th>
@@ -171,7 +171,7 @@
 </tbody></table>
 <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
 <p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Library</th>
@@ -235,7 +235,7 @@
 </ul>
 <h2 id="choosing-your-surface">Choosing your surface <a class="heading-anchor" href="#choosing-your-surface" aria-label="Link to this section">#</a></h2>
 <p>pkinative reaches you three ways, and all three run the same engine: a verdict, a refusal code or an artefact does not depend on the surface that produced it. Pick the one that matches where your bytes live and who drives the call.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Surface</th>
@@ -261,7 +261,7 @@
 </tbody></table>
 <p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
 <p>Every capability <code>docs/data/surfaces.json</code> lists, by surface:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Capability</th>
@@ -403,6 +403,135 @@
 <td><code>inspect_pkcs12</code>, <code>open_pkcs12</code>; <code>signer.p12</code> on the signing tools</td>
 </tr>
 </tbody></table>
+<p>What each surface adds around the engine, and what it leaves out — an em-dash means the surface does not offer it:</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Capability</th>
+<th>Library (<code>pkinative</code>)</th>
+<th>CLI (<code>pkinative-cli</code>)</th>
+<th>MCP (<code>pkinative-mcp</code>)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Where the bytes come from</td>
+<td><code>Uint8Array</code> values your code reads</td>
+<td>a file, or <code>-</code> and a pipe on stdin</td>
+<td>inline <code>pem</code> or <code>derBase64</code>, or a <code>path</code> inside the <code>PKINATIVE_MCP_OUTPUT_DIR</code> sandbox</td>
+</tr>
+<tr>
+<td>Writing an artefact</td>
+<td>— (the bytes are returned; the engine writes no file)</td>
+<td><code>--output</code>, exclusive unless <code>--overwrite</code> (an atomic rename); <code>--dry-run</code> writes nothing</td>
+<td><code>outputMode: &#39;file&#39;</code> inside the sandbox, never overwritten, returned as a <code>resource_link</code></td>
+</tr>
+<tr>
+<td>A key outside the process (HSM, KMS, remote signer)</td>
+<td><code>ExternalSigner</code></td>
+<td>— (a PKCS#8 or PKCS#12 file)</td>
+<td>— (<code>signer.key</code> or <code>signer.p12</code>)</td>
+</tr>
+<tr>
+<td>Passwords</td>
+<td>your code passes them</td>
+<td><code>--password-file</code>, <code>--password-stdin</code> or <code>PKINATIVE_PASSWORD</code>; never on the command line</td>
+<td>the <code>password</code> input or <code>PKINATIVE_MCP_PASSWORD</code>, never both</td>
+</tr>
+<tr>
+<td>A negative verdict</td>
+<td><code>valid: false</code> and <code>reasons[]</code></td>
+<td>the report, then exit 1 (<code>E_VERIFY_FAILED</code> or <code>E_CHECK_FAILED</code>)</td>
+<td><code>valid: false</code> in <code>structuredContent</code>, never <code>isError</code></td>
+</tr>
+<tr>
+<td>A reproducible instant</td>
+<td>the <code>at</code> option</td>
+<td><code>--at</code></td>
+<td>the <code>at</code> input; <code>PKINATIVE_MCP_AT</code> for the whole server</td>
+</tr>
+<tr>
+<td>Diagnostics and strict mode</td>
+<td><code>onDiagnostic</code>, <code>strict</code></td>
+<td><code>diagnostics</code> in the envelope, <code>--strict</code>, <code>--quiet</code></td>
+<td><code>diagnostics[]</code> and <code>diagnosticCounts</code>, <code>strict: true</code></td>
+</tr>
+<tr>
+<td>Capability preflight</td>
+<td><code>canSign</code>, <code>canVerify</code>, <code>canDecrypt</code></td>
+<td><code>doctor</code></td>
+<td><code>describe_engine</code></td>
+</tr>
+<tr>
+<td>Machine contract</td>
+<td><code>docs/assets/api.json</code> and the registries of <code>docs/data/</code></td>
+<td><code>schema</code> (twelve subjects), <code>--summary</code>, <code>--fields</code></td>
+<td><code>inputSchema</code> and <code>outputSchema</code> in <code>tools/list</code>; <code>verbosity</code>, <code>fields</code></td>
+</tr>
+<tr>
+<td>Shell completion</td>
+<td>—</td>
+<td><code>completion</code> (bash, zsh, fish, PowerShell)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Configuration file</td>
+<td>— (options per call)</td>
+<td><code>.pkinativerc.json</code>, <code>--config</code>, <code>--no-config</code> — presentation defaults only</td>
+<td>— (the nine <code>PKINATIVE_MCP_*</code> variables instead)</td>
+</tr>
+<tr>
+<td>Response cache</td>
+<td>—</td>
+<td>—</td>
+<td><code>PKINATIVE_MCP_CACHE_DIR</code> (opt-in, SHA-256 keyed)</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>an in-process <code>import</code></td>
+<td>one process per command: the report on stdout, the <code>--json</code> envelope on stderr</td>
+<td>stdio; Streamable HTTP on loopback, with an opt-in bearer token</td>
+</tr>
+<tr>
+<td>Guided workflows</td>
+<td>— (<code>recipes/</code> in the repository)</td>
+<td>— (<code>--help</code>, <code>docs/AGENT_CONTRACT.md</code>)</td>
+<td>seven prompts (<code>prompts/list</code>)</td>
+</tr>
+<tr>
+<td>AI-governance drafter</td>
+<td>— (repository policy, <code>npm run verify:issue</code>)</td>
+<td>— (repository policy, <code>.github/drafts/</code>)</td>
+<td><code>draft_governance_issue</code>; the <code>governance_contract</code> and <code>draft_issue_workflow</code> prompts</td>
+</tr>
+<tr>
+<td>Exit codes</td>
+<td>—</td>
+<td>0, 1, 2; 130 and 143 on SIGINT and SIGTERM</td>
+<td>— (<code>isError</code> and JSON-RPC errors)</td>
+</tr>
+<tr>
+<td>Runtimes</td>
+<td>any with Web Crypto: Node.js, Deno, Bun, browsers, edge workers</td>
+<td>Node.js</td>
+<td>Node.js</td>
+</tr>
+<tr>
+<td>Generating or exporting a key; fetching a CRL, an OCSP response or a timestamp</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<h3 id="honest-notes">Honest notes <a class="heading-anchor" href="#honest-notes" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong>No surface generates or exports a key, and none fetches.</strong> Web Crypto&#39;s <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>), and the engine opens no socket (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>): keys come from your HSM, KMS or <code>openssl genpkey</code>, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.</li>
+<li><strong>Only the CLI and the MCP sandbox write files.</strong> The engine returns bytes. The CLI writes where you point it, exclusively unless <code>--overwrite</code>; the MCP server writes only under <code>PKINATIVE_MCP_OUTPUT_DIR</code>, never overwrites, and never writes, lists or serves a key-bearing file.</li>
+<li><strong>A key in an HSM or a remote service reaches the library only.</strong> Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an <code>ExternalSigner</code> is a library call.</li>
+<li><strong>A satellite adds no PKI decision.</strong> A <code>PKI_*</code>, <code>PKI_REASON_*</code> or <code>PKI_DIAG_*</code> code means the same on every surface. A CLI <code>E_*</code> class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.</li>
+<li><strong>The table is the complete story</strong> for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.</li>
+</ul>
+<h3 id="you-can-switch-later">You can switch later <a class="heading-anchor" href="#you-can-switch-later" aria-label="Link to this section">#</a></h3>
+<p>All three surfaces call the same engine, so what one writes the others read: a certificate <code>create_certificate</code> writes into the sandbox verifies under <code>pkinative chain verify</code> and parses with <code>parseCertificate</code>, and a verdict carries the same reason codes wherever it was reached. <code>cert create --spec</code> and the <code>spec</code> input of <code>create_certificate</code> take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate <code>cert create</code> adds an <code>authorityKeyIdentifier</code> and <code>create_certificate</code> does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the &quot;wrong&quot; surface costs a call-site migration, not a re-authoring.</p>
 <p>The <a href="cli.html">CLI guide</a> and the <a href="mcp.html">MCP guide</a> document every command and tool; <a href="use-cases-cli.html">CLI use cases</a> and <a href="use-cases-mcp.html">MCP use cases</a> put them to work.</p>
     </article>
   </main>

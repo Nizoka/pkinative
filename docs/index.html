@@ -221,7 +221,7 @@
         <article class="feature-card">
           <div class="feature-icon fi-iso"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
           <h3>Complete on RFC 5280</h3>
-          <p>Every field and all eighteen standard extensions, decoded and typed — not a subset with the awkward ones left as raw bytes. Certificates and PKCS#10 requests are read, verified and built with the same readers, codes and bounds.</p>
+          <p>Every field and all nineteen extension kinds — the seventeen of RFC 5280, OCSP no-check and the SCT list — decoded and typed — not a subset with the awkward ones left as raw bytes. Certificates and PKCS#10 requests are read, verified and built with the same readers, codes and bounds.</p>
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-unicode"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
@@ -317,7 +317,7 @@ for (const { bytes } of decodePem(pemText, { label: 'CERTIFICATE' })) {
         <div class="tab-panel" id="tab-ext" role="tabpanel" aria-labelledby="tab-btn-ext">
 <pre><code class="language-typescript">import { decodeExtensionValue, getExtension, parseCertificate } from 'pkinative';
 
-// Eighteen standard extensions, each typed by its `kind`.
+// Nineteen extension kinds, each typed by its `kind`.
 const cert = parseCertificate(der);
 getExtension(cert, 'basicConstraints')?.cA;
 getExtension(cert, 'keyUsage')?.usages;

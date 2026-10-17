@@ -60,10 +60,7 @@ function rich(tag, text, className) {
     return node;
 }
 
-// The footer slot every playground fills with the engine build it ran.
-// This page runs none, and says so.
-const engineSlot = $('engine-source');
-if (engineSlot) engineSlot.textContent = 'none — this page runs nothing';
+// The footer says, in its static markup, that this page runs no engine.
 
 const statusLine = $('status');
 function status(kind, text) {

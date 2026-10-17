@@ -16,7 +16,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
-- [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
+- [Errors, diagnostics and reasons](https://pkinative.dev/guides/errors.md): every error, reason and diagnostic code with its cause and remedy
 - [CLI reference](https://pkinative.dev/guides/cli.md): pkinative-cli — every command, flag, exit code and error class of the `pkinative` command, and its `--json` agent contract
 - [CLI use cases](https://pkinative.dev/guides/use-cases-cli.md): a CI chain-and-expiry gate, offline revocation, signing and time-stamping a release, auditing a PKCS#12
 - [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models

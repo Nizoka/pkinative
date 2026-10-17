@@ -62,7 +62,7 @@ A name mismatch is caught by the same call: on the sample chain, `--host other.t
 
 Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back.
 
-![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a stale CRL needs --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
+![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a CRL past nextUpdate fails chain verify, which takes no tolerance, and passes crl check only within --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
 
 The building blocks, from `samples/ocsp/` and `samples/crl/`:
 
@@ -112,7 +112,7 @@ On the samples' revoked leaf, both checks are negative verdicts — exit 1, `E_C
 
 and on the good leaf, `ocsp check` answers `{"valid":true,"reasons":[],"status":"good","signatureVerified":true,"responderAuthorized":true}` with exit 0.
 
-**Limits.** `--require-revocation` turns an unknown status into a failure; without it, a chain whose revocation evidence is missing can still verify, which is a soft-fail decision you make explicitly. A CRL past its `nextUpdate` is stale unless you grant `--stale-tolerance <ms>`, and an OCSP `thisUpdate` in the future is refused beyond `--future-tolerance` (60000 ms by default) — on an air-gapped host, pin `--at` rather than trust its clock.
+**Limits.** `--require-revocation` turns an unknown status into a failure; without it, a chain whose revocation evidence is missing can still verify, which is a soft-fail decision you make explicitly. A CRL past its `nextUpdate` is stale: `crl check` accepts one only within `--stale-tolerance <ms>`, and `chain verify`, which takes no tolerance, reports `PKI_REASON_REVOCATION_STALE`; an OCSP `thisUpdate` in the future is refused by `ocsp check` beyond `--future-tolerance` (60000 ms by default) — on an air-gapped host, pin `--at` rather than trust its clock.
 
 ## Case 3 — CMS signature and RFC 3161 timestamp in a release pipeline
 

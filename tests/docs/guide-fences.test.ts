@@ -54,7 +54,7 @@ const EXPECT_RESULT: Readonly<Record<string, (results: readonly unknown[]) => vo
     'docs/guides/use-cases.md:105': (r) => { expect(r[0]).toBe('yes'); },
     'docs/guides/use-cases.md:133': (r) => { expect(r[0]).toBeInstanceOf(Uint8Array); expect(pkinative.parseCertificate(r[0] as Uint8Array).subject.der.length).toBeGreaterThan(0); },
     'docs/guides/use-cases.md:17': (r) => { expect(r[0]).toHaveLength(2); },   // both test certificates expire within the year
-    'docs/guides/use-cases.md:69': (r) => { expect(typeof r[0]).toBe('string'); },
+    'docs/guides/use-cases.md:71': (r) => { expect(typeof r[0]).toBe('string'); },
     'docs/guides/use-cases.md:87': (r) => { expect(r[0]).toBe(true); },
 };
 

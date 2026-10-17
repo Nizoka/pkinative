@@ -748,4 +748,4 @@ pkinative-cli follows Semantic Versioning, and its agent contract is stable acro
 - [MCP guide](mcp.md) — the same engine for AI assistants.
 - [Choosing a library and a surface](choose.md#choosing-your-surface) — library, CLI or MCP server, per capability.
 - [Errors, diagnostics and reasons](errors.md) · [Security model](security.md) · [Conformance](conformance.md).
-- The CLI's [README](https://github.com/Nizoka/pkinative-cli/blob/main/README.md), its [agent contract](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md) and its [llms.txt](https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt).
+- The CLI's [README](https://github.com/Nizoka/pkinative-cli/blob/main/README.md), its [agent contract](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md), its [threat model](https://github.com/Nizoka/pkinative-cli/blob/main/docs/THREAT_MODEL.md) and its [llms.txt](https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt).

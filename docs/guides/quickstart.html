@@ -139,7 +139,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 <p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
 <h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
 <p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Field</th>
@@ -188,7 +188,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 </tr>
 </tbody></table>
 <p>The fields of the extensions <code>getExtension</code> returns:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Kind</th>

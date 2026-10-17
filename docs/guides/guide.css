@@ -59,7 +59,7 @@
 .guide-content :not(pre) > code { overflow-wrap: anywhere; }
 /* …except in a table cell: `anywhere` lowers a column's min-content to one
    character, so a column of identifiers collapses letter by letter. There a
-   token breaks only when it alone overflows, and a narrow table scrolls
+   token breaks only when it alone overflows, and a wide table scrolls
    inside itself (below). */
 .guide-content td > code,
 .guide-content th > code { overflow-wrap: break-word; }
@@ -86,8 +86,15 @@
   font-size: inherit;
 }
 
+/* A table is as wide as its content and never wider than the column: past
+   that it scrolls inside itself, at every width (GitHub's markdown-css
+   pattern). A table of long identifiers otherwise pushed the page sideways
+   between 769 and 1330 px, where no media query caught it. */
 .guide-content table {
-  width: 100%;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0 0 20px;
   font-size: 14px;
@@ -98,15 +105,6 @@
   text-align: left;
   padding: 10px 14px;
   border-bottom: 1px solid var(--c-border);
-}
-
-/* Wide tables scroll inside themselves on narrow viewports instead of
-   overflowing the page. style.css only covers ≤480px; guides need it sooner. */
-@media (max-width: 768px) {
-  .guide-content table {
-    display: block;
-    overflow-x: auto;
-  }
 }
 
 .guide-content th {
@@ -148,6 +146,8 @@
 .guide-content .guide-toc-list a, .guide-content a.heading-anchor { text-decoration: none; }
 
 .guide-content img { display: block; margin: 0 auto 20px; }
+/* A use-case diagram links to its SVG: full size, zoomable on a phone. */
+.guide-content a.guide-diagram { display: block; cursor: zoom-in; }
 
 .guide-loading,
 .guide-error {

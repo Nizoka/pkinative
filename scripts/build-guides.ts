@@ -257,6 +257,9 @@ ${PLAYGROUNDS.map(([file, label]) => `      <a href="./${file}"${file === curren
 /** The footer meta-line slot where a playground names the CDN build it ran (`load-engine.js` fills it). */
 export const ENGINE_SOURCE_SLOT = ' · engine: <span id="engine-source">loading…</span>';
 
+/** The same slot on a playground that loads no engine (the CLI builder): true without JavaScript too. */
+export const NO_ENGINE_SLOT = ' · engine: <span id="engine-source">none — this page runs nothing</span>';
+
 /**
  * Prism, pinned by SRI.
  *
@@ -424,7 +427,14 @@ export function renderMarkdown(md: string): string {
         figures.push(block);
         return `<!--pkinative:raw-svg:${figures.length - 1}-->`;
     });
-    const html = rewriteLinks(addHeadingAnchors(markdown.parse(parked, { async: false }) as string));
+    // A table scrolls inside itself once it is wider than the column
+    // (guide.css), and a scrollable region must take the keyboard focus
+    // (WCAG 2.1.1; axe's scrollable-region-focusable).
+    // A use-case diagram is 960 units wide: on a phone its labels shrink to a
+    // few pixels, so each one links to its SVG, which opens full size and zooms.
+    const html = rewriteLinks(addHeadingAnchors(markdown.parse(parked, { async: false }) as string))
+        .replace(/<table>/g, '<table tabindex="0">')
+        .replace(/<img src="(\.\.\/assets\/use-case-[a-z0-9-]+\.svg)"([^>]*)>/g, '<a class="guide-diagram" href="$1" target="_blank" rel="noopener"><img src="$1"$2></a>');
     return html.replace(/<!--pkinative:raw-svg:(\d+)-->/g, (_m, index: string) => figures[Number(index)] ?? '');
 }
 

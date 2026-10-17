@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 import ts from 'typescript';
-import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
+import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, NO_ENGINE_SLOT, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
@@ -332,7 +332,7 @@ const chromeParity: Rule = {
         const isPlayground = (path: string): boolean => path.startsWith('docs/playgrounds/') && !path.endsWith('/index.html');
         const extraFor = (path: string): string => (path === 'docs/index.html'
             ? ` · verified <time id="verified-on" datetime="${verifiedOn}">${verifiedOn}</time>`
-            : isPlayground(path) ? ENGINE_SOURCE_SLOT : '');
+            : path === 'docs/playgrounds/cli.html' ? NO_ENGINE_SLOT : isPlayground(path) ? ENGINE_SOURCE_SLOT : '');
 
         const out: Finding[] = [];
         for (const [path, prefix, current] of HAND_WRITTEN_PAGES) {

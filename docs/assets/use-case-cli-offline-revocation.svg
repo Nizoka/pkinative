@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="uccr-title uccr-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
   <title id="uccr-title">Offline and air-gapped revocation checking</title>
-  <desc id="uccr-desc">Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a stale CRL needs --stale-tolerance.</desc>
+  <desc id="uccr-desc">Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a CRL past nextUpdate fails chain verify, which takes no tolerance, and passes crl check only within --stale-tolerance.</desc>
 
   <defs>
     <marker id="uccr-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -82,5 +82,5 @@
   <!-- Limits strip -->
   <rect x="40" y="488" width="880" height="48" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
   <text x="480" y="508" text-anchor="middle" font-size="12" fill="#475569">Without --require-revocation an unknown status can still verify — a soft-fail you choose explicitly.</text>
-  <text x="480" y="526" text-anchor="middle" font-size="12" fill="#475569">A CRL past nextUpdate is stale unless --stale-tolerance &lt;ms&gt;; OCSP thisUpdate ahead beyond --future-tolerance is refused — pin --at.</text>
+  <text x="480" y="526" text-anchor="middle" font-size="12" fill="#475569">A CRL past nextUpdate is stale: crl check takes --stale-tolerance &lt;ms&gt;, chain verify none; OCSP thisUpdate beyond --future-tolerance is refused — pin --at.</text>
 </svg>

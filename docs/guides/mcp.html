@@ -128,7 +128,7 @@ npx -y pkinative-mcp
 npm install -g pkinative-mcp
 pkinative-mcp
 </code></pre>
-<p>The binary is <code>pkinative-mcp</code>; the package requires Node.js 22 or later, and the engine&#39;s own floor is <code>^22.22.2 || ^24.14.1 || &gt;=25.8.2</code> — <code>describe_engine</code> reports <code>capabilities.nodeFloorSatisfied</code>. Its MCP registry name is <code>io.github.Nizoka/pkinative-mcp</code>, and its <code>server.json</code> declares the npm package with <code>runtimeHint: &quot;npx&quot;</code>, the arguments <code>-y pkinative-mcp</code>, the stdio transport and the nine environment variables below.</p>
+<p>The binary is <code>pkinative-mcp</code>; the package requires Node.js 22 or later, and the engine&#39;s own floor is <code>^22.22.2 || ^24.14.1 || &gt;=25.8.2</code> — <code>describe_engine</code> reports <code>capabilities.nodeFloorSatisfied</code>. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is <code>io.github.Nizoka/pkinative-mcp</code>, and its <code>server.json</code> declares the npm package with <code>runtimeHint: &quot;npx&quot;</code>, the arguments <code>-y pkinative-mcp</code>, the stdio transport and the nine environment variables below.</p>
 <h2 id="configuration-by-client">Configuration by client <a class="heading-anchor" href="#configuration-by-client" aria-label="Link to this section">#</a></h2>
 <p>Every client runs the same <code>command</code> + <code>args</code> + <code>env</code> triple. <code>PKINATIVE_MCP_OUTPUT_DIR</code> is optional: without it every tool works on inline PEM or base64, and nothing touches the filesystem.</p>
 <h3 id="claude-desktop">Claude Desktop <a class="heading-anchor" href="#claude-desktop" aria-label="Link to this section">#</a></h3>
@@ -159,6 +159,9 @@ pkinative-mcp
 }
 </code></pre>
 <p>The value must be absolute: Claude Code does not expand <code>${CLAUDE_PROJECT_DIR}</code> here (it sets that variable only in the server&#39;s environment), and the server refuses a relative path.</p>
+<p>Or register it from the command line — local scope by default, <code>--scope project</code> writes the <code>.mcp.json</code> above:</p>
+<pre><code class="language-bash">claude mcp add --env PKINATIVE_MCP_OUTPUT_DIR=/absolute/path/to/your/project/.mcp-pki pkinative -- npx -y pkinative-mcp
+</code></pre>
 <h3 id="cursor--continue--zed--windsurf--cline--roo-code">Cursor · Continue · Zed · Windsurf · Cline · Roo Code <a class="heading-anchor" href="#cursor--continue--zed--windsurf--cline--roo-code" aria-label="Link to this section">#</a></h3>
 <p>Any client that supports stdio servers works with the same triple. For Cursor, <code>~/.cursor/mcp.json</code>:</p>
 <pre><code class="language-json">{
@@ -190,11 +193,11 @@ pkinative-mcp
 # stderr: [pkinative-mcp] ready (HTTP transport, MCP 2026-07-28 + legacy) on http://127.0.0.1:3000/mcp — bearer token required
 # every request: POST /mcp with Authorization: Bearer &lt;token&gt;
 </code></pre>
-<p>The endpoint binds <code>127.0.0.1</code> only and accepts <code>POST /mcp</code>; <code>GET</code> and <code>DELETE</code> answer 405 (the server is stateless, with no SSE resumability), a foreign <code>Host</code> or <code>Origin</code> answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. <strong>Without <code>PKINATIVE_MCP_HTTP_TOKEN</code> the endpoint has no authentication</strong>, and other local processes can reach it; with the token, a missing bearer answers 401 with <code>WWW-Authenticate: Bearer realm=&quot;pkinative-mcp&quot;</code>, a wrong one adds <code>error=&quot;invalid_token&quot;</code>.</p>
+<p>The endpoint binds <code>127.0.0.1</code> only and accepts <code>POST /mcp</code>; any other path answers 404, <code>GET</code> and <code>DELETE</code> answer 405 (the server is stateless, with no SSE resumability), a foreign <code>Host</code> or <code>Origin</code> answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. <strong>Without <code>PKINATIVE_MCP_HTTP_TOKEN</code> the endpoint has no authentication</strong>, and other local processes can reach it; with the token, a missing bearer answers 401 with <code>WWW-Authenticate: Bearer realm=&quot;pkinative-mcp&quot;</code>, a wrong one adds <code>error=&quot;invalid_token&quot;</code>.</p>
 <p>A hosted client such as ChatGPT connects from its own infrastructure: this endpoint answers a non-loopback <code>Host</code> or <code>Origin</code> with 403, so it is not reachable from there as shipped.</p>
 <h2 id="environment-variables">Environment variables <a class="heading-anchor" href="#environment-variables" aria-label="Link to this section">#</a></h2>
-<p>All nine are declared in <code>server.json</code> and read once at startup; an invalid value — a port outside 1–65535, a relative output directory, a malformed instant or ceiling, a weak token — refuses to start with one <code>[pkinative-mcp] fatal:</code> line on stderr, never a silent fallback. Only the <em>presence</em> of a secret is logged.</p>
-<table>
+<p>All nine are declared in <code>server.json</code> and read once at startup; an invalid value — a port outside 1–65535, a relative output directory, a malformed instant or ceiling, a weak token — refuses to start with one <code>[pkinative-mcp] fatal:</code> line on stderr and exit code 1, never a silent fallback. Only the <em>presence</em> of a secret is logged.</p>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Variable</th>
@@ -210,7 +213,7 @@ pkinative-mcp
 <tr>
 <td><code>PKINATIVE_MCP_CACHE_DIR</code></td>
 <td><em>(unset)</em></td>
-<td>Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a <code>path</code> input, file output, a call carrying a <code>password</code> or a <code>signer</code>, a <code>&#39;random&#39;</code> serial or nonce, a <code>&#39;now&#39;</code> or unpinned instant, <code>describe_engine</code>, <code>draft_governance_issue</code>, nor any password-accepting tool while <code>PKINATIVE_MCP_PASSWORD</code> is set. A hit carries <code>_meta.cached: true</code></td>
+<td>Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a <code>path</code> input, file output, a call carrying a <code>password</code> or a <code>signer</code>, a <code>&#39;random&#39;</code> serial or nonce, a <code>&#39;now&#39;</code> or unpinned instant, <code>describe_engine</code>, <code>draft_governance_issue</code>, nor any password-accepting tool while <code>PKINATIVE_MCP_PASSWORD</code> is set. A hit carries <code>_meta.cached: true</code>; a directory that cannot be created disables the cache, with one <code>[pkinative-mcp] cache disabled:</code> line on stderr</td>
 </tr>
 <tr>
 <td><code>PKINATIVE_MCP_PORT</code></td>
@@ -256,11 +259,12 @@ pkinative-mcp
 <li><strong>stdio is the default transport</strong>, with the frame cap raised to 256 MiB so a multi-MiB base64 CMS message or PKCS#12 fits in one call; stdout carries JSON-RPC frames only.</li>
 <li><strong>Schemas.</strong> Every tool advertises an <code>inputSchema</code> and an <code>outputSchema</code>; every object input is closed (an unknown or misspelt key at any depth is <code>VALIDATION_ERROR</code> naming the path), and input schemas carry no <code>$schema</code> keyword and no <code>$ref</code>, because some hosts forward them to function-calling APIs. Every <code>structuredContent</code> validates against the tool&#39;s <code>outputSchema</code>, projections included. Every tool carries <code>_meta.apiVersion</code> (<code>1.0.0</code>) and up to two executable <code>_meta.examples</code>.</li>
 <li><strong>Instructions.</strong> The <code>initialize</code> / <code>server/discover</code> response carries a server-instructions block — which tool answers which question, the security posture and the pitfalls — and the seven prompts repeat that material on demand.</li>
+<li><strong>Shutdown.</strong> SIGINT and SIGTERM close the transport and the server, with exit code 0.</li>
 <li><strong>Protocol errors</strong> are JSON-RPC errors: an unknown tool is <code>-32602</code> with <code>[UNKNOWN_TOOL] Unknown tool: …</code>, an unknown resource URI <code>-32602</code> with <code>data.uri</code> (the server&#39;s <code>UNKNOWN_RESOURCE</code> code is not sent on the wire). <code>isError: true</code> is reserved for execution failures.</li>
 </ul>
 <h2 id="tool-reference">Tool reference <a class="heading-anchor" href="#tool-reference" aria-label="Link to this section">#</a></h2>
 <p>Thirty-four tools in six groups, listed here in the order <code>tools/list</code> returns them. Every tool advertises <code>openWorldHint: false</code> and <code>destructiveHint: false</code>; the other annotations put each in one of three classes:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Annotation class</th>
@@ -290,7 +294,7 @@ pkinative-mcp
 </tbody></table>
 <p>A tool&#39;s <strong>kind</strong> says how its result is shaped: a <em>read</em> tool returns facts in <code>structuredContent</code>; a <em>verdict</em> tool returns <code>valid</code> and <code>reasons[]</code> and is never <code>isError</code> for a negative verdict; an <em>artefact</em> tool delivers its bytes once, as an embedded <code>resource</code> block inline or a <code>resource_link</code> in file mode, with <code>{ mode, encoding, sizeBytes, sha256, summary, diagnostics }</code> in <code>structuredContent</code>.</p>
 <p><strong>Shared inputs.</strong> The tool sections below name these fragments rather than repeating them:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Fragment</th>
@@ -416,7 +420,7 @@ pkinative-mcp
 <p><strong>Purpose:</strong> a local GitHub issue draft plus a compliance report, for <code>pkinative</code> (engine behaviour), <code>pkinative-cli</code> or <code>pkinative-mcp</code> (wrapper behaviour). The server never contacts GitHub — it has no network code path — and a human reviews and submits the draft under their own identity. <strong>Key inputs:</strong> <code>title</code>, <code>summary</code>, <code>issueType</code> (<code>bug</code> | <code>feature</code> | <code>security</code> | <code>docs</code> | <code>performance</code>), <code>targetRepo</code>, <code>reproduction</code> (<code>{ command, result }</code>), <code>expectedBehavior</code>, <code>actualBehavior</code>, <code>affectedPackages[]</code>, <code>duplicateSearchPerformed</code> (must be <code>true</code>), <code>outputMode</code> (<code>inline</code> | <code>file</code>) with <code>outputPath</code> (a relative <code>.md</code> in the sandbox). <strong>Output:</strong> <code>draftMarkdown</code>, <code>warnings[]</code>, <code>compliance</code>. <strong>Annotation:</strong> writes a deterministic artefact. A draft that proposes a runtime dependency, embeds a private key or a password, has no reproduction, or was not preceded by a duplicate search is <code>GOVERNANCE_VIOLATION</code>.</p>
 <h2 id="prompts">Prompts <a class="heading-anchor" href="#prompts" aria-label="Link to this section">#</a></h2>
 <p>Seven read-only prompts, without arguments: two carry the governance contract, five are ready-made PKI recipes that name the tools in order.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Prompt</th>
@@ -427,7 +431,7 @@ pkinative-mcp
 <tbody><tr>
 <td><code>governance_contract</code></td>
 <td>AI-governance &amp; HITL contract</td>
-<td>The agent is a draftsman and the human the only gate: zero runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft</td>
+<td>The agent is a draftsman and the human the only gate: zero new runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft</td>
 </tr>
 <tr>
 <td><code>draft_issue_workflow</code></td>
@@ -479,7 +483,7 @@ pkinative-mcp
 <li><strong>One of pkinative&#39;s 57 <code>PKI_*</code> error codes, passed through verbatim</strong> as <code>_meta.error.code</code>, with <code>data.errorClass</code> (the coarse class: <code>usage</code>, <code>input</code>, <code>parse</code>, <code>security</code>, <code>limit</code>, <code>unsupported</code>, <code>crypto</code>, <code>password</code>, <code>check</code>, <code>internal</code>), <code>data.engineError</code> (the <code>PkiError</code> subclass), <code>path</code>, <code>offset</code>, <code>algorithm</code>, <code>limit</code>, <code>configured</code>, <code>observed</code> or <code>env</code> where the engine knows them, and <code>data.remedy</code> phrased as MCP inputs.</li>
 <li><strong>One of the server&#39;s 21 wrapper codes</strong>, for the boundary the engine does not own — validation, sandbox, caps, secrets and output — each with its remedy:</li>
 </ul>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Wrapper code</th>
@@ -587,6 +591,8 @@ pkinative-mcp
 <li><strong>The engine&#39;s doctrine, surfaced.</strong> SHA-1 only with <code>allowSha1: true</code>; RSA only with an explicit <code>rsaScheme</code>; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA and ML-DSA parsed, never verified; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. <code>describe_engine.refusals</code> lists each line with its remedy.</li>
 </ul>
 <p>The server&#39;s own conformance gate has OpenSSL 3 read back every artefact it writes, in CI and before every publish; the <a href="conformance.html">conformance guide</a> covers the engine underneath, and the <a href="security.html">security guide</a> its threat model.</p>
+<h2 id="versioning">Versioning <a class="heading-anchor" href="#versioning" aria-label="Link to this section">#</a></h2>
+<p>pkinative-mcp follows Semantic Versioning, and its tool API carries a version of its own: every tool advertises <code>_meta.apiVersion</code>, <code>1.0.0</code> since pkinative-mcp 1.0.0, independent of the npm version and of the MCP protocol revision. Across 1.x the tool names, the required input and output fields, the field types, the 21 wrapper codes and the bytes written for deterministic inputs are stable: a new optional output field is a patch; a new tool, optional input or enum value a minor; a removal, a rename, a narrowed type or a weakened security default waits for 2.0.0, after at least one minor of deprecation. Descriptions, prompt texts and <code>_meta.examples</code> are not covered; the engine&#39;s <code>PKI_*</code>, <code>PKI_REASON_*</code> and <code>PKI_DIAG_*</code> codes pass through verbatim under pkinative&#39;s own promise. pkinative-mcp 1.0.0, released on 2026-10-17, pins pkinative ^1.0.0; security fixes land on the latest published minor. The server&#39;s <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/API_STABILITY.md" target="_blank" rel="noopener">API stability charter</a> states the promise tool by tool.</p>
 <h2 id="further-reading">Further reading <a class="heading-anchor" href="#further-reading" aria-label="Link to this section">#</a></h2>
 <ul>
 <li><a href="../playgrounds/mcp.html">MCP tool explorer</a> — the client configuration, and each tool&#39;s <code>tools/call</code> payload with the engine call behind it run in your tab.</li>

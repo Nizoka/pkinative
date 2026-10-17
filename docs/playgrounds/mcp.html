@@ -131,7 +131,7 @@
 
     <div class="guide-content">
       <h1>MCP tool explorer</h1>
-      <p>What an AI assistant gets when you wire <a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a> 1.0.0 into Claude Desktop, Claude Code, Cursor, VS Code or any other Model Context Protocol client: 34 tools in six groups, 7 prompts and the sandboxed <code>pkinative://output/{+path}</code> resources, over stdio or loopback Streamable HTTP, with no network access, ever.</p>
+      <p>What an AI assistant gets when you wire <a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a> 1.0.0 into Claude Desktop, Claude Code, Cursor, VS Code or any other Model Context Protocol client: 34 tools in six groups, seven prompts and the sandboxed <code>pkinative://output/{+path}</code> resources, over stdio or loopback Streamable HTTP, with no network access, ever.</p>
       <p>Each card below shows what the tool is for, a prompt that makes an assistant reach for it, the <code>tools/call</code> arguments it would send — they validate against the server's own schemas — and a <strong>Run</strong> button that performs the engine call behind the tool in this tab, on the published <a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">pkinative</a> build. No install, no model, nothing uploaded. The <a href="../guides/mcp.html">MCP guide</a> holds the full reference.</p>
 
       <h2 id="configure">Configure your client</h2>
@@ -257,7 +257,7 @@
 
     <div class="guide-content">
       <h2 id="prompts">The prompts</h2>
-      <p>The server advertises 7 prompts, read-only and without arguments: two carry the governance contract, five are PKI recipes that name the tools in order. A client lists them with <code>prompts/list</code>.</p>
+      <p>The server advertises seven prompts, read-only and without arguments: two carry the governance contract, five are PKI recipes that name the tools in order. A client lists them with <code>prompts/list</code>.</p>
       <div class="pg-table-wrap">
         <table class="pg-table">
           <thead><tr><th scope="col">Prompt</th><th scope="col">What it walks through</th></tr></thead>

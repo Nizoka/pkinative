@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 5899,
-      "approxTokens": 1475
+      "bytes": 5937,
+      "approxTokens": 1484
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 415267,
-      "approxTokens": 103817
+      "bytes": 422769,
+      "approxTokens": 105692
     },
     {
       "url": "llms-recipes.txt",
@@ -126,8 +126,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 84881,
-      "approxTokens": 21220
+      "bytes": 84909,
+      "approxTokens": 21227
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -159,8 +159,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 65273,
-      "approxTokens": 16318
+      "bytes": 65365,
+      "approxTokens": 16341
     },
     {
       "title": "CLI use cases",
@@ -174,8 +174,8 @@
         "case-4--a-pkcs12-audit-with---password-file",
         "see-also"
       ],
-      "bytes": 21236,
-      "approxTokens": 5309
+      "bytes": 21436,
+      "approxTokens": 5359
     },
     {
       "title": "pkinative-mcp — AI client integration",
@@ -238,10 +238,11 @@
         "token-frugal-reads",
         "error-model",
         "security-model",
+        "versioning",
         "further-reading"
       ],
-      "bytes": 51392,
-      "approxTokens": 12848
+      "bytes": 53070,
+      "approxTokens": 13268
     },
     {
       "title": "MCP use cases",
@@ -255,8 +256,8 @@
         "case-4--opening-keys-safely",
         "see-also"
       ],
-      "bytes": 21749,
-      "approxTokens": 5437
+      "bytes": 21859,
+      "approxTokens": 5465
     },
     {
       "title": "Security model",
@@ -343,10 +344,12 @@
         "what-it-does-not-do-by-design",
         "the-alternatives-by-the-facts",
         "when-pkinative-is-the-right-choice",
-        "choosing-your-surface"
+        "choosing-your-surface",
+        "honest-notes",
+        "you-can-switch-later"
       ],
-      "bytes": 12917,
-      "approxTokens": 3229
+      "bytes": 18147,
+      "approxTokens": 4537
     }
   ]
 }

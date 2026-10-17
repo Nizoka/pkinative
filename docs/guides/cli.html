@@ -119,7 +119,7 @@
 <p><strong>pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable <code>--json</code> contract for scripts, CI and AI agents.</strong> It pins pkinative ^1.0.0, its only runtime dependency.</p>
 </blockquote>
 <p><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a> is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine&#39;s; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine&#39;s <code>PKI_*</code> code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the <code>PkiError</code> family, 6 constants), and a test in the CLI repository proves it.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Command</th>
@@ -229,7 +229,7 @@ pkinative doctor
 gh attestation verify pkinative-cli-1.0.0.tgz --repo Nizoka/pkinative-cli
 </code></pre>
 <h2 id="when-to-use-the-cli">When to use the CLI <a class="heading-anchor" href="#when-to-use-the-cli" aria-label="Link to this section">#</a></h2>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Use the <strong>CLI</strong> when…</th>
@@ -283,7 +283,7 @@ pkinative chain verify server.pem --trust root.pem --untrusted ca.pem --json --s
 <li><strong>A negative verdict prints its full report on stdout and exits 1 with an envelope</strong> (<code>chain verify</code>, <code>cms verify</code>, <code>ocsp check</code>, …): read both.</li>
 <li><strong><code>--help</code> is text for people</strong> whatever <code>--json</code> says; <code>--version --json</code> prints one object on stdout, <code>{&quot;name&quot;:&quot;pkinative-cli&quot;,&quot;version&quot;:&quot;1.0.0&quot;,&quot;pkinative&quot;:&quot;1.0.0&quot;}</code>. Neither writes an envelope.</li>
 </ul>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Exit</th>
@@ -312,7 +312,7 @@ pkinative chain verify server.pem --trust root.pem --untrusted ca.pem --json --s
 {&quot;ok&quot;:false,&quot;command&quot;:&quot;cert inspect&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_INPUT&quot;,&quot;message&quot;:&quot;leaf.key.pem holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).&quot;,&quot;pkiCode&quot;:&quot;PKI_PEM_UNEXPECTED_LABEL&quot;,&quot;remedy&quot;:&quot;pkinative pem decode &lt;file&gt; (lists the labels present)&quot;},&quot;diagnostics&quot;:[]}
 {&quot;ok&quot;:false,&quot;command&quot;:&quot;cert inspect&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_LIMIT&quot;,&quot;message&quot;:&quot;certificate \&quot;leaf.crt.pem\&quot; exceeds --max-input-bytes (100 bytes; observed at least 1005). Raise the bound only for trusted input.&quot;,&quot;detail&quot;:{&quot;limit&quot;:&quot;maxInputBytes&quot;,&quot;flag&quot;:&quot;--max-input-bytes&quot;,&quot;configured&quot;:100,&quot;observed&quot;:1005},&quot;remedy&quot;:&quot;--max-input-bytes &lt;size&gt; (trusted input only)&quot;},&quot;diagnostics&quot;:[]}
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Envelope field</th>
@@ -373,7 +373,7 @@ pkinative chain verify server.pem --trust root.pem --untrusted ca.pem --json --s
 <p><strong>Parsing rules.</strong> Global flags and subcommand flags may sit anywhere on the line; a boolean flag never consumes the next token; <code>--flag=value</code> is the explicit form; a lone <code>-</code> is a value (stdin or stdout); <code>--</code> ends the flags. Short aliases: <code>-i</code> (<code>--input</code>), <code>-o</code> (<code>--output</code>), <code>-f</code> (<code>--format</code>), <code>-q</code>, <code>-h</code>, <code>-V</code>. Each flag is given once unless the manifest marks it repeatable, and a subcommand takes at most the operands the manifest declares, so a verdict never depends on argument order.</p>
 <h3 id="the-schema-subjects">The <code>schema</code> subjects <a class="heading-anchor" href="#the-schema-subjects" aria-label="Link to this section">#</a></h3>
 <p><code>pkinative schema</code> (or <code>schema list</code>) lists the twelve subjects; every JSON Schema is draft 2020-12 with an <code>$id</code> versioned by the CLI release.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subject</th>
@@ -448,7 +448,7 @@ pkinative schema summary cert inspect
 </code></pre>
 <h3 id="refused-combinations">Refused combinations <a class="heading-anchor" href="#refused-combinations" aria-label="Link to this section">#</a></h3>
 <p>Usage errors are <code>E_USAGE</code>, exit 2, and they are detected before anything is written — save the one only the input can reveal, <code>p12 open</code> on an RSA key without <code>--rsa-scheme</code> (below). Beyond an unknown flag, a malformed value or a missing required flag, the CLI refuses:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Where</th>
@@ -527,7 +527,7 @@ pkinative schema summary cert inspect
 <p><code>--config</code> together with <code>--no-config</code> is not refused: <code>--no-config</code> wins and the named file is never read.</p>
 <h2 id="error-classes-codes-and-remedies">Error classes, codes and remedies <a class="heading-anchor" href="#error-classes-codes-and-remedies" aria-label="Link to this section">#</a></h2>
 <p>Every failure is one of 13 classes. pkinative&#39;s 57 frozen error codes map to them by a fixed table — typed against the engine&#39;s code union, so an engine release that added a code would fail the CLI&#39;s type-check rather than leak as <code>E_RUNTIME</code> — and the engine&#39;s code always rides along, verbatim, in <code>error.pkiCode</code>.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Class</th>
@@ -617,7 +617,7 @@ pkinative schema summary cert inspect
 </tbody></table>
 <p><code>E_IO</code>, <code>E_NOT_FOUND</code> and <code>E_VERIFY_FAILED</code> carry no engine code: they are the CLI&#39;s own (a filesystem error, a missing item, a negative verdict whose reasons are in <code>error.reasons</code>). <code>pkinative schema errors</code> prints the whole 57 → 13 table.</p>
 <p><strong>Remedies.</strong> The engine&#39;s messages name library options that do not exist on a command line, so the envelope adds <code>remedy</code> — the flag or command that lifts the refusal. A code absent from this table has no flag-level remedy: the input itself must change. A few call sites give a remedy of their own where the right advice depends on what was being read (<code>cert decode-extension</code>, a legacy-encrypted PKCS#8 <code>--key</code>), and a limit the CLI enforces before the engine runs names its own flag.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>pkiCode</code></th>
@@ -687,7 +687,7 @@ pkinative explain --list --kind reason
 <pre><code class="language-bash">pkinative pem decode [&lt;file&gt;] [--index &lt;n&gt; [--encoding pem|der|hex] [-o &lt;file&gt;]]
 pkinative pem encode [&lt;file&gt;] --label &lt;LABEL&gt; [-o &lt;file&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>pem decode</code></th>
@@ -719,7 +719,7 @@ pkinative pem encode [&lt;file&gt;] --label &lt;LABEL&gt; [-o &lt;file&gt;]
 <td>Format of the listing</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>pem encode</code></th>
@@ -748,7 +748,7 @@ pkinative oid decode --input &lt;file&gt; --tlv
 pkinative oid validate &lt;oid&gt;...
 pkinative oid list [--filter &lt;text&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -782,7 +782,7 @@ pkinative oid list [--filter &lt;text&gt;]
 pkinative fingerprint [&lt;file&gt;] --key-id [--alg SHA-1|SHA-256]
 pkinative fingerprint [&lt;file&gt;] --shake256 &lt;bytes&gt;
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Flag</th>
@@ -828,7 +828,7 @@ pkinative fingerprint [&lt;file&gt;] --shake256 &lt;bytes&gt;
 pkinative asn1 decode [&lt;file&gt;] --sequence [--allow-trailing]
 pkinative asn1 encode --spec &lt;spec.json&gt; [--encoding der|hex|pem]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>asn1 decode</code></th>
@@ -884,7 +884,7 @@ pkinative asn1 encode --spec &lt;spec.json&gt; [--encoding der|hex|pem]
 <td>Report format</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>asn1 encode</code></th>
@@ -921,7 +921,7 @@ pkinative cert check-name [&lt;file&gt;] --host &lt;name&gt; | --ip &lt;address&
 pkinative cert match-name &lt;presented&gt; &lt;reference&gt; [--no-wildcards]
 pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--chain &lt;file&gt;]...
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert inspect</code></th>
@@ -945,7 +945,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>Report format</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert create</code></th>
@@ -978,7 +978,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 </tr>
 </tbody></table>
 <p>The new certificate is verified against <code>--issuer</code> (or itself) before it is written: a key that does not belong to the issuer is refused (<code>E_INPUT</code>). The status envelope carries <code>serialNumber</code>, <code>selfSigned</code> and <code>signatureVerified</code>.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert encode &lt;structure&gt;</code></th>
@@ -1010,7 +1010,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>PEM label with <code>--encoding pem</code></td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert decode-extension</code></th>
@@ -1038,7 +1038,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>Report format</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert verify-signature</code></th>
@@ -1062,7 +1062,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>Report format. Exit 1 (<code>E_VERIFY_FAILED</code>) when the signature does not verify</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert check-name</code></th>
@@ -1098,7 +1098,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>Report format. Exit 1 (<code>E_CHECK_FAILED</code>) on a mismatch</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert match-name &lt;presented&gt; &lt;reference&gt;</code></th>
@@ -1114,7 +1114,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 <td>Report format. Exit 1 (<code>E_CHECK_FAILED</code>) on a mismatch</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cert check-purpose</code></th>
@@ -1147,7 +1147,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 </tr>
 </tbody></table>
 <p><strong>Signing flags</strong> (<code>cert create</code>, <code>cert encode signature-algorithm</code>, <code>csr create</code>, <code>cms sign</code>). The algorithm follows the key: ECDSA on the key&#39;s curve with the curve&#39;s hash, Ed25519 and Ed448 without a hash, RSA only with an explicit scheme.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Flag</th>
@@ -1193,7 +1193,7 @@ pkinative cert check-purpose [&lt;file&gt;] --purpose &lt;name|oid|any&gt; [--ch
 pkinative csr create --spec &lt;spec.json&gt; --key &lt;key&gt; [--public-key &lt;file&gt;]
 pkinative csr verify [&lt;file&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1221,7 +1221,7 @@ pkinative csr verify [&lt;file&gt;]
 pkinative chain build [&lt;leaf&gt;] --trust &lt;roots&gt; [--untrusted &lt;file&gt;]...
 pkinative chain validate --path &lt;leaf&gt; --path &lt;ca&gt;... --trust &lt;roots&gt;
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Flag</th>
@@ -1352,7 +1352,7 @@ pkinative crl find [&lt;crl&gt;] --serial &lt;hex&gt; | --cert &lt;file&gt;
 pkinative crl verify-signature [&lt;crl&gt;] --issuer &lt;ca&gt;
 pkinative crl check [&lt;crl&gt;] --cert &lt;file&gt; [--issuer &lt;ca&gt;] [--delta &lt;crl&gt;] [--at &lt;instant&gt;] [--stale-tolerance &lt;ms&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1384,7 +1384,7 @@ pkinative ocsp inspect [&lt;response&gt;]
 pkinative ocsp verify-signature [&lt;response&gt;] [--responder &lt;cert&gt;]
 pkinative ocsp check [&lt;response&gt;] --cert &lt;file&gt; --issuer &lt;ca&gt; [--responder &lt;cert&gt;] [--nonce &lt;hex&gt;] [--at &lt;instant&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1423,7 +1423,7 @@ pkinative cms verify-signer [&lt;p7s&gt;] --cert &lt;cert&gt; [--signer-index &l
 pkinative cms add-attribute [&lt;p7s&gt;] --attribute &lt;der&gt; [--signer-index &lt;n&gt;]
 pkinative cms add-timestamp [&lt;p7s&gt;] --token &lt;tst|tsr&gt; [--signer-index &lt;n&gt;]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cms sign</code></th>
@@ -1496,7 +1496,7 @@ pkinative cms add-timestamp [&lt;p7s&gt;] --token &lt;tst|tsr&gt; [--signer-inde
 </tr>
 </tbody></table>
 <p>The new signature is verified under <code>--cert</code> before it is written; a key that does not belong to the certificate is <code>E_INPUT</code>.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th><code>cms verify</code></th>
@@ -1548,7 +1548,7 @@ pkinative cms add-timestamp [&lt;p7s&gt;] --token &lt;tst|tsr&gt; [--signer-inde
 <td>Report format. Exit 1 (<code>E_VERIFY_FAILED</code>) unless every signer verifies</td>
 </tr>
 </tbody></table>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1579,7 +1579,7 @@ pkinative cms add-timestamp [&lt;p7s&gt;] --token &lt;tst|tsr&gt; [--signer-inde
 pkinative tsp inspect [&lt;file&gt;] [--as response|token|tstinfo]
 pkinative tsp verify --response &lt;tsr&gt; | --token &lt;tst&gt; --trust &lt;roots&gt; (--request &lt;tsq&gt; | --data &lt;file&gt; | --digest &lt;hex&gt;)
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1605,7 +1605,7 @@ pkinative tsp verify --response &lt;tsr&gt; | --token &lt;tst&gt; --trust &lt;ro
 <pre><code class="language-bash">pkinative key inspect [&lt;file&gt;]
 pkinative key check [&lt;file&gt;] [--key-type &lt;type&gt;] [--rsa-scheme pkcs1|pss]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1628,7 +1628,7 @@ pkinative p12 verify-mac [&lt;file&gt;]
 pkinative p12 bags [&lt;file&gt;]
 pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme pkcs1|pss]
 </code></pre>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Subcommand</th>
@@ -1653,7 +1653,7 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 </tr>
 </tbody></table>
 <h3 id="meta">Meta <a class="heading-anchor" href="#meta" aria-label="Link to this section">#</a></h3>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Command</th>
@@ -1688,7 +1688,7 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 </tr>
 </tbody></table>
 <h2 id="global-options">Global options <a class="heading-anchor" href="#global-options" aria-label="Link to this section">#</a></h2>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Flag</th>
@@ -1780,7 +1780,7 @@ pkinative p12 open [&lt;file&gt;] [--certs-out &lt;bundle.pem&gt;] [--rsa-scheme
 </code></pre>
 <p><code>pkinative schema config</code> prints the file&#39;s JSON Schema.</p>
 <h2 id="environment">Environment <a class="heading-anchor" href="#environment" aria-label="Link to this section">#</a></h2>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Variable</th>
@@ -1836,7 +1836,7 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
 <li><strong>No unmapped failure.</strong> A seeded fuzz suite holds that no argv or input reaches <code>E_RUNTIME</code>, and coverage is 100 % on statements, branches, functions and lines.</li>
 </ul>
 <h2 id="not-supported">Not supported <a class="heading-anchor" href="#not-supported" aria-label="Link to this section">#</a></h2>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Not supported</th>
@@ -1890,7 +1890,7 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
 <li><a href="mcp.html">MCP guide</a> — the same engine for AI assistants.</li>
 <li><a href="choose.html#choosing-your-surface">Choosing a library and a surface</a> — library, CLI or MCP server, per capability.</li>
 <li><a href="errors.html">Errors, diagnostics and reasons</a> · <a href="security.html">Security model</a> · <a href="conformance.html">Conformance</a>.</li>
-<li>The CLI&#39;s <a href="https://github.com/Nizoka/pkinative-cli/blob/main/README.md" target="_blank" rel="noopener">README</a>, its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a> and its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt" target="_blank" rel="noopener">llms.txt</a>.</li>
+<li>The CLI&#39;s <a href="https://github.com/Nizoka/pkinative-cli/blob/main/README.md" target="_blank" rel="noopener">README</a>, its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a>, its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/docs/THREAT_MODEL.md" target="_blank" rel="noopener">threat model</a> and its <a href="https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt" target="_blank" rel="noopener">llms.txt</a>.</li>
 </ul>
     </article>
   </main>

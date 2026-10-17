@@ -16,7 +16,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
-- [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
+- [Errors, diagnostics and reasons](https://pkinative.dev/guides/errors.md): every error, reason and diagnostic code with its cause and remedy
 - [CLI reference](https://pkinative.dev/guides/cli.md): pkinative-cli — every command, flag, exit code and error class of the `pkinative` command, and its `--json` agent contract
 - [CLI use cases](https://pkinative.dev/guides/use-cases-cli.md): a CI chain-and-expiry gate, offline revocation, signing and time-stamping a release, auditing a PKCS#12
 - [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models
@@ -214,7 +214,7 @@ No runtime dependency. No TypeScript implementation of signing, key generation o
 | [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
 | [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
 
-Both satellites pin `pkinative ^1.0.0` in their `dependencies`, vendor its registries at the tag, and implement no cryptography of their own — beyond the engine, they call `node:crypto` only for random serials and nonces, the public key of a plain PKCS#8 signer and, in the MCP server, SHA-256 cache keys and a constant-time token check. The engine stays dependency-free by exiling the shell and the protocol to separate repositories — the pdfnative ecosystem pattern. [docs/guides/choose.md](docs/guides/choose.md#choosing-your-surface) says which surface fits which job; versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`. The [playgrounds](https://pkinative.dev/playgrounds/) run the library in a browser tab and build CLI command lines and MCP tool calls.
+Both satellites pin `pkinative ^1.0.0` in their `dependencies`, vendor its registries at the tag, and implement no cryptography of their own — beyond the engine, they call `node:crypto` only for randomness — serials, nonces and, in the CLI, the temporary file behind `--overwrite` — and the public key of a plain PKCS#8 signer and, in the MCP server, for SHA-256 — the digest of each returned artefact and the cache keys — and a constant-time token check. The engine stays dependency-free by exiling the shell and the protocol to separate repositories — the pdfnative ecosystem pattern. [docs/guides/choose.md](docs/guides/choose.md#choosing-your-surface) says which surface fits which job; versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`. The [playgrounds](https://pkinative.dev/playgrounds/) run the library in a browser tab and build CLI command lines and MCP tool calls.
 
 The *native* family:
 
@@ -471,6 +471,8 @@ Branch on `error.code`, never on the message: the codes are a registry ([docs/da
 
 The job: remember that this peer is this peer, across a certificate renewal. Pinning the whole certificate breaks every ninety days; pinning the subject public key does not, because a renewal normally keeps the key.
 
+![Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.](../assets/use-case-certificate-anatomy.svg)
+
 ```ts
 import { computeFingerprint, formatFingerprint, parseCertificate } from 'pkinative';
 
@@ -482,8 +484,6 @@ export function keyPin(der: Uint8Array): string {
 ```
 
 The detail that decides whether a pin is right: **what exactly you hash.** Hashing the certificate pins the certificate. Hashing the public key *bits* pins something two different algorithms could collide on. The thing to hash is the full `SubjectPublicKeyInfo` — algorithm identifier and key together — and pkinative hands it to you as `der`, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.
-
-![Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.](../assets/use-case-certificate-anatomy.svg)
 
 ## Gate a DER round trip
 
@@ -1003,7 +1003,7 @@ openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 
 ## What none of these do
 
-Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use instead:
+Each of the cases above is complete. What is **not** here is deliberate, and the [choosing guide](choose.md#the-alternatives-by-the-facts) says what to use instead:
 
 | You need | pkinative | Instead |
 |---|---|---|
@@ -1768,7 +1768,7 @@ pkinative-cli follows Semantic Versioning, and its agent contract is stable acro
 - [MCP guide](mcp.md) — the same engine for AI assistants.
 - [Choosing a library and a surface](choose.md#choosing-your-surface) — library, CLI or MCP server, per capability.
 - [Errors, diagnostics and reasons](errors.md) · [Security model](security.md) · [Conformance](conformance.md).
-- The CLI's [README](https://github.com/Nizoka/pkinative-cli/blob/main/README.md), its [agent contract](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md) and its [llms.txt](https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt).
+- The CLI's [README](https://github.com/Nizoka/pkinative-cli/blob/main/README.md), its [agent contract](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md), its [threat model](https://github.com/Nizoka/pkinative-cli/blob/main/docs/THREAT_MODEL.md) and its [llms.txt](https://github.com/Nizoka/pkinative-cli/blob/main/llms.txt).
 
 ---
 <!-- source: docs/guides/use-cases-cli.md -->
@@ -1837,7 +1837,7 @@ A name mismatch is caught by the same call: on the sample chain, `--host other.t
 
 Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back.
 
-![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a stale CRL needs --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
+![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a CRL past nextUpdate fails chain verify, which takes no tolerance, and passes crl check only within --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
 
 The building blocks, from `samples/ocsp/` and `samples/crl/`:
 
@@ -1887,7 +1887,7 @@ On the samples' revoked leaf, both checks are negative verdicts — exit 1, `E_C
 
 and on the good leaf, `ocsp check` answers `{"valid":true,"reasons":[],"status":"good","signatureVerified":true,"responderAuthorized":true}` with exit 0.
 
-**Limits.** `--require-revocation` turns an unknown status into a failure; without it, a chain whose revocation evidence is missing can still verify, which is a soft-fail decision you make explicitly. A CRL past its `nextUpdate` is stale unless you grant `--stale-tolerance <ms>`, and an OCSP `thisUpdate` in the future is refused beyond `--future-tolerance` (60000 ms by default) — on an air-gapped host, pin `--at` rather than trust its clock.
+**Limits.** `--require-revocation` turns an unknown status into a failure; without it, a chain whose revocation evidence is missing can still verify, which is a soft-fail decision you make explicitly. A CRL past its `nextUpdate` is stale: `crl check` accepts one only within `--stale-tolerance <ms>`, and `chain verify`, which takes no tolerance, reports `PKI_REASON_REVOCATION_STALE`; an OCSP `thisUpdate` in the future is refused by `ocsp check` beyond `--future-tolerance` (60000 ms by default) — on an air-gapped host, pin `--at` rather than trust its clock.
 
 ## Case 3 — CMS signature and RFC 3161 timestamp in a release pipeline
 
@@ -2033,7 +2033,7 @@ npm install -g pkinative-mcp
 pkinative-mcp
 ```
 
-The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || >=25.8.2` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
+The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || >=25.8.2` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
 
 ## Configuration by client
 
@@ -2075,6 +2075,12 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 ```
 
 The value must be absolute: Claude Code does not expand `${CLAUDE_PROJECT_DIR}` here (it sets that variable only in the server's environment), and the server refuses a relative path.
+
+Or register it from the command line — local scope by default, `--scope project` writes the `.mcp.json` above:
+
+```bash
+claude mcp add --env PKINATIVE_MCP_OUTPUT_DIR=/absolute/path/to/your/project/.mcp-pki pkinative -- npx -y pkinative-mcp
+```
 
 ### Cursor · Continue · Zed · Windsurf · Cline · Roo Code
 
@@ -2119,18 +2125,18 @@ PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINA
 # every request: POST /mcp with Authorization: Bearer <token>
 ```
 
-The endpoint binds `127.0.0.1` only and accepts `POST /mcp`; `GET` and `DELETE` answer 405 (the server is stateless, with no SSE resumability), a foreign `Host` or `Origin` answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. **Without `PKINATIVE_MCP_HTTP_TOKEN` the endpoint has no authentication**, and other local processes can reach it; with the token, a missing bearer answers 401 with `WWW-Authenticate: Bearer realm="pkinative-mcp"`, a wrong one adds `error="invalid_token"`.
+The endpoint binds `127.0.0.1` only and accepts `POST /mcp`; any other path answers 404, `GET` and `DELETE` answer 405 (the server is stateless, with no SSE resumability), a foreign `Host` or `Origin` answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. **Without `PKINATIVE_MCP_HTTP_TOKEN` the endpoint has no authentication**, and other local processes can reach it; with the token, a missing bearer answers 401 with `WWW-Authenticate: Bearer realm="pkinative-mcp"`, a wrong one adds `error="invalid_token"`.
 
 A hosted client such as ChatGPT connects from its own infrastructure: this endpoint answers a non-loopback `Host` or `Origin` with 403, so it is not reachable from there as shipped.
 
 ## Environment variables
 
-All nine are declared in `server.json` and read once at startup; an invalid value — a port outside 1–65535, a relative output directory, a malformed instant or ceiling, a weak token — refuses to start with one `[pkinative-mcp] fatal:` line on stderr, never a silent fallback. Only the *presence* of a secret is logged.
+All nine are declared in `server.json` and read once at startup; an invalid value — a port outside 1–65535, a relative output directory, a malformed instant or ceiling, a weak token — refuses to start with one `[pkinative-mcp] fatal:` line on stderr and exit code 1, never a silent fallback. Only the *presence* of a secret is logged.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `PKINATIVE_MCP_OUTPUT_DIR` | *(unset)* | Absolute path of the one sandbox: every `path` input is read from it, `outputMode: 'file'` artefacts are written under it (exclusive create, never overwritten), and `resources/*` list and serve it. The real path of every file read and of every parent written must stay inside — a planted symlink or junction is `SECURITY_VIOLATION`. Key-bearing files (`.key .p8 .p12 .pfx`) may be named by any `path` input — no tool returns their key bytes — but are never written, never listed and never served as resources. Unset: inline PEM and base64 only |
-| `PKINATIVE_MCP_CACHE_DIR` | *(unset)* | Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a `path` input, file output, a call carrying a `password` or a `signer`, a `'random'` serial or nonce, a `'now'` or unpinned instant, `describe_engine`, `draft_governance_issue`, nor any password-accepting tool while `PKINATIVE_MCP_PASSWORD` is set. A hit carries `_meta.cached: true` |
+| `PKINATIVE_MCP_CACHE_DIR` | *(unset)* | Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a `path` input, file output, a call carrying a `password` or a `signer`, a `'random'` serial or nonce, a `'now'` or unpinned instant, `describe_engine`, `draft_governance_issue`, nor any password-accepting tool while `PKINATIVE_MCP_PASSWORD` is set. A hit carries `_meta.cached: true`; a directory that cannot be created disables the cache, with one `[pkinative-mcp] cache disabled:` line on stderr |
 | `PKINATIVE_MCP_PORT` | *(unset → stdio)* | Serve Streamable HTTP on `127.0.0.1:<port>/mcp` instead of stdio |
 | `PKINATIVE_MCP_HTTP_TOKEN` | *(unset)* | *(secret)* Opt-in bearer token for HTTP: at least 16 characters, no whitespace (a weaker value refuses to start); compared in constant time, never logged |
 | `PKINATIVE_MCP_PASSWORD` | *(unset)* | *(secret)* The operator-side password of the encrypted PKCS#8 key or PKCS#12 file the tools open, which keeps the secret out of the model transcript. It counts as the password of every password-accepting tool, so describing a file without a password needs it unset. Exclusive with the per-call `password` input (both at once is `VALIDATION_ERROR`) |
@@ -2148,6 +2154,7 @@ All nine are declared in `server.json` and read once at startup; an invalid valu
 - **stdio is the default transport**, with the frame cap raised to 256 MiB so a multi-MiB base64 CMS message or PKCS#12 fits in one call; stdout carries JSON-RPC frames only.
 - **Schemas.** Every tool advertises an `inputSchema` and an `outputSchema`; every object input is closed (an unknown or misspelt key at any depth is `VALIDATION_ERROR` naming the path), and input schemas carry no `$schema` keyword and no `$ref`, because some hosts forward them to function-calling APIs. Every `structuredContent` validates against the tool's `outputSchema`, projections included. Every tool carries `_meta.apiVersion` (`1.0.0`) and up to two executable `_meta.examples`.
 - **Instructions.** The `initialize` / `server/discover` response carries a server-instructions block — which tool answers which question, the security posture and the pitfalls — and the seven prompts repeat that material on demand.
+- **Shutdown.** SIGINT and SIGTERM close the transport and the server, with exit code 0.
 - **Protocol errors** are JSON-RPC errors: an unknown tool is `-32602` with `[UNKNOWN_TOOL] Unknown tool: …`, an unknown resource URI `-32602` with `data.uri` (the server's `UNKNOWN_RESOURCE` code is not sent on the wire). `isError: true` is reserved for execution failures.
 
 ## Tool reference
@@ -2331,7 +2338,7 @@ Seven read-only prompts, without arguments: two carry the governance contract, f
 
 | Prompt | Title | What it walks through |
 |---|---|---|
-| `governance_contract` | AI-governance & HITL contract | The agent is a draftsman and the human the only gate: zero runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft |
+| `governance_contract` | AI-governance & HITL contract | The agent is a draftsman and the human the only gate: zero new runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft |
 | `draft_issue_workflow` | Human-in-the-loop issue workflow | Drafting an issue with `draft_governance_issue` and handing it to a human for review and submission |
 | `verify_before_trust` | Verify before you trust | `inspect_certificate` → `verify_certificate_chain` with a pinned instant → offline revocation evidence, and why a verified signature is not trust |
 | `issue_certificate` | Issue a CA, a CSR and a leaf certificate | How `create_csr` and `create_certificate` chain together, what is derived, what is verified before the bytes return, and the key, scheme and instant rules |
@@ -2413,6 +2420,10 @@ Two real results, from the 1.0.0 server. The first `PKI_*` code is raised by the
 
 The server's own conformance gate has OpenSSL 3 read back every artefact it writes, in CI and before every publish; the [conformance guide](conformance.md) covers the engine underneath, and the [security guide](security.md) its threat model.
 
+## Versioning
+
+pkinative-mcp follows Semantic Versioning, and its tool API carries a version of its own: every tool advertises `_meta.apiVersion`, `1.0.0` since pkinative-mcp 1.0.0, independent of the npm version and of the MCP protocol revision. Across 1.x the tool names, the required input and output fields, the field types, the 21 wrapper codes and the bytes written for deterministic inputs are stable: a new optional output field is a patch; a new tool, optional input or enum value a minor; a removal, a rename, a narrowed type or a weakened security default waits for 2.0.0, after at least one minor of deprecation. Descriptions, prompt texts and `_meta.examples` are not covered; the engine's `PKI_*`, `PKI_REASON_*` and `PKI_DIAG_*` codes pass through verbatim under pkinative's own promise. pkinative-mcp 1.0.0, released on 2026-10-17, pins pkinative ^1.0.0; security fixes land on the latest published minor. The server's [API stability charter](https://github.com/Nizoka/pkinative-mcp/blob/main/docs/API_STABILITY.md) states the promise tool by tool.
+
 ## Further reading
 
 - [MCP tool explorer](../playgrounds/mcp.html) — the client configuration, and each tool's `tools/call` payload with the engine call behind it run in your tab.
@@ -2480,7 +2491,7 @@ The name check (`examples/check-certificate-name-mismatch.json`):
 
 ## Case 2 — Issuing a test certificate
 
-A developer needs a CA and a TLS server certificate for an integration test, from keys they already have. The `issue_certificate` prompt chains three calls; the server generates no key and exports none, and each artefact is verified before its bytes are returned. The calls below are `examples/create-certificate-self-signed-ca.json`, `examples/create-csr-round-trip.json` and `examples/create-certificate-issue-leaf.json`, written into the sandbox with `outputMode: 'file'` and chained as the prompt describes — the leaf issued by the new CA — so no artefact travels back through the model's context.
+A developer needs a CA and a TLS server certificate for an integration test, from keys they already have. The `issue_certificate` prompt chains four calls — the CA, the request, the leaf, then the chain that proves them; the server generates no key and exports none, and each artefact is verified before its bytes are returned. The first three below are `examples/create-certificate-self-signed-ca.json`, `examples/create-csr-round-trip.json` and `examples/create-certificate-issue-leaf.json`, written into the sandbox with `outputMode: 'file'` and chained as the prompt describes — the leaf issued by the new CA — so no artefact travels back through the model's context; the fourth is the prompt's last step.
 
 ![Architecture: following the issue_certificate prompt, an MCP agent chains four pkinative-mcp calls with outputMode file: create_certificate for a self-signed CA, create_csr for the request, create_certificate for the leaf signed by that CA, then verify_certificate_chain to prove it. The engine signs with the caller's keys, read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and verifies each artefact before writing it; the result is a resource_link, not the bytes. Refusals are isError wrapper codes. Limits: the ECDSA-signed CSR is non-idempotent; RSA needs rsaScheme.](../assets/use-case-mcp-test-certificate.svg)
 
@@ -3313,5 +3324,40 @@ Every capability `docs/data/surfaces.json` lists, by surface:
 | `cms-timestamp` | `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken` | `tsp request`, `inspect`, `verify`; `cms add-timestamp` | `create_timestamp_request`, `inspect_timestamp`, `verify_timestamp`; `amend_cms` (`add-timestamp`) |
 | `keys-pkcs8` | `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey`, `canDecrypt` | `key inspect`, `key check`; `--key` on the signing commands; `doctor` | `inspect_private_key` (`tryImport`); `signer.key` on the signing tools; `describe_engine` |
 | `keys-pkcs12` | `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`, `openPkcs12` | `p12 inspect`, `verify-mac`, `bags`, `open`; `--p12` on the signing commands | `inspect_pkcs12`, `open_pkcs12`; `signer.p12` on the signing tools |
+
+What each surface adds around the engine, and what it leaves out — an em-dash means the surface does not offer it:
+
+| Capability | Library (`pkinative`) | CLI (`pkinative-cli`) | MCP (`pkinative-mcp`) |
+|---|---|---|---|
+| Where the bytes come from | `Uint8Array` values your code reads | a file, or `-` and a pipe on stdin | inline `pem` or `derBase64`, or a `path` inside the `PKINATIVE_MCP_OUTPUT_DIR` sandbox |
+| Writing an artefact | — (the bytes are returned; the engine writes no file) | `--output`, exclusive unless `--overwrite` (an atomic rename); `--dry-run` writes nothing | `outputMode: 'file'` inside the sandbox, never overwritten, returned as a `resource_link` |
+| A key outside the process (HSM, KMS, remote signer) | `ExternalSigner` | — (a PKCS#8 or PKCS#12 file) | — (`signer.key` or `signer.p12`) |
+| Passwords | your code passes them | `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`; never on the command line | the `password` input or `PKINATIVE_MCP_PASSWORD`, never both |
+| A negative verdict | `valid: false` and `reasons[]` | the report, then exit 1 (`E_VERIFY_FAILED` or `E_CHECK_FAILED`) | `valid: false` in `structuredContent`, never `isError` |
+| A reproducible instant | the `at` option | `--at` | the `at` input; `PKINATIVE_MCP_AT` for the whole server |
+| Diagnostics and strict mode | `onDiagnostic`, `strict` | `diagnostics` in the envelope, `--strict`, `--quiet` | `diagnostics[]` and `diagnosticCounts`, `strict: true` |
+| Capability preflight | `canSign`, `canVerify`, `canDecrypt` | `doctor` | `describe_engine` |
+| Machine contract | `docs/assets/api.json` and the registries of `docs/data/` | `schema` (twelve subjects), `--summary`, `--fields` | `inputSchema` and `outputSchema` in `tools/list`; `verbosity`, `fields` |
+| Shell completion | — | `completion` (bash, zsh, fish, PowerShell) | — |
+| Configuration file | — (options per call) | `.pkinativerc.json`, `--config`, `--no-config` — presentation defaults only | — (the nine `PKINATIVE_MCP_*` variables instead) |
+| Response cache | — | — | `PKINATIVE_MCP_CACHE_DIR` (opt-in, SHA-256 keyed) |
+| Transport | an in-process `import` | one process per command: the report on stdout, the `--json` envelope on stderr | stdio; Streamable HTTP on loopback, with an opt-in bearer token |
+| Guided workflows | — (`recipes/` in the repository) | — (`--help`, `docs/AGENT_CONTRACT.md`) | seven prompts (`prompts/list`) |
+| AI-governance drafter | — (repository policy, `npm run verify:issue`) | — (repository policy, `.github/drafts/`) | `draft_governance_issue`; the `governance_contract` and `draft_issue_workflow` prompts |
+| Exit codes | — | 0, 1, 2; 130 and 143 on SIGINT and SIGTERM | — (`isError` and JSON-RPC errors) |
+| Runtimes | any with Web Crypto: Node.js, Deno, Bun, browsers, edge workers | Node.js | Node.js |
+| Generating or exporting a key; fetching a CRL, an OCSP response or a timestamp | — | — | — |
+
+### Honest notes
+
+- **No surface generates or exports a key, and none fetches.** Web Crypto's `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md)), and the engine opens no socket ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)): keys come from your HSM, KMS or `openssl genpkey`, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.
+- **Only the CLI and the MCP sandbox write files.** The engine returns bytes. The CLI writes where you point it, exclusively unless `--overwrite`; the MCP server writes only under `PKINATIVE_MCP_OUTPUT_DIR`, never overwrites, and never writes, lists or serves a key-bearing file.
+- **A key in an HSM or a remote service reaches the library only.** Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an `ExternalSigner` is a library call.
+- **A satellite adds no PKI decision.** A `PKI_*`, `PKI_REASON_*` or `PKI_DIAG_*` code means the same on every surface. A CLI `E_*` class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.
+- **The table is the complete story** for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.
+
+### You can switch later
+
+All three surfaces call the same engine, so what one writes the others read: a certificate `create_certificate` writes into the sandbox verifies under `pkinative chain verify` and parses with `parseCertificate`, and a verdict carries the same reason codes wherever it was reached. `cert create --spec` and the `spec` input of `create_certificate` take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate `cert create` adds an `authorityKeyIdentifier` and `create_certificate` does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the "wrong" surface costs a call-site migration, not a re-authoring.
 
 The [CLI guide](cli.md) and the [MCP guide](mcp.md) document every command and tool; [CLI use cases](use-cases-cli.md) and [MCP use cases](use-cases-mcp.md) put them to work.

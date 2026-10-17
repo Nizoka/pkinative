@@ -66,6 +66,8 @@ Branch on `error.code`, never on the message: the codes are a registry ([docs/da
 
 The job: remember that this peer is this peer, across a certificate renewal. Pinning the whole certificate breaks every ninety days; pinning the subject public key does not, because a renewal normally keeps the key.
 
+![Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.](../assets/use-case-certificate-anatomy.svg)
+
 ```ts
 import { computeFingerprint, formatFingerprint, parseCertificate } from 'pkinative';
 
@@ -77,8 +79,6 @@ export function keyPin(der: Uint8Array): string {
 ```
 
 The detail that decides whether a pin is right: **what exactly you hash.** Hashing the certificate pins the certificate. Hashing the public key *bits* pins something two different algorithms could collide on. The thing to hash is the full `SubjectPublicKeyInfo` — algorithm identifier and key together — and pkinative hands it to you as `der`, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.
-
-![Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.](../assets/use-case-certificate-anatomy.svg)
 
 ## Gate a DER round trip
 
@@ -598,7 +598,7 @@ openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 
 ## What none of these do
 
-Each of the cases above is complete. What is **not** here is deliberate, and the [comparison guide](choose.md) says what to use instead:
+Each of the cases above is complete. What is **not** here is deliberate, and the [choosing guide](choose.md#the-alternatives-by-the-facts) says what to use instead:
 
 | You need | pkinative | Instead |
 |---|---|---|

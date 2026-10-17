@@ -89,4 +89,39 @@ Every capability `docs/data/surfaces.json` lists, by surface:
 | `keys-pkcs8` | `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey`, `canDecrypt` | `key inspect`, `key check`; `--key` on the signing commands; `doctor` | `inspect_private_key` (`tryImport`); `signer.key` on the signing tools; `describe_engine` |
 | `keys-pkcs12` | `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`, `openPkcs12` | `p12 inspect`, `verify-mac`, `bags`, `open`; `--p12` on the signing commands | `inspect_pkcs12`, `open_pkcs12`; `signer.p12` on the signing tools |
 
+What each surface adds around the engine, and what it leaves out — an em-dash means the surface does not offer it:
+
+| Capability | Library (`pkinative`) | CLI (`pkinative-cli`) | MCP (`pkinative-mcp`) |
+|---|---|---|---|
+| Where the bytes come from | `Uint8Array` values your code reads | a file, or `-` and a pipe on stdin | inline `pem` or `derBase64`, or a `path` inside the `PKINATIVE_MCP_OUTPUT_DIR` sandbox |
+| Writing an artefact | — (the bytes are returned; the engine writes no file) | `--output`, exclusive unless `--overwrite` (an atomic rename); `--dry-run` writes nothing | `outputMode: 'file'` inside the sandbox, never overwritten, returned as a `resource_link` |
+| A key outside the process (HSM, KMS, remote signer) | `ExternalSigner` | — (a PKCS#8 or PKCS#12 file) | — (`signer.key` or `signer.p12`) |
+| Passwords | your code passes them | `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`; never on the command line | the `password` input or `PKINATIVE_MCP_PASSWORD`, never both |
+| A negative verdict | `valid: false` and `reasons[]` | the report, then exit 1 (`E_VERIFY_FAILED` or `E_CHECK_FAILED`) | `valid: false` in `structuredContent`, never `isError` |
+| A reproducible instant | the `at` option | `--at` | the `at` input; `PKINATIVE_MCP_AT` for the whole server |
+| Diagnostics and strict mode | `onDiagnostic`, `strict` | `diagnostics` in the envelope, `--strict`, `--quiet` | `diagnostics[]` and `diagnosticCounts`, `strict: true` |
+| Capability preflight | `canSign`, `canVerify`, `canDecrypt` | `doctor` | `describe_engine` |
+| Machine contract | `docs/assets/api.json` and the registries of `docs/data/` | `schema` (twelve subjects), `--summary`, `--fields` | `inputSchema` and `outputSchema` in `tools/list`; `verbosity`, `fields` |
+| Shell completion | — | `completion` (bash, zsh, fish, PowerShell) | — |
+| Configuration file | — (options per call) | `.pkinativerc.json`, `--config`, `--no-config` — presentation defaults only | — (the nine `PKINATIVE_MCP_*` variables instead) |
+| Response cache | — | — | `PKINATIVE_MCP_CACHE_DIR` (opt-in, SHA-256 keyed) |
+| Transport | an in-process `import` | one process per command: the report on stdout, the `--json` envelope on stderr | stdio; Streamable HTTP on loopback, with an opt-in bearer token |
+| Guided workflows | — (`recipes/` in the repository) | — (`--help`, `docs/AGENT_CONTRACT.md`) | seven prompts (`prompts/list`) |
+| AI-governance drafter | — (repository policy, `npm run verify:issue`) | — (repository policy, `.github/drafts/`) | `draft_governance_issue`; the `governance_contract` and `draft_issue_workflow` prompts |
+| Exit codes | — | 0, 1, 2; 130 and 143 on SIGINT and SIGTERM | — (`isError` and JSON-RPC errors) |
+| Runtimes | any with Web Crypto: Node.js, Deno, Bun, browsers, edge workers | Node.js | Node.js |
+| Generating or exporting a key; fetching a CRL, an OCSP response or a timestamp | — | — | — |
+
+### Honest notes
+
+- **No surface generates or exports a key, and none fetches.** Web Crypto's `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md)), and the engine opens no socket ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)): keys come from your HSM, KMS or `openssl genpkey`, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.
+- **Only the CLI and the MCP sandbox write files.** The engine returns bytes. The CLI writes where you point it, exclusively unless `--overwrite`; the MCP server writes only under `PKINATIVE_MCP_OUTPUT_DIR`, never overwrites, and never writes, lists or serves a key-bearing file.
+- **A key in an HSM or a remote service reaches the library only.** Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an `ExternalSigner` is a library call.
+- **A satellite adds no PKI decision.** A `PKI_*`, `PKI_REASON_*` or `PKI_DIAG_*` code means the same on every surface. A CLI `E_*` class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.
+- **The table is the complete story** for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.
+
+### You can switch later
+
+All three surfaces call the same engine, so what one writes the others read: a certificate `create_certificate` writes into the sandbox verifies under `pkinative chain verify` and parses with `parseCertificate`, and a verdict carries the same reason codes wherever it was reached. `cert create --spec` and the `spec` input of `create_certificate` take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate `cert create` adds an `authorityKeyIdentifier` and `create_certificate` does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the "wrong" surface costs a call-site migration, not a re-authoring.
+
 The [CLI guide](cli.md) and the [MCP guide](mcp.md) document every command and tool; [CLI use cases](use-cases-cli.md) and [MCP use cases](use-cases-mcp.md) put them to work.
