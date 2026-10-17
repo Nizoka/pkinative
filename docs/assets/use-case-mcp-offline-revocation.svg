@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucor-title ucor-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucor-title">Offline revocation</title>
+  <desc id="ucor-desc">Architecture: following the offline_revocation prompt, an MCP agent on an air-gapped host asks pkinative-mcp where the evidence lives with inspect_certificate and builds the OCSP request with create_ocsp_request; the user, or a tool with network access, fetches the CRL and posts the request. The agent then judges the bytes it brings with check_crl_revocation, check_ocsp_status or one verify_certificate_chain. The engine checks scope, freshness, signatures and responder authorisation and never contacts a URL. Limits: no covering evidence is revocation unknown, never not revoked.</desc>
+
+  <defs>
+    <marker id="ucor-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ucor-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Offline revocation</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">offline_revocation prompt · the evidence is bytes the agent brings; the server has no network code path — pkinative-mcp 1.0.0</text>
+
+  <!-- Result path: the verdict back to the agent (routed above the row) -->
+  <path d="M420 116 L420 100 L125 100 L125 114" fill="none" stroke="#16A34A" stroke-width="1.75" stroke-dasharray="6 5" marker-end="url(#ucor-ah-green)"/>
+  <text x="480" y="92" text-anchor="middle" font-size="11" fill="#15803D">tools/call result: valid · reasons[].code · signatureVerified · status — a verdict in structuredContent, never isError</text>
+
+  <!-- Agent -->
+  <rect x="40" y="116" width="170" height="124" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="125" y="140" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">Agent</text>
+  <text x="125" y="158" text-anchor="middle" font-size="11.5" fill="#64748B">air-gapped host</text>
+  <rect x="52" y="168" width="146" height="42" rx="8" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="125" y="185" text-anchor="middle" font-size="11" fill="#4F46E5">prompts/get</text>
+  <text x="125" y="201" text-anchor="middle" font-size="11.5" font-weight="700" fill="#3730A3">offline_revocation</text>
+  <text x="125" y="228" text-anchor="middle" font-size="11.5" fill="#64748B">“is it revoked?”</text>
+
+  <line x1="210" y1="178" x2="238" y2="178" stroke="#475569" stroke-width="1.75" marker-end="url(#ucor-ah)"/>
+
+  <!-- The user, or a networked tool -->
+  <rect x="40" y="264" width="170" height="128" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25" stroke-dasharray="5 4"/>
+  <text x="125" y="285" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">The user, or a tool</text>
+  <text x="125" y="302" text-anchor="middle" font-size="11.5" fill="#64748B">with network access</text>
+  <text x="125" y="324" text-anchor="middle" font-size="11" fill="#64748B">fetches the CRL,</text>
+  <text x="125" y="340" text-anchor="middle" font-size="11" fill="#64748B">POSTs the OCSP request as</text>
+  <text x="125" y="356" text-anchor="middle" font-size="11" fill="#64748B">application/ocsp-request,</text>
+  <text x="125" y="372" text-anchor="middle" font-size="11" fill="#64748B">brings the bytes back</text>
+
+  <line x1="240" y1="296" x2="212" y2="296" stroke="#475569" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ucor-ah)"/>
+  <line x1="210" y1="360" x2="238" y2="360" stroke="#475569" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ucor-ah)"/>
+
+  <!-- Server -->
+  <rect x="240" y="116" width="360" height="276" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="137" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E40AF">pkinative-mcp — offline by design</text>
+  <rect x="252" y="146" width="336" height="44" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="163" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">1 · inspect_certificate — where to fetch</text>
+  <text x="420" y="180" text-anchor="middle" font-size="11" fill="#3B82F6">crlDistributionPoints · authorityInfoAccess</text>
+  <rect x="252" y="194" width="336" height="44" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="211" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">2 · create_ocsp_request</text>
+  <text x="420" y="228" text-anchor="middle" font-size="11" fill="#3B82F6">SHA-256 · nonce: 'random' → structuredContent.hex</text>
+  <rect x="252" y="242" width="336" height="44" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="259" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">3 · check_crl_revocation</text>
+  <text x="420" y="276" text-anchor="middle" font-size="11" fill="#3B82F6">crl · issuer · at → PKI_REASON_REVOKED</text>
+  <rect x="252" y="290" width="336" height="44" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="307" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">4 · check_ocsp_status</text>
+  <text x="420" y="324" text-anchor="middle" font-size="11" fill="#3B82F6">issuer · nonce · requireNonce · at → status: good</text>
+  <rect x="252" y="338" width="336" height="44" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="355" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">or one call: verify_certificate_chain</text>
+  <text x="420" y="372" text-anchor="middle" font-size="11" fill="#3B82F6">crls · ocspResponses · requireRevocation: true</text>
+
+  <line x1="600" y1="178" x2="628" y2="178" stroke="#475569" stroke-width="1.75" marker-end="url(#ucor-ah)"/>
+
+  <!-- Engine -->
+  <rect x="630" y="116" width="290" height="132" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="775" y="140" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">pkinative engine</text>
+  <text x="775" y="164" text-anchor="middle" font-size="11.5" fill="#0E7490">CRL (RFC 5280 §6.3): scope, freshness,</text>
+  <text x="775" y="182" text-anchor="middle" font-size="11.5" fill="#0E7490">delta CRL, signature against issuer</text>
+  <text x="775" y="206" text-anchor="middle" font-size="11.5" fill="#0E7490">OCSP (RFC 6960): CertID, signature,</text>
+  <text x="775" y="224" text-anchor="middle" font-size="11.5" fill="#0E7490">responder authorisation, nonce, freshness</text>
+
+  <!-- The edge that does not exist: a fetch -->
+  <line x1="775" y1="248" x2="775" y2="292" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <line x1="765" y1="260" x2="785" y2="280" stroke="#DC2626" stroke-width="2.5"/>
+  <line x1="785" y1="260" x2="765" y2="280" stroke="#DC2626" stroke-width="2.5"/>
+
+  <rect x="630" y="292" width="290" height="100" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25" stroke-dasharray="5 4"/>
+  <text x="775" y="318" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">CRL and OCSP responder URLs</text>
+  <line data-overlap="intentional" x1="676" y1="313" x2="874" y2="313" stroke="#DC2626" stroke-width="2"/>
+  <text x="775" y="342" text-anchor="middle" font-size="11" fill="#B91C1C">never contacted — the server has</text>
+  <text x="775" y="358" text-anchor="middle" font-size="11" fill="#B91C1C">no network code path; the evidence</text>
+  <text x="775" y="374" text-anchor="middle" font-size="11" fill="#B91C1C">arrives as path, pem or derBase64 inputs</text>
+
+  <!-- Guarantees -->
+  <rect x="40" y="414" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="437" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">PKI_REASON_REVOKED only from authenticated evidence — the CA, or a delegate with OCSPSigning (RFC 6960 §4.2.2.2).</text>
+  <text x="480" y="457" text-anchor="middle" font-size="12" fill="#16A34A">The OCSP answer must match the request's CertID and nonce; any other responder needs responderTrusted: true.</text>
+
+  <!-- Limits -->
+  <rect x="40" y="482" width="880" height="52" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="503" text-anchor="middle" font-size="12" fill="#475569">Limits: no covering evidence is PKI_REASON_REVOCATION_UNKNOWN — an absence of evidence, never “not revoked”.</text>
+  <text x="480" y="522" text-anchor="middle" font-size="12" fill="#475569">check_crl_revocation without issuer does not accept the list as evidence; a delta CRL whose signature fails is not applied.</text>
+</svg>

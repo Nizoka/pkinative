@@ -409,50 +409,15 @@ Error code unions are in the [errors guide](errors.md).
 
 A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.
 
-<svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
-  <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
-  <desc id="decision-desc">Untrusted bytes reach decodeAsn1, which either throws a PkiEncodingError with a stable code or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or produces a certificate together with any diagnostics. Every refusal carries a code; nothing is ever half-accepted.</desc>
-  <defs>
-    <marker id="uc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0 0L10 5L0 10z" fill="var(--c-text-muted)"/>
-    </marker>
-  </defs>
-  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">
-    <rect x="8" y="72" width="126" height="46" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="71" y="91" fill="var(--c-text)" font-family="inherit">untrusted</text>
-    <text x="71" y="107" fill="var(--c-text-dim)" font-family="inherit">bytes</text>
-
-    <rect x="192" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="267" y="99" fill="var(--c-primary)">decodeAsn1</text>
-
-    <rect x="400" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="475" y="99" fill="var(--c-primary)">parseCertificate</text>
-
-    <rect x="616" y="62" width="176" height="30" rx="8" fill="var(--c-bg-card)" stroke="var(--c-success)" stroke-width="1.5"/>
-    <text x="704" y="82" fill="var(--c-text)">Certificate</text>
-    <rect x="616" y="100" width="176" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="704" y="120" fill="var(--c-text-dim)">+ diagnostics</text>
-
-    <rect x="236" y="8" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
-    <text x="426" y="28" fill="var(--c-text-muted)">throw PkiEncodingError · PkiLimitError</text>
-    <rect x="236" y="158" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
-    <text x="426" y="178" fill="var(--c-text-muted)">throw PkiCertificateError</text>
-  </g>
-  <g fill="none" stroke="var(--c-text-muted)" marker-end="url(#uc-arrow)">
-    <path d="M134 95H186"/>
-    <path d="M342 95H394"/>
-    <path d="M550 87H610"/>
-    <path d="M550 103V115H610"/>
-    <path d="M267 72V38" stroke-dasharray="4 3"/>
-    <path d="M475 118V152" stroke-dasharray="4 3"/>
-  </g>
-</svg>
+![Architecture: untrusted bytes reach decodeAsn1, an iterative strict-DER decoder, which either throws a PkiEncodingError or a PkiLimitError with a stable code, or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or returns a Certificate of zero-copy views together with any diagnostics. A green band states the guarantee: three exits, never a fourth, and depth is a limit rather than a stack overflow. A slate band states the limits: branch on error.code, never on the message, and a parsed certificate is read, not yet trusted.](../assets/use-case-decision.svg)
 
 Three exits, never a fourth. The decoder is iterative, so depth is a limit and not a stack overflow; every refusal carries a `code` you branch on and a message that names the remedy. What a refusal never is, is silence.
 
 ## Inventory a certificate estate
 
 The job: read every certificate an organisation has on disk, and report what expires when. It needs no network, no signature and no trust store — only correct parsing of every field, including the ones that are usually skipped.
+
+![Architecture: untrusted input, a PEM bundle read from disk or DER from an upload, a queue or a peer, enters pkinative. decodePem with the CERTIFICATE label splits the bundle and refuses a private key hidden in it; parseCertificate reads every field, each loop bounded by a named, CWE-tagged limit from DEFAULT_PKI_LIMITS that the caller may tighten. Out come report rows, or a typed refusal: a PkiLimitError naming its limit, configured and observed values, or a PkiError code. Bands: no crash, no hang, no read past the buffer; no network and no trust decision.](../assets/use-case-inventory-intake.svg)
 
 ```ts
 import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from 'pkinative';
@@ -518,45 +483,7 @@ export function keyPin(der: Uint8Array): string {
 
 The detail that decides whether a pin is right: **what exactly you hash.** Hashing the certificate pins the certificate. Hashing the public key *bits* pins something two different algorithms could collide on. The thing to hash is the full `SubjectPublicKeyInfo` — algorithm identifier and key together — and pkinative hands it to you as `der`, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.
 
-<svg viewBox="0 0 960 250" role="img" aria-labelledby="anatomy-title anatomy-desc" class="guide-figure">
-  <title id="anatomy-title">What a parsed certificate gives you, and which slice each use case hashes</title>
-  <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; verifyCertificateSignature checks signatureValue over tbsDer with the issuer key.</desc>
-  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
-    <rect x="8" y="8" width="944" height="234" rx="10" fill="none" stroke="var(--c-border)"/>
-    <text x="24" y="32" fill="var(--c-text-dim)" font-size="12">Certificate</text>
-
-    <rect x="24" y="44" width="620" height="146" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="40" y="65" fill="var(--c-text-dim)" font-size="12">tbsCertificate — the signed bytes, exposed whole as tbsDer</text>
-
-    <rect x="40" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="106" y="99" fill="var(--c-text)" text-anchor="middle">serialNumber</text>
-    <rect x="184" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="250" y="99" fill="var(--c-text)" text-anchor="middle">issuer</text>
-    <rect x="328" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="394" y="99" fill="var(--c-text)" text-anchor="middle">validity</text>
-    <rect x="472" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="538" y="99" fill="var(--c-text)" text-anchor="middle">subject</text>
-
-    <rect x="40" y="124" width="264" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="172" y="145" fill="var(--c-primary)" text-anchor="middle">subjectPublicKeyInfo</text>
-    <text x="172" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">.der — what a key pin hashes</text>
-
-    <rect x="316" y="124" width="288" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="460" y="145" fill="var(--c-text)" text-anchor="middle">extensions</text>
-    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">nineteen decoded kinds, or raw</text>
-
-    <rect x="664" y="44" width="272" height="60" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="800" y="70" fill="var(--c-text)" text-anchor="middle">signatureAlgorithm</text>
-    <text x="800" y="90" fill="var(--c-text)" text-anchor="middle">signatureValue</text>
-
-    <rect x="664" y="116" width="272" height="58" rx="8" fill="none" stroke="var(--c-text-muted)" stroke-dasharray="4 3"/>
-    <text x="800" y="140" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">tbsDer + signatureValue</text>
-    <text x="800" y="158" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">verifyCertificateSignature checks</text>
-
-    <line x1="24" y1="206" x2="936" y2="206" stroke="var(--c-border)"/>
-    <text x="24" y="228" fill="var(--c-text-dim)" font-size="11.5">Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.</text>
-  </g>
-</svg>
+![Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.](../assets/use-case-certificate-anatomy.svg)
 
 ## Gate a DER round trip
 
@@ -605,6 +532,8 @@ Verification runs in [Web Crypto](https://www.w3.org/TR/WebCryptoAPI/), never in
 ## Issue a certificate, without ever holding the key
 
 The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages. A key that arrives as a PEM file or a `.p12` becomes a `SigningKey` through `importPrivateKey`, `decryptPrivateKey` or `openPkcs12` — see [Private keys and PKCS#12](#private-keys-and-pkcs12).
+
+![Architecture: a CertificateDescription, with validity in whole seconds, subjectPublicKey as SPKI DER and issuerDer as the issuer's own bytes, and a Signer, either a non-extractable SigningKey from importPrivateKey, decryptPrivateKey or openPkcs12 or an ExternalSigner for an HSM or KMS, flow into createCertificate. It encodes tbsCertificate and makes one signing call. Out comes certificate or PKCS#10 request DER, or a refusal such as PKI_ASN1_VALUE_OUT_OF_RANGE. Bands: the key is never bytes pkinative holds; the one exportKey line that extracts the SPKI is yours.](../assets/use-case-issue-without-key.svg)
 
 ```ts
 import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from 'pkinative';
@@ -726,6 +655,8 @@ The input is a [`ValidateCertificatePathInput`](../assets/api.json) and the answ
 ## Just tell me whether to accept this certificate
 
 The job: you have a certificate a server presented, a trust store, and a host name. You want one answer.
+
+![Architecture: the leaf and its candidates, your policy (trustAnchors, serverName, purposes, at) and the CRLs and OCSP responses you fetched flow into verifyCertificateChain, which runs in order: build the path with the purpose in hand, verifying a link only when the search relies on it; check the host name; check revocation by CRL and OCSP. Out comes one report, valid only when reasons is empty, every reason with code, path and message. Bands: bad input is a reason, never a throw, and a link with no verdict is never assumed valid; nothing is fetched, and revocation is soft-fail by default.](../assets/use-case-verify-chain.svg)
 
 ```ts
 import { verifyCertificateChain, KEY_PURPOSES } from 'pkinative';
@@ -931,6 +862,8 @@ A nonce that comes back **different** is always a mismatch. One that does not co
 
 The job: a PDF signature, an S/MIME message, a `.p7s` beside a release artefact. All three are an RFC 5652 CMS `SignedData`, and all three ask the same question — *is this what its signer signed, and do I trust the signer?*
 
+![Architecture: content or a contentDigest and a Signer flow into createSignedData, which writes one SignerInfo with signed attributes. The hash of the signature value goes into createTimeStampRequest; your own fetch carries it to a TSA, parseTimeStampResponse reads the answer, and addTimeStampToken attaches the token without changing a signed octet. verifySignedData with trustAnchors and atTimeStamp yields a SignerReport that keeps intact and valid apart. Bands: intact is not valid, and signingTime is never used; pkinative fetches nothing, makes no nonce, and judges the TSA at at.](../assets/use-case-sign-timestamp.svg)
+
 ```ts
 import { createSignedData, verifySignedData } from 'pkinative';
 
@@ -1010,6 +943,8 @@ A timestamp present on a signer **and invalid** makes the signer invalid, not me
 ## Private keys and PKCS#12
 
 The job: somebody handed you the key to sign with — a `PRIVATE KEY` or `ENCRYPTED PRIVATE KEY` PEM file, or a `.p12`/`.pfx` and its password — and `createCertificate`, `createCertificationRequest` or `createSignedData` needs a `SigningKey`.
+
+![Architecture: a PKCS#8 key, an encrypted PKCS#8 key, or a .p12 file and its password flow into openPkcs12 or the primitives under it, importPrivateKey and decryptPrivateKey. They parse without a password, verify only an RFC 9579 PBMAC1 MAC and otherwise fail closed, open PBES2 alone, and take each key's algorithm from the certificate sharing its localKeyId. The host's Web Crypto unwraps the key into a non-extractable CryptoKey. Out come an OpenPkcs12Report with keys and certificates, or a refusal by name. Bands: the key never becomes bytes pkinative holds; legacy schemes are refused.](../assets/use-case-keys-pkcs12.svg)
 
 ```ts
 import { createSignedData, openPkcs12 } from 'pkinative';
@@ -1852,6 +1787,8 @@ F=tests/fixtures/pki S=samples/inputs O=test-output/samples
 
 A deployment should not ship a certificate that does not chain to the roots it is meant to chain to, that names another host, or that expires before the next release. `chain verify` answers all three in one call, and its process contract — the verdict on stdout, one envelope on stderr, exit 0, 1 or 2 — is what a CI step branches on.
 
+![Architecture: a CI job carries the leaf certificate, its intermediate and the trust anchors, and pins an instant 30 days ahead with --at. pkinative chain verify checks the path, signatures, host name, purpose and revocation at that instant, then writes the verdict on stdout and one JSON envelope on stderr. The step branches on the exit code: 0 ships, 1 is E_VERIFY_FAILED with reason codes such as PKI_REASON_EXPIRED or PKI_REASON_NAME_MISMATCH, 2 is E_USAGE and fails the build without a retry. Limits: the CLI never fetches an intermediate or a CRL, and chain build is a diagnostic, never a gate.](../assets/use-case-cli-ci-gate.svg)
+
 The building blocks, from `samples/chain/`:
 
 ```bash
@@ -1898,7 +1835,11 @@ A name mismatch is caught by the same call: on the sample chain, `--host other.t
 
 ## Case 2 — Offline and air-gapped revocation checking
 
-Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back. The building blocks, from `samples/ocsp/` and `samples/crl/`:
+Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back.
+
+![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a stale CRL needs --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
+
+The building blocks, from `samples/ocsp/` and `samples/crl/`:
 
 ```bash
 # samples/ocsp/ocsp-request.sh — build an OCSP request (expected exit 0)
@@ -1950,7 +1891,11 @@ and on the good leaf, `ocsp check` answers `{"valid":true,"reasons":[],"status":
 
 ## Case 3 — CMS signature and RFC 3161 timestamp in a release pipeline
 
-A release artefact signed with a detached CMS signature can be verified long after the signing certificate expires — if a timestamp proves the signature existed while the certificate was valid. The building blocks, from `samples/cms/` and `samples/tsp/` (`cms-sign.sh` signs with the CA that `samples/cert/cert-create-ca.sh` writes into `$O`):
+A release artefact signed with a detached CMS signature can be verified long after the signing certificate expires — if a timestamp proves the signature existed while the certificate was valid.
+
+![Architecture: cms sign signs release.tgz detached with the signer certificate, its chain and a key whose password comes from a file, and checks the new signature before writing release.p7s. cms inspect extracts the signature value, tsp request hashes it into stamp.tsq, and your own call to the TSA returns stamp.tsr. cms add-timestamp attaches the token only if it stamps that signature value, else exit 1, E_INPUT, PKI_REASON_TSP_IMPRINT_MISMATCH. cms verify --at-timestamp then judges the signer at the stamped instant. Limits: the CLI never posts to a TSA, and tsp verify needs what was stamped.](../assets/use-case-cli-release-signing.svg)
+
+The building blocks, from `samples/cms/` and `samples/tsp/` (`cms-sign.sh` signs with the CA that `samples/cert/cert-create-ca.sh` writes into `$O`):
 
 ```bash
 # samples/cert/cert-create-ca.sh — issue a self-signed Ed25519 CA (expected exit 0)
@@ -2002,7 +1947,11 @@ pkinative cms verify release-stamped.p7s --content release.tgz --trust root.pem 
 
 ## Case 4 — A PKCS#12 audit with `--password-file`
 
-A `.p12` arriving from a partner or an old export should be described before anyone types its password, and opened without its key ever reaching a terminal or a log. The building blocks, from `samples/p12/` and `samples/key/`:
+A `.p12` arriving from a partner or an old export should be described before anyone types its password, and opened without its key ever reaching a terminal or a log.
+
+![Architecture: p12 inspect describes a partner's PKCS#12 file without a password. p12 verify-mac, p12 bags and p12 open then read the password from the first line of a protected file through --password-file; p12 open imports the keys non-extractable and exports the certificates with --certs-out. A password on argv is E_USAGE, exit 2; a wrong one E_PASSWORD, exit 1; a legacy RC2 or 3DES file E_SECURITY, exit 1, with PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED and PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED. Limits: no report holds a key byte; the CLI writes no PKCS#12 or PKCS#8.](../assets/use-case-cli-pkcs12-audit.svg)
+
+The building blocks, from `samples/p12/` and `samples/key/`:
 
 ```bash
 # samples/p12/p12-inspect.sh — describe a PKCS#12 file, no password (expected exit 0)
@@ -2485,6 +2434,8 @@ pkinative-mcp 1.0.0 ships an `examples/` directory of executable tool calls that
 
 A user pastes a server certificate and says their TLS client rejects it. The `verify_before_trust` prompt gives the agent the order: describe the certificate, then ask for the verdict at a pinned instant, then bring revocation evidence — and branch on `reasons[].code`, never on message text.
 
+![Architecture: following the verify_before_trust prompt, an MCP agent asks pkinative-mcp to describe a rejected server certificate with inspect_certificate, then for the RFC 5280 verdict with verify_certificate_chain at a pinned instant for a host and serverAuth. The engine answers valid false with reason codes, never isError, and each code picks the next call, from build_certificate_path to revocation evidence. Guarantee: branch on codes, not message text; nothing is fetched. Limits: a missing intermediate or root is asked of the user, and the verdict is relative to the anchors named.](../assets/use-case-mcp-chain-triage.svg)
+
 **Describe first** (`examples/inspect-certificate-summary.json`):
 
 ```json
@@ -2531,6 +2482,8 @@ The name check (`examples/check-certificate-name-mismatch.json`):
 
 A developer needs a CA and a TLS server certificate for an integration test, from keys they already have. The `issue_certificate` prompt chains three calls; the server generates no key and exports none, and each artefact is verified before its bytes are returned. The calls below are `examples/create-certificate-self-signed-ca.json`, `examples/create-csr-round-trip.json` and `examples/create-certificate-issue-leaf.json`, written into the sandbox with `outputMode: 'file'` and chained as the prompt describes — the leaf issued by the new CA — so no artefact travels back through the model's context.
 
+![Architecture: following the issue_certificate prompt, an MCP agent chains four pkinative-mcp calls with outputMode file: create_certificate for a self-signed CA, create_csr for the request, create_certificate for the leaf signed by that CA, then verify_certificate_chain to prove it. The engine signs with the caller's keys, read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and verifies each artefact before writing it; the result is a resource_link, not the bytes. Refusals are isError wrapper codes. Limits: the ECDSA-signed CSR is non-idempotent; RSA needs rsaScheme.](../assets/use-case-mcp-test-certificate.svg)
+
 **The CA**, self-signed because no `issuerCertificate` is given; serial and `notBefore` are pinned, so its bytes are reproducible:
 
 ```json
@@ -2570,6 +2523,8 @@ The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and
 ## Case 3 — Offline revocation
 
 An agent working on an air-gapped or egress-restricted host is asked whether a certificate has been revoked. The server has no network code path; the `offline_revocation` prompt tells the agent where the evidence comes from and which tool judges it.
+
+![Architecture: following the offline_revocation prompt, an MCP agent on an air-gapped host asks pkinative-mcp where the evidence lives with inspect_certificate and builds the OCSP request with create_ocsp_request; the user, or a tool with network access, fetches the CRL and posts the request. The agent then judges the bytes it brings with check_crl_revocation, check_ocsp_status or one verify_certificate_chain. The engine checks scope, freshness, signatures and responder authorisation and never contacts a URL. Limits: no covering evidence is revocation unknown, never not revoked.](../assets/use-case-mcp-offline-revocation.svg)
 
 **Where to fetch.** `inspect_certificate` lists the `crlDistributionPoints` and `authorityInfoAccess` extensions — the CRL and OCSP responder URLs. The user, or another tool with network access, fetches the CRL; for OCSP, the server builds the request to send (`examples/create-ocsp-request.json`):
 
@@ -2620,6 +2575,8 @@ The responder here is a delegate the intermediate issued with the OCSPSigning pu
 ## Case 4 — Opening keys safely
 
 A user hands the agent a `.p12` and an encrypted key from an old export and asks what they hold. The `open_keys_safely` prompt says: describe before opening, open without exporting, and keep the password out of the transcript where possible.
+
+![Architecture: following the open_keys_safely prompt, an MCP agent first describes a PKCS#12 file and an encrypted key without a password, with inspect_pkcs12 and inspect_private_key, then opens them with inspect_private_key tryImport and open_pkcs12. Files are read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and the password comes from PKINATIVE_MCP_PASSWORD or the password input, never echoed. The engine decrypts into non-extractable Web Crypto keys; reports carry no key byte. Limits: a legacy file is valid false, unverified; both password channels at once is refused.](../assets/use-case-mcp-open-keys.svg)
 
 **Describe without a password** (`examples/inspect-pkcs12-describe.json`, `examples/inspect-private-key-describe.json`). `PKINATIVE_MCP_PASSWORD` counts as the password of every password-accepting tool, so describing a file without one needs it unset:
 

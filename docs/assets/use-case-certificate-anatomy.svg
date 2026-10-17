@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucana-title ucana-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucana-title">What a parsed certificate gives you, and which slice each use case hashes</title>
+  <desc id="ucana-desc">Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted.</desc>
+
+  <defs>
+    <marker id="ucana-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">What a parsed certificate gives you</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">parseCertificate → Certificate — which slice a key pin, a fingerprint and a signature check each read</text>
+
+  <!-- Certificate (neutral container) -->
+  <rect x="40" y="84" width="880" height="196" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="58" y="108" font-size="14" font-weight="700" fill="#334155">Certificate — der is the whole encoding</text>
+
+  <!-- tbsCertificate (cyan) -->
+  <rect x="56" y="120" width="564" height="148" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="72" y="143" font-size="13.5" font-weight="700" fill="#155E75">tbsCertificate — the signed bytes, exposed whole as tbsDer</text>
+
+  <rect x="72" y="156" width="124" height="32" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="134" y="176" text-anchor="middle" font-size="11.5" fill="#0E7490">serialNumber</text>
+  <rect x="206" y="156" width="124" height="32" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="268" y="176" text-anchor="middle" font-size="11.5" fill="#0E7490">issuer</text>
+  <rect x="340" y="156" width="124" height="32" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="402" y="176" text-anchor="middle" font-size="11.5" fill="#0E7490">validity</text>
+  <rect x="474" y="156" width="124" height="32" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="536" y="176" text-anchor="middle" font-size="11.5" fill="#0E7490">subject</text>
+
+  <rect x="72" y="198" width="258" height="58" rx="8" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="201" y="222" text-anchor="middle" font-size="13" font-weight="700" fill="#1E40AF">subjectPublicKeyInfo</text>
+  <text x="201" y="242" text-anchor="middle" font-size="11.5" fill="#1E40AF">.der — what a key pin hashes</text>
+
+  <rect x="340" y="198" width="258" height="58" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="469" y="222" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">extensions</text>
+  <text x="469" y="242" text-anchor="middle" font-size="11.5" fill="#0E7490">nineteen decoded kinds, or raw</text>
+
+  <!-- signature (neutral) -->
+  <rect x="640" y="120" width="264" height="148" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="772" y="170" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">signatureAlgorithm</text>
+  <text x="772" y="192" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">signatureValue</text>
+  <text x="772" y="222" text-anchor="middle" font-size="11.5" fill="#64748B">outside tbsCertificate —</text>
+  <text x="772" y="240" text-anchor="middle" font-size="11.5" fill="#64748B">the signature over tbsDer</text>
+
+  <!-- connectors to the three uses -->
+  <line x1="190" y1="256" x2="190" y2="302" stroke="#475569" stroke-width="1.75" marker-end="url(#ucana-ah)"/>
+  <line x1="460" y1="268" x2="460" y2="302" stroke="#475569" stroke-width="1.75" marker-end="url(#ucana-ah)"/>
+  <path d="M700 268 V290 H540 V302" fill="none" stroke="#475569" stroke-width="1.75" marker-end="url(#ucana-ah)"/>
+  <line x1="850" y1="280" x2="850" y2="302" stroke="#475569" stroke-width="1.75" marker-end="url(#ucana-ah)"/>
+
+  <!-- Key pin (amber) -->
+  <rect x="40" y="306" width="270" height="84" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="175" y="332" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">Pin a public key</text>
+  <text x="175" y="352" text-anchor="middle" font-size="11.5" fill="#B45309">SHA-256 of subjectPublicKeyInfo.der</text>
+  <text x="175" y="370" text-anchor="middle" font-size="11.5" fill="#B45309">survives a renewal that keeps the key</text>
+
+  <!-- Signature check (amber) -->
+  <rect x="345" y="306" width="270" height="84" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="480" y="332" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">verifyCertificateSignature</text>
+  <text x="480" y="352" text-anchor="middle" font-size="11.5" fill="#B45309">checks signatureValue over tbsDer</text>
+  <text x="480" y="370" text-anchor="middle" font-size="11.5" fill="#B45309">with the issuer's public key</text>
+
+  <!-- Fingerprint (amber) -->
+  <rect x="650" y="306" width="270" height="84" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="785" y="332" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">Fingerprint a certificate</text>
+  <text x="785" y="352" text-anchor="middle" font-size="11.5" fill="#B45309">computeFingerprint(cert.der)</text>
+  <text x="785" y="370" text-anchor="middle" font-size="11.5" fill="#B45309">a hash of the whole certificate</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="416" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="440" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.</text>
+  <text x="480" y="460" text-anchor="middle" font-size="12.5" fill="#16A34A">A pin hashes the full SubjectPublicKeyInfo — algorithm identifier and key together — never the key bits alone.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="486" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="509" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Honest limits: a fingerprint proves two byte strings are the same certificate;</text>
+  <text x="480" y="528" text-anchor="middle" font-size="12" fill="#475569">a verified signature proves one key signed one set of bytes — neither says the chain reaches something you trust.</text>
+</svg>

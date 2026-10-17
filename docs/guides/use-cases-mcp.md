@@ -8,6 +8,8 @@ pkinative-mcp 1.0.0 ships an `examples/` directory of executable tool calls that
 
 A user pastes a server certificate and says their TLS client rejects it. The `verify_before_trust` prompt gives the agent the order: describe the certificate, then ask for the verdict at a pinned instant, then bring revocation evidence — and branch on `reasons[].code`, never on message text.
 
+![Architecture: following the verify_before_trust prompt, an MCP agent asks pkinative-mcp to describe a rejected server certificate with inspect_certificate, then for the RFC 5280 verdict with verify_certificate_chain at a pinned instant for a host and serverAuth. The engine answers valid false with reason codes, never isError, and each code picks the next call, from build_certificate_path to revocation evidence. Guarantee: branch on codes, not message text; nothing is fetched. Limits: a missing intermediate or root is asked of the user, and the verdict is relative to the anchors named.](../assets/use-case-mcp-chain-triage.svg)
+
 **Describe first** (`examples/inspect-certificate-summary.json`):
 
 ```json
@@ -54,6 +56,8 @@ The name check (`examples/check-certificate-name-mismatch.json`):
 
 A developer needs a CA and a TLS server certificate for an integration test, from keys they already have. The `issue_certificate` prompt chains three calls; the server generates no key and exports none, and each artefact is verified before its bytes are returned. The calls below are `examples/create-certificate-self-signed-ca.json`, `examples/create-csr-round-trip.json` and `examples/create-certificate-issue-leaf.json`, written into the sandbox with `outputMode: 'file'` and chained as the prompt describes — the leaf issued by the new CA — so no artefact travels back through the model's context.
 
+![Architecture: following the issue_certificate prompt, an MCP agent chains four pkinative-mcp calls with outputMode file: create_certificate for a self-signed CA, create_csr for the request, create_certificate for the leaf signed by that CA, then verify_certificate_chain to prove it. The engine signs with the caller's keys, read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and verifies each artefact before writing it; the result is a resource_link, not the bytes. Refusals are isError wrapper codes. Limits: the ECDSA-signed CSR is non-idempotent; RSA needs rsaScheme.](../assets/use-case-mcp-test-certificate.svg)
+
 **The CA**, self-signed because no `issuerCertificate` is given; serial and `notBefore` are pinned, so its bytes are reproducible:
 
 ```json
@@ -93,6 +97,8 @@ The result carries a `resource_link` to `pkinative://output/out/acme-ca.pem` and
 ## Case 3 — Offline revocation
 
 An agent working on an air-gapped or egress-restricted host is asked whether a certificate has been revoked. The server has no network code path; the `offline_revocation` prompt tells the agent where the evidence comes from and which tool judges it.
+
+![Architecture: following the offline_revocation prompt, an MCP agent on an air-gapped host asks pkinative-mcp where the evidence lives with inspect_certificate and builds the OCSP request with create_ocsp_request; the user, or a tool with network access, fetches the CRL and posts the request. The agent then judges the bytes it brings with check_crl_revocation, check_ocsp_status or one verify_certificate_chain. The engine checks scope, freshness, signatures and responder authorisation and never contacts a URL. Limits: no covering evidence is revocation unknown, never not revoked.](../assets/use-case-mcp-offline-revocation.svg)
 
 **Where to fetch.** `inspect_certificate` lists the `crlDistributionPoints` and `authorityInfoAccess` extensions — the CRL and OCSP responder URLs. The user, or another tool with network access, fetches the CRL; for OCSP, the server builds the request to send (`examples/create-ocsp-request.json`):
 
@@ -143,6 +149,8 @@ The responder here is a delegate the intermediate issued with the OCSPSigning pu
 ## Case 4 — Opening keys safely
 
 A user hands the agent a `.p12` and an encrypted key from an old export and asks what they hold. The `open_keys_safely` prompt says: describe before opening, open without exporting, and keep the password out of the transcript where possible.
+
+![Architecture: following the open_keys_safely prompt, an MCP agent first describes a PKCS#12 file and an encrypted key without a password, with inspect_pkcs12 and inspect_private_key, then opens them with inspect_private_key tryImport and open_pkcs12. Files are read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and the password comes from PKINATIVE_MCP_PASSWORD or the password input, never echoed. The engine decrypts into non-extractable Web Crypto keys; reports carry no key byte. Limits: a legacy file is valid false, unverified; both password channels at once is refused.](../assets/use-case-mcp-open-keys.svg)
 
 **Describe without a password** (`examples/inspect-pkcs12-describe.json`, `examples/inspect-private-key-describe.json`). `PKINATIVE_MCP_PASSWORD` counts as the password of every password-accepting tool, so describing a file without one needs it unset:
 

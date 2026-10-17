@@ -20,7 +20,7 @@ lines of that log and stops.
 |---|---|---|
 | Fast — before every commit | `npm run gate:fast` | 6: typecheck:all, lint, test, verify:samples, verify:docs, check:guides |
 | CI — the default | `npm run gate` | 13: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-samples-fresh, verify:docs, check:guides |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 16: adds conformance, interop and ts-floor |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 17: adds conformance, interop, ts-floor and verify:diagrams |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
 step's position in the full table; `--json` emits `{ ok, profile, steps }`.
@@ -35,7 +35,7 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 93 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 94 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `package-files.ts` | inside `check:package` | yes | The tarball, file by file: `npm pack --dry-run --json` against `docs/data/package-files.json` — a file added, removed or made executable, or a changed LICENSE or THIRD-PARTY-NOTICES.md, fails; nothing under `src/`/`tests/`, no dotfile, no key or certificate, every `dist/` file budgeted, whatever the manifest says. `--update` regenerates it (and refuses a forbidden file) | 0/1/2 |
@@ -48,6 +48,7 @@ is swallowed before `npm run gate` sees it.
 | `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages with their JSON-LD (TechArticle, BreadcrumbList, WebPage), plus the nav and footer every hand-written page pastes, and `docs/assets/architecture.svg` drawn from `LAYERS` | 0/1 |
 | `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares, every `<lastmod>` stamped with `verifiedOn` | 0/1 |
 | `build-playground-samples.ts` | `docs:playground-samples`, `docs:playground-samples-fresh` | yes (`--check`) | `docs/playgrounds/samples.js`, the certificates the playgrounds offer, from the committed test fixtures; `--check` re-derives and compares. The engine itself is the published package, imported from a CDN (ADR 0023) | 0/1 |
+| `verify-diagrams.ts` | `verify:diagrams` | publish only | pdfnative's geometry check: renders every `docs/assets/*.svg` but the brand images in a headless Chromium (`CHROME_BIN`), with its own fonts and with Arial forced, and fails on text overflowing its box, straddling another, overlapping boxes or texts, and strokes through labels. Skips, with its reason, where no browser is installed | 0/1/2 |
 | `build-cli-surface.ts` | `docs:cli-surface` | — | `docs/data/cli-surface.json`, projected from the published CLI's own `pkinative schema manifest` (`--from <file>`); online by nature, so run when `packages.pkinative-cli` moves | 0/2 |
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
@@ -79,6 +80,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `interop-artefacts.ts`, `interop-tools.ts`, `interop-judge.ts`, `interop-host.ts` | The write direction: what the API writes, how each tool is driven (directly or through WSL), how its answer is judged, and how a tool is found by running it |
 | `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |
+| `diagram-geometry.ts`, `chromium.ts` | `verify-diagrams.ts`: the pure geometry analysis (`tests/tools/diagram-geometry.test.ts`) and the browser finder the gate's skip condition shares; both ported from pdfnative |
 | `api-surface.ts` | The public surface fingerprinted from the syntax tree, and the semver classification of a change — `build-api-frozen.ts` and the `api-surface-frozen` rule |
 
 ## Conventions

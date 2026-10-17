@@ -50,6 +50,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, 
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { probeBundle, probeDistFiles, type BundleBudget, type DistFile } from './lib/bundle-probe.js';
+import { findChromium } from './lib/chromium.js';
 import { corporaReady } from './lib/corpora.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -182,6 +183,13 @@ export const STEPS: readonly Step[] = [
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
     // Every ```ts fence of README and the guides, type-checked against src/index.ts under lib ES2020 + DOM.
     { id: 'check:guides', npmScript: 'check:guides', profiles: ['fast', 'ci', 'publish'] },
+    // The diagrams under docs/assets, rendered in a headless browser and
+    // measured (pdfnative's check): publish-only, because it needs a browser;
+    // without one the step skips with its reason, never silently.
+    {
+        id: 'verify:diagrams', npmScript: 'verify:diagrams', profiles: ['publish'],
+        skipWhen: () => (findChromium() === null ? 'no Chromium-family browser found — set CHROME_BIN' : null),
+    },
     {
         // Needs the network once (npm run conformance:fetch), so it stays out of
         // the hermetic CI profile; conformance.yml runs it on every change.

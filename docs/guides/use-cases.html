@@ -119,48 +119,11 @@
 <p><strong>The jobs pkinative does today, with the code that does them and the guarantee behind each.</strong> Four need no signature at all; the rest check and write signatures, validate chains, ask about revocation, sign, verify and timestamp CMS messages, and open the PKCS#8 keys and PKCS#12 files that sign them.</p>
 </blockquote>
 <p>A reading library is not half a PKI library. Most of what breaks in production PKI breaks before anyone reaches a signature: a certificate expired and nobody was watching, a parser accepted bytes it should have refused, a pinned key was pinned to the wrong thing. Those are the first four cases below.</p>
-<svg viewBox="0 0 960 200" role="img" aria-labelledby="decision-title decision-desc" class="guide-figure">
-  <title id="decision-title">The decision path: bytes enter, and one of three things leaves</title>
-  <desc id="decision-desc">Untrusted bytes reach decodeAsn1, which either throws a PkiEncodingError with a stable code or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or produces a certificate together with any diagnostics. Every refusal carries a code; nothing is ever half-accepted.</desc>
-  <defs>
-    <marker id="uc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0 0L10 5L0 10z" fill="var(--c-text-muted)"/>
-    </marker>
-  </defs>
-  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" text-anchor="middle">
-    <rect x="8" y="72" width="126" height="46" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="71" y="91" fill="var(--c-text)" font-family="inherit">untrusted</text>
-    <text x="71" y="107" fill="var(--c-text-dim)" font-family="inherit">bytes</text>
-
-    <rect x="192" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="267" y="99" fill="var(--c-primary)">decodeAsn1</text>
-
-    <rect x="400" y="72" width="150" height="46" rx="8" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="475" y="99" fill="var(--c-primary)">parseCertificate</text>
-
-    <rect x="616" y="62" width="176" height="30" rx="8" fill="var(--c-bg-card)" stroke="var(--c-success)" stroke-width="1.5"/>
-    <text x="704" y="82" fill="var(--c-text)">Certificate</text>
-    <rect x="616" y="100" width="176" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="704" y="120" fill="var(--c-text-dim)">+ diagnostics</text>
-
-    <rect x="236" y="8" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
-    <text x="426" y="28" fill="var(--c-text-muted)">throw PkiEncodingError · PkiLimitError</text>
-    <rect x="236" y="158" width="380" height="30" rx="8" fill="var(--c-surface)" stroke="var(--c-border)" stroke-dasharray="4 3"/>
-    <text x="426" y="178" fill="var(--c-text-muted)">throw PkiCertificateError</text>
-  </g>
-  <g fill="none" stroke="var(--c-text-muted)" marker-end="url(#uc-arrow)">
-    <path d="M134 95H186"/>
-    <path d="M342 95H394"/>
-    <path d="M550 87H610"/>
-    <path d="M550 103V115H610"/>
-    <path d="M267 72V38" stroke-dasharray="4 3"/>
-    <path d="M475 118V152" stroke-dasharray="4 3"/>
-  </g>
-</svg>
-
+<p><img src="../assets/use-case-decision.svg" alt="Architecture: untrusted bytes reach decodeAsn1, an iterative strict-DER decoder, which either throws a PkiEncodingError or a PkiLimitError with a stable code, or produces a value tree. The tree reaches parseCertificate, which either throws a PkiCertificateError or returns a Certificate of zero-copy views together with any diagnostics. A green band states the guarantee: three exits, never a fourth, and depth is a limit rather than a stack overflow. A slate band states the limits: branch on error.code, never on the message, and a parsed certificate is read, not yet trusted."></p>
 <p>Three exits, never a fourth. The decoder is iterative, so depth is a limit and not a stack overflow; every refusal carries a <code>code</code> you branch on and a message that names the remedy. What a refusal never is, is silence.</p>
 <h2 id="inventory-a-certificate-estate">Inventory a certificate estate <a class="heading-anchor" href="#inventory-a-certificate-estate" aria-label="Link to this section">#</a></h2>
 <p>The job: read every certificate an organisation has on disk, and report what expires when. It needs no network, no signature and no trust store — only correct parsing of every field, including the ones that are usually skipped.</p>
+<p><img src="../assets/use-case-inventory-intake.svg" alt="Architecture: untrusted input, a PEM bundle read from disk or DER from an upload, a queue or a peer, enters pkinative. decodePem with the CERTIFICATE label splits the bundle and refuses a private key hidden in it; parseCertificate reads every field, each loop bounded by a named, CWE-tagged limit from DEFAULT_PKI_LIMITS that the caller may tighten. Out come report rows, or a typed refusal: a PkiLimitError naming its limit, configured and observed values, or a PkiError code. Bands: no crash, no hang, no read past the buffer; no network and no trust decision."></p>
 <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
 
 const DAY = 86_400_000;
@@ -209,46 +172,7 @@ export function keyPin(der: Uint8Array): string {
 }
 </code></pre>
 <p>The detail that decides whether a pin is right: <strong>what exactly you hash.</strong> Hashing the certificate pins the certificate. Hashing the public key <em>bits</em> pins something two different algorithms could collide on. The thing to hash is the full <code>SubjectPublicKeyInfo</code> — algorithm identifier and key together — and pkinative hands it to you as <code>der</code>, a zero-copy view of the original input rather than a re-encoding, so the bytes you hash are the bytes that arrived.</p>
-<svg viewBox="0 0 960 250" role="img" aria-labelledby="anatomy-title anatomy-desc" class="guide-figure">
-  <title id="anatomy-title">What a parsed certificate gives you, and which slice each use case hashes</title>
-  <desc id="anatomy-desc">A Certificate value exposes tbsDer and signatureValue at the top level. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Key pinning hashes subjectPublicKeyInfo.der; a fingerprint hashes the whole certificate DER; verifyCertificateSignature checks signatureValue over tbsDer with the issuer key.</desc>
-  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
-    <rect x="8" y="8" width="944" height="234" rx="10" fill="none" stroke="var(--c-border)"/>
-    <text x="24" y="32" fill="var(--c-text-dim)" font-size="12">Certificate</text>
-
-    <rect x="24" y="44" width="620" height="146" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="40" y="65" fill="var(--c-text-dim)" font-size="12">tbsCertificate — the signed bytes, exposed whole as tbsDer</text>
-
-    <rect x="40" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="106" y="99" fill="var(--c-text)" text-anchor="middle">serialNumber</text>
-    <rect x="184" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="250" y="99" fill="var(--c-text)" text-anchor="middle">issuer</text>
-    <rect x="328" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="394" y="99" fill="var(--c-text)" text-anchor="middle">validity</text>
-    <rect x="472" y="78" width="132" height="34" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="538" y="99" fill="var(--c-text)" text-anchor="middle">subject</text>
-
-    <rect x="40" y="124" width="264" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-primary)" stroke-width="1.5"/>
-    <text x="172" y="145" fill="var(--c-primary)" text-anchor="middle">subjectPublicKeyInfo</text>
-    <text x="172" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">.der — what a key pin hashes</text>
-
-    <rect x="316" y="124" width="288" height="50" rx="6" fill="var(--c-bg-card)" stroke="var(--c-border)"/>
-    <text x="460" y="145" fill="var(--c-text)" text-anchor="middle">extensions</text>
-    <text x="460" y="163" fill="var(--c-text-dim)" text-anchor="middle" font-size="11.5">nineteen decoded kinds, or raw</text>
-
-    <rect x="664" y="44" width="272" height="60" rx="8" fill="var(--c-surface)" stroke="var(--c-border)"/>
-    <text x="800" y="70" fill="var(--c-text)" text-anchor="middle">signatureAlgorithm</text>
-    <text x="800" y="90" fill="var(--c-text)" text-anchor="middle">signatureValue</text>
-
-    <rect x="664" y="116" width="272" height="58" rx="8" fill="none" stroke="var(--c-text-muted)" stroke-dasharray="4 3"/>
-    <text x="800" y="140" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">tbsDer + signatureValue</text>
-    <text x="800" y="158" fill="var(--c-text-muted)" text-anchor="middle" font-size="11.5">verifyCertificateSignature checks</text>
-
-    <line x1="24" y1="206" x2="936" y2="206" stroke="var(--c-border)"/>
-    <text x="24" y="228" fill="var(--c-text-dim)" font-size="11.5">Every slice is a zero-copy view of the input: the bytes you hash are the bytes that arrived.</text>
-  </g>
-</svg>
-
+<p><img src="../assets/use-case-certificate-anatomy.svg" alt="Architecture: a Certificate value from parseCertificate exposes der, the whole encoding, tbsDer and signatureValue. Inside tbsCertificate sit the serial number, issuer, validity, subject, subjectPublicKeyInfo and extensions. Three uses read three slices: a key pin hashes subjectPublicKeyInfo.der, a fingerprint hashes the whole certificate der, and verifyCertificateSignature checks signatureValue over tbsDer with the issuer key. A green band states that every slice is a zero-copy view of the input. A slate band states the limit: neither a fingerprint nor a signature says a chain is trusted."></p>
 <h2 id="gate-a-der-round-trip">Gate a DER round trip <a class="heading-anchor" href="#gate-a-der-round-trip" aria-label="Link to this section">#</a></h2>
 <p>The job: prove that a tool in your pipeline did not quietly rewrite a certificate. Re-encoding a decoded value and comparing it to the input is a total check — every octet, including the ones nothing in your code reads.</p>
 <pre><code class="language-ts">import { decodeAsn1, encodeAsn1Node } from &#39;pkinative&#39;;
@@ -283,6 +207,7 @@ export async function signedBy(leafDer: Uint8Array, issuerDer: Uint8Array): Prom
 <p>Verification runs in <a href="https://www.w3.org/TR/WebCryptoAPI/" target="_blank" rel="noopener">Web Crypto</a>, never in TypeScript: the key is imported from the SubjectPublicKeyInfo with <code>extractable: false</code> and the single usage <code>verify</code>, and pkinative never sees its bits. That is the whole of <a href="https://github.com/Nizoka/pkinative/blob/main/src/crypto/webcrypto.ts" target="_blank" rel="noopener"><code>src/crypto/webcrypto.ts</code></a>, a few hundred lines, and it is the only file in the library that may name a key operation at all.</p>
 <h2 id="issue-a-certificate-without-ever-holding-the-key">Issue a certificate, without ever holding the key <a class="heading-anchor" href="#issue-a-certificate-without-ever-holding-the-key" aria-label="Link to this section">#</a></h2>
 <p>The job: mint a certificate or a PKCS#10 request from data you have, signed by a key your application already manages. A key that arrives as a PEM file or a <code>.p12</code> becomes a <code>SigningKey</code> through <code>importPrivateKey</code>, <code>decryptPrivateKey</code> or <code>openPkcs12</code> — see <a href="#private-keys-and-pkcs12">Private keys and PKCS#12</a>.</p>
+<p><img src="../assets/use-case-issue-without-key.svg" alt="Architecture: a CertificateDescription, with validity in whole seconds, subjectPublicKey as SPKI DER and issuerDer as the issuer&#39;s own bytes, and a Signer, either a non-extractable SigningKey from importPrivateKey, decryptPrivateKey or openPkcs12 or an ExternalSigner for an HSM or KMS, flow into createCertificate. It encodes tbsCertificate and makes one signing call. Out comes certificate or PKCS#10 request DER, or a refusal such as PKI_ASN1_VALUE_OUT_OF_RANGE. Bands: the key is never bytes pkinative holds; the one exportKey line that extracts the SPKI is yours."></p>
 <pre><code class="language-ts">import { createCertificate, encodeBasicConstraints, encodeKeyUsage, type CertificateDescription, type SigningKey } from &#39;pkinative&#39;;
 
 export async function issue(spki: Uint8Array, signer: SigningKey): Promise&lt;Uint8Array&gt; {
@@ -371,6 +296,7 @@ console.log(report.valid, report.explored);
 <p><strong>What it refuses rather than ignores.</strong> RFC 5280 §6.1.3 (f) requires a verifier to refuse a critical extension it does not process, and the set the path validator processes is the exact boundary of what a chain may rely on: <code>basicConstraints</code>, <code>keyUsage</code>, <code>subjectAltName</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code> and <code>extKeyUsage</code>. Anything else marked critical comes back <code>PKI_REASON_UNKNOWN_CRITICAL_EXTENSION</code> — <code>cRLDistributionPoints</code> included: §6 never processes it, and <code>checkRevocation</code> reads it from the certificate, not from the path. That is the correct answer rather than a placeholder: a validator that ignored a constraint it had not implemented would answer &quot;valid&quot; for a chain the issuing CA forbade, which is the shape of a CVE rather than a missing feature.</p>
 <h2 id="just-tell-me-whether-to-accept-this-certificate">Just tell me whether to accept this certificate <a class="heading-anchor" href="#just-tell-me-whether-to-accept-this-certificate" aria-label="Link to this section">#</a></h2>
 <p>The job: you have a certificate a server presented, a trust store, and a host name. You want one answer.</p>
+<p><img src="../assets/use-case-verify-chain.svg" alt="Architecture: the leaf and its candidates, your policy (trustAnchors, serverName, purposes, at) and the CRLs and OCSP responses you fetched flow into verifyCertificateChain, which runs in order: build the path with the purpose in hand, verifying a link only when the search relies on it; check the host name; check revocation by CRL and OCSP. Out comes one report, valid only when reasons is empty, every reason with code, path and message. Bands: bad input is a reason, never a throw, and a link with no verdict is never assumed valid; nothing is fetched, and revocation is soft-fail by default."></p>
 <pre><code class="language-ts">import { verifyCertificateChain, KEY_PURPOSES } from &#39;pkinative&#39;;
 
 const report = await verifyCertificateChain({
@@ -534,6 +460,7 @@ const reasons = checkOcspStatus({
 <p><strong>Which certificate may answer for a CA is not a question this library answers.</strong> <code>basicResponse.certificates</code> are certificates the responder <em>attached</em>; trusting them because they arrived would let the responder nominate its own authority, which is exactly what RFC 6960 §4.2.2.2 exists to constrain. The request is unsigned, too — RFC 6960 §4.1.2 makes that optional, almost no responder requires it, and signing would mean this library holding a key.</p>
 <h2 id="sign-a-message-and-verify-one-the-whole-way">Sign a message, and verify one the whole way <a class="heading-anchor" href="#sign-a-message-and-verify-one-the-whole-way" aria-label="Link to this section">#</a></h2>
 <p>The job: a PDF signature, an S/MIME message, a <code>.p7s</code> beside a release artefact. All three are an RFC 5652 CMS <code>SignedData</code>, and all three ask the same question — <em>is this what its signer signed, and do I trust the signer?</em></p>
+<p><img src="../assets/use-case-sign-timestamp.svg" alt="Architecture: content or a contentDigest and a Signer flow into createSignedData, which writes one SignerInfo with signed attributes. The hash of the signature value goes into createTimeStampRequest; your own fetch carries it to a TSA, parseTimeStampResponse reads the answer, and addTimeStampToken attaches the token without changing a signed octet. verifySignedData with trustAnchors and atTimeStamp yields a SignerReport that keeps intact and valid apart. Bands: intact is not valid, and signingTime is never used; pkinative fetches nothing, makes no nonce, and judges the TSA at at."></p>
 <pre><code class="language-ts">import { createSignedData, verifySignedData } from &#39;pkinative&#39;;
 
 const p7s = await createSignedData({ content: message, detached: true, certificate: signerCertificate }, signingKey);
@@ -608,6 +535,7 @@ const report = await verifySignedData({ signedData: stamped, content: signedCont
 <p><code>recipes/timestamp.ts</code> runs the whole loop without a network — it plays the TSA with <code>createSignedData</code> over a <code>TSTInfo</code> built from the public encoders — including the replayed answer, the signer judged at the proved time, and the TSA judged after its own expiry.</p>
 <h2 id="private-keys-and-pkcs12">Private keys and PKCS#12 <a class="heading-anchor" href="#private-keys-and-pkcs12" aria-label="Link to this section">#</a></h2>
 <p>The job: somebody handed you the key to sign with — a <code>PRIVATE KEY</code> or <code>ENCRYPTED PRIVATE KEY</code> PEM file, or a <code>.p12</code>/<code>.pfx</code> and its password — and <code>createCertificate</code>, <code>createCertificationRequest</code> or <code>createSignedData</code> needs a <code>SigningKey</code>.</p>
+<p><img src="../assets/use-case-keys-pkcs12.svg" alt="Architecture: a PKCS#8 key, an encrypted PKCS#8 key, or a .p12 file and its password flow into openPkcs12 or the primitives under it, importPrivateKey and decryptPrivateKey. They parse without a password, verify only an RFC 9579 PBMAC1 MAC and otherwise fail closed, open PBES2 alone, and take each key&#39;s algorithm from the certificate sharing its localKeyId. The host&#39;s Web Crypto unwraps the key into a non-extractable CryptoKey. Out come an OpenPkcs12Report with keys and certificates, or a refusal by name. Bands: the key never becomes bytes pkinative holds; legacy schemes are refused."></p>
 <pre><code class="language-ts">import { createSignedData, openPkcs12 } from &#39;pkinative&#39;;
 
 // An rsaEncryption key needs its scheme named: that certificate does not say it, and pkinative does not guess

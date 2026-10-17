@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucct-title ucct-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucct-title">An agent triages a failing TLS chain</title>
+  <desc id="ucct-desc">Architecture: following the verify_before_trust prompt, an MCP agent asks pkinative-mcp to describe a rejected server certificate with inspect_certificate, then for the RFC 5280 verdict with verify_certificate_chain at a pinned instant for a host and serverAuth. The engine answers valid false with reason codes, never isError, and each code picks the next call, from build_certificate_path to revocation evidence. Guarantee: branch on codes, not message text; nothing is fetched. Limits: a missing intermediate or root is asked of the user, and the verdict is relative to the anchors named.</desc>
+
+  <defs>
+    <marker id="ucct-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">An agent triages a failing TLS chain</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">verify_before_trust prompt · inspect_certificate → verify_certificate_chain → the next call — pkinative-mcp 1.0.0</text>
+
+  <!-- Agent -->
+  <rect x="40" y="92" width="170" height="152" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="125" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">Agent</text>
+  <text x="125" y="134" text-anchor="middle" font-size="11.5" fill="#64748B">MCP client</text>
+  <rect x="52" y="146" width="146" height="42" rx="8" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="125" y="163" text-anchor="middle" font-size="11" fill="#4F46E5">prompts/get</text>
+  <text x="125" y="179" text-anchor="middle" font-size="11.5" font-weight="700" fill="#3730A3">verify_before_trust</text>
+  <text x="125" y="210" text-anchor="middle" font-size="11.5" fill="#64748B">user: “my TLS client</text>
+  <text x="125" y="227" text-anchor="middle" font-size="11.5" fill="#64748B">rejects this certificate”</text>
+
+  <line x1="210" y1="168" x2="238" y2="168" stroke="#475569" stroke-width="1.75" marker-end="url(#ucct-ah)"/>
+
+  <!-- Server -->
+  <rect x="240" y="92" width="290" height="152" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="385" y="113" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E40AF">pkinative-mcp — read-only tools</text>
+  <rect x="252" y="122" width="266" height="46" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="385" y="140" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">1 · inspect_certificate</text>
+  <text x="385" y="158" text-anchor="middle" font-size="11" fill="#3B82F6">certificate { path } · verbosity: 'summary'</text>
+  <rect x="252" y="176" width="266" height="60" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="385" y="194" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">2 · verify_certificate_chain</text>
+  <text x="385" y="211" text-anchor="middle" font-size="11" fill="#3B82F6">leaf · candidates · trustAnchors · at</text>
+  <text x="385" y="227" text-anchor="middle" font-size="11" fill="#3B82F6">serverName.host · purposes: serverAuth</text>
+
+  <line x1="530" y1="168" x2="558" y2="168" stroke="#475569" stroke-width="1.75" marker-end="url(#ucct-ah)"/>
+
+  <!-- Engine -->
+  <rect x="560" y="92" width="180" height="152" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="650" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">pkinative engine</text>
+  <text x="650" y="142" text-anchor="middle" font-size="11.5" fill="#0E7490">RFC 5280 §6 path</text>
+  <text x="650" y="160" text-anchor="middle" font-size="11.5" fill="#0E7490">signatures · Web Crypto</text>
+  <text x="650" y="178" text-anchor="middle" font-size="11.5" fill="#0E7490">validity at the pinned 'at'</text>
+  <text x="650" y="196" text-anchor="middle" font-size="11.5" fill="#0E7490">name (RFC 6125) · EKU</text>
+  <text x="650" y="224" text-anchor="middle" font-size="11.5" font-weight="700" fill="#155E75">no fetch, no network</text>
+
+  <line x1="740" y1="168" x2="768" y2="168" stroke="#475569" stroke-width="1.75" marker-end="url(#ucct-ah)"/>
+
+  <!-- Verdict -->
+  <rect x="770" y="92" width="150" height="152" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="845" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#92400E">The verdict</text>
+  <text x="845" y="140" text-anchor="middle" font-size="11.5" fill="#B45309">structuredContent</text>
+  <text x="845" y="160" text-anchor="middle" font-size="11.5" fill="#B45309">valid · reasonCodes</text>
+  <text x="845" y="178" text-anchor="middle" font-size="11.5" fill="#B45309">pathLength</text>
+  <text x="845" y="196" text-anchor="middle" font-size="11.5" fill="#B45309">evaluatedAt</text>
+  <text x="845" y="224" text-anchor="middle" font-size="11.5" font-weight="700" fill="#92400E">valid: false ≠ isError</text>
+
+  <line x1="845" y1="244" x2="845" y2="270" stroke="#475569" stroke-width="1.75" marker-end="url(#ucct-ah)"/>
+
+  <!-- Reason code routing -->
+  <rect x="240" y="272" width="680" height="124" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="256" y="293" font-size="13.5" font-weight="700" fill="#334155">reasons[].code → the next call</text>
+  <text x="256" y="314" font-size="11" fill="#991B1B">PKI_REASON_NO_TRUST_ANCHOR</text>
+  <text x="560" y="314" font-size="11" fill="#334155">→ build_certificate_path — how far the path gets</text>
+  <text x="256" y="332" font-size="11" fill="#991B1B">PKI_REASON_EXPIRED · PKI_REASON_NOT_YET_VALID</text>
+  <text x="560" y="332" font-size="11" fill="#334155">→ inspect_certificate — notBefore, notAfter</text>
+  <text x="256" y="350" font-size="11" fill="#991B1B">PKI_REASON_NAME_MISMATCH</text>
+  <text x="560" y="350" font-size="11" fill="#334155">→ check_certificate_name — the names it holds</text>
+  <text x="256" y="368" font-size="11" fill="#991B1B">PKI_REASON_PURPOSE_NOT_PERMITTED</text>
+  <text x="560" y="368" font-size="11" fill="#334155">→ check_certificate_purpose</text>
+  <text x="256" y="386" font-size="11" fill="#991B1B">PKI_REASON_REVOCATION_UNKNOWN</text>
+  <text x="560" y="386" font-size="11" fill="#334155">→ bring CRL / OCSP evidence — Case 3</text>
+
+  <!-- Next call, back to the agent -->
+  <path d="M240 334 L125 334 L125 246" fill="none" stroke="#475569" stroke-width="1.75" stroke-dasharray="6 5" marker-end="url(#ucct-ah)"/>
+  <text x="134" y="286" font-size="11" fill="#64748B">next tools/call,</text>
+  <text x="134" y="302" font-size="11" fill="#64748B">chosen by code</text>
+
+  <!-- Guarantees -->
+  <rect x="40" y="414" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="437" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">A negative verdict is valid: false in structuredContent, never isError — branch on reasons[].code, never on message text.</text>
+  <text x="480" y="457" text-anchor="middle" font-size="12" fill="#16A34A">A pinned at (or PKINATIVE_MCP_AT) makes the verdict reproducible and cacheable. Every step is read-only; nothing is fetched.</text>
+
+  <!-- Limits -->
+  <rect x="40" y="482" width="880" height="52" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="503" text-anchor="middle" font-size="12" fill="#475569">Limits: the server never fetches the intermediate a server forgot to send, nor the root — the agent asks the user for them.</text>
+  <text x="480" y="522" text-anchor="middle" font-size="12" fill="#475569">The verdict is only relative to the anchors named in the call; a signature.valid from inspect_certificate is not trust.</text>
+</svg>

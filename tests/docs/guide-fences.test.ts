@@ -34,9 +34,9 @@ const NOT_RUN: Readonly<Record<string, string>> = {};
 /** Fences whose only output is a failure: no log line, no returned string, is the proof they succeeded. */
 const EXPECT_SILENT = new Set<string>([
     'README.md:77', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:95',
-    'docs/guides/use-cases.md:178', 'docs/guides/use-cases.md:204', 'docs/guides/use-cases.md:235',
-    'docs/guides/use-cases.md:266', 'docs/guides/use-cases.md:325', 'docs/guides/use-cases.md:407',
-    'docs/guides/use-cases.md:499', 'docs/guides/use-cases.md:529', 'docs/guides/use-cases.md:572', 'docs/guides/use-cases.md:609',
+    'docs/guides/use-cases.md:105', 'docs/guides/use-cases.md:133', 'docs/guides/use-cases.md:164',
+    'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
+    'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
     'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:273', 'src/verify/verify-signed-data.ts:145',
     'src/revocation/ocsp-check.ts:154', 'src/verify/verify-pkcs12.ts:128',
     'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:55',
@@ -45,17 +45,17 @@ const EXPECT_SILENT = new Set<string>([
 /** Fences that print their success: the line the prose shows must appear. */
 const EXPECT_PRINTED: Readonly<Record<string, RegExp>> = {
     'src/verify/verify-timestamp.ts:162': /^existed by 20\d\d-/,
-    'docs/guides/use-cases.md:470': /^good$/,
+    'docs/guides/use-cases.md:401': /^good$/,
 };
 
 /** What the functions a fence defines must return when called with the inputs below (the prose's own answer). */
 const EXPECT_RESULT: Readonly<Record<string, (results: readonly unknown[]) => void>> = {
     'README.md:77': (r) => { expect(r[0]).toEqual(expect.arrayContaining([expect.stringContaining('Guide Leaf'), expect.stringContaining('Guide Root')])); },
-    'docs/guides/use-cases.md:178': (r) => { expect(r[0]).toBe('yes'); },
-    'docs/guides/use-cases.md:204': (r) => { expect(r[0]).toBeInstanceOf(Uint8Array); expect(pkinative.parseCertificate(r[0] as Uint8Array).subject.der.length).toBeGreaterThan(0); },
-    'docs/guides/use-cases.md:52': (r) => { expect(r[0]).toHaveLength(2); },   // both test certificates expire within the year
-    'docs/guides/use-cases.md:104': (r) => { expect(typeof r[0]).toBe('string'); },
-    'docs/guides/use-cases.md:160': (r) => { expect(r[0]).toBe(true); },
+    'docs/guides/use-cases.md:105': (r) => { expect(r[0]).toBe('yes'); },
+    'docs/guides/use-cases.md:133': (r) => { expect(r[0]).toBeInstanceOf(Uint8Array); expect(pkinative.parseCertificate(r[0] as Uint8Array).subject.der.length).toBeGreaterThan(0); },
+    'docs/guides/use-cases.md:17': (r) => { expect(r[0]).toHaveLength(2); },   // both test certificates expire within the year
+    'docs/guides/use-cases.md:69': (r) => { expect(typeof r[0]).toBe('string'); },
+    'docs/guides/use-cases.md:87': (r) => { expect(r[0]).toBe(true); },
 };
 
 type Inputs = Record<string, unknown>;

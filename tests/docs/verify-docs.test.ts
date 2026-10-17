@@ -147,6 +147,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
     // A tool documented under a name the server does not register.
     'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
+    // pdfnative's drift, replayed: a diagram's description reworded and its alt text left behind.
+    'use-case-diagrams': (f) => edit(f, 'docs/assets/use-case-cli-ci-gate.svg', /<desc id="([^"]+)">Architecture: /, '<desc id="$1">Architecture, revised: '),
     // A typo in hand-written site JavaScript that only a reader's browser would have found.
     'site-script-syntax': (f) => edit(f, 'docs/assets/versions.js', "var NPM = 'https://registry.npmjs.org/';", "var NPM = = 'https://registry.npmjs.org/';"),
     // A control renamed on the page while the agent-facing inventory keeps the old id.

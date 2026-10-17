@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 411947,
-      "approxTokens": 102987
+      "bytes": 415267,
+      "approxTokens": 103817
     },
     {
       "url": "llms-recipes.txt",
@@ -126,8 +126,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 86651,
-      "approxTokens": 21663
+      "bytes": 84881,
+      "approxTokens": 21220
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -174,8 +174,8 @@
         "case-4--a-pkcs12-audit-with---password-file",
         "see-also"
       ],
-      "bytes": 18671,
-      "approxTokens": 4668
+      "bytes": 21236,
+      "approxTokens": 5309
     },
     {
       "title": "pkinative-mcp — AI client integration",
@@ -255,8 +255,8 @@
         "case-4--opening-keys-safely",
         "see-also"
       ],
-      "bytes": 19224,
-      "approxTokens": 4806
+      "bytes": 21749,
+      "approxTokens": 5437
     },
     {
       "title": "Security model",

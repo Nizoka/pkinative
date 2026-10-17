@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="uccs-title uccs-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="uccs-title">CMS signature and RFC 3161 timestamp in a release pipeline</title>
+  <desc id="uccs-desc">Architecture: cms sign signs release.tgz detached with the signer certificate, its chain and a key whose password comes from a file, and checks the new signature before writing release.p7s. cms inspect extracts the signature value, tsp request hashes it into stamp.tsq, and your own call to the TSA returns stamp.tsr. cms add-timestamp attaches the token only if it stamps that signature value, else exit 1, E_INPUT, PKI_REASON_TSP_IMPRINT_MISMATCH. cms verify --at-timestamp then judges the signer at the stamped instant. Limits: the CLI never posts to a TSA, and tsp verify needs what was stamped.</desc>
+
+  <defs>
+    <marker id="uccs-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="uccs-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">CMS signature and RFC 3161 timestamp in a release pipeline</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">cms sign · cms inspect · tsp request · cms add-timestamp · cms verify --at-timestamp (pkinative-cli 1.0.0)</text>
+
+  <!-- Row 1: sign, then stamp the signature value -->
+  <rect x="40" y="92" width="200" height="116" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="140" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Release inputs</text>
+  <text x="140" y="138" text-anchor="middle" font-size="11.5" fill="#4F46E5">release.tgz — the artefact</text>
+  <text x="140" y="156" text-anchor="middle" font-size="11.5" fill="#4F46E5">--cert signer.pem</text>
+  <text x="140" y="172" text-anchor="middle" font-size="11.5" fill="#4F46E5">--chain intermediate.pem</text>
+  <text x="140" y="188" text-anchor="middle" font-size="11.5" fill="#4F46E5">--password-file signer.pass</text>
+
+  <line x1="240" y1="150" x2="270" y2="150" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+
+  <rect x="272" y="92" width="196" height="116" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="370" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">1 · cms sign</text>
+  <text x="370" y="138" text-anchor="middle" font-size="11.5" fill="#0E7490">--key signer.key --detached</text>
+  <text x="370" y="154" text-anchor="middle" font-size="11.5" fill="#0E7490">-o release.p7s</text>
+  <text x="370" y="176" text-anchor="middle" font-size="11.5" fill="#0E7490">verified under --cert</text>
+  <text x="370" y="192" text-anchor="middle" font-size="11.5" fill="#0E7490">before a byte is written</text>
+
+  <line x1="468" y1="150" x2="498" y2="150" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+
+  <rect x="500" y="92" width="224" height="116" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="612" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">2 · stamp the signature</text>
+  <text x="612" y="138" text-anchor="middle" font-size="11.5" fill="#0E7490">cms inspect release.p7s --fields</text>
+  <text x="612" y="154" text-anchor="middle" font-size="11.5" fill="#0E7490">signerInfos.signature → hex</text>
+  <text x="612" y="170" text-anchor="middle" font-size="11.5" fill="#0E7490">jq | xxd → signature.bin</text>
+  <text x="612" y="186" text-anchor="middle" font-size="11.5" fill="#0E7490">tsp request --data signature.bin</text>
+  <text x="612" y="202" text-anchor="middle" font-size="11.5" fill="#0E7490">--nonce random -o stamp.tsq</text>
+
+  <line x1="724" y1="150" x2="754" y2="150" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+
+  <rect x="756" y="92" width="164" height="116" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="838" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Your TSA call</text>
+  <text x="838" y="138" text-anchor="middle" font-size="11.5" fill="#64748B">curl --data-binary</text>
+  <text x="838" y="154" text-anchor="middle" font-size="11.5" fill="#64748B">@stamp.tsq → stamp.tsr</text>
+  <text x="838" y="176" text-anchor="middle" font-size="11.5" fill="#64748B">your URL, your client</text>
+  <text x="838" y="192" text-anchor="middle" font-size="11.5" font-weight="600" fill="#334155">the CLI never posts</text>
+
+  <!-- Carriage return -->
+  <path d="M838 208 V232 H175 V254" fill="none" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+  <rect x="440" y="222" width="140" height="20" rx="6" fill="#F8FAFC"/>
+  <text x="510" y="236" text-anchor="middle" font-size="11.5" fill="#64748B">stamp.tsr — the token</text>
+
+  <!-- Row 2: attach, verify, or refuse -->
+  <rect x="40" y="256" width="270" height="140" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="175" y="280" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">3 · cms add-timestamp</text>
+  <text x="175" y="302" text-anchor="middle" font-size="11.5" fill="#0E7490">release.p7s --token stamp.tsr</text>
+  <text x="175" y="318" text-anchor="middle" font-size="11.5" fill="#0E7490">-o release-stamped.p7s</text>
+  <text x="175" y="342" text-anchor="middle" font-size="11.5" fill="#0E7490">attaches the token only if it</text>
+  <text x="175" y="358" text-anchor="middle" font-size="11.5" fill="#0E7490">stamps signer 0's signature value,</text>
+  <text x="175" y="374" text-anchor="middle" font-size="11.5" fill="#0E7490">checked before a byte is written</text>
+
+  <line x1="310" y1="288" x2="344" y2="288" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+  <line x1="310" y1="364" x2="344" y2="364" stroke="#DC2626" stroke-width="1.75" stroke-dasharray="5 4" marker-end="url(#uccs-ah-red)"/>
+
+  <rect x="346" y="256" width="290" height="64" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="491" y="280" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">4 · cms verify --at-timestamp</text>
+  <text x="491" y="302" text-anchor="middle" font-size="11.5" fill="#0E7490">--content release.tgz --trust root.pem</text>
+
+  <line x1="636" y1="288" x2="670" y2="288" stroke="#475569" stroke-width="1.75" marker-end="url(#uccs-ah)"/>
+
+  <rect x="672" y="256" width="248" height="64" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="796" y="280" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">exit 0 — release verified</text>
+  <text x="796" y="302" text-anchor="middle" font-size="11.5" fill="#B45309">signer judged at the stamped instant</text>
+
+  <rect x="346" y="332" width="574" height="64" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="633" y="356" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">A token over anything else → exit 1, E_INPUT, nothing written</text>
+  <text x="633" y="378" text-anchor="middle" font-size="11.5" fill="#DC2626">PKI_REASON_TSP_IMPRINT_MISMATCH — the remedy is step 2's recipe</text>
+
+  <!-- Guarantees strip -->
+  <rect x="40" y="420" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="444" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">A counter timestamp stamps the signer's signature value, and cms add-timestamp refuses a token over anything else.</text>
+  <text x="480" y="464" text-anchor="middle" font-size="12.5" fill="#16A34A">Validated at its verified timestamp, the signature outlives the signing certificate's expiry.</text>
+
+  <!-- Limits strip -->
+  <rect x="40" y="488" width="880" height="48" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="508" text-anchor="middle" font-size="12" fill="#475569">The CLI never posts to a TSA; tsp verify refuses (exit 2) unless told what was stamped: --request, --data or --digest.</text>
+  <text x="480" y="526" text-anchor="middle" font-size="12" fill="#475569">A TSA certificate whose timeStamping EKU is not critical passes only under --allow-noncritical-eku; ECDSA and RSA-PSS differ per run.</text>
+</svg>

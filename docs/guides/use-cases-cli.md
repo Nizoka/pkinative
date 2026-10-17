@@ -12,6 +12,8 @@ F=tests/fixtures/pki S=samples/inputs O=test-output/samples
 
 A deployment should not ship a certificate that does not chain to the roots it is meant to chain to, that names another host, or that expires before the next release. `chain verify` answers all three in one call, and its process contract — the verdict on stdout, one envelope on stderr, exit 0, 1 or 2 — is what a CI step branches on.
 
+![Architecture: a CI job carries the leaf certificate, its intermediate and the trust anchors, and pins an instant 30 days ahead with --at. pkinative chain verify checks the path, signatures, host name, purpose and revocation at that instant, then writes the verdict on stdout and one JSON envelope on stderr. The step branches on the exit code: 0 ships, 1 is E_VERIFY_FAILED with reason codes such as PKI_REASON_EXPIRED or PKI_REASON_NAME_MISMATCH, 2 is E_USAGE and fails the build without a retry. Limits: the CLI never fetches an intermediate or a CRL, and chain build is a diagnostic, never a gate.](../assets/use-case-cli-ci-gate.svg)
+
 The building blocks, from `samples/chain/`:
 
 ```bash
@@ -58,7 +60,11 @@ A name mismatch is caught by the same call: on the sample chain, `--host other.t
 
 ## Case 2 — Offline and air-gapped revocation checking
 
-Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back. The building blocks, from `samples/ocsp/` and `samples/crl/`:
+Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back.
+
+![Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a stale CRL needs --stale-tolerance.](../assets/use-case-cli-offline-revocation.svg)
+
+The building blocks, from `samples/ocsp/` and `samples/crl/`:
 
 ```bash
 # samples/ocsp/ocsp-request.sh — build an OCSP request (expected exit 0)
@@ -110,7 +116,11 @@ and on the good leaf, `ocsp check` answers `{"valid":true,"reasons":[],"status":
 
 ## Case 3 — CMS signature and RFC 3161 timestamp in a release pipeline
 
-A release artefact signed with a detached CMS signature can be verified long after the signing certificate expires — if a timestamp proves the signature existed while the certificate was valid. The building blocks, from `samples/cms/` and `samples/tsp/` (`cms-sign.sh` signs with the CA that `samples/cert/cert-create-ca.sh` writes into `$O`):
+A release artefact signed with a detached CMS signature can be verified long after the signing certificate expires — if a timestamp proves the signature existed while the certificate was valid.
+
+![Architecture: cms sign signs release.tgz detached with the signer certificate, its chain and a key whose password comes from a file, and checks the new signature before writing release.p7s. cms inspect extracts the signature value, tsp request hashes it into stamp.tsq, and your own call to the TSA returns stamp.tsr. cms add-timestamp attaches the token only if it stamps that signature value, else exit 1, E_INPUT, PKI_REASON_TSP_IMPRINT_MISMATCH. cms verify --at-timestamp then judges the signer at the stamped instant. Limits: the CLI never posts to a TSA, and tsp verify needs what was stamped.](../assets/use-case-cli-release-signing.svg)
+
+The building blocks, from `samples/cms/` and `samples/tsp/` (`cms-sign.sh` signs with the CA that `samples/cert/cert-create-ca.sh` writes into `$O`):
 
 ```bash
 # samples/cert/cert-create-ca.sh — issue a self-signed Ed25519 CA (expected exit 0)
@@ -162,7 +172,11 @@ pkinative cms verify release-stamped.p7s --content release.tgz --trust root.pem 
 
 ## Case 4 — A PKCS#12 audit with `--password-file`
 
-A `.p12` arriving from a partner or an old export should be described before anyone types its password, and opened without its key ever reaching a terminal or a log. The building blocks, from `samples/p12/` and `samples/key/`:
+A `.p12` arriving from a partner or an old export should be described before anyone types its password, and opened without its key ever reaching a terminal or a log.
+
+![Architecture: p12 inspect describes a partner's PKCS#12 file without a password. p12 verify-mac, p12 bags and p12 open then read the password from the first line of a protected file through --password-file; p12 open imports the keys non-extractable and exports the certificates with --certs-out. A password on argv is E_USAGE, exit 2; a wrong one E_PASSWORD, exit 1; a legacy RC2 or 3DES file E_SECURITY, exit 1, with PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED and PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED. Limits: no report holds a key byte; the CLI writes no PKCS#12 or PKCS#8.](../assets/use-case-cli-pkcs12-audit.svg)
+
+The building blocks, from `samples/p12/` and `samples/key/`:
 
 ```bash
 # samples/p12/p12-inspect.sh — describe a PKCS#12 file, no password (expected exit 0)

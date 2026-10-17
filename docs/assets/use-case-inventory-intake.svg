@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucinv-title ucinv-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucinv-title">Inventory a certificate estate, and ingest hostile bytes</title>
+  <desc id="ucinv-desc">Architecture: untrusted input, a PEM bundle read from disk or DER from an upload, a queue or a peer, enters pkinative. decodePem with the CERTIFICATE label splits the bundle and refuses a private key hidden in it; parseCertificate reads every field, each loop bounded by a named, CWE-tagged limit from DEFAULT_PKI_LIMITS that the caller may tighten. Out come report rows, or a typed refusal: a PkiLimitError naming its limit, configured and observed values, or a PkiError code. Bands: no crash, no hang, no read past the buffer; no network and no trust decision.</desc>
+
+  <defs>
+    <marker id="ucinv-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ucinv-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="ucinv-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Inventory an estate, ingest hostile bytes</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">decodePem({ label }) + parseCertificate({ limits }) — data out, or a typed refusal, never a partial report</text>
+
+  <!-- Untrusted input (indigo) -->
+  <rect x="40" y="118" width="190" height="200" rx="12" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.5"/>
+  <text x="135" y="146" text-anchor="middle" font-size="14" font-weight="700" fill="#3730A3">Untrusted input</text>
+  <text x="135" y="172" text-anchor="middle" font-size="11.5" fill="#4F46E5">a PEM bundle — one string,</text>
+  <text x="135" y="190" text-anchor="middle" font-size="11.5" fill="#4F46E5">every certificate on disk</text>
+  <text x="135" y="256" text-anchor="middle" font-size="11.5" fill="#4F46E5">DER from an upload form,</text>
+  <text x="135" y="274" text-anchor="middle" font-size="11.5" fill="#4F46E5">a queue, a peer</text>
+
+  <line x1="230" y1="180" x2="264" y2="180" stroke="#475569" stroke-width="1.75" marker-end="url(#ucinv-ah)"/>
+  <line x1="230" y1="266" x2="264" y2="266" stroke="#475569" stroke-width="1.75" marker-end="url(#ucinv-ah)"/>
+
+  <!-- Engine (cyan) -->
+  <rect x="268" y="92" width="356" height="236" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="446" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">Read every field, bounded by named limits</text>
+  <text x="446" y="134" text-anchor="middle" font-size="11.5" fill="#0E7490">no network · no signature · no trust store</text>
+
+  <rect x="284" y="146" width="324" height="66" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="446" y="169" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">decodePem with a label</text>
+  <text x="446" y="188" text-anchor="middle" font-size="11.5" fill="#0E7490">{ label: 'CERTIFICATE' } — a PRIVATE KEY</text>
+  <text x="446" y="204" text-anchor="middle" font-size="11.5" fill="#0E7490">hidden in the bundle is refused</text>
+
+  <line x1="446" y1="212" x2="446" y2="228" stroke="#475569" stroke-width="1.75" marker-end="url(#ucinv-ah)"/>
+
+  <rect x="284" y="232" width="324" height="82" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="446" y="255" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">parseCertificate(der, { limits })</text>
+  <text x="446" y="275" text-anchor="middle" font-size="11.5" fill="#0E7490">every loop consults a named, CWE-tagged bound</text>
+  <text x="446" y="293" text-anchor="middle" font-size="11.5" fill="#0E7490">iterative decoder · strict DER by default</text>
+
+  <!-- Limits card (indigo) -->
+  <rect x="268" y="348" width="356" height="56" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="446" y="372" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3730A3">DEFAULT_PKI_LIMITS — tighten any of them</text>
+  <text x="446" y="391" text-anchor="middle" font-size="11.5" fill="#4F46E5">maxInputBytes · maxExtensions · maxDepth · maxNodes …</text>
+  <line x1="446" y1="347" x2="446" y2="333" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#ucinv-ah)"/>
+
+  <!-- to the outputs -->
+  <path d="M608 254 H640 V156 H656" fill="none" stroke="#16A34A" stroke-width="2" marker-end="url(#ucinv-ah-green)"/>
+  <line x1="624" y1="296" x2="656" y2="296" stroke="#DC2626" stroke-width="2" marker-end="url(#ucinv-ah-red)"/>
+
+  <!-- Report rows (amber) -->
+  <rect x="660" y="106" width="260" height="98" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="790" y="132" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">Report rows — data, not text</text>
+  <text x="790" y="152" text-anchor="middle" font-size="11.5" fill="#B45309">days to notAfter · RFC 4514 subject</text>
+  <text x="790" y="170" text-anchor="middle" font-size="11.5" fill="#B45309">subjectAltName count</text>
+  <text x="790" y="188" text-anchor="middle" font-size="11.5" fill="#B45309">times in epochMilliseconds</text>
+
+  <!-- Typed refusal (red) -->
+  <rect x="660" y="222" width="260" height="114" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="790" y="248" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">Typed refusal, from either step</text>
+  <text x="790" y="268" text-anchor="middle" font-size="11.5" fill="#B91C1C">PkiLimitError — limit, configured,</text>
+  <text x="790" y="286" text-anchor="middle" font-size="11.5" fill="#B91C1C">observed: which bound, by how much</text>
+  <text x="790" y="306" text-anchor="middle" font-size="11.5" fill="#B91C1C">PkiError — branch on error.code</text>
+  <text x="790" y="324" text-anchor="middle" font-size="11.5" fill="#B91C1C">e.g. PKI_PEM_UNEXPECTED_LABEL</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="420" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="444" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">Never crash, never hang, never read past the buffer: every loop over input bytes consults a named, CWE-tagged bound.</text>
+  <text x="480" y="464" text-anchor="middle" font-size="12.5" fill="#16A34A">A malformed block mid-bundle is a typed refusal, not a partial report; codes are the contract, messages are prose.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="488" width="880" height="44" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="515" text-anchor="middle" font-size="12" fill="#475569">Honest limits: no network, no signature, no trust store — this reads every field; it does not decide whom to trust.</text>
+</svg>

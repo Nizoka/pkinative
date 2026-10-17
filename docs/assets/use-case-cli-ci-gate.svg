@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="uccg-title uccg-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="uccg-title">A CI gate on a certificate chain and its expiry</title>
+  <desc id="uccg-desc">Architecture: a CI job carries the leaf certificate, its intermediate and the trust anchors, and pins an instant 30 days ahead with --at. pkinative chain verify checks the path, signatures, host name, purpose and revocation at that instant, then writes the verdict on stdout and one JSON envelope on stderr. The step branches on the exit code: 0 ships, 1 is E_VERIFY_FAILED with reason codes such as PKI_REASON_EXPIRED or PKI_REASON_NAME_MISMATCH, 2 is E_USAGE and fails the build without a retry. Limits: the CLI never fetches an intermediate or a CRL, and chain build is a diagnostic, never a gate.</desc>
+
+  <defs>
+    <marker id="uccg-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="uccg-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="uccg-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">A CI gate on a certificate chain and its expiry</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">pkinative chain verify … --at "$AT" --json --summary — one verdict, one envelope, one exit code (pkinative-cli 1.0.0)</text>
+
+  <!-- Inputs -->
+  <rect x="40" y="100" width="200" height="180" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="140" y="126" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Files the job carries</text>
+  <text x="140" y="150" text-anchor="middle" font-size="11.5" fill="#4F46E5">server.pem — the leaf</text>
+  <text x="140" y="168" text-anchor="middle" font-size="11.5" fill="#4F46E5">--untrusted intermediate.pem</text>
+  <text x="140" y="186" text-anchor="middle" font-size="11.5" fill="#4F46E5">--trust root.pem (anchors)</text>
+  <text x="140" y="210" text-anchor="middle" font-size="11.5" fill="#4F46E5">--host www.example.com</text>
+  <text x="140" y="228" text-anchor="middle" font-size="11.5" fill="#4F46E5">--purpose serverAuth</text>
+  <text x="140" y="256" text-anchor="middle" font-size="11.5" font-weight="600" fill="#3730A3">nothing is fetched</text>
+
+  <!-- Pinned instant -->
+  <rect x="40" y="296" width="200" height="76" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="140" y="322" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E40AF">--at = now + 30 days</text>
+  <text x="140" y="342" text-anchor="middle" font-size="11.5" fill="#3B82F6">ISO 8601 · epoch ms · now</text>
+  <text x="140" y="358" text-anchor="middle" font-size="11.5" fill="#3B82F6">expiry is a question of --at</text>
+
+  <line x1="240" y1="190" x2="282" y2="190" stroke="#475569" stroke-width="1.75" marker-end="url(#uccg-ah)"/>
+  <line x1="240" y1="334" x2="282" y2="334" stroke="#475569" stroke-width="1.75" marker-end="url(#uccg-ah)"/>
+
+  <!-- Engine -->
+  <rect x="284" y="100" width="240" height="272" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="404" y="128" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">pkinative chain verify</text>
+  <text x="404" y="148" text-anchor="middle" font-size="11.5" fill="#0E7490">one call, every question:</text>
+  <text x="404" y="170" text-anchor="middle" font-size="11.5" fill="#0E7490">a path to a trust anchor</text>
+  <text x="404" y="186" text-anchor="middle" font-size="11.5" fill="#0E7490">signatures · host name · purpose</text>
+  <text x="404" y="202" text-anchor="middle" font-size="11.5" fill="#0E7490">revocation (--crl, --ocsp)</text>
+  <text x="404" y="226" text-anchor="middle" font-size="11.5" font-weight="600" fill="#155E75">all judged at the --at instant</text>
+
+  <rect x="298" y="244" width="212" height="114" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="404" y="266" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">stdout → verdict.json</text>
+  <text x="404" y="284" text-anchor="middle" font-size="11.5" fill="#B45309">valid · reasons · path</text>
+  <text x="404" y="312" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">stderr → envelope.json</text>
+  <text x="404" y="330" text-anchor="middle" font-size="11.5" fill="#B45309">ok · error.code · error.reasons</text>
+
+  <!-- Branch on the exit code -->
+  <line x1="524" y1="236" x2="546" y2="236" stroke="#475569" stroke-width="1.75"/>
+  <line x1="546" y1="134" x2="546" y2="334" stroke="#475569" stroke-width="1.75"/>
+  <line x1="546" y1="134" x2="574" y2="134" stroke="#16A34A" stroke-width="1.75" marker-end="url(#uccg-ah-green)"/>
+  <line x1="546" y1="232" x2="574" y2="232" stroke="#DC2626" stroke-width="1.75" marker-end="url(#uccg-ah-red)"/>
+  <line x1="546" y1="334" x2="574" y2="334" stroke="#DC2626" stroke-width="1.75" marker-end="url(#uccg-ah-red)"/>
+
+  <rect x="576" y="100" width="344" height="68" rx="10" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.25"/>
+  <text x="748" y="126" text-anchor="middle" font-size="13.5" font-weight="700" fill="#166534">exit 0 — ship</text>
+  <text x="748" y="148" text-anchor="middle" font-size="11.5" fill="#16A34A">valid: true, no reason — "chain valid on $AT"</text>
+
+  <rect x="576" y="180" width="344" height="104" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="748" y="204" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">exit 1 — E_VERIFY_FAILED: refuse</text>
+  <text x="748" y="226" text-anchor="middle" font-size="11.5" fill="#DC2626">fail with the reason codes of verdict.json:</text>
+  <text x="748" y="246" text-anchor="middle" font-size="11.5" fill="#DC2626">PKI_REASON_EXPIRED, once per certificate</text>
+  <text x="748" y="264" text-anchor="middle" font-size="11.5" fill="#DC2626">PKI_REASON_NAME_MISMATCH, PKI_REASON_REVOKED</text>
+
+  <rect x="576" y="296" width="344" height="76" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="748" y="320" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">exit 2 — E_USAGE: never a verdict</text>
+  <text x="748" y="340" text-anchor="middle" font-size="11.5" fill="#64748B">unknown flag · missing --trust · --host with --ip</text>
+  <text x="748" y="358" text-anchor="middle" font-size="11.5" fill="#64748B">fail the build; do not retry</text>
+
+  <!-- Guarantees strip -->
+  <rect x="40" y="420" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="444" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">The verdict on stdout, one envelope on stderr, exit 0, 1 or 2 — the process contract a CI step branches on.</text>
+  <text x="480" y="464" text-anchor="middle" font-size="12.5" fill="#16A34A">An expiry gate is the same command asked about the future: move --at past notAfter and the verdict says so.</text>
+
+  <!-- Limits strip -->
+  <rect x="40" y="488" width="880" height="48" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="508" text-anchor="middle" font-size="12" fill="#475569">chain verify judges the files it is given: it never fetches an intermediate or a CRL, so the job carries them.</text>
+  <text x="480" y="526" text-anchor="middle" font-size="12" fill="#475569">chain build exits 0 whenever a path is found but checks no signature (PKI_REASON_SIGNATURE_NOT_CHECKED) — a diagnostic, never a gate.</text>
+</svg>
