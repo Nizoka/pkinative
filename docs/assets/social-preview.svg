@@ -78,21 +78,21 @@
 
   <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
      font-size="22" fill="#cbd5e1" text-anchor="middle">
-    <rect x="185" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="261" y="533">Strict DER</text>
-    <rect x="353" y="502" width="148" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="427" y="533">RFC 5280</text>
-    <rect x="517" y="502" width="98" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="566" y="533">PEM</text>
-    <rect x="631" y="502" width="102" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="682" y="533">OIDs</text>
-    <rect x="749" y="502" width="160" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
-    <text x="829" y="533" fill="#bfdbfe">x509-limbo</text>
-    <rect x="925" y="502" width="170" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
-    <text x="1010" y="533" fill="#bfdbfe">Wycheproof</text>
+    <rect x="156" y="502" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="232" y="533">Strict DER</text>
+    <rect x="324" y="502" width="148" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
+    <text x="398" y="533">RFC 5280</text>
+    <rect x="488" y="502" width="160" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="568" y="533" fill="#bfdbfe">x509-limbo</text>
+    <rect x="664" y="502" width="170" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="749" y="533" fill="#bfdbfe">Wycheproof</text>
+    <rect x="850" y="502" width="90" height="48" rx="24" fill="none" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <text x="895" y="533" fill="#bfdbfe">CLI</text>
+    <rect x="956" y="502" width="168" height="48" rx="24" fill="none" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <text x="1040" y="533" fill="#bfdbfe">MCP server</text>
   </g>
 
   <text x="640" y="600" text-anchor="middle"
         font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">pkinative.dev · library · MIT · open source · npm install pkinative</text>
+        font-size="20" fill="#475569">pkinative.dev · library · CLI · MCP server · MIT · npm install pkinative</text>
 </svg>

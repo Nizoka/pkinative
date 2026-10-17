@@ -254,14 +254,14 @@
         "png": "docs/assets/og-image.png",
         "width": 1200,
         "height": 630,
-        "svgSha256": "6532486d0c253ec8a4c7efa6b49d31b9eb07f98780bee5812688fe373bea4e17"
+        "svgSha256": "1577a205e8393683186be0c720a6722cbcd938410a0f3d9ac03970f8f28ec146"
       },
       {
         "svg": "docs/assets/social-preview.svg",
         "png": "docs/assets/social-preview.png",
         "width": 1280,
         "height": 640,
-        "svgSha256": "29f1788aba8c306ddd9a97ab89bd0762c4feed73df99bcfc895b8f6a533e7a27"
+        "svgSha256": "ee9cd4885e41db32979e9f3b0ba30bbfdb6a2c3d6174408a904b544ca61500ae"
       }
     ],
     "pkits": {
