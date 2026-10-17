@@ -13,6 +13,8 @@ Please include the version (or commit), the function called with its options, th
 
 What counts as a vulnerability here: an input that makes pkinative accept an encoding the standard forbids in a way that could change a security decision (a parser differential), a verdict that accepts what the standard rejects, an input that exhausts memory or CPU despite the configured limits, an exception other than a `PkiError` subclass escaping on malformed input, or any secret-dependent behaviour.
 
+Vulnerabilities in [pkinative-cli](https://github.com/Nizoka/pkinative-cli/security) or [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp/security) are reported to their own repositories, under their own SECURITY.md; a flaw of the engine that either one only exposes is reported here.
+
 The handling steps, their timelines, the advisory and the credit are in [Disclosure Policy](#disclosure-policy). The same contacts are published for machines at `https://pkinative.dev/.well-known/security.txt` ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)), and with the security tools the workflows run in [`.github/SECURITY-INSIGHTS.yml`](.github/SECURITY-INSIGHTS.yml) ([OpenSSF Security Insights](https://github.com/ossf/security-insights) 2.0.0), which the `security-insights-parity` rule holds to both.
 
 ## Supported Versions
@@ -86,7 +88,7 @@ Security fixes stay possible within 1.x because every one found so far made pkin
 
 **Fields.** `code`, the error class, `errorCode` and `limit` are promised. A `path` keeps its grammar: it starts at a member of the input the operation took, or at `path` for the certification path a report describes, and descends with `.member` and `[index]`; a minor may make it more precise. The rest is for a human or a measurement, listed below.
 
-**The wire form.** Results hold `bigint` and `Uint8Array` values, so `JSON.stringify` refuses them; no JSON form is promised. The convention reserved for one — and for the satellites — is a `bigint` as its decimal string and bytes as lowercase hexadecimal. The registries under `docs/data/` and `docs/assets/api.json` are machine contracts that only grow; they are not in the npm package, and the copy for version X.Y.Z is the one at the git tag `vX.Y.Z`.
+**The wire form.** Results hold `bigint` and `Uint8Array` values, so `JSON.stringify` refuses them; no JSON form is promised. The convention, the one pkinative-cli and pkinative-mcp both follow, is a `bigint` as its decimal string and bytes as lowercase hexadecimal. The registries under `docs/data/` and `docs/assets/api.json` are machine contracts that only grow; they are not in the npm package, and the copy for version X.Y.Z is the one at the git tag `vX.Y.Z`.
 
 ### What is not promised
 

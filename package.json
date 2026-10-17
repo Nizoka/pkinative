@@ -1,7 +1,7 @@
 {
   "name": "pkinative",
   "version": "1.0.0",
-  "description": "Zero-dependency native PKI toolkit: strict ASN.1 DER (BER on request), PEM, OIDs and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable machine-readable error codes and a conformance gate over x509-limbo and Wycheproof. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, never implements secret-dependent cryptography, built under a human-in-the-loop AI-agent governance policy.",
+  "description": "Zero-dependency native PKI toolkit: strict ASN.1 DER (BER on request), PEM and OIDs; complete RFC 5280 X.509 certificates and PKCS#10 requests, built and verified through Web Crypto; RFC 5280 path validation with CRL and OCSP revocation; RFC 5652 CMS SignedData and RFC 3161 timestamps; PKCS#8 and PKCS#12 under PBES2. CWE-tagged resource limits, stable machine-readable error codes, a conformance gate over x509-limbo, NIST PKITS and Wycheproof. Pure TypeScript, one API across Node, browsers, Deno, Bun and Workers, never implements secret-dependent cryptography. Command line: pkinative-cli; MCP server: pkinative-mcp.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

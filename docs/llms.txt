@@ -17,15 +17,28 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
 - [Errors and diagnostics](https://pkinative.dev/guides/errors.md): every code with its cause and remedy
-- [Choosing a library](https://pkinative.dev/guides/choose.md): when to use pkinative, and when another tool is the right one
+- [CLI reference](https://pkinative.dev/guides/cli.md): pkinative-cli — every command, flag, exit code and error class of the `pkinative` command, and its `--json` agent contract
+- [CLI use cases](https://pkinative.dev/guides/use-cases-cli.md): a CI chain-and-expiry gate, offline revocation, signing and time-stamping a release, auditing a PKCS#12
+- [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models
+- [MCP use cases](https://pkinative.dev/guides/use-cases-mcp.md): an agent triaging a failing chain, issuing a test certificate, offline revocation, opening keys safely
+- [Choosing a library and a surface](https://pkinative.dev/guides/choose.md): when to use pkinative, when another tool is the right one, and library, CLI or MCP server for each capability
 
 ## Data
 
 - [Error registry](https://pkinative.dev/data/errors.json): code, class, cause, remedy, standard, CWE
 - [Diagnostic registry](https://pkinative.dev/data/diagnostics.json): code, severity, cause, remedy, standard
 - [Limits](https://pkinative.dev/data/limits.json): the named resource bounds with defaults and CWE
-- [Capabilities](https://pkinative.dev/data/surfaces.json): what pkinative does, the exports that do it, since when
+- [Capabilities](https://pkinative.dev/data/surfaces.json): what pkinative does, the exports, CLI command lines and MCP tools that do it, since when
+- [CLI surface](https://pkinative.dev/data/cli-surface.json): the pkinative-cli commands, flags, exit codes and error classes, from its own capability manifest
 - [Ecosystem](https://pkinative.dev/assets/ecosystem.json): versions, milestones, corpus pins and counts
+
+## Ecosystem
+
+pkinative is the engine; two published satellites, each its own repository and npm package pinning `pkinative ^1.0.0`, expose it without code. Both run offline and carry pkinative's `PKI_*` codes verbatim.
+
+- [pkinative-cli](https://github.com/Nizoka/pkinative-cli): `npm install --global pkinative-cli`, binary `pkinative` — 18 commands, 53 invocations, `--json` envelope (exit 0 / 1 / 2), 13 error classes, JSON Schemas (`pkinative schema`); agent contract: https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md
+- [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp): `npx -y pkinative-mcp`, registry name `io.github.Nizoka/pkinative-mcp` — 34 tools, seven prompts, `pkinative://output/{+path}` resources, stdio and Streamable HTTP; agent contract: https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md
+- [Playgrounds](https://pkinative.dev/playgrounds/): the library in a browser tab, a CLI command builder and an MCP tool explorer
 
 ## Optional
 

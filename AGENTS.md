@@ -101,6 +101,12 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable branch is removed or carries a justified `v8 ignore`.
 `scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) give every MUST/SHOULD sentence a status naming its test or a closed-list exclusion reason.
 
+## Ecosystem
+
+Two published satellites, each its own repository pinning `pkinative ^1.0.0`: `pkinative-cli` (binary `pkinative`, 18 commands) and `pkinative-mcp` (34 tools, seven prompts).
+They vendor the `docs/data/` registries at the tag (the CLI also `api.frozen.json`), so a registry or wire-form change is a downstream change for both (release notes, **Downstream integration notes**).
+Their inventories live in `ecosystem.json → packages`, the CLI surface in `docs/data/cli-surface.json`; `satellite-*`, `surfaces-shape` and `*-surface-parity` hold the site to them.
+
 ## Releasing and governance
 
 CONTRIBUTING.md §Release; Conventional Commits; every runtime change gets a ROADMAP.md entry and a line in the next `release-notes/vX.Y.Z.md`, downstream-visible ones under **Downstream integration notes**.

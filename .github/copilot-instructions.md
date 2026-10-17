@@ -16,6 +16,8 @@ on Linux, Windows and macOS and Node.js 24 on Linux, with Deno, Bun and headless
 It is the third library of the *native* family ([pdfnative](https://github.com/Nizoka/pdfnative), [zipnative](https://github.com/Nizoka/zipnative))
 and follows the same doctrine: one quality gate, secure-by-default parsing of hostile input, stable machine-readable error codes,
 a conformance gate against external corpora, and a human-in-the-loop AI governance policy.
+Two published satellites, pkinative-cli (the `pkinative` command) and pkinative-mcp (an MCP server), live in their own repositories,
+pin `pkinative ^1.0.0` and vendor the `docs/data/` registries at the tag: a registry change is a downstream change for both.
 
 It **never implements secret-dependent cryptography**. Every signature is created and verified through Web Crypto with the
 caller's key, and `src/crypto/webcrypto.ts` is the only module that names a Web Crypto operation; hashing is limited to public data.

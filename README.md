@@ -2,6 +2,9 @@
 
 **Read, verify and build the certificates your software trusts — strictly, safely, on every runtime, without a single dependency.**
 
+[![npm: pkinative](https://img.shields.io/npm/v/pkinative?label=pkinative)](https://www.npmjs.com/package/pkinative)
+[![npm: pkinative-cli](https://img.shields.io/npm/v/pkinative-cli?label=pkinative-cli)](https://www.npmjs.com/package/pkinative-cli)
+[![npm: pkinative-mcp](https://img.shields.io/npm/v/pkinative-mcp?label=pkinative-mcp)](https://www.npmjs.com/package/pkinative-mcp)
 ![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
 ![Conformance: x509-limbo, Wycheproof and NIST PKITS](https://img.shields.io/badge/conformance-x509--limbo%20%2B%20Wycheproof%20%2B%20NIST%20PKITS-blueviolet)
@@ -9,7 +12,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). Versions below 1.0.0 are git tags only — source snapshots of each milestone, never released on GitHub or npm.
+> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). Versions below 1.0.0 are git tags only — source snapshots of each milestone, never released on GitHub or npm. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
 
 pkinative reads certificates and verifies them the whole way: signatures, RFC 5280 §6 paths, CRL and OCSP revocation, host names and key purposes. It reads, builds and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files into non-extractable Web Crypto keys, and creates certificates and certification requests — with Web Crypto doing every signature.
 
@@ -24,7 +27,7 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 - **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with the input.
 - **No cryptography it should not own.** pkinative never implements signing, key generation or arithmetic on secret material; every signature is created and verified through Web Crypto, with your key.
 - **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks the serial number, validity, CA flag and fingerprint of every parsed certificate against OpenSSL.
-- **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy.
+- **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy. Beyond the library, the MCP server gives an assistant 34 typed tools and seven prompts, and the CLI a `--json` contract whose 13 error classes carry pkinative's codes verbatim.
 
 ## How it compares
 
@@ -59,6 +62,13 @@ gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative   # optional: 
 ```
 
 A plain git install (`github:Nizoka/pkinative#v1.0.0`) does not work: `dist/` is not committed. Every runtime runs the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
+
+From a shell, or from an AI assistant, without writing code — each satellite is its own package, pinning `pkinative ^1.0.0`:
+
+```bash
+npm install --global pkinative-cli   # the `pkinative` command; then `pkinative doctor`
+npx -y pkinative-mcp                 # the MCP server, over stdio; configure your client as the MCP guide shows
+```
 
 ## Quick start
 
@@ -145,6 +155,16 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 No runtime dependency. No TypeScript implementation of signing, key generation or modular arithmetic on secrets. No filesystem, network or process access inside the engine. No lenient decoder that silently accepts what the standard forbids. No PEM parsing inside the certificate parser. The larger refusals, and why each is a decision rather than a gap, are recorded as architecture decision records in [docs/adr/](docs/adr/README.md).
 
 ## Ecosystem
+
+| Package | Purpose | Status |
+|---|---|---|
+| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.0.0 |
+| [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
+| [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
+
+Both satellites pin `pkinative ^1.0.0` in their `dependencies`, vendor its registries at the tag, and add no cryptography: the engine stays dependency-free by exiling the shell and the protocol to separate repositories — the pdfnative ecosystem pattern. [docs/guides/choose.md](docs/guides/choose.md#choosing-your-surface) says which surface fits which job; versions and inventories are recorded once, in [docs/assets/ecosystem.json](docs/assets/ecosystem.json), and policed by `npm run verify:docs`. The [playgrounds](https://pkinative.dev/playgrounds/) run the library in a browser tab and build CLI command lines and MCP tool calls.
+
+The *native* family:
 
 - [pdfnative](https://github.com/Nizoka/pdfnative) — the mother project; its PAdES and LTV signature stack is where pkinative comes from, and adopting pkinative there is pdfnative's own milestone.
 - [zipnative](https://github.com/Nizoka/zipnative) — the sibling whose error vocabulary, limits and conformance-gate patterns pkinative inherits.
