@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucsts-title ucsts-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucsts-title">Sign a message, prove when it was signed, and verify it the whole way</title>
+  <desc id="ucsts-desc">Architecture: content or a contentDigest and a Signer flow into createSignedData, which writes one SignerInfo with signed attributes. The hash of the signature value goes into createTimeStampRequest; your own fetch carries it to a TSA, parseTimeStampResponse reads the answer, and addTimeStampToken attaches the token without changing a signed octet. verifySignedData with trustAnchors and atTimeStamp yields a SignerReport that keeps intact and valid apart. Bands: intact is not valid, and signingTime is never used; pkinative fetches nothing, makes no nonce, and judges the TSA at at.</desc>
+
+  <defs>
+    <marker id="ucsts-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ucsts-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Sign, prove when, verify the whole way</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">createSignedData → createTimeStampRequest → addTimeStampToken → verifySignedData — RFC 5652 and RFC 3161</text>
+
+  <!-- You supply (indigo) -->
+  <rect x="40" y="140" width="160" height="124" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="120" y="166" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">You supply</text>
+  <text x="120" y="188" text-anchor="middle" font-size="11.5" fill="#4F46E5">content · detached</text>
+  <text x="120" y="206" text-anchor="middle" font-size="11.5" fill="#4F46E5">or contentDigest (PDF)</text>
+  <text x="120" y="228" text-anchor="middle" font-size="11.5" fill="#4F46E5">Signer: SigningKey</text>
+  <text x="120" y="246" text-anchor="middle" font-size="11.5" fill="#4F46E5">or ExternalSigner</text>
+
+  <line x1="200" y1="202" x2="224" y2="202" stroke="#475569" stroke-width="1.75" marker-end="url(#ucsts-ah)"/>
+
+  <!-- createSignedData (cyan) -->
+  <rect x="228" y="140" width="176" height="124" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="316" y="166" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">createSignedData</text>
+  <text x="316" y="188" text-anchor="middle" font-size="11.5" fill="#0E7490">signed attributes always</text>
+  <text x="316" y="206" text-anchor="middle" font-size="11.5" fill="#0E7490">signingCertificateV2</text>
+  <text x="316" y="224" text-anchor="middle" font-size="11.5" fill="#0E7490">CMSAlgorithmProtection</text>
+  <text x="316" y="246" text-anchor="middle" font-size="11.5" fill="#0E7490">→ DER ContentInfo</text>
+
+  <line x1="404" y1="202" x2="424" y2="202" stroke="#475569" stroke-width="1.75" marker-end="url(#ucsts-ah)"/>
+
+  <!-- Timestamp (cyan container) -->
+  <rect x="428" y="92" width="266" height="208" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="561" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">Prove when it was signed</text>
+
+  <rect x="442" y="128" width="238" height="46" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="561" y="148" text-anchor="middle" font-size="12" font-weight="700" fill="#155E75">createTimeStampRequest(hash)</text>
+  <text x="561" y="166" text-anchor="middle" font-size="11.5" fill="#0E7490">hash of the signature value</text>
+
+  <rect x="442" y="184" width="238" height="46" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="561" y="204" text-anchor="middle" font-size="12" font-weight="700" fill="#155E75">parseTimeStampResponse</text>
+  <text x="561" y="222" text-anchor="middle" font-size="11.5" fill="#0E7490">tokenDer only when granted</text>
+
+  <rect x="442" y="240" width="238" height="46" rx="8" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="561" y="260" text-anchor="middle" font-size="12" font-weight="700" fill="#155E75">addTimeStampToken</text>
+  <text x="561" y="278" text-anchor="middle" font-size="11.5" fill="#0E7490">every signed octet unchanged</text>
+
+  <!-- TSA round trip -->
+  <line x1="520" y1="302" x2="520" y2="324" stroke="#475569" stroke-width="1.75" marker-end="url(#ucsts-ah)"/>
+  <line x1="602" y1="326" x2="602" y2="304" stroke="#475569" stroke-width="1.75" marker-end="url(#ucsts-ah)"/>
+  <text x="512" y="318" text-anchor="end" font-size="11" fill="#64748B">request</text>
+  <text x="610" y="318" font-size="11" fill="#64748B">response</text>
+
+  <rect x="442" y="328" width="238" height="60" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="561" y="352" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">Your TSA, your fetch</text>
+  <text x="561" y="372" text-anchor="middle" font-size="11.5" fill="#64748B">pkinative sends nothing</text>
+
+  <line x1="694" y1="202" x2="716" y2="202" stroke="#475569" stroke-width="1.75" marker-end="url(#ucsts-ah)"/>
+
+  <!-- verifySignedData (cyan) -->
+  <rect x="720" y="140" width="200" height="124" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="820" y="166" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">verifySignedData</text>
+  <text x="820" y="188" text-anchor="middle" font-size="11.5" fill="#0E7490">trustAnchors: required</text>
+  <text x="820" y="206" text-anchor="middle" font-size="11.5" fill="#0E7490">atTimeStamp: true judges</text>
+  <text x="820" y="224" text-anchor="middle" font-size="11.5" fill="#0E7490">each signer at the time</text>
+  <text x="820" y="242" text-anchor="middle" font-size="11.5" fill="#0E7490">its timestamp proves</text>
+
+  <line x1="820" y1="264" x2="820" y2="284" stroke="#16A34A" stroke-width="2" marker-end="url(#ucsts-ah-green)"/>
+
+  <!-- SignerReport (amber) -->
+  <rect x="720" y="288" width="200" height="100" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="820" y="312" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">SignerReport</text>
+  <text x="820" y="332" text-anchor="middle" font-size="11.5" fill="#B45309">intact — unaltered</text>
+  <text x="820" y="350" text-anchor="middle" font-size="11.5" fill="#B45309">valid — and signed by</text>
+  <text x="820" y="368" text-anchor="middle" font-size="11.5" fill="#B45309">somebody you trust</text>
+
+  <!-- Reasons (red) -->
+  <rect x="40" y="296" width="364" height="92" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="222" y="320" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">Reasons, never silence</text>
+  <text x="222" y="340" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_CMS_CONTENT_MISSING — no content given</text>
+  <text x="222" y="358" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_TSP_REQUEST_MISMATCH — a replayed answer</text>
+  <text x="222" y="376" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_CMS_NO_SIGNERS — a .p7b bundle</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="416" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="440" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">intact is not valid: intact: true with valid: false means unaltered, but not by anybody you trust.</text>
+  <text x="480" y="460" text-anchor="middle" font-size="12.5" fill="#16A34A">atTimeStamp: true judges each signer at the time its verified timestamp proves; signingTime is a claim, never used.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="486" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="509" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Honest limits: pkinative fetches nothing and generates no nonce — supply at least 64 random bits yourself.</text>
+  <text x="480" y="528" text-anchor="middle" font-size="12" fill="#475569">The TSA is judged at at, never at its own genTime; archive timestamps (PAdES B-LTA) are not implemented.</text>
+</svg>

@@ -292,9 +292,9 @@ export const PRE_1_0_PROSE: readonly EraProseRow[] = [
         to: 'On npm with provenance since 1.0.0, under semantic versioning: a minor release only adds.',
     },
     {
-        file: 'docs/playground/index.html', phrase: 'it is not on npm before 1.0.0', at1: 'absent', why: 'why the playground commits its engine instead of loading it from a CDN',
+        file: 'docs/playgrounds/index.html', phrase: 'it is not on npm before 1.0.0', at1: 'absent', why: 'why the playground once committed its engine instead of loading it from a CDN',
         from: 'pkinative cannot — it is not on npm before 1.0.0 — so the copy is committed instead.',
-        to: 'pkinative commits its copy instead, so the playground runs the build of the tree this site is published from, not the last npm release.',
+        to: 'The playgrounds import the published package from a CDN, pinned to the version this site documents.',
     },
     {
         file: 'docs/assets/ecosystem.json', phrase: '"npm": "not published;', at1: 'absent', why: 'packages.pkinative.npm',

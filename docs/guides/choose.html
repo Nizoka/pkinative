@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choosing a PKI library — pkinative</title>
+  <title>Choosing a library and a surface — pkinative</title>
   <meta name="description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
@@ -11,13 +11,13 @@
   <meta property="og:site_name" content="pkinative">
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/choose.html">
-  <meta property="og:title" content="Choosing a PKI library — pkinative">
+  <meta property="og:title" content="Choosing a library and a surface — pkinative">
   <meta property="og:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Choosing a PKI library — pkinative">
+  <meta name="twitter:title" content="Choosing a library and a surface — pkinative">
   <meta name="twitter:description" content="Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/choose.html">
@@ -51,14 +51,14 @@
           {
             "@type": "ListItem",
             "position": 3,
-            "name": "Choosing a PKI library",
+            "name": "Choosing a library and a surface",
             "item": "https://pkinative.dev/guides/choose.html"
           }
         ]
       },
       {
         "@type": "TechArticle",
-        "headline": "Choosing a PKI library",
+        "headline": "Choosing a library and a surface",
         "description": "Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.",
         "inLanguage": "en",
         "author": {
@@ -98,12 +98,13 @@
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
         <li><a href="../#examples">Examples</a></li>
         <li><a href="../#comparison">Compare</a></li>
         <li><a href="../#benchmarks">Benchmarks</a></li>
         <li><a href="../#architecture">Architecture</a></li>
         <li><a href="../guides/" aria-current="page">Guides</a></li>
-        <li><a href="../playground/">Playground</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
         <li><a href="../llms.txt">llms.txt</a></li>
         <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -111,9 +112,9 @@
     </div>
   </nav>
   <main class="guide-shell" id="main-content" tabindex="-1">
-    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing a PKI library</p>
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Choosing a library and a surface</p>
     <article id="guide-content" class="guide-content" data-md="choose.md" data-prerendered="true">
-<h1 id="choosing-a-pki-library">Choosing a PKI library</h1>
+<h1 id="choosing-a-library-and-a-surface">Choosing a library and a surface</h1>
 <blockquote>
 <p><strong>Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.</strong></p>
 </blockquote>
@@ -126,10 +127,10 @@
 <li>Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</li>
 </ul>
 <p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
-<p><code>docs/data/surfaces.json</code> lists each capability with the exports that provide it and the version that brought it.</p>
+<p><code>docs/data/surfaces.json</code> lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.</p>
 <h2 id="what-it-does-not-do-by-design">What it does not do, by design <a class="heading-anchor" href="#what-it-does-not-do-by-design" aria-label="Link to this section">#</a></h2>
 <p>Each of these is a recorded decision, not a gap on a roadmap: the <a href="../adr/README.md">decision records</a> say why, and what holds the line.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>You need</th>
@@ -170,7 +171,7 @@
 </tbody></table>
 <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
 <p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Library</th>
@@ -232,6 +233,306 @@
 <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
 <li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>
 </ul>
+<h2 id="choosing-your-surface">Choosing your surface <a class="heading-anchor" href="#choosing-your-surface" aria-label="Link to this section">#</a></h2>
+<p>pkinative reaches you three ways, and all three run the same engine: a verdict, a refusal code or an artefact does not depend on the surface that produced it. Pick the one that matches where your bytes live and who drives the call.</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Surface</th>
+<th>For</th>
+<th>Pick it when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>The library</strong>, <code>npm install pkinative</code></td>
+<td>Applications and services on any runtime with Web Crypto — Node.js, Deno, Bun, browsers, edge workers</td>
+<td>The bytes live in memory, you want the whole typed API, or the key sits in an HSM or a remote service behind an <code>ExternalSigner</code> — which only the library takes. You own the I/O: the engine reads no file and opens no socket</td>
+</tr>
+<tr>
+<td><strong><a href="cli.html">pkinative-cli</a></strong>, the <code>pkinative</code> binary</td>
+<td>Shell scripts, CI jobs, operators, and programs in any language that can run a process</td>
+<td>Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, <code>--dry-run</code> and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv</td>
+</tr>
+<tr>
+<td><strong><a href="mcp.html">pkinative-mcp</a></strong>, the <code>pkinative-mcp</code> server</td>
+<td>AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP</td>
+<td>A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine&#39;s floor)</td>
+</tr>
+</tbody></table>
+<p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
+<p>Every capability <code>docs/data/surfaces.json</code> lists, by surface:</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Capability</th>
+<th>Library</th>
+<th>CLI</th>
+<th>MCP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>errors</code> — typed errors with stable codes</td>
+<td><code>PkiError</code> and its subclasses</td>
+<td>every command: <code>error.pkiCode</code> in the <code>--json</code> envelope; <code>explain</code></td>
+<td>every tool: <code>_meta.error.code</code>; <code>explain_code</code></td>
+</tr>
+<tr>
+<td><code>limits</code> — named, CWE-tagged bounds</td>
+<td><code>DEFAULT_PKI_LIMITS</code>, the <code>limits</code> option</td>
+<td>the 22 engine-limit <code>--max-*</code> flags (plus the CLI&#39;s <code>--max-content-size</code>); <code>limits</code></td>
+<td>the <code>limits</code> input of every engine tool, under the operator ceilings; <code>describe_engine</code></td>
+</tr>
+<tr>
+<td><code>asn1-decode</code></td>
+<td><code>decodeAsn1</code>, <code>decodeAsn1Sequence</code></td>
+<td><code>asn1 decode</code> (<code>--sequence</code>)</td>
+<td><code>decode_asn1</code> (<code>sequence</code>)</td>
+</tr>
+<tr>
+<td><code>asn1-read</code></td>
+<td><code>readInteger</code>, <code>readTime</code> and the other typed readers</td>
+<td><code>asn1 decode --path … --read …</code></td>
+<td><code>decode_asn1</code> (<code>nodePath</code>, <code>read</code>)</td>
+</tr>
+<tr>
+<td><code>asn1-encode</code></td>
+<td><code>encodeSequence</code>, <code>encodeAsn1Node</code> and the other encoders</td>
+<td><code>asn1 encode</code>; <code>asn1 decode --reencode</code></td>
+<td><code>encode_asn1</code>; <code>decode_asn1</code> (<code>reencode</code>)</td>
+</tr>
+<tr>
+<td><code>oid</code></td>
+<td><code>encodeOid</code>, <code>decodeOid</code>, <code>isValidOid</code>, <code>getOidName</code>, <code>OID_REGISTRY</code></td>
+<td><code>oid name</code>, <code>encode</code>, <code>decode</code>, <code>validate</code>, <code>list</code></td>
+<td><code>resolve_oid</code></td>
+</tr>
+<tr>
+<td><code>pem</code></td>
+<td><code>decodePem</code>, <code>encodePem</code></td>
+<td><code>pem decode</code>, <code>pem encode</code></td>
+<td><code>convert_pem</code></td>
+</tr>
+<tr>
+<td><code>fingerprint</code></td>
+<td><code>computeFingerprint</code>, <code>computeFingerprintAsync</code>, <code>formatFingerprint</code>, <code>computeKeyIdentifier</code>, <code>shake256</code></td>
+<td><code>fingerprint</code> (<code>--key-id</code>, <code>--shake256</code>, <code>--webcrypto</code>)</td>
+<td><code>compute_fingerprint</code>; <code>inspect_certificate</code> (<code>fingerprints</code>)</td>
+</tr>
+<tr>
+<td><code>x509-parse</code></td>
+<td><code>parseCertificate</code>, <code>getExtension</code>, <code>decodeExtensionValue</code>, <code>formatDistinguishedName</code></td>
+<td><code>cert inspect</code>, <code>cert decode-extension</code></td>
+<td><code>inspect_certificate</code>, <code>decode_extension</code></td>
+</tr>
+<tr>
+<td><code>x509-verify</code></td>
+<td><code>verifyCertificateSignature</code>, <code>verifySelfSignature</code>, <code>canVerify</code></td>
+<td><code>cert verify-signature</code>; <code>doctor</code></td>
+<td><code>inspect_certificate</code> (<code>issuer</code>, <code>checkSelfSignature</code>); <code>describe_engine</code></td>
+</tr>
+<tr>
+<td><code>x509-create</code></td>
+<td><code>createCertificate</code>, <code>createCertificationRequest</code>, the X.509 encoders, <code>canSign</code></td>
+<td><code>cert create</code>, <code>csr create</code>, <code>cert encode</code>; <code>doctor</code></td>
+<td><code>create_certificate</code>, <code>create_csr</code>, <code>encode_x509_structure</code>; <code>describe_engine</code></td>
+</tr>
+<tr>
+<td><code>x509-csr</code></td>
+<td><code>parseCertificationRequest</code>, <code>verifyCertificationRequest</code></td>
+<td><code>csr inspect</code>, <code>csr verify</code></td>
+<td><code>inspect_csr</code></td>
+</tr>
+<tr>
+<td><code>x509-verify-chain</code></td>
+<td><code>verifyCertificateChain</code></td>
+<td><code>chain verify</code></td>
+<td><code>verify_certificate_chain</code></td>
+</tr>
+<tr>
+<td><code>x509-path</code></td>
+<td><code>buildCertificatePath</code>, <code>validateCertificatePath</code></td>
+<td><code>chain build</code>, <code>chain validate</code></td>
+<td><code>build_certificate_path</code>, <code>validate_certificate_path</code></td>
+</tr>
+<tr>
+<td><code>x509-server-name</code></td>
+<td><code>checkServerName</code>, <code>matchDnsName</code></td>
+<td><code>cert check-name</code>, <code>cert match-name</code>; <code>chain verify --host</code></td>
+<td><code>check_certificate_name</code>; <code>verify_certificate_chain</code> (<code>serverName</code>)</td>
+</tr>
+<tr>
+<td><code>x509-purpose</code></td>
+<td><code>checkExtendedKeyUsage</code>, <code>KEY_PURPOSES</code>, <code>ANY_EXTENDED_KEY_USAGE</code></td>
+<td><code>cert check-purpose</code>; <code>--purpose</code> on <code>chain</code> and <code>cms verify</code></td>
+<td><code>check_certificate_purpose</code>; <code>purposes</code> on <code>verify_certificate_chain</code>, <code>build_certificate_path</code> and <code>verify_cms</code></td>
+</tr>
+<tr>
+<td><code>x509-crl</code></td>
+<td><code>parseCertificateList</code>, <code>findRevocation</code>, <code>verifyCrlSignature</code>, <code>checkRevocation</code></td>
+<td><code>crl inspect</code>, <code>find</code>, <code>verify-signature</code>, <code>check</code></td>
+<td><code>inspect_crl</code> (<code>find</code>, <code>issuer</code>), <code>check_crl_revocation</code></td>
+</tr>
+<tr>
+<td><code>x509-ocsp</code></td>
+<td><code>createOcspRequest</code>, <code>encodeOcspCertId</code>, <code>parseOcspResponse</code>, <code>verifyOcspSignature</code>, <code>checkOcspStatus</code></td>
+<td><code>ocsp request</code>, <code>cert-id</code>, <code>inspect</code>, <code>verify-signature</code>, <code>check</code></td>
+<td><code>create_ocsp_request</code> (<code>certIdOnly</code>), <code>inspect_ocsp_response</code> (<code>responder</code>), <code>check_ocsp_status</code></td>
+</tr>
+<tr>
+<td><code>cms-signed-data</code></td>
+<td><code>createSignedData</code>, <code>parseSignedData</code>, <code>verifySignedData</code>, <code>verifySignerInfoSignature</code>, <code>addUnsignedAttribute</code></td>
+<td><code>cms sign</code>, <code>verify</code>, <code>inspect</code>, <code>verify-signer</code>, <code>add-attribute</code></td>
+<td><code>sign_cms</code>, <code>verify_cms</code>, <code>inspect_cms</code> (<code>signerCertificate</code>), <code>amend_cms</code> (<code>add-unsigned-attribute</code>)</td>
+</tr>
+<tr>
+<td><code>cms-timestamp</code></td>
+<td><code>createTimeStampRequest</code>, <code>parseTimeStampResponse</code>, <code>parseTimeStampToken</code>, <code>parseTstInfo</code>, <code>verifyTimeStampToken</code>, <code>addTimeStampToken</code></td>
+<td><code>tsp request</code>, <code>inspect</code>, <code>verify</code>; <code>cms add-timestamp</code></td>
+<td><code>create_timestamp_request</code>, <code>inspect_timestamp</code>, <code>verify_timestamp</code>; <code>amend_cms</code> (<code>add-timestamp</code>)</td>
+</tr>
+<tr>
+<td><code>keys-pkcs8</code></td>
+<td><code>parsePrivateKeyInfo</code>, <code>parseEncryptedPrivateKeyInfo</code>, <code>importPrivateKey</code>, <code>decryptPrivateKey</code>, <code>canDecrypt</code></td>
+<td><code>key inspect</code>, <code>key check</code>; <code>--key</code> on the signing commands; <code>doctor</code></td>
+<td><code>inspect_private_key</code> (<code>tryImport</code>); <code>signer.key</code> on the signing tools; <code>describe_engine</code></td>
+</tr>
+<tr>
+<td><code>keys-pkcs12</code></td>
+<td><code>parsePkcs12</code>, <code>verifyPkcs12Mac</code>, <code>openSafeContents</code>, <code>openPkcs12</code></td>
+<td><code>p12 inspect</code>, <code>verify-mac</code>, <code>bags</code>, <code>open</code>; <code>--p12</code> on the signing commands</td>
+<td><code>inspect_pkcs12</code>, <code>open_pkcs12</code>; <code>signer.p12</code> on the signing tools</td>
+</tr>
+</tbody></table>
+<p>What each surface adds around the engine, and what it leaves out — an em-dash means the surface does not offer it:</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Capability</th>
+<th>Library (<code>pkinative</code>)</th>
+<th>CLI (<code>pkinative-cli</code>)</th>
+<th>MCP (<code>pkinative-mcp</code>)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Where the bytes come from</td>
+<td><code>Uint8Array</code> values your code reads</td>
+<td>a file, or <code>-</code> and a pipe on stdin</td>
+<td>inline <code>pem</code> or <code>derBase64</code>, or a <code>path</code> inside the <code>PKINATIVE_MCP_OUTPUT_DIR</code> sandbox</td>
+</tr>
+<tr>
+<td>Writing an artefact</td>
+<td>— (the bytes are returned; the engine writes no file)</td>
+<td><code>--output</code>, exclusive unless <code>--overwrite</code> (an atomic rename); <code>--dry-run</code> writes nothing</td>
+<td><code>outputMode: &#39;file&#39;</code> inside the sandbox, never overwritten, returned as a <code>resource_link</code></td>
+</tr>
+<tr>
+<td>A key outside the process (HSM, KMS, remote signer)</td>
+<td><code>ExternalSigner</code></td>
+<td>— (a PKCS#8 or PKCS#12 file)</td>
+<td>— (<code>signer.key</code> or <code>signer.p12</code>)</td>
+</tr>
+<tr>
+<td>Passwords</td>
+<td>your code passes them</td>
+<td><code>--password-file</code>, <code>--password-stdin</code> or <code>PKINATIVE_PASSWORD</code>; never on the command line</td>
+<td>the <code>password</code> input or <code>PKINATIVE_MCP_PASSWORD</code>, never both</td>
+</tr>
+<tr>
+<td>A negative verdict</td>
+<td><code>valid: false</code> and <code>reasons[]</code></td>
+<td>the report, then exit 1 (<code>E_VERIFY_FAILED</code> or <code>E_CHECK_FAILED</code>)</td>
+<td><code>valid: false</code> in <code>structuredContent</code>, never <code>isError</code></td>
+</tr>
+<tr>
+<td>A reproducible instant</td>
+<td>the <code>at</code> option</td>
+<td><code>--at</code></td>
+<td>the <code>at</code> input; <code>PKINATIVE_MCP_AT</code> for the whole server</td>
+</tr>
+<tr>
+<td>Diagnostics and strict mode</td>
+<td><code>onDiagnostic</code>, <code>strict</code></td>
+<td><code>diagnostics</code> in the envelope, <code>--strict</code>, <code>--quiet</code></td>
+<td><code>diagnostics[]</code> and <code>diagnosticCounts</code>, <code>strict: true</code></td>
+</tr>
+<tr>
+<td>Capability preflight</td>
+<td><code>canSign</code>, <code>canVerify</code>, <code>canDecrypt</code></td>
+<td><code>doctor</code></td>
+<td><code>describe_engine</code></td>
+</tr>
+<tr>
+<td>Machine contract</td>
+<td><code>docs/assets/api.json</code> and the registries of <code>docs/data/</code></td>
+<td><code>schema</code> (twelve subjects), <code>--summary</code>, <code>--fields</code></td>
+<td><code>inputSchema</code> and <code>outputSchema</code> in <code>tools/list</code>; <code>verbosity</code>, <code>fields</code></td>
+</tr>
+<tr>
+<td>Shell completion</td>
+<td>—</td>
+<td><code>completion</code> (bash, zsh, fish, PowerShell)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Configuration file</td>
+<td>— (options per call)</td>
+<td><code>.pkinativerc.json</code>, <code>--config</code>, <code>--no-config</code> — presentation defaults only</td>
+<td>— (the nine <code>PKINATIVE_MCP_*</code> variables instead)</td>
+</tr>
+<tr>
+<td>Response cache</td>
+<td>—</td>
+<td>—</td>
+<td><code>PKINATIVE_MCP_CACHE_DIR</code> (opt-in, SHA-256 keyed)</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>an in-process <code>import</code></td>
+<td>one process per command: the report on stdout, the <code>--json</code> envelope on stderr</td>
+<td>stdio; Streamable HTTP on loopback, with an opt-in bearer token</td>
+</tr>
+<tr>
+<td>Guided workflows</td>
+<td>— (<code>recipes/</code> in the repository)</td>
+<td>— (<code>--help</code>, <code>docs/AGENT_CONTRACT.md</code>)</td>
+<td>seven prompts (<code>prompts/list</code>)</td>
+</tr>
+<tr>
+<td>AI-governance drafter</td>
+<td>— (repository policy, <code>npm run verify:issue</code>)</td>
+<td>— (repository policy, <code>.github/drafts/</code>)</td>
+<td><code>draft_governance_issue</code>; the <code>governance_contract</code> and <code>draft_issue_workflow</code> prompts</td>
+</tr>
+<tr>
+<td>Exit codes</td>
+<td>—</td>
+<td>0, 1, 2; 130 and 143 on SIGINT and SIGTERM</td>
+<td>— (<code>isError</code> and JSON-RPC errors)</td>
+</tr>
+<tr>
+<td>Runtimes</td>
+<td>any with Web Crypto: Node.js, Deno, Bun, browsers, edge workers</td>
+<td>Node.js</td>
+<td>Node.js</td>
+</tr>
+<tr>
+<td>Generating or exporting a key; fetching a CRL, an OCSP response or a timestamp</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<h3 id="honest-notes">Honest notes <a class="heading-anchor" href="#honest-notes" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong>No surface generates or exports a key, and none fetches.</strong> Web Crypto&#39;s <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>), and the engine opens no socket (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>): keys come from your HSM, KMS or <code>openssl genpkey</code>, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.</li>
+<li><strong>Only the CLI and the MCP sandbox write files.</strong> The engine returns bytes. The CLI writes where you point it, exclusively unless <code>--overwrite</code>; the MCP server writes only under <code>PKINATIVE_MCP_OUTPUT_DIR</code>, never overwrites, and never writes, lists or serves a key-bearing file.</li>
+<li><strong>A key in an HSM or a remote service reaches the library only.</strong> Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an <code>ExternalSigner</code> is a library call.</li>
+<li><strong>A satellite adds no PKI decision.</strong> A <code>PKI_*</code>, <code>PKI_REASON_*</code> or <code>PKI_DIAG_*</code> code means the same on every surface. A CLI <code>E_*</code> class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.</li>
+<li><strong>The table is the complete story</strong> for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.</li>
+</ul>
+<h3 id="you-can-switch-later">You can switch later <a class="heading-anchor" href="#you-can-switch-later" aria-label="Link to this section">#</a></h3>
+<p>All three surfaces call the same engine, so what one writes the others read: a certificate <code>create_certificate</code> writes into the sandbox verifies under <code>pkinative chain verify</code> and parses with <code>parseCertificate</code>, and a verdict carries the same reason codes wherever it was reached. <code>cert create --spec</code> and the <code>spec</code> input of <code>create_certificate</code> take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate <code>cert create</code> adds an <code>authorityKeyIdentifier</code> and <code>create_certificate</code> does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the &quot;wrong&quot; surface costs a call-site migration, not a re-authoring.</p>
+<p>The <a href="cli.html">CLI guide</a> and the <a href="mcp.html">MCP guide</a> document every command and tool; <a href="use-cases-cli.html">CLI use cases</a> and <a href="use-cases-mcp.html">MCP use cases</a> put them to work.</p>
     </article>
   </main>
   <footer class="footer">
@@ -255,11 +556,26 @@
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -284,6 +600,8 @@
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
   <script src="guide.js" defer></script>
 </body>
 </html>

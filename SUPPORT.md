@@ -5,7 +5,8 @@ Thanks for using **pkinative**! Here is where to get help depending on what you 
 ## :books: Documentation
 
 - **Quick start & API overview:** [README.md](./README.md)
-- **In-depth guides:** [`docs/guides/`](./docs/guides/) (quick start, use cases, security model, conformance, error codes, choosing a library)
+- **In-depth guides:** [`docs/guides/`](./docs/guides/) (quick start, use cases, the CLI and MCP references and their use cases, security model, conformance, standards, error codes, choosing a library and a surface), also at [pkinative.dev](https://pkinative.dev/guides/)
+- **The command line and the MCP server:** [pkinative-cli](https://github.com/Nizoka/pkinative-cli) and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) are separate repositories with their own issue trackers and agent contracts ([CLI](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md), [MCP](https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md)); report a problem of the command or the server there, and one of the engine here
 - **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
 - **Roadmap:** [ROADMAP.md](./ROADMAP.md)
 

@@ -70,7 +70,8 @@ export function sitePages(root: string): string[] {
             const rel = dir === '' ? entry : `${dir}/${entry}`;
             if (entry === 'node_modules' || entry.startsWith('.')) continue;
             if (statSync(join(root, SITE, rel)).isDirectory()) walk(rel);
-            else if (entry.endsWith('.html')) out.push(`/${rel}`);
+            // A noindex redirect stub navigates away before axe could read it; its target is audited on its own.
+            else if (entry.endsWith('.html') && !/<meta name="robots" content="noindex/.test(readFileSync(join(root, SITE, rel), 'utf8'))) out.push(`/${rel}`);
         }
     };
     walk('');

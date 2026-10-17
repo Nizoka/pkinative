@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI use cases — pkinative</title>
+  <meta name="description" content="Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/guides/use-cases-cli.html">
+  <meta property="og:title" content="CLI use cases — pkinative">
+  <meta property="og:description" content="Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CLI use cases — pkinative">
+  <meta name="twitter:description" content="Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/guides/use-cases-cli.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/use-cases-cli.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/use-cases-cli.html">
+  <link rel="alternate" type="text/markdown" href="use-cases-cli.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "CLI use cases",
+            "item": "https://pkinative.dev/guides/use-cases-cli.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "CLI use cases",
+        "description": "Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit. Every command below is one a sample runs, or a flag the CLI guide documents.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/use-cases-cli.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › CLI use cases</p>
+    <article id="guide-content" class="guide-content" data-md="use-cases-cli.md" data-prerendered="true">
+<h1 id="cli-use-cases">CLI use cases</h1>
+<blockquote>
+<p><strong>Four pipelines built from the pkinative-cli samples: a CI gate on a chain and its expiry, revocation checked offline, a signed and timestamped release, and a PKCS#12 audit.</strong> Every command below is one a sample runs, or a flag the CLI guide documents.</p>
+</blockquote>
+<p>pkinative-cli 1.0.0 ships 57 samples in its repository&#39;s <code>samples/</code> directory, at least one for every invocation but <code>doctor</code>, each as a <code>.sh</code> and a <code>.ps1</code> script that its CI runs and pins. A sample runs from the repository root against the test PKI in <code>tests/fixtures/pki</code> (<code>F</code> below), the inputs in <code>samples/inputs</code> (<code>S</code>) and an output directory (<code>O</code>), and calls <code>${PKINATIVE:-node dist/cli.cjs}</code> — with the CLI installed, <code>PKINATIVE=pkinative</code>. The cases below quote those command lines, then show the output the 1.0.0 binary prints for them; every flag is documented in the <a href="cli.html">CLI guide</a>.</p>
+<pre><code class="language-bash">F=tests/fixtures/pki S=samples/inputs O=test-output/samples
+</code></pre>
+<h2 id="case-1--a-ci-gate-on-a-certificate-chain-and-its-expiry">Case 1 — A CI gate on a certificate chain and its expiry <a class="heading-anchor" href="#case-1--a-ci-gate-on-a-certificate-chain-and-its-expiry" aria-label="Link to this section">#</a></h2>
+<p>A deployment should not ship a certificate that does not chain to the roots it is meant to chain to, that names another host, or that expires before the next release. <code>chain verify</code> answers all three in one call, and its process contract — the verdict on stdout, one envelope on stderr, exit 0, 1 or 2 — is what a CI step branches on.</p>
+<p><a class="guide-diagram" href="../assets/use-case-cli-ci-gate.svg" target="_blank" rel="noopener"><img src="../assets/use-case-cli-ci-gate.svg" alt="Architecture: a CI job carries the leaf certificate, its intermediate and the trust anchors, and pins an instant 30 days ahead with --at. pkinative chain verify checks the path, signatures, host name, purpose and revocation at that instant, then writes the verdict on stdout and one JSON envelope on stderr. The step branches on the exit code: 0 ships, 1 is E_VERIFY_FAILED with reason codes such as PKI_REASON_EXPIRED or PKI_REASON_NAME_MISMATCH, 2 is E_USAGE and fails the build without a retry. Limits: the CLI never fetches an intermediate or a CRL, and chain build is a diagnostic, never a gate."></a></p>
+<p>The building blocks, from <code>samples/chain/</code>:</p>
+<pre><code class="language-bash"># samples/chain/chain-verify.sh — one-call verdict with revocation (expected exit 0)
+pkinative chain verify &quot;$F&quot;/leaf.crt.pem --untrusted &quot;$F&quot;/inter.crt.pem --trust &quot;$F&quot;/root.crt.pem --host example.test --crl &quot;$F&quot;/inter.crl.pem --ocsp &quot;$F&quot;/leaf.ocsp.der --require-revocation --at 2027-01-01T00:00:00Z
+
+# samples/chain/chain-verify-revoked.sh — a revoked leaf fails the verdict (expected exit 1)
+pkinative chain verify &quot;$F&quot;/revoked.crt.pem --untrusted &quot;$F&quot;/inter.crt.pem --trust &quot;$F&quot;/root.crt.pem --crl &quot;$F&quot;/inter.crl.pem --at 2027-01-01T00:00:00Z -q
+
+# samples/chain/chain-build.sh — find a path to a trust anchor, signatures not checked (expected exit 0)
+pkinative chain build &quot;$F&quot;/leaf.crt.pem --untrusted &quot;$F&quot;/inter.crt.pem --trust &quot;$F&quot;/root.crt.pem --at 2027-01-01T00:00:00Z --json --summary
+</code></pre>
+<p>Add <code>--json --summary</code> and the first sample&#39;s verdict is two lines, stdout then stderr:</p>
+<pre><code class="language-json">{&quot;valid&quot;:true,&quot;reasons&quot;:[],&quot;path&quot;:[&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;CN=Test Intermediate CA,O=pkinative-cli test,C=FR&quot;,&quot;CN=Test Root CA,O=pkinative-cli test,C=FR&quot;],&quot;explored&quot;:2,&quot;signatureVerifications&quot;:2}
+{&quot;ok&quot;:true,&quot;command&quot;:&quot;chain verify&quot;,&quot;valid&quot;:true,&quot;pathLength&quot;:3,&quot;signaturesChecked&quot;:true,&quot;diagnostics&quot;:[]}
+</code></pre>
+<p><strong>Expiry is a question of <code>--at</code>.</strong> The verdict is computed at the instant <code>--at</code> names — ISO 8601, epoch milliseconds or <code>now</code> — so an expiry gate is the same command asked about the future. Moving the first sample&#39;s <code>--at</code> past the leaf&#39;s <code>notAfter</code> (2046-01-01) gives exit 1, <code>E_VERIFY_FAILED</code>, one <code>PKI_REASON_EXPIRED</code> per certificate of the path, and two <code>PKI_REASON_REVOCATION_UNKNOWN</code> on the OCSP response, whose delegated responder certificate has expired too:</p>
+<pre><code class="language-json">{&quot;valid&quot;:false,&quot;reasons&quot;:[&quot;PKI_REASON_EXPIRED&quot;,&quot;PKI_REASON_EXPIRED&quot;,&quot;PKI_REASON_EXPIRED&quot;,&quot;PKI_REASON_REVOCATION_UNKNOWN&quot;,&quot;PKI_REASON_REVOCATION_UNKNOWN&quot;],&quot;path&quot;:[&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;CN=Test Intermediate CA,O=pkinative-cli test,C=FR&quot;,&quot;CN=Test Root CA,O=pkinative-cli test,C=FR&quot;],&quot;explored&quot;:3,&quot;signatureVerifications&quot;:2}
+</code></pre>
+<p>A CI step built on those pieces — verify the chain as it will stand 30 days from now, and fail with the reason codes when it does not (GNU <code>date</code> and <code>jq</code> assumed on the runner):</p>
+<pre><code class="language-bash">AT=&quot;$(date -u -d &#39;+30 days&#39; +%Y-%m-%dT%H:%M:%SZ)&quot;
+pkinative chain verify server.pem --untrusted intermediate.pem --trust root.pem \
+  --host www.example.com --purpose serverAuth --at &quot;$AT&quot; \
+  --json --summary &gt; verdict.json 2&gt; envelope.json
+case $? in
+  0) echo &quot;chain valid on $AT&quot; ;;
+  1) echo &quot;chain refused: $(jq -r &#39;.reasons | join(&quot;, &quot;)&#39; verdict.json)&quot;; jq -c .error envelope.json; exit 1 ;;
+  2) echo &quot;invocation error: $(jq -r .error.message envelope.json)&quot;; exit 2 ;;
+esac
+</code></pre>
+<p>A name mismatch is caught by the same call: on the sample chain, <code>--host other.test</code> exits 1 with <code>PKI_REASON_NAME_MISMATCH</code>, whose message lists the names the certificate does hold. Exit 2 is never a verdict — an unknown flag, a missing <code>--trust</code>, both <code>--host</code> and <code>--ip</code> — and a gate should fail the build on it rather than retry.</p>
+<p><strong>Limits.</strong> <code>chain verify</code> judges the files it is given: it never fetches an intermediate or a CRL, so a CI job must carry them (Case 2). <code>chain build</code> exits 0 whenever a path is found, because it checks no signature — its <code>valid</code> is always false with <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> and its envelope says <code>signaturesChecked: false</code> — so it is a diagnostic, never a gate.</p>
+<h2 id="case-2--offline-and-air-gapped-revocation-checking">Case 2 — Offline and air-gapped revocation checking <a class="heading-anchor" href="#case-2--offline-and-air-gapped-revocation-checking" aria-label="Link to this section">#</a></h2>
+<p>Revocation is where a verifier is most tempted to reach the network, and where an air-gapped signing host cannot. The CLI never fetches anything: it writes the OCSP request you send, and judges the CRL and the OCSP response you carry back.</p>
+<p><a class="guide-diagram" href="../assets/use-case-cli-offline-revocation.svg" target="_blank" rel="noopener"><img src="../assets/use-case-cli-offline-revocation.svg" alt="Architecture: on the connected side, pkinative ocsp request writes an OCSP request with a random nonce, and your own HTTP client posts it and fetches the CRL from URLs the certificate names. The response, the CRL and the nonce cross the air gap. There, crl check, ocsp check with --require-nonce and chain verify with --require-revocation judge that evidence at a pinned --at instant: a good certificate exits 0, a revoked one exits 1 with PKI_REASON_REVOKED and its date. Limits: the CLI never fetches, an unknown status passes unless revocation is required, and a CRL past nextUpdate fails chain verify, which takes no tolerance, and passes crl check only within --stale-tolerance."></a></p>
+<p>The building blocks, from <code>samples/ocsp/</code> and <code>samples/crl/</code>:</p>
+<pre><code class="language-bash"># samples/ocsp/ocsp-request.sh — build an OCSP request (expected exit 0)
+pkinative ocsp request --cert &quot;$F&quot;/leaf.crt.pem --issuer &quot;$F&quot;/inter.crt.pem -o &quot;$O&quot;/ocsp-req.der
+
+# samples/crl/crl-verify-signature.sh — verify a CRL signature (expected exit 0)
+pkinative crl verify-signature &quot;$F&quot;/inter.crl.der --issuer &quot;$F&quot;/inter.crt.pem
+
+# samples/crl/crl-find.sh — look a serial up in a CRL (expected exit 0)
+pkinative crl find &quot;$F&quot;/inter.crl.der --serial 1002
+
+# samples/crl/crl-check.sh — decide a status from a CRL (expected exit 0)
+pkinative crl check &quot;$F&quot;/inter.crl.der --cert &quot;$F&quot;/leaf.crt.pem --issuer &quot;$F&quot;/inter.crt.pem --at 2027-01-01T00:00:00Z
+
+# samples/ocsp/ocsp-verify-signature.sh — verify the responder signature (expected exit 0)
+pkinative ocsp verify-signature &quot;$F&quot;/leaf.ocsp.der
+
+# samples/ocsp/ocsp-check.sh — decide a status from an OCSP response (expected exit 1: revoked)
+pkinative ocsp check &quot;$F&quot;/revoked.ocsp.der --cert &quot;$F&quot;/revoked.crt.pem --issuer &quot;$F&quot;/inter.crt.pem --at 2027-01-01T00:00:00Z -q
+</code></pre>
+<p>The workflow splits across the gap:</p>
+<pre><code class="language-bash"># Connected side: write the request with a random RFC 8954 nonce, send it, fetch the CRL.
+pkinative ocsp request --cert leaf.pem --issuer ca.pem --nonce random -o req.der --json
+#   stderr: {&quot;ok&quot;:true,&quot;command&quot;:&quot;ocsp request&quot;,&quot;nonce&quot;:&quot;&lt;32 hex digits&gt;&quot;,&quot;bytes&quot;:106,&quot;encoding&quot;:&quot;der&quot;,&quot;output&quot;:&quot;req.der&quot;,&quot;diagnostics&quot;:[]}
+curl --data-binary @req.der -H &#39;Content-Type: application/ocsp-request&#39; -o resp.der &quot;$OCSP_URL&quot;
+curl -o ca.crl &quot;$CRL_URL&quot;
+
+# Air-gapped side: judge the evidence you carried, at a pinned instant.
+pkinative crl check ca.crl --cert leaf.pem --issuer ca.pem --at &quot;$AT&quot; --json --summary
+pkinative ocsp check resp.der --cert leaf.pem --issuer ca.pem --nonce &quot;$NONCE&quot; --require-nonce --at &quot;$AT&quot; --json --summary
+pkinative chain verify leaf.pem --untrusted ca.pem --trust root.pem --crl ca.crl --ocsp resp.der \
+  --ocsp-nonce &quot;$NONCE&quot; --require-ocsp-nonce --require-revocation --at &quot;$AT&quot; --json --summary
+</code></pre>
+<p>The URLs come from the certificate itself: <code>cert inspect --extension crlDistributionPoints</code> and <code>--extension authorityInfoAccess</code>. <code>ocsp check</code> recomputes the CertID with the responder&#39;s hash, finds the signer among <code>--responder</code>, the embedded certificates and the issuer, and accepts it only if it is the CA or a delegate the CA issued with the OCSPSigning purpose (RFC 6960 §4.2.2.2) — unless you say <code>--responder-trusted</code>. <code>crl check</code> without <code>--issuer</code> counts the list&#39;s signature as unchecked, and the verdict fails.</p>
+<p>On the samples&#39; revoked leaf, both checks are negative verdicts — exit 1, <code>E_CHECK_FAILED</code>, the reason with the revocation date:</p>
+<pre><code class="language-json">{&quot;valid&quot;:false,&quot;reasons&quot;:[{&quot;code&quot;:&quot;PKI_REASON_REVOKED&quot;,&quot;message&quot;:&quot;the certificate was revoked on 2026-06-01T00:00:00.000Z (reason: keyCompromise); a signature made before that instant may still be good, which is why the date is here&quot;,&quot;standard&quot;:&quot;RFC 5280 §5.1&quot;,&quot;path&quot;:&quot;ocsp&quot;}],&quot;status&quot;:&quot;revoked&quot;,&quot;signatureVerified&quot;:true,&quot;responderAuthorized&quot;:true}
+</code></pre>
+<p>and on the good leaf, <code>ocsp check</code> answers <code>{&quot;valid&quot;:true,&quot;reasons&quot;:[],&quot;status&quot;:&quot;good&quot;,&quot;signatureVerified&quot;:true,&quot;responderAuthorized&quot;:true}</code> with exit 0.</p>
+<p><strong>Limits.</strong> <code>--require-revocation</code> turns an unknown status into a failure; without it, a chain whose revocation evidence is missing can still verify, which is a soft-fail decision you make explicitly. A CRL past its <code>nextUpdate</code> is stale: <code>crl check</code> accepts one only within <code>--stale-tolerance &lt;ms&gt;</code>, and <code>chain verify</code>, which takes no tolerance, reports <code>PKI_REASON_REVOCATION_STALE</code>; an OCSP <code>thisUpdate</code> in the future is refused by <code>ocsp check</code> beyond <code>--future-tolerance</code> (60000 ms by default) — on an air-gapped host, pin <code>--at</code> rather than trust its clock.</p>
+<h2 id="case-3--cms-signature-and-rfc-3161-timestamp-in-a-release-pipeline">Case 3 — CMS signature and RFC 3161 timestamp in a release pipeline <a class="heading-anchor" href="#case-3--cms-signature-and-rfc-3161-timestamp-in-a-release-pipeline" aria-label="Link to this section">#</a></h2>
+<p>A release artefact signed with a detached CMS signature can be verified long after the signing certificate expires — if a timestamp proves the signature existed while the certificate was valid.</p>
+<p><a class="guide-diagram" href="../assets/use-case-cli-release-signing.svg" target="_blank" rel="noopener"><img src="../assets/use-case-cli-release-signing.svg" alt="Architecture: cms sign signs release.tgz detached with the signer certificate, its chain and a key whose password comes from a file, and checks the new signature before writing release.p7s. cms inspect extracts the signature value, tsp request hashes it into stamp.tsq, and your own call to the TSA returns stamp.tsr. cms add-timestamp attaches the token only if it stamps that signature value, else exit 1, E_INPUT, PKI_REASON_TSP_IMPRINT_MISMATCH. cms verify --at-timestamp then judges the signer at the stamped instant. Limits: the CLI never posts to a TSA, and tsp verify needs what was stamped."></a></p>
+<p>The building blocks, from <code>samples/cms/</code> and <code>samples/tsp/</code> (<code>cms-sign.sh</code> signs with the CA that <code>samples/cert/cert-create-ca.sh</code> writes into <code>$O</code>):</p>
+<pre><code class="language-bash"># samples/cert/cert-create-ca.sh — issue a self-signed Ed25519 CA (expected exit 0)
+pkinative cert create --spec &quot;$S&quot;/ca.json --key &quot;$F&quot;/ed25519.key.pem -o &quot;$O&quot;/ca.pem
+
+# samples/cms/cms-sign.sh — sign detached; Ed25519 is deterministic (expected exit 0)
+pkinative cms sign --content &quot;$F&quot;/content.txt --cert &quot;$O&quot;/ca.pem --key &quot;$F&quot;/ed25519.key.pem --detached --signing-time 2027-01-01T00:00:00Z -o &quot;$O&quot;/content.p7s
+
+# samples/cms/cms-verify.sh — verify an attached signature (expected exit 0)
+pkinative cms verify &quot;$F&quot;/attached.p7s --trust &quot;$F&quot;/root.crt.pem --at 2027-01-01T00:00:00Z --json --summary
+
+# samples/tsp/tsp-request.sh — build a timestamp request (expected exit 0)
+pkinative tsp request --data &quot;$F&quot;/content.txt --nonce 42 -o &quot;$O&quot;/req.tsq
+
+# samples/tsp/tsp-verify.sh — verify a timestamp against its request and data (expected exit 0)
+pkinative tsp verify --response &quot;$F&quot;/content.tsr --request &quot;$F&quot;/content.tsq --data &quot;$F&quot;/content.txt --trust &quot;$F&quot;/root.crt.pem --at 2027-01-01T00:00:00Z -q
+
+# samples/cms/cms-add-timestamp.sh — refuse a token that stamps the content, not the signature value (expected exit 1)
+pkinative cms add-timestamp &quot;$F&quot;/attached.p7s --token &quot;$F&quot;/content.tsr -o &quot;$O&quot;/stamped.p7s
+</code></pre>
+<p><code>cms sign</code> verifies the new signature under <code>--cert</code> before it writes a byte, and its envelope reports what it wrote: <code>{&quot;ok&quot;:true,&quot;command&quot;:&quot;cms sign&quot;,&quot;detached&quot;:true,&quot;bytes&quot;:980,&quot;encoding&quot;:&quot;der&quot;,&quot;output&quot;:&quot;…/content.p7s&quot;,&quot;diagnostics&quot;:[]}</code>. The last sample is the one that matters for a pipeline: a counter timestamp stamps the <strong>signer&#39;s signature value</strong>, and a token over anything else — here, over the content — is refused before anything is written, with the recipe as <code>remedy</code>:</p>
+<pre><code class="language-json">{&quot;ok&quot;:false,&quot;command&quot;:&quot;cms add-timestamp&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_INPUT&quot;,&quot;message&quot;:&quot;The token does not stamp signer 0&#39;s signature value: its imprint is over something else (PKI_REASON_TSP_IMPRINT_MISMATCH).&quot;,&quot;remedy&quot;:&quot;request the token over the signature value: cms inspect --fields signerInfos.signature, hash it, tsp request --digest &lt;hex&gt; --hash &lt;alg&gt;&quot;,&quot;reasons&quot;:[{&quot;code&quot;:&quot;PKI_REASON_TSP_IMPRINT_MISMATCH&quot;,&quot;message&quot;:&quot;the token stamps a different hash from the one expected; it may be a perfectly good timestamp, of something else&quot;,&quot;standard&quot;:&quot;RFC 3161 §2.4.2&quot;,&quot;path&quot;:&quot;token.tstInfo.messageImprint&quot;}]},&quot;diagnostics&quot;:[{&quot;code&quot;:&quot;PKI_DIAG_CMS_SET_NOT_SORTED&quot;,&quot;severity&quot;:&quot;warning&quot;,&quot;message&quot;:&quot;this SET OF is not in DER order; nothing signed depends on it, but a strict DER reader will refuse the message&quot;,&quot;standard&quot;:&quot;ITU-T X.690 §11.6&quot;,&quot;path&quot;:&quot;content.certificates&quot;,&quot;offset&quot;:235}]}
+</code></pre>
+<p>The pipeline that follows that remedy (<code>jq</code> and <code>xxd</code> assumed on the runner; the TSA call is yours):</p>
+<pre><code class="language-bash"># 1. Sign the release artefact, detached.
+pkinative cms sign --content release.tgz --cert signer.pem --chain intermediate.pem \
+  --key signer.key --password-file signer.pass --detached -o release.p7s
+
+# 2. Timestamp the signature value, not the artefact.
+pkinative cms inspect release.p7s --json --fields signerInfos.signature \
+  | jq -r &#39;.signerInfos[0].signature&#39; | xxd -r -p &gt; signature.bin
+pkinative tsp request --data signature.bin --nonce random -o stamp.tsq
+curl --data-binary @stamp.tsq -H &#39;Content-Type: application/timestamp-query&#39; -o stamp.tsr https://tsa.example.test/
+
+# 3. Attach the token — refused unless it stamps that signature value — and verify at the stamped time.
+pkinative cms add-timestamp release.p7s --token stamp.tsr -o release-stamped.p7s
+pkinative cms verify release-stamped.p7s --content release.tgz --trust root.pem --at-timestamp --json --summary
+</code></pre>
+<p><code>cms inspect --fields signerInfos.signature</code> prints the signature value as hex — <code>{&quot;signerInfos&quot;:[{&quot;signature&quot;:&quot;3046022100f22e…&quot;}]}</code> on the samples&#39; attached message — and <code>tsp request --data</code> hashes the bytes you give it (<code>--hash</code>, SHA-256 by default). <code>cms verify --at-timestamp</code> validates the signer at its verified timestamp instead of the wall clock. An ECDSA or RSA-PSS signature differs on each run; the signing sample uses Ed25519, which is deterministic, so its output can be pinned.</p>
+<p><strong>Limits.</strong> The CLI never posts to a TSA. <code>tsp verify</code> needs to be told what was stamped — <code>--request</code>, <code>--data</code> or <code>--digest</code> — and refuses (exit 2) when it is not, because a token verified without what it stamps proves nothing. A TSA certificate whose timeStamping EKU is not critical is accepted only under <code>--allow-noncritical-eku</code>.</p>
+<h2 id="case-4--a-pkcs12-audit-with---password-file">Case 4 — A PKCS#12 audit with <code>--password-file</code> <a class="heading-anchor" href="#case-4--a-pkcs12-audit-with---password-file" aria-label="Link to this section">#</a></h2>
+<p>A <code>.p12</code> arriving from a partner or an old export should be described before anyone types its password, and opened without its key ever reaching a terminal or a log.</p>
+<p><a class="guide-diagram" href="../assets/use-case-cli-pkcs12-audit.svg" target="_blank" rel="noopener"><img src="../assets/use-case-cli-pkcs12-audit.svg" alt="Architecture: p12 inspect describes a partner&#39;s PKCS#12 file without a password. p12 verify-mac, p12 bags and p12 open then read the password from the first line of a protected file through --password-file; p12 open imports the keys non-extractable and exports the certificates with --certs-out. A password on argv is E_USAGE, exit 2; a wrong one E_PASSWORD, exit 1; a legacy RC2 or 3DES file E_SECURITY, exit 1, with PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED and PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED. Limits: no report holds a key byte; the CLI writes no PKCS#12 or PKCS#8."></a></p>
+<p>The building blocks, from <code>samples/p12/</code> and <code>samples/key/</code>:</p>
+<pre><code class="language-bash"># samples/p12/p12-inspect.sh — describe a PKCS#12 file, no password (expected exit 0)
+pkinative p12 inspect &quot;$F&quot;/leaf.p12
+
+# samples/p12/p12-verify-mac.sh — verify the PBMAC1 integrity (expected exit 0)
+PKINATIVE_PASSWORD=test-only-password pkinative p12 verify-mac &quot;$F&quot;/leaf.p12
+
+# samples/p12/p12-bags.sh — list the bags, decrypted (expected exit 0)
+PKINATIVE_PASSWORD=test-only-password pkinative p12 bags &quot;$F&quot;/leaf.p12
+
+# samples/p12/p12-open.sh — open it and export its certificates (expected exit 0)
+PKINATIVE_PASSWORD=test-only-password pkinative p12 open &quot;$F&quot;/leaf.p12 --certs-out &quot;$O&quot;/bundle.pem -q
+
+# samples/key/key-inspect.sh — describe an encrypted key, no password needed (expected exit 0)
+pkinative key inspect &quot;$F&quot;/leaf.key.enc.pem --json
+
+# samples/key/key-check.sh — prove an encrypted key decrypts (expected exit 0)
+PKINATIVE_PASSWORD=test-only-password pkinative key check &quot;$F&quot;/leaf.key.enc.pem --key-type ec-p256 --json
+</code></pre>
+<p>The samples pass the password through <code>PKINATIVE_PASSWORD</code>. An audit script on a shared host should prefer <code>--password-file</code>, which reads the first line of a file you protect, and never the command line — <code>--password</code> is refused before any command runs:</p>
+<pre><code class="language-bash">umask 077 &amp;&amp; printf &#39;%s\n&#39; &quot;$P12_PASSWORD&quot; &gt; p12.pass
+
+pkinative p12 inspect partner.p12 --json --fields mac.kind,mac.iterations,contents.path,contents.encryption.scheme
+pkinative p12 verify-mac partner.p12 --password-file p12.pass --json --summary
+pkinative p12 bags partner.p12 --password-file p12.pass --json
+pkinative p12 open partner.p12 --password-file p12.pass --certs-out partner-chain.pem --json --summary
+</code></pre>
+<p>On the samples&#39; <code>leaf.p12</code>, <code>p12 inspect</code>, <code>p12 verify-mac</code> and <code>p12 open</code> say what protects the file, whether the password is right, and what it holds — its key imported as a non-extractable Web Crypto key, without a key byte anywhere:</p>
+<pre><code class="language-json">{&quot;mac&quot;:{&quot;kind&quot;:&quot;pbmac1&quot;,&quot;iterations&quot;:2048},&quot;contents&quot;:[{&quot;path&quot;:&quot;authSafe[0]&quot;,&quot;encryption&quot;:{&quot;scheme&quot;:&quot;PBES2 (PBKDF2 with HMAC-SHA-256, AES-256-CBC)&quot;}},{&quot;path&quot;:&quot;authSafe[1]&quot;}]}
+{&quot;valid&quot;:true}
+{&quot;valid&quot;:true,&quot;integrity&quot;:&quot;verified&quot;,&quot;keys&quot;:[{&quot;path&quot;:&quot;authSafe[1].bags[0]&quot;,&quot;friendlyName&quot;:&quot;test leaf&quot;,&quot;certificate&quot;:&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;signingKey&quot;:{&quot;algorithm&quot;:{&quot;name&quot;:&quot;ECDSA&quot;,&quot;namedCurve&quot;:&quot;P-256&quot;,&quot;hash&quot;:&quot;SHA-256&quot;},&quot;key&quot;:{&quot;type&quot;:&quot;private&quot;,&quot;algorithm&quot;:&quot;ECDSA&quot;,&quot;extractable&quot;:false,&quot;usages&quot;:[&quot;sign&quot;]}}}],&quot;certificates&quot;:[{&quot;subject&quot;:&quot;CN=example.test,O=pkinative-cli test,C=FR&quot;,&quot;serialNumber&quot;:&quot;1001&quot;},{&quot;subject&quot;:&quot;CN=Test Intermediate CA,O=pkinative-cli test,C=FR&quot;,&quot;serialNumber&quot;:&quot;02&quot;}],&quot;crls&quot;:0,&quot;reasons&quot;:[]}
+</code></pre>
+<p>The failures an audit meets are classes, each with its remedy (exit codes in brackets):</p>
+<pre><code class="language-json">{&quot;ok&quot;:false,&quot;command&quot;:&quot;p12 verify-mac&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_PASSWORD&quot;,&quot;message&quot;:&quot;The PKCS#12 MAC does not match: the password is wrong, or the file was altered.&quot;,&quot;remedy&quot;:&quot;--password-file &lt;file&gt; | --password-stdin | PKINATIVE_PASSWORD (check the password)&quot;},&quot;diagnostics&quot;:[]}
+{&quot;ok&quot;:false,&quot;command&quot;:&quot;p12 open&quot;,&quot;error&quot;:{&quot;code&quot;:&quot;E_USAGE&quot;,&quot;message&quot;:&quot;--password is refused: a password on the command line is visible to every process on the machine.&quot;,&quot;remedy&quot;:&quot;--password-file &lt;file&gt; | --password-stdin | PKINATIVE_PASSWORD&quot;},&quot;diagnostics&quot;:[]}
+</code></pre>
+<p>A wrong password is <code>E_PASSWORD</code> [1]; a password on argv is <code>E_USAGE</code> [2]. A legacy file — RC2 or 3DES, the RFC 7292 Appendix B MAC — is described by <code>p12 inspect</code> (<code>mac.kind</code> is <code>pkcs12-kdf</code>, the scheme is named) and refused by <code>p12 open</code> with <code>E_SECURITY</code> [1], the reasons <code>PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</code> and <code>PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED</code>, and the one-time OpenSSL 3.4 conversion as <code>remedy</code>. A file whose MAC cannot be checked opens only under <code>--allow-unverified-integrity</code>, for a file whose origin you trust; an RSA key opens only with <code>--rsa-scheme pkcs1|pss</code>.</p>
+<p><strong>Limits.</strong> No <code>key</code> or <code>p12</code> report contains a key byte: they are allow-list views, and keys are imported non-extractable. The CLI writes no PKCS#12 or PKCS#8 — a converted file comes from OpenSSL — and <code>--certs-out</code> writes the certificates and CRLs only, and only from a file that opened.</p>
+<h2 id="see-also">See also <a class="heading-anchor" href="#see-also" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="cli.html">CLI guide</a> — every command, flag, exit code and error class.</li>
+<li><a href="use-cases-mcp.html">MCP use cases</a> — the same workflows driven by an AI assistant.</li>
+<li><a href="use-cases.html">Use cases</a> — the library in applications.</li>
+<li><a href="errors.html">Errors, diagnostics and reasons</a> — every <code>PKI_*</code> code these cases print.</li>
+<li>The CLI&#39;s <a href="https://github.com/Nizoka/pkinative-cli/tree/main/samples" target="_blank" rel="noopener">samples</a> and <a href="https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a>.</li>
+</ul>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

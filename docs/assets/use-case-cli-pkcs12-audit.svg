@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="uccp-title uccp-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="uccp-title">A PKCS#12 audit with --password-file</title>
+  <desc id="uccp-desc">Architecture: p12 inspect describes a partner's PKCS#12 file without a password. p12 verify-mac, p12 bags and p12 open then read the password from the first line of a protected file through --password-file; p12 open imports the keys non-extractable and exports the certificates with --certs-out. A password on argv is E_USAGE, exit 2; a wrong one E_PASSWORD, exit 1; a legacy RC2 or 3DES file E_SECURITY, exit 1, with PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED and PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED. Limits: no report holds a key byte; the CLI writes no PKCS#12 or PKCS#8.</desc>
+
+  <defs>
+    <marker id="uccp-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="uccp-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">A PKCS#12 audit with --password-file</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">p12 inspect · p12 verify-mac · p12 bags · p12 open — described before the password, never a password on argv (pkinative-cli 1.0.0)</text>
+
+  <!-- Inputs -->
+  <rect x="40" y="96" width="200" height="86" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="140" y="120" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">partner.p12</text>
+  <text x="140" y="142" text-anchor="middle" font-size="11.5" fill="#4F46E5">from a partner or an old</text>
+  <text x="140" y="158" text-anchor="middle" font-size="11.5" fill="#4F46E5">export — described first</text>
+
+  <rect x="40" y="196" width="200" height="100" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="140" y="220" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E40AF">p12.pass</text>
+  <text x="140" y="242" text-anchor="middle" font-size="11.5" fill="#3B82F6">written under umask 077</text>
+  <text x="140" y="258" text-anchor="middle" font-size="11.5" fill="#3B82F6">its first line is the password,</text>
+  <text x="140" y="274" text-anchor="middle" font-size="11.5" fill="#3B82F6">read by --password-file</text>
+
+  <rect x="40" y="312" width="200" height="80" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="140" y="336" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">never --password &lt;pw&gt;</text>
+  <text x="140" y="356" text-anchor="middle" font-size="11.5" fill="#DC2626">refused before any command</text>
+  <text x="140" y="372" text-anchor="middle" font-size="11.5" fill="#DC2626">runs: E_USAGE, exit 2</text>
+
+  <line x1="240" y1="126" x2="274" y2="126" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+  <line x1="240" y1="246" x2="256" y2="246" stroke="#475569" stroke-width="1.75"/>
+  <line x1="256" y1="200" x2="256" y2="355" stroke="#475569" stroke-width="1.75"/>
+  <line x1="256" y1="200" x2="274" y2="200" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+  <line x1="256" y1="274" x2="274" y2="274" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+  <line x1="256" y1="355" x2="274" y2="355" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+
+  <!-- The four steps -->
+  <rect x="276" y="96" width="310" height="60" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="431" y="120" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">1 · p12 inspect — no password</text>
+  <text x="431" y="142" text-anchor="middle" font-size="11.5" fill="#0E7490">mac.kind · iterations · encryption scheme</text>
+
+  <line x1="431" y1="156" x2="431" y2="168" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+
+  <rect x="276" y="170" width="310" height="60" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="431" y="194" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">2 · p12 verify-mac --password-file</text>
+  <text x="431" y="216" text-anchor="middle" font-size="11.5" fill="#0E7490">valid: true — the password is right</text>
+
+  <line x1="431" y1="230" x2="431" y2="242" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+
+  <rect x="276" y="244" width="310" height="60" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="431" y="268" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">3 · p12 bags --password-file</text>
+  <text x="431" y="290" text-anchor="middle" font-size="11.5" fill="#0E7490">every bag listed, contents decrypted</text>
+
+  <line x1="431" y1="304" x2="431" y2="316" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+
+  <rect x="276" y="318" width="310" height="74" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="431" y="342" text-anchor="middle" font-size="13.5" font-weight="700" fill="#155E75">4 · p12 open --password-file</text>
+  <text x="431" y="362" text-anchor="middle" font-size="11.5" fill="#0E7490">decrypts; keys imported non-extractable</text>
+  <text x="431" y="378" text-anchor="middle" font-size="11.5" fill="#0E7490">--certs-out partner-chain.pem</text>
+
+  <!-- Results and refusals -->
+  <line x1="586" y1="126" x2="604" y2="126" stroke="#475569" stroke-width="1.75"/>
+  <line x1="586" y1="200" x2="604" y2="200" stroke="#475569" stroke-width="1.75"/>
+  <line x1="586" y1="274" x2="604" y2="274" stroke="#475569" stroke-width="1.75"/>
+  <line x1="586" y1="355" x2="604" y2="355" stroke="#475569" stroke-width="1.75"/>
+  <line x1="604" y1="126" x2="604" y2="355" stroke="#475569" stroke-width="1.75"/>
+  <line x1="604" y1="163" x2="620" y2="163" stroke="#475569" stroke-width="1.75" marker-end="url(#uccp-ah)"/>
+  <line x1="604" y1="319" x2="620" y2="319" stroke="#DC2626" stroke-width="1.75" marker-end="url(#uccp-ah-red)"/>
+
+  <rect x="622" y="96" width="298" height="134" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="771" y="120" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">What the audit learns</text>
+  <text x="771" y="142" text-anchor="middle" font-size="11.5" fill="#B45309">what protects the file — before any password</text>
+  <text x="771" y="160" text-anchor="middle" font-size="11.5" fill="#B45309">whether the password is right</text>
+  <text x="771" y="178" text-anchor="middle" font-size="11.5" fill="#B45309">what it holds: keys and certificates</text>
+  <text x="771" y="200" text-anchor="middle" font-size="11.5" fill="#B45309">partner-chain.pem: certificates and CRLs</text>
+  <text x="771" y="216" text-anchor="middle" font-size="11.5" fill="#B45309">only, and only from a file that opened</text>
+
+  <rect x="622" y="246" width="298" height="146" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="771" y="268" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">Refusals, each with a remedy</text>
+  <text x="771" y="290" text-anchor="middle" font-size="11.5" fill="#DC2626">wrong password → E_PASSWORD, exit 1</text>
+  <text x="771" y="312" text-anchor="middle" font-size="11.5" fill="#DC2626">legacy RC2 / 3DES, Appendix B MAC:</text>
+  <text x="771" y="328" text-anchor="middle" font-size="11.5" fill="#DC2626">p12 open → E_SECURITY, exit 1, with</text>
+  <text x="771" y="345" text-anchor="middle" font-size="10.5" fill="#991B1B">PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</text>
+  <text x="771" y="361" text-anchor="middle" font-size="10.5" fill="#991B1B">PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED</text>
+  <text x="771" y="379" text-anchor="middle" font-size="11.5" fill="#DC2626">remedy: a one-time OpenSSL 3.4 conversion</text>
+
+  <!-- Guarantees strip -->
+  <rect x="40" y="420" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="444" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">The password comes from a file you protect, never from argv: --password is refused before any command runs.</text>
+  <text x="480" y="464" text-anchor="middle" font-size="12.5" fill="#16A34A">No key or p12 report holds a key byte — allow-list views, keys imported as non-extractable Web Crypto keys.</text>
+
+  <!-- Limits strip -->
+  <rect x="40" y="488" width="880" height="48" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="508" text-anchor="middle" font-size="12" fill="#475569">The CLI writes no PKCS#12 or PKCS#8 — a converted file comes from OpenSSL; --certs-out writes certificates and CRLs only.</text>
+  <text x="480" y="526" text-anchor="middle" font-size="12" fill="#475569">An unverifiable MAC opens only under --allow-unverified-integrity, for an origin you trust · an RSA key needs --rsa-scheme pkcs1|pss.</text>
+</svg>

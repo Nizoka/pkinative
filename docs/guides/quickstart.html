@@ -98,12 +98,13 @@
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
         <li><a href="../#examples">Examples</a></li>
         <li><a href="../#comparison">Compare</a></li>
         <li><a href="../#benchmarks">Benchmarks</a></li>
         <li><a href="../#architecture">Architecture</a></li>
         <li><a href="../guides/" aria-current="page">Guides</a></li>
-        <li><a href="../playground/">Playground</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
         <li><a href="../llms.txt">llms.txt</a></li>
         <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -138,7 +139,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 <p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
 <h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
 <p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Field</th>
@@ -187,7 +188,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 </tr>
 </tbody></table>
 <p>The fields of the extensions <code>getExtension</code> returns:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Kind</th>
@@ -316,7 +317,7 @@ readInteger(integerNode);                      // 65537n
 <li><a href="use-cases.html">Use cases</a> — the jobs end to end, from a certificate inventory to a timestamped signature and the <code>.p12</code> holding its key.</li>
 <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.</li>
 <li><a href="standards.html">Standards</a> — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.</li>
-<li><a href="choose.html">Choosing a library</a> — when pkinative is the right tool, and when another one is.</li>
+<li><a href="choose.html">Choosing a library and a surface</a> — when pkinative is the right tool, when another one is, and whether to call it as a library, a CLI or an MCP server.</li>
 </ul>
     </article>
   </main>
@@ -341,11 +342,26 @@ readInteger(integerNode);                      // 65537n
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -370,6 +386,8 @@ readInteger(integerNode);                      // 65537n
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
   <script src="guide.js" defer></script>
 </body>
 </html>

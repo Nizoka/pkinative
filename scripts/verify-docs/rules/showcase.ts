@@ -10,7 +10,7 @@
  * @module scripts/verify-docs/rules/showcase
  */
 
-import { architectureDescription, countWord, escapeHtml, renderArchitectureSvg } from '../../build-guides.js';
+import { architectureDescription, countWord, escapeHtml, isRedirectStub, renderArchitectureSvg } from '../../build-guides.js';
 import { LAYERS } from '../../lib/architecture.js';
 import { error, lineContaining, readJson, type Finding, type Rule } from '../context.js';
 
@@ -18,11 +18,12 @@ const lf = (text: string): string => text.replace(/\r\n/g, '\n');
 
 const structuredData: Rule = {
     id: 'structured-data',
-    summary: 'Every page under docs/ carries schema.org JSON-LD that parses, and a page with a visible breadcrumb carries a BreadcrumbList naming the same crumbs in the same order, its last item at the page\'s canonical URL.',
+    summary: 'Every page under docs/ but a noindex redirect stub carries schema.org JSON-LD that parses, and a page with a visible breadcrumb carries a BreadcrumbList naming the same crumbs in the same order, its last item at the page\'s canonical URL.',
     check(ctx) {
         const out: Finding[] = [];
         for (const path of ctx.list('docs').filter((p) => p.endsWith('.html'))) {
             const html = lf(ctx.read(path) ?? '');
+            if (isRedirectStub(html)) continue;
             const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1] ?? '');
             if (blocks.length === 0) { out.push(error(path, 'carries no JSON-LD (<script type="application/ld+json">)')); continue; }
             const nodes: Array<Record<string, unknown>> = [];
@@ -73,6 +74,52 @@ const architectureDiagram: Rule = {
     },
 };
 
+const decodeXml = (text: string): string => text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+
+/**
+ * The use-case diagrams follow the family's norm (pdfnative, zipnative): an
+ * external `docs/assets/use-case-*.svg`, embedded as a Markdown image whose
+ * alt text is the SVG's own `<desc>` — which is what the llms files and a
+ * screen reader get. pdfnative's alt texts drifted from their descs because
+ * nothing held them; this rule does.
+ */
+const useCaseDiagrams: Rule = {
+    id: 'use-case-diagrams',
+    summary: 'Every docs/assets/use-case-*.svg is embedded exactly once in a guide as `![alt](../assets/use-case-….svg)` with the alt equal to its <desc>, which starts "Architecture:"; each carries role="img", an aria-labelledby naming its <title> and <desc>, the family\'s 960×560 viewBox, and no script, foreignObject or external reference.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const files = ctx.list('docs/assets').filter((p) => /\/use-case-[a-z0-9-]+\.svg$/.test(p));
+        const refs = new Map<string, Array<{ guide: string; alt: string }>>();
+        for (const guide of ctx.list('docs/guides').filter((p) => p.endsWith('.md'))) {
+            const md = ctx.read(guide) ?? '';
+            for (const m of md.matchAll(/!\[([^\]]*)\]\(\.\.\/assets\/(use-case-[a-z0-9-]+\.svg)\)/g)) {
+                const file = `docs/assets/${m[2] ?? ''}`;
+                refs.set(file, [...(refs.get(file) ?? []), { guide, alt: m[1] ?? '' }]);
+                if (!files.includes(file)) out.push(error(guide, `embeds ${file}, which does not exist`, lineContaining(md, m[2] ?? '')));
+            }
+        }
+        for (const file of files) {
+            const svg = lf(ctx.read(file) ?? '');
+            const uses = refs.get(file) ?? [];
+            if (uses.length !== 1) out.push(error(file, `is embedded ${String(uses.length)} times in docs/guides; a use-case diagram belongs to exactly one case`));
+            const root = /<svg\b[^>]*>/.exec(svg)?.[0] ?? '';
+            if (!/\brole="img"/.test(root)) out.push(error(file, 'its root <svg> lacks role="img"'));
+            if (!/\bviewBox="0 0 960 560"/.test(root)) out.push(error(file, 'its root <svg> is not the family\'s viewBox="0 0 960 560"'));
+            const labelledBy = /\baria-labelledby="([^"]+)"/.exec(root)?.[1]?.split(/\s+/) ?? [];
+            const titleId = /<title id="([^"]+)">/.exec(svg)?.[1];
+            const descMatch = /<desc id="([^"]+)">([\s\S]*?)<\/desc>/.exec(svg);
+            if (titleId === undefined || descMatch === null || labelledBy.join(' ') !== `${titleId} ${descMatch[1] ?? ''}`) out.push(error(file, 'its root aria-labelledby must name its <title id> then its <desc id>'));
+            const desc = decodeXml(descMatch?.[2] ?? '').replace(/\s+/g, ' ').trim();
+            if (!desc.startsWith('Architecture:')) out.push(error(file, 'its <desc> must start with "Architecture:" — the family\'s convention for a diagram\'s long description'));
+            if (/<script\b|<foreignObject\b|\bhref="(?:https?:|\/\/)/i.test(svg)) out.push(error(file, 'carries a script, a foreignObject or an external reference — a diagram is self-contained drawing'));
+            for (const use of uses) {
+                if (use.alt !== desc) out.push(error(use.guide, `the alt text of ${file} is not its <desc> — paste the desc verbatim, so the page, the llms files and a screen reader say the same`, lineContaining(ctx.read(use.guide) ?? '', file.slice('docs/assets/'.length))));
+            }
+        }
+        return out;
+    },
+};
+
 /** `a.b.c` → [a, b, c]; missing parts count as zero. */
 const parts = (version: string): number[] => version.split('.').map((p) => Number(p) || 0);
 const atMost = (a: string, b: string): boolean => {
@@ -106,4 +153,4 @@ const comparisonCurrent: Rule = {
     },
 };
 
-export const SHOWCASE_RULES: readonly Rule[] = [structuredData, architectureDiagram, comparisonCurrent];
+export const SHOWCASE_RULES: readonly Rule[] = [structuredData, architectureDiagram, useCaseDiagrams, comparisonCurrent];

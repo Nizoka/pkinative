@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PKI toolkit — pkinative playground</title>
+  <meta name="description" content="Five PKI tools running the published pkinative build in your browser: PEM, DER, hex and base64 conversion, an OID resolver, fingerprints and key identifiers, CSR, CRL and OCSP inspection, and a full chain verdict with every reason code.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/playgrounds/toolkit.html">
+  <meta property="og:title" content="PKI toolkit — pkinative playground">
+  <meta property="og:description" content="Convert PEM, resolve OIDs, fingerprint keys, inspect CSRs, CRLs and OCSP responses, and verify a chain — in your browser, on the published build. Nothing is uploaded.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PKI toolkit — pkinative playground">
+  <meta name="twitter:description" content="Five PKI tools on the published pkinative build, in your browser.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/playgrounds/toolkit.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/playgrounds/toolkit.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/playgrounds/toolkit.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playgrounds",
+            "item": "https://pkinative.dev/playgrounds/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "PKI toolkit",
+            "item": "https://pkinative.dev/playgrounds/toolkit.html"
+          }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://pkinative.dev/playgrounds/toolkit.html",
+        "url": "https://pkinative.dev/playgrounds/toolkit.html",
+        "name": "PKI toolkit — pkinative playground",
+        "description": "Five PKI tools running the published pkinative build in your browser: PEM, DER, hex and base64 conversion, an OID resolver, fingerprints and key identifiers, CSR, CRL and OCSP inspection, and a full chain verdict with every reason code.",
+        "inLanguage": "en",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires JavaScript and ES modules",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body data-playground="toolkit">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="../playgrounds/" aria-current="page">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › PKI toolkit</p>
+
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./certificate.html">Certificate inspector</a>
+      <a href="./asn1.html">ASN.1 tree</a>
+      <a href="./toolkit.html" aria-current="page">PKI toolkit</a>
+      <a href="./cli.html">CLI builder</a>
+      <a href="./mcp.html">MCP explorer</a>
+      <a class="playground-switcher-all" href="./">All →</a>
+    </nav>
+
+    <div class="guide-content">
+      <h1>PKI toolkit</h1>
+      <p>Five everyday PKI jobs, each done by the published pkinative build running in this tab. Every value below is what the exports a caller gets from npm returned; nothing is mocked and nothing is uploaded. A refusal is shown as the <code>PkiError</code> that was thrown — its stable <code>code</code> and its class — because that is what your code would branch on.</p>
+      <ul>
+        <li><a href="#convert">PEM, DER, hexadecimal and base64</a></li>
+        <li><a href="#oid">OID resolver</a></li>
+        <li><a href="#fingerprint">Fingerprints and key identifiers</a></li>
+        <li><a href="#inspect">Requests, revocation lists and OCSP responses</a></li>
+        <li><a href="#chain">Chain verdict</a></li>
+      </ul>
+    </div>
+    <p class="pg-status" id="status" role="status" aria-live="polite"></p>
+
+    <div class="guide-content">
+      <h2 id="convert">PEM, DER, hexadecimal and base64</h2>
+      <p>Paste PEM, hexadecimal or base64 and read it back in the other forms. PEM is decoded by <code>decodePem</code> under RFC 7468 — strict by default, so a header line or a wrong line length is a refusal you can see; written by <code>encodePem</code>.</p>
+    </div>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="conv-sample">Sample</label>
+      <select class="pg-picker" id="conv-sample">
+        <option value="">Pick a sample certificate…</option>
+      </select>
+      <label class="sr-only" for="conv-mode">PEM reading mode</label>
+      <select class="pg-picker" id="conv-mode">
+        <option value="strict">PEM reading: strict (RFC 7468 §3)</option>
+        <option value="lax">PEM reading: lax (RFC 7468 §2)</option>
+      </select>
+      <label class="sr-only" for="conv-label">PEM label to write hexadecimal or base64 input under</label>
+      <input class="pg-picker" id="conv-label" type="text" spellcheck="false" autocomplete="off" value="CERTIFICATE" placeholder="PEM label for hex or base64 input">
+    </div>
+    <label class="sr-only" for="conv-input">Input in PEM, hexadecimal or base64</label>
+    <textarea class="pg-input" id="conv-input" spellcheck="false" autocomplete="off" aria-describedby="conv-status"
+      placeholder="-----BEGIN CERTIFICATE-----&#10;MIIF…&#10;-----END CERTIFICATE-----"></textarea>
+    <p class="pg-status" id="conv-status" role="status" aria-live="polite"></p>
+    <div id="conv-output"></div>
+
+    <div class="guide-content">
+      <h2 id="oid">OID resolver</h2>
+      <p>Type a dotted OID, the hexadecimal content of an OBJECT IDENTIFIER, or a name to search the registry. <code>isValidOid</code> says whether the text is an OID at all, <code>getOidName</code> names it, <code>encodeOid</code> and <code>encodeObjectIdentifier</code> give its content octets and its whole TLV, and <code>decodeOid</code> reads hexadecimal back.</p>
+    </div>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="oid-input">OID, hexadecimal or name</label>
+      <input class="pg-picker" id="oid-input" type="text" spellcheck="false" autocomplete="off" value="1.2.840.10045.4.3.3" placeholder="1.2.840.113549.1.1.11, 2a864886f70d01010b or sha256">
+    </div>
+    <p class="pg-status" id="oid-status" role="status" aria-live="polite"></p>
+    <div id="oid-output"></div>
+
+    <div class="guide-content">
+      <h2 id="fingerprint">Fingerprints and key identifiers</h2>
+      <p>The digests a certificate is pinned, logged and matched by. <code>computeFingerprint</code> hashes the DER in pure TypeScript, <code>computeFingerprintAsync</code> through Web Crypto — the page shows both, and that they agree. <code>computeKeyIdentifier</code> derives the key identifier of RFC 5280 §4.2.1.2 from the public key, which this page then compares with the subjectKeyIdentifier the certificate carries.</p>
+    </div>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="fp-sample">Sample</label>
+      <select class="pg-picker" id="fp-sample">
+        <option value="">Pick a sample certificate…</option>
+      </select>
+      <label class="sr-only" for="fp-separator">Separator</label>
+      <select class="pg-picker" id="fp-separator">
+        <option value=":">Separator: colon</option>
+        <option value=" ">Separator: space</option>
+        <option value="">Separator: none</option>
+      </select>
+      <label class="sr-only" for="fp-case">Letter case</label>
+      <select class="pg-picker" id="fp-case">
+        <option value="upper">Case: upper</option>
+        <option value="lower">Case: lower</option>
+      </select>
+    </div>
+    <label class="sr-only" for="fp-input">Certificate in PEM, hexadecimal or base64</label>
+    <textarea class="pg-input" id="fp-input" spellcheck="false" autocomplete="off" aria-describedby="fp-status"
+      placeholder="-----BEGIN CERTIFICATE-----&#10;MIIF…&#10;-----END CERTIFICATE-----"></textarea>
+    <p class="pg-status" id="fp-status" role="status" aria-live="polite"></p>
+    <div id="fp-output"></div>
+
+    <div class="guide-content">
+      <h2 id="inspect">Requests, revocation lists and OCSP responses</h2>
+      <p>Drop or paste a certification request, a CRL or an OCSP response, in DER or PEM. The kind is read from the PEM label, or tried in that order: <code>parseCertificationRequest</code> then <code>verifyCertificationRequest</code>, <code>parseCertificateList</code> with <code>findRevocation</code> and <code>verifyCrlSignature</code>, <code>parseOcspResponse</code> with <code>verifyOcspSignature</code>.</p>
+      <p>No request at hand? <strong>Make a CSR</strong> asks this page — not pkinative — to generate an ephemeral ECDSA P-256 key pair with <code>crypto.subtle.generateKey</code>. pkinative never generates keys: it receives the non-extractable private <code>CryptoKey</code> and passes it to Web Crypto to sign, inside <code>createCertificationRequest</code>. The key exists in this tab only and is gone when you leave it.</p>
+    </div>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="csr-cn">Common name for the generated request</label>
+      <input class="pg-picker" id="csr-cn" type="text" spellcheck="false" autocomplete="off" value="toolkit.example" placeholder="Common name and DNS name">
+      <button class="btn btn-primary" id="csr-make" type="button">Make a CSR</button>
+      <label class="sr-only" for="insp-kind">Kind</label>
+      <select class="pg-picker" id="insp-kind">
+        <option value="auto">Kind: detect</option>
+        <option value="csr">Kind: certification request (RFC 2986)</option>
+        <option value="crl">Kind: CRL (RFC 5280 §5)</option>
+        <option value="ocsp">Kind: OCSP response (RFC 6960)</option>
+      </select>
+    </div>
+    <div class="pg-drop" id="insp-drop" tabindex="0" role="button" aria-describedby="insp-drop-hint">
+      <p id="insp-drop-hint">Drop a .csr, .crl, .der or .pem file here, or press Enter to choose one. It is read in this tab only.</p>
+    </div>
+    <label class="sr-only" for="insp-file">Choose a file to inspect</label>
+    <input id="insp-file" type="file" hidden>
+    <label class="sr-only" for="insp-input">Request, CRL or OCSP response in PEM, hexadecimal or base64</label>
+    <textarea class="pg-input" id="insp-input" spellcheck="false" autocomplete="off" aria-describedby="insp-status"
+      placeholder="-----BEGIN CERTIFICATE REQUEST-----&#10;MIIB…&#10;-----END CERTIFICATE REQUEST-----"></textarea>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="insp-issuer">Issuer to check the signature against</label>
+      <select class="pg-picker" id="insp-issuer">
+        <option value="">CRL or OCSP signature: do not check</option>
+      </select>
+      <label class="sr-only" for="insp-serial">Serial number to look up in a CRL</label>
+      <input class="pg-picker" id="insp-serial" type="text" spellcheck="false" autocomplete="off" placeholder="Serial to look up in a CRL (hexadecimal)">
+    </div>
+    <p class="pg-status" id="insp-status" role="status" aria-live="polite"></p>
+    <div id="insp-output"></div>
+
+    <div class="guide-content">
+      <h2 id="chain">Chain verdict</h2>
+      <p><code>verifyCertificateChain</code> builds the path from the leaf through the candidates to a trust anchor, checks every signature with Web Crypto, every validity window at the instant you choose, and the host name when you give one — and answers with <code>valid</code> and the full list of reasons, never only the first. Every <code>PKI_REASON_*</code> code is registered in <a href="../data/reasons.json">reasons.json</a>.</p>
+      <p>The samples hold two complete chains (R12 under ISRG Root X1, E7 under ISRG Root X2). The letsencrypt.org leaf is different on purpose: parsing it shows it was issued by YE2, an intermediate of Let's Encrypt's newer hierarchy that is not among the samples — so its honest verdict is <code>PKI_REASON_NO_TRUST_ANCHOR</code> until you paste YE2 and its root below. pkinative fetches nothing: the leaf names where its issuer is published, and getting it is yours.</p>
+    </div>
+    <div class="pg-toolbar">
+      <label class="sr-only" for="chain-scenario">Scenario</label>
+      <select class="pg-picker" id="chain-scenario">
+        <option value="">Pick a scenario…</option>
+      </select>
+    </div>
+    <div class="pg-section">
+      <div class="pg-toolbar">
+        <label class="sr-only" for="chain-leaf">Leaf certificate</label>
+        <select class="pg-picker" id="chain-leaf"></select>
+        <label class="sr-only" for="chain-at">Validation time (UTC, ISO 8601)</label>
+        <input class="pg-picker" id="chain-at" type="text" spellcheck="false" autocomplete="off" value="2026-10-01T00:00:00Z" placeholder="Validation time, e.g. 2026-10-01T00:00:00Z">
+        <label class="sr-only" for="chain-host">Host name to check</label>
+        <input class="pg-picker" id="chain-host" type="text" spellcheck="false" autocomplete="off" placeholder="Host name to check (optional), e.g. www.letsencrypt.org">
+      </div>
+      <fieldset class="pg-fieldset" id="chain-candidates">
+        <legend>Candidates (intermediates)</legend>
+      </fieldset>
+      <fieldset class="pg-fieldset" id="chain-anchors">
+        <legend>Trust anchors</legend>
+      </fieldset>
+      <label class="sr-only" for="chain-extra">More candidates or anchors in PEM</label>
+      <textarea class="pg-input" id="chain-extra" spellcheck="false" autocomplete="off"
+        placeholder="Optional: paste more certificates in PEM. A self-issued one is added to the trust anchors, any other to the candidates."></textarea>
+      <div class="pg-toolbar">
+        <button class="btn btn-primary" id="chain-run" type="button">Verify the chain</button>
+      </div>
+    </div>
+    <p class="pg-status" id="chain-status" role="status" aria-live="polite"></p>
+    <div id="chain-output"></div>
+
+    <div class="guide-content">
+      <h2 id="more">Where to go from here</h2>
+      <ul>
+        <li><a href="../guides/use-cases.html#pin-a-public-key-not-a-certificate">Pin a public key, not a certificate</a> and <a href="../guides/use-cases.html#validate-a-chain-and-get-told-everything-that-is-wrong-with-it">validate a chain</a> — the same calls, in TypeScript</li>
+        <li><a href="../guides/use-cases.html#ask-a-revocation-list-about-one-certificate">Ask a revocation list about one certificate</a> and <a href="../guides/use-cases.html#ask-a-responder-instead-of-downloading-a-list">ask a responder</a></li>
+        <li><a href="../guides/cli.html">The CLI</a> does all five from a shell — <code>pkinative pem</code>, <code>oid</code>, <code>fingerprint</code>, <code>csr</code>, <code>crl</code>, <code>ocsp</code>, <code>chain verify</code> — and the <a href="./cli.html">command builder</a> writes the line; its <a href="../guides/use-cases-cli.html">use cases</a> run them in CI</li>
+        <li><a href="../guides/errors.html">The errors guide</a> reads every refusal code, diagnostic and reason</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">loading…</span></span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="../app.js" defer></script>
+  <script type="module" src="toolkit.js"></script>
+</body>
+</html>

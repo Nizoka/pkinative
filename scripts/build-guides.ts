@@ -39,8 +39,12 @@ export const SITE = 'https://pkinative.dev';
 export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
 export const NPM = 'https://www.npmjs.com/package/pkinative';
 
-/** The guides, in navigation order. */
-export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'security', 'conformance', 'standards', 'errors', 'choose'];
+/** The guides, in navigation order: the library first, then its two satellites, then the reference. */
+export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'cli', 'use-cases-cli', 'mcp', 'use-cases-mcp', 'security', 'conformance', 'standards', 'errors', 'choose'];
+
+/** The satellites' packages, linked from every footer. */
+export const CLI_REPOSITORY = 'https://github.com/Nizoka/pkinative-cli';
+export const MCP_REPOSITORY = 'https://github.com/Nizoka/pkinative-mcp';
 
 const markdown = new Marked({ gfm: true, breaks: false });
 
@@ -114,6 +118,16 @@ function rewriteLinks(html: string): string {
         .replace(/<a href="(https?:\/\/[^"]+)">/g, '<a href="$1" target="_blank" rel="noopener">');
 }
 
+/**
+ * A retired URL kept as a `noindex` redirect stub (docs/playground/ became
+ * docs/playgrounds/). It points at its replacement and is not a page of the
+ * site: the sitemap, the search metadata and the structured-data rules skip
+ * it, and `redirect-stubs` holds it to its target instead.
+ */
+export function isRedirectStub(html: string): boolean {
+    return /<meta name="robots" content="noindex/.test(html);
+}
+
 /** Which section of the site a page belongs to, for `aria-current`. */
 export type NavSection = 'guides' | 'playgrounds' | null;
 
@@ -136,12 +150,13 @@ export function navHtml(prefix: string, current: NavSection): string {
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="${prefix}#features">Features</a></li>
+        <li><a href="${prefix}#ecosystem">Ecosystem</a></li>
         <li><a href="${prefix}#examples">Examples</a></li>
         <li><a href="${prefix}#comparison">Compare</a></li>
         <li><a href="${prefix}#benchmarks">Benchmarks</a></li>
         <li><a href="${prefix}#architecture">Architecture</a></li>
         <li><a href="${prefix}guides/"${mark('guides')}>Guides</a></li>
-        <li><a href="${prefix}playground/"${mark('playgrounds')}>Playground</a></li>
+        <li><a href="${prefix}playgrounds/"${mark('playgrounds')}>Playgrounds</a></li>
         <li><a href="${prefix}llms.txt">llms.txt</a></li>
         <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -180,6 +195,17 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
           </ul>
         </div>
         <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="${CLI_REPOSITORY}" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="${MCP_REPOSITORY}" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="${prefix}playgrounds/">Playgrounds</a></li>
+            <li><a href="${prefix}playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="${prefix}playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="${prefix}data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
           <h2 class="footer-title">For agents</h2>
           <ul>
             <li><a href="${prefix}llms.txt">llms.txt</a></li>
@@ -201,10 +227,45 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
 }
 
 /**
+ * The playgrounds, in the order the hub and every switcher list them: the
+ * library pages first, then the satellites'. `chrome-parity` holds each
+ * page's switcher to `switcherHtml`, and `playgrounds-manifest` holds this
+ * list to docs/data/playgrounds.json and to the hub's cards.
+ */
+export const PLAYGROUNDS: ReadonlyArray<readonly [file: string, label: string]> = [
+    ['certificate.html', 'Certificate inspector'],
+    ['asn1.html', 'ASN.1 tree'],
+    ['toolkit.html', 'PKI toolkit'],
+    ['cli.html', 'CLI builder'],
+    ['mcp.html', 'MCP explorer'],
+];
+
+/**
+ * The switcher at the top of every playground: each page links every other,
+ * marks itself, and ends on the hub — the family's convention.
+ *
+ * @internal Exported for `chrome-parity`.
+ */
+export function switcherHtml(current: string): string {
+    return `    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+${PLAYGROUNDS.map(([file, label]) => `      <a href="./${file}"${file === current ? ' aria-current="page"' : ''}>${escapeHtml(label)}</a>`).join('\n')}
+      <a class="playground-switcher-all" href="./">All →</a>
+    </nav>`;
+}
+
+/** The footer meta-line slot where a playground names the CDN build it ran (`load-engine.js` fills it). */
+export const ENGINE_SOURCE_SLOT = ' · engine: <span id="engine-source">loading…</span>';
+
+/** The same slot on a playground that loads no engine (the CLI builder): true without JavaScript too. */
+export const NO_ENGINE_SLOT = ' · engine: <span id="engine-source">none — this page runs nothing</span>';
+
+/**
  * Prism, pinned by SRI.
  *
- * The guides fence only `ts` and `bash`, so these three files are the whole
- * set; a new language means a new tag and a new hash, computed with
+ * The guides fence `ts`, `bash`, `json` (the MCP payloads and client
+ * configurations) and `powershell` (the CLI on Windows), so these five files
+ * are the whole set; a new language means a new tag and a new hash, computed with
  * `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A` —
  * never guessed. The `cdn-sri` rule fails on any remote load without
  * `integrity` and `crossorigin`.
@@ -218,13 +279,16 @@ export function prismTags(): { head: string; tail: string } {
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>',
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>',
             '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>',
+            '  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>',
         ].join('\n'),
     };
 }
 
 /** The label a guide carries in the nav, the footer and the index. */
 function guideNavLabel(name: string): string {
-    return name === 'quickstart' ? 'Quick start' : `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
+    const special: Readonly<Record<string, string>> = { 'quickstart': 'Quick start', 'cli': 'CLI', 'mcp': 'MCP server', 'use-cases-cli': 'CLI use cases', 'use-cases-mcp': 'MCP use cases' };
+    return special[name] ?? `${name[0]?.toUpperCase() ?? ''}${name.slice(1).replace(/-/g, ' ')}`;
 }
 
 /** One `ListItem` of a schema.org BreadcrumbList: the visible label and its URL. */
@@ -241,6 +305,15 @@ export function breadcrumbList(crumbs: readonly Crumb[]): Record<string, unknown
     };
 }
 
+/** The schema.org ItemList of a hub page: its cards, in the order they are shown. */
+export function itemList(items: readonly Crumb[]): Record<string, unknown> {
+    return {
+        '@type': 'ItemList',
+        numberOfItems: items.length,
+        itemListElement: items.map((item, i) => ({ '@type': 'ListItem', position: i + 1, name: item.name, url: item.url })),
+    };
+}
+
 /** The publisher every page names: the project, with its logo. */
 const PUBLISHER = {
     '@type': 'Organization',
@@ -253,14 +326,14 @@ const PUBLISHER = {
  * A `<script type="application/ld+json">` block for a schema.org @graph.
  * `<` is escaped so no string in the graph can close the script element.
  *
- * @internal Exported for the hand-written playground pages' generator check.
+ * @internal Exported for the hand-written pages, which paste its output.
  */
 export function jsonLdBlock(graph: ReadonlyArray<Record<string, unknown>>): string {
     const json = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }, null, 2).replace(/</g, '\\u003c');
     return `  <script type="application/ld+json">\n${json.split('\n').map((l) => `  ${l}`).join('\n')}\n  </script>`;
 }
 
-function page(options: { title: string; description: string; path: string; body: string; current: string }): string {
+function page(options: { title: string; description: string; path: string; body: string; current: string; items?: readonly Crumb[] }): string {
     const url = `${SITE}/${options.path}`;
     const prism = prismTags();
     const isIndex = options.current === 'index';
@@ -273,7 +346,10 @@ function page(options: { title: string; description: string; path: string; body:
     const ld = jsonLdBlock([
         breadcrumbList(crumbs),
         isIndex
-            ? { '@type': 'CollectionPage', '@id': url, url, name: heading, description: options.description, inLanguage: 'en', isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` } }
+            ? {
+                '@type': 'CollectionPage', '@id': url, url, name: heading, description: options.description, inLanguage: 'en', isPartOf: { '@type': 'WebSite', name: 'pkinative', url: `${SITE}/` },
+                mainEntity: itemList(options.items ?? []),
+            }
             : {
                 '@type': 'TechArticle',
                 headline: heading,
@@ -351,7 +427,14 @@ export function renderMarkdown(md: string): string {
         figures.push(block);
         return `<!--pkinative:raw-svg:${figures.length - 1}-->`;
     });
-    const html = rewriteLinks(addHeadingAnchors(markdown.parse(parked, { async: false }) as string));
+    // A table scrolls inside itself once it is wider than the column
+    // (guide.css), and a scrollable region must take the keyboard focus
+    // (WCAG 2.1.1; axe's scrollable-region-focusable).
+    // A use-case diagram is 960 units wide: on a phone its labels shrink to a
+    // few pixels, so each one links to its SVG, which opens full size and zooms.
+    const html = rewriteLinks(addHeadingAnchors(markdown.parse(parked, { async: false }) as string))
+        .replace(/<table>/g, '<table tabindex="0">')
+        .replace(/<img src="(\.\.\/assets\/use-case-[a-z0-9-]+\.svg)"([^>]*)>/g, '<a class="guide-diagram" href="$1" target="_blank" rel="noopener"><img src="$1"$2></a>');
     return html.replace(/<!--pkinative:raw-svg:(\d+)-->/g, (_m, index: string) => figures[Number(index)] ?? '');
 }
 
@@ -368,6 +451,22 @@ export function renderGuidePage(read: Reader, name: string): string {
 }
 
 /** docs/guides/index.html: every guide with its lede. */
+/**
+ * The guides index's "Interactive playgrounds" section (pdfnative's): one
+ * entry per playground in PLAYGROUNDS order, titled and described from
+ * docs/data/playgrounds.json — the inventory `playgrounds-manifest` holds —
+ * so it is one more view of the same list, never a fourth hand-kept copy.
+ */
+function playgroundsSection(read: Reader): string {
+    const inventory = JSON.parse(read('docs/data/playgrounds.json') ?? '{}') as { playgrounds?: Array<{ file?: string; title?: string; purpose?: string }> };
+    const items = PLAYGROUNDS.map(([file, label]) => {
+        const entry = inventory.playgrounds?.find((p) => p.file === file);
+        return `        <li><a href="../playgrounds/${file}">${escapeHtml(entry?.title ?? label)} →</a>`
+            + `<span class="guide-toc-desc">${escapeHtml(entry?.purpose ?? '')}</span></li>`;
+    }).join('\n');
+    return `      <h2 id="playgrounds">Interactive playgrounds</h2>\n      <p>The library and the satellites, tried in the browser — the library pages and the MCP explorer run the published package from a CDN; the CLI builder writes command lines and runs nothing.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`;
+}
+
 export function renderGuidesIndex(read: Reader): string {
     const items = GUIDES.map((name) => {
         const md = lf(read(`docs/guides/${name}.md`) ?? '');
@@ -376,12 +475,13 @@ export function renderGuidesIndex(read: Reader): string {
     }).join('\n');
     return page({
         title: 'Guides — pkinative',
-        description: 'The pkinative guides: quick start, use cases, security model, conformance, standards, errors and diagnostics, and choosing a PKI library.',
+        description: 'The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.',
         // The URL, not the output path: under `cleanUrls` (npm run docs:serve,
         // and most static hosts) /guides/index.html is served at /guides, which
         // loses a path segment and 404s every relative stylesheet.
         path: 'guides/',
-        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n`,
+        items: GUIDES.map((name) => ({ name: guideTitle(lf(read(`docs/guides/${name}.md`) ?? '')), url: `${SITE}/guides/${name}.html` })),
+        body: `      <h1 id="guides">Guides</h1>\n      <p>Each guide is also plain Markdown for agents: replace <code>.html</code> with <code>.md</code>, or read them all in <a href="../llms-full.txt">llms-full.txt</a>.</p>\n      <ul class="guide-toc-list">\n${items}\n      </ul>\n${playgroundsSection(read)}`,
         current: 'index',
     });
 }
@@ -425,6 +525,12 @@ const ARCHITECTURE_PLACES: Readonly<Record<string, readonly [row: number, column
     types: [7, 3],
 };
 
+/**
+ * The satellites, drawn above the package as consumers of its one entry
+ * point: separate repositories that reach the engine only through npm.
+ */
+const CONSUMERS: ReadonlyArray<readonly [name: string, column: number]> = [['pkinative-cli', 2], ['pkinative-mcp', 4]];
+
 /** A layer's nearest dependencies: LAYERS without the imports another import already reaches. */
 export function nearestDependencies(layer: string): string[] {
     const reach = (from: string, seen = new Set<string>()): Set<string> => {
@@ -458,7 +564,8 @@ export function architectureDescription(): string {
     });
     const refused = REFUSED_IMPORTS.map(([from, to]) => `${listWords(from)} never ${from.length > 1 ? 'import' : 'imports'} ${to}`);
     return `The ${countWord(layers.length)} pkinative layers. src/index.ts imports every layer, and nothing imports it. ${sentences.join(' ')} `
-        + `Refused on purpose: ${refused.join('; ')}.`;
+        + `Refused on purpose: ${refused.join('; ')}. `
+        + `Outside the package, ${listWords(CONSUMERS.map(([name]) => name))} use only its public entry point, through npm.`;
 }
 
 /** docs/assets/architecture.svg, drawn from LAYERS. */
@@ -470,7 +577,8 @@ export function renderArchitectureSvg(): string {
     for (const [from, to] of REFUSED_IMPORTS) {
         for (const layer of from) if ((LAYERS[layer] ?? []).includes(to)) throw new Error(`build-guides: LAYERS lets ${layer} import ${to}, which AGENTS.md refuses`);
     }
-    const W = 116, H = 36, STEP = 64, TOP = 32;
+    // BAND is the row of consumers above src/index.ts.
+    const W = 116, H = 36, STEP = 64, BAND = 72, TOP = 32 + BAND;
     const x = (column: number): number => 90 + column * 130;
     const y = (row: number): number => TOP + row * STEP;
     const at = (layer: string): { cx: number; top: number; bottom: number; row: number } => {
@@ -512,6 +620,14 @@ export function renderArchitectureSvg(): string {
     const height = y(7) + H + 92;
     const refused = REFUSED_IMPORTS.map(([from, to]) => `${from.join(' or ')} to ${to}`).join(' · ');
     const oid = at('oid');
+    const entry = at('index');
+    const consumerTop = TOP - BAND + 4;
+    const consumers = CONSUMERS.map(([name, column]) => {
+        const cx = x(column);
+        return `  <rect class="box consumer" x="${cx - W / 2 - 8}" y="${consumerTop}" width="${W + 16}" height="${H}" rx="8"/>\n`
+            + `  <text class="consumer-label" x="${cx}" y="${consumerTop + 23}">${name}</text>\n`
+            + `  <path class="edge" d="M${cx} ${consumerTop + H}V${consumerTop + H + 14}H${entry.cx + (cx < entry.cx ? -20 : 20)}V${entry.top - 4}"/>`;
+    }).join('\n');
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 ${height}" width="960" height="${height}" role="img" aria-labelledby="architecture-title architecture-desc">
   <!-- Generated by scripts/build-guides.ts from LAYERS (scripts/lib/architecture.ts); run npm run docs:guides, never edit by hand. -->
   <title id="architecture-title">pkinative layers</title>
@@ -524,6 +640,8 @@ export function renderArchitectureSvg(): string {
     .label { font: 600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #0f172a; text-anchor: middle; }
     .top-label { font: 600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #ffffff; text-anchor: middle; }
     .note { font: 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #475569; }
+    .consumer { fill: #ffffff; stroke-dasharray: 5 4; }
+    .consumer-label { font: 600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; fill: #0f172a; text-anchor: middle; }
     .edge { stroke: #64748b; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
   </style>
   <defs>
@@ -533,7 +651,10 @@ export function renderArchitectureSvg(): string {
   </defs>
   <rect class="canvas" x="0.5" y="0.5" width="959" height="${height - 1}" rx="12"/>
 ${edges.map((e) => `  ${e}`).join('\n')}
+${consumers}
 ${boxes}
+  <text class="note" x="${x(5) - W / 2}" y="${consumerTop + 15}">separate packages, pinning</text>
+  <text class="note" x="${x(5) - W / 2}" y="${consumerTop + 33}">pkinative ^1.0.0 from npm</text>
   <text class="note" x="${oid.cx + W / 2 + 12}" y="${oid.top + 15}">imports nothing; only</text>
   <text class="note" x="${oid.cx + W / 2 + 12}" y="${oid.top + 33}">getOidName pulls it in</text>
   <text class="note" x="32" y="${height - 56}">Arrows point at each layer's nearest dependencies; AGENTS.md §Architecture lists every permitted import.</text>

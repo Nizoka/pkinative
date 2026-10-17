@@ -153,4 +153,4 @@ Error code unions are in the [errors guide](errors.md).
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.
-- [Choosing a library](choose.md) — when pkinative is the right tool, and when another one is.
+- [Choosing a library and a surface](choose.md) — when pkinative is the right tool, when another one is, and whether to call it as a library, a CLI or an MCP server.

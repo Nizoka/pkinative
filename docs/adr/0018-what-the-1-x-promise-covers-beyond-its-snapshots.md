@@ -133,3 +133,7 @@ A certificate that a re-pinned corpus brings and pkinative refuses joins the ref
 - [`docs/data/defaults.json`](../data/defaults.json) — every option default and its `semver`.
 - [ADR 0014](0014-the-decision-surface-contract.md), [ADR 0015](0015-no-default-rsa-scheme.md), [ADR 0016](0016-one-entry-point-for-1-x.md), [ADR 0017](0017-runtime-and-toolchain-support.md).
 - The Rust reference's [`non_exhaustive`](https://doc.rust-lang.org/reference/attributes/type_system.html) attribute — "a type or variant may have more fields or variants added in the future" — is the same open-union policy, stated in a type system that can enforce it.
+
+## Amendments
+
+- **2026-10-17, the satellites shipped.** The wire form this record names — a `bigint` as its decimal string, bytes as lowercase hexadecimal, member names unchanged — is the one `pkinative-cli` 1.0.0 and `pkinative-mcp` 1.0.0 implement, each citing this record (the MCP server's results are views over it: the raw-DER echoes `der`, `tbsDer`, `valueDer` and `raw` dropped, and names, instants and serial numbers rendered for an agent — a name gains its RFC 4514 string beside its RDNs, an instant its ISO 8601 form beside `epochMilliseconds`, a serial number `hex` beside `decimal`), and both vendor the registries of `docs/data/` at the tag (the CLI also the `api.frozen.json` surface snapshot). **The decision is unchanged**; a change to a registry shape or to the wire form is now a downstream change for both, recorded under the release note's Downstream integration notes.

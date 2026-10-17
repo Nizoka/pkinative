@@ -22,6 +22,11 @@
  *     and no 0.x version other than the placeholder was ever published,
  *     under any dist-tag.
  *
+ *   - **The satellites** — pkinative-cli and pkinative-mcp, which this site
+ *     documents and counts: `latest` of each is the version its
+ *     `packages.<name>` record holds, so a satellite release the site has not
+ *     caught up with is found the week it ships (`decideSatelliteDrift`).
+ *
  * Every version is read, not only `latest`: a pre-1.0 publish under
  * `--tag next` would leave `latest` untouched and still break the policy.
  *
@@ -89,6 +94,23 @@ export function decideNpmDrift(manifestVersion: string, registry: RegistryState)
     return out;
 }
 
+/** The satellites the site documents: separate repositories, published from 1.0.0, never under the pre-1.0 policy. */
+export const SATELLITES: readonly string[] = ['pkinative-cli', 'pkinative-mcp'];
+
+/**
+ * Every problem with a satellite's registry state against its record in the
+ * manifest: `latest` is the recorded version, so the site never documents a
+ * release that is not out or misses one that is.
+ */
+export function decideSatelliteDrift(name: string, manifestVersion: string, registry: RegistryState): string[] {
+    if (!registry.found) return [`${name} is not on the registry; the manifest records ${manifestVersion}`];
+    const latest = registry.distTags['latest'] ?? null;
+    if (latest === null) return [`${name} has no latest dist-tag; the manifest records ${manifestVersion}`];
+    if (compare(latest, manifestVersion) < 0) return [`${name} latest is ${latest}; the manifest records ${manifestVersion}, which is not published`];
+    if (compare(latest, manifestVersion) > 0) return [`${name} latest is ${latest}, ahead of the manifest's ${manifestVersion} — record the release in packages.${name} and re-check every count the site quotes from it`];
+    return latest === manifestVersion ? [] : [`${name} latest is ${latest}; the manifest records ${manifestVersion}`];
+}
+
 /**
  * The state from the text `npm view --json` printed and its exit status.
  * Throws when the answer is neither a package nor a 404 — the caller turns
@@ -109,8 +131,8 @@ export function parseNpmView(stdout: string, stderr: string, status: number | nu
     return { found: true, distTags, versions };
 }
 
-function queryRegistry(): RegistryState {
-    const r = spawnSync('npm', ['view', PACKAGE, 'dist-tags', 'versions', '--json'], { encoding: 'utf8', shell: process.platform === 'win32', windowsHide: true, timeout: 60_000 });
+function queryRegistry(name: string = PACKAGE): RegistryState {
+    const r = spawnSync('npm', ['view', name, 'dist-tags', 'versions', '--json'], { encoding: 'utf8', shell: process.platform === 'win32', windowsHide: true, timeout: 60_000 });
     if (r.error) throw r.error;
     return parseNpmView(r.stdout, r.stderr, r.status);
 }
@@ -122,25 +144,33 @@ function main(argv: readonly string[]): number {
     }
     const root = resolve(import.meta.dirname, '..');
     let manifestVersion: string;
+    const satelliteVersions = new Map<string, string>();
     try {
-        const manifest = JSON.parse(readFileSync(join(root, 'docs/assets/ecosystem.json'), 'utf8')) as { packages?: { pkinative?: { version?: unknown } } };
-        const v = manifest.packages?.pkinative?.version;
+        const manifest = JSON.parse(readFileSync(join(root, 'docs/assets/ecosystem.json'), 'utf8')) as { packages?: Record<string, { version?: unknown } | undefined> };
+        const v = manifest.packages?.['pkinative']?.version;
         if (typeof v !== 'string') throw new Error('packages.pkinative.version is missing');
         manifestVersion = v;
+        for (const name of SATELLITES) {
+            const sv = manifest.packages?.[name]?.version;
+            if (typeof sv !== 'string') throw new Error(`packages.${name}.version is missing`);
+            satelliteVersions.set(name, sv);
+        }
     } catch (err) {
         console.error(`check-npm-drift: docs/assets/ecosystem.json — ${(err as Error).message}`);
         return 2;
     }
     let registry: RegistryState;
+    const problems: string[] = [];
     try {
         registry = queryRegistry();
+        problems.push(...decideNpmDrift(manifestVersion, registry));
+        for (const [name, version] of satelliteVersions) problems.push(...decideSatelliteDrift(name, version, queryRegistry(name)));
     } catch (err) {
         console.error(`check-npm-drift: the registry could not be read — ${(err as Error).message}`);
         return 2;
     }
-    const problems = decideNpmDrift(manifestVersion, registry);
     if (argv.includes('--json')) {
-        process.stdout.write(`${JSON.stringify({ ok: problems.length === 0, manifest: manifestVersion, registry, problems }, null, 2)}\n`);
+        process.stdout.write(`${JSON.stringify({ ok: problems.length === 0, manifest: manifestVersion, satellites: Object.fromEntries(satelliteVersions), registry, problems }, null, 2)}\n`);
     } else {
         for (const p of problems) console.log(`drift: ${p}`);
         const seen = registry.found ? `latest ${registry.distTags['latest'] ?? '—'}, ${String(registry.versions.length)} version(s)` : 'absent';

@@ -10,7 +10,7 @@ describe('sitePages', () => {
         const pages = sitePages(ROOT);
         expect(pages).toContain('/index.html');
         expect(pages).toContain('/guides/quickstart.html');
-        expect(pages).toContain('/playground/index.html');
+        expect(pages).toContain('/playgrounds/index.html');
         expect(pages.every((p) => p.startsWith('/') && p.endsWith('.html'))).toBe(true);
         expect(pages).toEqual([...pages].sort());
         expect(pages.length).toBeGreaterThanOrEqual(12);

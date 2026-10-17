@@ -32,9 +32,7 @@ docs/guides/*.html      linguist-generated=true
 package-lock.json       linguist-generated=true
 docs/sitemap.xml        linguist-generated=true
 
-# The playground's copy of the built engine, and the sample block it reads.
-# Both are written by `npm run docs:playground` and held to the build by the
-# `playground-freshness` rule; a hand edit to either is a defect, so neither
-# belongs in a diff or in the language statistics.
-docs/playground/pkinative.js  linguist-generated=true -diff
-docs/playground/samples.js    linguist-generated=true -diff
+# The sample block the playgrounds offer, written from the test fixtures by
+# `npm run docs:playground-samples` and held to them by the gate step of the
+# same name; a hand edit is a defect, so it belongs in no diff or statistics.
+docs/playgrounds/samples.js   linguist-generated=true -diff

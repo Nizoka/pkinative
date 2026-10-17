@@ -18,9 +18,9 @@ lines of that log and stops.
 
 | Profile | Command | Steps |
 |---|---|---|
-| Fast — before every commit | `npm run gate:fast` | 5: typecheck:all, lint, test, verify:samples, verify:docs |
-| CI — the default | `npm run gate` | 12: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-fresh, verify:docs |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 15: adds conformance, interop and ts-floor |
+| Fast — before every commit | `npm run gate:fast` | 6: typecheck:all, lint, test, verify:samples, verify:docs, check:guides |
+| CI — the default | `npm run gate` | 13: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-samples-fresh, verify:docs, check:guides |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 17: adds conformance, interop, ts-floor and verify:diagrams |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
 step's position in the full table; `--json` emits `{ ok, profile, steps }`.
@@ -35,7 +35,7 @@ is swallowed before `npm run gate` sees it.
 | Script | npm alias | Gate step | What it does | Exit |
 |---|---|---|---|---|
 | `gate.ts` | `gate`, `gate:fast` | — | The step table and the three profiles | 0/1/2 |
-| `verify-docs.ts` | `verify:docs` | yes | 83 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
+| `verify-docs.ts` | `verify:docs` | yes | 94 named rules over the docs, the registries, the manifest, the published file list and the agent layer. Never writes. `--strict`, `--json` | 0/1/2 |
 | `verify-bundle.ts` | `verify:bundle` | yes | Re-minifies one export at a time with esbuild and asserts a byte budget and the absence of markers proving unrelated code was retained | 0/1/2 |
 | `smoke-install.ts` | `smoke:install` | yes | Packs the tarball, installs it into an empty project, loads it as ESM and as CJS | 0/1/2 |
 | `package-files.ts` | inside `check:package` | yes | The tarball, file by file: `npm pack --dry-run --json` against `docs/data/package-files.json` — a file added, removed or made executable, or a changed LICENSE or THIRD-PARTY-NOTICES.md, fails; nothing under `src/`/`tests/`, no dotfile, no key or certificate, every `dist/` file budgeted, whatever the manifest says. `--update` regenerates it (and refuses a forbidden file) | 0/1/2 |
@@ -47,12 +47,14 @@ is swallowed before `npm run gate` sees it.
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
 | `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages with their JSON-LD (TechArticle, BreadcrumbList, WebPage), plus the nav and footer every hand-written page pastes, and `docs/assets/architecture.svg` drawn from `LAYERS` | 0/1 |
 | `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares, every `<lastmod>` stamped with `verifiedOn` | 0/1 |
-| `build-playground.ts` | `docs:playground`, `docs:playground-fresh` | yes (`--check`) | Copies `dist/index.js` into the playground byte for byte and records its hashes in the manifest; `--check` re-derives and compares | 0/1/2 |
+| `build-playground-samples.ts` | `docs:playground-samples`, `docs:playground-samples-fresh` | yes (`--check`) | `docs/playgrounds/samples.js`, the certificates the playgrounds offer, from the committed test fixtures; `--check` re-derives and compares. The engine itself is the published package, imported from a CDN (ADR 0023) | 0/1 |
+| `verify-diagrams.ts` | `verify:diagrams` | publish only | pdfnative's geometry check: renders every `docs/assets/*.svg` but the brand images in a headless Chromium (`CHROME_BIN`), with its own fonts and with Arial forced, and fails on text overflowing its box, straddling another, overlapping boxes or texts, and strokes through labels. Skips, with its reason, where no browser is installed | 0/1/2 |
+| `build-cli-surface.ts` | `docs:cli-surface` | — | `docs/data/cli-surface.json`, projected from the published CLI's own `pkinative schema manifest` (`--from <file>`); online by nature, so run when `packages.pkinative-cli` moves | 0/2 |
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
 | `build-errors-frozen.ts` | — | — | `docs/data/errors.frozen.json`, the error-code snapshot `error-codes-frozen` holds the registry to; refuses to change it once `frozenAt` is released | 0/1/2 |
 | `build-api-frozen.ts` | — | — | `docs/assets/api.frozen.json`, the public-surface snapshot `api-surface-frozen` holds the sources to. Refuses to change it once `asOf` is released, except `--rebaseline docs/adr/NNNN-slug.md` (the rehearsal only, on an accepted ADR, logged in the snapshot), `--major X.0.0` (a new major's release commit; at 1.0.0 only if the rehearsal held) and `--ratchet` (a 1.x release's compatible additions) — both run by `release-prepare.ts` | 0/1/2 |
-| `check-npm-drift.ts` | `check:npm-drift` | — | Online, so never a gate step: the registry's `latest` for `pkinative` against the manifest — below 1.0.0 the `0.0.1` name reservation and no other version at all, from 1.0.0 the manifest's version. Run weekly by the `npm-drift` job of `docs.yml`. `--json` | 0/1/2 |
+| `check-npm-drift.ts` | `check:npm-drift` | — | Online, so never a gate step: the registry's `latest` for `pkinative` against the manifest — below 1.0.0 the `0.0.1` name reservation and no other version at all, from 1.0.0 the manifest's version; and `latest` of pkinative-cli and pkinative-mcp against their `packages` records. Run weekly by the `npm-drift` job of `docs.yml`. `--json` | 0/1/2 |
 | `mutate.ts` | `mutate` | — | Deterministic mutation testing: mutants enumerated on the syntax tree, type-checked, applied one at a time to a sandbox copy under `test-output/mutation/` and run against the suites that import the file; survivors re-run against every reaching suite. Reviewed equivalents in `data/mutation-equivalents.json`. `--files a,b=N`, `--sample N`, `--seed S`, `--concurrency K`, `--list` | 0/1/2 |
 | `verify-issue.mjs` | `verify:issue` | — | The policy check on an agent's issue draft: refuses a proposed runtime dependency or a missing reproduction block | 0/1/2 |
 | `install-git-hooks.mjs` | `hooks:install`, `hooks:uninstall` | — | Opt-in `core.hooksPath`; refuses to overwrite an existing value | 0/1 |
@@ -78,6 +80,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 | `interop-artefacts.ts`, `interop-tools.ts`, `interop-judge.ts`, `interop-host.ts` | The write direction: what the API writes, how each tool is driven (directly or through WSL), how its answer is judged, and how a tool is found by running it |
 | `pkits.ts`, `pkits-smime.ts` | NIST PKITS read and scored: the paths of level L7, and the signed messages of level L8 — split, linked to their signer's test and held to its path verdict |
 | `prose-language.ts` | The English-only prose detector |
+| `diagram-geometry.ts`, `chromium.ts` | `verify-diagrams.ts`: the pure geometry analysis (`tests/tools/diagram-geometry.test.ts`) and the browser finder the gate's skip condition shares; both ported from pdfnative |
 | `api-surface.ts` | The public surface fingerprinted from the syntax tree, and the semver classification of a change — `build-api-frozen.ts` and the `api-surface-frozen` rule |
 
 ## Conventions
@@ -89,7 +92,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 - **Never reserialise JSON, YAML or XML.** `release-prepare.ts` rewrites one
   targeted regex per field, so formatting and key order survive a bump.
 - **Generated files are generated.** `.claude/rules/`, `docs/assets/api.json`,
-  the guides, the sitemap, the llms files and the playground bundle are all
+  the guides, the sitemap, the llms files and the playground samples are all
   regenerated, never hand-edited; a `verify:docs` rule fails on drift for each.
 - **A script never pushes, tags, opens a pull request or publishes.** Those
   are the maintainer's (`.github/AGENT_RULES.md` §5), and

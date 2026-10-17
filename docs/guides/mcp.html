@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pkinative-mcp — AI client integration — pkinative</title>
+  <meta name="description" content="pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/guides/mcp.html">
+  <meta property="og:title" content="pkinative-mcp — AI client integration — pkinative">
+  <meta property="og:description" content="pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="pkinative-mcp — AI client integration — pkinative">
+  <meta name="twitter:description" content="pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/guides/mcp.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/mcp.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/mcp.html">
+  <link rel="alternate" type="text/markdown" href="mcp.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "pkinative-mcp — AI client integration",
+            "item": "https://pkinative.dev/guides/mcp.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "pkinative-mcp — AI client integration",
+        "description": "pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever. It pins pkinative ^1.0.0.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/mcp.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › pkinative-mcp — AI client integration</p>
+    <article id="guide-content" class="guide-content" data-md="mcp.md" data-prerendered="true">
+<h1 id="pkinative-mcp--ai-client-integration">pkinative-mcp — AI client integration</h1>
+<blockquote>
+<p><strong>pkinative-mcp 1.0.0 gives AI assistants the pkinative engine as 34 typed tools, seven prompts and sandboxed file resources, over stdio or loopback Streamable HTTP, with no network access, ever.</strong> It pins pkinative ^1.0.0.</p>
+</blockquote>
+<p><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a> exposes the engine to any client that speaks the <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP. With it installed an assistant can be asked <em>&quot;Is this server certificate trustworthy for this host today, given the CRL I fetched?&quot;</em> and answer by calling <code>verify_certificate_chain</code>, reasoning on a typed verdict instead of prose.</p>
+<p>All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, <code>@modelcontextprotocol/server</code> ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of pkinative 1.0.0, and the engine&#39;s error, reason and diagnostic codes pass through verbatim.</p>
+<h2 id="installation">Installation <a class="heading-anchor" href="#installation" aria-label="Link to this section">#</a></h2>
+<pre><code class="language-bash"># Run directly with npx — the recommended form for MCP clients
+npx -y pkinative-mcp
+
+# Or install globally
+npm install -g pkinative-mcp
+pkinative-mcp
+</code></pre>
+<p>The binary is <code>pkinative-mcp</code>; the package requires Node.js 22 or later, and the engine&#39;s own floor is <code>^22.22.2 || ^24.14.1 || &gt;=25.8.2</code> — <code>describe_engine</code> reports <code>capabilities.nodeFloorSatisfied</code>. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is <code>io.github.Nizoka/pkinative-mcp</code>, and its <code>server.json</code> declares the npm package with <code>runtimeHint: &quot;npx&quot;</code>, the arguments <code>-y pkinative-mcp</code>, the stdio transport and the nine environment variables below.</p>
+<h2 id="configuration-by-client">Configuration by client <a class="heading-anchor" href="#configuration-by-client" aria-label="Link to this section">#</a></h2>
+<p>Every client runs the same <code>command</code> + <code>args</code> + <code>env</code> triple. <code>PKINATIVE_MCP_OUTPUT_DIR</code> is optional: without it every tool works on inline PEM or base64, and nothing touches the filesystem.</p>
+<h3 id="claude-desktop">Claude Desktop <a class="heading-anchor" href="#claude-desktop" aria-label="Link to this section">#</a></h3>
+<p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS) or <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows):</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;pkinative&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;pkinative-mcp&quot;],
+      &quot;env&quot;: {
+        &quot;PKINATIVE_MCP_OUTPUT_DIR&quot;: &quot;/Users/you/Documents/mcp-pki&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<h3 id="claude-code">Claude Code <a class="heading-anchor" href="#claude-code" aria-label="Link to this section">#</a></h3>
+<p><code>.mcp.json</code> at the root of the project:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;pkinative&quot;: {
+      &quot;type&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;pkinative-mcp&quot;],
+      &quot;env&quot;: { &quot;PKINATIVE_MCP_OUTPUT_DIR&quot;: &quot;/absolute/path/to/your/project/.mcp-pki&quot; }
+    }
+  }
+}
+</code></pre>
+<p>The value must be absolute: Claude Code does not expand <code>${CLAUDE_PROJECT_DIR}</code> here (it sets that variable only in the server&#39;s environment), and the server refuses a relative path.</p>
+<p>Or register it from the command line — local scope by default, <code>--scope project</code> writes the <code>.mcp.json</code> above:</p>
+<pre><code class="language-bash">claude mcp add --env PKINATIVE_MCP_OUTPUT_DIR=/absolute/path/to/your/project/.mcp-pki pkinative -- npx -y pkinative-mcp
+</code></pre>
+<h3 id="cursor--continue--zed--windsurf--cline--roo-code">Cursor · Continue · Zed · Windsurf · Cline · Roo Code <a class="heading-anchor" href="#cursor--continue--zed--windsurf--cline--roo-code" aria-label="Link to this section">#</a></h3>
+<p>Any client that supports stdio servers works with the same triple. For Cursor, <code>~/.cursor/mcp.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;pkinative&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;pkinative-mcp&quot;],
+      &quot;env&quot;: { &quot;PKINATIVE_MCP_OUTPUT_DIR&quot;: &quot;/Users/you/Documents/mcp-pki&quot; }
+    }
+  }
+}
+</code></pre>
+<p>Windsurf, Cline and Roo Code use the same shape inside their own MCP configuration files.</p>
+<h3 id="vs-code">VS Code <a class="heading-anchor" href="#vs-code" aria-label="Link to this section">#</a></h3>
+<p><code>.vscode/mcp.json</code> — note the top-level key <code>servers</code>:</p>
+<pre><code class="language-json">{
+  &quot;servers&quot;: {
+    &quot;pkinative&quot;: {
+      &quot;type&quot;: &quot;stdio&quot;,
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;pkinative-mcp&quot;],
+      &quot;env&quot;: { &quot;PKINATIVE_MCP_OUTPUT_DIR&quot;: &quot;${workspaceFolder}/.mcp-pki&quot; }
+    }
+  }
+}
+</code></pre>
+<h3 id="streamable-http-local-http-clients">Streamable HTTP (local HTTP clients) <a class="heading-anchor" href="#streamable-http-local-http-clients" aria-label="Link to this section">#</a></h3>
+<pre><code class="language-bash">PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN=&quot;$(openssl rand -hex 24)&quot; PKINATIVE_MCP_OUTPUT_DIR=/srv/pki npx -y pkinative-mcp
+# stderr: [pkinative-mcp] ready (HTTP transport, MCP 2026-07-28 + legacy) on http://127.0.0.1:3000/mcp — bearer token required
+# every request: POST /mcp with Authorization: Bearer &lt;token&gt;
+</code></pre>
+<p>The endpoint binds <code>127.0.0.1</code> only and accepts <code>POST /mcp</code>; any other path answers 404, <code>GET</code> and <code>DELETE</code> answer 405 (the server is stateless, with no SSE resumability), a foreign <code>Host</code> or <code>Origin</code> answers 403 (DNS-rebinding guard), and a body above 256 MiB answers 413. <strong>Without <code>PKINATIVE_MCP_HTTP_TOKEN</code> the endpoint has no authentication</strong>, and other local processes can reach it; with the token, a missing bearer answers 401 with <code>WWW-Authenticate: Bearer realm=&quot;pkinative-mcp&quot;</code>, a wrong one adds <code>error=&quot;invalid_token&quot;</code>.</p>
+<p>A hosted client such as ChatGPT connects from its own infrastructure: this endpoint answers a non-loopback <code>Host</code> or <code>Origin</code> with 403, so it is not reachable from there as shipped.</p>
+<h2 id="environment-variables">Environment variables <a class="heading-anchor" href="#environment-variables" aria-label="Link to this section">#</a></h2>
+<p>All nine are declared in <code>server.json</code> and read once at startup; an invalid value — a port outside 1–65535, a relative output directory, a malformed instant or ceiling, a weak token — refuses to start with one <code>[pkinative-mcp] fatal:</code> line on stderr and exit code 1, never a silent fallback. Only the <em>presence</em> of a secret is logged.</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PKINATIVE_MCP_OUTPUT_DIR</code></td>
+<td><em>(unset)</em></td>
+<td>Absolute path of the one sandbox: every <code>path</code> input is read from it, <code>outputMode: &#39;file&#39;</code> artefacts are written under it (exclusive create, never overwritten), and <code>resources/*</code> list and serve it. The real path of every file read and of every parent written must stay inside — a planted symlink or junction is <code>SECURITY_VIOLATION</code>. Key-bearing files (<code>.key .p8 .p12 .pfx</code>) may be named by any <code>path</code> input — no tool returns their key bytes — but are never written, never listed and never served as resources. Unset: inline PEM and base64 only</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_CACHE_DIR</code></td>
+<td><em>(unset)</em></td>
+<td>Opt-in content-addressed response cache: SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest, namespaced by tool API, package and engine version. Never caches a <code>path</code> input, file output, a call carrying a <code>password</code> or a <code>signer</code>, a <code>&#39;random&#39;</code> serial or nonce, a <code>&#39;now&#39;</code> or unpinned instant, <code>describe_engine</code>, <code>draft_governance_issue</code>, nor any password-accepting tool while <code>PKINATIVE_MCP_PASSWORD</code> is set. A hit carries <code>_meta.cached: true</code>; a directory that cannot be created disables the cache, with one <code>[pkinative-mcp] cache disabled:</code> line on stderr</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_PORT</code></td>
+<td><em>(unset → stdio)</em></td>
+<td>Serve Streamable HTTP on <code>127.0.0.1:&lt;port&gt;/mcp</code> instead of stdio</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_HTTP_TOKEN</code></td>
+<td><em>(unset)</em></td>
+<td><em>(secret)</em> Opt-in bearer token for HTTP: at least 16 characters, no whitespace (a weaker value refuses to start); compared in constant time, never logged</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_PASSWORD</code></td>
+<td><em>(unset)</em></td>
+<td><em>(secret)</em> The operator-side password of the encrypted PKCS#8 key or PKCS#12 file the tools open, which keeps the secret out of the model transcript. It counts as the password of every password-accepting tool, so describing a file without a password needs it unset. Exclusive with the per-call <code>password</code> input (both at once is <code>VALIDATION_ERROR</code>)</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_AT</code></td>
+<td><em>(unset → wall clock)</em></td>
+<td>Pinned instant (ISO 8601 or epoch milliseconds) that every omitted <code>at</code>, <code>notBefore</code> and <code>signingTime</code> falls back to, for reproducible verdicts and artefacts. Unset, a clock-dependent result is never cached</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_MAX_INPUT_BYTES</code></td>
+<td><code>67108864</code> (64 MiB)</td>
+<td>Operator ceiling for <code>limits.maxInputBytes</code> and the decoded size of one PKI object; integer ≥ 1024</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_MAX_KDF_ITERATIONS</code></td>
+<td><code>10000000</code></td>
+<td>Operator ceiling for <code>limits.maxKdfIterations</code> and <code>limits.maxPkcs12KdfIterations</code>: the CPU bound of a hostile PBES2 key or PKCS#12 file; integer ≥ 1</td>
+</tr>
+<tr>
+<td><code>PKINATIVE_MCP_MAX_PATHS_EXPLORED</code></td>
+<td><code>1000</code></td>
+<td>Operator ceiling for <code>limits.maxPathsExplored</code>: the RFC 5280 §6 path-building work bound; integer ≥ 1</td>
+</tr>
+</tbody></table>
+<p><strong>The operator ceilings.</strong> A call may raise any of the engine&#39;s 22 limits through its <code>limits</code> input, for trusted input only; four of them are capped by the three ceilings above (<code>PKINATIVE_MCP_MAX_KDF_ITERATIONS</code> bounds both KDF limits), and a value above a ceiling is refused with <code>LIMIT_CEILING_EXCEEDED</code>, <code>data.env</code> naming the variable an operator would raise. There is no &quot;unbounded&quot;, and no ceiling a tool argument can move.</p>
+<h2 id="protocol-and-transport">Protocol and transport <a class="heading-anchor" href="#protocol-and-transport" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>MCP 2026-07-28</strong> on the MCP TypeScript SDK v2 (<code>@modelcontextprotocol/server</code>): stateless serving through <code>server/discover</code>, the <code>_meta</code> <code>serverInfo</code> envelope and <code>resultType</code> on every result, <code>Mcp-Method</code> / <code>Mcp-Name</code> headers over HTTP, and cache hints — <code>tools/list</code> and <code>prompts/list</code> public for 24 h, <code>server/discover</code> public for 1 h, the resource methods private with <code>ttlMs: 0</code>.</li>
+<li><strong>Automatic legacy fallback</strong> for clients that open with <code>initialize</code>: the five legacy revisions 2024-10-07, 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25 are negotiated on both transports, and the <code>tools/call</code> payload is identical on every path.</li>
+<li><strong>stdio is the default transport</strong>, with the frame cap raised to 256 MiB so a multi-MiB base64 CMS message or PKCS#12 fits in one call; stdout carries JSON-RPC frames only.</li>
+<li><strong>Schemas.</strong> Every tool advertises an <code>inputSchema</code> and an <code>outputSchema</code>; every object input is closed (an unknown or misspelt key at any depth is <code>VALIDATION_ERROR</code> naming the path), and input schemas carry no <code>$schema</code> keyword and no <code>$ref</code>, because some hosts forward them to function-calling APIs. Every <code>structuredContent</code> validates against the tool&#39;s <code>outputSchema</code>, projections included. Every tool carries <code>_meta.apiVersion</code> (<code>1.0.0</code>) and up to two executable <code>_meta.examples</code>.</li>
+<li><strong>Instructions.</strong> The <code>initialize</code> / <code>server/discover</code> response carries a server-instructions block — which tool answers which question, the security posture and the pitfalls — and the seven prompts repeat that material on demand.</li>
+<li><strong>Shutdown.</strong> SIGINT and SIGTERM close the transport and the server, with exit code 0.</li>
+<li><strong>Protocol errors</strong> are JSON-RPC errors: an unknown tool is <code>-32602</code> with <code>[UNKNOWN_TOOL] Unknown tool: …</code>, an unknown resource URI <code>-32602</code> with <code>data.uri</code> (the server&#39;s <code>UNKNOWN_RESOURCE</code> code is not sent on the wire). <code>isError: true</code> is reserved for execution failures.</li>
+</ul>
+<h2 id="tool-reference">Tool reference <a class="heading-anchor" href="#tool-reference" aria-label="Link to this section">#</a></h2>
+<p>Thirty-four tools in six groups, listed here in the order <code>tools/list</code> returns them. Every tool advertises <code>openWorldHint: false</code> and <code>destructiveHint: false</code>; the other annotations put each in one of three classes:</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Annotation class</th>
+<th><code>readOnlyHint</code></th>
+<th><code>idempotentHint</code></th>
+<th>Tools</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>read-only</td>
+<td>true</td>
+<td>true</td>
+<td>23: <code>resolve_oid</code>, <code>compute_fingerprint</code>, <code>decode_asn1</code>, <code>inspect_certificate</code>, <code>decode_extension</code>, <code>check_certificate_name</code>, <code>check_certificate_purpose</code>, <code>inspect_csr</code>, <code>verify_certificate_chain</code>, <code>build_certificate_path</code>, <code>validate_certificate_path</code>, <code>inspect_crl</code>, <code>check_crl_revocation</code>, <code>inspect_ocsp_response</code>, <code>check_ocsp_status</code>, <code>verify_cms</code>, <code>inspect_cms</code>, <code>inspect_timestamp</code>, <code>verify_timestamp</code>, <code>inspect_private_key</code>, <code>inspect_pkcs12</code>, <code>describe_engine</code>, <code>explain_code</code></td>
+</tr>
+<tr>
+<td>writes a deterministic artefact</td>
+<td>false</td>
+<td>true</td>
+<td>6: <code>convert_pem</code>, <code>encode_asn1</code>, <code>encode_x509_structure</code>, <code>amend_cms</code>, <code>open_pkcs12</code>, <code>draft_governance_issue</code></td>
+</tr>
+<tr>
+<td>produces a non-idempotent artefact</td>
+<td>false</td>
+<td>false</td>
+<td>5: <code>create_certificate</code>, <code>create_csr</code>, <code>create_ocsp_request</code>, <code>sign_cms</code>, <code>create_timestamp_request</code> — a random serial or nonce, the wall clock, or randomised ECDSA</td>
+</tr>
+</tbody></table>
+<p>A tool&#39;s <strong>kind</strong> says how its result is shaped: a <em>read</em> tool returns facts in <code>structuredContent</code>; a <em>verdict</em> tool returns <code>valid</code> and <code>reasons[]</code> and is never <code>isError</code> for a negative verdict; an <em>artefact</em> tool delivers its bytes once, as an embedded <code>resource</code> block inline or a <code>resource_link</code> in file mode, with <code>{ mode, encoding, sizeBytes, sha256, summary, diagnostics }</code> in <code>structuredContent</code>.</p>
+<p><strong>Shared inputs.</strong> The tool sections below name these fragments rather than repeating them:</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Fragment</th>
+<th>Shape</th>
+<th>Rules</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PKI input</td>
+<td><code>{ pem }</code> | <code>{ derBase64 }</code> | <code>{ path }</code></td>
+<td>Exactly one. <code>pem</code> is RFC 7468 text; <code>derBase64</code> is the DER as base64, exactly once (no <code>data:</code> URI, not PEM); <code>path</code> is relative to the sandbox, with an allow-listed extension. The label is checked before any byte is parsed (<code>PKI_PEM_UNEXPECTED_LABEL</code>); a PEM text holding several blocks where one object is expected is refused</td>
+</tr>
+<tr>
+<td>PKI bundle</td>
+<td>1–256 PKI inputs</td>
+<td><code>trustAnchors</code>, <code>candidates</code>, <code>crls</code>, <code>ocspResponses</code>, <code>chain</code>, <code>path</code>: every PEM block of every item is taken, in order</td>
+</tr>
+<tr>
+<td>Content input</td>
+<td><code>{ text }</code> | <code>{ base64 }</code> | <code>{ path }</code></td>
+<td>The bytes to sign, verify or timestamp: UTF-8 text, base64 (≤ 128 MiB decoded) or a sandbox file (≤ 1 GiB); a sandbox file that is key-bearing by extension or holds key material is <code>SECURITY_VIOLATION</code> (inline <code>text</code> and <code>base64</code> are taken as given)</td>
+</tr>
+<tr>
+<td>Parse options</td>
+<td><code>encodingRules</code>, <code>pemMode</code>, <code>strict</code>, <code>limits</code></td>
+<td><code>&#39;der&#39;</code> (default) or <code>&#39;ber&#39;</code>; <code>&#39;strict&#39;</code> (default) or <code>&#39;lax&#39;</code> PEM; <code>strict: true</code> escalates the first engine warning to <code>PKI_STRICT_DIAGNOSTIC</code>; <code>limits</code> raises the engine&#39;s named bounds under the operator ceilings</td>
+</tr>
+<tr>
+<td>Signer</td>
+<td><code>{ key }</code> | <code>{ p12 }</code>, plus <code>password</code>, <code>keyType</code>, <code>hash</code>, <code>rsaScheme</code>, <code>saltLength</code></td>
+<td>A PKCS#8 key (plain or PBES2) or a PKCS#12 (PBES2 and PBMAC1), imported as a non-extractable Web Crypto key. The algorithm follows the key; RSA requires <code>rsaScheme</code> (<code>&#39;pkcs1&#39;</code> | <code>&#39;pss&#39;</code>); an encrypted key needs a password and a <code>keyType</code> unless a certificate or public key input names it</td>
+</tr>
+<tr>
+<td>Trust</td>
+<td><code>trustAnchors</code>, <code>candidates</code>, <code>crls</code>, <code>ocspResponses</code>, <code>at</code>, <code>requireRevocation</code>, <code>purposes</code>, <code>policy</code></td>
+<td>A verdict is relative to the anchors you name. <code>at</code> is a string: ISO 8601 (UTC unless zoned), epoch milliseconds as digits, or <code>&#39;now&#39;</code>; omitted, <code>PKINATIVE_MCP_AT</code>, else the wall clock</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td><code>verbosity</code>, <code>fields</code></td>
+<td>See <a href="#token-frugal-reads">Token-frugal reads</a></td>
+</tr>
+<tr>
+<td>Output</td>
+<td><code>outputMode</code>, <code>outputPath</code>, <code>encoding</code></td>
+<td><code>&#39;base64&#39;</code> (default, inline ≤ 50 MiB) or <code>&#39;file&#39;</code> (a relative <code>outputPath</code> in the sandbox, never overwritten, ≤ 1 GiB); <code>encoding</code> <code>&#39;pem&#39;</code>, <code>&#39;der&#39;</code> or <code>&#39;hex&#39;</code> (inline only, ≤ 64 KiB, in <code>structuredContent.hex</code>)</td>
+</tr>
+</tbody></table>
+<p>Every engine tool&#39;s result also carries <code>diagnostics[]</code> (de-duplicated by code and path, at most 200) and <code>diagnosticCounts</code> (<code>describe_engine</code>, <code>explain_code</code> and <code>draft_governance_issue</code> carry none).</p>
+<h2 id="encodings">Encodings <a class="heading-anchor" href="#encodings" aria-label="Link to this section">#</a></h2>
+<h3 id="convert_pem"><code>convert_pem</code> <a class="heading-anchor" href="#convert_pem" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 7468 layer. <code>mode: &#39;decode&#39;</code> lists every block of a PEM text (label, DER size, offset, SHA-256) and <code>extractIndex</code> delivers one as DER, PEM or hex; <code>mode: &#39;encode&#39;</code> wraps exactly one DER value into one strict block under <code>label</code>. <strong>Key inputs:</strong> <code>mode</code>, <code>input</code> (PKI input), <code>label</code>, <code>extractIndex</code>, parse options, projection, output. <strong>Output:</strong> <code>blocks[]</code>, <code>count</code>, <code>extracted</code>, and the artefact when a block is extracted or DER is wrapped. <strong>Annotation:</strong> writes a deterministic artefact (kind: read). A private-key block is listed (label, size, offset, SHA-256), never extracted and never produced: <code>extractIndex</code> on it, or <code>encode</code> of DER that holds key material or under a key label, is <code>SECURITY_VIOLATION</code>; an index past the last block is <code>NOT_FOUND</code>.</p>
+<h3 id="resolve_oid"><code>resolve_oid</code> <a class="heading-anchor" href="#resolve_oid" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> object identifiers in one call. <strong>Key inputs:</strong> <code>mode</code> (<code>name</code> | <code>validate</code> | <code>list</code> | <code>encode</code> | <code>decode</code>), <code>oids[]</code> (≤ 1000), <code>filter</code>, <code>offset</code> / <code>limit</code> (200 by default, 2000 at most), <code>form</code> (<code>content</code> | <code>tlv</code>), <code>relative</code>, <code>hex</code> or <code>input</code> as the <code>decode</code> source. <strong>Output:</strong> per mode, <code>oids[]</code> with names or validity, <code>entries[]</code> with <code>total</code> / <code>hasMore</code>, or one <code>oid</code> and <code>name</code>; <code>encode</code> answers hex, never an artefact. <strong>Annotation:</strong> read-only. <code>validate</code> reports an invalid OID; <code>encode</code> and <code>decode</code> refuse one with <code>PKI_OID_INVALID</code>.</p>
+<h3 id="compute_fingerprint"><code>compute_fingerprint</code> <a class="heading-anchor" href="#compute_fingerprint" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the digest of one object. <strong>Key inputs:</strong> <code>input</code> (any label or DER; a bundle is refused), <code>mode</code> (<code>fingerprint</code> | <code>key-id</code> | <code>shake256</code>), <code>algorithm</code> (fingerprint: SHA-256 by default, or SHA-1, SHA-384, SHA-512; key-id: SHA-1 by default — RFC 5280 method 1 — or SHA-256; refused with <code>shake256</code>), <code>webcrypto</code>, <code>outputLength</code> (≤ 1 MiB, SHAKE256), <code>separator</code>, <code>letterCase</code>. <strong>Output:</strong> <code>hex</code>, <code>formatted</code>, <code>algorithm</code>, <code>sizeBytes</code>, <code>label</code>, and <code>from</code> (where a key identifier&#39;s public key came from). <strong>Annotation:</strong> read-only. No input byte is returned.</p>
+<h3 id="decode_asn1"><code>decode_asn1</code> <a class="heading-anchor" href="#decode_asn1" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the X.690 node tree of any DER (BER with <code>encodingRules: &#39;ber&#39;</code>). <strong>Key inputs:</strong> <code>input</code> (never a private key or a PKCS#12), <code>sequence</code>, <code>nodePath</code> (<code>&#39;0.2.1&#39;</code>), <code>read</code> (<code>boolean</code>, <code>integer</code>, <code>small-integer</code>, <code>enumerated</code>, <code>null</code>, <code>bit-string</code>, <code>octet-string</code>, <code>oid</code>, <code>relative-oid</code>, <code>string</code>, <code>time</code>), <code>stringType</code>, <code>timeType</code>, <code>reencode</code>, <code>label</code>, <code>allowTrailingData</code>, <code>maxPreviewBytes</code> (default 32). <strong>Output:</strong> <code>nodes[]</code> (path, offset, lengths, tag, children, preview, OID and name), <code>nodeCount</code>, <code>truncated</code> (past 20 000 nodes), <code>value</code> (the typed read), <code>reencode.identical</code> and the re-encoded artefact. <strong>Annotation:</strong> read-only. A key or PKCS#12 is <code>SECURITY_VIOLATION</code>; a missing <code>nodePath</code> step is <code>NOT_FOUND</code>.</p>
+<h3 id="encode_asn1"><code>encode_asn1</code> <a class="heading-anchor" href="#encode_asn1" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> a JSON node <code>spec</code> encoded to DER through the engine&#39;s own encoders — the inverse of <code>decode_asn1</code>. <strong>Key inputs:</strong> <code>spec</code> (<code>boolean</code>, <code>integer</code>, <code>enumerated</code>, <code>null</code>, <code>bit-string</code>, <code>named-bits</code>, <code>octet-string</code>, <code>oid</code>, <code>relative-oid</code>, <code>string</code>, <code>time</code>, <code>sequence</code>, <code>set</code>, <code>set-of</code>, <code>explicit</code>, <code>implicit</code>, <code>tlv</code>, <code>der</code>), <code>label</code>, parse options, output (DER by default). <strong>Output:</strong> the artefact and <code>summary</code> (root tag, node count). <strong>Annotation:</strong> writes a deterministic artefact. A malformed spec is <code>VALIDATION_ERROR</code> naming the JSON path; nesting past <code>limits.maxDepth</code> is <code>PKI_LIMIT_EXCEEDED</code>; a value that parses as a key or a PKCS#12 is <code>SECURITY_VIOLATION</code>.</p>
+<h2 id="certificates-and-requests">Certificates and requests <a class="heading-anchor" href="#certificates-and-requests" aria-label="Link to this section">#</a></h2>
+<h3 id="inspect_certificate"><code>inspect_certificate</code> <a class="heading-anchor" href="#inspect_certificate" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 5280 report of one certificate. <strong>Key inputs:</strong> <code>certificate</code>, <code>extension</code> (one of the 19 kinds), <code>rawExtensions</code>, <code>issuer</code> or <code>checkSelfSignature</code>, <code>requireAlgorithmMatch</code>, <code>fingerprints[]</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>version</code>, <code>serialNumber</code>, <code>signatureAlgorithm</code>, <code>issuer</code> / <code>subject</code> with their RFC 4514 strings, <code>validity</code>, <code>subjectPublicKeyInfo</code>, <code>extensions[]</code>, <code>selfIssued</code>, <code>fingerprints</code>, and <code>signature</code> when one was checked. <strong>Annotation:</strong> read-only. One signature check against one key is not trust: <code>verify_certificate_chain</code> is. A missing <code>extension</code> is <code>NOT_FOUND</code>; a key given as a certificate is <code>PKI_PEM_UNEXPECTED_LABEL</code>; SHA-1 without <code>allowSha1</code> is <code>PKI_CRYPTO_ALGORITHM_REFUSED</code>.</p>
+<h3 id="create_certificate"><code>create_certificate</code> <a class="heading-anchor" href="#create_certificate" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> issue an X.509 v3 certificate — a self-signed CA, or a leaf issued from a certificate, a CSR or a <code>PUBLIC KEY</code>. <strong>Key inputs:</strong> <code>spec</code> (<code>serialNumber</code> — an integer, a hex string or <code>&#39;random&#39;</code>, the default; <code>subject</code>; <code>issuer</code>; <code>notBefore</code>; <code>notAfter</code> or <code>validityDays</code>; <code>extensions</code>), <code>issuerCertificate</code> (omitted: self-signed), <code>subjectPublicKey</code>, <code>signer</code>, <code>allowSha1</code>, output (PEM by default). <strong>Output:</strong> the artefact and <code>summary</code> (<code>serialNumber</code>, <code>randomSerial</code>, subject, issuer, <code>selfSigned</code>, <code>signatureAlgorithm</code>, <code>notBefore</code> / <code>notAfter</code> with <code>notBeforeSource</code>, extension kinds, <code>signatureVerified</code>, <code>publicKeyFrom</code>). <strong>Annotation:</strong> produces a non-idempotent artefact. The certificate is verified against its issuer before the bytes return (<code>KEY_MISMATCH</code> otherwise); <code>RSA_SCHEME_REQUIRED</code>, <code>KEY_TYPE_REQUIRED</code>, <code>SECRET_REQUIRED</code>, <code>UNSUPPORTED_KEY</code> name what the signer lacks.</p>
+<h3 id="encode_x509_structure"><code>encode_x509_structure</code> <a class="heading-anchor" href="#encode_x509_structure" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> one X.509 building block encoded deterministically from a closed <code>spec</code>; nothing here signs. <strong>Key inputs:</strong> <code>structure</code> (<code>name</code>, <code>name-attribute</code>, <code>validity</code>, <code>spki</code>, <code>algorithm-identifier</code>, <code>attribute</code>, <code>extension</code>, <code>extensions</code>, <code>basic-constraints</code>, <code>key-usage</code>, <code>extended-key-usage</code>, <code>subject-alt-name</code>, <code>subject-key-identifier</code>, <code>authority-key-identifier</code>, <code>signature-algorithm</code>), <code>spec</code>, <code>signer</code> (<code>signature-algorithm</code> only: only the key&#39;s algorithm is read), <code>label</code>, output (hex by default). <strong>Output:</strong> the artefact and <code>summary</code>. <strong>Annotation:</strong> writes a deterministic artefact. An unknown or missing spec member is <code>VALIDATION_ERROR</code> naming it, never dropped silently.</p>
+<h3 id="decode_extension"><code>decode_extension</code> <a class="heading-anchor" href="#decode_extension" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> one <code>extnValue</code> content decoded by its OID exactly as <code>inspect_certificate</code> would. <strong>Key inputs:</strong> <code>oid</code>, <code>valueHex</code> or <code>value</code> (the DER inside the OCTET STRING), <code>critical</code>. <strong>Output:</strong> <code>kind</code>, <code>oid</code>, <code>name</code>, <code>critical</code>, <code>sizeBytes</code>, <code>decoded</code>, and the criticality check as a diagnostic. <strong>Annotation:</strong> read-only. A malformed value is <code>PKI_X509_EXTENSION_MALFORMED</code>, with <code>decode_asn1</code> as its remedy.</p>
+<h3 id="check_certificate_name"><code>check_certificate_name</code> <a class="heading-anchor" href="#check_certificate_name" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 6125 identity verdict. <strong>Key inputs:</strong> the certificate form — <code>certificate</code> with <code>host</code> or <code>ip</code>, <code>chain[]</code> (for the commonName fallback&#39;s name constraints), <code>allowCommonNameFallback</code> (default false), <code>allowWildcards</code> (default true) — or the match form, <code>presented</code> and <code>reference</code> with no certificate. <strong>Output:</strong> <code>form</code>, <code>valid</code>, <code>reasons[]</code>, <code>reference</code>, <code>subject</code> or <code>presented</code>, <code>match</code>. <strong>Annotation:</strong> read-only (kind: verdict). <code>PKI_REASON_NAME_MISMATCH</code> arrives in <code>reasons[]</code>, never as <code>isError</code>; both forms at once is <code>VALIDATION_ERROR</code>.</p>
+<h3 id="check_certificate_purpose"><code>check_certificate_purpose</code> <a class="heading-anchor" href="#check_certificate_purpose" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 5280 §4.2.1.12 purpose verdict along <code>[certificate, ...chain]</code>. <strong>Key inputs:</strong> <code>certificate</code>, <code>chain[]</code> (the leaf&#39;s issuer first), <code>purpose</code> (<code>serverAuth</code>, <code>clientAuth</code>, <code>codeSigning</code>, <code>emailProtection</code>, <code>timeStamping</code>, <code>ocspSigning</code>, <code>any</code> or a dotted OID), <code>restrictIssuers</code> (default true), <code>requireExplicitPurpose</code> (default false). <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>purposeOid</code>, <code>purposeName</code>, <code>subject</code>, <code>pathLength</code>. <strong>Annotation:</strong> read-only (kind: verdict); <code>PKI_REASON_PURPOSE_NOT_PERMITTED</code> arrives in <code>reasons[]</code>.</p>
+<h3 id="inspect_csr"><code>inspect_csr</code> <a class="heading-anchor" href="#inspect_csr" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 2986 report of one PKCS#10 request. <strong>Key inputs:</strong> <code>request</code>, <code>rawExtensions</code>, <code>verify</code> (default true: the proof of possession, one Web Crypto verification), <code>allowSha1</code>. <strong>Output:</strong> <code>subject</code>, <code>subjectPublicKeyInfo</code>, <code>attributes[]</code>, <code>extensions[]</code>, <code>challengePassword</code> (present or not, never its text), <code>signatureAlgorithm</code>, <code>signature</code> (<code>valid</code>, <code>reasons[]</code>). <strong>Annotation:</strong> read-only.</p>
+<h3 id="create_csr"><code>create_csr</code> <a class="heading-anchor" href="#create_csr" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> a PKCS#10 request from <code>spec</code>, signed by <code>signer</code>. <strong>Key inputs:</strong> <code>spec</code> (<code>subject</code>, the extensions to request: <code>subjectAltName</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>basicConstraints</code>, <code>subjectKeyIdentifier</code>, raw), <code>subjectPublicKey</code> (required for an encrypted PKCS#8 key), <code>signer</code>, <code>allowSha1</code>, output (PEM by default). <strong>Output:</strong> the artefact and <code>summary</code> (subject, <code>signatureAlgorithm</code>, the requested extension kinds, <code>signatureVerified</code>, <code>publicKeyFrom</code>). <strong>Annotation:</strong> produces a non-idempotent artefact. The proof of possession is verified before the bytes return; a key that does not match the public key named is <code>KEY_MISMATCH</code>.</p>
+<h2 id="paths-crls-and-ocsp">Paths, CRLs and OCSP <a class="heading-anchor" href="#paths-crls-and-ocsp" aria-label="Link to this section">#</a></h2>
+<h3 id="verify_certificate_chain"><code>verify_certificate_chain</code> <a class="heading-anchor" href="#verify_certificate_chain" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the one-call trust verdict — a path from <code>leaf</code> through <code>candidates</code> to one of your <code>trustAnchors</code>, every signature verified, RFC 5280 §6 validation at <code>at</code>, the server name (RFC 6125), the purposes, and revocation from the CRL and OCSP bytes you supply. <strong>Key inputs:</strong> <code>leaf</code>, <code>trustAnchors</code> (required), <code>candidates</code>, <code>crls</code>, <code>ocspResponses</code>, <code>at</code>, <code>requireRevocation</code> (demands evidence for the end-entity certificate), <code>purposes</code>, <code>policy</code>, <code>serverName</code> (<code>host</code> | <code>ip</code>), <code>ocspNonce</code>, <code>requireOcspNonce</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>path[]</code> (leaf first), <code>pathLength</code>, <code>explored</code>, <code>signatureVerifications[]</code>, <code>evaluatedAt</code> with <code>evaluatedAtSource</code>, <code>revocationEvidence</code>. <strong>Annotation:</strong> read-only (kind: verdict). <code>PKI_REASON_NO_TRUST_ANCHOR</code>, <code>PKI_REASON_EXPIRED</code>, <code>PKI_REASON_NOT_YET_VALID</code>, <code>PKI_REASON_REVOKED</code>, <code>PKI_REASON_REVOCATION_UNKNOWN</code>, <code>PKI_REASON_NAME_MISMATCH</code> and the other reasons arrive in <code>reasons[]</code>, never as <code>isError</code>.</p>
+<h3 id="build_certificate_path"><code>build_certificate_path</code> <a class="heading-anchor" href="#build_certificate_path" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> path discovery only — which intermediates lead from <code>leaf</code> to an anchor under the structural rules at <code>at</code>. <strong>No signature is checked.</strong> <strong>Key inputs:</strong> <code>leaf</code>, <code>trustAnchors</code>, <code>candidates</code>, <code>at</code>, <code>purposes</code>, <code>policy</code>. <strong>Output:</strong> <code>found</code>, <code>structuralReasons[]</code>, <code>path[]</code>, <code>pathLength</code>, <code>explored</code>, <code>valid</code> (always false), <code>reasons[]</code> (always holding <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code>), <code>signaturesChecked: false</code>. <strong>Annotation:</strong> read-only (kind: verdict). With no path to an anchor, <code>structuralReasons[]</code> holds <code>PKI_REASON_NO_TRUST_ANCHOR</code>.</p>
+<h3 id="validate_certificate_path"><code>validate_certificate_path</code> <a class="heading-anchor" href="#validate_certificate_path" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> RFC 5280 §6.1 validation of a path you ordered, leaf first, against your anchors at <code>at</code>; every link signature is verified first. No revocation here. <strong>Key inputs:</strong> <code>path[]</code>, <code>trustAnchors</code>, <code>at</code>, <code>checkSignatures</code> (default true; false gives the structural verdict), <code>policy</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>failingReasons[]</code>, <code>path[]</code>, <code>signaturesChecked</code>, <code>signatures[]</code> (one verdict per link), <code>evaluatedAt</code>. <strong>Annotation:</strong> read-only (kind: verdict).</p>
+<h3 id="inspect_crl"><code>inspect_crl</code> <a class="heading-anchor" href="#inspect_crl" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 5280 §5 report of one CRL. <strong>Key inputs:</strong> <code>crl</code>, <code>find</code> (<code>serialHex</code> | <code>certificate</code>), <code>issuer</code> (one signature check), <code>allowSha1</code>. <strong>Output:</strong> <code>issuer</code>, <code>signatureAlgorithm</code>, <code>thisUpdate</code> / <code>nextUpdate</code>, <code>crlNumber</code>, <code>isDelta</code>, <code>baseCrlNumber</code>, <code>issuingDistributionPoint</code>, <code>entryCount</code> (walked, never all decoded), <code>extensions[]</code>, <code>entry</code> (revoked, revocation date, reason, invalidity date), <code>signature</code>. <strong>Annotation:</strong> read-only.</p>
+<h3 id="check_crl_revocation"><code>check_crl_revocation</code> <a class="heading-anchor" href="#check_crl_revocation" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> one <code>certificate</code> against one base <code>crl</code> (and an optional <code>delta</code>) you fetched, at <code>at</code>: scope, freshness, the signature verified against <code>issuer</code>, the serial looked up. <strong>Key inputs:</strong> <code>certificate</code>, <code>crl</code>, <code>delta</code>, <code>issuer</code> (without it the list is not evidence: <code>PKI_REASON_REVOCATION_UNKNOWN</code>), <code>at</code>, <code>staleTolerance</code> (ms), <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>signatureVerified</code>, <code>deltaSignatureVerified</code>, <code>crlNumber</code>, <code>isDelta</code>, <code>deltaCrlNumber</code>, <code>evaluatedAt</code>. <strong>Annotation:</strong> read-only (kind: verdict). A <code>delta</code> whose signature does not verify is not applied; a <code>delta</code> without a deltaCRLIndicator is <code>VALIDATION_ERROR</code>.</p>
+<h3 id="create_ocsp_request"><code>create_ocsp_request</code> <a class="heading-anchor" href="#create_ocsp_request" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the DER OCSPRequest (RFC 6960) for <code>certificate</code> under <code>issuer</code>, which you POST to the responder yourself. <strong>Key inputs:</strong> <code>certificate</code>, <code>issuer</code>, <code>hashAlgorithm</code> (<code>SHA-1</code> by default | <code>SHA-256</code>), <code>nonce</code> (<code>&#39;random&#39;</code> or 1–32 bytes of hex, RFC 8954), <code>certIdOnly</code>, <code>label</code>, output (DER by default). <strong>Output:</strong> the artefact and <code>summary</code> (<code>certIdHex</code>, <code>nonceHex</code>, <code>randomNonce</code>, serial, subject, issuer) — keep <code>nonceHex</code> to demand it back from <code>check_ocsp_status</code>. <strong>Annotation:</strong> produces a non-idempotent artefact.</p>
+<h3 id="inspect_ocsp_response"><code>inspect_ocsp_response</code> <a class="heading-anchor" href="#inspect_ocsp_response" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 6960 report of one response. <strong>Key inputs:</strong> <code>response</code>, <code>responder</code> (one signature check; omitted, the embedded certificates are tried). <strong>Output:</strong> <code>status</code>, <code>basicResponse</code> (responder id, producedAt, every SingleResponse with its CertID, status and updates, extensions, certificates), <code>noncePresent</code>, <code>signature</code> (valid, source). <strong>Annotation:</strong> read-only.</p>
+<h3 id="check_ocsp_status"><code>check_ocsp_status</code> <a class="heading-anchor" href="#check_ocsp_status" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> one <code>response</code> for one <code>certificate</code>: the CertID recomputed from <code>issuer</code>, the signature verified, the signer authorised (the CA, or a delegate it issued with OCSPSigning, RFC 6960 §4.2.2.2), the status, freshness at <code>at</code> and the nonce. <strong>Key inputs:</strong> <code>response</code>, <code>certificate</code>, <code>issuer</code> (all three required), <code>responder</code>, <code>responderTrusted</code>, <code>hashAlgorithm</code>, <code>nonce</code> (hex), <code>requireNonce</code>, <code>at</code>, <code>staleTolerance</code>, <code>futureTolerance</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>status</code> (<code>good</code> | <code>revoked</code> | <code>unknown</code> | null), <code>signatureVerified</code>, <code>responderAuthorized</code>, <code>responder</code>, <code>responderSource</code>, <code>hashAlgorithm</code>, <code>certIdHex</code>, <code>evaluatedAt</code>. <strong>Annotation:</strong> read-only (kind: verdict). A response whose status is not successful is a negative verdict with <code>status: null</code>.</p>
+<h2 id="cms-and-timestamps">CMS and timestamps <a class="heading-anchor" href="#cms-and-timestamps" aria-label="Link to this section">#</a></h2>
+<h3 id="sign_cms"><code>sign_cms</code> <a class="heading-anchor" href="#sign_cms" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> an RFC 5652 SignedData over <code>content</code> (attached or detached) or a precomputed digest. The signed attributes contentType, messageDigest, signingTime, SigningCertificateV2 and CMSAlgorithmProtection are written by default. <strong>Key inputs:</strong> <code>content</code> (content input) or <code>contentDigest</code> (hex, <code>detached</code> only), <code>detached</code>, <code>contentType</code>, <code>certificate</code>, <code>chain[]</code>, <code>crls[]</code>, <code>sid</code> (<code>issuerAndSerialNumber</code> by default | <code>subjectKeyIdentifier</code>), <code>signingTime</code> (an instant, <code>&#39;now&#39;</code> or <code>&#39;none&#39;</code>), <code>signingCertificateV2</code>, <code>algorithmProtection</code>, <code>signedAttributes[]</code> / <code>unsignedAttributes[]</code> (DER attributes as hex), <code>signer</code> (the only required input), <code>allowSha1</code>, output (DER by default). <strong>Output:</strong> the artefact and <code>summary</code> (<code>detached</code>, <code>contentType</code>, signer subject and serial, <code>sid</code>, digest and signature algorithms, <code>signingTime</code> with its source, certificates and CRLs embedded, attribute counts, <code>signatureVerified</code>). <strong>Annotation:</strong> produces a non-idempotent artefact. The new signature is verified against the signer certificate before the bytes return (<code>KEY_MISMATCH</code> otherwise).</p>
+<h3 id="verify_cms"><code>verify_cms</code> <a class="heading-anchor" href="#verify_cms" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the one-call verdict on a SignedData: for every signer the signed attributes, the content digest, the signature, the chain to your <code>trustAnchors</code> at <code>at</code>, every counter timestamp, and revocation from the bytes you supply and those the message carries. <strong>Key inputs:</strong> <code>signedData</code>, <code>trustAnchors</code> (required), <code>content</code> or <code>contentDigest</code> (detached signatures), <code>candidates</code>, <code>crls</code>, <code>ocspResponses</code>, <code>at</code>, <code>requireRevocation</code>, <code>purposes</code>, <code>atTimeStamp</code> (validate at the verified timestamp), <code>requireSigningCertificate</code>, <code>requireAlgorithmProtection</code>, <code>allowTrailingData</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>signers[]</code> (per signer <code>valid</code>, <code>intact</code>, <code>reasons[]</code>, chain, timestamps, revocation), <code>signerCount</code>, <code>signatureVerifications[]</code>, <code>evaluatedAt</code>, <code>atTimeStamp</code>. <strong>Annotation:</strong> read-only (kind: verdict). <code>valid</code> means unaltered and trusted; <code>signers[i].intact</code> means unaltered only.</p>
+<h3 id="inspect_cms"><code>inspect_cms</code> <a class="heading-anchor" href="#inspect_cms" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 5652 report. <strong>Key inputs:</strong> <code>signedData</code>, <code>allowTrailingData</code>, <code>signerCertificate</code> (one key check on the signer <code>signerIndex</code> names), <code>signerIndex</code>, <code>content</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>version</code>, <code>contentType</code>, <code>contentLength</code> (null when detached), <code>digestAlgorithms[]</code>, <code>certificates[]</code>, <code>crlCount</code>, <code>ocspResponseCount</code>, <code>signerInfos[]</code> (identifier, algorithms, signing time as claimed, attributes, timestamp count, and the <code>signature</code> value a counter timestamp stamps, as hex), <code>signerSignature</code>. <strong>Annotation:</strong> read-only. <code>signerSignature</code> is a key check, not the verdict.</p>
+<h3 id="amend_cms"><code>amend_cms</code> <a class="heading-anchor" href="#amend_cms" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the one edit a signed message legitimately receives afterwards, every signed octet unchanged. <strong>Key inputs:</strong> <code>signedData</code>, <code>signerIndex</code>, <code>operation</code> (<code>add-unsigned-attribute</code> | <code>add-timestamp</code>), <code>attribute</code> (a DER Attribute as hex), <code>token</code> (a TimeStampToken or a whole TimeStampResp), <code>allowSha1</code>, output (DER by default). <strong>Output:</strong> the artefact and <code>summary</code>. <strong>Annotation:</strong> writes a deterministic artefact. The token&#39;s imprint is checked against the signer&#39;s signature value before anything is written: a token over anything else is <code>VALIDATION_ERROR</code> with <code>data.detail</code> <code>PKI_REASON_TSP_IMPRINT_MISMATCH</code>, the remedy naming the <code>inspect_cms</code> → <code>create_timestamp_request</code> → <code>amend_cms</code> sequence.</p>
+<h3 id="create_timestamp_request"><code>create_timestamp_request</code> <a class="heading-anchor" href="#create_timestamp_request" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the RFC 3161 TimeStampReq you POST to a TSA yourself. <strong>Key inputs:</strong> <code>data</code> (content input) or <code>digestHex</code>, <code>hashAlgorithm</code> (<code>SHA-256</code> by default | <code>SHA-384</code> | <code>SHA-512</code>), <code>nonce</code> (<code>&#39;random&#39;</code>, decimal or <code>0x</code> hex), <code>policy</code>, <code>certReq</code> (default true), <code>label</code>, output (DER by default). <strong>Output:</strong> the artefact and <code>summary</code> (<code>imprintHex</code>, <code>hashAlgorithm</code>, <code>nonce</code>, <code>randomNonce</code>, <code>policy</code>, <code>certReq</code>). <strong>Annotation:</strong> produces a non-idempotent artefact. A digest whose length does not match the algorithm is <code>VALIDATION_ERROR</code>.</p>
+<h3 id="inspect_timestamp"><code>inspect_timestamp</code> <a class="heading-anchor" href="#inspect_timestamp" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> a TimeStampResp, a TimeStampToken or a bare TSTInfo, auto-detected or named with <code>as</code>. <strong>Key inputs:</strong> <code>input</code>, <code>as</code> (<code>response</code> | <code>token</code> | <code>tstinfo</code>). <strong>Output:</strong> <code>as</code>, <code>status</code> (status strings, failInfo), <code>token</code> (signer count, certificates), <code>tstInfo</code> (policy, messageImprint, serialNumber, genTime, accuracy, ordering, nonce, the TSA name as stated, extensions). <strong>Annotation:</strong> read-only. Parsing proves nothing; <code>verify_timestamp</code> judges.</p>
+<h3 id="verify_timestamp"><code>verify_timestamp</code> <a class="heading-anchor" href="#verify_timestamp" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> a <code>token</code> or <code>response</code> judged against what you say was stamped, the TSA signature, its chain to your anchors at <code>at</code> with a critical timeStamping EKU, and revocation from the bytes you supply. <strong>Key inputs:</strong> <code>token</code> or <code>response</code>, <code>request</code> (imprint, nonce and policy all checked), <code>data</code> or <code>digestHex</code> — at least one of <code>request</code>, <code>data</code>, <code>digestHex</code> — <code>trustAnchors</code> (required), <code>candidates</code>, <code>crls</code>, <code>ocspResponses</code>, <code>at</code>, <code>requireRevocation</code>, <code>allowNonCriticalTimeStampingEku</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>valid</code>, <code>reasons[]</code>, <code>genTime</code>, <code>earliest</code> / <code>latest</code> (accuracy applied), <code>tsa</code>, <code>chain</code>, <code>signatureVerifications[]</code>, <code>evaluatedAt</code>. <strong>Annotation:</strong> read-only (kind: verdict). <code>PKI_REASON_TSP_IMPRINT_MISMATCH</code>, <code>PKI_REASON_TSP_NOT_GRANTED</code>, <code>PKI_REASON_TSP_REQUEST_MISMATCH</code> and <code>PKI_REASON_TSP_TOKEN_INVALID</code> arrive in <code>reasons[]</code>; nothing stamped given is <code>VALIDATION_ERROR</code>.</p>
+<h2 id="private-keys-and-pkcs12">Private keys and PKCS#12 <a class="heading-anchor" href="#private-keys-and-pkcs12" aria-label="Link to this section">#</a></h2>
+<h3 id="inspect_private_key"><code>inspect_private_key</code> <a class="heading-anchor" href="#inspect_private_key" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> describe a PKCS#8 key without its password — format, kind, curve, algorithm, attributes, the PBES2 parameters of an encrypted key or the legacy scheme pkinative refuses — and, with <code>tryImport: true</code>, import it as a non-extractable Web Crypto key and report the handle. <strong>Key inputs:</strong> <code>key</code>, <code>tryImport</code>, <code>password</code> (or <code>PKINATIVE_MCP_PASSWORD</code>), <code>keyType</code>, <code>hash</code>, <code>rsaScheme</code>, <code>saltLength</code>, <code>allowSha1</code>. <strong>Output:</strong> <code>format</code> (<code>pkcs8</code> | <code>encrypted-pkcs8</code>), <code>kind</code>, <code>curve</code>, <code>algorithm</code>, <code>attributes</code>, <code>publicKey</code>, <code>encryption</code>, <code>encryptedBytes</code>, <code>imported</code> (handle type, algorithm, usages). <strong>Annotation:</strong> read-only. No result ever carries a key byte; a wrong password is <code>PKI_CRYPTO_DECRYPTION_FAILED</code>, a legacy cipher <code>PKI_KEY_ENCRYPTION_UNSUPPORTED</code> with the <code>openssl pkcs8</code> remedy.</p>
+<h3 id="inspect_pkcs12"><code>inspect_pkcs12</code> <a class="heading-anchor" href="#inspect_pkcs12" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> describe a <code>.p12</code> or <code>.pfx</code> without its password: the MAC construction (PBMAC1, or the legacy RFC 7292 MAC), every SafeContents and its scheme, the bags of the plain ones. <strong>Key inputs:</strong> <code>pkcs12</code> (BER with <code>encodingRules: &#39;ber&#39;</code> for a Windows-written PFX), <code>password</code> (optional). <strong>Output:</strong> <code>version</code>, <code>mac</code>, <code>contents[]</code>, <code>bagCount</code>, and with a password <code>macVerified</code> and <code>opened[]</code> (allow-list views of every bag). <strong>Annotation:</strong> read-only. A set <code>PKINATIVE_MCP_PASSWORD</code> counts as the password, so describing a file without one needs it unset.</p>
+<h3 id="open_pkcs12"><code>open_pkcs12</code> <a class="heading-anchor" href="#open_pkcs12" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> open a PKCS#12 in one call: MAC verified, PBES2 SafeContents decrypted, every key unwrapped straight into a non-extractable Web Crypto key (described, never exported), certificates parsed, CRLs counted. <strong>Key inputs:</strong> <code>pkcs12</code>, <code>password</code> (or <code>PKINATIVE_MCP_PASSWORD</code>), <code>allowUnverifiedIntegrity</code>, <code>rsaScheme</code>, <code>hash</code>, <code>exportCertificates</code> (attach a PEM bundle of the certificates and CRLs — never a key), output (PEM only). <strong>Output:</strong> <code>valid</code>, <code>integrity</code> (<code>verified</code> | <code>unverified</code> | <code>mismatch</code>), <code>reasons[]</code>, <code>keys[]</code>, <code>certificates[]</code>, <code>keyCount</code> / <code>certificateCount</code> / <code>crlCount</code>, <code>exportSkipped</code>, the bundle artefact. <strong>Annotation:</strong> writes a deterministic artefact (kind: verdict). No password from either channel is <code>SECRET_REQUIRED</code>; <code>PKI_REASON_PKCS12_MAC_MISMATCH</code>, <code>PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED</code>, <code>PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED</code> and <code>PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED</code> arrive in <code>reasons[]</code>.</p>
+<h2 id="meta">Meta <a class="heading-anchor" href="#meta" aria-label="Link to this section">#</a></h2>
+<h3 id="describe_engine"><code>describe_engine</code> <a class="heading-anchor" href="#describe_engine" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> the offline preflight. <strong>Key inputs:</strong> projection only. <strong>Output:</strong> <code>server</code> (name, version, tool API version, protocol, tool count), <code>engine</code> (name, version, Node.js floor), <code>capabilities</code> (<code>canVerify</code>, <code>canSign</code>, <code>canDecrypt</code>, <code>node</code>, <code>nodeFloorSatisfied</code>, platform), <code>randomness</code>, <code>defaultLimits</code> (the 22 engine limits), <code>ceilings</code>, <code>caps</code>, <code>sandbox</code> (enabled, cache enabled, pinned instant, the extension allow-lists), <code>network: &#39;none&#39;</code>, <code>registries</code> (the engine&#39;s 57 error codes, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), <code>refusals</code> (the doctrine) and <code>unexposed</code>. <strong>Annotation:</strong> read-only. Never cached.</p>
+<h3 id="explain_code"><code>explain_code</code> <a class="heading-anchor" href="#explain_code" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. <strong>Key inputs:</strong> <code>code</code>, or <code>list: true</code> with <code>kind</code> (<code>error</code> | <code>reason</code> | <code>diagnostic</code> | <code>wrapper</code>); projection. <strong>Output:</strong> <code>code</code>, <code>kind</code>, <code>summary</code>, <code>standard</code>, <code>severity</code>, <code>errorClass</code>, <code>engineClass</code>, <code>cwe</code>, <code>since</code>, <code>remedy</code> — or <code>codes[]</code> and <code>count</code>. <strong>Annotation:</strong> read-only. An unknown code is <code>NOT_FOUND</code>.</p>
+<h3 id="draft_governance_issue"><code>draft_governance_issue</code> <a class="heading-anchor" href="#draft_governance_issue" aria-label="Link to this section">#</a></h3>
+<p><strong>Purpose:</strong> a local GitHub issue draft plus a compliance report, for <code>pkinative</code> (engine behaviour), <code>pkinative-cli</code> or <code>pkinative-mcp</code> (wrapper behaviour). The server never contacts GitHub — it has no network code path — and a human reviews and submits the draft under their own identity. <strong>Key inputs:</strong> <code>title</code>, <code>summary</code>, <code>issueType</code> (<code>bug</code> | <code>feature</code> | <code>security</code> | <code>docs</code> | <code>performance</code>), <code>targetRepo</code>, <code>reproduction</code> (<code>{ command, result }</code>), <code>expectedBehavior</code>, <code>actualBehavior</code>, <code>affectedPackages[]</code>, <code>duplicateSearchPerformed</code> (must be <code>true</code>), <code>outputMode</code> (<code>inline</code> | <code>file</code>) with <code>outputPath</code> (a relative <code>.md</code> in the sandbox). <strong>Output:</strong> <code>draftMarkdown</code>, <code>warnings[]</code>, <code>compliance</code>. <strong>Annotation:</strong> writes a deterministic artefact. A draft that proposes a runtime dependency, embeds a private key or a password, has no reproduction, or was not preceded by a duplicate search is <code>GOVERNANCE_VIOLATION</code>.</p>
+<h2 id="prompts">Prompts <a class="heading-anchor" href="#prompts" aria-label="Link to this section">#</a></h2>
+<p>Seven read-only prompts, without arguments: two carry the governance contract, five are ready-made PKI recipes that name the tools in order.</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Prompt</th>
+<th>Title</th>
+<th>What it walks through</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>governance_contract</code></td>
+<td>AI-governance &amp; HITL contract</td>
+<td>The agent is a draftsman and the human the only gate: zero new runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft</td>
+</tr>
+<tr>
+<td><code>draft_issue_workflow</code></td>
+<td>Human-in-the-loop issue workflow</td>
+<td>Drafting an issue with <code>draft_governance_issue</code> and handing it to a human for review and submission</td>
+</tr>
+<tr>
+<td><code>verify_before_trust</code></td>
+<td>Verify before you trust</td>
+<td><code>inspect_certificate</code> → <code>verify_certificate_chain</code> with a pinned instant → offline revocation evidence, and why a verified signature is not trust</td>
+</tr>
+<tr>
+<td><code>issue_certificate</code></td>
+<td>Issue a CA, a CSR and a leaf certificate</td>
+<td>How <code>create_csr</code> and <code>create_certificate</code> chain together, what is derived, what is verified before the bytes return, and the key, scheme and instant rules</td>
+</tr>
+<tr>
+<td><code>sign_and_timestamp</code></td>
+<td>Sign content and add an RFC 3161 time-stamp</td>
+<td><code>sign_cms</code>, the counter timestamp over the signature value (<code>create_timestamp_request</code> → your TSA → <code>amend_cms</code>), and <code>verify_cms</code> as the one verdict</td>
+</tr>
+<tr>
+<td><code>offline_revocation</code></td>
+<td>Revocation without a network</td>
+<td>Where to fetch CRL and OCSP evidence yourself, how <code>create_ocsp_request</code> builds the request, and how <code>check_crl_revocation</code>, <code>check_ocsp_status</code> and <code>verify_certificate_chain</code> judge the bytes you bring</td>
+</tr>
+<tr>
+<td><code>open_keys_safely</code></td>
+<td>Keys and PKCS#12 without leaking a byte</td>
+<td><code>inspect_private_key</code>, <code>inspect_pkcs12</code> and <code>open_pkcs12</code>: describe before opening, the PBES2 and PBMAC1 doctrine, the legacy-file remedy, the two password channels</td>
+</tr>
+</tbody></table>
+<p>The <a href="use-cases-mcp.html">MCP use cases</a> follow four of them call by call.</p>
+<h2 id="resources">Resources <a class="heading-anchor" href="#resources" aria-label="Link to this section">#</a></h2>
+<p>With <code>PKINATIVE_MCP_OUTPUT_DIR</code> set, every regular file under the sandbox is a resource, addressed by the template <code>pkinative://output/{+path}</code> from <code>resources/templates/list</code>. <code>resources/list</code> enumerates at most 1000 files to a depth of 8, and <code>resources/read</code> serves one (PEM, Markdown, JSON and text as <code>text</code>, everything else as a base64 <code>blob</code>, at most 50 MiB). Key-bearing extensions are never listed and never served, and key material is refused by content too, whatever the file name — a PEM key after a prefix, a key among many blocks, a raw DER key behind junk, base64 key material inside a text file. An artefact written with <code>outputMode: &#39;file&#39;</code> comes back as a <code>resource_link</code> to its <code>pkinative://output/&lt;path&gt;</code> URI, so a <code>create_csr</code> → <code>create_certificate</code> → <code>verify_certificate_chain</code> sequence never re-sends the bytes.</p>
+<h2 id="token-frugal-reads">Token-frugal reads <a class="heading-anchor" href="#token-frugal-reads" aria-label="Link to this section">#</a></h2>
+<p>The read, verdict and engine tools, <code>explain_code</code> included, accept two optional inputs:</p>
+<ul>
+<li><strong><code>verbosity: &#39;summary&#39;</code></strong> keeps the tool&#39;s canonical scalar subset and drops the heavy arrays. <code>verify_certificate_chain</code> then answers <code>{ valid, reasonCodes, pathLength, evaluatedAt, revocationEvidence, diagnosticCount }</code>; <code>inspect_certificate</code> answers the serial, subject and issuer strings, validity, key kind and extension kinds.</li>
+<li><strong><code>fields: [&#39;a&#39;, &#39;b.c&#39;]</code></strong> projects the result to at most 16 dot-paths, applied after <code>verbosity</code>; an array segment maps over every element. A path that matched nothing is omitted and reported in <code>_meta.unmatchedFields</code>, with <code>_meta.availableFields</code>; a <code>__proto__</code>, <code>constructor</code> or <code>prototype</code> segment is <code>VALIDATION_ERROR</code>.</li>
+</ul>
+<p>Because a result can be projected, these tools declare every property of their <code>outputSchema</code> optional, so a projected <code>structuredContent</code> still validates. Artefacts are never duplicated into <code>structuredContent</code>: they arrive once, as an embedded <code>resource</code> block (PEM as <code>text</code>, DER as a <code>blob</code> with its media type — <code>application/pkix-cert</code>, <code>application/pkcs10</code>, <code>application/pkcs7-signature</code>, <code>application/ocsp-request</code>, <code>application/timestamp-query</code>, …) or as a <code>resource_link</code>, and <code>structuredContent.sha256</code> is the SHA-256 of the DER — the reproducibility proof when serial, nonce and instants are pinned.</p>
+<p>The smallest &quot;can I trust this server certificate?&quot; probe:</p>
+<pre><code class="language-json">{ &quot;leaf&quot;: { &quot;path&quot;: &quot;leaf.crt.pem&quot; }, &quot;trustAnchors&quot;: [{ &quot;path&quot;: &quot;root.crt.pem&quot; }], &quot;at&quot;: &quot;2027-01-01T00:00:00Z&quot;, &quot;serverName&quot;: { &quot;host&quot;: &quot;example.test&quot; }, &quot;verbosity&quot;: &quot;summary&quot;, &quot;fields&quot;: [&quot;valid&quot;, &quot;reasonCodes&quot;] }
+</code></pre>
+<h2 id="error-model">Error model <a class="heading-anchor" href="#error-model" aria-label="Link to this section">#</a></h2>
+<p>A refused call is a tool result with <code>isError: true</code>, <code>content[0].text</code> = <code>&lt;tool&gt; failed [CODE]: message</code> and <code>_meta.error = { code, message, data }</code>. The code is one of two kinds:</p>
+<ul>
+<li><strong>One of pkinative&#39;s 57 <code>PKI_*</code> error codes, passed through verbatim</strong> as <code>_meta.error.code</code>, with <code>data.errorClass</code> (the coarse class: <code>usage</code>, <code>input</code>, <code>parse</code>, <code>security</code>, <code>limit</code>, <code>unsupported</code>, <code>crypto</code>, <code>password</code>, <code>check</code>, <code>internal</code>), <code>data.engineError</code> (the <code>PkiError</code> subclass), <code>path</code>, <code>offset</code>, <code>algorithm</code>, <code>limit</code>, <code>configured</code>, <code>observed</code> or <code>env</code> where the engine knows them, and <code>data.remedy</code> phrased as MCP inputs.</li>
+<li><strong>One of the server&#39;s 21 wrapper codes</strong>, for the boundary the engine does not own — validation, sandbox, caps, secrets and output — each with its remedy:</li>
+</ul>
+<table tabindex="0">
+<thead>
+<tr>
+<th>Wrapper code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>VALIDATION_ERROR</code></td>
+<td>The input fails the schema: a wrong type, bound or enum, an unknown key at any depth, none or several of the exclusive members, SHA-1 without <code>allowSha1</code>, a password given twice</td>
+</tr>
+<tr>
+<td><code>INPUT_TOO_LARGE</code></td>
+<td>A decoded inline input, the sum of inline inputs, or a sandbox file exceeds its cap</td>
+</tr>
+<tr>
+<td><code>INPUT_NOT_FOUND</code></td>
+<td>A path input does not exist in the sandbox, or is not a regular file</td>
+</tr>
+<tr>
+<td><code>INVALID_PATH</code></td>
+<td>A path member is empty or not a string</td>
+</tr>
+<tr>
+<td><code>INVALID_EXTENSION</code></td>
+<td>A path input or <code>outputPath</code> does not end in an allowed extension</td>
+</tr>
+<tr>
+<td><code>SECURITY_VIOLATION</code></td>
+<td>File I/O without a sandbox; an absolute, drive, UNC or escaping path; a link whose real path leaves the sandbox; a key-bearing <code>outputPath</code>; an attempt to extract, dump or serve private-key material</td>
+</tr>
+<tr>
+<td><code>OUTPUT_TOO_LARGE</code></td>
+<td>An artefact above its inline, hex, file or resource cap</td>
+</tr>
+<tr>
+<td><code>OUTPUT_EXISTS</code></td>
+<td>The target file already exists — the server never overwrites</td>
+</tr>
+<tr>
+<td><code>MISSING_OUTPUT_PATH</code></td>
+<td><code>outputMode: &#39;file&#39;</code> without <code>outputPath</code></td>
+</tr>
+<tr>
+<td><code>IO_ERROR</code></td>
+<td>A filesystem operation failed; the message carries the errno, never an absolute path</td>
+</tr>
+<tr>
+<td><code>LIMIT_CEILING_EXCEEDED</code></td>
+<td>A <code>limits.*</code> value above its operator ceiling (<code>data.env</code> names the variable)</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_RESOURCE</code></td>
+<td><code>resources/read</code> outside <code>pkinative://output/</code>, or of a missing file — surfaced as JSON-RPC <code>-32602</code> with <code>data: { uri }</code>; the code name itself is not sent</td>
+</tr>
+<tr>
+<td><code>GOVERNANCE_VIOLATION</code></td>
+<td>A <code>draft_governance_issue</code> draft breaks the AI-governance contract</td>
+</tr>
+<tr>
+<td><code>SECRET_REQUIRED</code></td>
+<td>An encrypted key, a PKCS#12 or a MAC check needs a password and none was given</td>
+</tr>
+<tr>
+<td><code>KEY_TYPE_REQUIRED</code></td>
+<td>An encrypted PKCS#8 key whose type nothing names (<code>signer.keyType</code>, a certificate or a public key)</td>
+</tr>
+<tr>
+<td><code>RSA_SCHEME_REQUIRED</code></td>
+<td>An RSA key without <code>rsaScheme</code>: there is no default RSA signature scheme</td>
+</tr>
+<tr>
+<td><code>KEY_MISMATCH</code></td>
+<td>The signing key does not belong to the certificate, issuer or public key it was paired with</td>
+</tr>
+<tr>
+<td><code>UNSUPPORTED_KEY</code></td>
+<td>A key algorithm Web Crypto cannot sign with on this host</td>
+</tr>
+<tr>
+<td><code>NOT_FOUND</code></td>
+<td>A named element is absent: an extension, a <code>nodePath</code> step, a <code>signerIndex</code>, an <code>extractIndex</code>, a code</td>
+</tr>
+<tr>
+<td><code>ENGINE_VERDICT</code></td>
+<td>A one-call engine operation (opening a PKCS#12 to sign) came back negative; <code>data.reasons</code> carries the <code>PKI_REASON_*</code> codes</td>
+</tr>
+<tr>
+<td><code>ENGINE_ERROR</code></td>
+<td>The engine threw something that is not a <code>PkiError</code>: a bug, to report with a reproduction</td>
+</tr>
+</tbody></table>
+<p>Two real results, from the 1.0.0 server. The first <code>PKI_*</code> code is raised by the server&#39;s own label check before any byte reaches the engine, so its <code>data</code> carries no <code>engineError</code>:</p>
+<pre><code class="language-json">{&quot;content&quot;:[{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;inspect_certificate failed [PKI_PEM_UNEXPECTED_LABEL]: certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).&quot;}],&quot;isError&quot;:true,&quot;_meta&quot;:{&quot;error&quot;:{&quot;code&quot;:&quot;PKI_PEM_UNEXPECTED_LABEL&quot;,&quot;message&quot;:&quot;certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).&quot;,&quot;data&quot;:{&quot;errorClass&quot;:&quot;input&quot;,&quot;path&quot;:&quot;certificate&quot;,&quot;remedy&quot;:&quot;convert_pem mode:&#39;decode&#39; (lists the labels present)&quot;}}}}
+{&quot;content&quot;:[{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;create_certificate failed [RSA_SCHEME_REQUIRED]: An RSA key needs signer.rsaScheme:&#39;pkcs1&#39;|&#39;pss&#39;: pkinative has no default RSA signature scheme.&quot;}],&quot;isError&quot;:true,&quot;_meta&quot;:{&quot;error&quot;:{&quot;code&quot;:&quot;RSA_SCHEME_REQUIRED&quot;,&quot;message&quot;:&quot;An RSA key needs signer.rsaScheme:&#39;pkcs1&#39;|&#39;pss&#39;: pkinative has no default RSA signature scheme.&quot;,&quot;data&quot;:{&quot;path&quot;:&quot;signer.rsaScheme&quot;,&quot;remedy&quot;:&quot;rsaScheme:&#39;pkcs1&#39;|&#39;pss&#39;&quot;}}}}
+</code></pre>
+<p><strong>A negative verdict is not an error.</strong> A verdict tool that answers <em>no</em> returns <code>valid: false</code> and <code>reasons[]</code> — the engine&#39;s <code>PKI_REASON_*</code> codes, each with its message, standard and path — in <code>structuredContent</code>, with <code>isError</code> false. <code>isError</code> means the input itself was refused, or the call was wrong. <code>PKI_DIAG_*</code> diagnostics are not errors either: they ride in <code>diagnostics[]</code> unless <code>strict: true</code> escalates the first warning to <code>PKI_STRICT_DIAGNOSTIC</code>.</p>
+<p><strong><code>explain_code</code></strong> explains any of these codes — a <code>PKI_*</code> error, a <code>PKI_REASON_*</code> reason, a <code>PKI_DIAG_*</code> diagnostic or a wrapper code. The <a href="errors.html">errors guide</a> documents the engine&#39;s three vocabularies, and <a href="errors.html#where-the-codes-surface">Where the codes surface</a> compares the library, CLI and MCP views.</p>
+<h2 id="security-model">Security model <a class="heading-anchor" href="#security-model" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>No network, ever.</strong> The server has no network code path: no CRL, OCSP, AIA or TSA fetch, no telemetry, no GitHub, no update check, no URL from any tool argument, no operator-configurable endpoint. <code>describe_engine</code> reports <code>network: &#39;none&#39;</code> and every tool advertises <code>openWorldHint: false</code>. Revocation evidence and timestamp tokens are inputs you fetched; <code>create_ocsp_request</code> and <code>create_timestamp_request</code> produce the bytes you transport.</li>
+<li><strong>No key byte is ever returned.</strong> Signing keys are imported into non-extractable Web Crypto handles; every key and PKCS#12 report is an allow-list view built field by field; key-bearing files are never written and never served as resources; <code>convert_pem</code> never extracts or wraps private-key material, and <code>decode_asn1</code> and <code>encode_asn1</code> refuse it. There is no key generation and no key export, and the test suite proves with needles computed from the fixtures that no key byte, scalar, JWK member or password reaches a result, stderr, a cache file or the stdio transcript.</li>
+<li><strong>Two password channels, never a third.</strong> The per-call <code>password</code> input, or the operator&#39;s <code>PKINATIVE_MCP_PASSWORD</code> — one per call. A password is never echoed, logged, cached or served; a call carrying one is never cached.</li>
+<li><strong>One sandbox.</strong> <code>PKINATIVE_MCP_OUTPUT_DIR</code> is the only filesystem boundary, for reads (every <code>path</code> input, <code>resources/read</code>) and writes (<code>outputPath</code>, governance drafts): relative paths only, no traversal, NUL bytes or unlisted extensions, the real path of every file read and of every parent written inside it, exclusive creates, and a partial file removed when a write fails. In <code>outputMode: &#39;file&#39;</code> a result names the absolute path it wrote, in <code>structuredContent.filePath</code> and in its text; that is the one place a host path reaches the transcript. Unset, no tool touches the filesystem; the opt-in response cache under <code>PKINATIVE_MCP_CACHE_DIR</code> is the only other I/O the server performs.</li>
+<li><strong>Ceilings and caps.</strong> The engine&#39;s 22 limits apply to every call and rise only by explicit input, never above the operator ceilings; every byte and count the wrapper bounds is a constant <code>describe_engine.caps</code> advertises — 256 MiB per stdio frame or HTTP body, 128 MiB of inline PKI input per call, 50 MiB per inline artefact, 1 GiB per file output, 64 KiB per hex artefact.</li>
+<li><strong>The engine&#39;s doctrine, surfaced.</strong> SHA-1 only with <code>allowSha1: true</code>; RSA only with an explicit <code>rsaScheme</code>; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA and ML-DSA parsed, never verified; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. <code>describe_engine.refusals</code> lists each line with its remedy.</li>
+</ul>
+<p>The server&#39;s own conformance gate has OpenSSL 3 read back every artefact it writes, in CI and before every publish; the <a href="conformance.html">conformance guide</a> covers the engine underneath, and the <a href="security.html">security guide</a> its threat model.</p>
+<h2 id="versioning">Versioning <a class="heading-anchor" href="#versioning" aria-label="Link to this section">#</a></h2>
+<p>pkinative-mcp follows Semantic Versioning, and its tool API carries a version of its own: every tool advertises <code>_meta.apiVersion</code>, <code>1.0.0</code> since pkinative-mcp 1.0.0, independent of the npm version and of the MCP protocol revision. Across 1.x the tool names, the required input and output fields, the field types, the 21 wrapper codes and the bytes written for deterministic inputs are stable: a new optional output field is a patch; a new tool, optional input or enum value a minor; a removal, a rename, a narrowed type or a weakened security default waits for 2.0.0, after at least one minor of deprecation. Descriptions, prompt texts and <code>_meta.examples</code> are not covered; the engine&#39;s <code>PKI_*</code>, <code>PKI_REASON_*</code> and <code>PKI_DIAG_*</code> codes pass through verbatim under pkinative&#39;s own promise. pkinative-mcp 1.0.0, released on 2026-10-17, pins pkinative ^1.0.0; security fixes land on the latest published minor. The server&#39;s <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/API_STABILITY.md" target="_blank" rel="noopener">API stability charter</a> states the promise tool by tool.</p>
+<h2 id="further-reading">Further reading <a class="heading-anchor" href="#further-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="../playgrounds/mcp.html">MCP tool explorer</a> — the client configuration, and each tool&#39;s <code>tools/call</code> payload with the engine call behind it run in your tab.</li>
+<li><a href="use-cases-mcp.html">MCP use cases</a> — a failing TLS chain, a test certificate, offline revocation, keys opened safely.</li>
+<li><a href="cli.html">CLI guide</a> — the same engine on the command line.</li>
+<li><a href="choose.html#choosing-your-surface">Choosing a library and a surface</a> — library, CLI or MCP server, per capability.</li>
+<li>The server&#39;s <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md" target="_blank" rel="noopener">agent contract</a>, its <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AI_GUIDE.md" target="_blank" rel="noopener">AI agent guide</a>, its <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/llms.txt" target="_blank" rel="noopener">llms.txt</a> and its <a href="https://github.com/Nizoka/pkinative-mcp/blob/main/README.md" target="_blank" rel="noopener">README</a>.</li>
+</ul>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

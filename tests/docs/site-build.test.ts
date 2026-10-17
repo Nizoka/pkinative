@@ -64,12 +64,22 @@ describe('renderSitemap', () => {
     it('should stamp every URL with the audit date', () => {
         const pages = new Map([
             ['docs/index.html', '<link rel="canonical" href="https://pkinative.dev/">'],
-            ['docs/playground/asn1.html', '<link rel="canonical" href="https://pkinative.dev/playground/asn1.html">'],
+            ['docs/playgrounds/asn1.html', '<link rel="canonical" href="https://pkinative.dev/playgrounds/asn1.html">'],
             ['docs/orphan.html', '<p>no canonical</p>'],
         ]);
         const { xml, missing } = renderSitemap(pages, '2026-09-29');
         expect(xml).toContain('<url><loc>https://pkinative.dev/</loc><lastmod>2026-09-29</lastmod></url>');
         expect(xml.match(/<lastmod>2026-09-29<\/lastmod>/g)).toHaveLength(2);
         expect(missing).toEqual(['docs/orphan.html']);
+    });
+
+    it('should leave out a noindex redirect stub, whose canonical is its replacement', () => {
+        const pages = new Map([
+            ['docs/playgrounds/asn1.html', '<link rel="canonical" href="https://pkinative.dev/playgrounds/asn1.html">'],
+            ['docs/playground/asn1.html', '<meta name="robots" content="noindex, follow">\n<link rel="canonical" href="https://pkinative.dev/playgrounds/asn1.html">'],
+        ]);
+        const { xml, missing } = renderSitemap(pages, '2026-09-29');
+        expect(xml.match(/<loc>https:\/\/pkinative\.dev\/playgrounds\/asn1\.html<\/loc>/g)).toHaveLength(1);
+        expect(missing).toEqual([]);
     });
 });

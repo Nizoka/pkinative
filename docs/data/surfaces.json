@@ -1,29 +1,292 @@
 {
-  "$comment": "What pkinative can do, the export that does it, and the version that brought it — the machine-readable twin of docs/guides/choose.md. Satellites (pkinative-cli, pkinative-mcp) come after 1.0.0, as separate packages pinning pkinative ^1.0.0 (ROADMAP.md §1.0.0); until then every capability is library-only.",
+  "$comment": "What pkinative can do, through which surface, and the version that brought it — the machine-readable twin of docs/guides/choose.md. Each capability names the library exports that provide it, the pkinative-cli commands (as `command subcommand`) and the pkinative-mcp tools that expose it; the satellites are separate packages pinning pkinative ^1.0.0, versioned in docs/assets/ecosystem.json. surfaces-parity holds the exports to docs/assets/api.json; surfaces-shape holds the commands to docs/data/cli-surface.json and the tools to packages.pkinative-mcp.tools; surfaces-matrix holds the table of choose.md to this file.",
   "schemaVersion": 1,
   "version": "1.0.0",
+  "surfaces": {
+    "library": {
+      "package": "pkinative",
+      "install": "npm install pkinative",
+      "entry": "import { … } from 'pkinative'"
+    },
+    "cli": {
+      "$comment": "meta: the commands that serve the tool itself rather than a capability of the library — a preflight, the JSON Schemas, shell completion.",
+      "package": "pkinative-cli",
+      "install": "npm install --global pkinative-cli",
+      "binary": "pkinative",
+      "meta": ["doctor", "schema", "completion"]
+    },
+    "mcp": {
+      "$comment": "meta: the tools that serve the session rather than a capability of the library — drafting a governance issue for the maintainer.",
+      "package": "pkinative-mcp",
+      "install": "npx -y pkinative-mcp",
+      "binary": "pkinative-mcp",
+      "meta": ["draft_governance_issue"]
+    }
+  },
   "capabilities": [
-    { "id": "errors", "capability": "Fail with a typed error carrying a stable, machine-readable code, never a bare TypeError", "exports": ["PkiError", "PkiEncodingError", "PkiCertificateError", "PkiLimitError"], "since": "0.1.0" },
-    { "id": "limits", "capability": "Bound every loop over untrusted bytes with a named, CWE-tagged limit", "exports": ["DEFAULT_PKI_LIMITS"], "since": "0.1.0" },
-    { "id": "asn1-decode", "capability": "Decode DER strictly, or BER on request, into a tree of zero-copy nodes", "exports": ["decodeAsn1", "decodeAsn1Sequence"], "since": "0.1.0" },
-    { "id": "asn1-read", "capability": "Read BOOLEAN, INTEGER, ENUMERATED, NULL, BIT STRING, OCTET STRING, OBJECT IDENTIFIER, RELATIVE-OID, eight string types and both time types", "exports": ["readBoolean", "readInteger", "readSmallInteger", "readEnumerated", "readNull", "readBitString", "readOctetString", "readObjectIdentifier", "readRelativeOid", "readString", "readTime"], "since": "0.1.0" },
-    { "id": "asn1-encode", "capability": "Encode DER, refusing what DER cannot represent; re-encode a decoded tree byte for byte", "exports": ["encodeEnumerated", "encodeExplicit", "encodeImplicit", "encodeNamedBits", "encodeTlv", "encodeSequence", "encodeSet", "encodeSetOf", "encodeInteger", "encodeBoolean", "encodeNull", "encodeBitString", "encodeOctetString", "encodeObjectIdentifier", "encodeRelativeOid", "encodeString", "encodeTime", "encodeAsn1Node"], "since": "0.1.0" },
-    { "id": "oid", "capability": "Encode, decode and validate OIDs; name them from a registry of 300+ entries", "exports": ["encodeOid", "decodeOid", "isValidOid", "getOidName", "OID_REGISTRY"], "since": "0.1.0" },
-    { "id": "pem", "capability": "Decode RFC 7468 PEM in strict or lax mode, optionally restricted to one label; encode PEM", "exports": ["decodePem", "encodePem"], "since": "0.1.0" },
-    { "id": "fingerprint", "capability": "Certificate fingerprints over SHA-1, SHA-256, SHA-384 and SHA-512, synchronous or through Web Crypto, the RFC 5280 key identifier that lets one certificate name the key of another, and SHAKE256 at any output length — the digest of an Ed448 CMS signer (RFC 8419 §3.1)", "exports": ["computeFingerprint", "computeFingerprintAsync", "formatFingerprint", "computeKeyIdentifier", "shake256"], "since": "0.1.0" },
-    { "id": "x509-parse", "capability": "Parse an RFC 5280 certificate: every field, every standard extension, profile concerns as diagnostics", "exports": ["parseCertificate", "getExtension", "decodeExtensionValue", "formatDistinguishedName"], "since": "0.1.0" },
-    { "id": "x509-verify", "capability": "Verify a certificate signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448", "exports": ["verifyCertificateSignature", "verifySelfSignature", "canVerify", "PkiCryptoError"], "since": "0.3.0" },
-    { "id": "x509-create", "capability": "Build and sign an RFC 5280 certificate or a PKCS#10 request from a typed description, through a Web Crypto key the caller holds", "exports": ["createCertificate", "createCertificationRequest", "canSign", "encodeSignatureAlgorithm", "encodeAlgorithmIdentifier", "encodeAttribute", "encodeAuthorityKeyIdentifier", "encodeBasicConstraints", "encodeDistinguishedName", "encodeExtendedKeyUsage", "encodeExtension", "encodeExtensions", "encodeKeyUsage", "encodeNameAttribute", "encodeSubjectAltName", "encodeSubjectKeyIdentifier", "encodeSubjectPublicKeyInfo", "encodeValidity", "KEY_USAGE_BITS"], "since": "0.3.0" },
-    { "id": "x509-csr", "capability": "Read a PKCS#10 certification request — subject, key, attributes and the extensions it asks for, held to the same readers, codes and bounds as a certificate — and verify its proof of possession with the key it carries; nothing here says a CA should grant it", "exports": ["parseCertificationRequest", "verifyCertificationRequest"], "since": "1.0.0" },
-    { "id": "x509-verify-chain", "capability": "Verify a certificate the whole way in one call — each signature verified the moment the path search is about to rely on it and never twice, then the host name, the purpose and revocation — because every layer below answers one question and somebody has to put them in the right order", "exports": ["verifyCertificateChain"], "since": "0.5.0" },
-    { "id": "x509-path", "capability": "Build and validate a certification path against a trust anchor (RFC 5280 §6) — synchronous, never throwing, backtracking past cross-signed issuers, and reporting every reason rather than the first", "exports": ["validateCertificatePath", "buildCertificatePath"], "since": "0.5.0" },
-    { "id": "x509-server-name", "capability": "Check that a certificate names the host or address you connected to (RFC 6125) — a separate question from path validation, which has no notion of the name you asked for, and the one whose absence turns a valid certificate for somebody else into an accepted one", "exports": ["checkServerName", "matchDnsName"], "since": "0.5.0" },
-    { "id": "x509-purpose", "capability": "Ask whether a validated chain may be used for the purpose you need (RFC 5280 extKeyUsage) — a question section 6 never asks, and one where a CA own purpose restricts what it may issue for", "exports": ["checkExtendedKeyUsage", "KEY_PURPOSES", "ANY_EXTENDED_KEY_USAGE"], "since": "0.5.0" },
-    { "id": "x509-crl", "capability": "Read an RFC 5280 CRL, verify its signature and decide a certificate's revocation status — the list is walked with a lazy cursor, never decoded into nodes, so a list of millions costs constant memory", "exports": ["parseCertificateList", "findRevocation", "verifyCrlSignature", "checkRevocation"], "since": "0.5.0" },
-    { "id": "x509-ocsp", "capability": "Build an RFC 6960 OCSP request, read a response and verify its signature — good, revoked and unknown stay three states, because unknown is the responder saying it does not know", "exports": ["createOcspRequest", "encodeOcspCertId", "parseOcspResponse", "verifyOcspSignature", "checkOcspStatus", "OCSP_NONCE_OID"], "since": "0.5.0" },
-    { "id": "cms-signed-data", "capability": "Read, create and verify an RFC 5652 CMS SignedData — a .p7s, an S/MIME signature, a PDF /Contents — signed through Web Crypto or an external signer such as an HSM, and verified in one call that keeps intact (unaltered) apart from valid (unaltered and trusted)", "exports": ["parseSignedData", "createSignedData", "addUnsignedAttribute", "verifySignerInfoSignature", "verifySignedData", "PkiCmsError"], "since": "0.7.0" },
-    { "id": "cms-timestamp", "capability": "Request, read, verify and attach an RFC 3161 timestamp, and judge a signer at the time it proves — while the timestamp authority itself is judged at the time of verification, so a token cannot vouch for its own backdating", "exports": ["createTimeStampRequest", "parseTimeStampResponse", "parseTimeStampToken", "parseTstInfo", "verifyTimeStampToken", "addTimeStampToken"], "since": "0.7.0" },
-    { "id": "keys-pkcs8", "capability": "Read a PKCS#8 private key, plain or under PBES2, and describe it without exposing its secret — then turn it into a non-extractable Web Crypto signing key, an encrypted one unwrapped by the host so that its plaintext never becomes a JavaScript value; every other password scheme is named and refused with the conversion to run", "exports": ["parsePrivateKeyInfo", "parseEncryptedPrivateKeyInfo", "importPrivateKey", "decryptPrivateKey", "canDecrypt", "PkiKeyError"], "since": "0.8.0" },
-    { "id": "keys-pkcs12", "capability": "Open a PKCS#12 (.p12, .pfx) in one call — an RFC 9579 PBMAC1 checked, every SafeContents opened, every certificate parsed, every key unwrapped as the algorithm of its certificate — with integrity that fails closed on the RFC 7292 Appendix B MAC nothing here computes; or read it without a password and open it one step at a time", "exports": ["openPkcs12", "parsePkcs12", "verifyPkcs12Mac", "openSafeContents"], "since": "0.8.0" }
+    {
+      "id": "errors",
+      "capability": "Fail with a typed error carrying a stable, machine-readable code, never a bare TypeError",
+      "exports": ["PkiError", "PkiEncodingError", "PkiCertificateError", "PkiLimitError"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["explain"]
+      },
+      "mcp": {
+        "tools": ["explain_code"]
+      }
+    },
+    {
+      "id": "limits",
+      "capability": "Bound every loop over untrusted bytes with a named, CWE-tagged limit",
+      "exports": ["DEFAULT_PKI_LIMITS"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["limits"]
+      },
+      "mcp": {
+        "tools": ["describe_engine"]
+      }
+    },
+    {
+      "id": "asn1-decode",
+      "capability": "Decode DER strictly, or BER on request, into a tree of zero-copy nodes",
+      "exports": ["decodeAsn1", "decodeAsn1Sequence"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["asn1 decode"]
+      },
+      "mcp": {
+        "tools": ["decode_asn1"]
+      }
+    },
+    {
+      "id": "asn1-read",
+      "capability": "Read BOOLEAN, INTEGER, ENUMERATED, NULL, BIT STRING, OCTET STRING, OBJECT IDENTIFIER, RELATIVE-OID, eight string types and both time types",
+      "exports": ["readBoolean", "readInteger", "readSmallInteger", "readEnumerated", "readNull", "readBitString", "readOctetString", "readObjectIdentifier", "readRelativeOid", "readString", "readTime"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["asn1 decode"]
+      },
+      "mcp": {
+        "tools": ["decode_asn1"]
+      }
+    },
+    {
+      "id": "asn1-encode",
+      "capability": "Encode DER, refusing what DER cannot represent; re-encode a decoded tree byte for byte",
+      "exports": ["encodeEnumerated", "encodeExplicit", "encodeImplicit", "encodeNamedBits", "encodeTlv", "encodeSequence", "encodeSet", "encodeSetOf", "encodeInteger", "encodeBoolean", "encodeNull", "encodeBitString", "encodeOctetString", "encodeObjectIdentifier", "encodeRelativeOid", "encodeString", "encodeTime", "encodeAsn1Node"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["asn1 encode", "asn1 decode"]
+      },
+      "mcp": {
+        "tools": ["encode_asn1", "decode_asn1"]
+      }
+    },
+    {
+      "id": "oid",
+      "capability": "Encode, decode and validate OIDs; name them from a registry of 300+ entries",
+      "exports": ["encodeOid", "decodeOid", "isValidOid", "getOidName", "OID_REGISTRY"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["oid name", "oid encode", "oid decode", "oid validate", "oid list"]
+      },
+      "mcp": {
+        "tools": ["resolve_oid"]
+      }
+    },
+    {
+      "id": "pem",
+      "capability": "Decode RFC 7468 PEM in strict or lax mode, optionally restricted to one label; encode PEM",
+      "exports": ["decodePem", "encodePem"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["pem decode", "pem encode"]
+      },
+      "mcp": {
+        "tools": ["convert_pem"]
+      }
+    },
+    {
+      "id": "fingerprint",
+      "capability": "Certificate fingerprints over SHA-1, SHA-256, SHA-384 and SHA-512, synchronous or through Web Crypto, the RFC 5280 key identifier that lets one certificate name the key of another, and SHAKE256 at any output length — the digest of an Ed448 CMS signer (RFC 8419 §3.1)",
+      "exports": ["computeFingerprint", "computeFingerprintAsync", "formatFingerprint", "computeKeyIdentifier", "shake256"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["fingerprint"]
+      },
+      "mcp": {
+        "tools": ["compute_fingerprint"]
+      }
+    },
+    {
+      "id": "x509-parse",
+      "capability": "Parse an RFC 5280 certificate: every field, every standard extension, profile concerns as diagnostics",
+      "exports": ["parseCertificate", "getExtension", "decodeExtensionValue", "formatDistinguishedName"],
+      "since": "0.1.0",
+      "cli": {
+        "commands": ["cert inspect", "cert decode-extension"]
+      },
+      "mcp": {
+        "tools": ["inspect_certificate", "decode_extension"]
+      }
+    },
+    {
+      "id": "x509-verify",
+      "capability": "Verify a certificate signature against its issuer through Web Crypto — RSA PKCS#1 v1.5 and PSS, ECDSA on P-256/384/521, Ed25519 and Ed448",
+      "exports": ["verifyCertificateSignature", "verifySelfSignature", "canVerify", "PkiCryptoError"],
+      "since": "0.3.0",
+      "cli": {
+        "commands": ["cert verify-signature"]
+      },
+      "mcp": {
+        "tools": ["inspect_certificate"]
+      }
+    },
+    {
+      "id": "x509-create",
+      "capability": "Build and sign an RFC 5280 certificate or a PKCS#10 request from a typed description, through a Web Crypto key the caller holds",
+      "exports": ["createCertificate", "createCertificationRequest", "canSign", "encodeSignatureAlgorithm", "encodeAlgorithmIdentifier", "encodeAttribute", "encodeAuthorityKeyIdentifier", "encodeBasicConstraints", "encodeDistinguishedName", "encodeExtendedKeyUsage", "encodeExtension", "encodeExtensions", "encodeKeyUsage", "encodeNameAttribute", "encodeSubjectAltName", "encodeSubjectKeyIdentifier", "encodeSubjectPublicKeyInfo", "encodeValidity", "KEY_USAGE_BITS"],
+      "since": "0.3.0",
+      "cli": {
+        "commands": ["cert create", "cert encode", "csr create"]
+      },
+      "mcp": {
+        "tools": ["create_certificate", "encode_x509_structure", "create_csr"]
+      }
+    },
+    {
+      "id": "x509-csr",
+      "capability": "Read a PKCS#10 certification request — subject, key, attributes and the extensions it asks for, held to the same readers, codes and bounds as a certificate — and verify its proof of possession with the key it carries; nothing here says a CA should grant it",
+      "exports": ["parseCertificationRequest", "verifyCertificationRequest"],
+      "since": "1.0.0",
+      "cli": {
+        "commands": ["csr inspect", "csr verify"]
+      },
+      "mcp": {
+        "tools": ["inspect_csr"]
+      }
+    },
+    {
+      "id": "x509-verify-chain",
+      "capability": "Verify a certificate the whole way in one call — each signature verified the moment the path search is about to rely on it and never twice, then the host name, the purpose and revocation — because every layer below answers one question and somebody has to put them in the right order",
+      "exports": ["verifyCertificateChain"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["chain verify"]
+      },
+      "mcp": {
+        "tools": ["verify_certificate_chain"]
+      }
+    },
+    {
+      "id": "x509-path",
+      "capability": "Build and validate a certification path against a trust anchor (RFC 5280 §6) — synchronous, never throwing, backtracking past cross-signed issuers, and reporting every reason rather than the first",
+      "exports": ["validateCertificatePath", "buildCertificatePath"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["chain build", "chain validate"]
+      },
+      "mcp": {
+        "tools": ["build_certificate_path", "validate_certificate_path"]
+      }
+    },
+    {
+      "id": "x509-server-name",
+      "capability": "Check that a certificate names the host or address you connected to (RFC 6125) — a separate question from path validation, which has no notion of the name you asked for, and the one whose absence turns a valid certificate for somebody else into an accepted one",
+      "exports": ["checkServerName", "matchDnsName"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["cert check-name", "cert match-name"]
+      },
+      "mcp": {
+        "tools": ["check_certificate_name"]
+      }
+    },
+    {
+      "id": "x509-purpose",
+      "capability": "Ask whether a validated chain may be used for the purpose you need (RFC 5280 extKeyUsage) — a question section 6 never asks, and one where a CA own purpose restricts what it may issue for",
+      "exports": ["checkExtendedKeyUsage", "KEY_PURPOSES", "ANY_EXTENDED_KEY_USAGE"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["cert check-purpose"]
+      },
+      "mcp": {
+        "tools": ["check_certificate_purpose"]
+      }
+    },
+    {
+      "id": "x509-crl",
+      "capability": "Read an RFC 5280 CRL, verify its signature and decide a certificate's revocation status — the list is walked with a lazy cursor, never decoded into nodes, so a list of millions costs constant memory",
+      "exports": ["parseCertificateList", "findRevocation", "verifyCrlSignature", "checkRevocation"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["crl inspect", "crl find", "crl verify-signature", "crl check"]
+      },
+      "mcp": {
+        "tools": ["inspect_crl", "check_crl_revocation"]
+      }
+    },
+    {
+      "id": "x509-ocsp",
+      "capability": "Build an RFC 6960 OCSP request, read a response and verify its signature — good, revoked and unknown stay three states, because unknown is the responder saying it does not know",
+      "exports": ["createOcspRequest", "encodeOcspCertId", "parseOcspResponse", "verifyOcspSignature", "checkOcspStatus", "OCSP_NONCE_OID"],
+      "since": "0.5.0",
+      "cli": {
+        "commands": ["ocsp request", "ocsp cert-id", "ocsp inspect", "ocsp verify-signature", "ocsp check"]
+      },
+      "mcp": {
+        "tools": ["create_ocsp_request", "inspect_ocsp_response", "check_ocsp_status"]
+      }
+    },
+    {
+      "id": "cms-signed-data",
+      "capability": "Read, create and verify an RFC 5652 CMS SignedData — a .p7s, an S/MIME signature, a PDF /Contents — signed through Web Crypto or an external signer such as an HSM, and verified in one call that keeps intact (unaltered) apart from valid (unaltered and trusted)",
+      "exports": ["parseSignedData", "createSignedData", "addUnsignedAttribute", "verifySignerInfoSignature", "verifySignedData", "PkiCmsError"],
+      "since": "0.7.0",
+      "cli": {
+        "commands": ["cms sign", "cms verify", "cms inspect", "cms verify-signer", "cms add-attribute"]
+      },
+      "mcp": {
+        "tools": ["sign_cms", "verify_cms", "inspect_cms", "amend_cms"]
+      }
+    },
+    {
+      "id": "cms-timestamp",
+      "capability": "Request, read, verify and attach an RFC 3161 timestamp, and judge a signer at the time it proves — while the timestamp authority itself is judged at the time of verification, so a token cannot vouch for its own backdating",
+      "exports": ["createTimeStampRequest", "parseTimeStampResponse", "parseTimeStampToken", "parseTstInfo", "verifyTimeStampToken", "addTimeStampToken"],
+      "since": "0.7.0",
+      "cli": {
+        "commands": ["tsp request", "tsp inspect", "tsp verify", "cms add-timestamp"]
+      },
+      "mcp": {
+        "tools": ["create_timestamp_request", "inspect_timestamp", "verify_timestamp", "amend_cms"]
+      }
+    },
+    {
+      "id": "keys-pkcs8",
+      "capability": "Read a PKCS#8 private key, plain or under PBES2, and describe it without exposing its secret — then turn it into a non-extractable Web Crypto signing key, an encrypted one unwrapped by the host so that its plaintext never becomes a JavaScript value; every other password scheme is named and refused with the conversion to run",
+      "exports": ["parsePrivateKeyInfo", "parseEncryptedPrivateKeyInfo", "importPrivateKey", "decryptPrivateKey", "canDecrypt", "PkiKeyError"],
+      "since": "0.8.0",
+      "cli": {
+        "commands": ["key inspect", "key check"]
+      },
+      "mcp": {
+        "tools": ["inspect_private_key"]
+      }
+    },
+    {
+      "id": "keys-pkcs12",
+      "capability": "Open a PKCS#12 (.p12, .pfx) in one call — an RFC 9579 PBMAC1 checked, every SafeContents opened, every certificate parsed, every key unwrapped as the algorithm of its certificate — with integrity that fails closed on the RFC 7292 Appendix B MAC nothing here computes; or read it without a password and open it one step at a time",
+      "exports": ["openPkcs12", "parsePkcs12", "verifyPkcs12Mac", "openSafeContents"],
+      "since": "0.8.0",
+      "cli": {
+        "commands": ["p12 inspect", "p12 verify-mac", "p12 bags", "p12 open"]
+      },
+      "mcp": {
+        "tools": ["inspect_pkcs12", "open_pkcs12"]
+      }
+    }
   ]
 }

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP tool explorer — pkinative playground</title>
+  <meta name="description" content="Every tool of the pkinative-mcp 1.0.0 server in tools/list order, with a prompt, the tools/call arguments and a Run button that performs the engine call behind it in your browser. Client configuration, environment, prompts.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/playgrounds/mcp.html">
+  <meta property="og:title" content="MCP tool explorer — pkinative playground">
+  <meta property="og:description" content="The 34 tools of pkinative-mcp with their real arguments, runnable in your browser on the published engine. No server, nothing uploaded.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MCP tool explorer — pkinative playground">
+  <meta name="twitter:description" content="The tools of pkinative-mcp, their arguments, and the engine call behind each one, in your browser.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/playgrounds/mcp.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/playgrounds/mcp.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/playgrounds/mcp.html">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../guides/guide.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Playgrounds",
+            "item": "https://pkinative.dev/playgrounds/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "MCP tool explorer",
+            "item": "https://pkinative.dev/playgrounds/mcp.html"
+          }
+        ]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://pkinative.dev/playgrounds/mcp.html",
+        "url": "https://pkinative.dev/playgrounds/mcp.html",
+        "name": "MCP tool explorer — pkinative playground",
+        "description": "Every tool of the pkinative-mcp 1.0.0 server in tools/list order, with a prompt, the tools/call arguments and a Run button that performs the engine call behind it in your browser. Client configuration, environment, prompts.",
+        "inLanguage": "en",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires JavaScript, ES modules and Web Crypto",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        },
+        "about": {
+          "@type": "SoftwareApplication",
+          "name": "pkinative-mcp",
+          "softwareVersion": "1.0.0",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Node.js ^22.22.2, ^24.14.1 or >=25.8.2",
+          "url": "https://github.com/Nizoka/pkinative-mcp",
+          "downloadUrl": "https://www.npmjs.com/package/pkinative-mcp",
+          "license": "https://opensource.org/licenses/MIT"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body data-playground="mcp">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/">Guides</a></li>
+        <li><a href="../playgrounds/" aria-current="page">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Playgrounds</a> › MCP tool explorer</p>
+
+    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+      <a href="./certificate.html">Certificate inspector</a>
+      <a href="./asn1.html">ASN.1 tree</a>
+      <a href="./toolkit.html">PKI toolkit</a>
+      <a href="./cli.html">CLI builder</a>
+      <a href="./mcp.html" aria-current="page">MCP explorer</a>
+      <a class="playground-switcher-all" href="./">All →</a>
+    </nav>
+
+    <div class="guide-content">
+      <h1>MCP tool explorer</h1>
+      <p>What an AI assistant gets when you wire <a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a> 1.0.0 into Claude Desktop, Claude Code, Cursor, VS Code or any other Model Context Protocol client: 34 tools in six groups, seven prompts and the sandboxed <code>pkinative://output/{+path}</code> resources, over stdio or loopback Streamable HTTP, with no network access, ever.</p>
+      <p>Each card below shows what the tool is for, a prompt that makes an assistant reach for it, the <code>tools/call</code> arguments it would send — they validate against the server's own schemas — and a <strong>Run</strong> button that performs the engine call behind the tool in this tab, on the published <a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">pkinative</a> build. No install, no model, nothing uploaded. The <a href="../guides/mcp.html">MCP guide</a> holds the full reference.</p>
+
+      <h2 id="configure">Configure your client</h2>
+      <p>Paste the snippet into your client's MCP configuration and restart it. <code>npx -y</code> fetches the server on first use; it needs Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor). <code>PKINATIVE_MCP_OUTPUT_DIR</code> is optional: without it every tool works on inline PEM or base64 and nothing touches the filesystem.</p>
+      <div class="table-wrap">
+      <div class="tab-bar" role="tablist" aria-label="MCP client" id="config-tabs">
+        <button class="tab-btn active" type="button" role="tab" id="tab-desktop" aria-controls="panel-desktop" aria-selected="true">Claude Desktop</button>
+        <button class="tab-btn" type="button" role="tab" id="tab-code" aria-controls="panel-code" aria-selected="false" tabindex="-1">Claude Code</button>
+        <button class="tab-btn" type="button" role="tab" id="tab-cursor" aria-controls="panel-cursor" aria-selected="false" tabindex="-1">Cursor</button>
+        <button class="tab-btn" type="button" role="tab" id="tab-vscode" aria-controls="panel-vscode" aria-selected="false" tabindex="-1">VS Code</button>
+        <button class="tab-btn" type="button" role="tab" id="tab-http" aria-controls="panel-http" aria-selected="false" tabindex="-1">Streamable HTTP</button>
+      </div>
+      </div>
+      <div id="config-panels">
+        <div class="tab-panel active" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop"><pre tabindex="0" aria-label="Claude Desktop configuration"><code>// claude_desktop_config.json — ~/Library/Application Support/Claude/ (macOS), %APPDATA%\Claude\ (Windows)
+{
+  "mcpServers": {
+    "pkinative": {
+      "command": "npx",
+      "args": ["-y", "pkinative-mcp"],
+      "env": {
+        "PKINATIVE_MCP_OUTPUT_DIR": "/Users/you/Documents/mcp-pki"
+      }
+    }
+  }
+}</code></pre></div>
+        <div class="tab-panel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" hidden><pre tabindex="0" aria-label="Claude Code configuration"><code>// .mcp.json at the root of the project
+{
+  "mcpServers": {
+    "pkinative": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "pkinative-mcp"],
+      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "/absolute/path/to/your/project/.mcp-pki" }
+    }
+  }
+}</code></pre></div>
+        <div class="tab-panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" hidden><pre tabindex="0" aria-label="Cursor configuration"><code>// ~/.cursor/mcp.json
+{
+  "mcpServers": {
+    "pkinative": {
+      "command": "npx",
+      "args": ["-y", "pkinative-mcp"],
+      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "/Users/you/Documents/mcp-pki" }
+    }
+  }
+}</code></pre></div>
+        <div class="tab-panel" role="tabpanel" id="panel-vscode" aria-labelledby="tab-vscode" hidden><pre tabindex="0" aria-label="VS Code configuration"><code>// .vscode/mcp.json — the top-level key is "servers"
+{
+  "servers": {
+    "pkinative": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "pkinative-mcp"],
+      "env": { "PKINATIVE_MCP_OUTPUT_DIR": "${workspaceFolder}/.mcp-pki" }
+    }
+  }
+}</code></pre></div>
+        <div class="tab-panel" role="tabpanel" id="panel-http" aria-labelledby="tab-http" hidden><pre tabindex="0" aria-label="Streamable HTTP launch command"><code>PKINATIVE_MCP_PORT=3000 PKINATIVE_MCP_HTTP_TOKEN="$(openssl rand -hex 24)" PKINATIVE_MCP_OUTPUT_DIR=/srv/pki npx -y pkinative-mcp
+# stderr: [pkinative-mcp] ready (HTTP transport, MCP 2026-07-28 + legacy) on http://127.0.0.1:3000/mcp — bearer token required
+# every request: POST /mcp with Authorization: Bearer &lt;token&gt;</code></pre></div>
+      </div>
+      <div class="pg-toolbar">
+        <button class="btn btn-secondary" id="copy-config" type="button">Copy snippet</button>
+        <span class="pg-note" id="copy-status" role="status" aria-live="polite"></span>
+      </div>
+      <p>For Claude Code the value must be absolute: Claude Code does not expand <code>${CLAUDE_PROJECT_DIR}</code> here (it sets that variable only in the server's environment), and the server refuses a relative path.</p>
+      <p>Continue, Zed, Windsurf, Cline and Roo Code take the same <code>command</code> + <code>args</code> + <code>env</code> triple in their own files. Over HTTP the endpoint binds <code>127.0.0.1</code> only and answers <code>POST /mcp</code>; <strong>without <code>PKINATIVE_MCP_HTTP_TOKEN</code> it has no authentication</strong>, and other local processes can reach it. The server speaks MCP 2026-07-28 and falls back to every 2024–2025 revision a client opens with <code>initialize</code>. Its registry name is <code>io.github.Nizoka/pkinative-mcp</code>. More in <a href="../guides/mcp.html#configuration-by-client">Configuration by client</a>.</p>
+
+      <h2 id="environment">Operator environment</h2>
+      <p>Nine variables, declared in the server's <code>server.json</code> and read once at startup; an invalid value refuses to start, never a silent fallback. None of them can be set from a tool argument, and only the presence of a secret is ever logged.</p>
+      <div class="pg-table-wrap">
+        <table class="pg-table">
+          <thead><tr><th scope="col">Variable</th><th scope="col">Default</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>PKINATIVE_MCP_OUTPUT_DIR</td><td>unset</td><td class="pg-wrap">The one sandbox: every <code>path</code> input is read from it and <code>outputMode: 'file'</code> artefacts are written under it, never overwritten. A planted symlink or junction is <code>SECURITY_VIOLATION</code>; key-bearing files (<code>.key .p8 .p12 .pfx</code>) may be named by any <code>path</code> input — no tool returns their key bytes — but are never written, never listed and never served as resources. Unset: inline PEM and base64 only.</td></tr>
+            <tr><td>PKINATIVE_MCP_CACHE_DIR</td><td>unset</td><td class="pg-wrap">Opt-in content-addressed response cache (SHA-256 keyed, 1 h TTL, 256 MiB LRU, plaintext at rest). Never caches a path input, file output, a password or a signer, a random serial or nonce, an unpinned instant, <code>describe_engine</code> or <code>draft_governance_issue</code>.</td></tr>
+            <tr><td>PKINATIVE_MCP_PORT</td><td>unset → stdio</td><td class="pg-wrap">Serve Streamable HTTP on <code>http://127.0.0.1:&lt;port&gt;/mcp</code> instead of stdio. Unauthenticated unless the token below is set.</td></tr>
+            <tr><td>PKINATIVE_MCP_HTTP_TOKEN</td><td>unset</td><td class="pg-wrap">Secret. Bearer token for HTTP: at least 16 characters, no whitespace; compared in constant time, never logged. Without it on a request, 401.</td></tr>
+            <tr><td>PKINATIVE_MCP_PASSWORD</td><td>unset</td><td class="pg-wrap">Secret. The password of the encrypted PKCS#8 key or PKCS#12 the tools open, kept out of the model transcript. Exclusive with the per-call <code>password</code> input.</td></tr>
+            <tr><td>PKINATIVE_MCP_AT</td><td>unset → clock</td><td class="pg-wrap">Pinned instant (ISO 8601 or epoch milliseconds) every omitted <code>at</code>, <code>notBefore</code> and <code>signingTime</code> falls back to, for reproducible verdicts and artefacts.</td></tr>
+            <tr><td>PKINATIVE_MCP_MAX_INPUT_BYTES</td><td>67108864</td><td class="pg-wrap">Operator ceiling for <code>limits.maxInputBytes</code> and the decoded size of one PKI object; a per-call value above it is <code>LIMIT_CEILING_EXCEEDED</code>.</td></tr>
+            <tr><td>PKINATIVE_MCP_MAX_KDF_ITERATIONS</td><td>10000000</td><td class="pg-wrap">Operator ceiling for <code>limits.maxKdfIterations</code> and <code>limits.maxPkcs12KdfIterations</code>: the CPU bound of a hostile PBES2 key or PKCS#12.</td></tr>
+            <tr><td>PKINATIVE_MCP_MAX_PATHS_EXPLORED</td><td>1000</td><td class="pg-wrap">Operator ceiling for <code>limits.maxPathsExplored</code>: the RFC 5280 §6 path-building work bound.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The <a href="../guides/mcp.html#environment-variables">environment variables</a> section of the guide has the full rules.</p>
+
+      <h2 id="try">Try the tools</h2>
+      <p>Every card runs the engine call behind its tool on the arguments it shows. The certificate under test feeds the cards that read one certificate; the cards about paths use the Let's Encrypt samples in a fixed pairing, and the creation cards use the <strong>page sandbox</strong> described below. Files you drop feed the cards that need a CRL, an OCSP response, a CMS message, a time-stamp, a key or a PKCS#12.</p>
+    </div>
+
+    <div class="pg-toolbar">
+      <label class="sr-only" for="sample">Certificate under test</label>
+      <select class="pg-picker" id="sample">
+        <option value="letsencrypt-org-leaf">Loading the samples…</option>
+      </select>
+      <button class="btn btn-secondary" id="forget" type="button">Forget my files</button>
+    </div>
+    <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop PKI files here, or press Enter to choose them">Drop a certificate, CSR, CRL, OCSP response, .p7s, .tsr, a TEST key or a TEST .p12 here — or click to choose. It never leaves this tab.</div>
+    <input type="file" id="file" multiple hidden>
+    <p class="pg-status info" id="status" role="status" aria-live="polite">Loading pkinative@1.0.0 from the CDN…</p>
+
+    <div class="guide-content">
+      <h3 id="your-files-heading">Your files</h3>
+      <ul id="your-files"><li>None yet. Nothing you drop leaves this tab.</li></ul>
+      <p><label for="p12-password">PKCS#12 password, for <code>inspect_pkcs12</code> and <code>open_pkcs12</code> (stays in this tab, never enters the arguments):</label></p>
+      <input class="pg-picker" id="p12-password" type="password" autocomplete="off" spellcheck="false">
+
+      <h3 id="page-sandbox">The page sandbox</h3>
+      <p>On the server, a <code>path</code> argument names a file in the operator's <code>PKINATIVE_MCP_OUTPUT_DIR</code>. This page has no filesystem, so its <code>path</code> arguments resolve to the few objects it holds itself:</p>
+      <ul>
+        <li><code>keys/page-ca.key.pem</code> and <code>keys/page-leaf.key.pem</code> — two ECDSA P-256 keys <strong>this page generated</strong> with <code>crypto.subtle.generateKey</code>, non-extractable, gone when the tab closes. pkinative generates no key, and neither does the server: it signs with the key you give it.</li>
+        <li><code>page-ca.crt.pem</code>, <code>page-leaf.csr.pem</code>, <code>page-leaf.crt.pem</code> — what the <code>create_certificate</code> and <code>create_csr</code> cards made from them when the page loaded, and the SignedData the <code>sign_cms</code> card made over one sentence.</li>
+        <li><code>keys/your.key</code> and <code>keys/your.p12</code> — the TEST key or PKCS#12 you dropped. The arguments name a path rather than carrying the bytes on purpose: key material belongs in the operator's sandbox, never in a model transcript.</li>
+      </ul>
+      <p>Any other <code>path</code> answers <code>BROWSER_LIMITATION</code> — this page's own label, not one of the server's codes — with what the server does instead. The same label marks the rest a browser cannot reproduce: the response cache, the operator ceilings, the password from the environment, the governance drafter. Results are the tool's <code>structuredContent</code> shape with its key fields as the server names them; an artefact's bytes appear under <code>_resource</code>, where the server sends them once as an embedded resource block.</p>
+    </div>
+
+    <noscript><p class="pg-status info">The cards need JavaScript: they run the published engine in this tab. The <a href="../guides/mcp.html#tool-reference">tool reference</a> describes every tool without it.</p></noscript>
+    <div id="cards" class="guide-content"></div>
+
+    <div class="guide-content">
+      <h2 id="prompts">The prompts</h2>
+      <p>The server advertises seven prompts, read-only and without arguments: two carry the governance contract, five are PKI recipes that name the tools in order. A client lists them with <code>prompts/list</code>.</p>
+      <div class="pg-table-wrap">
+        <table class="pg-table">
+          <thead><tr><th scope="col">Prompt</th><th scope="col">What it walks through</th></tr></thead>
+          <tbody>
+            <tr><td>governance_contract</td><td class="pg-wrap">The agent drafts, the human decides: zero runtime dependencies, no autonomous GitHub writes, no network, no secret in a draft.</td></tr>
+            <tr><td>draft_issue_workflow</td><td class="pg-wrap">Drafting an issue with <code>draft_governance_issue</code> and handing it to a human for review and submission.</td></tr>
+            <tr><td>verify_before_trust</td><td class="pg-wrap"><code>inspect_certificate</code> → <code>verify_certificate_chain</code> with a pinned instant → offline revocation evidence, and why a verified signature is not trust.</td></tr>
+            <tr><td>issue_certificate</td><td class="pg-wrap">How <code>create_csr</code> and <code>create_certificate</code> chain together, what is verified before the bytes return, and the key, scheme and instant rules.</td></tr>
+            <tr><td>sign_and_timestamp</td><td class="pg-wrap"><code>sign_cms</code>, the counter time-stamp over the signature value (<code>create_timestamp_request</code> → your TSA → <code>amend_cms</code>), and <code>verify_cms</code> as the one verdict.</td></tr>
+            <tr><td>offline_revocation</td><td class="pg-wrap">Where to fetch CRL and OCSP evidence yourself, and how <code>check_crl_revocation</code>, <code>check_ocsp_status</code> and <code>verify_certificate_chain</code> judge the bytes you bring.</td></tr>
+            <tr><td>open_keys_safely</td><td class="pg-wrap"><code>inspect_private_key</code>, <code>inspect_pkcs12</code> and <code>open_pkcs12</code>: describe before opening, PBES2 and PBMAC1 only, the two password channels.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Once the configuration is in place, ask in plain words:</p>
+      <ul>
+        <li><em>"Is this server certificate trustworthy for shop.example today, given the CRL I fetched?"</em></li>
+        <li><em>"Make me a test CA and a leaf for svc.example.test from this CSR, valid 90 days, and prove the chain verifies."</em></li>
+        <li><em>"Sign this file detached, then tell me what a verifier will see in the .p7s."</em></li>
+        <li><em>"What is in this .p12 and how is it protected? Do not open it."</em></li>
+      </ul>
+
+      <h2 id="resources">Resources</h2>
+      <p>With <code>PKINATIVE_MCP_OUTPUT_DIR</code> set, every regular file in the sandbox is a resource under the template <code>pkinative://output/{+path}</code>, and an artefact written with <code>outputMode: 'file'</code> comes back as a <code>resource_link</code> to it — so <code>create_csr</code> → <code>create_certificate</code> → <code>verify_certificate_chain</code> never re-sends the bytes. Key-bearing files are never listed and never served, and key material is refused by content too, whatever the file name. This page has no sandbox, so it lists no resource.</p>
+
+      <h2 id="errors">Errors and verdicts</h2>
+      <p>A negative verdict is not an error: a verdict tool answers <code>valid: false</code> with the engine's <code>PKI_REASON_*</code> codes in <code>reasons[]</code>. <code>isError: true</code> means the input was refused — with one of pkinative's 57 error codes passed through verbatim, or one of the server's 21 wrapper codes for the boundary the engine does not own. Branch on the code, never on the message; <code>explain_code</code> explains each one, and the <a href="../guides/mcp.html#error-model">error model</a> lists the wrapper codes.</p>
+
+      <h2 id="limits">What this page does not do</h2>
+      <ul>
+        <li>It runs no MCP server and speaks no JSON-RPC: each Run is the engine call behind a tool, made in this tab. Where the browser result differs from the server's — the cache, the sandbox, the ceilings, the server half of <code>describe_engine</code> — the card says so.</li>
+        <li>It opens no connection but the one that loads pkinative@1.0.0 from esm.sh or jsDelivr, and the same-origin read of the code registries by <code>explain_code</code>. No CRL, OCSP or TSA is ever contacted — the server has no network code path either.</li>
+        <li>Nothing you drop or type is uploaded, stored or logged; reload the page and it is gone.</li>
+        <li>No key leaves the tab. The page generates its two keys as non-extractable, reads only their public halves, and describes the keys it unwraps from a PKCS#12 by algorithm and usages — never by a byte. Drop TEST material only all the same.</li>
+      </ul>
+
+      <h2 id="further">Further reading</h2>
+      <ul>
+        <li><a href="../guides/mcp.html">MCP guide</a> — configuration, every tool's inputs and outputs, prompts, resources, the error and security models.</li>
+        <li><a href="../guides/use-cases-mcp.html">MCP use cases</a> — four workflows followed call by call.</li>
+        <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp on GitHub</a> · <a href="https://www.npmjs.com/package/pkinative-mcp" target="_blank" rel="noopener">on npm</a></li>
+        <li><a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">The Model Context Protocol</a></li>
+      </ul>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka · engine: <span id="engine-source">loading…</span></span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="../app.js" defer></script>
+  <script type="module" src="mcp.js"></script>
+</body>
+</html>

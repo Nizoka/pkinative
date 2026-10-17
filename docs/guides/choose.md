@@ -1,4 +1,4 @@
-# Choosing a PKI library
+# Choosing a library and a surface
 
 > **Choose pkinative for strict, dependency-free PKI in any JavaScript runtime — certificates, paths and revocation, CMS and timestamps, PKCS#8 and PKCS#12 — with every refusal explained by a stable code. Choose another tool for what it will never do, listed below.**
 
@@ -12,7 +12,7 @@
 
 Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
-`docs/data/surfaces.json` lists each capability with the exports that provide it and the version that brought it.
+`docs/data/surfaces.json` lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.
 
 ## What it does not do, by design
 
@@ -49,3 +49,79 @@ node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinat
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
 - You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.
+
+## Choosing your surface
+
+pkinative reaches you three ways, and all three run the same engine: a verdict, a refusal code or an artefact does not depend on the surface that produced it. Pick the one that matches where your bytes live and who drives the call.
+
+| Surface | For | Pick it when |
+|---|---|---|
+| **The library**, `npm install pkinative` | Applications and services on any runtime with Web Crypto — Node.js, Deno, Bun, browsers, edge workers | The bytes live in memory, you want the whole typed API, or the key sits in an HSM or a remote service behind an `ExternalSigner` — which only the library takes. You own the I/O: the engine reads no file and opens no socket |
+| **[pkinative-cli](cli.md)**, the `pkinative` binary | Shell scripts, CI jobs, operators, and programs in any language that can run a process | Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, `--dry-run` and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv |
+| **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor) |
+
+The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
+
+Every capability `docs/data/surfaces.json` lists, by surface:
+
+| Capability | Library | CLI | MCP |
+|---|---|---|---|
+| `errors` — typed errors with stable codes | `PkiError` and its subclasses | every command: `error.pkiCode` in the `--json` envelope; `explain` | every tool: `_meta.error.code`; `explain_code` |
+| `limits` — named, CWE-tagged bounds | `DEFAULT_PKI_LIMITS`, the `limits` option | the 22 engine-limit `--max-*` flags (plus the CLI's `--max-content-size`); `limits` | the `limits` input of every engine tool, under the operator ceilings; `describe_engine` |
+| `asn1-decode` | `decodeAsn1`, `decodeAsn1Sequence` | `asn1 decode` (`--sequence`) | `decode_asn1` (`sequence`) |
+| `asn1-read` | `readInteger`, `readTime` and the other typed readers | `asn1 decode --path … --read …` | `decode_asn1` (`nodePath`, `read`) |
+| `asn1-encode` | `encodeSequence`, `encodeAsn1Node` and the other encoders | `asn1 encode`; `asn1 decode --reencode` | `encode_asn1`; `decode_asn1` (`reencode`) |
+| `oid` | `encodeOid`, `decodeOid`, `isValidOid`, `getOidName`, `OID_REGISTRY` | `oid name`, `encode`, `decode`, `validate`, `list` | `resolve_oid` |
+| `pem` | `decodePem`, `encodePem` | `pem decode`, `pem encode` | `convert_pem` |
+| `fingerprint` | `computeFingerprint`, `computeFingerprintAsync`, `formatFingerprint`, `computeKeyIdentifier`, `shake256` | `fingerprint` (`--key-id`, `--shake256`, `--webcrypto`) | `compute_fingerprint`; `inspect_certificate` (`fingerprints`) |
+| `x509-parse` | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` | `cert inspect`, `cert decode-extension` | `inspect_certificate`, `decode_extension` |
+| `x509-verify` | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` | `cert verify-signature`; `doctor` | `inspect_certificate` (`issuer`, `checkSelfSignature`); `describe_engine` |
+| `x509-create` | `createCertificate`, `createCertificationRequest`, the X.509 encoders, `canSign` | `cert create`, `csr create`, `cert encode`; `doctor` | `create_certificate`, `create_csr`, `encode_x509_structure`; `describe_engine` |
+| `x509-csr` | `parseCertificationRequest`, `verifyCertificationRequest` | `csr inspect`, `csr verify` | `inspect_csr` |
+| `x509-verify-chain` | `verifyCertificateChain` | `chain verify` | `verify_certificate_chain` |
+| `x509-path` | `buildCertificatePath`, `validateCertificatePath` | `chain build`, `chain validate` | `build_certificate_path`, `validate_certificate_path` |
+| `x509-server-name` | `checkServerName`, `matchDnsName` | `cert check-name`, `cert match-name`; `chain verify --host` | `check_certificate_name`; `verify_certificate_chain` (`serverName`) |
+| `x509-purpose` | `checkExtendedKeyUsage`, `KEY_PURPOSES`, `ANY_EXTENDED_KEY_USAGE` | `cert check-purpose`; `--purpose` on `chain` and `cms verify` | `check_certificate_purpose`; `purposes` on `verify_certificate_chain`, `build_certificate_path` and `verify_cms` |
+| `x509-crl` | `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` | `crl inspect`, `find`, `verify-signature`, `check` | `inspect_crl` (`find`, `issuer`), `check_crl_revocation` |
+| `x509-ocsp` | `createOcspRequest`, `encodeOcspCertId`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus` | `ocsp request`, `cert-id`, `inspect`, `verify-signature`, `check` | `create_ocsp_request` (`certIdOnly`), `inspect_ocsp_response` (`responder`), `check_ocsp_status` |
+| `cms-signed-data` | `createSignedData`, `parseSignedData`, `verifySignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute` | `cms sign`, `verify`, `inspect`, `verify-signer`, `add-attribute` | `sign_cms`, `verify_cms`, `inspect_cms` (`signerCertificate`), `amend_cms` (`add-unsigned-attribute`) |
+| `cms-timestamp` | `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken` | `tsp request`, `inspect`, `verify`; `cms add-timestamp` | `create_timestamp_request`, `inspect_timestamp`, `verify_timestamp`; `amend_cms` (`add-timestamp`) |
+| `keys-pkcs8` | `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey`, `canDecrypt` | `key inspect`, `key check`; `--key` on the signing commands; `doctor` | `inspect_private_key` (`tryImport`); `signer.key` on the signing tools; `describe_engine` |
+| `keys-pkcs12` | `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`, `openPkcs12` | `p12 inspect`, `verify-mac`, `bags`, `open`; `--p12` on the signing commands | `inspect_pkcs12`, `open_pkcs12`; `signer.p12` on the signing tools |
+
+What each surface adds around the engine, and what it leaves out — an em-dash means the surface does not offer it:
+
+| Capability | Library (`pkinative`) | CLI (`pkinative-cli`) | MCP (`pkinative-mcp`) |
+|---|---|---|---|
+| Where the bytes come from | `Uint8Array` values your code reads | a file, or `-` and a pipe on stdin | inline `pem` or `derBase64`, or a `path` inside the `PKINATIVE_MCP_OUTPUT_DIR` sandbox |
+| Writing an artefact | — (the bytes are returned; the engine writes no file) | `--output`, exclusive unless `--overwrite` (an atomic rename); `--dry-run` writes nothing | `outputMode: 'file'` inside the sandbox, never overwritten, returned as a `resource_link` |
+| A key outside the process (HSM, KMS, remote signer) | `ExternalSigner` | — (a PKCS#8 or PKCS#12 file) | — (`signer.key` or `signer.p12`) |
+| Passwords | your code passes them | `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`; never on the command line | the `password` input or `PKINATIVE_MCP_PASSWORD`, never both |
+| A negative verdict | `valid: false` and `reasons[]` | the report, then exit 1 (`E_VERIFY_FAILED` or `E_CHECK_FAILED`) | `valid: false` in `structuredContent`, never `isError` |
+| A reproducible instant | the `at` option | `--at` | the `at` input; `PKINATIVE_MCP_AT` for the whole server |
+| Diagnostics and strict mode | `onDiagnostic`, `strict` | `diagnostics` in the envelope, `--strict`, `--quiet` | `diagnostics[]` and `diagnosticCounts`, `strict: true` |
+| Capability preflight | `canSign`, `canVerify`, `canDecrypt` | `doctor` | `describe_engine` |
+| Machine contract | `docs/assets/api.json` and the registries of `docs/data/` | `schema` (twelve subjects), `--summary`, `--fields` | `inputSchema` and `outputSchema` in `tools/list`; `verbosity`, `fields` |
+| Shell completion | — | `completion` (bash, zsh, fish, PowerShell) | — |
+| Configuration file | — (options per call) | `.pkinativerc.json`, `--config`, `--no-config` — presentation defaults only | — (the nine `PKINATIVE_MCP_*` variables instead) |
+| Response cache | — | — | `PKINATIVE_MCP_CACHE_DIR` (opt-in, SHA-256 keyed) |
+| Transport | an in-process `import` | one process per command: the report on stdout, the `--json` envelope on stderr | stdio; Streamable HTTP on loopback, with an opt-in bearer token |
+| Guided workflows | — (`recipes/` in the repository) | — (`--help`, `docs/AGENT_CONTRACT.md`) | seven prompts (`prompts/list`) |
+| AI-governance drafter | — (repository policy, `npm run verify:issue`) | — (repository policy, `.github/drafts/`) | `draft_governance_issue`; the `governance_contract` and `draft_issue_workflow` prompts |
+| Exit codes | — | 0, 1, 2; 130 and 143 on SIGINT and SIGTERM | — (`isError` and JSON-RPC errors) |
+| Runtimes | any with Web Crypto: Node.js, Deno, Bun, browsers, edge workers | Node.js | Node.js |
+| Generating or exporting a key; fetching a CRL, an OCSP response or a timestamp | — | — | — |
+
+### Honest notes
+
+- **No surface generates or exports a key, and none fetches.** Web Crypto's `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md)), and the engine opens no socket ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)): keys come from your HSM, KMS or `openssl genpkey`, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.
+- **Only the CLI and the MCP sandbox write files.** The engine returns bytes. The CLI writes where you point it, exclusively unless `--overwrite`; the MCP server writes only under `PKINATIVE_MCP_OUTPUT_DIR`, never overwrites, and never writes, lists or serves a key-bearing file.
+- **A key in an HSM or a remote service reaches the library only.** Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an `ExternalSigner` is a library call.
+- **A satellite adds no PKI decision.** A `PKI_*`, `PKI_REASON_*` or `PKI_DIAG_*` code means the same on every surface. A CLI `E_*` class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.
+- **The table is the complete story** for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.
+
+### You can switch later
+
+All three surfaces call the same engine, so what one writes the others read: a certificate `create_certificate` writes into the sandbox verifies under `pkinative chain verify` and parses with `parseCertificate`, and a verdict carries the same reason codes wherever it was reached. `cert create --spec` and the `spec` input of `create_certificate` take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate `cert create` adds an `authorityKeyIdentifier` and `create_certificate` does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the "wrong" surface costs a call-site migration, not a re-authoring.
+
+The [CLI guide](cli.md) and the [MCP guide](mcp.md) document every command and tool; [CLI use cases](use-cases-cli.md) and [MCP use cases](use-cases-mcp.md) put them to work.

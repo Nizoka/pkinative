@@ -57,7 +57,6 @@
       "Read(docs/llms-index.json)",
       "Read(docs/assets/og-image.png)",
       "Read(docs/llms-recipes.txt)",
-      "Read(docs/playground/pkinative.js)",
       "Read(docs/assets/api.frozen.json)",
       "Read(docs/data/refusals.frozen.json)",
       "Read(scripts/data/limbo-refusals.json)",

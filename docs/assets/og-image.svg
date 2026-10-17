@@ -82,24 +82,26 @@
   <text x="80" y="472" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
         font-size="22" fill="#94a3b8">Zero dependencies — Node, browsers, Deno, Bun and Workers · every signature through Web Crypto</text>
 
-  <!-- The two highlighted pills take the slot zipnative gives CLI and MCP.
-       They are the only claims here a stranger can check without trusting us. -->
+  <!-- The two highlighted pills are the only claims here a stranger can
+       check without trusting us; the two dashed ones are the satellites,
+       pkinative-cli and pkinative-mcp, drawn as the architecture diagram
+       draws them — outside the package, on its one entry point. -->
   <g font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
      font-size="22" fill="#cbd5e1" text-anchor="middle">
     <rect x="80" y="510" width="152" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
     <text x="156" y="541">Strict DER</text>
     <rect x="248" y="510" width="148" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
     <text x="322" y="541">RFC 5280</text>
-    <rect x="412" y="510" width="98" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="461" y="541">PEM</text>
-    <rect x="526" y="510" width="102" height="48" rx="24" fill="#ffffff" fill-opacity="0.05" stroke="#334155"/>
-    <text x="577" y="541">OIDs</text>
-    <rect x="644" y="510" width="160" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
-    <text x="724" y="541" fill="#bfdbfe">x509-limbo</text>
-    <rect x="820" y="510" width="170" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
-    <text x="905" y="541" fill="#bfdbfe">Wycheproof</text>
+    <rect x="412" y="510" width="160" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="492" y="541" fill="#bfdbfe">x509-limbo</text>
+    <rect x="588" y="510" width="170" height="48" rx="24" fill="#3b82f6" fill-opacity="0.16" stroke="#3b82f6"/>
+    <text x="673" y="541" fill="#bfdbfe">Wycheproof</text>
+    <rect x="774" y="510" width="90" height="48" rx="24" fill="none" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <text x="819" y="541" fill="#bfdbfe">CLI</text>
+    <rect x="880" y="510" width="168" height="48" rx="24" fill="none" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <text x="964" y="541" fill="#bfdbfe">MCP server</text>
   </g>
 
   <text x="1120" y="596" text-anchor="end" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-        font-size="20" fill="#475569">library · MIT · open source · npm install pkinative</text>
+        font-size="20" fill="#475569">library · CLI · MCP server · MIT · npm install pkinative</text>
 </svg>

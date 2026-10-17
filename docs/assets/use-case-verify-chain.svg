@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucvch-title ucvch-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucvch-title">Just tell me whether to accept this certificate</title>
+  <desc id="ucvch-desc">Architecture: the leaf and its candidates, your policy (trustAnchors, serverName, purposes, at) and the CRLs and OCSP responses you fetched flow into verifyCertificateChain, which runs in order: build the path with the purpose in hand, verifying a link only when the search relies on it; check the host name; check revocation by CRL and OCSP. Out comes one report, valid only when reasons is empty, every reason with code, path and message. Bands: bad input is a reason, never a throw, and a link with no verdict is never assumed valid; nothing is fetched, and revocation is soft-fail by default.</desc>
+
+  <defs>
+    <marker id="ucvch-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ucvch-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="ucvch-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Just tell me whether to accept this certificate</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">verifyCertificateChain — path, host name, purpose and revocation, composed once, in one report</text>
+
+  <!-- Presented (indigo) -->
+  <rect x="40" y="92" width="210" height="72" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="145" y="117" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Presented</text>
+  <text x="145" y="137" text-anchor="middle" font-size="11.5" fill="#4F46E5">leaf + candidates</text>
+  <text x="145" y="154" text-anchor="middle" font-size="11.5" fill="#4F46E5">in any order — a bag</text>
+
+  <!-- Your policy (indigo) -->
+  <rect x="40" y="178" width="210" height="92" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="145" y="203" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Your policy</text>
+  <text x="145" y="223" text-anchor="middle" font-size="11.5" fill="#4F46E5">trustAnchors — your roots</text>
+  <text x="145" y="241" text-anchor="middle" font-size="11.5" fill="#4F46E5">serverName · purposes</text>
+  <text x="145" y="259" text-anchor="middle" font-size="11.5" fill="#4F46E5">at — now by default</text>
+
+  <!-- Evidence (indigo) -->
+  <rect x="40" y="284" width="210" height="96" rx="10" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="145" y="309" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730A3">Evidence you fetched</text>
+  <text x="145" y="329" text-anchor="middle" font-size="11.5" fill="#4F46E5">crls · ocspResponses, DER</text>
+  <text x="145" y="347" text-anchor="middle" font-size="11.5" fill="#4F46E5">as downloaded or stapled</text>
+  <text x="145" y="365" text-anchor="middle" font-size="11.5" fill="#4F46E5">pkinative fetches neither</text>
+
+  <line x1="250" y1="150" x2="282" y2="150" stroke="#475569" stroke-width="1.75" marker-end="url(#ucvch-ah)"/>
+  <line x1="250" y1="224" x2="282" y2="224" stroke="#475569" stroke-width="1.75" marker-end="url(#ucvch-ah)"/>
+  <line x1="250" y1="330" x2="282" y2="330" stroke="#475569" stroke-width="1.75" marker-end="url(#ucvch-ah)"/>
+
+  <!-- Engine (cyan) -->
+  <rect x="286" y="88" width="356" height="300" rx="12" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="464" y="112" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">verifyCertificateChain — in this order</text>
+
+  <rect x="302" y="126" width="324" height="72" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="464" y="150" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">1 · Build the path, purpose in hand</text>
+  <text x="464" y="170" text-anchor="middle" font-size="11.5" fill="#0E7490">a link's signature verified only when relied on</text>
+  <text x="464" y="188" text-anchor="middle" font-size="11.5" fill="#0E7490">RFC 5280 §6 · bounded by maxPathsExplored</text>
+
+  <line x1="464" y1="198" x2="464" y2="208" stroke="#475569" stroke-width="1.75" marker-end="url(#ucvch-ah)"/>
+
+  <rect x="302" y="212" width="324" height="56" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="464" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">2 · The host name — checkServerName</text>
+  <text x="464" y="255" text-anchor="middle" font-size="11.5" fill="#0E7490">RFC 6125, the strict way: subjectAltName wins</text>
+
+  <line x1="464" y1="268" x2="464" y2="278" stroke="#475569" stroke-width="1.75" marker-end="url(#ucvch-ah)"/>
+
+  <rect x="302" y="282" width="324" height="92" rx="10" fill="#FFFFFF" stroke="#5EBECF" stroke-width="1.25"/>
+  <text x="464" y="306" text-anchor="middle" font-size="13" font-weight="700" fill="#155E75">3 · Revocation</text>
+  <text x="464" y="326" text-anchor="middle" font-size="11.5" fill="#0E7490">checkRevocation — CRLs, deltas paired</text>
+  <text x="464" y="344" text-anchor="middle" font-size="11.5" fill="#0E7490">checkOcspStatus — all three CertID fields</text>
+  <text x="464" y="362" text-anchor="middle" font-size="11.5" fill="#0E7490">the signer's entitlement checked too</text>
+
+  <!-- to the outputs -->
+  <line x1="642" y1="150" x2="660" y2="150" stroke="#16A34A" stroke-width="2" marker-end="url(#ucvch-ah-green)"/>
+  <line x1="642" y1="300" x2="660" y2="300" stroke="#DC2626" stroke-width="2" marker-end="url(#ucvch-ah-red)"/>
+
+  <!-- Report (amber) -->
+  <rect x="664" y="92" width="256" height="118" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="792" y="118" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">One report</text>
+  <text x="792" y="140" text-anchor="middle" font-size="11.5" fill="#B45309">valid · path · explored</text>
+  <text x="792" y="158" text-anchor="middle" font-size="11.5" fill="#B45309">every reason, not the first</text>
+  <text x="792" y="176" text-anchor="middle" font-size="11.5" fill="#B45309">code · path · message · standard</text>
+  <text x="792" y="194" text-anchor="middle" font-size="11.5" fill="#B45309">signatureVerifications — log it</text>
+
+  <!-- Reasons (red) -->
+  <rect x="664" y="228" width="256" height="138" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="792" y="254" text-anchor="middle" font-size="13.5" font-weight="700" fill="#991B1B">Reasons, for example</text>
+  <text x="792" y="276" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_SIGNATURE_NOT_CHECKED</text>
+  <text x="792" y="294" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_NAME_MISMATCH</text>
+  <text x="792" y="312" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_PURPOSE_NOT_PERMITTED</text>
+  <text x="792" y="330" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_REVOKED</text>
+  <text x="792" y="348" text-anchor="middle" font-size="11.5" fill="#B91C1C">PKI_REASON_REVOCATION_UNKNOWN</text>
+
+  <!-- guarantees band (green) -->
+  <rect x="40" y="416" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="440" text-anchor="middle" font-size="12.5" font-weight="600" fill="#166534">The one place in src/ that turns a PkiError into a reason: bad input is PKI_REASON_INPUT_MALFORMED, never a throw.</text>
+  <text x="480" y="460" text-anchor="middle" font-size="12.5" fill="#16A34A">A link with no verdict is PKI_REASON_SIGNATURE_NOT_CHECKED, never assumed valid; SHA-1 is not evidence unless allowSha1.</text>
+
+  <!-- limits band (slate) -->
+  <rect x="40" y="486" width="880" height="56" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="509" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Honest limits: it fetches nothing — not a CRL, not an OCSP response, not a missing intermediate. Choosing anchors is yours.</text>
+  <text x="480" y="528" text-anchor="middle" font-size="12" fill="#475569">Revocation is soft-fail by default; requireRevocation: true turns silence into PKI_REASON_REVOCATION_UNKNOWN.</text>
+</svg>

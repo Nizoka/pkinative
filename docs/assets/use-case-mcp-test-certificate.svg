@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="ucmc-title ucmc-desc" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">
+  <title id="ucmc-title">Issuing a test certificate</title>
+  <desc id="ucmc-desc">Architecture: following the issue_certificate prompt, an MCP agent chains four pkinative-mcp calls with outputMode file: create_certificate for a self-signed CA, create_csr for the request, create_certificate for the leaf signed by that CA, then verify_certificate_chain to prove it. The engine signs with the caller's keys, read by path from the PKINATIVE_MCP_OUTPUT_DIR sandbox, and verifies each artefact before writing it; the result is a resource_link, not the bytes. Refusals are isError wrapper codes. Limits: the ECDSA-signed CSR is non-idempotent; RSA needs rsaScheme.</desc>
+
+  <defs>
+    <marker id="ucmc-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ucmc-ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="ucmc-ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="#F8FAFC"/>
+  <text x="480" y="42" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Issuing a test certificate</text>
+  <text x="480" y="66" text-anchor="middle" font-size="13" fill="#64748B">issue_certificate prompt · a CA, a request and a leaf written into the sandbox, then proved — pkinative-mcp 1.0.0</text>
+
+  <!-- Result path: resource_link back to the agent (routed above the row) -->
+  <path d="M420 116 L420 100 L125 100 L125 114" fill="none" stroke="#16A34A" stroke-width="1.75" stroke-dasharray="6 5" marker-end="url(#ucmc-ah-green)"/>
+  <text x="480" y="92" text-anchor="middle" font-size="11" fill="#15803D">tools/call result: resource_link + { sizeBytes, sha256, summary } — the artefact bytes never enter the model context</text>
+
+  <!-- Agent -->
+  <rect x="40" y="116" width="170" height="128" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.25"/>
+  <text x="125" y="140" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">Agent</text>
+  <text x="125" y="158" text-anchor="middle" font-size="11.5" fill="#64748B">MCP client</text>
+  <rect x="52" y="168" width="146" height="42" rx="8" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="1.25"/>
+  <text x="125" y="185" text-anchor="middle" font-size="11" fill="#4F46E5">prompts/get</text>
+  <text x="125" y="201" text-anchor="middle" font-size="11.5" font-weight="700" fill="#3730A3">issue_certificate</text>
+  <text x="125" y="231" text-anchor="middle" font-size="11.5" fill="#64748B">“a CA and a TLS cert”</text>
+
+  <line x1="210" y1="180" x2="238" y2="180" stroke="#475569" stroke-width="1.75" marker-end="url(#ucmc-ah)"/>
+
+  <!-- Refusals -->
+  <rect x="40" y="268" width="170" height="124" rx="10" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.25"/>
+  <text x="125" y="289" text-anchor="middle" font-size="13" font-weight="700" fill="#991B1B">Refusals (isError)</text>
+  <text x="125" y="309" text-anchor="middle" font-size="11" fill="#B91C1C">RSA_SCHEME_REQUIRED</text>
+  <text x="125" y="325" text-anchor="middle" font-size="11" fill="#B91C1C">SECRET_REQUIRED</text>
+  <text x="125" y="341" text-anchor="middle" font-size="11" fill="#B91C1C">KEY_TYPE_REQUIRED</text>
+  <text x="125" y="357" text-anchor="middle" font-size="11" fill="#B91C1C">KEY_MISMATCH</text>
+  <text x="125" y="373" text-anchor="middle" font-size="11" fill="#B91C1C">OUTPUT_EXISTS</text>
+
+  <line x1="240" y1="330" x2="212" y2="330" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ucmc-ah-red)"/>
+
+  <!-- Server -->
+  <rect x="240" y="116" width="360" height="276" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="137" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E40AF">pkinative-mcp — outputMode: 'file'</text>
+  <rect x="252" y="146" width="336" height="50" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="165" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">1 · create_certificate — the CA</text>
+  <text x="420" y="183" text-anchor="middle" font-size="11" fill="#3B82F6">self-signed, pinned serial → out/acme-ca.pem</text>
+  <rect x="252" y="202" width="336" height="50" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="221" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">2 · create_csr — the request</text>
+  <text x="420" y="239" text-anchor="middle" font-size="11" fill="#3B82F6">proof of possession checked → out/svc.csr.pem</text>
+  <rect x="252" y="258" width="336" height="50" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="277" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">3 · create_certificate — the leaf</text>
+  <text x="420" y="295" text-anchor="middle" font-size="11" fill="#3B82F6">CA-signed, key from the CSR → out/svc.crt.pem</text>
+  <rect x="252" y="314" width="336" height="50" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="420" y="333" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1E40AF">4 · verify_certificate_chain — prove it</text>
+  <text x="420" y="351" text-anchor="middle" font-size="11" fill="#3B82F6">the leaf, the new CA as anchor → valid: true</text>
+  <text x="420" y="381" text-anchor="middle" font-size="11" fill="#3B82F6">signer.key by path — no key generated or exported</text>
+
+  <line x1="600" y1="172" x2="628" y2="172" stroke="#475569" stroke-width="1.75" marker-end="url(#ucmc-ah)"/>
+
+  <!-- Engine -->
+  <rect x="630" y="116" width="290" height="104" rx="10" fill="#ECFEFF" stroke="#5EBECF" stroke-width="1.5"/>
+  <text x="775" y="140" text-anchor="middle" font-size="14" font-weight="700" fill="#155E75">pkinative engine</text>
+  <text x="775" y="162" text-anchor="middle" font-size="11.5" fill="#0E7490">builds the DER · one Web Crypto sign</text>
+  <text x="775" y="180" text-anchor="middle" font-size="11.5" fill="#0E7490">with the caller's key, never generated</text>
+  <text x="775" y="198" text-anchor="middle" font-size="11.5" fill="#0E7490">verified before the bytes are written</text>
+
+  <!-- Server ↔ sandbox -->
+  <line x1="600" y1="318" x2="628" y2="318" stroke="#475569" stroke-width="1.75" marker-start="url(#ucmc-ah)" marker-end="url(#ucmc-ah)"/>
+
+  <!-- Sandbox -->
+  <rect x="630" y="244" width="290" height="148" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.25"/>
+  <text x="775" y="266" text-anchor="middle" font-size="12.5" font-weight="700" fill="#92400E">PKINATIVE_MCP_OUTPUT_DIR — the sandbox</text>
+  <text x="775" y="288" text-anchor="middle" font-size="11" fill="#B45309">read by path: fixtures/ed25519.key.pem,</text>
+  <text x="775" y="304" text-anchor="middle" font-size="11" fill="#B45309">fixtures/leaf.key.pem — never written</text>
+  <text x="775" y="326" text-anchor="middle" font-size="11" fill="#B45309">written: out/acme-ca.pem, out/svc.csr.pem,</text>
+  <text x="775" y="342" text-anchor="middle" font-size="11" fill="#B45309">out/svc.crt.pem — never overwritten</text>
+  <text x="775" y="366" text-anchor="middle" font-size="11" fill="#B45309">resources: pkinative://output/{+path}</text>
+
+  <!-- Guarantees -->
+  <rect x="40" y="414" width="880" height="56" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="480" y="437" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">Verified before written: the CSR's proof of possession, the leaf against its issuer (summary.signatureVerified: true).</text>
+  <text x="480" y="457" text-anchor="middle" font-size="12" fill="#16A34A">Ed25519 signer, pinned serials and notBefore: the CA and the leaf hash the same on every run. No key is generated or exported.</text>
+
+  <!-- Limits -->
+  <rect x="40" y="482" width="880" height="52" rx="12" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="503" text-anchor="middle" font-size="12" fill="#475569">Limits: the ECDSA-signed CSR hashes differently on every run — create_csr, like a 'random' serial, is non-idempotent.</text>
+  <text x="480" y="522" text-anchor="middle" font-size="12" fill="#475569">An RSA signer needs rsaScheme 'pkcs1' or 'pss' (no default); SHA-1 needs allowSha1: true; the server never overwrites a file.</text>
+</svg>

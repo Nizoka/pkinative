@@ -162,4 +162,37 @@
       activateTab(tabBtns[next]);
     });
   });
+
+  // ── Install switcher (library / CLI / MCP server) ─────────
+  // The zipnative pattern, with the same WAI-ARIA keyboard model as the code
+  // tabs. The library panel stays first in the markup: it is the install
+  // command `install-url-version` reads.
+  var installBtns = document.querySelectorAll('.install-bar .install-btn');
+  var installPanels = document.querySelectorAll('.install-panel');
+
+  function activateInstall(btn) {
+    var id = btn.getAttribute('data-install');
+    installBtns.forEach(function (b) {
+      var on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.setAttribute('tabindex', on ? '0' : '-1');
+    });
+    installPanels.forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-install') === id); });
+  }
+
+  installBtns.forEach(function (btn, i) {
+    btn.addEventListener('click', function () { activateInstall(btn); });
+    btn.addEventListener('keydown', function (e) {
+      var next = null;
+      if (e.key === 'ArrowRight') next = (i + 1) % installBtns.length;
+      else if (e.key === 'ArrowLeft') next = (i - 1 + installBtns.length) % installBtns.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = installBtns.length - 1;
+      if (next === null) return;
+      e.preventDefault();
+      installBtns[next].focus();
+      activateInstall(installBtns[next]);
+    });
+  });
 })();

@@ -6,6 +6,10 @@ Paste this into a coding agent's context before it writes code that reads, build
 
 One entry point, no subpaths: import every name from `'pkinative'`. Every export, its module, signature and thrown error classes are in `docs/assets/api.json` — check a name there before using it; never invent one.
 
+## Surfaces
+
+Writing code: the library itself, from npm. Driving a shell or a CI job: [pkinative-cli](https://pkinative.dev/guides/cli.md), the `pkinative` command — pass `--json` (or set `PKINATIVE_JSON=1`), branch on the exit code (0, 1 a failure or a negative verdict, 2 a usage error) and on `error.pkiCode`, never on a message, and give passwords through `--password-file`, `--password-stdin` or `PKINATIVE_PASSWORD`, never on the command line. Giving an assistant tools: [pkinative-mcp](https://pkinative.dev/guides/mcp.md), `npx -y pkinative-mcp` — a negative verdict is data, not `isError`. Both pin `pkinative ^1.0.0`, run offline and carry the same `PKI_*` codes; [surfaces.json](https://pkinative.dev/data/surfaces.json) maps every capability to its export, command line and tool.
+
 ## Read a certificate
 
 ```ts

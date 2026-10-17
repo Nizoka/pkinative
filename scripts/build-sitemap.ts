@@ -27,7 +27,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GUIDES, SITE } from './build-guides.js';
+import { GUIDES, isRedirectStub, SITE } from './build-guides.js';
 
 /** Repository-relative POSIX paths of every `.html` file under `docs/`, sorted. */
 export function htmlPagesOf(root: string): string[] {
@@ -66,6 +66,8 @@ export function renderSitemap(pages: ReadonlyMap<string, string>, lastmod: strin
     const urls: string[] = [];
     const missing: string[] = [];
     for (const [path, html] of pages) {
+        // A redirect stub canonicalises to its replacement, which is listed on its own.
+        if (isRedirectStub(html)) continue;
         const canonical = /<link rel="canonical" href="([^"]+)">/.exec(html)?.[1];
         if (canonical === undefined) missing.push(path);
         else urls.push(canonical);
@@ -89,5 +91,5 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.
     const target = join(root, 'docs/sitemap.xml');
     const changed = readFileSync(target, 'utf8') !== xml;
     if (changed) writeFileSync(target, xml);
-    console.error(`build-sitemap: ${String(pages.size - missing.length)} URL(s), ${changed ? 'written' : 'unchanged'}`);
+    console.error(`build-sitemap: ${String(xml.split('<url>').length - 1)} URL(s), ${changed ? 'written' : 'unchanged'}`);
 }

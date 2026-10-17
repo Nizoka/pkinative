@@ -15,7 +15,8 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import { footerHtml, GUIDES, guideAnchors, guideOutputs, navHtml, SITE, type NavSection, type Reader } from '../../build-guides.js';
+import ts from 'typescript';
+import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, NO_ENGINE_SLOT, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
 import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
@@ -138,11 +139,13 @@ const anchorParity: Rule = {
 // ── Site metadata ────────────────────────────────────────────────────
 
 const htmlPages = (ctx: RuleContext): string[] => ctx.list('docs').filter((p) => p.endsWith('.html'));
+/** The pages of the site: every HTML file under docs/ but the noindex redirect stubs (`redirect-stubs` holds those). */
+const sitePages = (ctx: RuleContext): string[] => htmlPages(ctx).filter((p) => !isRedirectStub(ctx.read(p) ?? ''));
 const canonicalOf = (html: string): string | undefined => /<link rel="canonical" href="([^"]+)">/.exec(html)?.[1];
 
 const seoHead: Rule = {
     id: 'seo-head',
-    summary: 'Every page under docs/ declares its language, viewport, title, description, canonical URL on pkinative.dev, Open Graph title, description and image, and a favicon.',
+    summary: 'Every page under docs/ but a noindex redirect stub declares its language, viewport, title, description, canonical URL on pkinative.dev, Open Graph title, description and image, and a favicon.',
     check(ctx) {
         const out: Finding[] = [];
         const required: Array<[string, RegExp]> = [
@@ -156,7 +159,7 @@ const seoHead: Rule = {
             ['og:image', /<meta property="og:image" content="https:\/\/[^"]+">/],
             ['a favicon', /<link rel="icon" [^>]*href="[^"]+">/],
         ];
-        for (const path of htmlPages(ctx)) {
+        for (const path of sitePages(ctx)) {
             const html = ctx.read(path) ?? '';
             for (const [what, pattern] of required) if (!pattern.test(html)) out.push(error(path, `lacks ${what}`));
         }
@@ -166,7 +169,7 @@ const seoHead: Rule = {
 
 const sitemapParity: Rule = {
     id: 'sitemap-parity',
-    summary: 'docs/sitemap.xml lists exactly the canonical URL of every page under docs/, each with a <lastmod> equal to verifiedOn of docs/assets/ecosystem.json — the date of the last documentation audit, never a guessed modification date.',
+    summary: 'docs/sitemap.xml lists exactly the canonical URL of every page under docs/ but the noindex redirect stubs, each with a <lastmod> equal to verifiedOn of docs/assets/ecosystem.json — the date of the last documentation audit, never a guessed modification date.',
     check(ctx) {
         const sitemap = ctx.read('docs/sitemap.xml');
         if (sitemap === null) return [error('docs/sitemap.xml', 'missing')];
@@ -174,7 +177,7 @@ const sitemapParity: Rule = {
         if ('finding' in manifest) return [manifest.finding];
         const out: Finding[] = [];
         const listed = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1] ?? '').sort();
-        const canonical = htmlPages(ctx).map((p) => canonicalOf(ctx.read(p) ?? '') ?? `(no canonical in ${p})`).sort();
+        const canonical = sitePages(ctx).map((p) => canonicalOf(ctx.read(p) ?? '') ?? `(no canonical in ${p})`).sort();
         if (listed.join('\n') !== canonical.join('\n')) out.push(error('docs/sitemap.xml', `lists ${listed.join(', ')}; the pages declare ${canonical.join(', ')}`));
         const verifiedOn = String(manifest.value.verifiedOn ?? '');
         for (const m of sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
@@ -281,7 +284,7 @@ const socialImages: Rule = {
 
 const cdnSri: Rule = {
     id: 'cdn-sri',
-    summary: 'Every third-party script and stylesheet a page under docs/ loads carries both `integrity` and `crossorigin` — a CDN that is ever compromised must not be able to execute in a reader\'s browser. Self-referencing links (canonical, hreflang, alternate) are not loads and are out of scope.',
+    summary: 'Every third-party script and stylesheet a page under docs/ loads carries both `integrity` and `crossorigin` — a CDN that is ever compromised must not be able to execute in a reader\'s browser. Self-referencing links (canonical, hreflang, alternate) are not loads and are out of scope, and so is the playgrounds\' dynamic `import()` of the published package, which no browser can pin by hash: ADR 0023 records why, and `cdn-pin` holds it to an exact version.',
     check(ctx) {
         const out: Finding[] = [];
         for (const path of htmlPages(ctx)) {
@@ -307,14 +310,17 @@ const cdnSri: Rule = {
  */
 const HAND_WRITTEN_PAGES: ReadonlyArray<readonly [path: string, prefix: string, current: NavSection]> = [
     ['docs/index.html', '', null],
-    ['docs/playground/index.html', '../', 'playgrounds'],
-    ['docs/playground/certificate.html', '../', 'playgrounds'],
-    ['docs/playground/asn1.html', '../', 'playgrounds'],
+    ['docs/playgrounds/index.html', '../', 'playgrounds'],
+    ['docs/playgrounds/certificate.html', '../', 'playgrounds'],
+    ['docs/playgrounds/asn1.html', '../', 'playgrounds'],
+    ['docs/playgrounds/toolkit.html', '../', 'playgrounds'],
+    ['docs/playgrounds/cli.html', '../', 'playgrounds'],
+    ['docs/playgrounds/mcp.html', '../', 'playgrounds'],
 ];
 
 const chromeParity: Rule = {
     id: 'chrome-parity',
-    summary: 'Every hand-written page under docs/ carries, byte for byte, the nav and footer that scripts/build-guides.ts renders into the generated guides — which is what lets the landing page stay hand-written without the site half-adopting a redesign the guides already have.',
+    summary: 'Every hand-written page under docs/ carries, byte for byte, the nav and footer that scripts/build-guides.ts renders into the generated guides, and every playground the switcher it renders from PLAYGROUNDS — which is what lets the landing page stay hand-written without the site half-adopting a redesign the guides already have.',
     check(ctx) {
         const manifest = readJson<{ verifiedOn?: unknown }>(ctx, MANIFEST);
         if ('finding' in manifest) return [manifest.finding];
@@ -322,9 +328,11 @@ const chromeParity: Rule = {
         // The landing page alone carries the audit date in its meta line;
         // taking it from the manifest here means this rule also proves the
         // footer quotes the date the manifest declares.
+        // A playground names, in the same line, the CDN build it ran.
+        const isPlayground = (path: string): boolean => path.startsWith('docs/playgrounds/') && !path.endsWith('/index.html');
         const extraFor = (path: string): string => (path === 'docs/index.html'
             ? ` · verified <time id="verified-on" datetime="${verifiedOn}">${verifiedOn}</time>`
-            : '');
+            : path === 'docs/playgrounds/cli.html' ? NO_ENGINE_SLOT : isPlayground(path) ? ENGINE_SOURCE_SLOT : '');
 
         const out: Finding[] = [];
         for (const [path, prefix, current] of HAND_WRITTEN_PAGES) {
@@ -333,6 +341,7 @@ const chromeParity: Rule = {
             const expected: ReadonlyArray<readonly [string, string]> = [
                 ['nav', navHtml(prefix, current)],
                 ['footer', footerHtml(prefix, extraFor(path))],
+                ...(isPlayground(path) ? [['playground switcher', switcherHtml(posix.basename(path))] as const] : []),
             ];
             for (const [what, block] of expected) {
                 if (!html.replace(/\r\n/g, '\n').includes(block)) {
@@ -346,22 +355,41 @@ const chromeParity: Rule = {
 
 const jsonLdVersion: Rule = {
     id: 'jsonld-version',
-    summary: 'The JSON-LD of docs/index.html parses and declares the softwareVersion of docs/assets/ecosystem.json.',
+    summary: 'Every schema.org node under docs/ that declares a softwareVersion — the library, pkinative-cli, pkinative-mcp, on any page and at any depth (about, mainEntity) — names a package of docs/assets/ecosystem.json and declares that package\'s version; the landing page declares the library\'s.',
     check(ctx) {
-        const html = ctx.read('docs/index.html') ?? '';
-        const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1];
-        const ecosystem = readJson<{ packages?: { pkinative?: { version?: string } } }>(ctx, 'docs/assets/ecosystem.json');
+        const ecosystem = readJson<{ packages?: Record<string, { version?: string }> }>(ctx, MANIFEST);
         if ('finding' in ecosystem) return [ecosystem.finding];
-        if (block === undefined) return [error('docs/index.html', 'has no JSON-LD block')];
-        let declared: string | undefined;
-        try {
-            const graph = (JSON.parse(block) as { '@graph'?: Array<{ softwareVersion?: string }> })['@graph'] ?? [];
-            declared = graph.find((node) => node.softwareVersion !== undefined)?.softwareVersion;
-        } catch (err) {
-            return [error('docs/index.html', `JSON-LD is not valid JSON — ${(err as Error).message}`, lineContaining(html, 'ld+json'))];
+        const packages = ecosystem.value.packages ?? {};
+        const out: Finding[] = [];
+        let libraryOnLanding = false;
+        for (const path of sitePages(ctx)) {
+            const html = ctx.read(path) ?? '';
+            for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
+                let root: unknown;
+                try {
+                    root = JSON.parse(m[1] ?? '');
+                } catch (err) {
+                    out.push(error(path, `JSON-LD is not valid JSON — ${(err as Error).message}`, lineContaining(html, 'ld+json')));
+                    continue;
+                }
+                const walk = (node: unknown): void => {
+                    if (Array.isArray(node)) { node.forEach(walk); return; }
+                    if (typeof node !== 'object' || node === null) return;
+                    const record = node as Record<string, unknown>;
+                    if (typeof record['softwareVersion'] === 'string') {
+                        const name = String(record['name']);
+                        const want = packages[name]?.version;
+                        if (want === undefined) out.push(error(path, `JSON-LD declares softwareVersion for "${name}", which is not a package of ${MANIFEST}`, lineContaining(html, `"name": "${name}"`)));
+                        else if (record['softwareVersion'] !== want) out.push(error(path, `JSON-LD says ${name} is ${String(record['softwareVersion'])}; ${MANIFEST} says ${want}`, lineContaining(html, 'softwareVersion')));
+                        if (path === 'docs/index.html' && name === 'pkinative' && record['softwareVersion'] === want) libraryOnLanding = true;
+                    }
+                    for (const value of Object.values(record)) walk(value);
+                };
+                walk(root);
+            }
         }
-        const version = ecosystem.value.packages?.pkinative?.version;
-        return declared === version ? [] : [error('docs/index.html', `JSON-LD softwareVersion is ${String(declared)}; ecosystem.json says ${String(version)}`, lineContaining(html, 'softwareVersion'))];
+        if (!libraryOnLanding) out.push(error('docs/index.html', `its JSON-LD declares no softwareVersion for pkinative equal to ${String(packages['pkinative']?.version)}`));
+        return out;
     },
 };
 
@@ -379,7 +407,7 @@ const verifiedOnParity: Rule = {
 
 // ── Names and numbers the docs quote ─────────────────────────────────
 
-const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html' || /^docs\/playground\/[^/]+\.html$/.test(p))];
+export const PROSE_SOURCES = (ctx: RuleContext): string[] => ['README.md', 'llms.txt', 'CHANGELOG.md', ...ctx.list('docs').filter((p) => p.endsWith('.md') || p === 'docs/index.html' || /^docs\/playgrounds\/[^/]+\.html$/.test(p))];
 
 const apiExists: Rule = {
     id: 'api-exists',
@@ -413,7 +441,7 @@ const NUMBER_WORDS: readonly string[] = ['zero', 'one', 'two', 'three', 'four', 
 const TENS_WORDS: readonly string[] = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
 const COMPOUND = `(?:${TENS_WORDS.join('|')})-(?:${NUMBER_WORDS.slice(1, 10).join('|')})`;
 // The compound form comes first: otherwise `Twenty-one` is read as `one`.
-const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.join('|')}|${TENS_WORDS.join('|')})`;
+export const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.join('|')}|${TENS_WORDS.join('|')})`;
 
 /**
  * The changelog is history: an entry for a released version records what that
@@ -421,13 +449,13 @@ const NUMBER = `(\\d{1,3}(?:[ \\u00a0,]\\d{3})*|\\d+|${COMPOUND}|${NUMBER_WORDS.
  * today's eight would force a lie into the record. Only the entry at the top,
  * the one still being written, is held to the current counts.
  */
-function topEntryOnly(path: string, text: string): string {
+export function topEntryOnly(path: string, text: string): string {
     if (path !== 'CHANGELOG.md') return text;
     const entries = [...text.matchAll(/^## \[/gm)];
     return entries.length < 2 ? text : text.slice(0, entries[1]?.index);
 }
 
-function quotedValue(token: string): number {
+export function quotedValue(token: string): number {
     const [head = '', unit] = token.toLowerCase().split('-');
     const tens = TENS_WORDS.indexOf(head);
     if (tens >= 0) return 20 + tens * 10 + (unit === undefined ? 0 : NUMBER_WORDS.indexOf(unit));
@@ -472,64 +500,177 @@ const countTokens: Rule = {
     },
 };
 
-/** One `declared.playgroundBundle` entry of docs/assets/ecosystem.json. */
-interface PlaygroundBundle {
-    readonly target?: unknown;
-    readonly sourceSha256?: unknown;
-    readonly bundleSha256?: unknown;
-    readonly bytes?: unknown;
-    readonly maxBytes?: unknown;
+// ── Playgrounds ──────────────────────────────────────────────────────
+
+const LOADER = 'docs/playgrounds/load-engine.js';
+
+/**
+ * The playgrounds run the published package, never a local copy (ADR 0023):
+ * the loader imports `pkinative@VERSION` from esm.sh and then jsDelivr, and
+ * VERSION is the version of the manifest — the one npm serves. A playground
+ * that imported anything else would demonstrate a library nobody can install.
+ */
+const cdnPin: Rule = {
+    id: 'cdn-pin',
+    summary: 'docs/playgrounds/load-engine.js imports pkinative from esm.sh and then jsDelivr, pinned to packages.pkinative.version of docs/assets/ecosystem.json; no playground script imports a local engine copy or any other remote module, and no committed bundle or declared.playgroundBundle survives.',
+    check(ctx) {
+        const manifest = readJson<{ packages?: { pkinative?: { version?: string } }; declared?: Record<string, unknown> }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const version = manifest.value.packages?.pkinative?.version ?? '';
+        const out: Finding[] = [];
+        const loader = ctx.read(LOADER);
+        if (loader === null) return [error(LOADER, 'missing — the playgrounds load the published package through it')];
+        const pinned = /^const VERSION = '([^']+)';$/m.exec(loader)?.[1];
+        if (pinned !== version) out.push(error(LOADER, `pins pkinative@${String(pinned)}; ecosystem.json says ${version} — the playgrounds must run the version npm serves`, lineContaining(loader, 'const VERSION')));
+        for (const url of ['https://esm.sh/pkinative@${VERSION}', 'https://cdn.jsdelivr.net/npm/pkinative@${VERSION}/+esm']) {
+            if (!loader.includes(`\`${url}\``)) out.push(error(LOADER, `does not try ${url} — the loader tries esm.sh, then jsDelivr, both at VERSION`));
+        }
+        for (const path of ctx.list('docs/playgrounds').filter((p) => p.endsWith('.js') && p !== LOADER)) {
+            const text = ctx.read(path) ?? '';
+            for (const m of text.matchAll(/(?:from\s+|import\s*\(\s*)'([^']+)'/g)) {
+                const target = m[1] ?? '';
+                if (/^https?:/.test(target) || /pkinative(\.min)?\.js$/.test(target)) {
+                    out.push(error(path, `imports ${target} — a playground gets the engine from loadEngine() in load-engine.js, and nothing else from a third party`, lineContaining(text, target)));
+                }
+            }
+        }
+        for (const stale of ['docs/playgrounds/pkinative.js', 'docs/playground/pkinative.js']) {
+            if (ctx.exists(stale)) out.push(error(stale, 'a committed engine bundle — the playgrounds import the published package (ADR 0023); delete it'));
+        }
+        if (manifest.value.declared?.['playgroundBundle'] !== undefined) out.push(error(MANIFEST, 'declared.playgroundBundle describes a bundle the site no longer ships; remove it'));
+        return out;
+    },
+};
+
+/**
+ * The site's own JavaScript — the playgrounds, the landing page, the versions
+ * widget — is hand-written, ESLint ignores docs/, and a syntax error in it
+ * fails only in a reader's browser. zipnative's `playground-syntax`, parsed
+ * from the text so the in-memory perturbation can break it.
+ */
+const siteScriptSyntax: Rule = {
+    id: 'site-script-syntax',
+    summary: 'Every JavaScript file under docs/ — the playground scripts, app.js, assets/versions.js — parses as an ES module (ESLint does not lint docs/, so this is the net under 4 000 lines a reader\'s browser runs).',
+    check(ctx) {
+        const out: Finding[] = [];
+        for (const path of ctx.list('docs').filter((p) => p.endsWith('.js'))) {
+            const { diagnostics = [] } = ts.transpileModule(ctx.read(path) ?? '', { reportDiagnostics: true, fileName: path, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, allowJs: true } });
+            for (const d of diagnostics.filter((x) => x.category === ts.DiagnosticCategory.Error)) {
+                const line = d.file !== undefined && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : 1;
+                out.push(error(path, `does not parse: ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`, line));
+            }
+        }
+        return out;
+    },
+};
+
+const PLAYGROUNDS_MANIFEST = 'docs/data/playgrounds.json';
+const HUB = 'docs/playgrounds/index.html';
+const GUIDES_INDEX = 'docs/guides/index.html';
+
+interface PlaygroundEntry {
+    readonly id?: string;
+    readonly file?: string;
+    readonly url?: string;
+    readonly title?: string;
+    readonly surface?: string;
+    readonly controls?: ReadonlyArray<{ readonly id?: string }>;
+    readonly exercises?: readonly string[];
 }
 
-const playgroundFreshness: Rule = {
-    id: 'playground-freshness',
-    summary: 'The committed playground bundle is the current build: the fingerprint of every src/**/*.ts and tsup.config.ts matches declared.playgroundBundle.sourceSha256, the bundle itself matches bundleSha256 and its budget, and the playground loads it locally rather than from a CDN.',
+/**
+ * docs/data/playgrounds.json is how an agent learns a playground exists, what
+ * it drives and through which controls (pdfnative's convention). It, the
+ * switcher (PLAYGROUNDS of build-guides.ts), the hub's cards and the hub's
+ * ItemList are four views of one list; this rule keeps them one.
+ */
+const playgroundsManifest: Rule = {
+    id: 'playgrounds-manifest',
+    summary: 'docs/data/playgrounds.json lists exactly the playgrounds of PLAYGROUNDS (scripts/build-guides.ts), in that order, each at its URL with a title, a surface, controls that are real ids of its page and what it exercises — a library page only real exports; the hub shows one card per playground in that order, titled alike, mirrored by its JSON-LD ItemList; and the guides index lists them all, in that order, under Interactive playgrounds.',
     check(ctx) {
-        const manifest = readJson<{ declared?: { playgroundBundle?: PlaygroundBundle } }>(ctx, MANIFEST);
-        if ('finding' in manifest) return [manifest.finding];
-        const declared = manifest.value.declared?.playgroundBundle;
-        if (declared === undefined) return [error(MANIFEST, 'declared.playgroundBundle is missing — the playground bundle would be unpoliced')];
-
+        const parsed = readJson<{ playgrounds?: PlaygroundEntry[] }>(ctx, PLAYGROUNDS_MANIFEST);
+        if ('finding' in parsed) return [parsed.finding];
+        const api = readJson<{ exports?: Array<{ name: string }> }>(ctx, 'docs/assets/api.json');
+        if ('finding' in api) return [api.finding];
+        const exported = new Set((api.value.exports ?? []).map((e) => e.name));
         const out: Finding[] = [];
-        const target = typeof declared.target === 'string' ? declared.target : 'docs/playground/pkinative.js';
+        const entries = parsed.value.playgrounds ?? [];
+        const files = PLAYGROUNDS.map(([file]) => file);
+        if (entries.map((e) => e.file).join(' ') !== files.join(' ')) out.push(error(PLAYGROUNDS_MANIFEST, `lists ${entries.map((e) => String(e.file)).join(', ')}; the switcher lists ${files.join(', ')} — one list, one order`));
+        for (const entry of entries) {
+            const where = `"${String(entry.id)}"`;
+            const page = ctx.read(`docs/playgrounds/${String(entry.file)}`);
+            if (page === null) { out.push(error(PLAYGROUNDS_MANIFEST, `${where} names ${String(entry.file)}, which does not exist`)); continue; }
+            if (entry.url !== `${SITE}/playgrounds/${String(entry.file)}`) out.push(error(PLAYGROUNDS_MANIFEST, `${where} has the url ${String(entry.url)}`));
+            if (!['library', 'cli', 'mcp'].includes(String(entry.surface))) out.push(error(PLAYGROUNDS_MANIFEST, `${where} has the surface ${String(entry.surface)}; it is library, cli or mcp`));
+            const ids = new Set([...page.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+            for (const control of entry.controls ?? []) if (!ids.has(control.id ?? '')) out.push(error(PLAYGROUNDS_MANIFEST, `${where} names the control #${String(control.id)}, which ${String(entry.file)} does not contain`));
+            if ((entry.exercises ?? []).length === 0) out.push(error(PLAYGROUNDS_MANIFEST, `${where} lists nothing under exercises`));
+            if (entry.surface === 'library') for (const name of entry.exercises ?? []) if (!exported.has(name)) out.push(error(PLAYGROUNDS_MANIFEST, `${where} exercises ${name}, which is not a public export`));
+        }
+        const hub = ctx.read(HUB) ?? '';
+        const cards = [...hub.matchAll(/<a class="pg-card" href="([^"]+)">[\s\S]*?<h2>([^<]+)<\/h2>/g)].map((m) => [m[1] ?? '', m[2] ?? ''] as const);
+        if (cards.map(([href]) => href).join(' ') !== files.join(' ')) out.push(error(HUB, `its cards link ${cards.map(([href]) => href).join(', ')}; the playgrounds are ${files.join(', ')}`));
+        for (const [href, title] of cards) {
+            const entry = entries.find((e) => e.file === href);
+            if (entry !== undefined && entry.title !== title) out.push(error(HUB, `the ${href} card is titled "${title}"; playgrounds.json says "${String(entry.title)}"`, lineContaining(hub, `href="${href}"`)));
+        }
+        const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(hub)?.[1] ?? '{}';
+        let list: { numberOfItems?: unknown; itemListElement?: Array<{ position?: unknown; name?: unknown; url?: unknown }> } | undefined;
+        try {
+            const graph = (JSON.parse(block) as { '@graph'?: Array<Record<string, unknown>> })['@graph'] ?? [];
+            list = graph.map((n) => n['mainEntity']).find((m): m is NonNullable<typeof list> => typeof m === 'object' && m !== null && (m as Record<string, unknown>)['@type'] === 'ItemList');
+        } catch { /* structured-data reports the JSON */ }
+        const items = list?.itemListElement ?? [];
+        const expected = cards.map(([href, title], i) => `${String(i + 1)} ${title} ${SITE}/playgrounds/${href}`);
+        const actual = items.map((item) => `${String(item.position)} ${String(item.name)} ${String(item.url)}`);
+        if (list === undefined || list.numberOfItems !== cards.length || actual.join('\n') !== expected.join('\n')) out.push(error(HUB, 'its JSON-LD ItemList is not its cards — same order, positions from 1, each card\'s title and URL, numberOfItems the card count', lineContaining(hub, 'ItemList')));
+        // The guides index's "Interactive playgrounds" section, pdfnative's: a fourth view of the list.
+        const index = ctx.read(GUIDES_INDEX) ?? '';
+        const section = /<h2 id="playgrounds">[\s\S]*?<\/ul>/.exec(index)?.[0] ?? '';
+        const listed = [...section.matchAll(/<a href="\.\.\/playgrounds\/([^"]+)">([^<]+) →<\/a>/g)].map((m) => `${m[1] ?? ''} ${m[2] ?? ''}`);
+        const wanted = entries.map((e) => `${String(e.file)} ${String(e.title)}`);
+        if (listed.join('\n') !== wanted.join('\n')) out.push(error(GUIDES_INDEX, `its Interactive playgrounds section lists ${listed.length === 0 ? 'nothing' : listed.join(', ')}; the inventory is ${wanted.join(', ')}`, lineContaining(index, 'id="playgrounds"')));
+        return out;
+    },
+};
 
-        // The defect this rule exists for: a source edited and the bundle
-        // never rebuilt. `dist/` is absent from a hermetic run, so the
-        // inputs are fingerprinted instead of the output re-derived —
-        // `npm run docs:playground -- --check` closes that gap online.
-        const sources = ctx.list('src').filter((p) => p.endsWith('.ts')).sort();
-        const fingerprint = createHash('sha256');
-        for (const path of [...sources, 'tsup.config.ts']) {
-            fingerprint.update(path);
-            fingerprint.update('\0');
-            fingerprint.update((ctx.read(path) ?? '').replace(/\r\n/g, '\n'));
-            fingerprint.update('\0');
+/**
+ * The URLs the site retired stay served: each is a noindex stub that
+ * refreshes to its replacement and names it as canonical, so a link anyone
+ * kept still lands — and no live page links the stub, or the retirement
+ * never finishes.
+ */
+const redirectStubs: Rule = {
+    id: 'redirect-stubs',
+    summary: 'Every noindex page under docs/ is a redirect stub: it refreshes at once to a page that exists, declares that page\'s URL as canonical and links to it, and any script that keeps the query and fragment goes to the same page; and no other page or guide links to a stub.',
+    check(ctx) {
+        const out: Finding[] = [];
+        const stubs = htmlPages(ctx).filter((p) => isRedirectStub(ctx.read(p) ?? ''));
+        for (const path of stubs) {
+            const html = ctx.read(path) ?? '';
+            const target = /<meta http-equiv="refresh" content="0; url=([^"]+)">/.exec(html)?.[1];
+            if (target === undefined) { out.push(error(path, 'is noindex but does not refresh at once (<meta http-equiv="refresh" content="0; url=…">) to its replacement')); continue; }
+            const resolved = posix.normalize(posix.join(posix.dirname(path), target)).replace(/\/$/, '');
+            const file = target.endsWith('/') ? `${resolved}/index.html` : resolved;
+            if (!ctx.exists(file)) out.push(error(path, `refreshes to ${target}, which resolves to ${file}, a page that does not exist`));
+            const url = `${SITE}/${resolved.replace(/^docs\//, '')}${target.endsWith('/') ? '/' : ''}`;
+            if (canonicalOf(html) !== url) out.push(error(path, `declares the canonical URL ${String(canonicalOf(html))}; a stub names its replacement, ${url}`));
+            if (!html.includes(`href="${target}"`)) out.push(error(path, `does not link ${target}; a reader whose browser ignores the refresh must still find the page`));
+            // The script that keeps an old deep link's query and fragment must go where the refresh goes.
+            for (const m of html.matchAll(/location\.replace\('([^']+)'/g)) {
+                if (m[1] !== target) out.push(error(path, `its script redirects to ${m[1] ?? ''}; the refresh goes to ${target}`, lineContaining(html, 'location.replace')));
+            }
         }
-        const sourceSha256 = fingerprint.digest('hex');
-        if (sourceSha256 !== declared.sourceSha256) {
-            out.push(error(MANIFEST, `declared.playgroundBundle.sourceSha256 is ${String(declared.sourceSha256)}; src/ and tsup.config.ts hash to ${sourceSha256} — the engine changed without a rebuild, so the playground runs older code than the package. Run \`npm run build && npm run docs:playground\``));
-        }
-
-        const bundle = ctx.read(target);
-        if (bundle === null) return [...out, error(target, 'missing — run `npm run build && npm run docs:playground`')];
-        const bundleSha256 = createHash('sha256').update(bundle).digest('hex');
-        if (bundleSha256 !== declared.bundleSha256) {
-            out.push(error(target, `hashes to ${bundleSha256}; declared.playgroundBundle.bundleSha256 says ${String(declared.bundleSha256)}`));
-        }
-        const bytes = Buffer.byteLength(bundle);
-        if (bytes !== declared.bytes) out.push(error(target, `is ${String(bytes)} bytes; declared.playgroundBundle.bytes says ${String(declared.bytes)}`));
-        if (typeof declared.maxBytes === 'number' && bytes > declared.maxBytes) {
-            out.push(error(target, `is ${String(bytes)} bytes, over the ${String(declared.maxBytes)} budget — raising it is a reviewed diff`));
-        }
-
-        // Loader hygiene. The local copy is the whole reason this rule
-        // exists; a CDN import would quietly make it decorative.
-        const loader = ctx.read('docs/playground/playground.js');
-        if (loader === null) out.push(error('docs/playground/playground.js', 'missing'));
-        else {
-            if (!loader.includes("from './pkinative.js'")) out.push(error('docs/playground/playground.js', "does not import './pkinative.js' — the playground must run the committed build"));
-            for (const m of loader.matchAll(/from\s+'(https?:\/\/[^']+)'/g)) {
-                out.push(error('docs/playground/playground.js', `imports ${m[1] ?? ''} — the playground loads no third party`, lineContaining(loader, m[1] ?? '')));
+        for (const path of LINK_SOURCES(ctx)) {
+            const text = ctx.read(path);
+            if (text === null || stubs.includes(path)) continue;
+            for (const { target, line } of linksOf(path, text)) {
+                if (isExternal(target)) continue;
+                const file = target.split('#')[0]?.split('?')[0] ?? '';
+                if (file === '') continue;
+                const resolved = posix.normalize(posix.join(posix.dirname(path), file)).replace(/\/$/, '');
+                if (stubs.includes(resolved) || stubs.includes(`${resolved}/index.html`)) out.push(error(path, `links ${target}, a retired URL kept as a redirect stub — link its replacement`, line));
             }
         }
         return out;
@@ -608,5 +749,5 @@ const releaseNotes: Rule = {
 
 export const SITE_RULES: readonly Rule[] = [
     guideRenderSync, llmsSync, llmsIndexSync, llmsIndexQuality, internalLinks, anchorParity,
-    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, playgroundFreshness, releaseNotes, releasePrDrafts,
+    seoHead, sitemapParity, cleanUrlSafe, socialImages, cdnSri, chromeParity, jsonLdVersion, verifiedOnParity, apiExists, countTokens, cdnPin, redirectStubs, playgroundsManifest, siteScriptSyntax, releaseNotes, releasePrDrafts,
 ];

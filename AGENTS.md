@@ -92,7 +92,7 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 
 - `release-notes/v*.md` of tagged versions; `tests/fixtures/**` (foreign provenance); SHA pins in `.github/workflows/*.yml` (Dependabot); `package-lock.json` (npm);
   `dist/`, `coverage/`, `test-output/`, `node_modules/`.
-- Generated: `docs/assets/api.json` + llms files + playground (`npm run docs:*`); `docs/assets/api.frozen.json`, `docs/data/{errors,refusals}.frozen.json` (`scripts/build-*-frozen.ts --ratchet`);
+- Generated: `docs/assets/api.json` + llms files + playground samples (`npm run docs:*`); `docs/assets/api.frozen.json`, `docs/data/{errors,refusals}.frozen.json` (`scripts/build-*-frozen.ts --ratchet`);
   `scripts/data/limbo-*.json` (`validate-certs.ts --update-baseline`, review each entry); `scripts/data/output-bytes.json` (`verify-samples.ts --update-baseline`); `.claude/rules/*.md` (`npm run agents:rules`).
 
 ## Counts, versions, traceability
@@ -100,6 +100,12 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 `docs/assets/ecosystem.json` is the source of every count, version and contract quoted in the docs (`verify:docs` enforces).
 Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable branch is removed or carries a justified `v8 ignore`.
 `scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) give every MUST/SHOULD sentence a status naming its test or a closed-list exclusion reason.
+
+## Ecosystem
+
+Two published satellites, each its own repository pinning `pkinative ^1.0.0`: `pkinative-cli` (binary `pkinative`, 18 commands) and `pkinative-mcp` (34 tools, seven prompts).
+They vendor the `docs/data/` registries at the tag (the CLI also `api.frozen.json`), so a registry or wire-form change is a downstream change for both (release notes, **Downstream integration notes**).
+Their inventories live in `ecosystem.json → packages`, the CLI surface in `docs/data/cli-surface.json`; `satellite-*`, `surfaces-shape` and `*-surface-parity` hold the site to them.
 
 ## Releasing and governance
 

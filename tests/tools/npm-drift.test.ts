@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decideNpmDrift, parseNpmView, PLACEHOLDER, type RegistryState } from '../../scripts/check-npm-drift.js';
+import { decideNpmDrift, decideSatelliteDrift, parseNpmView, PLACEHOLDER, type RegistryState } from '../../scripts/check-npm-drift.js';
 
 // scripts/check-npm-drift.ts reads the registry online; its decision is
 // pinned here offline, against registry answers written by hand.
@@ -49,5 +49,20 @@ describe('parseNpmView', () => {
         expect(parseNpmView('{"error":{"code":"E404"}}', 'npm error code E404', 1)).toEqual({ found: false });
         expect(() => parseNpmView('', 'npm error code ETIMEDOUT', 1)).toThrow(/exited 1/);
         expect(() => parseNpmView('{}', '', 0)).toThrow(/no dist-tags/);
+    });
+});
+
+describe('decideSatelliteDrift', () => {
+    it('should agree when latest is the version the manifest records', () => {
+        expect(decideSatelliteDrift('pkinative-cli', '1.0.0', registry('1.0.0'))).toEqual([]);
+    });
+
+    it('should report a satellite release the manifest does not record yet, and one it records too early', () => {
+        expect(decideSatelliteDrift('pkinative-mcp', '1.0.0', registry('1.1.0', '1.0.0', '1.1.0'))).toEqual([expect.stringContaining('ahead of the manifest')]);
+        expect(decideSatelliteDrift('pkinative-mcp', '1.1.0', registry('1.0.0'))).toEqual([expect.stringContaining('which is not published')]);
+    });
+
+    it('should report a satellite absent from the registry', () => {
+        expect(decideSatelliteDrift('pkinative-cli', '1.0.0', { found: false })).toEqual([expect.stringContaining('not on the registry')]);
     });
 });

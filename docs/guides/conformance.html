@@ -98,12 +98,13 @@
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
         <li><a href="../#examples">Examples</a></li>
         <li><a href="../#comparison">Compare</a></li>
         <li><a href="../#benchmarks">Benchmarks</a></li>
         <li><a href="../#architecture">Architecture</a></li>
         <li><a href="../guides/" aria-current="page">Guides</a></li>
-        <li><a href="../playground/">Playground</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
         <li><a href="../llms.txt">llms.txt</a></li>
         <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -118,7 +119,7 @@
 <p><strong>pkinative is held to corpora it did not write and to parsers it does not share code with.</strong> A blocking gate runs the built package over x509-limbo and Wycheproof, pinned by commit and SHA-256, and compares serial, validity, CA flag and fingerprint with OpenSSL.</p>
 </blockquote>
 <h2 id="the-corpora">The corpora <a class="heading-anchor" href="#the-corpora" aria-label="Link to this section">#</a></h2>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Corpus</th>
@@ -219,7 +220,7 @@
 <li><strong>A set generated afresh on every run</strong> (<code>scripts/lib/interop-artefacts.ts</code>), for every other signature family the API writes: RSA PKCS #1 v1.5, RSASSA-PSS with SHA-256, SHA-384 and SHA-512, ECDSA on P-256, P-384 and P-521, and Ed25519. For each: a CA with critical name constraints; a leaf carrying every extension a server certificate carries, a BMPString and a multi-valued RDN in its subject; a leaf shaped by the CA/Browser Forum baseline requirements; a CSR with and without the extensionRequest attribute; CMS SignedData attached, detached and identified by subject key identifier; an OCSP request — then three RFC 3161 TimeStampReqs. Every artefact as DER and as PEM. The keys are made by the harness through Web Crypto <code>generateKey</code>, never by <code>src/</code>, so nothing here has a stable hash and nothing is compared by one.</li>
 </ul>
 <p>The readers, and what each is asked:</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Tool</th>
@@ -280,7 +281,7 @@
 <li><strong>What pkinative makes of it.</strong> A file it can open, <code>openPkcs12</code> opens with the integrity the case promises, the certificate byte-identical to the tool&#39;s, and a key that signs data the certificate&#39;s public key verifies — checked by <code>openssl dgst</code> or <code>pkeyutl</code> where OpenSSL wrote the file, by node:crypto otherwise, never by pkinative. A file it refuses is reported and never thrown for, with the exact reason codes and every refused scheme named.</li>
 <li><strong>What the tool could not write is a skip, never a pass.</strong> OpenSSL before 3.4 has no PBMAC1, LibreSSL has no <code>-legacy</code>, and the legacy provider is looked for where installers put it (the compiled-in <code>MODULESDIR</code>, beside the executable, <code>lib/ossl-modules</code>) and proved by loading it.</li>
 </ul>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Case</th>
@@ -337,7 +338,7 @@
 <p>The first run found one defect, in the report rather than the reading: a key shrouded under a PKCS#12 scheme, in a file whose certificates sit in contents the same refusal keeps shut — exactly what <code>-legacy</code> and a default Windows export write — was reported as <code>PKI_REASON_PKCS12_KEY_UNMATCHED</code>, whose remedy sends the caller after a certificate that could not have helped. It is now reported under its own scheme. Windows wrote DER at every level <code>parsePkcs12</code> reads; <code>encodingRules: &#39;ber&#39;</code> was not needed for any of it.</p>
 <h3 id="signed-structures-what-the-tools-sign-pkinative-verifies">Signed structures: what the tools sign, pkinative verifies <a class="heading-anchor" href="#signed-structures-what-the-tools-sign-pkinative-verifies" aria-label="Link to this section">#</a></h3>
 <p>The same arrow for everything else pkinative verifies and never writes in the tool&#39;s dialect: CMS SignedData, RFC 3161 tokens, OCSP responses and CRLs (<code>scripts/lib/interop-reads.ts</code>, the <code>READS</code> lines). Each tool makes its own keys, its own CA and its own signers, signs, revokes and stamps — so the tool is the oracle: what it signed verifies, what it revoked is revoked, what it stamped is that imprint. Every case is declared in <code>READ_CASES</code> of <code>scripts/lib/interop.ts</code> with the verdict pkinative must reach, and <code>interop-matrix-declared</code> holds that list to the table below in both directions. pkinative is handed only the DER the tool wrote; PEM is unwrapped with Node&#39;s base64, never with pkinative&#39;s own decoder. A case the installed build cannot write is a skip when the tool is not the reference build, and a failure when it is.</p>
-<table>
+<table tabindex="0">
 <thead>
 <tr>
 <th>Case</th>
@@ -476,11 +477,26 @@ npx tsx scripts/validate-certs.ts --require-all
           <ul>
             <li><a href="../guides/quickstart.html">Quick start</a></li>
             <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
             <li><a href="../guides/security.html">Security</a></li>
             <li><a href="../guides/conformance.html">Conformance</a></li>
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -505,6 +521,8 @@ npx tsx scripts/validate-certs.ts --require-all
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
   <script src="guide.js" defer></script>
 </body>
 </html>

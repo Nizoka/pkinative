@@ -4,8 +4,8 @@
 # the security-insights-parity rule of scripts/verify-docs.ts.
 header:
   schema-version: 2.0.0
-  last-updated: '2026-10-04'
-  last-reviewed: '2026-10-04'
+  last-updated: '2026-10-17'
+  last-reviewed: '2026-10-17'
   url: https://raw.githubusercontent.com/Nizoka/pkinative/main/.github/SECURITY-INSIGHTS.yml
   comment: >-
     Every statement here can be read in the repository: SECURITY.md,
@@ -37,7 +37,8 @@ project:
       private vulnerability reporting,
       https://github.com/Nizoka/pkinative/security/advisories/new; or e-mail
       security@pkinative.dev. The handling timeline and the credit are in
-      SECURITY.md §Disclosure Policy.
+      SECURITY.md §Disclosure Policy. The satellites pkinative-cli and
+      pkinative-mcp are separate projects with their own security policies.
   documentation:
     detailed-guide: https://pkinative.dev/guides/
     quickstart-guide: https://pkinative.dev/guides/quickstart.html

@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for every version, milestone, contract and count quoted in the pkinative documentation. scripts/verify-docs.ts holds package.json, CITATION.cff, CHANGELOG.md and the prose to it; update this file, not the prose. verifiedOn is the date of the last documentation audit.",
-  "verifiedOn": "2026-10-04",
+  "verifiedOn": "2026-10-17",
   "packages": {
     "pkinative": {
       "version": "1.0.0",
@@ -11,6 +11,84 @@
       },
       "site": "https://pkinative.dev",
       "npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"
+    },
+    "pkinative-cli": {
+      "$comment": "The command-line companion, a separate repository. Every count here is read from its source at the tag (src/commands/registry.ts, docs/data/errors.json, the capability manifest `pkinative schema manifest`, snapshotted in docs/data/cli-surface.json); satellite-counts holds the prose to commandCount, cli-surface-parity holds the guide and the builder to the snapshot. invocationCount is every runnable command line: 47 subcommands plus the 6 commands that take none.",
+      "version": "1.0.0",
+      "released": "2026-10-08",
+      "repo": "https://github.com/Nizoka/pkinative-cli",
+      "npmPackage": "https://www.npmjs.com/package/pkinative-cli",
+      "status": "published",
+      "binary": "pkinative",
+      "install": "npm install --global pkinative-cli",
+      "pinField": "dependencies",
+      "pin": "^1.0.0",
+      "runtimeDependencies": ["pkinative"],
+      "engine": {
+        "node": "^22.22.2 || ^24.14.1 || >=25.8.2"
+      },
+      "commandCount": 18,
+      "invocationCount": 53,
+      "commandGroups": {
+        "Encodings": ["pem", "oid", "fingerprint", "asn1"],
+        "Certificates": ["cert", "csr"],
+        "Paths & revocation": ["chain", "crl", "ocsp"],
+        "Signatures & time-stamps": ["cms", "tsp"],
+        "Keys": ["key", "p12"],
+        "Meta": ["doctor", "limits", "explain", "schema", "completion"]
+      },
+      "errorClassCount": 13,
+      "schemaSubjects": 12,
+      "completionShells": ["bash", "zsh", "fish", "powershell"],
+      "envVars": ["PKINATIVE_JSON", "PKINATIVE_QUIET", "PKINATIVE_PASSWORD", "PKINATIVE_DEBUG"],
+      "exitCodes": [0, 1, 2, 130, 143]
+    },
+    "pkinative-mcp": {
+      "$comment": "The Model Context Protocol server, a separate repository. Tools in tools/list order (src/tools/_registry.ts), each with its annotation class: readOnly 23, writes a deterministic artefact 6, produces a non-idempotent artefact 5, all openWorldHint false. satellite-counts holds the prose to toolCount and promptCount; mcp-surface-parity holds the MCP guide and explorer to tools, prompts, envVars and resourceTemplates. wrapperCodeCount is the server's own error codes (src/wrapper-codes.ts); pkinative's PKI_* codes, reasons and diagnostics pass through verbatim.",
+      "version": "1.0.0",
+      "released": "2026-10-17",
+      "repo": "https://github.com/Nizoka/pkinative-mcp",
+      "npmPackage": "https://www.npmjs.com/package/pkinative-mcp",
+      "status": "published",
+      "binary": "pkinative-mcp",
+      "install": "npx -y pkinative-mcp",
+      "registryName": "io.github.Nizoka/pkinative-mcp",
+      "pinField": "dependencies",
+      "pin": "^1.0.0",
+      "runtimeDependencies": ["pkinative", "@modelcontextprotocol/server", "zod"],
+      "engine": {
+        "node": ">=22"
+      },
+      "toolCount": 34,
+      "tools": [
+        "convert_pem", "resolve_oid", "compute_fingerprint", "decode_asn1", "encode_asn1",
+        "inspect_certificate", "create_certificate", "encode_x509_structure", "decode_extension", "check_certificate_name", "check_certificate_purpose", "inspect_csr", "create_csr",
+        "verify_certificate_chain", "build_certificate_path", "validate_certificate_path", "inspect_crl", "check_crl_revocation", "create_ocsp_request", "inspect_ocsp_response", "check_ocsp_status",
+        "sign_cms", "verify_cms", "inspect_cms", "amend_cms", "create_timestamp_request", "inspect_timestamp", "verify_timestamp",
+        "inspect_private_key", "inspect_pkcs12", "open_pkcs12",
+        "describe_engine", "explain_code", "draft_governance_issue"
+      ],
+      "toolGroups": {
+        "Encodings": 5,
+        "Certificates and requests": 8,
+        "Paths, CRLs and OCSP": 8,
+        "CMS and time-stamps": 7,
+        "Keys": 3,
+        "Meta": 3
+      },
+      "toolAnnotations": {
+        "readOnly": 23,
+        "writes": ["amend_cms", "convert_pem", "draft_governance_issue", "encode_asn1", "encode_x509_structure", "open_pkcs12"],
+        "produces": ["create_certificate", "create_csr", "create_ocsp_request", "create_timestamp_request", "sign_cms"]
+      },
+      "promptCount": 7,
+      "prompts": ["governance_contract", "draft_issue_workflow", "verify_before_trust", "issue_certificate", "sign_and_timestamp", "offline_revocation", "open_keys_safely"],
+      "resourceTemplates": ["pkinative://output/{+path}"],
+      "transports": ["stdio", "streamable-http"],
+      "mcpRevision": "2026-07-28",
+      "legacyRevisions": ["2024-10-07", "2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"],
+      "envVars": ["PKINATIVE_MCP_OUTPUT_DIR", "PKINATIVE_MCP_CACHE_DIR", "PKINATIVE_MCP_PORT", "PKINATIVE_MCP_HTTP_TOKEN", "PKINATIVE_MCP_PASSWORD", "PKINATIVE_MCP_AT", "PKINATIVE_MCP_MAX_INPUT_BYTES", "PKINATIVE_MCP_MAX_KDF_ITERATIONS", "PKINATIVE_MCP_MAX_PATHS_EXPLORED"],
+      "wrapperCodeCount": 21
     }
   },
   "family": {
@@ -169,15 +247,6 @@
       "exportedTypes": 177,
       "exportedValues": 117
     },
-    "playgroundBundle": {
-      "$comment": "The playground runs a byte-for-byte copy of dist/index.js, so that it runs the build of the tree the site is published from, not the last npm release. sourceSha256 fingerprints every src/**/*.ts and tsup.config.ts; bundleSha256 and bytes describe the committed copy. All three are written by `npm run docs:playground` — never by hand — and `playground-freshness` fails when a source changed without a rebuild. maxBytes is the one hand-set field. Raised from 300000 to 400000 at 0.7.0 for the CMS and RFC 3161 layers, measured 389073: the copy is dist/index.js byte for byte, so it moves with the bundle budget above and cannot be trimmed on its own. Raised to 470000 at 0.8.0 for PKCS#8 and PKCS#12, measured 445030. Raised to 520000 at 1.0.0 with the bundle budget, for the RFC 5280 profile diagnostics, measured 507494. Raised to 560000 at 1.0.0 when the 1.1 items were pulled in — the 13 RFC 5652/3161/6960 diagnostics, SHAKE256, the RSASSA-PSS re-wrap and the Ed448 CMS path — measured 539443 once every lot had landed (A1 to A4).",
-      "source": "dist/index.js",
-      "target": "docs/playground/pkinative.js",
-      "sourceSha256": "b00c96f802d2f90663e620e45e126bad2d35fe6747b7a5f68e09fced4b831f6a",
-      "bundleSha256": "d77c8ff8e06aeadff6e36c870987e97ad306f8c015244227de7fa202a56d8417",
-      "bytes": 543397,
-      "maxBytes": 560000
-    },
     "socialImages": [
       {
         "$comment": "svgSha256 is the SHA-256 of the LF-normalised SVG: it is what proves the committed PNG is not stale. Re-rasterise with the command in the SVG's header comment, then update this hash in the same commit.",
@@ -185,14 +254,14 @@
         "png": "docs/assets/og-image.png",
         "width": 1200,
         "height": 630,
-        "svgSha256": "6532486d0c253ec8a4c7efa6b49d31b9eb07f98780bee5812688fe373bea4e17"
+        "svgSha256": "1577a205e8393683186be0c720a6722cbcd938410a0f3d9ac03970f8f28ec146"
       },
       {
         "svg": "docs/assets/social-preview.svg",
         "png": "docs/assets/social-preview.png",
         "width": 1280,
         "height": 640,
-        "svgSha256": "29f1788aba8c306ddd9a97ab89bd0762c4feed73df99bcfc895b8f6a533e7a27"
+        "svgSha256": "ee9cd4885e41db32979e9f3b0ba30bbfdb6a2c3d6174408a904b544ca61500ae"
       }
     ],
     "pkits": {

@@ -95,7 +95,8 @@ export const EDITS: readonly Edit[] = [
     { file: 'package-lock.json', what: 'root package version', pattern: /("packages": \{\s*\n\s*"": \{\s*\n\s*"name": "pkinative",\s*\n\s*"version": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
     { file: 'docs/assets/ecosystem.json', what: 'packages.pkinative.version', pattern: /("pkinative": \{\s*\n\s*"version": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
     { file: 'docs/assets/ecosystem.json', what: 'verifiedOn', pattern: /("verifiedOn": ")[^"]+(")/, replace: (_v, d) => `$1${d}$2` },
-    { file: 'docs/index.html', what: 'JSON-LD softwareVersion', pattern: /("softwareVersion": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
+    // The library node only: the satellites' nodes carry their own versions, which only their releases move.
+    { file: 'docs/index.html', what: 'JSON-LD softwareVersion of the library node', pattern: /("@id": "https:\/\/pkinative\.dev\/#library",[\s\S]*?"softwareVersion": ")[^"]+(")/, replace: (v) => `$1${v}$2` },
     { file: 'docs/index.html', what: 'verified-on date', pattern: /(<time id="verified-on" datetime=")[^"]+(">)[^<]+(<\/time>)/, replace: (_v, d) => `$1${d}$2${d}$3` },
     { file: 'CITATION.cff', what: 'version', pattern: /^(version: ).+$/m, replace: (v) => `$1${v}` },
     { file: 'CITATION.cff', what: 'date-released', pattern: /^(date-released: ).+$/m, replace: (_v, d) => `$1${d}` },
@@ -119,6 +120,15 @@ export const EDITS: readonly Edit[] = [
     // "what a bump touches" had ever mentioned. Found by the rule, on the
     // first release after the rule existed.
     { file: 'docs/data/surfaces.json', what: 'version', pattern: /("version": ")\d+\.\d+\.\d+(")/, replace: (v) => `$1${v}$2` },
+
+    // The CDN pin the playgrounds load (ADR 0023, held by `cdn-pin`): the
+    // published package of the version the site documents, never a later one.
+    { file: 'docs/playgrounds/load-engine.js', what: 'VERSION (the CDN pin)', pattern: /^(const VERSION = ')\d+\.\d+\.\d+(';)$/m, replace: (v) => `$1${v}$2` },
+    // The live-versions widget's fallback and the badges the landing page
+    // ships written in (`versions-widget`); the satellites' entries move with
+    // their own releases, never here.
+    { file: 'docs/assets/versions.js', what: 'FALLBACK pkinative version', pattern: /('pkinative': \{ version: ')\d+\.\d+\.\d+(')/, replace: (v) => `$1${v}$2` },
+    { file: 'docs/index.html', what: 'pkinative version badges', pattern: /(data-pk-badge="pkinative">v)\d+\.\d+\.\d+(<)/g, replace: (v) => `$1${v}$2` },
 
     // The prose sentences that carry the current minor beside those URLs —
     // five since 0.9, when three were found still saying "0.3" at 0.8: no row

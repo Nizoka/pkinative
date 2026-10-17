@@ -99,8 +99,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'member-tsdoc': (f) => edit(f, 'docs/assets/api.json', /"summary": "The algorithm OID[^"]*"/, '"summary": null'),
     // encodeSetOf is named in exactly one hand-written file, the primitives recipe.
     'export-named': (f) => edit(f, 'recipes/asn1-primitives.ts', /encodeSetOf/g, 'encodeSetOfXX'),
-    // A field the quick start alone names: `allowTrailingData` is also the PDF /Contents option of the CMS docs now.
-    'option-fields-named': (f) => edit(f, 'docs/guides/quickstart.md', 'timeType', 'timeTypeXX'),
+    // A field only the quick start and the MCP guide name: `allowTrailingData` is also the PDF /Contents option of the CMS docs now.
+    'option-fields-named': (f) => { edit(f, 'docs/guides/quickstart.md', /timeType/g, 'timeTypeXX'); edit(f, 'docs/guides/mcp.md', /timeType/g, 'timeTypeXX'); },
     'extension-kinds-complete': (f) => edit(f, 'docs/agent-brief.md', '`nameConstraints`', '`nameConstraint`'),
     'surfaces-parity': (f) => edit(f, 'docs/data/surfaces.json', '"decodePem"', '"decodePemText"'),
     'install-url-version': (f) => edit(f, 'README.md', /releases\/download\/v[0-9][^/\s]*\//, 'releases/download/v9.9.9/'),
@@ -123,19 +123,38 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The charter's radius quietly rounded differently: the port drifts one token at a time.
     'design-tokens-parity': (f) => edit(f, 'docs/style.css', /--radius: +12px;/, '--radius:       10px;'),
     // A heading level skipped: the playground's h1 demoted below its h2s.
-    'a11y-structure': (f) => edit(f, 'docs/playground/asn1.html', '<h1>ASN.1 tree</h1>', '<h3>ASN.1 tree</h3>'),
+    'a11y-structure': (f) => edit(f, 'docs/playgrounds/asn1.html', '<h1>ASN.1 tree</h1>', '<h3>ASN.1 tree</h3>'),
     // The structured breadcrumb drifting from the visible one.
-    'structured-data': (f) => edit(f, 'docs/playground/index.html', '"name": "Playground",', '"name": "Playgrounds",'),
+    'structured-data': (f) => edit(f, 'docs/playgrounds/index.html', '"name": "Playgrounds",', '"name": "Playground",'),
     // The diagram hand-edited instead of regenerated from LAYERS.
     'architecture-diagram': (f) => edit(f, 'docs/assets/architecture.svg', '<title id="architecture-title">pkinative layers</title>', '<title id="architecture-title">pkinative modules</title>'),
     // The 0.1-era cell this rule exists for: a shipped feature shown as a promise.
     'comparison-current': (f) => edit(f, 'docs/index.html', '<tr><td>Path validation</td><td class="cmp-check">✓</td>', '<tr><td>Path validation</td><td class="cmp-cross">0.5</td>'),
     'api-exists': (f) => edit(f, 'docs/agent-brief.md', "import { decodePem, getExtension", "import { decodePem, parsePemCertificates, getExtension"),
     'count-tokens': (f) => edit(f, 'README.md', /\d+ public exports/, '999 public exports'),
-    // The defect this rule exists for, and the only one a hermetic run can
-    // see: an engine source edited while the committed bundle stays behind.
-    // A hash typo would also fire, but proving that would prove nothing.
-    'playground-freshness': (f) => edit(f, 'src/oid/oid-names.ts', /\n$/, '\n// a source edited without rebuilding the playground\n'),
+    // A release bumps the manifest and forgets the loader: the playgrounds
+    // would keep running the previous version while the site documents this one.
+    'cdn-pin': (f) => edit(f, 'docs/playgrounds/load-engine.js', /^const VERSION = '[^']+';$/m, "const VERSION = '0.9.0';"),
+    // A live page linking a retired URL: the redirect stub would stay load-bearing forever.
+    'redirect-stubs': (f) => edit(f, 'docs/playgrounds/index.html', 'href="certificate.html"', 'href="../playground/certificate.html"'),
+    // A command counted in the manifest that its own groups do not list.
+    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commandCount": 18', '"commandCount": 19'),
+    // pdfnative's defect, replayed: the site advertises one tool count, the server registers another.
+    'satellite-counts': (f) => edit(f, 'docs/guides/mcp.md', /\b34 tools\b/, '35 tools'),
+    // A tool dropped from the matrix: the reader choosing a surface no longer sees it exists.
+    'surfaces-shape': (f) => edit(f, 'docs/data/surfaces.json', '["inspect_pkcs12", "open_pkcs12"]', '["inspect_pkcs12"]'),
+    // An error class the CLI raises, gone from its guide.
+    'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
+    // A tool documented under a name the server does not register.
+    'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
+    // pdfnative's drift, replayed: a diagram's description reworded and its alt text left behind.
+    'use-case-diagrams': (f) => edit(f, 'docs/assets/use-case-cli-ci-gate.svg', /<desc id="([^"]+)">Architecture: /, '<desc id="$1">Architecture, revised: '),
+    // A typo in hand-written site JavaScript that only a reader's browser would have found.
+    'site-script-syntax': (f) => edit(f, 'docs/assets/versions.js', "var NPM = 'https://registry.npmjs.org/';", "var NPM = = 'https://registry.npmjs.org/';"),
+    // A control renamed on the page while the agent-facing inventory keeps the old id.
+    'playgrounds-manifest': (f) => edit(f, 'docs/data/playgrounds.json', '"id": "chain-run"', '"id": "chain-go"'),
+    // A satellite release recorded in the manifest and not in the widget a reader sees without the registry.
+    'versions-widget': (f) => edit(f, 'docs/assets/versions.js', "'pkinative-mcp': { version: '1.0.0'", "'pkinative-mcp': { version: '0.9.0'"),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
     // The defect this rule exists for: a release whose pull-request body is
     // not in the record, so nobody can check a year later whether a figure
@@ -189,16 +208,21 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'copilot-layer-parity': (f) => edit(f, '.github/copilot-instructions.md', /^x509 +→ .+$/m, 'x509   → types, core, asn1, oid'),
 };
 
+// Every rule over the whole repository: about 8 s alone, several times that
+// under coverage instrumentation beside the other workers — the default 30 s
+// is the budget of one unit test, not of the documentation gate.
+const WHOLE_TREE_TIMEOUT = 120_000;
+
 describe('verify-docs on the repository', () => {
     it('should report no error', async () => {
         const problems = await runRules(createFsContext(ROOT));
         expect(problems.filter((p) => p.severity === 'error')).toEqual([]);
-    });
+    }, WHOLE_TREE_TIMEOUT);
 
     it('should report no error on the in-memory copy either (the perturbation baseline)', async () => {
         const problems = await runRules(createMemoryContext(TREE));
         expect(problems.filter((p) => p.severity === 'error')).toEqual([]);
-    });
+    }, WHOLE_TREE_TIMEOUT);
 });
 
 describe('verify-docs rule table', () => {
@@ -371,9 +395,9 @@ describe('verify-docs rule table', () => {
         // The playground hub quoted "44 codes" for a 57-code registry: the
         // playground pages were outside every count rule.
         const files = { ...TREE };
-        edit(files, 'docs/playground/index.html', /\d+ error codes/, '44 error codes');
+        edit(files, 'docs/playgrounds/index.html', /\d+ error codes/, '44 error codes');
         const problems = await runRules(createMemoryContext(files), RULES, 'count-tokens');
-        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playground/index.html', message: expect.stringContaining('"44 error codes"') })]);
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playgrounds/index.html', message: expect.stringContaining('"44 error codes"') })]);
     });
 
     it('should fire contrast on a colour/background pair one CSS rule declares and the inventory omits', async () => {
@@ -413,7 +437,7 @@ describe('verify-docs rule table', () => {
 
     it('should fire a11y-structure on an image without alt and a button without a name', async () => {
         const files = { ...TREE };
-        edit(files, 'docs/playground/index.html', '<p class="guide-breadcrumb">', '<img src="../favicon.svg"><button type="button"></button><p class="guide-breadcrumb">');
+        edit(files, 'docs/playgrounds/index.html', '<p class="guide-breadcrumb">', '<img src="../favicon.svg"><button type="button"></button><p class="guide-breadcrumb">');
         const problems = await runRules(createMemoryContext(files), RULES, 'a11y-structure');
         expect(problems.map((p) => p.message)).toEqual([
             expect.stringContaining('<img> without alt'),
@@ -961,5 +985,66 @@ describe('reuse-shape, what it holds', () => {
         mutate(files);
         const problems = await runRules(createMemoryContext(files), RULES, 'reuse-shape');
         expect(problems).toEqual(expect.arrayContaining([expect.objectContaining({ file, message: expect.stringContaining(message) })]));
+    });
+});
+
+describe('satellite-counts reads a count only where it counts the satellite', () => {
+    const count = async (path: string, line: string): Promise<string[]> => {
+        const files = { ...TREE, [path]: `${TREE[path] ?? ''}\n${line}\n` };
+        return (await runRules(createMemoryContext(files), RULES, 'satellite-counts')).map((p) => p.message);
+    };
+
+    it('should fire on a count in words on a line about the MCP server', async () => {
+        expect(await count('README.md', 'The MCP server registers thirty-five tools.')).toEqual([expect.stringContaining('"thirty-five tools"')]);
+    });
+
+    it('should leave a tool count alone on a line that is not about a satellite', async () => {
+        expect(await count('ROADMAP.md', 'The interop matrix: ten tools run on three platforms.')).toEqual([]);
+    });
+
+    it('should not read "the 6 commands that take none" as the command count', async () => {
+        expect(await count('docs/guides/cli.md', 'The CLI has 53 invocations: 47 subcommands and the 6 commands that take none.')).toEqual([]);
+    });
+
+    it('should fire on a wrong CLI command count', async () => {
+        expect(await count('docs/guides/cli.md', 'pkinative-cli ships 17 commands.')).toEqual([expect.stringContaining('"17 commands"')]);
+    });
+});
+
+describe('the playground views of one list', () => {
+    const run = async (mutate: Mutation, rule: string): Promise<string[]> => {
+        const files = { ...TREE };
+        mutate(files);
+        return (await runRules(createMemoryContext(files), RULES, rule)).map((p) => `${p.file}: ${p.message}`);
+    };
+
+    it('should fire playgrounds-manifest when the hub ItemList drifts from the cards', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/index.html', '"numberOfItems": 5', '"numberOfItems": 4'), 'playgrounds-manifest')).toEqual([expect.stringContaining('ItemList is not its cards')]);
+    });
+
+    it('should fire mcp-surface-parity when the explorer drops a tool card', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/mcp.js', /^ {4}id: 'open_pkcs12',$/m, "    id: 'open_pfx',"), 'mcp-surface-parity')).toEqual([expect.stringContaining('its tool cards are')]);
+    });
+
+    it('should fire cli-surface-parity when the builder stops reading the snapshot', async () => {
+        expect(await run((f) => edit(f, 'docs/playgrounds/cli.js', "const SURFACE_URL = '../data/cli-surface.json';", "const SURFACE_URL = './surface.json';"), 'cli-surface-parity')).toEqual([expect.stringContaining('does not load ../data/cli-surface.json')]);
+    });
+});
+
+describe('redirect-stubs and the script that keeps a deep link', () => {
+    it('should fire when the stub script goes elsewhere than its refresh', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/playground/certificate.html', "location.replace('../playgrounds/certificate.html'", "location.replace('../playgrounds/asn1.html'");
+        const problems = (await runRules(createMemoryContext(files), RULES, 'redirect-stubs')).map((p) => p.message);
+        expect(problems).toEqual([expect.stringContaining('its script redirects to ../playgrounds/asn1.html')]);
+    });
+});
+
+describe('playgrounds-manifest and the guides index', () => {
+    it('should fire when the guides index drops a playground from its Interactive playgrounds section', async () => {
+        const files = { ...TREE };
+        edit(files, 'docs/guides/index.html', /\s*<li><a href="\.\.\/playgrounds\/mcp\.html">[^\n]*<\/li>/, '');
+        const problems = (await runRules(createMemoryContext(files), RULES, 'playgrounds-manifest')).map((p) => p.message);
+        expect(problems).toEqual([expect.stringContaining('its Interactive playgrounds section lists')]);
     });
 });
