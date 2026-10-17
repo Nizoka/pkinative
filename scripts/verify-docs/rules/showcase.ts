@@ -10,7 +10,7 @@
  * @module scripts/verify-docs/rules/showcase
  */
 
-import { architectureDescription, countWord, escapeHtml, renderArchitectureSvg } from '../../build-guides.js';
+import { architectureDescription, countWord, escapeHtml, isRedirectStub, renderArchitectureSvg } from '../../build-guides.js';
 import { LAYERS } from '../../lib/architecture.js';
 import { error, lineContaining, readJson, type Finding, type Rule } from '../context.js';
 
@@ -18,11 +18,12 @@ const lf = (text: string): string => text.replace(/\r\n/g, '\n');
 
 const structuredData: Rule = {
     id: 'structured-data',
-    summary: 'Every page under docs/ carries schema.org JSON-LD that parses, and a page with a visible breadcrumb carries a BreadcrumbList naming the same crumbs in the same order, its last item at the page\'s canonical URL.',
+    summary: 'Every page under docs/ but a noindex redirect stub carries schema.org JSON-LD that parses, and a page with a visible breadcrumb carries a BreadcrumbList naming the same crumbs in the same order, its last item at the page\'s canonical URL.',
     check(ctx) {
         const out: Finding[] = [];
         for (const path of ctx.list('docs').filter((p) => p.endsWith('.html'))) {
             const html = lf(ctx.read(path) ?? '');
+            if (isRedirectStub(html)) continue;
             const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1] ?? '');
             if (blocks.length === 0) { out.push(error(path, 'carries no JSON-LD (<script type="application/ld+json">)')); continue; }
             const nodes: Array<Record<string, unknown>> = [];

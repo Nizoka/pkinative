@@ -31,7 +31,6 @@
     "**/test-output": true,
     "**/node_modules": true,
     "docs/llms-full.txt": true,
-    "docs/llms-index.json": true,
-    "docs/playground/pkinative.js": true
+    "docs/llms-index.json": true
   }
 }

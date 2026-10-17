@@ -123,19 +123,20 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // The charter's radius quietly rounded differently: the port drifts one token at a time.
     'design-tokens-parity': (f) => edit(f, 'docs/style.css', /--radius: +12px;/, '--radius:       10px;'),
     // A heading level skipped: the playground's h1 demoted below its h2s.
-    'a11y-structure': (f) => edit(f, 'docs/playground/asn1.html', '<h1>ASN.1 tree</h1>', '<h3>ASN.1 tree</h3>'),
+    'a11y-structure': (f) => edit(f, 'docs/playgrounds/asn1.html', '<h1>ASN.1 tree</h1>', '<h3>ASN.1 tree</h3>'),
     // The structured breadcrumb drifting from the visible one.
-    'structured-data': (f) => edit(f, 'docs/playground/index.html', '"name": "Playground",', '"name": "Playgrounds",'),
+    'structured-data': (f) => edit(f, 'docs/playgrounds/index.html', '"name": "Playgrounds",', '"name": "Playground",'),
     // The diagram hand-edited instead of regenerated from LAYERS.
     'architecture-diagram': (f) => edit(f, 'docs/assets/architecture.svg', '<title id="architecture-title">pkinative layers</title>', '<title id="architecture-title">pkinative modules</title>'),
     // The 0.1-era cell this rule exists for: a shipped feature shown as a promise.
     'comparison-current': (f) => edit(f, 'docs/index.html', '<tr><td>Path validation</td><td class="cmp-check">✓</td>', '<tr><td>Path validation</td><td class="cmp-cross">0.5</td>'),
     'api-exists': (f) => edit(f, 'docs/agent-brief.md', "import { decodePem, getExtension", "import { decodePem, parsePemCertificates, getExtension"),
     'count-tokens': (f) => edit(f, 'README.md', /\d+ public exports/, '999 public exports'),
-    // The defect this rule exists for, and the only one a hermetic run can
-    // see: an engine source edited while the committed bundle stays behind.
-    // A hash typo would also fire, but proving that would prove nothing.
-    'playground-freshness': (f) => edit(f, 'src/oid/oid-names.ts', /\n$/, '\n// a source edited without rebuilding the playground\n'),
+    // A release bumps the manifest and forgets the loader: the playgrounds
+    // would keep running the previous version while the site documents this one.
+    'cdn-pin': (f) => edit(f, 'docs/playgrounds/load-engine.js', /^const VERSION = '[^']+';$/m, "const VERSION = '0.9.0';"),
+    // A live page linking a retired URL: the redirect stub would stay load-bearing forever.
+    'redirect-stubs': (f) => edit(f, 'docs/playgrounds/index.html', 'href="certificate.html"', 'href="../playground/certificate.html"'),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
     // The defect this rule exists for: a release whose pull-request body is
     // not in the record, so nobody can check a year later whether a figure
@@ -371,9 +372,9 @@ describe('verify-docs rule table', () => {
         // The playground hub quoted "44 codes" for a 57-code registry: the
         // playground pages were outside every count rule.
         const files = { ...TREE };
-        edit(files, 'docs/playground/index.html', /\d+ error codes/, '44 error codes');
+        edit(files, 'docs/playgrounds/index.html', /\d+ error codes/, '44 error codes');
         const problems = await runRules(createMemoryContext(files), RULES, 'count-tokens');
-        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playground/index.html', message: expect.stringContaining('"44 error codes"') })]);
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playgrounds/index.html', message: expect.stringContaining('"44 error codes"') })]);
     });
 
     it('should fire contrast on a colour/background pair one CSS rule declares and the inventory omits', async () => {
@@ -413,7 +414,7 @@ describe('verify-docs rule table', () => {
 
     it('should fire a11y-structure on an image without alt and a button without a name', async () => {
         const files = { ...TREE };
-        edit(files, 'docs/playground/index.html', '<p class="guide-breadcrumb">', '<img src="../favicon.svg"><button type="button"></button><p class="guide-breadcrumb">');
+        edit(files, 'docs/playgrounds/index.html', '<p class="guide-breadcrumb">', '<img src="../favicon.svg"><button type="button"></button><p class="guide-breadcrumb">');
         const problems = await runRules(createMemoryContext(files), RULES, 'a11y-structure');
         expect(problems.map((p) => p.message)).toEqual([
             expect.stringContaining('<img> without alt'),

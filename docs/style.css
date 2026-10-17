@@ -500,6 +500,7 @@ code, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
 .playground-switcher a:hover { background: var(--c-surface); }
 .playground-switcher a[aria-current="page"] { background: var(--c-primary); color: var(--c-primary-fg); }
 .playground-switcher a[aria-current="page"]:hover { background: var(--c-accent); }
+.playground-switcher a.playground-switcher-all { margin-left: auto; }
 
 /* ── Playground hub cards ───────────────────────────────────── */
 .pg-grid {

@@ -92,7 +92,7 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 
 - `release-notes/v*.md` of tagged versions; `tests/fixtures/**` (foreign provenance); SHA pins in `.github/workflows/*.yml` (Dependabot); `package-lock.json` (npm);
   `dist/`, `coverage/`, `test-output/`, `node_modules/`.
-- Generated: `docs/assets/api.json` + llms files + playground (`npm run docs:*`); `docs/assets/api.frozen.json`, `docs/data/{errors,refusals}.frozen.json` (`scripts/build-*-frozen.ts --ratchet`);
+- Generated: `docs/assets/api.json` + llms files + playground samples (`npm run docs:*`); `docs/assets/api.frozen.json`, `docs/data/{errors,refusals}.frozen.json` (`scripts/build-*-frozen.ts --ratchet`);
   `scripts/data/limbo-*.json` (`validate-certs.ts --update-baseline`, review each entry); `scripts/data/output-bytes.json` (`verify-samples.ts --update-baseline`); `.claude/rules/*.md` (`npm run agents:rules`).
 
 ## Counts, versions, traceability

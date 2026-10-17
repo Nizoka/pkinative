@@ -18,9 +18,9 @@ lines of that log and stops.
 
 | Profile | Command | Steps |
 |---|---|---|
-| Fast — before every commit | `npm run gate:fast` | 5: typecheck:all, lint, test, verify:samples, verify:docs |
-| CI — the default | `npm run gate` | 12: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-fresh, verify:docs |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 15: adds conformance, interop and ts-floor |
+| Fast — before every commit | `npm run gate:fast` | 6: typecheck:all, lint, test, verify:samples, verify:docs, check:guides |
+| CI — the default | `npm run gate` | 13: typecheck:all, lint, then build, dist-check, bundle-check, test:coverage (in place of test), check:package (attw, publint, the tarball file by file), verify:bundle, verify:samples, smoke:install, docs:playground-samples-fresh, verify:docs, check:guides |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | 16: adds conformance, interop and ts-floor |
 
 Flags: `--only <id>` runs one step; `--from <id>` runs the profile from that
 step's position in the full table; `--json` emits `{ ok, profile, steps }`.
@@ -47,7 +47,7 @@ is swallowed before `npm run gate` sees it.
 | `build-api-json.ts` | `docs:api` | — | The public export surface, from the TSDoc of every export of `src/index.ts` | 0/1 |
 | `build-guides.ts` | `docs:guides` | — | `docs/guides/*.md` → static pages with their JSON-LD (TechArticle, BreadcrumbList, WebPage), plus the nav and footer every hand-written page pastes, and `docs/assets/architecture.svg` drawn from `LAYERS` | 0/1 |
 | `build-sitemap.ts` | `docs:sitemap` | — | `docs/sitemap.xml`, from the canonical URL each page declares, every `<lastmod>` stamped with `verifiedOn` | 0/1 |
-| `build-playground.ts` | `docs:playground`, `docs:playground-fresh` | yes (`--check`) | Copies `dist/index.js` into the playground byte for byte and records its hashes in the manifest; `--check` re-derives and compares | 0/1/2 |
+| `build-playground-samples.ts` | `docs:playground-samples`, `docs:playground-samples-fresh` | yes (`--check`) | `docs/playgrounds/samples.js`, the certificates the playgrounds offer, from the committed test fixtures; `--check` re-derives and compares. The engine itself is the published package, imported from a CDN (ADR 0023) | 0/1 |
 | `build-llms-full.ts` | `docs:llms` | — | `llms.txt`, `llms-full.txt`, `llms-recipes.txt`, `llms-index.json` | 0/1 |
 | `build-claude-rules.ts` | `agents:rules` | — | `.github/instructions/*.instructions.md` → `.claude/rules/*.md`, each scoped by `paths:`. `--check` exits 1 on drift | 0/1 |
 | `build-errors-frozen.ts` | — | — | `docs/data/errors.frozen.json`, the error-code snapshot `error-codes-frozen` holds the registry to; refuses to change it once `frozenAt` is released | 0/1/2 |
@@ -89,7 +89,7 @@ Inverted, `llms-index-sync` and `sitemap-parity` contend for the same commit.
 - **Never reserialise JSON, YAML or XML.** `release-prepare.ts` rewrites one
   targeted regex per field, so formatting and key order survive a bump.
 - **Generated files are generated.** `.claude/rules/`, `docs/assets/api.json`,
-  the guides, the sitemap, the llms files and the playground bundle are all
+  the guides, the sitemap, the llms files and the playground samples are all
   regenerated, never hand-edited; a `verify:docs` rule fails on drift for each.
 - **A script never pushes, tags, opens a pull request or publishes.** Those
   are the maintainer's (`.github/AGENT_RULES.md` §5), and

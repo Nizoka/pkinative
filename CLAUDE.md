@@ -7,7 +7,7 @@ Everything in AGENTS.md applies. This file adds only what is specific to Claude 
 ## Token discipline
 
 - Run tests through `npm run gate:fast` or `npx vitest run <file>` (dot reporter); never paste a test run or a gate log into context — the gate summary is ≤ 20 lines, and `test-output/.gate/<step>.log` is opened only for the failing step.
-- Never Read `coverage/`, `dist/`, `test-output/`, `node_modules/`, `package-lock.json`, `docs/llms-full.txt`, `docs/llms-index.json`, `docs/llms-recipes.txt`, `docs/playground/pkinative.js`,
+- Never Read `coverage/`, `dist/`, `test-output/`, `node_modules/`, `package-lock.json`, `docs/llms-full.txt`, `docs/llms-index.json`, `docs/llms-recipes.txt`,
   `docs/assets/api.frozen.json`, `docs/data/refusals.frozen.json`, `scripts/data/limbo-refusals.json`, `scripts/data/limbo-score.json` — generated: regenerate them.
   `.claude/settings.json` denies Read on them (Grep/Glob at best effort).
 - Large registries (`docs/assets/api.json`, `scripts/data/mutation-equivalents.json`, the requirement inventories) are queried with `node -e`, not opened.

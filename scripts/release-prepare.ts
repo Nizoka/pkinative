@@ -120,6 +120,10 @@ export const EDITS: readonly Edit[] = [
     // first release after the rule existed.
     { file: 'docs/data/surfaces.json', what: 'version', pattern: /("version": ")\d+\.\d+\.\d+(")/, replace: (v) => `$1${v}$2` },
 
+    // The CDN pin the playgrounds load (ADR 0023, held by `cdn-pin`): the
+    // published package of the version the site documents, never a later one.
+    { file: 'docs/playgrounds/load-engine.js', what: 'VERSION (the CDN pin)', pattern: /^(const VERSION = ')\d+\.\d+\.\d+(';)$/m, replace: (v) => `$1${v}$2` },
+
     // The prose sentences that carry the current minor beside those URLs —
     // five since 0.9, when three were found still saying "0.3" at 0.8: no row
     // owned them, so no bump moved them. Three of them say "not on npm" and

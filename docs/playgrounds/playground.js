@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
    pkinative.dev — playgrounds
 
-   Runs the library in the browser, on a byte-for-byte copy of what
-   `npm run build` produces (docs/playground/pkinative.js, held to the
-   build by the `playground-freshness` rule). Nothing is mocked and
+   Runs the library in the browser: the published package, imported
+   from a CDN pinned to the version this site documents
+   (load-engine.js, held by the `cdn-pin` rule). Nothing is mocked and
    nothing is re-implemented here: every value below came out of the
    same exports a caller gets from npm.
 
@@ -21,7 +21,13 @@
    on bytes they chose.
    ═══════════════════════════════════════════════════════════════ */
 
-import {
+import { loadEngine } from './load-engine.js';
+import { SAMPLES } from './samples.js';
+
+// The published package, from the CDN that answered first. If neither
+// does, loadEngine() has already said so on the page and this module stops.
+const { mod } = await loadEngine();
+const {
     computeFingerprint,
     decodeAsn1,
     decodeOid,
@@ -34,8 +40,7 @@ import {
     PkiEncodingError,
     PkiError,
     PkiLimitError,
-} from './pkinative.js';
-import { SAMPLES } from './samples.js';
+} = mod;
 
 // ── Small DOM helpers ─────────────────────────────────────────
 

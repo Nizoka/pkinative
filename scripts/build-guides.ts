@@ -114,6 +114,16 @@ function rewriteLinks(html: string): string {
         .replace(/<a href="(https?:\/\/[^"]+)">/g, '<a href="$1" target="_blank" rel="noopener">');
 }
 
+/**
+ * A retired URL kept as a `noindex` redirect stub (docs/playground/ became
+ * docs/playgrounds/). It points at its replacement and is not a page of the
+ * site: the sitemap, the search metadata and the structured-data rules skip
+ * it, and `redirect-stubs` holds it to its target instead.
+ */
+export function isRedirectStub(html: string): boolean {
+    return /<meta name="robots" content="noindex/.test(html);
+}
+
 /** Which section of the site a page belongs to, for `aria-current`. */
 export type NavSection = 'guides' | 'playgrounds' | null;
 
@@ -136,12 +146,13 @@ export function navHtml(prefix: string, current: NavSection): string {
       <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
       <ul class="nav-links" role="list">
         <li><a href="${prefix}#features">Features</a></li>
+        <li><a href="${prefix}#ecosystem">Ecosystem</a></li>
         <li><a href="${prefix}#examples">Examples</a></li>
         <li><a href="${prefix}#comparison">Compare</a></li>
         <li><a href="${prefix}#benchmarks">Benchmarks</a></li>
         <li><a href="${prefix}#architecture">Architecture</a></li>
         <li><a href="${prefix}guides/"${mark('guides')}>Guides</a></li>
-        <li><a href="${prefix}playground/"${mark('playgrounds')}>Playground</a></li>
+        <li><a href="${prefix}playgrounds/"${mark('playgrounds')}>Playgrounds</a></li>
         <li><a href="${prefix}llms.txt">llms.txt</a></li>
         <li><a href="${REPOSITORY}" target="_blank" rel="noopener">GitHub</a></li>
         <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
@@ -201,6 +212,34 @@ ${GUIDES.map((name) => `            <li><a href="${prefix}guides/${name}.html">$
 }
 
 /**
+ * The playgrounds, in the order the hub and every switcher list them: the
+ * library pages first, then the satellites'. `chrome-parity` holds each
+ * page's switcher to `switcherHtml`, and `playgrounds-manifest` holds this
+ * list to docs/data/playgrounds.json and to the hub's cards.
+ */
+export const PLAYGROUNDS: ReadonlyArray<readonly [file: string, label: string]> = [
+    ['certificate.html', 'Certificate inspector'],
+    ['asn1.html', 'ASN.1 tree'],
+];
+
+/**
+ * The switcher at the top of every playground: each page links every other,
+ * marks itself, and ends on the hub — the family's convention.
+ *
+ * @internal Exported for `chrome-parity`.
+ */
+export function switcherHtml(current: string): string {
+    return `    <nav class="playground-switcher" aria-label="Playground switcher">
+      <span class="playground-switcher-label">Playgrounds:</span>
+${PLAYGROUNDS.map(([file, label]) => `      <a href="./${file}"${file === current ? ' aria-current="page"' : ''}>${escapeHtml(label)}</a>`).join('\n')}
+      <a class="playground-switcher-all" href="./">All →</a>
+    </nav>`;
+}
+
+/** The footer meta-line slot where a playground names the CDN build it ran (`load-engine.js` fills it). */
+export const ENGINE_SOURCE_SLOT = ' · engine: <span id="engine-source">loading…</span>';
+
+/**
  * Prism, pinned by SRI.
  *
  * The guides fence only `ts` and `bash`, so these three files are the whole
@@ -253,7 +292,7 @@ const PUBLISHER = {
  * A `<script type="application/ld+json">` block for a schema.org @graph.
  * `<` is escaped so no string in the graph can close the script element.
  *
- * @internal Exported for the hand-written playground pages' generator check.
+ * @internal Exported for the hand-written pages, which paste its output.
  */
 export function jsonLdBlock(graph: ReadonlyArray<Record<string, unknown>>): string {
     const json = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }, null, 2).replace(/</g, '\\u003c');
