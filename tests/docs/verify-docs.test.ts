@@ -147,6 +147,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'cli-surface-parity': (f) => edit(f, 'docs/guides/cli.md', /`E_PASSWORD`/g, '`E_PASSPHRASE`'),
     // A tool documented under a name the server does not register.
     'mcp-surface-parity': (f) => edit(f, 'docs/guides/mcp.md', '### `open_pkcs12`', '### `open_pfx`'),
+    // A satellite release recorded in the manifest and not in the widget a reader sees without the registry.
+    'versions-widget': (f) => edit(f, 'docs/assets/versions.js', "'pkinative-mcp': { version: '1.0.0'", "'pkinative-mcp': { version: '0.9.0'"),
     'release-notes': (f) => edit(f, 'release-notes/v0.1.0.md', '## Downstream integration notes', '## Downstream notes'),
     // The defect this rule exists for: a release whose pull-request body is
     // not in the record, so nobody can check a year later whether a figure

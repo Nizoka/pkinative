@@ -84,6 +84,8 @@ describe('release-prepare — the bumps after 1.0.0', () => {
     it('should move the playgrounds\' CDN pin with the manifest, so cdn-pin holds on the tree it writes', async () => {
         expect(after['docs/playgrounds/load-engine.js']).toMatch(/^const VERSION = '1\.1\.0';$/m);
         expect(await problems(after, 'cdn-pin')).toEqual([]);
+        expect(await problems(after, 'versions-widget')).toEqual([]);
+        expect(await problems(after, 'jsonld-version')).toEqual([]);
     });
 
     it('should plan a 1.0.1 patch the same way', async () => {

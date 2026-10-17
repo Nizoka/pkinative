@@ -290,4 +290,38 @@ const mcpSurfaceParity: Rule = {
     },
 };
 
-export const SATELLITE_RULES: readonly Rule[] = [satelliteManifest, satelliteCounts, surfacesShape, cliSurfaceParity, mcpSurfaceParity];
+// ── versions-widget ──────────────────────────────────────────────────
+
+export const VERSIONS_WIDGET = 'docs/assets/versions.js';
+
+const versionsWidget: Rule = {
+    id: 'versions-widget',
+    summary: 'docs/assets/versions.js falls back to the version and pin docs/assets/ecosystem.json records for pkinative, pkinative-cli and pkinative-mcp, and every `data-pk-badge` under docs/ ships that version written in — the page says something true without JavaScript or with the registry unreachable.',
+    check(ctx) {
+        const manifest = readJson<{ packages?: Record<string, { version?: unknown; pin?: unknown } | undefined> }>(ctx, MANIFEST);
+        if ('finding' in manifest) return [manifest.finding];
+        const packages = manifest.value.packages ?? {};
+        const widget = ctx.read(VERSIONS_WIDGET);
+        if (widget === null) return [error(VERSIONS_WIDGET, 'missing — the landing page shows the versions npm serves through it')];
+        const out: Finding[] = [];
+        for (const name of ['pkinative', 'pkinative-cli', 'pkinative-mcp']) {
+            const entry = packages[name];
+            const m = new RegExp(`'${name}': \\{ version: '([^']+)', pin: (null|'[^']+') \\}`).exec(widget);
+            if (m === null) { out.push(error(VERSIONS_WIDGET, `FALLBACK has no entry for ${name}`)); continue; }
+            if (m[1] !== entry?.version) out.push(error(VERSIONS_WIDGET, `FALLBACK says ${name} ${m[1] ?? ''}; the manifest says ${String(entry?.version)}`, lineContaining(widget, `'${name}':`)));
+            const pin = m[2] === 'null' ? undefined : m[2]?.slice(1, -1);
+            if (pin !== entry?.pin) out.push(error(VERSIONS_WIDGET, `FALLBACK pins ${name} at ${String(pin)}; the manifest says ${String(entry?.pin)}`, lineContaining(widget, `'${name}':`)));
+        }
+        for (const path of ctx.list('docs').filter((p) => p.endsWith('.html'))) {
+            const html = ctx.read(path) ?? '';
+            for (const m of html.matchAll(/data-pk-badge="([^"]+)">v([^<]*)</g)) {
+                const want = packages[m[1] ?? '']?.version;
+                if (want === undefined) out.push(error(path, `a badge names ${m[1] ?? ''}, which is not a package of the manifest`, lineOf(html, m.index)));
+                else if (m[2] !== want) out.push(error(path, `the ${m[1] ?? ''} badge ships v${m[2] ?? ''}; the manifest says ${String(want)}`, lineOf(html, m.index)));
+            }
+        }
+        return out;
+    },
+};
+
+export const SATELLITE_RULES: readonly Rule[] = [satelliteManifest, satelliteCounts, surfacesShape, cliSurfaceParity, mcpSurfaceParity, versionsWidget];

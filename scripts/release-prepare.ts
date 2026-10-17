@@ -124,6 +124,11 @@ export const EDITS: readonly Edit[] = [
     // The CDN pin the playgrounds load (ADR 0023, held by `cdn-pin`): the
     // published package of the version the site documents, never a later one.
     { file: 'docs/playgrounds/load-engine.js', what: 'VERSION (the CDN pin)', pattern: /^(const VERSION = ')\d+\.\d+\.\d+(';)$/m, replace: (v) => `$1${v}$2` },
+    // The live-versions widget's fallback and the badges the landing page
+    // ships written in (`versions-widget`); the satellites' entries move with
+    // their own releases, never here.
+    { file: 'docs/assets/versions.js', what: 'FALLBACK pkinative version', pattern: /('pkinative': \{ version: ')\d+\.\d+\.\d+(')/, replace: (v) => `$1${v}$2` },
+    { file: 'docs/index.html', what: 'pkinative version badges', pattern: /(data-pk-badge="pkinative">v)\d+\.\d+\.\d+(<)/g, replace: (v) => `$1${v}$2` },
 
     // The prose sentences that carry the current minor beside those URLs —
     // five since 0.9, when three were found still saying "0.3" at 0.8: no row
