@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 424028,
-      "approxTokens": 106007
+      "bytes": 425651,
+      "approxTokens": 106413
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 136850,
-      "approxTokens": 34213
+      "bytes": 140437,
+      "approxTokens": 35109
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 308410,
-      "approxTokens": 77103
+      "bytes": 313546,
+      "approxTokens": 78387
     },
     {
       "url": "data/errors.json",
@@ -42,20 +42,20 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 40872,
-      "approxTokens": 10218
+      "bytes": 42609,
+      "approxTokens": 10652
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5297,
-      "approxTokens": 1324
+      "bytes": 5548,
+      "approxTokens": 1387
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
-      "bytes": 14539,
-      "approxTokens": 3635
+      "bytes": 15238,
+      "approxTokens": 3810
     },
     {
       "url": "data/playgrounds.json",
@@ -291,8 +291,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 46585,
-      "approxTokens": 11646
+      "bytes": 46958,
+      "approxTokens": 11740
     },
     {
       "title": "Standards",
@@ -306,8 +306,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 17195,
-      "approxTokens": 4299
+      "bytes": 17590,
+      "approxTokens": 4398
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -331,8 +331,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35656,
-      "approxTokens": 8914
+      "bytes": 36133,
+      "approxTokens": 9033
     },
     {
       "title": "Choosing a library and a surface",
@@ -348,8 +348,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18578,
-      "approxTokens": 4645
+      "bytes": 18781,
+      "approxTokens": 4695
     }
   ]
 }

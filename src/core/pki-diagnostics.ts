@@ -294,6 +294,29 @@ export function tspCertsUnrequestedDiagnostic(path: string, count: number): PkiD
         path, undefined);
 }
 
+// ── Payload factories — RFC 6960 §4.1: what a request says about itself ──
+
+/** A signed request carries no `requestorName`; §4.1.2 requires a requestor that signs to name itself. */
+export function ocspRequestSignedUnnamedDiagnostic(offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED', 'warning', 'RFC 6960 §4.1.2',
+        'the request is signed and carries no requestorName; RFC 6960 §4.1.2 says a requestor that signs shall specify its name — the signature is read as it is, and a responder has no name to look the signer up by',
+        'TBSRequest.requestorName', offset);
+}
+
+/** The nonce is empty or longer than 128 octets; RFC 9654 §2.1 sizes it 1 to 128. */
+export function ocspNonceLengthDiagnostic(octets: number, path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_NONCE_LENGTH', 'warning', 'RFC 9654 §2.1',
+        `the nonce is ${String(octets)} octet(s) long; RFC 9654 §2.1 defines it as an OCTET STRING of 1 to 128 octets, and has a responder answer malformedRequest outside that range — the nonce is returned as it is`,
+        path, offset);
+}
+
+/** A request extension sets the critical flag; §4.1.2 says none of them should. */
+export function ocspRequestExtensionCriticalDiagnostic(oid: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_REQUEST_EXTENSION_CRITICAL', 'info', 'RFC 6960 §4.1.2',
+        `the request extension ${oid} is marked critical; RFC 6960 §4.1.2 says the critical flag should not be set for any request extension — it is read all the same, and a responder that does not understand it may refuse the request`,
+        path, undefined);
+}
+
 // ── Payload factories — RFC 6960 §4.2: what a response says about itself ──
 
 /** The `certs` field is present and holds no certificate; §4.2.1 says it should then be absent. */
@@ -303,11 +326,11 @@ export function ocspCertsEmptyDiagnostic(offset?: number): PkiDiagnostic {
         'BasicOCSPResponse.certs', offset);
 }
 
-/** `ResponseData.version` is present and is not the one-octet INTEGER 0 of v1. */
-export function ocspVersionNotV1Diagnostic(found: string, offset?: number): PkiDiagnostic {
-    return _diagnostic('PKI_DIAG_OCSP_VERSION_NOT_V1', 'warning', 'RFC 6960 §4.2.2.3',
-        `ResponseData.version ${found}; RFC 6960 §4.2.2.3 defines v1 (0) only, so the response is read with the v1 syntax — a strict reader may refuse it`,
-        'ResponseData.version', offset);
+/** The explicit `version` is not the one-octet INTEGER 0 of v1 — in a `ResponseData`, or in the `TBSRequest` that `path` names. */
+export function ocspVersionNotV1Diagnostic(found: string, offset?: number, path = 'ResponseData.version'): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_VERSION_NOT_V1', 'warning', 'RFC 6960 §4.1.1, §4.2.2.3',
+        `${path} ${found}; RFC 6960 defines v1 (0) only, for a request (§4.1.1) and for a response (§4.2.2.3), so the message is read with the v1 syntax — a strict reader may refuse it`,
+        path, offset);
 }
 
 /** The `responderID` names neither the subject nor the key of the certificate that signed the response. */

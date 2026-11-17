@@ -22,16 +22,18 @@
     "4.1.2-2-564091b4": {
       "section": "4.1.2",
       "text": "Unrecognized extensions MUST be ignored (unless they have the critical flag set and are not understood).",
-      "status": "excluded",
-      "reason": "producer-policy",
-      "why": "Tells the responder how to treat request extensions it does not know; pkinative never answers requests and parses none, as README's Known limitations records."
+      "status": "test",
+      "file": "tests/revocation/ocsp-request.test.ts",
+      "test": "should keep an extension it does not recognise and say nothing: unrecognised extensions are ignored, not refused",
+      "why": "parseOcspRequest keeps a request extension it does not recognise as kind 'unknown' and raises nothing, under strict too. The exception the sentence makes is the next case: the same extension marked critical raises PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION, which strict refuses — pkinative answers no request, so it reports what a responder may refuse rather than refusing it."
     },
     "4.1.2-3-2059ffee": {
       "section": "4.1.2",
       "text": "If the request is signed, the requestor SHALL specify its name in the requestorName field.",
-      "status": "excluded",
-      "reason": "not-implemented",
-      "why": "createOcspRequest writes unsigned requests only, and README's Known limitations records that pkinative has no OCSP-request reader, so there is no requestorName to write or to read."
+      "status": "test",
+      "file": "tests/revocation/ocsp-request.test.ts",
+      "test": "should diagnose a signed request that names no requestor, and refuse it under strict: \"the requestor SHALL specify its name\"",
+      "why": "parseOcspRequest reads a signed request without a requestorName and reports PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED, a warning strict refuses; a signed request that names its requestor, and an unsigned one that does not, get nothing. createOcspRequest writes unsigned requests only, so the writer has no name to set."
     },
     "4.2.1-1-cc6f7a44": {
       "section": "4.2.1",

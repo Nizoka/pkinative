@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 296,
+  "exportCount": 300,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -2814,6 +2814,132 @@
           "type": "'ocspNoCheck'",
           "optional": false,
           "summary": "Discriminant; `getExtension(cert, 'ocspNoCheck')` returns this type."
+        }
+      ]
+    },
+    {
+      "name": "OcspRequest",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequest",
+      "summary": "A parsed `OCSPRequest` (RFC 6960 §4.1.1): the question a responder is asked.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole request, as a zero-copy view of the input."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `tbsRequest` bytes a signature, when there is one, covers."
+        },
+        {
+          "name": "version",
+          "type": "1",
+          "optional": false,
+          "summary": "Always `1`: RFC 6960 defines v1 alone, and a request that declares another version is read as v1 and reported."
+        },
+        {
+          "name": "requestorName",
+          "type": "GeneralName | undefined",
+          "optional": false,
+          "summary": "`requestorName`, who is asking; `undefined` when absent, as in every unsigned request pkinative writes."
+        },
+        {
+          "name": "requests",
+          "type": "readonly OcspRequestEntry[]",
+          "optional": false,
+          "summary": "One entry per certificate asked about, in encoded order."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`requestExtensions`, decoded; the nonce lives here."
+        },
+        {
+          "name": "nonce",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The nonce (RFC 9654 §2.1) a response must echo, as the octets inside the extension's two OCTET STRINGs; `undefined` when the request carries none."
+        },
+        {
+          "name": "signature",
+          "type": "OcspRequestSignature | undefined",
+          "optional": false,
+          "summary": "The signature of a signed request; `undefined` for an unsigned one."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "OcspRequestEntry",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequestEntry",
+      "summary": "One `Request` of an OCSP request (RFC 6960 §4.1.1): one certificate being asked about.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certId",
+          "type": "OcspCertId",
+          "optional": false,
+          "summary": "Which certificate the question is about."
+        },
+        {
+          "name": "certIdDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `CertID` exactly as encoded."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`singleRequestExtensions`, decoded; empty when there are none."
+        }
+      ]
+    },
+    {
+      "name": "OcspRequestSignature",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequestSignature",
+      "summary": "The `Signature` of a signed OCSP request (RFC 6960 §4.1.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the requestor signed with."
+        },
+        {
+          "name": "signatureValue",
+          "type": "{ readonly bytes: Uint8Array; readonly unusedBits: number }",
+          "optional": false,
+          "summary": "The signature over `tbsDer`, as a BIT STRING of whole octets."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Certificates the requestor attached to help a responder verify the signature."
         }
       ]
     },
@@ -8152,6 +8278,31 @@
         }
       ],
       "returns": "The scheme and the ciphertext.",
+      "members": null
+    },
+    {
+      "name": "parseOcspRequest",
+      "kind": "function",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export function parseOcspRequest(der: Uint8Array, options?: PkiParseOptions): OcspRequest",
+      "summary": "Parse an `OCSPRequest` (RFC 6960 §4.1) — the request `createOcspRequest` writes, or the one another client wrote.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The complete OCSPRequest."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics."
+        }
+      ],
+      "returns": "The parsed request, with zero-copy views of `der`.",
       "members": null
     },
     {

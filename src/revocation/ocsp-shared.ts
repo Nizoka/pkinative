@@ -92,7 +92,7 @@ export const _decodeAt = (der: Uint8Array, header: TlvHeader, ctx: Asn1Context):
 export function _readOcspVersion(message: _OcspMessage, der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): void {
     const inner = _fieldsOf(message, der, field, path, 1)[0];
     if (inner === undefined || inner.tagClass !== 'universal' || inner.tagNumber !== 2) {
-        ctx.emitter.emit(ocspVersionNotV1Diagnostic('holds no INTEGER', field.offset));
+        ctx.emitter.emit(ocspVersionNotV1Diagnostic('holds no INTEGER', field.offset, path));
         return;
     }
     const content = der.subarray(inner.contentStart, inner.end);
@@ -100,7 +100,7 @@ export function _readOcspVersion(message: _OcspMessage, der: Uint8Array, field: 
         ctx.emitter.emit(defaultEncodedDiagnostic(path, 'v1 (0)', field.offset));
         return;
     }
-    ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset));
+    ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset, path));
 }
 
 /**

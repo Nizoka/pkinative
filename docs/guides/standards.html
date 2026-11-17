@@ -255,11 +255,11 @@
 <td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason; a request is read, never answered — pkinative is not a TSA.</td>
 </tr>
 <tr>
-<td>RFC 6960 — OCSP</td>
-<td>Requests, responses and the client&#39;s §3.2 checks</td>
+<td>RFC 6960 — OCSP, with the nonce of RFC 9654</td>
+<td>Requests written and read back (<code>parseOcspRequest</code>), responses and the client&#39;s §3.2 checks</td>
 <td>applies</td>
-<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
-<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); the responderID is compared with the signer only when <code>checkOcspStatus</code> is given it, as <code>verifyCertificateChain</code> does, and the comparison is a diagnostic, never a reason.</td>
+<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-request.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/property/request-roundtrip.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
+<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); the responderID is compared with the signer only when <code>checkOcspStatus</code> is given it, as <code>verifyCertificateChain</code> does, and the comparison is a diagnostic, never a reason. A request is read, never answered, and the signature of a signed one is exposed, not verified — pkinative is not a responder; <code>createOcspRequest</code> writes a nonce of 1 to 32 octets, <code>parseOcspRequest</code> reads the 1 to 128 of RFC 9654 §2.1.</td>
 </tr>
 <tr>
 <td>RFC 7468 — PEM</td>

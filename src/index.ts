@@ -184,6 +184,8 @@ export type { FindRevocationOptions } from './revocation/crl-parse.js';
 export { checkRevocation } from './revocation/crl-check.js';
 export { createOcspRequest, encodeOcspCertId } from './revocation/ocsp-request.js';
 export type { CreateOcspRequestOptions, OcspHashAlgorithm } from './revocation/ocsp-request.js';
+export { parseOcspRequest } from './revocation/ocsp-request.js';
+export type { OcspRequest, OcspRequestEntry, OcspRequestSignature } from './types/ocsp-types.js';
 export { parseOcspResponse } from './revocation/ocsp-response.js';
 export { checkOcspStatus, OCSP_NONCE_OID } from './revocation/ocsp-check.js';
 export type { CheckOcspStatusInput } from './revocation/ocsp-check.js';

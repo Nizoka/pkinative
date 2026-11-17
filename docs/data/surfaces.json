@@ -241,6 +241,18 @@
       }
     },
     {
+      "id": "x509-ocsp-request",
+      "capability": "Read an RFC 6960 OCSP request back — each CertID with its encoded bytes, the requestor, the extensions, the RFC 9654 nonce of 1 to 128 octets, and the signature of a signed request, exposed and not verified; it reads what is asked and answers nothing",
+      "exports": ["parseOcspRequest"],
+      "since": "1.1.0",
+      "cli": {
+        "pending": "No command reads an OCSP request yet: awaits the next minor of pkinative-cli, proposed as `ocsp inspect-request`."
+      },
+      "mcp": {
+        "pending": "No tool reads an OCSP request yet: awaits the next minor of pkinative-mcp, proposed as `inspect_ocsp_request`."
+      }
+    },
+    {
       "id": "cms-signed-data",
       "capability": "Read, create and verify an RFC 5652 CMS SignedData — a .p7s, an S/MIME signature, a PDF /Contents — signed through Web Crypto or an external signer such as an HSM, and verified in one call that keeps intact (unaltered) apart from valid (unaltered and trusted)",
       "exports": ["parseSignedData", "createSignedData", "addUnsignedAttribute", "verifySignerInfoSignature", "verifySignedData", "PkiCmsError"],
