@@ -29,6 +29,7 @@ The format is [MADR 4](https://adr.github.io/madr/): YAML front matter with the 
 | [0021](0021-error-identity-across-builds.md) | Error identity across builds: a shared brand answers `instanceof`, and the dual package stays | accepted | 1.0.0 |
 | [0022](0022-ed448-cms-signers-host-dependent.md) | Ed448 CMS signers are verified where the host verifies Ed448: SHAKE256 is computed here, the signature is the host's; DSA stays refused | accepted | 1.0.0 |
 | [0023](0023-playgrounds-load-the-published-package.md) | Playgrounds load the published package from a CDN, pinned to the documented version; the local engine copy is retired | accepted | 1.0.0 |
+| [0024](0024-what-a-satellite-may-implement.md) | What a satellite may implement around the engine, what the engine reserves, and what a satellite must prove | accepted | 1.1.0 |
 
 ## Adding a record
 
