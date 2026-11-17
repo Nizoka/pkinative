@@ -579,46 +579,46 @@
       "reason": "Semantic: as 78:28 relational — the bound 81 adds the single step j = 80, whose writes past the 80-word arrays are discarded and whose scratch t is overwritten at round 0 before it is read."
     },
     {
-      "id": "src/keys/key-import.ts:107:150:conditional",
+      "id": "src/keys/key-import.ts:116:150:conditional",
       "original": "algorithm === null ? 'null' : typeof algorithm",
       "replacement": "(algorithm === null ? typeof algorithm : 'null')",
-      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message ('got null' / 'got string'); the refusal, its class and its code are decided by the enclosing `typeof algorithm !== 'object' || algorithm === null` test on line 105."
+      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message ('got null' / 'got string'); the refusal, its class and its code are decided by the enclosing `typeof algorithm !== 'object' || algorithm === null` test on line 114."
     },
     {
-      "id": "src/keys/key-import.ts:107:160:equality",
+      "id": "src/keys/key-import.ts:116:160:equality",
       "original": "===",
       "replacement": "!==",
-      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 107:150."
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 116:150."
     },
     {
-      "id": "src/keys/key-import.ts:159:13:if-false",
+      "id": "src/keys/key-import.ts:170:13:if-false",
       "original": "pkcs8 !== info.der",
       "replacement": "false",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:159:44:number+1",
+      "id": "src/keys/key-import.ts:170:44:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:159:44:number-1",
+      "id": "src/keys/key-import.ts:170:44:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:240:119:conditional",
+      "id": "src/keys/key-import.ts:251:119:conditional",
       "original": "password === null ? 'null' : typeof password",
       "replacement": "(password === null ? typeof password : 'null')",
-      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message; the refusal, its class and its code are decided by the string / Uint8Array test on line 239 — the twin of the key-pbes2.ts:244:118 entry."
+      "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message; the refusal, its class and its code are decided by the string / Uint8Array test on line 250 — the twin of the key-pbes2.ts:244:118 entry."
     },
     {
-      "id": "src/keys/key-import.ts:240:128:equality",
+      "id": "src/keys/key-import.ts:251:128:equality",
       "original": "===",
       "replacement": "!==",
-      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 240:119."
+      "reason": "Message-only: the same message-rendering expression as the conditional mutant at 251:119."
     },
     {
       "id": "src/keys/key-pbes2.ts:202:97:number+1",
