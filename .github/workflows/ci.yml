@@ -167,9 +167,11 @@ jobs:
   # for the GitHub Actions weaknesses (cache poisoning, template injection,
   # excessive permissions, unpinned or impostor actions — the class of audit
   # P-01 that a plain-text test missed); actionlint checks the syntax,
-  # expressions and every `run:` script through shellcheck. Both pinned: the
-  # zizmor image by the digest the action pins for 1.30.1, actionlint by the
-  # SHA-256 of its release archive.
+  # expressions and every `run:` script through shellcheck; `reuse lint`
+  # checks that every file carries its licence. All three pinned: the zizmor
+  # image by the digest the action pins for 1.30.1, actionlint by the SHA-256
+  # of its release archive, reuse and its dependencies by the SHA-256 of
+  # every file (scripts/data/reuse-requirements.txt).
   workflow-lint:
     name: workflow lint
     runs-on: ubuntu-latest
@@ -207,3 +209,16 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}" actionlint
           shellcheck --version | head -2
           "${RUNNER_TEMP}/actionlint" -color
+
+      # Every file carries its copyright and its licence (REUSE.toml, REUSE
+      # 3.3). The verify-docs rule reuse-shape holds the shape of REUSE.toml;
+      # this is the tool itself, a Python package and so not a dev dependency:
+      # installed into its own environment from a requirements file that pins
+      # it and its dependencies by the SHA-256 of every file PyPI publishes.
+      - name: REUSE compliance
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/reuse"
+          "${RUNNER_TEMP}/reuse/bin/python" -m pip install --require-hashes --no-deps --only-binary :all: -r scripts/data/reuse-requirements.txt
+          "${RUNNER_TEMP}/reuse/bin/reuse" --version
+          "${RUNNER_TEMP}/reuse/bin/reuse" lint

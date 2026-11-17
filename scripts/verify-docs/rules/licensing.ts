@@ -5,8 +5,9 @@
  * licence (REUSE 3.3), and it says the same thing as the rest of the
  * repository.
  *
- * `reuse lint` (the FSFE's reference tool, `pip install reuse`) proves the
- * project compliant; it is not a dependency of the gate. What this rule holds
+ * `reuse lint` (the FSFE's reference tool) proves the project compliant, in
+ * the `workflow lint` job of ci.yml; it is not a dependency of the gate,
+ * which stays hermetic and free of Python. What this rule holds
  * hermetically is what would drift: the catch-all annotation agrees with
  * LICENSE and with package.json's `license`; every licence an annotation uses
  * has its text in LICENSES/, and every text there is used; and every foreign

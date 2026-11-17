@@ -326,7 +326,7 @@
 <td>ISO/IEC 5962 (SPDX)</td>
 <td>Licence identification of every file, and an SPDX SBOM of each release</td>
 <td>applies</td>
-<td><code>REUSE.toml</code> gives every file an SPDX licence identifier and copyright (REUSE 3.3; <code>reuse lint</code> reports the project compliant), held by the rule <code>reuse-shape</code>; <code>.github/workflows/publish.yml</code> writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (<code>tests/tools/workflows.test.ts</code>)</td>
+<td><code>REUSE.toml</code> gives every file an SPDX licence identifier and copyright (REUSE 3.3), held by the rule <code>reuse-shape</code> and by <code>reuse lint</code> in the <code>workflow lint</code> job of <code>.github/workflows/ci.yml</code>; <code>.github/workflows/publish.yml</code> writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (<code>tests/tools/workflows.test.ts</code>)</td>
 <td>The SBOM of the runtime is empty by design (zero dependencies); the build toolchain has its own CycloneDX SBOM, not an SPDX one.</td>
 </tr>
 <tr>

@@ -298,6 +298,25 @@ describe('ci.yml', () => {
         expect(check).toBeLessThan(job.indexOf('/actionlint" -color'));
     });
 
+    it('should run reuse lint from a requirements file pinned by hash, with nothing built and nothing resolved', () => {
+        // The roadmap's 1.1 item: REUSE.toml was held to its shape by a rule
+        // and the tool itself was run by hand. A Python tool is not a dev
+        // dependency, so it is installed as the conformance readers are:
+        // every file by digest, no dependency resolution, no source build.
+        const job = ciJob('workflow-lint');
+        expect(job).toMatch(/pip install --require-hashes --no-deps --only-binary :all: -r scripts\/data\/reuse-requirements\.txt/);
+        expect(job.indexOf('pip install --require-hashes')).toBeLessThan(job.indexOf('/reuse" lint'));
+        expect(job).not.toMatch(/pipx|pip install reuse/);
+        const requirements = readText('scripts/data/reuse-requirements.txt').replace(/\r\n/g, '\n');
+        const blocks = requirements.split('\n').filter((l) => /^[a-z]/.test(l));
+        expect(blocks.some((l) => /^reuse==\d+\.\d+\.\d+ \\$/.test(l))).toBe(true);
+        // Every requirement is an exact version followed by at least one digest.
+        for (const block of blocks) expect(block, block).toMatch(/^[a-z0-9.-]+==[0-9][0-9a-z.]* \\$/);
+        const pins = requirements.split('\n').filter((l) => l.trim() !== '' && !l.startsWith('#') && !/^[a-z]/.test(l));
+        expect(pins.length).toBeGreaterThanOrEqual(blocks.length);
+        for (const pin of pins) expect(pin, pin).toMatch(/^ {4}--hash=sha256:[0-9a-f]{64}(?: \\)?$/);
+    });
+
 
     it('should run the gate with --require-all once, for every platform, and audit only once', () => {
         // One job now, so one gate invocation in the file — and `npm audit` is

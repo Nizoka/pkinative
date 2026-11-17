@@ -121,7 +121,7 @@ Every certificate and DER blob is attacker-controlled (`.github/instructions/sec
 
 ## Licensing
 
-Every file is MIT, owned as `LICENSE` says, through the catch-all annotation of [REUSE.toml](REUSE.toml) (REUSE 3.3): no source file carries a licence header. A file someone else wrote — a fixture with foreign provenance, a vendored text — gets its own annotation in `REUSE.toml`, after the catch-all, with its real copyright and SPDX identifier, and that licence's text in `LICENSES/`; a fixture is also listed in `tests/fixtures/PROVENANCE.md`. `npm run verify:docs` (rule `reuse-shape`) holds the two together offline; `reuse lint` (`pip install "reuse[charset-normalizer]"`, then `python -m reuse lint`) proves the whole project compliant before a release.
+Every file is MIT, owned as `LICENSE` says, through the catch-all annotation of [REUSE.toml](REUSE.toml) (REUSE 3.3): no source file carries a licence header. A file someone else wrote — a fixture with foreign provenance, a vendored text — gets its own annotation in `REUSE.toml`, after the catch-all, with its real copyright and SPDX identifier, and that licence's text in `LICENSES/`; a fixture is also listed in `tests/fixtures/PROVENANCE.md`. `npm run verify:docs` (rule `reuse-shape`) holds the two together offline; `reuse lint` proves the whole project compliant on every pull request, in the `workflow lint` job of `ci.yml` (installed from `scripts/data/reuse-requirements.txt`, every file pinned by digest); locally, `pip install "reuse[charset-normalizer]"`, then `python -m reuse lint`.
 
 ## Conformance
 
