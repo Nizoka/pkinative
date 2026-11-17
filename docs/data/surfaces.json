@@ -1,5 +1,5 @@
 {
-  "$comment": "What pkinative can do, through which surface, and the version that brought it — the machine-readable twin of docs/guides/choose.md. Each capability names the library exports that provide it, the pkinative-cli commands (as `command subcommand`) and the pkinative-mcp tools that expose it; the satellites are separate packages pinning pkinative ^1.0.0, versioned in docs/assets/ecosystem.json. surfaces-parity holds the exports to docs/assets/api.json; surfaces-shape holds the commands to docs/data/cli-surface.json and the tools to packages.pkinative-mcp.tools; surfaces-matrix holds the table of choose.md to this file.",
+  "$comment": "What pkinative can do, through which surface, and the version that brought it — the machine-readable twin of docs/guides/choose.md. Each capability names the library exports that provide it, the pkinative-cli commands (as `command subcommand`) and the pkinative-mcp tools that expose it; the satellites are separate packages pinning pkinative ^1.0.0, versioned in docs/assets/ecosystem.json. surfaces-parity holds the exports to docs/assets/api.json; surfaces-shape holds the commands to docs/data/cli-surface.json and the tools to packages.pkinative-mcp.tools, and lets a capability the engine ships before a satellite does carry `pending` — a sentence saying what that satellite has yet to expose — in place of the names; surfaces-matrix holds the table of choose.md to this file.",
   "schemaVersion": 1,
   "version": "1.0.0",
   "surfaces": {
@@ -262,6 +262,18 @@
       },
       "mcp": {
         "tools": ["create_timestamp_request", "inspect_timestamp", "verify_timestamp", "amend_cms"]
+      }
+    },
+    {
+      "id": "cms-timestamp-request",
+      "capability": "Read an RFC 3161 timestamp request back — the imprint, the policy, the nonce, certReq and the extensions of the request createTimeStampRequest wrote or another client did, rebuilt byte for byte from its parsed fields; it reads what is asked and answers nothing",
+      "exports": ["parseTimeStampRequest"],
+      "since": "1.1.0",
+      "cli": {
+        "pending": "No command reads a timestamp request yet: awaits the next minor of pkinative-cli, proposed as `tsp inspect-request`."
+      },
+      "mcp": {
+        "pending": "No tool reads a timestamp request yet: awaits the next minor of pkinative-mcp, proposed as `inspect_timestamp_request`."
       }
     },
     {

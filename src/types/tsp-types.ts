@@ -46,6 +46,34 @@ export interface TimeStampAccuracy {
     readonly micros: number;
 }
 
+/**
+ * A parsed `TimeStampReq` (RFC 3161 §2.4.1): the question a timestamp
+ * authority is asked.
+ *
+ * It is what `createTimeStampRequest` writes, read back — and what any other
+ * client wrote, for a tool that inspects a request before it is sent or logs
+ * the one that was. Nothing here says the request was answered: a token is
+ * held to it by `verifyTimeStampToken`, which takes the request's bytes.
+ */
+export interface TimeStampRequest {
+    /** The whole request, as a zero-copy view of the input. */
+    readonly der: Uint8Array;
+    /** Always `1`; any other version is refused. */
+    readonly version: 1;
+    /** The hash to stamp, and the algorithm it was computed with. */
+    readonly messageImprint: MessageImprint;
+    /** `reqPolicy`, the TSA policy asked for; `undefined` when the TSA is left to choose. */
+    readonly policy: string | undefined;
+    /** The nonce the token must echo; `undefined` when the request carries none. */
+    readonly nonce: bigint | undefined;
+    /** Whether the TSA is asked to include its certificate in the token; `false` when the field is absent. */
+    readonly certReq: boolean;
+    /** `extensions`, decoded; empty when there are none. */
+    readonly extensions: readonly Extension[];
+    /** Profile concerns found while reading, in encoded order. */
+    readonly diagnostics: readonly PkiDiagnostic[];
+}
+
 /** `TSTInfo` (RFC 3161 §2.4.2): what the authority asserts. */
 export interface TstInfo {
     /** Always `1`; any other version is refused. */

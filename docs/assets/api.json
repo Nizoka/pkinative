@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 294,
+  "exportCount": 296,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -5408,6 +5408,66 @@
       "members": null
     },
     {
+      "name": "TimeStampRequest",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TimeStampRequest",
+      "summary": "A parsed `TimeStampReq` (RFC 3161 §2.4.1): the question a timestamp authority is asked.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole request, as a zero-copy view of the input."
+        },
+        {
+          "name": "version",
+          "type": "1",
+          "optional": false,
+          "summary": "Always `1`; any other version is refused."
+        },
+        {
+          "name": "messageImprint",
+          "type": "MessageImprint",
+          "optional": false,
+          "summary": "The hash to stamp, and the algorithm it was computed with."
+        },
+        {
+          "name": "policy",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "`reqPolicy`, the TSA policy asked for; `undefined` when the TSA is left to choose."
+        },
+        {
+          "name": "nonce",
+          "type": "bigint | undefined",
+          "optional": false,
+          "summary": "The nonce the token must echo; `undefined` when the request carries none."
+        },
+        {
+          "name": "certReq",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the TSA is asked to include its certificate in the token; `false` when the field is absent."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`extensions`, decoded; empty when there are none."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
       "name": "TimeStampResponse",
       "kind": "type",
       "module": "src/types/tsp-types.ts",
@@ -8191,6 +8251,31 @@
         }
       ],
       "returns": "The parsed SignedData, with zero-copy views of `der` — except `signedAttributesDer`, which is a copy with its tag replaced, and a segmented BER `eContent`, which is the concatenation of its segments. The caller must not mutate `der` while the result is in use.",
+      "members": null
+    },
+    {
+      "name": "parseTimeStampRequest",
+      "kind": "function",
+      "module": "src/cms/tsp-request.ts",
+      "signature": "export function parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): TimeStampRequest",
+      "summary": "Parse a `TimeStampReq` (RFC 3161 §2.4.1) — the request `createTimeStampRequest` writes, or the one another client wrote.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of one TimeStampReq."
+        },
+        {
+          "name": "options",
+          "description": "Limits and diagnostics. `encodingRules` is ignored: a TimeStampReq is always DER."
+        }
+      ],
+      "returns": "The parsed request, with zero-copy views of `der`.",
       "members": null
     },
     {

@@ -185,7 +185,7 @@ export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInf
         field = next();
     }
     if (field?.tagClass === 'context' && field.tagNumber === 1) {
-        extensions = readExtensions(der, field, ctx, `${path}.extensions`);
+        extensions = _readImplicitExtensions(der, field, ctx, `${path}.extensions`);
         at += 1;
         field = next();
     }
@@ -254,14 +254,18 @@ function readSmallNonNegative(node: Asn1Node, ctx: Asn1Context, path: string): n
 
 /**
  * `extensions [1] IMPLICIT Extensions` — the `[1]` replaces the SEQUENCE tag,
- * so its children are the `Extension` values themselves.
+ * so its children are the `Extension` values themselves. The `[0]` of a
+ * `TimeStampReq` (§2.4.1) is the same field under another number, and the
+ * request reader calls this for it.
  *
  * Each value is decoded in place from a view that ends where its extnValue
  * ends, which is what lets the extension reader tell a value with trailing
  * octets from a well-formed one — the detail that, got wrong, once made the
  * CRL parser refuse every list carrying a recognised extension.
+ *
+ * @internal
  */
-function readExtensions(der: Uint8Array, field: Asn1Node, ctx: Asn1Context, path: string): readonly Extension[] {
+export function _readImplicitExtensions(der: Uint8Array, field: Asn1Node, ctx: Asn1Context, path: string): readonly Extension[] {
     const out: Extension[] = [];
     for (const [index, entry] of field.children.entries()) {
         const where = `${path}[${String(index)}]`;

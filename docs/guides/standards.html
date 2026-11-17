@@ -249,10 +249,10 @@
 </tr>
 <tr>
 <td>RFC 3161 and RFC 5816 — timestamps</td>
-<td>Requests, responses, tokens and their verification</td>
+<td>Requests written and read back (<code>parseTimeStampRequest</code>), responses, tokens and their verification</td>
 <td>applies</td>
-<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
-<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason.</td>
+<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/property/request-roundtrip.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
+<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason; a request is read, never answered — pkinative is not a TSA.</td>
 </tr>
 <tr>
 <td>RFC 6960 — OCSP</td>

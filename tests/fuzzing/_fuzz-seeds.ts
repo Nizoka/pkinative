@@ -41,7 +41,7 @@ import { ascii, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 import { issue, issueTsa, makeCrl, makeRoot, makeToken, sha, tstInfo } from '../verify/_cms-pki.js';
 
 /** The target names, as `fuzz/<name>.js`. */
-export type FuzzTarget = 'asn1' | 'cms' | 'crl' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp' | 'x509';
+export type FuzzTarget = 'asn1' | 'cms' | 'crl' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp-request' | 'tsp' | 'x509';
 
 const PASSWORD = 'fuzz-seed';
 
@@ -71,6 +71,22 @@ function ocspResponse(): Uint8Array {
     const basic = sequence(tbs, sequence(universal(6, [0x2b, 0x65, 0x70])), universal(3, [0x00, 0xde, 0xad]));
     const basicOid = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x01]);
     return sequence(universal(10, [0]), tlv(2, true, 0, sequence(basicOid, universal(4, basic))));
+}
+
+/**
+ * RFC 3161 §2.4.1 requests, built field by field: the bare one, and one with a policy, a nonce, certReq and an
+ * extension — every optional field the grammar has, so the fuzzer starts with each of them in hand.
+ */
+function timeStampRequests(): Uint8Array[] {
+    const imprint = sequence(
+        sequence(universal(6, [0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01]), universal(5, [])),
+        universal(4, new Array<number>(32).fill(0x5a)),
+    );
+    const extension = sequence(universal(6, [0x2a, 0x03, 0x04, 0x05]), universal(4, universal(5, [])));
+    return [
+        sequence(universal(2, [1]), imprint),
+        sequence(universal(2, [1]), imprint, universal(6, [0x2a, 0x03, 0x04]), universal(2, [0x12, 0x34]), universal(1, [0xff]), tlv(2, true, 0, extension)),
+    ];
 }
 
 /** Every target's seeds. Keys are generated, so two calls give different bytes of the same shapes. */
@@ -110,6 +126,7 @@ export async function fuzzSeeds(): Promise<Readonly<Record<FuzzTarget, readonly 
         cms: [signed, cmsContentInfo()],
         crl: [await makeCrl(root, [signer.certificate]), await makeCrl(root)],
         ocsp: [ocspResponse(), sequence(universal(10, [3]))],
+        'tsp-request': timeStampRequests(),
         tsp: [response, token, info],
         pkcs12: [p12, pkcs8, shrouded],
     };

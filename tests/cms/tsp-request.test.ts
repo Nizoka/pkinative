@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { _parseTimeStampRequest, createTimeStampRequest } from '../../src/cms/tsp-request.js';
-import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
+import { _parseTimeStampRequest, createTimeStampRequest, parseTimeStampRequest } from '../../src/cms/tsp-request.js';
+import { PkiCmsError, PkiEncodingError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
+import type { TimeStampRequest } from '../../src/types/tsp-types.js';
 import { concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
 
 /**
@@ -138,5 +139,160 @@ describe('_parseTimeStampRequest', () => {
         const thrown = (() => { try { _parseTimeStampRequest(der, quiet); } catch (error) { return error; } return undefined; })();
         expect(thrown).toBeInstanceOf(PkiCmsError);
         expect(thrown).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path: 'TimeStampReq', offset: 0 });
+    });
+});
+
+describe('parseTimeStampRequest', () => {
+    const IMPRINT = sequence(sequence(oid(SHA256), NULL), universal(4, HASH));
+    const FALSE = universal(1, [0x00]);
+    /** One `Extension`: an OID, an optional critical flag, and the value in its OCTET STRING. */
+    const extension = (id: readonly number[], value: ArrayLike<number>, critical = false): Uint8Array =>
+        sequence(oid(id), ...(critical ? [TRUE] : []), universal(4, value));
+    /** `extensions [0] IMPLICIT Extensions`: the [0] stands where the SEQUENCE tag would. */
+    const extensions = (...list: readonly Uint8Array[]): Uint8Array => tlv(2, true, 0, concat(...list));
+    const PRIVATE_OID = [0x2a, 0x03, 0x04, 0x05];
+    const SKI_OID = [0x55, 0x1d, 0x0e];
+
+    const collect = (der: Uint8Array, options: { strict?: boolean } = {}): { codes: string[]; request: TimeStampRequest } => {
+        const codes: string[] = [];
+        const request = parseTimeStampRequest(der, { ...options, onDiagnostic: (d) => { codes.push(d.code); } });
+        return { codes, request };
+    };
+    const thrownBy = (fn: () => unknown): unknown => {
+        try {
+            fn();
+        } catch (error) {
+            return error;
+        }
+        return undefined;
+    };
+
+    it('should read back every field createTimeStampRequest wrote, with no diagnostic', () => {
+        const der = createTimeStampRequest(HASH, { policy: '1.2.3.4', nonce: 0x80n });
+        const { codes, request } = collect(der);
+        expect(request.version).toBe(1);
+        expect(request.messageImprint.hashAlgorithm.oid).toBe('2.16.840.1.101.3.4.2.1');
+        expect(request.messageImprint.hashedMessage).toEqual(HASH);
+        expect(request.policy).toBe('1.2.3.4');
+        expect(request.nonce).toBe(0x80n);
+        expect(request.certReq).toBe(true);
+        expect(request.extensions).toEqual([]);
+        expect(request.diagnostics).toEqual([]);
+        expect(codes).toEqual([]);
+    });
+
+    it('should return the whole request as a view of the input, not a copy', () => {
+        const der = createTimeStampRequest(HASH);
+        const request = parseTimeStampRequest(der, quiet);
+        expect(request.der).toEqual(der);
+        expect(request.der.buffer).toBe(der.buffer);
+        expect(Object.isFrozen(request)).toBe(true);
+    });
+
+    it('should read an absent policy, nonce and certReq as undefined, undefined and FALSE', () => {
+        const { codes, request } = collect(sequence(int(1), IMPRINT));
+        expect(request.policy).toBeUndefined();
+        expect(request.nonce).toBeUndefined();
+        expect(request.certReq).toBe(false);
+        expect(codes).toEqual([]);
+    });
+
+    it('should name a certReq that encodes its DEFAULT FALSE, and refuse it under strict (X.690 §11.5)', () => {
+        const der = sequence(int(1), IMPRINT, FALSE);
+        const { codes, request } = collect(der);
+        expect(request.certReq).toBe(false);
+        expect(codes).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
+        expect(request.diagnostics.map((d) => [d.code, d.path, d.offset])).toEqual([['PKI_DIAG_DEFAULT_ENCODED', 'TimeStampReq.certReq', der.length - 3]]);
+        expect(code(() => collect(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+    });
+
+    it('should leave the reader of the verifier silent on the same request: a verdict does not move with a remark', () => {
+        const seen: string[] = [];
+        const request = _parseTimeStampRequest(sequence(int(1), IMPRINT, FALSE), { strict: true, onDiagnostic: (d) => { seen.push(d.code); } });
+        expect(request.certReq).toBe(false);
+        expect(seen).toEqual([]);
+        // …and nothing for a certReq TRUE either.
+        _parseTimeStampRequest(sequence(int(1), IMPRINT, TRUE), { onDiagnostic: (d) => { seen.push(d.code); } });
+        expect(seen).toEqual([]);
+        expect(Object.keys(request).sort()).toEqual(['certReq', 'messageImprint', 'nonce', 'policy']);
+    });
+
+    it('should keep an extension it does not recognise, raw, and decode one it does', () => {
+        const keyId = universal(4, [0xde, 0xad, 0xbe, 0xef]);
+        const { codes, request } = collect(sequence(int(1), IMPRINT, TRUE, extensions(extension(PRIVATE_OID, [0x05, 0x00]), extension(SKI_OID, keyId))));
+        expect(request.extensions).toHaveLength(2);
+        expect(request.extensions[0]).toEqual({ kind: 'unknown', oid: '1.2.3.4.5', critical: false, valueDer: Uint8Array.of(0x05, 0x00) });
+        expect(request.extensions[1]).toMatchObject({ kind: 'subjectKeyIdentifier', oid: '2.5.29.14', critical: false });
+        expect(codes).toEqual([]);
+        expect(Object.isFrozen(request.extensions)).toBe(true);
+    });
+
+    it('should name a critical extension it does not recognise, and refuse it under strict (RFC 5280 §4.2)', () => {
+        const der = sequence(int(1), IMPRINT, extensions(extension(PRIVATE_OID, [0x05, 0x00], true)));
+        const { codes, request } = collect(der);
+        expect(request.extensions[0]).toMatchObject({ kind: 'unknown', critical: true });
+        expect(codes).toEqual(['PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION']);
+        expect(code(() => collect(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+    });
+
+    it('should refuse a recognised extension whose value is not its ASN.1 definition, as a CMS refusal', () => {
+        // subjectKeyIdentifier is an OCTET STRING; a NULL in its place is refused by
+        // the certificate reader, and reported under the class this caller catches.
+        const der = sequence(int(1), IMPRINT, extensions(extension(SKI_OID, [0x05, 0x00])));
+        expect(() => parseTimeStampRequest(der, quiet)).toThrow(PkiCmsError);
+        expect(code(() => parseTimeStampRequest(der, quiet))).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
+
+    it.each([
+        ['a primitive [0], octets where Extension values belong', tlv(2, false, 0, [0x01, 0x02, 0x03]), 'TimeStampReq.extensions'],
+        ['an entry that is not an Extension', tlv(2, true, 0, sequence()), 'TimeStampReq.extensions[0]'],
+    ])('should refuse extensions that are %s, which the reader of the verifier reads past', (_, field, path) => {
+        const der = sequence(int(1), IMPRINT, TRUE, field);
+        const thrown = thrownBy(() => parseTimeStampRequest(der, quiet));
+        expect(thrown).toBeInstanceOf(PkiCmsError);
+        expect(thrown).toMatchObject({ code: 'PKI_CMS_STRUCTURE_INVALID', path });
+        expect(_parseTimeStampRequest(der, quiet).certReq).toBe(true);
+    });
+
+    it('should stop at maxExtensions, the limit that bounds the extensions of a certificate', () => {
+        const der = sequence(int(1), IMPRINT, extensions(extension(PRIVATE_OID, [0x05, 0x00]), extension([0x2a, 0x03, 0x04, 0x06], [0x05, 0x00])));
+        expect(parseTimeStampRequest(der, { ...quiet, limits: { maxExtensions: 2 } }).extensions).toHaveLength(2);
+        const thrown = thrownBy(() => parseTimeStampRequest(der, { ...quiet, limits: { maxExtensions: 1 } }));
+        expect(thrown).toBeInstanceOf(PkiLimitError);
+        expect(thrown).toMatchObject({ code: 'PKI_LIMIT_EXCEEDED', limit: 'maxExtensions' });
+    });
+
+    it('should refuse a version other than 1', () => {
+        const der = sequence(int(2), IMPRINT);
+        expect(() => parseTimeStampRequest(der, quiet)).toThrow(PkiCmsError);
+        expect(code(() => parseTimeStampRequest(der, quiet))).toBe('PKI_CMS_VERSION_UNSUPPORTED');
+    });
+
+    it.each([
+        ['not a SEQUENCE', universal(4, [0x01])],
+        ['no version', sequence()],
+        ['a version and nothing to stamp', sequence(int(1))],
+        ['an imprint whose hash is not as long as its algorithm (RFC 3161 §2.4.1)', sequence(int(1), sequence(sequence(oid(SHA256), NULL), universal(4, HASH.subarray(0, 20))))],
+        ['the nonce before the policy', sequence(int(1), IMPRINT, int(5), oid([0x2a, 0x03]))],
+        ['the extensions before certReq', sequence(int(1), IMPRINT, extensions(extension(PRIVATE_OID, [0x05, 0x00])), TRUE)],
+        ['a field twice', sequence(int(1), IMPRINT, TRUE, TRUE)],
+        ['an unknown context tag', sequence(int(1), IMPRINT, tlv(2, true, 1, sequence()))],
+    ])('should refuse %s', (_, der) => {
+        expect(() => parseTimeStampRequest(der, quiet)).toThrow(PkiCmsError);
+        expect(code(() => parseTimeStampRequest(der, quiet))).toBe('PKI_CMS_STRUCTURE_INVALID');
+    });
+
+    it('should read the request as DER whatever encodingRules says (RFC 3161 §3: every transport carries DER)', () => {
+        // The same request under an indefinite length: BER, and refused.
+        const ber = tlv(0, true, 16, concat(int(1), IMPRINT), { indefinite: true });
+        expect(thrownBy(() => parseTimeStampRequest(ber, { ...quiet, encodingRules: 'ber' }))).toBeInstanceOf(PkiEncodingError);
+        expect(thrownBy(() => parseTimeStampRequest(concat(sequence(int(1), IMPRINT), [0x00]), quiet))).toBeInstanceOf(PkiEncodingError);
+    });
+
+    it('should refuse an argument that is not bytes as PKI_INVALID_INPUT, never as a TypeError', () => {
+        for (const value of ['30 03 02 01 01', undefined, null, [0x30, 0x00]]) {
+            expect(() => parseTimeStampRequest(value as unknown as Uint8Array)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+            expect(() => parseTimeStampRequest(value as unknown as Uint8Array)).toThrow(PkiError);
+        }
     });
 });

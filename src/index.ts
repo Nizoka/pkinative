@@ -258,11 +258,13 @@ export type { CreateSignedDataInput } from './build/build-signed-data.js';
 export { parseTstInfo } from './cms/tsp-tst-info.js';
 export { parseTimeStampResponse, parseTimeStampToken } from './cms/tsp-response.js';
 export { createTimeStampRequest } from './cms/tsp-request.js';
+export { parseTimeStampRequest } from './cms/tsp-request.js';
 export type { CreateTimeStampRequestOptions, TimeStampHashAlgorithm } from './cms/tsp-request.js';
 export type {
     MessageImprint,
     TimeStampAccuracy,
     TimeStampFailure,
+    TimeStampRequest,
     TimeStampResponse,
     TimeStampStatus,
     TimeStampToken,

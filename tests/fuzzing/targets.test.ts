@@ -28,7 +28,7 @@ import { type FuzzTarget, fuzzSeeds } from './_fuzz-seeds.js';
 type Target = { readonly fuzz: (data: Uint8Array) => void };
 
 const TARGETS = readdirSync('fuzz').filter((f) => f.endsWith('.js')).sort();
-const EXPECTED: readonly FuzzTarget[] = ['asn1', 'cms', 'crl', 'ocsp', 'pem', 'pkcs12', 'tsp', 'x509'];
+const EXPECTED: readonly FuzzTarget[] = ['asn1', 'cms', 'crl', 'ocsp', 'pem', 'pkcs12', 'tsp-request', 'tsp', 'x509'];
 
 /** Certificates' building blocks, an OID, PEM text, and bytes that are none of those — shared by every target. */
 function sharedCorpus(): Uint8Array[] {
@@ -55,6 +55,7 @@ const READS: Readonly<Record<FuzzTarget, (seed: Uint8Array) => unknown>> = {
     cms: (s) => pkinative.parseSignedData(s, quiet),
     crl: (s) => pkinative.parseCertificateList(s, quiet),
     ocsp: (s) => pkinative.parseOcspResponse(s, quiet),
+    'tsp-request': (s) => pkinative.parseTimeStampRequest(s, quiet),
     tsp: (s) => {
         // The three nested readers, each on the layer it reads.
         for (const parse of [pkinative.parseTimeStampResponse, pkinative.parseTimeStampToken, pkinative.parseTstInfo]) {
