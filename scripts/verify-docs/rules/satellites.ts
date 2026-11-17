@@ -8,7 +8,8 @@
  * docs/data/cli-surface.json, a projection of its own capability manifest
  * (`scripts/build-cli-surface.ts`). These rules hold the manifest to itself
  * and to that snapshot (`satellite-manifest`), every count the prose quotes to
- * the manifest (`satellite-counts`), the capability × surface registry to
+ * the manifest (`satellite-counts`), every version, release day and pin it
+ * writes (`satellite-stamps`), the capability × surface registry to
  * both (`surfaces-shape`), and the CLI and MCP guides to the surfaces they
  * document (`cli-surface-parity`, `mcp-surface-parity`).
  *
@@ -32,6 +33,7 @@ const MCP_EXPLORER = 'docs/playgrounds/mcp.js';
 /** `packages.pkinative-cli` of the manifest. */
 export interface CliPackage {
     readonly version?: unknown;
+    readonly released?: unknown;
     readonly status?: unknown;
     readonly repo?: unknown;
     readonly binary?: unknown;
@@ -44,6 +46,7 @@ export interface CliPackage {
 /** `packages.pkinative-mcp` of the manifest. */
 export interface McpPackage {
     readonly version?: unknown;
+    readonly released?: unknown;
     readonly status?: unknown;
     readonly repo?: unknown;
     readonly binary?: unknown;
@@ -142,12 +145,16 @@ const satelliteManifest: Rule = {
  */
 interface CountPhrase {
     readonly phrase: string;
-    readonly value: (cli: CliPackage, mcp: McpPackage) => unknown;
+    readonly value: (cli: CliPackage, mcp: McpPackage, surface: CliSurface) => unknown;
     readonly context?: RegExp;
+    /** Words that must come right before the number: "commands in" makes "six groups" the command groups. */
+    readonly prefix?: string;
 }
 
 const MCP_CONTEXT = /\bMCP\b|pkinative-mcp/;
 const CLI_CONTEXT = /\bCLI\b|pkinative-cli|`pkinative [a-z]/;
+
+const withoutSubcommands = (surface: CliSurface): number => (surface.commands ?? []).filter((c) => (c.subcommands ?? []).length === 0).length;
 
 const COUNT_PHRASES: readonly CountPhrase[] = [
     { phrase: '(?:MCP )?tools', value: (_c, m) => m.counts?.tools, context: MCP_CONTEXT },
@@ -157,6 +164,13 @@ const COUNT_PHRASES: readonly CountPhrase[] = [
     { phrase: '(?:CLI )?commands(?! that take none| without)', value: (c) => c.counts?.commands, context: CLI_CONTEXT },
     { phrase: 'invocations', value: (c) => c.counts?.invocations },
     { phrase: 'error classes', value: (c) => c.counts?.errorClasses, context: /`E_|\bCLI\b|pkinative-cli/ },
+    // The wider counts, each only in the words the prose already uses and on a line that says what is counted.
+    { phrase: 'subcommands', value: (_c, _m, s) => invocations(s).length - withoutSubcommands(s), context: /\binvocations\b/ },
+    { phrase: 'commands that take none', value: (_c, _m, s) => withoutSubcommands(s), context: /\binvocations\b|\bCLI\b|pkinative-cli/ },
+    { phrase: '(?:schema )?subjects', value: (c) => c.counts?.schemaSubjects, context: /\bschema\b/ },
+    { phrase: 'groups', prefix: 'commands in ', value: (c) => Object.keys(c.commandGroups ?? {}).length },
+    { phrase: 'groups', prefix: 'tools in ', value: (_c, m) => Object.keys(m.toolGroups ?? {}).length },
+    { phrase: 'environment variables', value: (_c, m) => (m.envVars ?? []).length, context: MCP_CONTEXT },
 ];
 
 /** The prose a satellite count may appear in: the documentation, plus the root files that describe the ecosystem. */
@@ -164,7 +178,7 @@ const COUNT_SOURCES = (ctx: RuleContext): string[] => [...new Set([...PROSE_SOUR
 
 const satelliteCounts: Rule = {
     id: 'satellite-counts',
-    summary: 'Every count of a satellite quoted in the README, the root documents, the guides and the site — "34 tools", "seven prompts", "18 commands", "53 invocations", "13 error classes", "21 wrapper codes", in digits or in words — equals packages.pkinative-cli.counts / packages.pkinative-mcp.counts of docs/assets/ecosystem.json; a tools or prompts count is read on a line about the MCP server, a commands or error-classes count on a line about the CLI.',
+    summary: 'Every count of a satellite quoted in the README, the root documents, the guides and the site — "34 tools", "seven prompts", "18 commands", "53 invocations", "13 error classes", "21 wrapper codes", "47 subcommands", "the 6 commands that take none", "twelve subjects", "commands in six groups", "tools in six groups", "nine environment variables", in digits or in words — equals packages.pkinative-cli / packages.pkinative-mcp of docs/assets/ecosystem.json (their counts, their inventories) or docs/data/cli-surface.json; a tools, prompts or variables count is read on a line about the MCP server, a commands or error-classes count on a line about the CLI.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
@@ -172,14 +186,79 @@ const satelliteCounts: Rule = {
         for (const path of COUNT_SOURCES(ctx)) {
             const text = topEntryOnly(path, ctx.read(path) ?? '');
             const lines = text.split('\n');
-            for (const { phrase, value, context } of COUNT_PHRASES) {
-                const want = value(sat.cli, sat.mcp);
+            for (const { phrase, value, context, prefix } of COUNT_PHRASES) {
+                const want = value(sat.cli, sat.mcp, sat.surface);
                 // (?<![\d.]) keeps "pkinative-cli 1.0.0 commands" from reading as "0 commands".
-                for (const m of text.matchAll(new RegExp(`(?<![\\d.\\-])\\b${NUMBER}\\s+${phrase}\\b`, 'gi'))) {
+                for (const m of text.matchAll(new RegExp(`${prefix === undefined ? '' : `\\b${prefix}`}(?<![\\d.\\-])\\b${NUMBER}\\s+${phrase}\\b`, 'gi'))) {
                     const line = lineOf(text, m.index);
                     if (context !== undefined && !context.test(lines[line - 1] ?? '')) continue;
                     if (quotedValue(m[1] ?? '') !== want) out.push(error(path, `quotes "${m[0]}"; docs/assets/ecosystem.json says ${String(want)}`, line));
                 }
+            }
+        }
+        return out;
+    },
+};
+
+// ── satellite-stamps ─────────────────────────────────────────────────
+
+type Short = 'cli' | 'mcp';
+
+/** The package a file is about, by its name: the CLI guide, an MCP use case, a playground, a diagram. */
+const packageOfPath = (path: string): Short | undefined => (/(?:^|[/-])(cli|mcp)(?:[.-][\w.-]+)?$/.exec(path)?.[1] as Short | undefined);
+
+/** Where a satellite's version, release day or pin is written: the count sources but the histories, plus the two playground scripts, the use-case diagrams and two registries. */
+const STAMP_SOURCES = (ctx: RuleContext): string[] => [...new Set([
+    ...COUNT_SOURCES(ctx).filter((p) => p !== 'CHANGELOG.md' && !p.startsWith('docs/adr/')),
+    ...ctx.list('docs/playgrounds').filter((p) => /^docs\/playgrounds\/(cli|mcp)\.js$/.test(p)),
+    ...ctx.list('docs/assets').filter((p) => /^docs\/assets\/use-case-[\w-]+\.svg$/.test(p)),
+    SURFACES,
+    'docs/data/playgrounds.json',
+])];
+
+const TRIPLE = '(\\d+\\.\\d+\\.\\d+)';
+/** `pkinative-cli 1.0.0`, `pkinative-cli@1.0.0`, `pkinative-cli-1.0.0.tgz`, the linked and code forms, "at the v1.0.0 tag", and a script's `name: …, version: …`. */
+const VERSION_TOKEN = new RegExp(`pkinative-(cli|mcp)(?:\`|\\)|</a>)?(?:[ @-]v?| at the v|',\\s*version: ')${TRIPLE}(?![\\d.]*\\d)`, 'g');
+const DATE_TOKEN = /\b(?:released on|published) (\d{4}-\d{2}-\d{2})\b/g;
+const PIN_TOKEN = new RegExp(`(?<![\\w-])pkinative \\^${TRIPLE}`, 'g');
+
+const satelliteStamps: Rule = {
+    id: 'satellite-stamps',
+    summary: 'Every version, release day and engine pin of a satellite written in the README, the root documents, the guides, the playgrounds and their scripts, the use-case diagrams and the surface registries — "pkinative-cli 1.0.0", "pkinative-mcp@1.0.0", "released on 2026-10-08", "pkinative ^1.0.0" — equals packages.<name>.version, .released and .pin of docs/assets/ecosystem.json; a pin on a line about one satellite is that satellite\'s, any other is both\'s; a historical floor ("since pkinative-mcp 1.0.0") is exempt, the changelog and the decision records are not read.',
+    check(ctx) {
+        const sat = readSatellites(ctx);
+        if ('finding' in sat) return [sat.finding];
+        const record: Record<Short, { version: unknown; released: unknown; pin: unknown }> = {
+            cli: { version: sat.cli.version, released: sat.cli.released, pin: sat.cli.pin },
+            mcp: { version: sat.mcp.version, released: sat.mcp.released, pin: sat.mcp.pin },
+        };
+        const out: Finding[] = [];
+        for (const path of STAMP_SOURCES(ctx)) {
+            const text = ctx.read(path);
+            if (text === null) continue;
+            const lines = text.split('\n');
+            /** The one satellite a line names, if it names exactly one. */
+            const named = (line: number): Short | undefined => {
+                const names = new Set([...(lines[line - 1] ?? '').matchAll(/pkinative-(cli|mcp)/g)].map((m) => m[1] as Short));
+                return names.size === 1 ? [...names][0] : undefined;
+            };
+            for (const m of text.matchAll(VERSION_TOKEN)) {
+                // "`1.0.0` since pkinative-mcp 1.0.0" dates a fact; it does not say which version is current.
+                if (/\bsince\s+[`(]?$/.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;
+                const short = m[1] as Short;
+                if (m[2] !== record[short].version) out.push(error(path, `names pkinative-${short} ${m[2] ?? ''}; ${MANIFEST} records ${String(record[short].version)} — npm run satellites:sync -- --apply moves the manifest, a writer moves the prose`, lineOf(text, m.index)));
+            }
+            for (const m of text.matchAll(DATE_TOKEN)) {
+                const line = lineOf(text, m.index);
+                const short = named(line);
+                if (short !== undefined && m[1] !== record[short].released) out.push(error(path, `dates pkinative-${short} to ${m[1] ?? ''}; ${MANIFEST} records its release on ${String(record[short].released)}`, line));
+            }
+            for (const m of text.matchAll(PIN_TOKEN)) {
+                const line = lineOf(text, m.index);
+                const short = named(line) ?? packageOfPath(path);
+                // A sentence about no satellite in particular speaks for both: one finding, naming each pin it contradicts.
+                const differing = (short === undefined ? (['cli', 'mcp'] as const) : [short]).filter((s) => `^${m[1] ?? ''}` !== record[s].pin);
+                if (differing.length > 0) out.push(error(path, `says pkinative ^${m[1] ?? ''}; ${MANIFEST} records that ${differing.map((s) => `pkinative-${s} pins ${String(record[s].pin)}`).join(' and ')}`, line));
             }
         }
         return out;
@@ -333,4 +412,4 @@ const versionsWidget: Rule = {
     },
 };
 
-export const SATELLITE_RULES: readonly Rule[] = [satelliteManifest, satelliteCounts, surfacesShape, cliSurfaceParity, mcpSurfaceParity, versionsWidget];
+export const SATELLITE_RULES: readonly Rule[] = [satelliteManifest, satelliteCounts, satelliteStamps, surfacesShape, cliSurfaceParity, mcpSurfaceParity, versionsWidget];

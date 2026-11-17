@@ -141,6 +141,8 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commands": 18', '"commands": 19'),
     // pdfnative's defect, replayed: the site advertises one tool count, the server registers another.
     'satellite-counts': (f) => edit(f, 'docs/guides/mcp.md', /\b34 tools\b/, '35 tools'),
+    // A patch release recorded in the manifest and not in the sentence that states the current version.
+    'satellite-stamps': (f) => edit(f, 'docs/guides/cli.md', 'pkinative-cli 1.0.0, released', 'pkinative-cli 1.0.1, released'),
     // A tool dropped from the matrix: the reader choosing a surface no longer sees it exists.
     'surfaces-shape': (f) => edit(f, 'docs/data/surfaces.json', '["inspect_pkcs12", "open_pkcs12"]', '["inspect_pkcs12"]'),
     // An error class the CLI raises, gone from its guide.
@@ -240,6 +242,45 @@ describe('verify-docs rule table', () => {
         mutate(files);
         const problems = await runRules(createMemoryContext(files), RULES, id);
         expect(problems.filter((p) => p.severity === 'error').length, id).toBeGreaterThan(0);
+    });
+
+    it.each([
+        // The pin, where no satellite is named: it has to be the pin of both.
+        ['a pin neither satellite carries', 'README.md', 'pinning `pkinative ^1.0.0`', 'pinning `pkinative ^1.1.0`', 'says pkinative ^1.1.0'],
+        // The release day: the CHANGELOG of pkinative-mcp dates 1.0.0 four days before it shipped.
+        ['a release day the manifest does not record', 'docs/guides/mcp.md', 'released on 2026-10-17', 'released on 2026-10-13', 'dates pkinative-mcp to 2026-10-13'],
+        ['an install command of another version', 'docs/guides/cli.md', 'pkinative-cli@1.0.0', 'pkinative-cli@1.0.1', 'names pkinative-cli 1.0.1'],
+        ['a use-case diagram left at the previous version', 'docs/assets/use-case-mcp-open-keys.svg', 'pkinative-mcp 1.0.0', 'pkinative-mcp 0.9.0', 'names pkinative-mcp 0.9.0'],
+        ['the explorer script left at the previous version', 'docs/playgrounds/mcp.js', "name: 'pkinative-mcp',\n    version: '1.0.0'", "name: 'pkinative-mcp',\n    version: '0.9.0'", 'names pkinative-mcp 0.9.0'],
+    ])('should fire satellite-stamps on %s', async (_what, file, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, file, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'satellite-stamps');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
+    });
+
+    it('should let satellite-stamps pass a historical floor, an allowed mention, the changelog and a decision record', async () => {
+        const files = { ...TREE };
+        // "since" dates a fact; it does not say which version is current.
+        edit(files, 'docs/guides/mcp.md', 'since pkinative-mcp 1.0.0', 'since pkinative-mcp 0.9.0');
+        edit(files, 'docs/guides/errors.md', /\n$/, '\n<!-- verify-docs:allow satellite-stamps (historical: the first release) -->\nRecorded with pkinative-cli 0.9.0.\n');
+        edit(files, 'CHANGELOG.md', /\n$/, '\nShipped beside pkinative-cli 0.9.0.\n');
+        edit(files, 'docs/adr/README.md', /\n$/, '\nDecided when pkinative-mcp 0.9.0 was current.\n');
+        expect(await runRules(createMemoryContext(files), RULES, 'satellite-stamps')).toEqual([]);
+    });
+
+    it.each([
+        ['the subcommand count', 'docs/guides/cli.md', '47 subcommands', '48 subcommands', 'quotes "48 subcommands"'],
+        ['the commands without subcommands', 'docs/guides/cli.md', 'the 6 commands that take none', 'the 7 commands that take none', 'quotes "7 commands that take none"'],
+        ['the schema subjects', 'docs/guides/choose.md', '`schema` (twelve subjects)', '`schema` (eleven subjects)', 'quotes "eleven subjects"'],
+        ['the command groups', 'ROADMAP.md', '18 commands in six groups', '18 commands in five groups', 'quotes "commands in five groups"'],
+        ['the tool groups', 'docs/guides/mcp.md', 'Thirty-four tools in six groups', 'Thirty-four tools in seven groups', 'quotes "tools in seven groups"'],
+        ['the operator variables', 'docs/guides/mcp.md', 'the nine environment variables', 'the eight environment variables', 'quotes "eight environment variables"'],
+    ])('should fire satellite-counts on %s', async (_what, file, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, file, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'satellite-counts');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
     });
 
     it.each([
