@@ -41,7 +41,8 @@
  *
  * Flags: --cli/--mcp <dir> (default ../pkinative-<name> beside this
  * repository), --expect <name>=<semver>… (the checkout must be at that
- * version), --capture (run the satellites' capture commands: the CLI's
+ * version; only the packages it names are read, every checkout found when it
+ * names none), --capture (run the satellites' capture commands: the CLI's
  * capability manifest, each tag's date), --apply, --worklist, --dry-run (the
  * repository edits are reported, not written; the reports always are),
  * --date YYYY-MM-DD (default today, UTC), --show <unit>.
@@ -771,6 +772,16 @@ export function parseArgs(argv: readonly string[], today: string = new Date().to
     return { roots, expect, capture: flags.capture, apply: flags.apply, worklist: flags.worklist, dryRun: flags['dry-run'], date, show };
 }
 
+/**
+ * The satellites a run reads. With `--expect`, only the packages it names and
+ * those given a directory: a release of one satellite must not write whatever
+ * state the other's checkout happens to be in. Without it, every checkout found.
+ */
+export function selectedKeys(opts: Pick<Options, 'expect' | 'roots'>): SatelliteKey[] {
+    const named = Object.keys(opts.expect).length > 0;
+    return SATELLITE_KEYS.filter((key) => !named || opts.expect[key] !== undefined || opts.roots[key] !== null);
+}
+
 // ── main ─────────────────────────────────────────────────────────────
 
 const OUT = 'test-output/.satellites';
@@ -839,6 +850,10 @@ function main(argv: readonly string[]): number {
         const name = packageOf(key);
         const dir = resolve(root, opts.roots[key] ?? join('..', name));
         const expected = opts.expect[key];
+        if (!selectedKeys(opts).includes(key)) {
+            skipped.push(`${name} (not named by --expect)`);
+            continue;
+        }
         let version: string;
         try {
             version = String((JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');

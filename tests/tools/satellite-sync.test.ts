@@ -23,6 +23,7 @@ import {
     restampVerifiedOn,
     restampVerifiedTime,
     satelliteKey,
+    selectedKeys,
     setPackageField,
     showUnit,
     sourceOf,
@@ -487,6 +488,16 @@ describe('parseArgs', () => {
         expect(parseArgs(['--expect', 'pkinative-cli=1.1.0,mcp=1.2.0', '--cli', '../elsewhere', '--dry-run', '--date', '2026-12-01'], DATE)).toMatchObject({ roots: { cli: '../elsewhere', mcp: null }, expect: { cli: '1.1.0', mcp: '1.2.0' }, dryRun: true, date: '2026-12-01' });
         expect(parseArgs([], DATE)).toMatchObject({ capture: false, apply: false, worklist: false, show: null, expect: {} });
         expect(parseArgs(['--show', 'B3'], DATE)).toMatchObject({ show: 'B3' });
+    });
+
+    it('should read only the satellites --expect names, or every checkout when it names none', () => {
+        const none = { cli: null, mcp: null };
+        expect(selectedKeys({ expect: {}, roots: none })).toEqual(['cli', 'mcp']);
+        // A release of one satellite never writes whatever state the other's checkout is in.
+        expect(selectedKeys({ expect: { mcp: '1.2.0' }, roots: none })).toEqual(['mcp']);
+        expect(selectedKeys({ expect: { cli: '1.1.0', mcp: '1.2.0' }, roots: none })).toEqual(['cli', 'mcp']);
+        // A directory given on the command line is a package the caller asked for.
+        expect(selectedKeys({ expect: { mcp: '1.2.0' }, roots: { cli: '../elsewhere', mcp: null } })).toEqual(['cli', 'mcp']);
     });
 
     it('should refuse what it cannot read, with the usage', () => {
