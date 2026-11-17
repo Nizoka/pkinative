@@ -1,6 +1,7 @@
 # AGENTS.md
 
-Editor-agnostic guidance for AI coding agents. Detail: [.github/copilot-instructions.md](.github/copilot-instructions.md) + [.github/instructions/](.github/instructions/) (one file per area, table below).
+Editor-agnostic guidance for AI coding agents. Detail: [.github/copilot-instructions.md](.github/copilot-instructions.md). Area rules live in [.github/instructions/](.github/instructions/) (Copilot, by `applyTo`)
+and are compiled to `.claude/rules/` (Claude Code, loaded by path): api-design, decision, performance, pki-core, security, testing, tooling.
 Claude Code loads [CLAUDE.md](CLAUDE.md), which imports this file.
 
 ## Mission and constraints
@@ -36,20 +37,20 @@ Conformance L0–L8: `npm run build`, then `npx tsx scripts/validate-certs.ts` (
 
 ## Where is what
 
-| Path | Purpose | Read first (`.github/instructions/`) |
-|---|---|---|
-| `src/types/` | `PkiError` family, code unions, public types | `api-design` |
-| `src/core/` | Limits, diagnostics sink, bytes/text/base64 | `security` |
-| `src/asn1/`, `src/pem/`, `src/oid/` | X.690 decoder and readers, time, OID codec, encoders; RFC 7468; OID names | `pki-core` |
-| `src/hash/` | Hashes over public data, fingerprints | `performance` |
-| `src/x509/` | RFC 5280 certificates and requests: envelope, names, SPKI, every extension | `pki-core` |
-| `src/crypto/`, `src/keys/` | The Web Crypto door, algorithm tables, DER ↔ P1363; PKCS#8/#12 | `security` |
-| `src/build/`, `src/cms/` | Structural encoders, signed certificates and CSRs; RFC 5652 and RFC 3161 | `pki-core` |
-| `src/path/`, `src/revocation/`, `src/verify/` | §6 paths, §5 revocation, OCSP; `verify/` composes them and alone turns a `PkiError` into a reason | `decision` |
-| `src/index.ts` | The single entry point, ten numbered sections | `api-design` |
-| `tests/` | Suites mirroring `src/`, plus fuzzing, security, property, performance, conformance, tools, docs | `testing` |
-| `scripts/`, `.github/` | Gate, verify-docs rules, generators, conformance and mutation runners; workflows, governance | `tooling` |
-| `docs/` | pkinative.dev: guides, `data/` registries, llms files, `assets/ecosystem.json` | `api-design` |
+| Path | Purpose |
+|---|---|
+| `src/types/` | `PkiError` family, code unions, public types |
+| `src/core/` | Limits, diagnostics sink, bytes/text/base64 |
+| `src/asn1/`, `src/pem/`, `src/oid/` | X.690 decoder and readers, time, OID codec, encoders; RFC 7468; OID names |
+| `src/hash/` | Hashes over public data, fingerprints |
+| `src/x509/` | RFC 5280 certificates and requests: envelope, names, SPKI, every extension |
+| `src/crypto/`, `src/keys/` | The Web Crypto door, algorithm tables, DER ↔ P1363; PKCS#8/#12 |
+| `src/build/`, `src/cms/` | Structural encoders, signed certificates and CSRs; RFC 5652 and RFC 3161 |
+| `src/path/`, `src/revocation/`, `src/verify/` | §6 paths, §5 revocation, OCSP; `verify/` composes them and alone turns a `PkiError` into a reason |
+| `src/index.ts` | The single entry point, ten numbered sections |
+| `tests/` | Suites mirroring `src/`, plus fuzzing, security, property, performance, conformance, tools, docs |
+| `scripts/`, `.github/` | Gate, verify-docs rules, generators, conformance and mutation runners; workflows, governance |
+| `docs/` | pkinative.dev: guides, `data/` registries, llms files, `assets/ecosystem.json` |
 
 ## Architecture
 

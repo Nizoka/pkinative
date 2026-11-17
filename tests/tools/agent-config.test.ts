@@ -189,7 +189,7 @@ describe('agent-config — agent-config-parity', () => {
 
 describe('agent-config — claude-rules-budget', () => {
     const scoped = '---\npaths:\n  - "src/**"\n---\nbody\n';
-    it('should sum CLAUDE.md, its @imports and unscoped rules against the 16 KiB budget', () => {
+    it('should sum CLAUDE.md, its @imports and unscoped rules against the 12 KiB budget', () => {
         expect(claudeImports(CLAUDE_MD)).toEqual(['AGENTS.md']);
         expect(checkClaudeRulesBudget({ claudeMd: CLAUDE_MD, resolveImport: () => 'x'.repeat(1000), rules: { 'a.md': scoped } })).toEqual([]);
         const over = checkClaudeRulesBudget({ claudeMd: CLAUDE_MD, resolveImport: () => 'x'.repeat(CLAUDE_CONTEXT_BUDGET), rules: {} });

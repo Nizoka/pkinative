@@ -277,7 +277,7 @@ export function checkAgentConfigParity(input: AgentConfigInput): Finding[] {
 
 // ── claude-rules-budget ──────────────────────────────────────────────
 
-export const CLAUDE_CONTEXT_BUDGET = 16 * 1024;
+export const CLAUDE_CONTEXT_BUDGET = 12 * 1024;
 export const SCOPED_RULE_WARN_BYTES = 32 * 1024;
 
 export interface RulesBudgetInput {

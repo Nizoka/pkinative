@@ -319,7 +319,7 @@ const claudeRulesSync: Rule = {
 
 const claudeRulesBudget: Rule = {
     id: 'claude-rules-budget',
-    summary: 'CLAUDE.md, its imports and any unscoped rule stay within the 16 KiB always-loaded budget; every rule is scoped.',
+    summary: 'CLAUDE.md, its imports and any unscoped rule stay within the 12 KiB always-loaded budget; every rule is scoped.',
     check(ctx) {
         return checkClaudeRulesBudget({
             claudeMd: ctx.read('CLAUDE.md') ?? '',

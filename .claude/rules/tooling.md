@@ -8,7 +8,7 @@ paths:
 # Tooling rules (scripts/, .github/)
 
 ## The gate and its steps
-- `scripts/gate.ts` `STEPS` is the list; a step has a profile (`fast`, `ci`, `publish`), a log in `test-output/.gate/<step>.log` and a ≤ 20-line summary. Adding a step: add it to `STEPS`, to the profile table in AGENTS.md and CLAUDE.md, and to `docs/assets/ecosystem.json` if a count quotes it.
+- `scripts/gate.ts` `STEPS` is the list; a step has a profile (`fast`, `ci`, `publish`), a log in `test-output/.gate/<step>.log` (a failing step prints its last 12 lines) and a ≤ 20-line summary. Adding a step: add it to `STEPS`, to the profile table in AGENTS.md, and to `docs/assets/ecosystem.json` if a count quotes it.
 - Scripts are pure Node + tsx, zero dependencies, `node:` imports allowed here (never under `src/`); `scripts/lib/` holds what two scripts share.
 
 ## verify-docs rules
@@ -22,10 +22,10 @@ paths:
 - Frozen snapshots: `scripts/build-{api,errors,refusals}-frozen.ts` — `--ratchet` in a stable phase, `--major` only for a new X.0.0, never hand-edited.
 
 ## .github/
-- Workflows pin every action by SHA (Dependabot owns bumps — never edit a pin by hand), least-privilege `permissions:`, harden-runner where network egress is known. `tests/tools/workflows.test.ts` holds the shape; zizmor and actionlint run in the audit workflow.
+- Workflows pin every action by SHA (Dependabot owns bumps — never edit a pin by hand), least-privilege `permissions:`, harden-runner where network egress is known. `tests/tools/workflows.test.ts` holds the shape; zizmor and actionlint run in the `workflow-lint` job of `ci.yml`.
 - The release path is split: the job that builds cannot publish (ADR 0019). `publish.yml` refuses pre-1.0 tags.
 - Governance: `.github/AGENT_RULES.md` (prose) and `.github/ai-governance.json` (machine-readable) say the same thing; `governance-sources` holds the always-loaded sources under 16 KiB.
 
 ## Claude Code configuration
 - `.claude/settings.json`: every `permissions.allow`/`deny` shell entry exists for **each** tool in `GUARDED_SHELL_TOOLS` (`scripts/lib/agent-config.ts`); `agent-config-parity` fails otherwise. `.claude/hooks/guard.mjs` is tested by `tests/tools/guard.test.ts` — a new denied family is a row there first.
-- `.claude/rules/*.md` are generated (`npm run agents:rules`) from `.github/instructions/*.instructions.md`; each instruction file has `applyTo`, so no rule loads unconditionally (`claude-rules-budget`).
+- `.claude/rules/*.md` are generated (`npm run agents:rules`) from `.github/instructions/*.instructions.md`; each instruction file has `applyTo`, so no rule loads unconditionally, and `claude-rules-budget` holds CLAUDE.md and its imports under 12 KiB. The hook command names `"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs"`, never a relative path (`agent-config-parity`).
