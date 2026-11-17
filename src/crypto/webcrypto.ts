@@ -60,7 +60,7 @@ function signingSubtle(): SubtlePublicKey | null {
  *
  * @returns Whether `globalThis.crypto.subtle` offers both `importKey` and
  *   `verify`. It does not say which algorithms the host implements —
- *   Ed448 and Ed25519 are missing on several runtimes that answer `true`.
+ *   Ed448, Ed25519 and ML-DSA are missing on runtimes that answer `true`.
  * @throws Never — a missing host is the answer, not an error.
  */
 export function canVerify(): boolean {
@@ -89,8 +89,8 @@ function requireSubtle(oid: string): SubtlePublicKey {
  * @returns An opaque handle. pkinative never sees the key's bits.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the host cannot
  *   verify; `PKI_CRYPTO_KEY_UNSUPPORTED` when it refuses the key — an
- *   algorithm it does not implement (Ed448 and, on several runtimes still,
- *   Ed25519), or key bytes it will not accept.
+ *   algorithm it does not implement (Ed448, ML-DSA and, on several runtimes
+ *   still, Ed25519), or key bytes it will not accept.
  */
 export async function importPublicKey(spkiDer: Uint8Array, params: ImportParams, oid: string): Promise<CryptoKeyHandle> {
     const subtle = requireSubtle(oid);

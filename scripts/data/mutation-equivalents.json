@@ -501,7 +501,7 @@
       "reason": "Semantic: the only octet the mutant adds to the four-octet branch is 0xEF, which the preceding three-octet branch (b0 >= 0xe0 && b0 <= 0xef) has already taken."
     },
     {
-      "id": "src/crypto/crypto-algorithms.ts:467:9:if-false",
+      "id": "src/crypto/crypto-algorithms.ts:571:9:if-false",
       "original": "signatureAlgorithm.oid === RSA_ENCRYPTION",
       "replacement": "false",
       "reason": "Semantic: rsaEncryption is not a key of SIGNATURE_BY_OID, so without the early return the shape lookup on the next line is undefined and the function returns null all the same."
