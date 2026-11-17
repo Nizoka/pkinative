@@ -713,20 +713,23 @@ describe('verify-docs rule table', () => {
 
     it('should fire contracts-shape when contracts.support drifts from package.json, the build target, the CI matrix or SECURITY.md', async () => {
         const engines = { ...TREE };
-        edit(engines, 'package.json', '"node": "^22.22.2 || ^24.14.1 || >=25.8.2"', '"node": ">=22"');
+        edit(engines, 'package.json', '"node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0"', '"node": ">=22"');
         expect(await contractProblems(engines)).toEqual(expect.arrayContaining([expect.stringContaining('package.json engines.node is ">=22"'), expect.stringContaining('Node.js 22 is a supported line and engines.node ">=22" gives it no floor')]));
         const target = { ...TREE };
         edit(target, 'tsup.config.ts', "target: 'es2020'", "target: 'es2022'");
         expect(await contractProblems(target)).toEqual([expect.stringContaining('does not build for es2020')]);
         const untested = { ...TREE };
-        edit(untested, 'docs/assets/ecosystem.json', '"nodeLines": [22, 24]', '"nodeLines": [22, 24, 26]');
+        edit(untested, 'docs/assets/ecosystem.json', '"nodeLines": [22, 24, 26]', '"nodeLines": [22, 24, 26, 28]');
         expect(await contractProblems(untested)).toEqual(expect.arrayContaining([
-            expect.stringContaining('Node.js 26 is a supported line and .github/workflows/ci.yml does not test it'),
+            expect.stringContaining('Node.js 28 is a supported line and .github/workflows/ci.yml does not test it'),
             expect.stringContaining('gives it no floor'),
-            expect.stringContaining('Node.js 26 is in both nodeLines and currentLines'),
+            expect.stringContaining('does not name the supported line Node.js 28'),
         ]));
+        // No line is Current since Node.js 26 entered LTS (ADR 0017, amended
+        // 2026-11-17): the list is empty, and a line added to it without its
+        // advisory workflow is tested by nothing.
         const current = { ...TREE };
-        edit(current, 'docs/assets/ecosystem.json', '"currentLines": [26]', '"currentLines": [22, 27]');
+        edit(current, 'docs/assets/ecosystem.json', '"currentLines": []', '"currentLines": [22, 27]');
         expect(await contractProblems(current)).toEqual(expect.arrayContaining([
             expect.stringContaining('Node.js 22 is in both nodeLines and currentLines'),
             expect.stringContaining('Node.js 27 is a tested Current line and .github/workflows/node-current.yml does not run it'),
@@ -739,7 +742,7 @@ describe('verify-docs rule table', () => {
 
     it('should fire node-pin-parity on a setup-node step pinned to a literal major that contracts.support.currentLines does not name', async () => {
         const files = { ...TREE };
-        edit(files, '.github/workflows/node-current.yml', 'node-version: 26', 'node-version: 27');
+        edit(files, '.github/workflows/bench.yml', 'node-version-file: .nvmrc', 'node-version: 27');
         const problems = (await runRules(createMemoryContext(files), RULES, 'node-pin-parity')).map((p) => p.message);
         expect(problems).toEqual([expect.stringContaining('a Current line named in contracts.support.currentLines')]);
         expect(await runRules(createMemoryContext({ ...TREE }), RULES, 'node-pin-parity')).toEqual([]);

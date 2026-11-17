@@ -7,7 +7,7 @@
       "repo": "https://github.com/Nizoka/pkinative",
       "status": "active",
       "engine": {
-        "node": "^22.22.2 || ^24.14.1 || >=25.8.2"
+        "node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0"
       },
       "site": "https://pkinative.dev",
       "npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"
@@ -183,9 +183,9 @@
     },
     "support": {
       "adr": "docs/adr/0017-runtime-and-toolchain-support.md",
-      "node": "^22.22.2 || ^24.14.1 || >=25.8.2",
-      "nodeLines": [22, 24],
-      "currentLines": [26],
+      "node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0",
+      "nodeLines": [22, 24, 26],
+      "currentLines": [],
       "typescript": "5.0.4",
       "esTarget": "es2020",
       "tested": ["Node.js", "Deno (smoke test)", "Bun (smoke test)", "headless Chromium (smoke test)"],

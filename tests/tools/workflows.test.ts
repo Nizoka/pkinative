@@ -61,7 +61,6 @@ describe('every workflow', () => {
             'dependency-review.yml',
             'docs.yml',
             'fuzz.yml',
-            'node-current.yml',
             'publish.yml',
             'scorecard.yml',
         ]);
@@ -257,10 +256,10 @@ describe('ci.yml', () => {
         // here — or dropping the `name:` — would leave required checks pending
         // forever. Adding a platform must stay additive.
         expect(ci).toMatch(/^ {2}ci:\s*\n\s+name: \$\{\{ matrix\.name \}\}/m);
-        expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'macos', 'windows']);
+        expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'ci (26)', 'macos', 'windows']);
         expect(ci).toMatch(/^ {2}runtimes:\s*\n {4}name: runtimes\s*$/m);
         expect(ci).toMatch(/^ {2}workflow-lint:\s*\n {4}name: workflow lint\s*$/m);
-        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'windows', 'macos']));
+        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'ci (26)', 'windows', 'macos']));
         for (const os of ['ubuntu-latest', 'windows-latest', 'macos-latest']) expect(ci, os).toContain(`os: ${os}`);
         expect(ci).toMatch(/node-version: 22/);
         expect(ci).toMatch(/node-version: 24/);
@@ -306,7 +305,7 @@ describe('ci.yml', () => {
         // red for a reason that is not this repository's.
         expect([...ci.matchAll(/run: npx tsx scripts\/gate\.ts --ci --require-all/g)]).toHaveLength(1);
         expect(ci).toMatch(/if: matrix\.audit\s*\n\s+run: npm audit --audit-level=high/);
-        expect(checkNames(ci).length, 'the gate runs once per matrix entry').toBe(4);
+        expect(checkNames(ci).length, 'the gate runs once per matrix entry').toBe(5);
         expect(ci).toMatch(/if: failure\(\)[\s\S]*upload-artifact[\s\S]*test-output\/\.gate\//);
     });
 

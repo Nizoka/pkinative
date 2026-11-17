@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 5937,
-      "approxTokens": 1484
+      "bytes": 5907,
+      "approxTokens": 1477
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 422769,
-      "approxTokens": 105692
+      "bytes": 422619,
+      "approxTokens": 105655
     },
     {
       "url": "llms-recipes.txt",
@@ -72,8 +72,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 20040,
-      "approxTokens": 5010
+      "bytes": 20064,
+      "approxTokens": 5016
     }
   ],
   "guides": [
@@ -348,8 +348,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18147,
-      "approxTokens": 4537
+      "bytes": 18087,
+      "approxTokens": 4522
     }
   ]
 }

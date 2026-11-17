@@ -29,18 +29,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # One job, four runs. `name:` is what decides the status-check name, so the
+  # One job, five runs. `name:` is what decides the status-check name, so the
   # three contexts the ruleset already requires — `ci (22)`, `ci (24)` and
   # `windows` — keep exactly the names they had when they were separate jobs,
-  # and `macos` is purely additive. Renaming a required check is what leaves
-  # every pull request waiting for a context that will never report again.
+  # and `macos` and `ci (26)` are purely additive. Renaming a required check
+  # is what leaves every pull request waiting for a context that will never
+  # report again.
+  #
+  # One Linux run per supported Node.js line (ADR 0017: every line in Active
+  # or Maintenance LTS). Node.js 26 entered LTS on 2026-10-28 and moved here
+  # from the advisory node-current workflow, which is gone until a line is
+  # Current again (Node.js 27, 2027-04-22).
   #
   # Windows and macOS are blocking from day one (zipnative doctrine): CRLF
   # line endings in PEM files, path separators in the scripts, the npm.cmd
   # shim and LibreSSL in place of OpenSSL are facts a Linux runner never
   # exercises. Any "skip on this platform" needs a linked issue. Both non-
-  # Linux platforms run the Node version of .nvmrc; the second Node version
-  # is covered on Linux, where the runners are fastest.
+  # Linux platforms run the Node version of .nvmrc; the other Node versions
+  # are covered on Linux, where the runners are fastest.
   ci:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -52,6 +58,7 @@ jobs:
         include:
           - { name: 'ci (22)', os: ubuntu-latest, node-version: 22, slug: linux-node22, audit: true }
           - { name: 'ci (24)', os: ubuntu-latest, node-version: 24, slug: linux-node24, audit: false }
+          - { name: 'ci (26)', os: ubuntu-latest, node-version: 26, slug: linux-node26, audit: false }
           - { name: windows, os: windows-latest, node-version: 22, slug: windows, audit: false }
           - { name: macos, os: macos-latest, node-version: 22, slug: macos, audit: false }
 

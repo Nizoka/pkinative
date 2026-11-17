@@ -124,7 +124,7 @@
     "url": "https://plika.app"
   },
   "engines": {
-    "node": "^22.22.2 || ^24.14.1 || >=25.8.2"
+    "node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0"
   },
   "packageManager": "npm@10.9.2",
   "publishConfig": {
