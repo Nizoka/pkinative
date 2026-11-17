@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Security
+
+- **chore(deps-dev): eight advisories in the test toolchain closed** — vitest and @vitest/coverage-v8 4.1.12 bring @vitest/mocker 4.1.12 (GHSA-xp26-3454-mjgp, GHSA-qxg6-89mg-rqv8), and vite moves to 8.2.6 (GHSA-587h-7wmj-h5pm, high, and GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw, GHSA-vfpm-58rq-9qcg, GHSA-rq7h-c2jc-7f22, GHSA-9jrq-w75r-8gcw); `pyasn1` 0.6.5 in the Python interoperability pin closes four more. All development-only: the published package has no dependency. One advisory has no patched release yet — `picomatch` ≤ 4.0.7 (GHSA-fc5q-39xc-vjpf), through the test and build tools — and `npm audit --audit-level=high` reports it until upstream publishes one.
+- **fix(agents): the guard hook resolves from `$CLAUDE_PROJECT_DIR`** (#13). `node .claude/hooks/guard.mjs` was resolved against the shell's working directory: after a `cd`, node exited 1 on a missing module, Claude Code treats a hook that exits 1 as a non-blocking error, and the refused command ran. `agent-config-parity` now refuses a guard command that reaches the script by a relative path.
+- **fix(release): a release without its files is a red run** (#14). The attest job of `publish.yml` fails when the release cannot be read, reads the five file names back after the upload and fetches the tarball from its public URL against the build digest; `check-npm-drift` holds the GitHub release of the manifest's version to the same five files every week. The `v1.0.0` release was published without its files attached, by a run that ended green.
+
+### Added
+
+- **feat(x509): `PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED`** (#17), severity `info`: a SubjectPublicKeyInfo whose algorithm pkinative does not classify was kept as `kind: 'unknown'` and nothing was said. `parseCertificate` and `parseCertificationRequest` now report it at `<spki>.algorithm`, naming the OID; the key is still kept and `strict: true` still parses it. Visible by default as one more `console.warn` line, unless `onDiagnostic` is given.
+- **ci: Node.js 26 is a supported line.** It entered LTS on 2026-10-28: `ci (26)` joins the matrix and the required checks, 26 moves from `contracts.support.currentLines` to `nodeLines`, and `engines.node` writes its floor out — `^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0`, the same set of versions as before ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md), amended).
+- **ci: `reuse lint` on every pull request**, in the `workflow lint` job, installed from `scripts/data/reuse-requirements.txt` — reuse 6.3.0 and its nine dependencies, each pinned by the SHA-256 of every file PyPI publishes.
+- **ci: `compat-previous`**, a required check: the test suite of `v1.0.0`, exactly as tagged, run against the current `src/` (`scripts/run-compat.ts`, `npm run compat:previous`). `tests/compat/allow-1.0.0.json` names every file it does not run, with a reason and a kind.
+- **ci: a `Mutation` workflow** runs `scripts/mutate.ts` on the `src/` files a pull request changes. Advisory, not a required check.
+- **chore(tooling): satellite alignment.** `npm run satellites:sync` reads pkinative-cli and pkinative-mcp — from the `docs/assets/surface.json` a satellite commits, or from its own artefacts until it does — writes a facts sheet and a worklist, and applies the edits a rule can prove; the `/satellite-align` skill writes the rest from those facts alone; the rule `satellite-stamps` holds every satellite version, release date and pin the docs quote to the manifest. Satellite counts move under `packages.<name>.counts` in `docs/assets/ecosystem.json`.
+- **docs(adr): [ADR 0024](docs/adr/0024-what-a-satellite-may-implement.md)** — what a satellite may implement around the engine, what the engine reserves, and what a satellite must prove (#15).
+
+### Changed
+
+- **docs(agents): each fact once in the always-loaded instructions** (#12). `CLAUDE.md` no longer sends the agent to the `.github/instructions/` file whose generated copy already loads by path, nor to gate logs that `permissions.deny` refuses to read; `CLAUDE.md` and `AGENTS.md` go from 12 680 to 11 147 bytes, under a ceiling lowered from 16 KiB to 12 KiB (`claude-rules-budget`).
+- **ci: the `node-current` workflow is removed.** Node.js adopted a schedule without odd lines; Node 27 is an alpha until 2027-04-22, so no line is Current. The workflow returns when one is.
+- **docs(security): the support period of the 1.x line is written down** (#16): no end date, an end announced one minor release ahead, only the latest minor receiving fixes ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md), amended).
+- **docs: the comparison with other libraries re-read from the npm registry on 2026-11-17** (`docs/data/comparison-2026-11-17.json`), peer dependencies counted apart.
+- **chore(dependabot): no major proposals for `@types/node` and `marked`**; five GitHub Actions move to their current major (checkout 7, setup-node 7, setup-go 7, upload-artifact 7, download-artifact 8).
+
+### Fixed
+
+- **fix(tooling): six code-scanning findings in the scripts and tests** — one `escapeRegExp` for the verify-docs rules, where three patterns escaped the dot only or replaced a character by itself; a private temporary directory in the blob round-trip test; a trigger pattern that backtracked polynomially; a script-block filter that missed a closing tag with blanks.
+- **docs: two sentences written before the first push** — "Coverage-guided fuzzing has not run on GitHub yet" (README) and "No workflow of this repository has run yet" (CONTRIBUTING) — now say what runs.
+
 ### Documentation
 
 - **docs: pkinative-cli 1.0.0 and pkinative-mcp 1.0.0 on the site.** The two satellites, published on 2026-10-08 and 2026-10-17, are recorded in `docs/assets/ecosystem.json` and documented on pkinative.dev: a CLI reference and an MCP guide, a use-case guide for each, a capability × surface matrix in the choosing guide and `docs/data/surfaces.json`, the CLI's command surface in `docs/data/cli-surface.json`, a landing-page section and install switcher, live npm versions, and the satellites in the architecture diagram and the social cards. No change to the package: `src/` is untouched.
