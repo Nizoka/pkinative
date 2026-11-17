@@ -417,6 +417,8 @@ jobs:
             rekor.sigstore.dev:443
             tuf-repo-cdn.sigstore.dev:443
             nodejs.org:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -493,16 +495,50 @@ jobs:
         run: |
           set -euo pipefail
           cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"
-          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            # --clobber: a re-run of this job replaces the files it attached
-            # before with the ones it has just attested.
-            gh release upload "v${VERSION}" \
-              "pkinative-${VERSION}.tgz" \
-              "pkinative-${VERSION}.cdx.json" \
-              "pkinative-${VERSION}.spdx.json" \
-              "pkinative-${VERSION}.toolchain.cdx.json" \
-              "pkinative-${VERSION}.sigstore.json" \
-              --clobber --repo "${GITHUB_REPOSITORY}"
-          else
-            echo "::notice::No GitHub release v${VERSION} exists; the files are attested but not attached."
+          # The release must be readable. This run starts from a published
+          # release, so a missing one is a deleted release or a token that
+          # cannot read it — a red run either way, never a green one with
+          # nothing attached (the v1.0.0 release carried no file). The error
+          # of `gh` is shown, not discarded.
+          if ! gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --json tagName --jq .tagName; then
+            echo "::error::GitHub release v${VERSION} cannot be read: the files are attested but NOT attached."
+            exit 1
           fi
+          # --clobber: a re-run of this job replaces the files it attached
+          # before with the ones it has just attested.
+          gh release upload "v${VERSION}" \
+            "pkinative-${VERSION}.tgz" \
+            "pkinative-${VERSION}.cdx.json" \
+            "pkinative-${VERSION}.spdx.json" \
+            "pkinative-${VERSION}.toolchain.cdx.json" \
+            "pkinative-${VERSION}.sigstore.json" \
+            --clobber --repo "${GITHUB_REPOSITORY}"
+
+      # An upload that returned is not a release that carries its files. The
+      # five names are read back from the release, and the tarball is fetched
+      # from the public URL the README gives a reader — without a token — and
+      # held to the build job's digest: what is downloaded is what was
+      # attested.
+      - name: Check the files the release carries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          EXPECTED=$(printf '%s\n' \
+            "pkinative-${VERSION}.tgz" \
+            "pkinative-${VERSION}.cdx.json" \
+            "pkinative-${VERSION}.spdx.json" \
+            "pkinative-${VERSION}.toolchain.cdx.json" \
+            "pkinative-${VERSION}.sigstore.json" | LC_ALL=C sort)
+          ATTACHED=$(gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name' | LC_ALL=C sort)
+          if [ "${ATTACHED}" != "${EXPECTED}" ]; then
+            echo "::error::Release v${VERSION} does not carry exactly the five attested files."
+            printf 'expected:\n%s\nattached:\n%s\n' "${EXPECTED}" "${ATTACHED}"
+            exit 1
+          fi
+          mkdir "${RUNNER_TEMP}/served"
+          curl --fail --silent --show-error --location --proto '=https' \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            --output "${RUNNER_TEMP}/served/pkinative-${VERSION}.tgz" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/pkinative-${VERSION}.tgz"
+          echo "${SHA256}  ${RUNNER_TEMP}/served/pkinative-${VERSION}.tgz" | sha256sum --check --strict

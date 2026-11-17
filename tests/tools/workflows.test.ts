@@ -204,7 +204,8 @@ describe('every workflow job', () => {
             'security.ubuntu.com:443', 'sum.golang.org:443', 'www.rfc-editor.org:443',
         ]);
         expect(allowed('publish')).toEqual(['github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', ...SIGSTORE].sort());
-        expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', 'uploads.github.com:443', ...SIGSTORE].sort());
+        // The two githubusercontent hosts serve a release download: the attest job fetches the tarball it attached back from the public URL.
+        expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'objects.githubusercontent.com:443', 'registry.npmjs.org:443', 'release-assets.githubusercontent.com:443', 'uploads.github.com:443', ...SIGSTORE].sort());
         // The corpus hosts are real: a corpus moved elsewhere must move here too.
         const corpora = readText('scripts', 'lib', 'corpora.ts');
         for (const host of ['csrc.nist.gov', 'www.rfc-editor.org', 'github.com/C2SP']) expect(corpora, host).toContain(`https://${host}/`);
@@ -619,11 +620,45 @@ describe('publish.yml', () => {
         const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
         expect(attach).toContain('BUNDLE: ${{ steps.attest.outputs.bundle-path }}');
         expect(attach).toContain('cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"');
-        expect(attach).toMatch(/if gh release view "v\$\{VERSION\}"/);
         for (const f of ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json']) expect(attach).toContain(`"pkinative-\${VERSION}${f}"`);
         // A re-run replaces only what this job attached, under the same names.
         expect(attach).toContain('--clobber --repo "${GITHUB_REPOSITORY}"');
         expect(publish).not.toMatch(/gh release (create|edit|delete)/);
+    });
+
+    it('should fail the run when the release cannot be read, and never skip the upload in silence', () => {
+        // The v1.0.0 release carries no file and its run was green: the step
+        // found the release in a state it did not expect, printed a warning
+        // and exited 0. A release that cannot be read is an error, the error
+        // `gh` prints is shown, and no branch of the step ends the job green
+        // without an upload.
+        const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
+        expect(attach).toMatch(/if ! gh release view "v\$\{VERSION\}" --repo "\$\{GITHUB_REPOSITORY\}" --json tagName --jq \.tagName; then\s*\n\s+echo "::error::[^\n]+\n\s+exit 1\s*\n\s+fi/);
+        expect(attach).not.toMatch(/::notice::|::warning::/);
+        expect(attach).not.toMatch(/gh release view[^\n]*(?:>\s*\/dev\/null|2>&1)/);
+        expect(attach).not.toMatch(/\belse\b/);
+        expect(attach.indexOf('exit 1')).toBeLessThan(attach.indexOf('gh release upload'));
+    });
+
+    it('should read the five files back from the release and hold the served tarball to the build digest', () => {
+        const steps = jobs.get('attest') ?? [];
+        const upload = steps.findIndex((s) => s.includes('gh release upload'));
+        const check = steps.findIndex((s) => s.includes('name: Check the files the release carries'));
+        expect(upload).toBeGreaterThan(-1);
+        expect(check).toBe(upload + 1);
+        const body = steps[check] ?? '';
+        // The same five names the step before uploads, and the four the attestation covers plus its bundle.
+        const names = ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json'].map((f) => `"pkinative-\${VERSION}${f}"`);
+        for (const name of names) expect(body, name).toContain(name);
+        expect([...body.matchAll(/"pkinative-\$\{VERSION\}\.[a-z.]+"/g)].map((m) => m[0]).sort()).toEqual([...names].sort());
+        expect(body).toContain("--json assets --jq '.assets[].name'");
+        expect(body).toMatch(/if \[ "\$\{ATTACHED\}" != "\$\{EXPECTED\}" \]; then\s*\n\s+echo "::error::[^\n]+\n[^\n]+\n\s+exit 1/);
+        // The public URL the README names, fetched without the token, then the digest of the build job.
+        expect(body).toContain('"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/pkinative-${VERSION}.tgz"');
+        expect(body).toMatch(/curl --fail [^\n]*--proto '=https'/);
+        expect(body).not.toMatch(/curl[^\n]*(?:GH_TOKEN|Authorization)/);
+        expect(body).toContain('echo "${SHA256}  ${RUNNER_TEMP}/served/pkinative-${VERSION}.tgz" | sha256sum --check --strict');
+        expect(readText('README.md')).toMatch(/https:\/\/github\.com\/Nizoka\/pkinative\/releases\/download\/v\d+\.\d+\.\d+\/pkinative-\d+\.\d+\.\d+\.tgz/);
     });
 
     it('should state the provenance level exactly: SLSA Build L2, with L3 discussed in its ADR', () => {

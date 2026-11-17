@@ -26,6 +26,8 @@ The handling steps, their timelines, the advisory and the credit are in [Disclos
 | 0.x (never tagged, never released) | ❌ |
 | npm `0.0.1` (name reservation, deprecated once 1.0.0 is published) | ❌ contains no code |
 
+**Support period.** The 1.x line is the supported line and has no end date: only a 2.0.0 could end it, [ROADMAP.md](ROADMAP.md) plans none, and the end of support of 1.x would be announced one minor release ahead — in the release note and the CHANGELOG entry of a 1.x minor that names the date — as a Node.js line is dropped ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md)). Within the line, only the latest minor receives fixes. The satellites state their own period by reference to this one.
+
 ### Supported runtimes and compilers
 
 Decided in [ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md); `contracts.support` in `docs/assets/ecosystem.json` is the same policy for a program to read.
@@ -248,8 +250,8 @@ There is no external audit and none is planned: pkinative is maintained by one p
 
 1. **guard** refuses a ref that is not a tag, a tag that disagrees with `package.json` and any version below 1.0.0 — before any approval is asked, with no token and nothing installed.
 2. **build** holds no publishing permission. It installs the dev toolchain from the lockfile with `--ignore-scripts`, runs the full publish gate (the install smoke test of its own build included), packs the tarball once and hands it on with its SHA-256 and SHA-512 digests.
-3. **publish** is the only job that can mint the npm token: it waits for the protected `npm-publish` environment, checks out `.nvmrc` and nothing else, runs no repository script, checks the tarball against both digests and its own version, and uploads that exact file through npm Trusted Publishing (OIDC, no long-lived token) with `--provenance`, using an npm client pinned by the SHA-512 of its registry tarball. The registry therefore carries a signed provenance statement tying the tarball to this repository, the workflow and the commit.
-4. **attest**, holding the release-write and attestation permissions the publishing job never has, fetches the tarball back from the registry (`npm pack pkinative@X.Y.Z`), checks it against the build job's digests and the registry's integrity, runs `npm audit signatures` on a fresh install of it, writes the SBOMs from the lockfile, attests them with Sigstore build provenance and attaches them, with the Sigstore bundle, to that GitHub Release. Each attached file is covered by the attestation, so `gh attestation verify` below proves it unchanged whatever happens to the release afterwards.
+3. **publish** is the only job that can mint the npm token: it waits for the protected `npm-publish` environment, checks out `.nvmrc` and nothing else, runs no repository script, checks the tarball against both digests and its own version, and uploads that exact file through npm Trusted Publishing (OIDC, no long-lived token) with `--provenance`, using an npm client pinned by the SHA-512 of its registry tarball — the step runs that client's `npm-cli.js publish`, not a bare `npm publish`, which is why a scanner that looks for the latter (OpenSSF Scorecard's Packaging check) does not see the publication. The registry therefore carries a signed provenance statement tying the tarball to this repository, the workflow and the commit.
+4. **attest**, holding the release-write and attestation permissions the publishing job never has, fetches the tarball back from the registry (`npm pack pkinative@X.Y.Z`), checks it against the build job's digests and the registry's integrity, runs `npm audit signatures` on a fresh install of it, writes the SBOMs from the lockfile, attests them with Sigstore build provenance and attaches them, with the Sigstore bundle, to that GitHub Release — then reads the five file names back from the release and fetches the tarball from its public URL, held to the build job's digest. A release that cannot be read, or that does not carry exactly those files, fails the run. Each attached file is covered by the attestation, so `gh attestation verify` below proves it unchanged whatever happens to the release afterwards.
 
 The attested tarball is the byte stream npm serves, not a rebuild, and npm's provenance and the GitHub attestation cover the same bytes. No release job restores a dependency cache: every `setup-node` step disables the automatic npm cache explicitly. Every release job runs `harden-runner` with egress blocked to the hosts it needs.
 
@@ -257,7 +259,7 @@ This is **SLSA Build L2** — a hosted build platform that generates and signs t
 
 The SBOMs: `pkinative-X.Y.Z.cdx.json` (CycloneDX 1.5) and `pkinative-X.Y.Z.spdx.json` (SPDX 2.3) describe the runtime dependency set, and are **empty by design** — pkinative has no runtime dependency, and the empty SBOM is the evidence. `pkinative-X.Y.Z.toolchain.cdx.json` records the dev packages that built `dist/`.
 
-The workflow first ran for 1.0.0 on 2026-10-04: `pkinative@1.0.0` carries npm's SLSA provenance and the registry signatures.
+The workflow first ran for 1.0.0 on 2026-10-04: `pkinative@1.0.0` carries npm's SLSA provenance and the registry signatures. The GitHub release `v1.0.0` was published without its files attached — that run attached to a draft release only, found a published one and ended green; its tarball is on npm and its attestation in the repository's attestation store. Since 1.1.0 the run reads the files back and fails without them.
 
 To verify:
 
