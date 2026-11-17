@@ -6,6 +6,7 @@ import {
     EOL_LF_MODE,
     GUARDED_SHELL_TOOLS,
     HITL_BASH_DENY_FAMILIES,
+    HOOK_COMMAND_PATH,
     bannerFor,
     checkAgentConfigParity,
     checkClaudeRulesBudget,
@@ -56,10 +57,7 @@ const SETTINGS = JSON.stringify({
         ],
     },
     hooks: {
-        PreToolUse: GUARDED_SHELL_TOOLS.map((matcher) => ({
-            matcher,
-            hooks: [{ type: 'command', command: 'node .claude/hooks/guard.mjs' }],
-        })),
+        PreToolUse: [{ matcher: GUARDED_SHELL_TOOLS.join('|'), hooks: [{ type: 'command', command: `node ${HOOK_COMMAND_PATH}` }] }],
     },
 });
 
@@ -143,10 +141,35 @@ describe('agent-config — agent-config-parity', () => {
 
             const unmatched = JSON.stringify({
                 ...JSON.parse(SETTINGS) as Record<string, unknown>,
-                hooks: { PreToolUse: GUARDED_SHELL_TOOLS.filter((t) => t !== tool).map((matcher) => ({ matcher, hooks: [{ type: 'command', command: 'node .claude/hooks/guard.mjs' }] })) },
+                hooks: { PreToolUse: GUARDED_SHELL_TOOLS.filter((t) => t !== tool).map((matcher) => ({ matcher, hooks: [{ type: 'command', command: `node ${HOOK_COMMAND_PATH}` }] })) },
             });
             expect(checkAgentConfigParity({ settingsText: unmatched, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message))
                 .toEqual([expect.stringContaining(`no ${tool} matcher`)]);
+        }
+    });
+
+    it('should read a matcher as an alternation: one entry for both tools, or one entry per tool', () => {
+        const perTool = JSON.stringify({
+            ...JSON.parse(SETTINGS) as Record<string, unknown>,
+            hooks: { PreToolUse: GUARDED_SHELL_TOOLS.map((matcher) => ({ matcher, hooks: [{ type: 'command', command: `node ${HOOK_COMMAND_PATH}` }] })) },
+        });
+        expect(checkAgentConfigParity({ settingsText: perTool, claudeMd: CLAUDE_MD, hook: HOOK_OK })).toEqual([]);
+        // An entry that names both tools but runs something else guards neither.
+        const other = SETTINGS.replace('guard.mjs', 'other.mjs');
+        expect(checkAgentConfigParity({ settingsText: other, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message))
+            .toEqual(GUARDED_SHELL_TOOLS.map((tool) => expect.stringContaining(`no ${tool} matcher`)));
+    });
+
+    it('should refuse a guard command that reaches the script by a relative path', () => {
+        // Issue #13: after a `cd`, `node .claude/hooks/guard.mjs` exits 1 on a
+        // missing module, a hook that exits 1 is a non-blocking error, and
+        // the denied command runs. Unquoted, a space in the path does the same.
+        expect(HOOK_COMMAND_PATH).toBe('"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs"');
+        for (const command of ['node .claude/hooks/guard.mjs', 'node $CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs']) {
+            const relative = SETTINGS.replace(JSON.stringify(`node ${HOOK_COMMAND_PATH}`), JSON.stringify(command));
+            expect(relative).not.toBe(SETTINGS);
+            expect(checkAgentConfigParity({ settingsText: relative, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message))
+                .toEqual([expect.stringContaining('relative path')]);
         }
     });
 
@@ -155,7 +178,7 @@ describe('agent-config — agent-config-parity', () => {
         const trailer = SETTINGS.replace('"commit":""', '"commit":"Co-Authored-By: x"');
         expect(checkAgentConfigParity({ settingsText: trailer, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message)).toEqual([expect.stringContaining('attribution.commit')]);
         const unwired = SETTINGS.replace('guard.mjs', 'other.mjs');
-        expect(checkAgentConfigParity({ settingsText: unwired, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message)).toEqual([expect.stringContaining('PreToolUse')]);
+        expect(checkAgentConfigParity({ settingsText: unwired, claudeMd: CLAUDE_MD, hook: HOOK_OK }).map((f) => f.message)).toEqual(GUARDED_SHELL_TOOLS.map(() => expect.stringContaining('PreToolUse')));
         const broken = checkAgentConfigParity({ settingsText: SETTINGS, claudeMd: CLAUDE_MD, hook: { exists: true, checkStatus: 1, checkStderr: 'SyntaxError: x\n' } });
         expect(broken).toEqual([expect.objectContaining({ file: '.claude/hooks/guard.mjs', message: expect.stringContaining('SyntaxError') })]);
         expect(checkAgentConfigParity({ settingsText: SETTINGS, claudeMd: CLAUDE_MD, hook: { exists: false, checkStatus: null, checkStderr: '' } })[0].message).toContain('missing');

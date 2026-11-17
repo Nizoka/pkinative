@@ -179,6 +179,13 @@ export const HITL_BASH_DENY_FAMILIES: readonly string[] = ['npm publish', 'git p
 export const GUARDED_SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell'];
 
 /**
+ * How a hook command must reach the guard: through the variable Claude Code
+ * sets to the project root for every hook process, quoted, so that neither a
+ * changed working directory nor a space in the path loses the script.
+ */
+export const HOOK_COMMAND_PATH = '"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs"';
+
+/**
  * The globs of the "Never Read …" bullet in CLAUDE.md §Token discipline: the
  * backticked tokens of the bullet line and its indented continuation lines.
  */
@@ -245,9 +252,20 @@ export function checkAgentConfigParity(input: AgentConfigInput): Finding[] {
         }
     }
     const pre = Array.isArray(settings.hooks?.PreToolUse) ? (settings.hooks.PreToolUse as Array<{ matcher?: unknown; hooks?: Array<{ command?: unknown }> }>) : [];
+    // A matcher is an alternation of tool names: `Bash|PowerShell` wires both
+    // tools to one entry, and one entry per tool is the same thing spelled out.
+    const guardCommands = (h: { hooks?: Array<{ command?: unknown }> }): string[] =>
+        (h.hooks ?? []).map((x) => x.command).filter((c): c is string => typeof c === 'string' && c.includes('guard.mjs'));
+    const guarded = pre.filter((h) => guardCommands(h).length > 0);
+    const matched = new Set(guarded.flatMap((h) => (typeof h.matcher === 'string' ? h.matcher.split('|') : [])));
     for (const tool of GUARDED_SHELL_TOOLS) {
-        const wired = pre.some((h) => h.matcher === tool && (h.hooks ?? []).some((x) => typeof x.command === 'string' && x.command.includes('guard.mjs')));
-        if (!wired) out.push(error(SETTINGS, `hooks.PreToolUse has no ${tool} matcher running .claude/hooks/guard.mjs — a shell tool without a matcher is a door around the guard`));
+        if (!matched.has(tool)) out.push(error(SETTINGS, `hooks.PreToolUse has no ${tool} matcher running .claude/hooks/guard.mjs — a shell tool without a matcher is a door around the guard`));
+    }
+    // A relative script path is resolved against the shell's working directory:
+    // after a `cd`, node exits 1 on a missing module, and a hook that exits 1
+    // is a non-blocking error — the guard is skipped without a word.
+    if (guarded.flatMap(guardCommands).some((c) => !c.includes(HOOK_COMMAND_PATH))) {
+        out.push(error(SETTINGS, `the guard hook command must name ${HOOK_COMMAND_PATH} — a relative path stops guarding once the shell leaves the repository root`));
     }
     if (!input.hook.exists) {
         out.push(error(HOOK, 'missing — settings.json wires it as the PreToolUse hook on Bash'));

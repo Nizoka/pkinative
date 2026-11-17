@@ -199,7 +199,8 @@ const governanceSources: Rule = {
         const cc = gov.capability_manifest?.claude_code;
         need(cc?.settings, 'claude_code.settings');
         for (const hook of cc?.hooks ?? []) {
-            need(/node\s+(\S+)/.exec(hook.command ?? '')?.[1], 'claude_code.hooks command script');
+            // `node "$CLAUDE_PROJECT_DIR/<script>"`: the script is the path under the project root.
+            need(/node\s+"?(?:\$CLAUDE_PROJECT_DIR\/)?([^"\s]+)/.exec(hook.command ?? '')?.[1], 'claude_code.hooks command script');
             need(hook.tests, 'claude_code.hooks tests');
         }
         for (const skill of cc?.skills ?? []) need(skill.path, 'claude_code.skills path');

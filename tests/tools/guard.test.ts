@@ -134,6 +134,7 @@ const ALLOWED: readonly string[] = [
     'npm -v',
     'git describe --tags',
     'node .claude/hooks/guard.mjs',
+    'node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs"',
     'grep -rn "gh release" docs/',
     'cat .github/pull_request_template.md',
 ];

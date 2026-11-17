@@ -71,8 +71,9 @@
       "hooks": [
         {
           "event": "PreToolUse",
-          "matcher": "Bash and PowerShell — every tool that reaches a shell carries its own matcher, because a hook that is never invoked parses nothing",
-          "command": "node .claude/hooks/guard.mjs",
+          "matcher": "Bash|PowerShell — every tool that reaches a shell is named in the matcher, because a hook that is never invoked parses nothing",
+          "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\"",
+          "path": "through $CLAUDE_PROJECT_DIR, never relative: after a cd, node exits 1 on a missing script and Claude Code treats a hook that exits 1 as a non-blocking error",
           "denies": ["npm publish|unpublish|deprecate|dist-tag|version <bump>", "npx npm publish", "gh pr create|edit|close|merge|comment", "gh issue create|edit|close|comment", "gh release *", "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F", "git push (any form)", "git add --renormalize", "git tag (except list forms)"],
           "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
           "tests": "tests/tools/guard.test.ts"
