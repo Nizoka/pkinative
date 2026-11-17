@@ -83,7 +83,8 @@
       "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
       "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
       "skills": [
-        { "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false, "purpose": "The pre-release audit of CONTRIBUTING.md §Release step 5 and SECURITY.md §In place of an external audit; run by the maintainer, never by the model on its own (disable-model-invocation: true)." }
+        { "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false, "purpose": "The pre-release audit of CONTRIBUTING.md §Release step 5 and SECURITY.md §In place of an external audit; run by the maintainer, never by the model on its own (disable-model-invocation: true)." },
+        { "name": "satellite-align", "path": ".claude/skills/satellite-align/SKILL.md", "model_invocable": false, "purpose": "The documentation pass of CONTRIBUTING.md §Release step 12 after a pkinative-cli or pkinative-mcp release: facts, mechanical edits and worklist from npm run satellites:sync, at most six writers that never read a satellite, one reviewer for behavioural claims, a pull-request body drafted under .github/drafts/; run by the maintainer, never by the model on its own (disable-model-invocation: true), and it pushes, tags and publishes nothing." }
       ]
     }
   },

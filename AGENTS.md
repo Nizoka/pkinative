@@ -107,6 +107,7 @@ Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable 
 Two published satellites, each its own repository pinning `pkinative ^1.0.0`: `pkinative-cli` (binary `pkinative`, 18 commands) and `pkinative-mcp` (34 tools, seven prompts).
 They vendor the `docs/data/` registries at the tag (the CLI also `api.frozen.json`), so a registry or wire-form change is a downstream change for both (release notes, **Downstream integration notes**).
 Their inventories live in `ecosystem.json → packages`, the CLI surface in `docs/data/cli-surface.json`; `satellite-*`, `surfaces-shape` and `*-surface-parity` hold the site to them.
+A satellite release is aligned by `npm run satellites:sync` (facts, mechanical edits, worklist; never by hand) and then the maintainer's `/satellite-align` skill.
 
 ## Releasing and governance
 
