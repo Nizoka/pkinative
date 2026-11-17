@@ -29,16 +29,16 @@ Each of these is a recorded decision, not a gap on a roadmap: the [decision reco
 
 ## The alternatives, by the facts
 
-Read from the npm registry on 2026-09-19 ([docs/data/comparison-2026-09-19.json](../data/comparison-2026-09-19.json)):
+Read from the npm registry on 2026-11-17 ([docs/data/comparison-2026-11-17.json](../data/comparison-2026-11-17.json)); a peer dependency, which the consumer installs, is counted apart:
 
 | Library | Runtime dependencies | Types bundled | ES modules | Weekly downloads |
 |---|---|---|---|---|
-| node-forge 1.4.0 | 0 | no | no | 27.6 M |
-| asn1js 3.0.10 | 3 | yes | yes | 13.7 M |
-| @peculiar/x509 2.1.0 | 11 | yes | yes | 8.2 M |
-| pkijs 3.4.0 | 6 | yes | yes | 6.8 M |
-| jsrsasign 11.1.5 | 0 | no | no | 1.0 M |
-| micro509 0.14.0 | 0 | yes | yes | 59 |
+| node-forge 1.4.3 | 0 | no | no | 54.7 M |
+| asn1js 4.0.0 | 1 | yes | yes | 36.6 M |
+| @peculiar/x509 3.1.0 | 9 + 1 peer | yes | yes | 23.8 M |
+| pkijs 4.0.1 | 3 + 1 peer | yes | yes | 18.2 M |
+| jsrsasign 11.1.5 | 0 | no | no | 2.5 M |
+| micro509 0.19.0 | 0 | yes | yes | 3 115 |
 
 node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.
 

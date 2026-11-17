@@ -31,17 +31,17 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 
 ## How it compares
 
-Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](docs/data/comparison-2026-09-19.json)).
+Registry facts only, read on 2026-11-17 ([docs/data/comparison-2026-11-17.json](docs/data/comparison-2026-11-17.json)); a peer dependency, which the consumer installs, is counted apart.
 
 | Library | Latest | Runtime dependencies | Types bundled | ES modules | Scope |
 |---|---|---|---|---|---|
 | **pkinative** | 1.0 (npm) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509 and PKCS#10 requests, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
-| node-forge | 1.4.0 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
-| asn1js | 3.0.10 | 3 | yes | yes | ASN.1 BER/DER codec |
-| @peculiar/x509 | 2.1.0 | 11 | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
-| pkijs | 3.4.0 | 6 | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
+| node-forge | 1.4.3 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
+| asn1js | 4.0.0 | 1 | yes | yes | ASN.1 BER/DER codec |
+| @peculiar/x509 | 3.1.0 | 9 + 1 peer | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
+| pkijs | 4.0.1 | 3 + 1 peer | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
 | jsrsasign | 11.1.5 | 0 | no | no | Broad: ASN.1, X.509, JWS, its own RSA and ECDSA in JavaScript |
-| micro509 | 0.14.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
+| micro509 | 0.19.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
 
 Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)).
 

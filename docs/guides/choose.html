@@ -170,7 +170,7 @@
 </tr>
 </tbody></table>
 <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
-<p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
+<p>Read from the npm registry on 2026-11-17 (<a href="../data/comparison-2026-11-17.json">docs/data/comparison-2026-11-17.json</a>); a peer dependency, which the consumer installs, is counted apart:</p>
 <table tabindex="0">
 <thead>
 <tr>
@@ -182,46 +182,46 @@
 </tr>
 </thead>
 <tbody><tr>
-<td>node-forge 1.4.0</td>
+<td>node-forge 1.4.3</td>
 <td>0</td>
 <td>no</td>
 <td>no</td>
-<td>27.6 M</td>
+<td>54.7 M</td>
 </tr>
 <tr>
-<td>asn1js 3.0.10</td>
-<td>3</td>
+<td>asn1js 4.0.0</td>
+<td>1</td>
 <td>yes</td>
 <td>yes</td>
-<td>13.7 M</td>
+<td>36.6 M</td>
 </tr>
 <tr>
-<td>@peculiar/x509 2.1.0</td>
-<td>11</td>
+<td>@peculiar/x509 3.1.0</td>
+<td>9 + 1 peer</td>
 <td>yes</td>
 <td>yes</td>
-<td>8.2 M</td>
+<td>23.8 M</td>
 </tr>
 <tr>
-<td>pkijs 3.4.0</td>
-<td>6</td>
+<td>pkijs 4.0.1</td>
+<td>3 + 1 peer</td>
 <td>yes</td>
 <td>yes</td>
-<td>6.8 M</td>
+<td>18.2 M</td>
 </tr>
 <tr>
 <td>jsrsasign 11.1.5</td>
 <td>0</td>
 <td>no</td>
 <td>no</td>
-<td>1.0 M</td>
+<td>2.5 M</td>
 </tr>
 <tr>
-<td>micro509 0.14.0</td>
+<td>micro509 0.19.0</td>
 <td>0</td>
 <td>yes</td>
 <td>yes</td>
-<td>59</td>
+<td>3 115</td>
 </tr>
 </tbody></table>
 <p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>

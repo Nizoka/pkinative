@@ -352,13 +352,13 @@ try {
       <div class="table-wrap">
         <table class="cmp-table">
           <caption style="caption-side:bottom;text-align:left;font-size:12px;color:var(--c-text-dim);padding-top:12px;line-height:1.6;">
-            Dependencies, bundled types and module format of the other libraries were read on <strong>2026-09-19</strong> from the npm registry (<a href="data/comparison-2026-09-19.json">comparison-2026-09-19.json</a>, a dated snapshot whose pkinative row predates 1.0). The capability rows are each project's documented scope, and pkinative's column describes 1.0. The <a href="guides/choose.html">choosing guide</a> details the differences and says when another library is the right answer.
+            Dependencies, bundled types and module format of the other libraries were read on <strong>2026-11-17</strong> from the npm registry (<a href="data/comparison-2026-11-17.json">comparison-2026-11-17.json</a>, a dated snapshot; a peer dependency, which the consumer installs, is counted apart). The capability rows are each project's documented scope, and pkinative's column describes 1.0. The <a href="guides/choose.html">choosing guide</a> details the differences and says when another library is the right answer.
           </caption>
           <thead>
             <tr><th>Library</th><th>pkinative</th><th>node-forge</th><th>asn1js</th><th>@peculiar/x509</th><th>pkijs</th><th>jsrsasign</th><th>micro509</th></tr>
           </thead>
           <tbody>
-            <tr><td>Runtime dependencies</td><td>0</td><td>0</td><td>3</td><td>11</td><td>6</td><td>0</td><td>0</td></tr>
+            <tr><td>Runtime dependencies</td><td>0</td><td>0</td><td>1</td><td>9 + 1 peer</td><td>3 + 1 peer</td><td>0</td><td>0</td></tr>
             <tr><td>Types bundled</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>ES modules</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>Strict DER by default</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td></tr>
