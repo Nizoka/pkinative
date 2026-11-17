@@ -37,14 +37,14 @@ const EXPECT_SILENT = new Set<string>([
     'docs/guides/use-cases.md:105', 'docs/guides/use-cases.md:133', 'docs/guides/use-cases.md:164',
     'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
-    'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:273', 'src/verify/verify-signed-data.ts:145',
-    'src/revocation/ocsp-check.ts:154', 'src/verify/verify-pkcs12.ts:128',
+    'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:287', 'src/verify/verify-signed-data.ts:170',
+    'src/revocation/ocsp-check.ts:163', 'src/verify/verify-pkcs12.ts:128',
     'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:55',
 ]);
 
 /** Fences that print their success: the line the prose shows must appear. */
 const EXPECT_PRINTED: Readonly<Record<string, RegExp>> = {
-    'src/verify/verify-timestamp.ts:162': /^existed by 20\d\d-/,
+    'src/verify/verify-timestamp.ts:176': /^existed by 20\d\d-/,
     'docs/guides/use-cases.md:401': /^good$/,
 };
 

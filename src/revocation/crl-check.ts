@@ -96,6 +96,14 @@ export interface CheckRevocationInput {
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries. */
     readonly limits?: Partial<PkiLimits> | undefined;
     /**
+     * Refuse the first `warning` the walk raises — an entry extension that is
+     * malformed and dropped — by throwing `PKI_STRICT_DIAGNOSTIC`, as
+     * `findRevocation` does. `false` by default. This is a primitive, so the
+     * refusal is thrown; `verifyCertificateChain`, which composes it, reports
+     * it instead (ADR 0025).
+     */
+    readonly strict?: boolean | undefined;
+    /**
      * Receive every diagnostic the walk raises — an entry extension that is
      * malformed and dropped — instead of the default once-per-code
      * `console.warn`.
@@ -142,7 +150,7 @@ function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefine
 
 /** The options of every walk over the entries of the lists in `input`. */
 function _lookup(input: CheckRevocationInput): FindRevocationOptions {
-    return { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+    return { limits: input.limits, strict: input.strict, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
 }
 
 /**
@@ -182,7 +190,8 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  *
  * It never throws for a revocation issue. It does throw for malformed CRL bytes
  * reached during the walk, because that is a structural failure and not a
- * verdict — the same line every other entry point draws.
+ * verdict — the same line every other entry point draws — and, under
+ * `strict: true`, for the first `warning` the walk raises.
  *
  * Only **one** list is consulted, and whether it is entitled to answer is
  * decided here: RFC 5280 §5.2.5 for what the list declares itself to be about,
@@ -205,6 +214,9 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  *   they were established; empty when the certificate is not revoked.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` for a malformed entry.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
+ * @throws {PkiError} `PKI_STRICT_DIAGNOSTIC` under `strict: true`, for the first
+ *   `warning` diagnostic the walk raises; `PKI_INVALID_OPTION` for a `strict`
+ *   that is not a boolean or an `onDiagnostic` that is not a function.
  */
 export function checkRevocation(input: CheckRevocationInput): readonly PkiReason[] {
     const out: PkiReason[] = [];

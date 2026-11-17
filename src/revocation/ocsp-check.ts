@@ -7,7 +7,8 @@
  * Synchronous, pure, never throwing for a status issue — the same contract
  * `checkRevocation` and §6 have. The signature verdict and the *responder
  * authorisation* verdict both arrive precomputed, which is what keeps this
- * function free of Web Crypto and free of policy.
+ * function free of Web Crypto and free of policy. Under `strict: true` it
+ * throws for a `warning` it would otherwise only report (ADR 0025).
  *
  * ## The checks RFC 6960 §3.2 makes a client responsible for
  *
@@ -122,6 +123,14 @@ export interface CheckOcspStatusInput {
      * verdict. As everywhere, the default is `console.warn` once per code.
      */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
+    /**
+     * Refuse the first `warning` this decision raises — a `responderID` that
+     * does not name `signer` — by throwing `PKI_STRICT_DIAGNOSTIC`; an `info`
+     * is still only reported. `false` by default. This is a primitive, so the
+     * refusal is thrown; `verifyCertificateChain`, which composes it, reports
+     * it instead (ADR 0025).
+     */
+    readonly strict?: boolean | undefined;
     /** The nonce that was sent, if any. A different one coming back is always a mismatch. */
     readonly nonce?: Uint8Array | undefined;
     /**
@@ -181,8 +190,12 @@ const MINUTE = 60_000;
  *
  * @param input See {@link CheckOcspStatusInput}.
  * @returns Every reason the answer is not a clean `good`; empty when it is.
- * @throws Never — every negative answer is a reason in the returned list. The
- *   response was already parsed, so there are no bytes left to fail on.
+ * @throws {PkiError} Never for a status issue — every negative answer is a
+ *   reason in the returned list, and the response was already parsed, so
+ *   there are no bytes left to fail on. `PKI_STRICT_DIAGNOSTIC` under
+ *   `strict: true`, for the first `warning` diagnostic the decision raises;
+ *   `PKI_INVALID_OPTION` for a `futureTolerance` or `staleTolerance` that is
+ *   not a finite number of milliseconds, zero or more.
  */
 export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[] {
     const out: PkiReason[] = [];
@@ -200,7 +213,7 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
         out.push(revocationUnknownReason(path, 'the response carries no body'));
         return out;
     }
-    const emitter = createDiagnosticEmitter(undefined, input.onDiagnostic);
+    const emitter = createDiagnosticEmitter(input.strict, input.onDiagnostic);
     if (input.signer !== undefined) _signerDiagnostics(basic, input.signer, path, emitter);
 
     if (input.signatureVerified !== true) {

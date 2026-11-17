@@ -134,13 +134,21 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  * const signed = await createSignedData({ content, certificate: certificate! }, signingKey!);
  * ```
  *
+ * `strict` and `onDiagnostic` apply to everything the call reads — the PFX,
+ * each SafeContents, each certificate and each key. Without a handler nothing
+ * is reported: a verdict call does not warn on the console. Under
+ * `strict: true` the first `warning` of a structure is **reported, never
+ * thrown** (ADR 0025): `PKI_REASON_INPUT_MALFORMED` carrying
+ * `errorCode: 'PKI_STRICT_DIAGNOSTIC'`, at `pkcs12`, at the SafeContents or at
+ * the bag that raised it — a PBKDF2 count below 1 000, for instance.
+ *
  * @param der     The PFX, as DER — or BER with `encodingRules: 'ber'`, which Windows writes.
  * @param options The password, and what to accept.
  * @returns What was opened and why anything was not. Never rejects for a problem with the file.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no Web Crypto to open anything with — see `canDecrypt`.
  * @throws {PkiError} `PKI_INVALID_OPTION` when `options` or its `password` is missing or of the wrong type, when
- *   `rsaAlgorithm` is not an RSA signature algorithm, or for a bad `encodingRules`; `PKI_LIMIT_INVALID` for an unknown
- *   or non-positive key in `limits`; `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
+ *   `rsaAlgorithm` is not an RSA signature algorithm, or for a bad `encodingRules`, `strict` or `onDiagnostic`;
+ *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`; `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
  */
 export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): Promise<OpenPkcs12Report> {
     // Misuse is decided here, before the first catch: past it, every PkiError
@@ -148,9 +156,15 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
     const password = _password(options);
     const rsaAlgorithm = _rsaAlgorithm(options.rsaAlgorithm);
     assertBytes(der, 'openPkcs12 input');
+    // One set of reading options for every structure the call opens — the
+    // PFX, each SafeContents, each certificate, each key. What they say about
+    // themselves goes to the caller's handler when there is one and nowhere
+    // otherwise; under `strict` a warning is refused by the reader, and every
+    // reader below sits in a catch that reports (ADR 0025).
     const reading: PkiParseOptions = {
         limits: options.limits ?? {},
-        onDiagnostic: (): undefined => undefined,
+        strict: options.strict,
+        onDiagnostic: options.onDiagnostic ?? ((): undefined => undefined),
         ...(options.encodingRules === undefined ? {} : { encodingRules: options.encodingRules }),
     };
     _assertArguments([], reading);

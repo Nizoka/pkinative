@@ -3,6 +3,7 @@ import { createDiagnosticEmitter, ocspResponderIdMismatchDiagnostic } from '../.
 import { sha1 } from '../../src/hash/sha1.js';
 import { checkOcspStatus, OCSP_NONCE_OID, type CheckOcspStatusInput } from '../../src/revocation/ocsp-check.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
+import { PkiError } from '../../src/types/pki-errors.js';
 import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { ascii, concat, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
@@ -480,15 +481,63 @@ describe('checkOcspStatus — what the response says about itself (RFC 6960 §4.
         expect(mismatch.diagnostics).toEqual([]);
     });
 
-    it('should warn once on the console without a handler, as every primitive does, and a strict emitter refuses the warning', () => {
+    it('should warn once on the console without a handler, as every primitive does', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         expect(check(build(), { signer: signerWith(), onDiagnostic: undefined })).toEqual([]);
         expect(warn).toHaveBeenCalledTimes(1);
         expect(warn.mock.calls[0]?.[0]).toContain('[PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH]');
-        // checkOcspStatus itself never throws; the severity is what a strict
-        // parse would refuse, and the emitter is where that is decided.
+    });
+});
+
+// ADR 0025: checkOcspStatus is a primitive, so what `strict` refuses is thrown
+// here — and reported by verifyCertificateChain, which composes it. It never
+// throws for a status issue, under strict or not.
+describe('checkOcspStatus — under strict (ADR 0025)', () => {
+    const SUBJECT = sequence(universal(17, sequence(universal(6, [0x55, 0x04, 0x03]), universal(12, ascii('Responder'))), true));
+    const signerWith = (extensions: readonly object[] = []): Certificate =>
+        ({ subject: { der: SUBJECT }, subjectPublicKeyInfo: { publicKey: { bytes: Uint8Array.from(ascii('the responder key bits')) } }, extensions } as unknown as Certificate);
+    const named = build({ responderId: tlv(2, true, 1, SUBJECT) });
+
+    it('should throw PKI_STRICT_DIAGNOSTIC for the warning it only reports without strict: a responderID that does not name the signer', () => {
+        const signer = signerWith();
+        // The same call, lenient: one warning, and the verdict untouched.
+        const lenient = diagnosed(build(), { signer });
+        expect(lenient.reasons).toEqual([]);
+        expect(lenient.diagnostics.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'warning']]);
+
+        const seen: string[] = [];
+        let caught: unknown;
+        try {
+            check(build(), { signer, strict: true, onDiagnostic: (d) => { seen.push(d.code); } });
+        } catch (error) {
+            caught = error;
+        }
+        expect(caught).toBeInstanceOf(PkiError);
+        expect(caught).toMatchObject({ code: 'PKI_STRICT_DIAGNOSTIC' });
+        // Refused, not delivered: throw or diagnose, never both.
+        expect(seen).toEqual([]);
+        // The emitter is where the severity is decided, and it says the same.
         expect(() => createDiagnosticEmitter(true, undefined).emit(ocspResponderIdMismatchDiagnostic('ocsp', 'byKey')))
             .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
+    });
+
+    it('should report an info under strict and never throw for it', () => {
+        const other = single({ id: certId({ serial: [0x99] }), nextUpdate: AT + DAY });
+        const answered = build({ responderId: tlv(2, true, 1, SUBJECT), singles: [other, single({ nextUpdate: AT + DAY })] });
+        const strict = diagnosed(answered, { signer: signerWith([{ kind: 'ocspNoCheck', oid: '1.3.6.1.5.5.7.48.1.5', critical: true }]), strict: true });
+        expect(strict.reasons).toEqual([]);
+        expect(strict.diagnostics.map((d) => [d.code, d.severity])).toEqual([
+            ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', 'info'],
+            ['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', 'info'],
+        ]);
+    });
+
+    it('should give the same answers under strict when nothing is diagnosed, and never throw for a status issue', () => {
+        expect(check(named, { signer: signerWith(), strict: true })).toEqual([]);
+        expect(check(build(), { strict: true })).toEqual([]);
+        expect(codes(check(build({ statusCode: 3 }), { strict: true, signatureVerified: undefined, responderAuthorized: undefined }))).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        const elsewhere = build({ responderId: tlv(2, true, 1, SUBJECT), singles: [single({ id: certId({ serial: [0x99] }), nextUpdate: AT + DAY })] });
+        expect(codes(check(elsewhere, { signer: signerWith(), strict: true }))).toEqual(['PKI_REASON_REVOCATION_MISMATCH']);
     });
 });
 

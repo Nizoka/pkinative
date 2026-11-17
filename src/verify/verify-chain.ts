@@ -174,9 +174,23 @@ export interface VerifyCertificateChainInput {
      * about certificates nobody asked about. None of it changes the verdict;
      * the report carries the verdict. **Without it, nothing is reported**: a
      * verdict call does not warn on the console, and never throws for a
-     * diagnostic (`strict` is not an input here).
+     * diagnostic — under `strict` it reports one.
      */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
+    /**
+     * Refuse the first `warning` a CRL or an OCSP response raises — as it is
+     * parsed, as its entries are walked, or as the response is judged against
+     * its signer. `false` by default. **Reported, never thrown** (ADR 0025):
+     * the list or response is `PKI_REASON_INPUT_MALFORMED` at `crls[i]` or
+     * `ocspResponses[i]`, carrying `errorCode: 'PKI_STRICT_DIAGNOSTIC'` and a
+     * message naming the diagnostic, exactly as if `parseCertificateList` or
+     * `parseOcspResponse` had been called with `strict: true` and caught. An
+     * `info` is still only reported. The certificates an OCSP response
+     * attaches stay read without `strict`: they are hints, and refusing one
+     * would hide the cause behind "responder not authorised". The
+     * certificates you pass were parsed by you, under the strictness you chose.
+     */
+    readonly strict?: boolean | undefined;
 }
 
 /** The verdict, every reason behind it, and the path that was judged. */
@@ -283,14 +297,17 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  *
  * **It never throws for a verification issue**, and it never throws for bad
  * input either: a malformed CRL is `PKI_REASON_INPUT_MALFORMED`, carrying in
- * `errorCode` the `PkiErrorCode` that would have been thrown. The only thing
- * that throws is misusing the API — an unknown key in `limits`, or a `leaf`
+ * `errorCode` the `PkiErrorCode` that would have been thrown — and so is a
+ * warning refused under `strict: true`, whose `errorCode` is
+ * `PKI_STRICT_DIAGNOSTIC`. The only thing that throws is misusing the API —
+ * an unknown key in `limits`, a `strict` that is not a boolean, or a `leaf`
  * that is not a parsed certificate.
  *
  * @param input See {@link VerifyCertificateChainInput}.
  * @returns The verdict, every reason behind it, the path judged, how many
  *   candidate paths were explored and how many signatures were verified.
  * @throws {PkiError} `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`,
+ *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean,
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate`
  *   produced.
  */
@@ -302,7 +319,7 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
         ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der] as const),
         ...(input.ocspResponses ?? []).map((der, index) => [`ocspResponses[${String(index)}]`, der] as const),
         ['ocspNonce', input.ocspNonce],
-    ], { limits: input.limits ?? {} });
+    ], { limits: input.limits ?? {}, strict: input.strict });
     const at = input.at ?? Date.now();
     const candidates = input.candidates ?? [];
 
@@ -482,7 +499,7 @@ async function _unrevokedOnLists(ctx: CrlSignerContext, candidate: Certificate):
         const problem = _crlScopeProblem({ certificate: candidate, crl });
         if (problem !== null && problem.kind !== 'unusable') continue;
         if (await _crlSigner(ctx, crl, _hex(crl.issuer.der), true) !== true) continue;
-        const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, onDiagnostic: ctx.reading.onDiagnostic }, 'crl');
+        const reasons = _judged({ certificate: candidate, crl, crlDer: der, at: ctx.at, signatureVerified: true, limits: ctx.reading.limits, strict: ctx.reading.strict, onDiagnostic: ctx.reading.onDiagnostic }, 'crl');
         // A list its CA signed and nobody can walk — or may use, for a
         // critical extension on it or on any entry (RFC 5280 §5.3, §6.3.3) —
         // has not said the delegate is unrevoked, so the delegate is not
@@ -759,8 +776,10 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
     // One options object for both readers: the limits are the caller's, and
     // what the lists and responses say about themselves goes to the caller's
     // handler when there is one — and nowhere otherwise, because a verdict call
-    // reports in its report and does not warn on the console.
-    const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
+    // reports in its report and does not warn on the console. `strict` goes
+    // to both readers and to both primitives; each refusal is caught below,
+    // where a malformed list or response already was (ADR 0025).
+    const reading = { limits: input.limits ?? {}, strict: input.strict, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
 
     // **Every certificate on the path, not only the leaf.** A revoked
     // intermediate is a revoked chain: the CA whose key signed the leaf has had
@@ -848,6 +867,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 ...(signatureVerified === undefined ? {} : { signatureVerified }),
                 ...(delta === undefined ? {} : { delta }),
                 limits: reading.limits,
+                strict: reading.strict,
                 onDiagnostic: reading.onDiagnostic,
             }, `crls[${String(index)}]`);
             // **An entry can make the list unusable as well** (RFC 5280 §5.3: a
@@ -910,6 +930,7 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
                 response,
                 expected: _certId(input.leaf, issuer, algorithm),
                 at,
+                strict: reading.strict,
                 onDiagnostic: reading.onDiagnostic,
                 ...(authorised === undefined ? {} : { signatureVerified: authorised.signed, responderAuthorized: authorised.authorised }),
                 // The one certificate that both signed and was entitled to:
@@ -942,7 +963,8 @@ async function _checkRevocation(input: VerifyCertificateChainInput, path: readon
 }
 
 /**
- * `checkRevocation`, with a malformed entry reported rather than thrown.
+ * `checkRevocation`, with a malformed entry — or, under `strict`, a warning
+ * the walk raises — reported rather than thrown.
  *
  * `parseCertificateList` reads the envelope and counts the entries, but an
  * entry's fields are read only when `findRevocation` walks them — so a list
@@ -1037,7 +1059,10 @@ async function _ocspSigner(
     for (const der of basic.certificates) {
         let delegate: Certificate;
         try {
-            delegate = parseCertificate(der, reading);
+            // Never under `strict`: an attached certificate is a hint, and one
+            // refused for a warning would be skipped here in silence — the
+            // response then reported unauthorised, with the cause hidden.
+            delegate = parseCertificate(der, { limits: reading.limits, onDiagnostic: reading.onDiagnostic });
         } catch (error) {
             // An attached certificate nobody can read is not a reason to refuse
             // the response: it was a hint, and the hint was unusable.

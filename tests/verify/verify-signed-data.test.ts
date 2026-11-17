@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { encodeTlv } from '../../src/asn1/asn1-encode.js';
+import { encodeInteger, encodeTlv } from '../../src/asn1/asn1-encode.js';
 import { addTimeStampToken, createSignedData, type CreateSignedDataInput } from '../../src/build/build-signed-data.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { shake256 } from '../../src/hash/shake256.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
 import { PkiError } from '../../src/types/pki-errors.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { verifySignedData, type VerifySignedDataInput } from '../../src/verify/verify-signed-data.js';
+import { verifyTimeStampToken } from '../../src/verify/verify-timestamp.js';
+import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import {
     alg,
     attribute,
@@ -41,6 +44,7 @@ import {
     makeToken,
     OID,
     rawSign,
+    rebuildSignedData,
     sha,
     signerInfosOf,
     tstInfo,
@@ -750,5 +754,132 @@ describe('verifySignedData', () => {
             ]);
             expect(refused.reasons.map((r) => r.errorCode)).toEqual(['PKI_CRYPTO_ALGORITHM_REFUSED', 'PKI_CRYPTO_ALGORITHM_REFUSED']);
         });
+    });
+});
+
+/**
+ * ADR 0025. The message is read with the caller's sink and the caller's
+ * `strict`; both are handed on to the timestamps and the chain of each signer,
+ * whose reasons and diagnostics come back rooted where they sit in this report.
+ */
+describe('verifySignedData — onDiagnostic and strict (ADR 0025)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+    const thrownCode = (fn: () => unknown): string | undefined => {
+        try {
+            fn();
+        } catch (error) {
+            if (error instanceof PkiError) return error.code;
+            throw error;
+        }
+        return undefined;
+    };
+    /** The same message declaring version 3 where its content calls for 1: not a signed octet, and a warning (RFC 5652 §5.1). */
+    const misversioned = (der: Uint8Array): Uint8Array => rebuildSignedData(der, (fields) => [encodeInteger(3n), ...fields.slice(1)]);
+
+    it('should deliver what the message says about itself to onDiagnostic, with the paths parseSignedData gives, and stay silent without a handler', async () => {
+        const w = await world();
+        const message = misversioned(await sign(w));
+        const parsed: PkiDiagnostic[] = [];
+        parseSignedData(message, { onDiagnostic: (d) => { parsed.push(d); } });
+        expect(parsed.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_CMS_VERSION_MISMATCH', 'warning']]);
+
+        const heard = collect();
+        const report = await verify(w, message, { onDiagnostic: heard.onDiagnostic });
+        // None of it changes the verdict.
+        expect(codes(report)).toEqual([]);
+        expect(heard.seen).toEqual(parsed);
+
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            expect(codes(await verify(w, message))).toEqual([]);
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
+    it('should report a warning of the message as it is parsed, at signedData, where parseSignedData under strict throws', async () => {
+        const w = await world();
+        const message = misversioned(await sign(w));
+        expect(thrownCode(() => parseSignedData(message, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const refused = collect();
+        const report = await verify(w, message, { strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'signedData' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_CMS_VERSION_MISMATCH');
+        expect(report.signedData).toBeUndefined();
+        expect(report.signers).toEqual([]);
+        // Refused, not delivered: throw or diagnose, never both.
+        expect(refused.seen).toEqual([]);
+        // `strict: false` is the default, spelled out.
+        expect(codes(await verify(w, message, { strict: false }))).toEqual([]);
+    });
+
+    it('should find the signer among the certificates the message carries although its certificate raises a warning: the bag is never read under strict', async () => {
+        const w = await world();
+        // No authorityKeyIdentifier: a warning, which a strict parse of that certificate refuses.
+        expect(thrownCode(() => parseCertificate(w.signer.certificate.der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        const report = await verify(w, await sign(w), { strict: true });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(report.signers[0]?.certificate?.der).toEqual(w.signer.certificate.der);
+    });
+
+    it('should hand both on to each timestamp: its diagnostics and its refusal arrive under signerInfos[i].unsignedAttrs.timeStampToken[j]', async () => {
+        const w = await world();
+        const tsa = await issueTsa(w.root);
+        const p7s = await sign(w);
+        const imprint = await sha('SHA-256', parseSignedData(p7s).signerInfos[0]?.signature as Uint8Array);
+        // ordering FALSE written out in the TSTInfo: a warning of the token, not of the message.
+        const token = await makeToken(tsa, tstInfo({ imprint, genTime: AT, ordering: false }));
+        const stamped = addTimeStampToken(p7s, 0, token);
+        const where = 'signerInfos[0].unsignedAttrs.timeStampToken[0]';
+
+        // What the token says on its own, to compare the re-rooted copy with.
+        const alone = collect();
+        await verifyTimeStampToken({ token, imprint, trustAnchors: [w.root.certificate], at: AT, onDiagnostic: alone.onDiagnostic });
+        expect(alone.seen.map((d) => d.code)).toEqual(['PKI_DIAG_DEFAULT_ENCODED']);
+
+        const heard = collect();
+        expect(codes(await verify(w, stamped, { onDiagnostic: heard.onDiagnostic }))).toEqual([]);
+        expect(heard.seen).toEqual(alone.seen.map((d) => ({ ...d, path: `${where}.${d.path}` })));
+        expect(heard.seen.every((d) => Object.isFrozen(d))).toBe(true);
+
+        const report = await verify(w, stamped, { strict: true });
+        expect(report.valid).toBe(false);
+        expect(report.reasons.map((r) => [r.code, r.errorCode, r.path])).toEqual([['PKI_REASON_INPUT_MALFORMED', 'PKI_STRICT_DIAGNOSTIC', `${where}.token`]]);
+        expect(report.signers[0]?.timeStamps[0]?.valid).toBe(false);
+        // The signature itself is untouched by what its timestamp says.
+        expect(report.signers[0]?.intact).toBe(true);
+    });
+
+    it('should hand both on to each chain: its diagnostics and its refusal arrive under signerInfos[i].chain', async () => {
+        const w = await world();
+        const p7s = await sign(w);
+        // An OCSP responderID naming nobody: a warning only the chain's judgement raises.
+        const response = await makeOcspResponse(w.root, w.signer.certificate, 'good', { responderKeyHash: new Uint8Array(20).fill(0xcc) });
+        const given = { ocspResponses: [response], requireRevocation: true } as const;
+
+        const heard = collect();
+        expect(codes(await verify(w, p7s, { ...given, onDiagnostic: heard.onDiagnostic }))).toEqual([]);
+        expect(heard.seen.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', 'warning', 'signerInfos[0].chain.ocsp.responderID']]);
+
+        const report = await verify(w, p7s, { ...given, strict: true });
+        expect(report.valid).toBe(false);
+        expect(report.reasons.map((r) => [r.code, r.errorCode, r.path])).toEqual([['PKI_REASON_INPUT_MALFORMED', 'PKI_STRICT_DIAGNOSTIC', 'signerInfos[0].chain.ocspResponses[0]']]);
+        expect(report.signers[0]?.chain?.valid).toBe(false);
+        expect(report.signers[0]?.intact).toBe(true);
+    });
+
+    it('should throw PKI_INVALID_OPTION for a strict that is not a boolean or an onDiagnostic that is not a function, before anything is read', async () => {
+        const w = await world();
+        const p7s = await sign(w);
+        await expect(verify(w, p7s, { strict: 'yes' as unknown as boolean })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
+        await expect(verify(w, p7s, { onDiagnostic: 'log' as unknown as () => void })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
     });
 });

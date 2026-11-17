@@ -985,6 +985,12 @@
           "summary": "Receive the diagnostics this decision raises — what the response says about itself that §4.2 asks it not to, none of which touches the verdict."
         },
         {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` this decision raises — a `responderID` that does not name `signer` — by throwing `PKI_STRICT_DIAGNOSTIC`; an `info` is still only reported."
+        },
+        {
           "name": "nonce",
           "type": "Uint8Array | undefined",
           "optional": true,
@@ -1067,6 +1073,12 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the walk raises — an entry extension that is malformed and dropped — by throwing `PKI_STRICT_DIAGNOSTIC`, as `findRevocation` does."
         },
         {
           "name": "onDiagnostic",
@@ -5948,6 +5960,12 @@
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
           "summary": "Receive every diagnostic this verification raises or reads: what the CRLs, the OCSP responses and the responders' certificates say about themselves that their RFCs ask them not to, and what only this call can decide — an OCSP `responderID` that does not name the signer, answers about certificates no…"
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` a CRL or an OCSP response raises — as it is parsed, as its entries are walked, or as the response is judged against its signer."
         }
       ]
     },
@@ -6212,6 +6230,18 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic this verification raises or reads: what the message says about itself against RFC 5652, with the paths `parseSignedData` gives them, and what each signer's timestamps and chain report, their paths prefixed with where they sit in this report — `signerInfos[i].unsignedAttrs.ti…"
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the message raises as it is parsed, and — passed on to them — each signer's timestamps and chain."
         }
       ]
     },
@@ -6380,6 +6410,12 @@
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
           "summary": "Receive every diagnostic this verification raises or reads: what the token, the response and the TSA's chain say about themselves that their RFCs ask them not to, and what only this call can decide — whether the token honoured the request's `certReq` (RFC 3161 §2.4.1), which needs `request`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the token or the response raises as it is parsed, the `certReq` contract when `request` is given, and — passed on to the TSA's chain — the CRLs and OCSP responses."
         }
       ]
     },
@@ -6593,7 +6629,9 @@
       "module": "src/revocation/ocsp-check.ts",
       "signature": "export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[]",
       "summary": "Decide what an OCSP response establishes about one certificate.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "input",
@@ -6611,6 +6649,7 @@
       "summary": "Decide a certificate's revocation status against one CRL.",
       "throws": [
         "PkiCertificateError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [

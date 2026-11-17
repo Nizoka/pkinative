@@ -113,10 +113,24 @@ export interface VerifyTimeStampTokenInput {
      * token honoured the request's `certReq` (RFC 3161 §2.4.1), which needs
      * `request`. None of it changes the verdict; the report carries the
      * verdict. **Without it, nothing is reported**: a verdict call does not
-     * warn on the console, and never throws for a diagnostic (`strict` is not
-     * an input here).
+     * warn on the console, and never throws for a diagnostic — under `strict`
+     * it reports one.
      */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
+    /**
+     * Refuse the first `warning` the token or the response raises as it is
+     * parsed, the `certReq` contract when `request` is given, and — passed on
+     * to the TSA's chain — the CRLs and OCSP responses. `false` by default.
+     * **Reported, never thrown** (ADR 0025): `PKI_REASON_INPUT_MALFORMED`
+     * carrying `errorCode: 'PKI_STRICT_DIAGNOSTIC'`, at `token` or `response`
+     * for what `parseTimeStampToken` under `strict` would have thrown, at
+     * `token.certificates` for the `certReq` contract, and under
+     * `token.tsaChain` for the chain. An `info` is still only reported. The
+     * certificates the token carries stay read without `strict` — a bag
+     * certificate refused for a warning would be one the TSA could no longer
+     * be found among — and so does `request`, which is your own bytes.
+     */
+    readonly strict?: boolean | undefined;
 }
 
 /** The verdict on a timestamp token, and what it established. */
@@ -165,14 +179,16 @@ interface _Expectation {
  * ```
  *
  * It never throws for a verification issue or for malformed input — a token
- * that cannot be read is `PKI_REASON_INPUT_MALFORMED`. It throws only for API
- * misuse: saying nothing about what was stamped, or a malformed `request`,
- * which is your own bytes.
+ * that cannot be read is `PKI_REASON_INPUT_MALFORMED`, and so is a warning
+ * refused under `strict: true`, whose `errorCode` is `PKI_STRICT_DIAGNOSTIC`.
+ * It throws only for API misuse: saying nothing about what was stamped, a
+ * malformed option, or a malformed `request`, which is your own bytes.
  *
  * @param input See {@link VerifyTimeStampTokenInput}.
  * @returns The verdict and what it established.
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
  *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
+ *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean or an `onDiagnostic` that is not a function;
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
@@ -180,7 +196,9 @@ export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Pr
     // What the request, the response and the token say about themselves goes
     // to the caller's handler when there is one, and nowhere otherwise: a
     // verdict call reports in its report and does not warn on the console.
-    const reading = { limits: input.limits ?? {}, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
+    // `strict` refuses a warning of the token or the response in the catch
+    // that already reports one that cannot be read (ADR 0025).
+    const reading = { limits: input.limits ?? {}, strict: input.strict, onDiagnostic: input.onDiagnostic ?? ((): undefined => undefined) };
     const expectation = _expectation(input, reading);
     const reasons: PkiReason[] = [];
 
@@ -243,7 +261,15 @@ export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Pr
     reasons.push(...outcome.reasons);
     let signatureVerifications = outcome.signatureVerifications;
     const tsa = outcome.certificate;
-    _certReqDiagnostics(expectation.certReq, signedData.certificates, tsa, createDiagnosticEmitter(undefined, reading.onDiagnostic));
+    try {
+        _certReqDiagnostics(expectation.certReq, signedData.certificates, tsa, createDiagnosticEmitter(reading.strict, reading.onDiagnostic));
+    } catch (error) {
+        // Only `strict` makes the emitter throw: the contract the token broke
+        // is then a reason, at the field it is about, and the rest of the
+        // token is still judged.
+        const refused = _pkiError(error);
+        reasons.push(inputMalformedReason(refused.code, refused.message, 'token.certificates'));
+    }
     if (tsa === undefined) return _report(reasons, token, undefined, undefined, signatureVerifications);
 
     // ── Whether that signer may stamp (RFC 3161 §2.3, §2.4.2) ──
@@ -275,6 +301,7 @@ export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Pr
         ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
         ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
         ...(input.limits === undefined ? {} : { limits: input.limits }),
+        strict: reading.strict,
         ...(input.onDiagnostic === undefined ? {} : { onDiagnostic: input.onDiagnostic }),
     });
     signatureVerifications += chain.signatureVerifications;
@@ -320,7 +347,9 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
     _assertArguments([
         ['token', input.token], ['response', input.response], ['request', input.request], ['data', input.data], ['imprint', input.imprint],
     ], reading);
-    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, reading);
+    // The request is the caller's own question, not evidence: it is read
+    // without `strict`, and a malformed one throws as misuse.
+    const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, { limits: reading.limits, onDiagnostic: reading.onDiagnostic });
     return {
         imprint: input.imprint,
         data: input.data,
@@ -434,6 +463,11 @@ function _holdsName(certificate: Certificate, name: NonNullable<TimeStampToken['
  * unrelated certificates, and one broken stranger must not make the signature
  * unreadable. How many were skipped is said if the signer then goes unfound.
  *
+ * **Never read under `strict`**, whatever the caller asked of the message:
+ * only `limits` is taken from `reading`. A bag certificate refused for a
+ * warning would be counted unreadable, and the signer reported not found for
+ * a reason the report could not name (ADR 0025).
+ *
  * @internal
  */
 export function _parseBag(ders: readonly Uint8Array[], extra: readonly Certificate[], reading: { readonly limits: Partial<PkiLimits> }): {
@@ -444,7 +478,7 @@ export function _parseBag(ders: readonly Uint8Array[], extra: readonly Certifica
     let unreadable = 0;
     for (const der of ders) {
         try {
-            candidates.push(parseCertificate(der, { ...reading, onDiagnostic: (): undefined => undefined }));
+            candidates.push(parseCertificate(der, { limits: reading.limits, onDiagnostic: (): undefined => undefined }));
         } catch (error) {
             _pkiError(error);
             unreadable += 1;

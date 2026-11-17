@@ -19,8 +19,9 @@
  * whether the message was altered reads each signer's `intact`.
  *
  * It never throws for a verification issue, and never for bad input: a message
- * that cannot be read is `PKI_REASON_INPUT_MALFORMED`. It throws only for API
- * misuse — content given twice, or given for a message that carries its own.
+ * that cannot be read is `PKI_REASON_INPUT_MALFORMED`, and so is a warning
+ * refused under `strict` (ADR 0025). It throws only for API misuse — content
+ * given twice, or given for a message that carries its own.
  *
  * @module verify/verify-signed-data
  */
@@ -31,10 +32,10 @@ import type { PkiTime } from '../types/asn1-types.js';
 import type { SignedData } from '../types/cms-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
-import type { EncodingRules, PkiLimits } from '../types/pki-types.js';
+import type { EncodingRules, PkiDiagnosticHandler, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 import { _assertArguments, _assertCertificates, _pkiError, verifyCertificateChain, type VerifyCertificateChainReport } from './verify-chain.js';
-import { _under, _verifySigner } from './verify-signer.js';
+import { _diagnosticsUnder, _under, _verifySigner } from './verify-signer.js';
 import { _parseBag, verifyTimeStampToken, type VerifyTimeStampTokenReport } from './verify-timestamp.js';
 
 /** What to verify a signed message against. */
@@ -96,6 +97,30 @@ export interface VerifySignedDataInput {
     readonly encodingRules?: EncodingRules | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
+    /**
+     * Receive every diagnostic this verification raises or reads: what the
+     * message says about itself against RFC 5652, with the paths
+     * `parseSignedData` gives them, and what each signer's timestamps and
+     * chain report, their paths prefixed with where they sit in this report —
+     * `signerInfos[i].unsignedAttrs.timeStampToken[j]` and
+     * `signerInfos[i].chain`, as their reasons are. None of it changes the
+     * verdict. **Without it, nothing is reported**: a verdict call does not
+     * warn on the console, and never throws for a diagnostic — under `strict`
+     * it reports one.
+     */
+    readonly onDiagnostic?: PkiDiagnosticHandler | undefined;
+    /**
+     * Refuse the first `warning` the message raises as it is parsed, and —
+     * passed on to them — each signer's timestamps and chain. `false` by
+     * default. **Reported, never thrown** (ADR 0025):
+     * `PKI_REASON_INPUT_MALFORMED` carrying `errorCode: 'PKI_STRICT_DIAGNOSTIC'`,
+     * at `signedData` for what `parseSignedData` under `strict` would have
+     * thrown, and under the signer for a timestamp or a chain. An `info` is
+     * still only reported. The certificates the message carries stay read
+     * without `strict`: a bag certificate refused for a warning would be one
+     * the signer could no longer be found among.
+     */
+    readonly strict?: boolean | undefined;
 }
 
 /** The verdict on one signer. */
@@ -152,11 +177,18 @@ export interface VerifySignedDataReport {
  * or a timestamp token, which have one. `signers` carries each verdict for a
  * caller whose policy is another.
  *
+ * It never throws for a verification issue or for malformed input: a message
+ * that cannot be read is `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode`
+ * the `PkiErrorCode` that would have been thrown — and so is a warning refused
+ * under `strict: true`, whose `errorCode` is `PKI_STRICT_DIAGNOSTIC`.
+ *
  * @param input See {@link VerifySignedDataInput}.
  * @returns The verdict, one verdict per signer, and every reason.
  * @throws {PkiError} `PKI_API_MISUSE` when both `content` and `contentDigest`
  *   are given, or either is given for a message that carries its own content;
- *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`; `PKI_INVALID_INPUT`
+ *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
+ *   `PKI_INVALID_OPTION` for a malformed `encodingRules`, `allowTrailingData`,
+ *   `strict` or `onDiagnostic`; `PKI_INVALID_INPUT`
  *   when a certificate is not one `parseCertificate` made.
  */
 export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport> {
@@ -169,6 +201,8 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     _assertCertificates(input.trustAnchors, 'trustAnchors');
     _assertArguments([['signedData', input.signedData], ['content', input.content], ['contentDigest', input.contentDigest]], {
         limits: input.limits ?? {},
+        strict: input.strict,
+        onDiagnostic: input.onDiagnostic,
         ...(input.encodingRules === undefined ? {} : { encodingRules: input.encodingRules }),
     });
     if (input.allowTrailingData !== undefined && typeof input.allowTrailingData !== 'boolean') {
@@ -180,11 +214,15 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     // signer at two different "now"s, milliseconds or a slow revocation walk
     // apart.
     const now = input.at ?? Date.now();
-    const quiet = { onDiagnostic: (): undefined => undefined };
+    // What the message, its timestamps and its chains say about themselves
+    // goes to the caller's handler when there is one, and nowhere otherwise:
+    // a verdict call reports in its report and does not warn on the console.
+    const sink = input.onDiagnostic ?? ((): undefined => undefined);
     let signedData: SignedData;
     try {
         signedData = parseSignedData(input.signedData, {
-            ...quiet,
+            onDiagnostic: sink,
+            strict: input.strict,
             limits: input.limits ?? {},
             ...(input.encodingRules === undefined ? {} : { encodingRules: input.encodingRules }),
             ...(input.allowTrailingData === undefined ? {} : { allowTrailingData: input.allowTrailingData }),
@@ -227,6 +265,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
         // cannot prove, which makes the signer invalid, not merely unstamped.
         const timeStamps: VerifyTimeStampTokenReport[] = [];
         for (const [position, token] of signer.timeStampTokens.entries()) {
+            const stampPath = `${path}.unsignedAttrs.timeStampToken[${String(position)}]`;
             const stamp = await verifyTimeStampToken({
                 token,
                 data: signer.signature,
@@ -238,10 +277,12 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 at: now,
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
+                strict: input.strict,
+                onDiagnostic: _diagnosticsUnder(stampPath, sink),
             });
             signatureVerifications += stamp.signatureVerifications;
             timeStamps.push(stamp);
-            reasons.push(...stamp.reasons.map((reason) => _under(`${path}.unsignedAttrs.timeStampToken[${String(position)}]`, reason)));
+            reasons.push(...stamp.reasons.map((reason) => _under(stampPath, reason)));
         }
 
         let chain: VerifyCertificateChainReport | undefined;
@@ -258,6 +299,8 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
                 ...(input.requireRevocation === undefined ? {} : { requireRevocation: input.requireRevocation }),
                 ...(input.allowSha1 === undefined ? {} : { allowSha1: input.allowSha1 }),
                 ...(input.limits === undefined ? {} : { limits: input.limits }),
+                strict: input.strict,
+                onDiagnostic: _diagnosticsUnder(`${path}.chain`, sink),
             });
             signatureVerifications += chain.signatureVerifications;
             reasons.push(...chain.reasons.map((reason) => _under(`${path}.chain`, reason)));

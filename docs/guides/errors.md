@@ -54,7 +54,7 @@ One code of that class is the exception, and it is on the decrypting side, where
 - `PKI_INVALID_INPUT` — the input has the wrong type: not a `Uint8Array`, not a string, not a parsed certificate.
 - `PKI_INVALID_OPTION` — an option fails validation, e.g. `encodingRules: 'cer'`.
 - `PKI_API_MISUSE` — a caller contract is violated, e.g. DER-encoding an indefinite-length node, or reading an implicitly tagged value without saying its type.
-- `PKI_STRICT_DIAGNOSTIC` — `strict: true` refused an input because of its first diagnostic; the message carries that diagnostic's code.
+- `PKI_STRICT_DIAGNOSTIC` — `strict: true` refused an input because of its first `warning` diagnostic; the message carries that diagnostic's code. Thrown by the parsers and by `checkRevocation` and `checkOcspStatus`; a verify report carries it as the `errorCode` of a `PKI_REASON_INPUT_MALFORMED` instead (see [`strict` in the verify and check verbs](#strict-in-the-verify-and-check-verbs)).
 - `PKI_INTERNAL` — an internal invariant broke: a pkinative bug, please report it.
 
 ### ASN.1 and OIDs
@@ -146,11 +146,20 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
 
+### `strict` in the verify and check verbs
+
+From 1.1.0 `strict` travels with `onDiagnostic` into the verbs that parse on your behalf, so the bytes a strict parse refuses, a strict verify refuses too ([ADR 0025](../adr/0025-strict-in-the-verify-and-check-verbs.md)). What the refused warning becomes depends on what you called:
+
+- **A composition reports it.** `verifyCertificateChain`, `verifyTimeStampToken`, `verifySignedData` and `openPkcs12` — like `verifyCertificationRequest` since 1.0.0 — never throw for it. The report is `valid: false` with `PKI_REASON_INPUT_MALFORMED`, `errorCode: 'PKI_STRICT_DIAGNOSTIC'`, at the path of the member that raised it — `crls[1]`, `ocspResponses[0]`, `token`, `token.certificates`, `signedData`, `signerInfos[0].chain.crls[0]`, `pkcs12` — and a message naming the diagnostic. Branch on `errorCode`.
+- **A primitive throws it.** `checkRevocation` and `checkOcspStatus` throw `PKI_STRICT_DIAGNOSTIC`, as every parser and `findRevocation` do: a primitive is a step of your own composition, and `verifyCertificateChain`, which composes these two, is where the throw becomes a reason.
+
+An `info` is reported either way and refuses nothing. The certificates that merely travel with the evidence — the bag of a SignedData or of a timestamp token, the certificates an OCSP response attaches — are read without `strict`, exactly as `parseSignedData` and `parseOcspResponse` under `strict` leave them unread: refusing one would report the signer not found, or the responder unauthorised, without saying why. A PKCS#12 is different — its certificates are what `openPkcs12` opens, so each is read under `strict` and reported at its own bag. `verifySignedData` takes `onDiagnostic` from 1.1.0 as well: what the message says about itself arrives with the paths `parseSignedData` gives, and what its timestamps and chains report arrives prefixed with where they sit in its report (`signerInfos[0].chain.ocsp.responderID`). Like every verdict call, it says nothing without a handler.
+
 ## Reasons
 
 A reason is why a **judgement** came out negative: `{ code, message, standard, path }`, plus `errorCode` or `limit` where they apply. It is returned inside a report, never thrown and never printed — and several are returned together whenever several apply, because a certificate can be expired *and* outside a name constraint, and a report that stopped at the first would hide the work still to do.
 
-- **The input, wrapped** — `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the `PkiErrorCode` that would have been thrown.
+- **The input, wrapped** — `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the `PkiErrorCode` that would have been thrown — `PKI_STRICT_DIAGNOSTIC` included, when the call was given `strict: true` and the input raised a warning.
 - **The certificate alone** — `PKI_REASON_NOT_YET_VALID`, `PKI_REASON_EXPIRED`, `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
 - **The link to the issuer** — `PKI_REASON_ISSUER_NOT_FOUND`, `PKI_REASON_SIGNATURE_INVALID`, `PKI_REASON_SIGNATURE_NOT_CHECKED`.
 - **The chain** — `PKI_REASON_NO_TRUST_ANCHOR`, `PKI_REASON_NOT_A_CA`, `PKI_REASON_PATH_TOO_LONG`, `PKI_REASON_PATH_LOOPS`.

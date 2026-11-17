@@ -395,12 +395,23 @@ beforeAll(async () => {
 
 // ── The runs ──
 
+/**
+ * Every run twice: under the default options, and under `strict: true`, where
+ * a composition reports the warning it was asked to refuse instead of throwing
+ * it (ADR 0025) — so "always resolves" is held for the callers who asked for
+ * more care, too.
+ */
+const STRICTNESS: ReadonlyArray<readonly [string, { readonly strict?: boolean }]> = [
+    ['under the default options', {}],
+    ['under strict: true', { strict: true }],
+];
+
 const SEED = 0x5eed_0008;
-/** Iterations per report: 480 calls in all, a few seconds. */
+/** Iterations per report and per strictness: five reports, twice each, a few seconds in all. */
 const BUDGET = 120;
 
 describe('verifyCertificateChain under adversarial CRLs, OCSP responses and certificates', () => {
-    it('should always resolve with a registered report', async () => {
+    it.each(STRICTNESS)('should always resolve with a registered report %s', async (_label, strictness) => {
         const prng = createPrng(SEED);
         const seen = new Map<string, number>();
         const base = { leaf: w.signer.certificate, trustAnchors: [w.root.certificate], at: AT };
@@ -430,6 +441,7 @@ describe('verifyCertificateChain under adversarial CRLs, OCSP responses and cert
                 requireRevocation: true,
                 serverName: { kind: 'dns', value: 'fuzz.example' },
                 ...(limits === undefined ? {} : { limits }),
+                ...strictness,
             }));
             seen.set(result, (seen.get(result) ?? 0) + 1);
         }
@@ -438,7 +450,7 @@ describe('verifyCertificateChain under adversarial CRLs, OCSP responses and cert
 });
 
 describe('verifySignedData under adversarial messages, content and digests', () => {
-    it('should always resolve with a registered report', async () => {
+    it.each(STRICTNESS)('should always resolve with a registered report %s', async (_label, strictness) => {
         const prng = createPrng(SEED + 1);
         const seen = new Map<string, number>();
         const base = { trustAnchors: [w.root.certificate], at: AT };
@@ -473,6 +485,7 @@ describe('verifySignedData under adversarial messages, content and digests', () 
                 ...(limits === undefined ? {} : { limits }),
                 ...(encodingRules === undefined ? {} : { encodingRules }),
                 ...(allowTrailingData === undefined ? {} : { allowTrailingData }),
+                ...strictness,
             }), (error) => {
                 // Documented misuse: detached content passed for a message a
                 // mutation turned into one that carries its own.
@@ -486,7 +499,7 @@ describe('verifySignedData under adversarial messages, content and digests', () 
 });
 
 describe('verifyTimeStampToken under adversarial tokens, responses and requests', () => {
-    it('should always resolve with a registered report', async () => {
+    it.each(STRICTNESS)('should always resolve with a registered report %s', async (_label, strictness) => {
         const prng = createPrng(SEED + 2);
         const seen = new Map<string, number>();
         const base = { trustAnchors: [w.root.certificate], at: AT };
@@ -508,6 +521,7 @@ describe('verifyTimeStampToken under adversarial tokens, responses and requests'
                 ...said,
                 ...(mode === 'crl' ? { crls: [mutated.bytes] } : {}),
                 ...(limits === undefined ? {} : { limits }),
+                ...strictness,
             }), (error) => mode === 'request' && error.code !== 'PKI_API_MISUSE');
             seen.set(result, (seen.get(result) ?? 0) + 1);
         }
@@ -516,7 +530,7 @@ describe('verifyTimeStampToken under adversarial tokens, responses and requests'
 });
 
 describe('openPkcs12 under adversarial files, passwords and limits', () => {
-    it('should always resolve with a registered report', async () => {
+    it.each(STRICTNESS)('should always resolve with a registered report %s', async (_label, strictness) => {
         const prng = createPrng(SEED + 3);
         const seen = new Map<string, number>();
         const sound = await openPkcs12(w.pkcs12, { password: PASSWORD });
@@ -531,6 +545,7 @@ describe('openPkcs12 under adversarial files, passwords and limits', () => {
             const result = await check(label, mutated.bytes, () => openPkcs12(mutated.bytes, {
                 password,
                 ...(limits === undefined ? {} : { limits }),
+                ...strictness,
             }));
             seen.set(result, (seen.get(result) ?? 0) + 1);
         }
@@ -539,7 +554,7 @@ describe('openPkcs12 under adversarial files, passwords and limits', () => {
 });
 
 describe('verifyCertificationRequest under adversarial requests and limits', () => {
-    it('should always resolve with a registered report', async () => {
+    it.each(STRICTNESS)('should always resolve with a registered report %s', async (_label, strictness) => {
         const prng = createPrng(SEED + 4);
         const seen = new Map<string, number>();
         expect((await verifyCertificationRequest(w.csr)).valid).toBe(true);
@@ -547,7 +562,7 @@ describe('verifyCertificationRequest under adversarial requests and limits', () 
             const limits = TINY_LIMITS[prng.int(TINY_LIMITS.length)];
             const { name, bytes } = mutate(prng, w.csr, w.donors);
             const label = `seed ${String(prng.seed)} iteration ${String(i)} ${name} limits ${JSON.stringify(limits)}`;
-            const result = await check(label, bytes, () => verifyCertificationRequest(bytes, limits === undefined ? {} : { limits }));
+            const result = await check(label, bytes, () => verifyCertificationRequest(bytes, { ...(limits === undefined ? {} : { limits }), ...strictness }));
             seen.set(result, (seen.get(result) ?? 0) + 1);
         }
         expect(seen.size).toBeGreaterThan(3);

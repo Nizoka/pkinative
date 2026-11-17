@@ -7,8 +7,8 @@
     {
       "code": "PKI_REASON_INPUT_MALFORMED",
       "since": "0.5.0",
-      "returnedWhen": "The bytes are not the structure they claim to be.",
-      "remedy": "Read the errorCode field: it carries the PkiErrorCode the parser would have thrown, so the reason registry wraps the error registry instead of duplicating it.",
+      "returnedWhen": "The bytes are not the structure they claim to be — or, when the call was given strict: true, they raised a warning diagnostic it was asked to refuse.",
+      "remedy": "Read the errorCode field: it carries the PkiErrorCode the parser would have thrown, so the reason registry wraps the error registry instead of duplicating it. PKI_STRICT_DIAGNOSTIC there means the input was refused for a warning, which the message names: drop strict: true to accept it, or fix what produced it.",
       "standard": "ITU-T X.690"
     },
     {

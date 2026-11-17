@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 423612,
-      "approxTokens": 105903
+      "bytes": 426426,
+      "approxTokens": 106607
     },
     {
       "url": "llms-recipes.txt",
@@ -30,8 +30,8 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 305525,
-      "approxTokens": 76381
+      "bytes": 307557,
+      "approxTokens": 76889
     },
     {
       "url": "data/errors.json",
@@ -72,8 +72,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 20374,
-      "approxTokens": 5094
+      "bytes": 20064,
+      "approxTokens": 5016
     }
   ],
   "guides": [
@@ -126,8 +126,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 84909,
-      "approxTokens": 21227
+      "bytes": 85505,
+      "approxTokens": 21376
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -328,11 +328,12 @@
         "cms-and-timestamps",
         "private-keys-and-pkcs12",
         "diagnostics",
+        "strict-in-the-verify-and-check-verbs",
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35656,
-      "approxTokens": 8914
+      "bytes": 38043,
+      "approxTokens": 9511
     },
     {
       "title": "Choosing a library and a surface",
@@ -348,8 +349,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18362,
-      "approxTokens": 4591
+      "bytes": 18275,
+      "approxTokens": 4569
     }
   ]
 }
