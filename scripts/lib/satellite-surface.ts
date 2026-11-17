@@ -1046,10 +1046,10 @@ export function renderFactsMarkdown(facts: SatelliteFacts): string {
     return `${kept.join('\n')}\n`;
 }
 
-/** Cuts a unit to `SHOW_MAX_CHARS`, on a line boundary, and says so. */
-export function clampShow(text: string): string {
+/** Cuts a unit to `SHOW_MAX_CHARS`, on a line boundary, and says where the whole is. */
+export function clampShow(text: string, whole = 'test-output/.satellites/facts.json'): string {
     if (text.length <= SHOW_MAX_CHARS) return text;
-    const note = '… (cut to the --show ceiling; the whole is in test-output/.satellites/facts.json)\n';
+    const note = `… (cut to the --show ceiling; the whole is in ${whole})\n`;
     const head = text.slice(0, SHOW_MAX_CHARS - note.length);
     return `${head.slice(0, head.lastIndexOf('\n') + 1)}${note}`;
 }

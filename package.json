@@ -65,6 +65,7 @@
     "docs:playground-samples": "npx tsx scripts/build-playground-samples.ts",
     "docs:playground-samples-fresh": "npx tsx scripts/build-playground-samples.ts --check",
     "docs:cli-surface": "npx tsx scripts/build-cli-surface.ts",
+    "satellites:sync": "npx tsx scripts/satellite-sync.ts",
     "docs:llms": "npx tsx scripts/build-llms-full.ts",
     "docs:serve": "npx serve docs/ --listen 5000",
     "docs:all": "npm run docs:api && npm run docs:guides && npm run docs:sitemap && npm run docs:llms",

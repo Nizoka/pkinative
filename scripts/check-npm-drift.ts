@@ -108,7 +108,7 @@ export function decideSatelliteDrift(name: string, manifestVersion: string, regi
     const latest = registry.distTags['latest'] ?? null;
     if (latest === null) return [`${name} has no latest dist-tag; the manifest records ${manifestVersion}`];
     if (compare(latest, manifestVersion) < 0) return [`${name} latest is ${latest}; the manifest records ${manifestVersion}, which is not published`];
-    if (compare(latest, manifestVersion) > 0) return [`${name} latest is ${latest}, ahead of the manifest's ${manifestVersion} — record the release in packages.${name} and re-check every count the site quotes from it`];
+    if (compare(latest, manifestVersion) > 0) return [`${name} latest is ${latest}, ahead of the manifest's ${manifestVersion} — align the site on the release: npm run satellites:sync -- --expect ${name.replace('pkinative-', '')}=${latest} --capture --apply --worklist, then /satellite-align (CONTRIBUTING.md §Release)`];
     return latest === manifestVersion ? [] : [`${name} latest is ${latest}; the manifest records ${manifestVersion}`];
 }
 

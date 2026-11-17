@@ -13,7 +13,7 @@
       "npm": "published from 1.0.0 by publish.yml, with npm provenance; no version below 1.0.0 was tagged or released"
     },
     "pkinative-cli": {
-      "$comment": "The command-line companion, a separate repository. Every count here is read from its source at the tag (src/commands/registry.ts, docs/data/errors.json, the capability manifest `pkinative schema manifest`, snapshotted in docs/data/cli-surface.json); satellite-counts holds the prose to counts, cli-surface-parity holds the guide and the builder to the snapshot. counts.invocations is every runnable command line: 47 subcommands plus the 6 commands that take none.",
+      "$comment": "The command-line companion, a separate repository. Every count here is read from its source at the tag (src/commands/registry.ts, docs/data/errors.json, the capability manifest `pkinative schema manifest`, snapshotted in docs/data/cli-surface.json); satellite-counts holds the prose to counts, cli-surface-parity holds the guide and the builder to the snapshot. counts.invocations is every runnable command line: 47 subcommands plus the 6 commands that take none. npm run satellites:sync -- --apply writes version, released, pin, counts and the inventories from the CLI itself: never edit them by hand.",
       "version": "1.0.0",
       "released": "2026-10-08",
       "repo": "https://github.com/Nizoka/pkinative-cli",
@@ -46,7 +46,7 @@
       "exitCodes": [0, 1, 2, 130, 143]
     },
     "pkinative-mcp": {
-      "$comment": "The Model Context Protocol server, a separate repository. Tools in tools/list order (src/tools/_registry.ts), each with its annotation class: readOnly 23, writes a deterministic artefact 6, produces a non-idempotent artefact 5, all openWorldHint false. satellite-counts holds the prose to counts; mcp-surface-parity holds the MCP guide and explorer to tools, prompts, envVars and resourceTemplates. counts.wrapperCodes is the server's own error codes (src/wrapper-codes.ts); pkinative's PKI_* codes, reasons and diagnostics pass through verbatim.",
+      "$comment": "The Model Context Protocol server, a separate repository. Tools in tools/list order (src/tools/_registry.ts), each with its annotation class: readOnly 23, writes a deterministic artefact 6, produces a non-idempotent artefact 5, all openWorldHint false. satellite-counts holds the prose to counts; mcp-surface-parity holds the MCP guide and explorer to tools, prompts, envVars and resourceTemplates. counts.wrapperCodes is the server's own error codes (src/wrapper-codes.ts); pkinative's PKI_* codes, reasons and diagnostics pass through verbatim. npm run satellites:sync -- --apply writes version, released, pin, counts and the inventories from the server's own files: never edit them by hand.",
       "version": "1.0.0",
       "released": "2026-10-17",
       "repo": "https://github.com/Nizoka/pkinative-mcp",

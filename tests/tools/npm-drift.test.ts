@@ -59,6 +59,8 @@ describe('decideSatelliteDrift', () => {
 
     it('should report a satellite release the manifest does not record yet, and one it records too early', () => {
         expect(decideSatelliteDrift('pkinative-mcp', '1.0.0', registry('1.1.0', '1.0.0', '1.1.0'))).toEqual([expect.stringContaining('ahead of the manifest')]);
+        // The message is the next command to run, with the version the registry serves.
+        expect(decideSatelliteDrift('pkinative-mcp', '1.0.0', registry('1.1.0', '1.0.0', '1.1.0'))[0]).toContain('npm run satellites:sync -- --expect mcp=1.1.0 --capture --apply --worklist');
         expect(decideSatelliteDrift('pkinative-mcp', '1.1.0', registry('1.0.0'))).toEqual([expect.stringContaining('which is not published')]);
     });
 
