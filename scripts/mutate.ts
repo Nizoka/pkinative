@@ -136,6 +136,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/revocation/ocsp-check.ts' },
     { file: 'src/revocation/ocsp-request.ts' },
     { file: 'src/revocation/ocsp-response.ts' },
+    { file: 'src/revocation/ocsp-shared.ts' },
     { file: 'src/types/pki-errors.ts' },
     { file: 'src/verify/verify-chain.ts' },
     { file: 'src/verify/verify-csr.ts' },
