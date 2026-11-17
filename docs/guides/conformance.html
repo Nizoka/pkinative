@@ -407,6 +407,16 @@
 <td><code>parseCertificationRequest</code> with zero diagnostics and the subject the tool was given; <code>verifyCertificationRequest</code> valid</td>
 </tr>
 <tr>
+<td><code>openssl:cert-ml-dsa</code></td>
+<td><code>openssl req -x509</code> with an ML-DSA-65 key, and <code>openssl x509 -req</code> issuing an ML-DSA-44 leaf under it (OpenSSL 3.5 or later; an older build is declared without ML-DSA, not failed)</td>
+<td><code>verifyCertificateChain</code> valid where the host has ML-DSA; <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> with <code>PKI_CRYPTO_KEY_UNSUPPORTED</code> where it has not (<a href="../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md">ADR 0026</a>)</td>
+</tr>
+<tr>
+<td><code>openssl:cms-ml-dsa</code></td>
+<td><code>openssl cms -sign -nodetach -md sha512</code> with that ML-DSA-44 leaf</td>
+<td><code>verifySignedData</code> valid where the host has ML-DSA; not checked, with the same code, where it has not</td>
+</tr>
+<tr>
 <td><code>gnutls-certtool:crl</code></td>
 <td><code>certtool --generate-crl</code> over an ECDSA CA and one certificate it issued</td>
 <td>the listed certificate <code>PKI_REASON_REVOKED</code>, the other valid</td>

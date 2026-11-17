@@ -159,6 +159,8 @@ The same arrow for everything else pkinative verifies and never writes in the to
 | `openssl:crl-base` | `openssl ca -gencrl` after that revocation | the revoked certificate `PKI_REASON_REVOKED`, another valid |
 | `openssl:crl-delta` | `openssl crl -gendelta -sha256` between that CRL and the next, after a second revocation | with the base alone the second certificate is valid; with the base and the delta, `PKI_REASON_REVOKED` |
 | `openssl:csr` | `openssl req -new` for every key the matrix issues a certificate to (RSA 2048, ECDSA P-256 and P-384, Ed25519) | `parseCertificationRequest` with zero diagnostics and the subject the tool was given; `verifyCertificationRequest` valid |
+| `openssl:cert-ml-dsa` | `openssl req -x509` with an ML-DSA-65 key, and `openssl x509 -req` issuing an ML-DSA-44 leaf under it (OpenSSL 3.5 or later; an older build is declared without ML-DSA, not failed) | `verifyCertificateChain` valid where the host has ML-DSA; `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` where it has not ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)) |
+| `openssl:cms-ml-dsa` | `openssl cms -sign -nodetach -md sha512` with that ML-DSA-44 leaf | `verifySignedData` valid where the host has ML-DSA; not checked, with the same code, where it has not |
 | `gnutls-certtool:crl` | `certtool --generate-crl` over an ECDSA CA and one certificate it issued | the listed certificate `PKI_REASON_REVOKED`, the other valid |
 | `gpgsm:cms-detached` | `gpgsm --detach-sign`, with an RSA key imported from PKCS #12 | valid |
 | `gpgsm:cms-attached` | `gpgsm --sign`: indefinite-length BER | valid with `encodingRules: 'ber'` |

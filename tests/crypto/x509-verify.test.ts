@@ -12,6 +12,9 @@ import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, ve
 import { canVerify } from '../../src/crypto/webcrypto.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { algorithm, bitString, certificate, ecKey, nullValue, tbsCertificate } from '../helpers/cert-builder.js';
+import { parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
+import { ML_DSA_SETS, acceptMlDsa, hostImportsMlDsa, mlDsaBytes, mlDsaCertificate, refuseMlDsa } from '../verify/_ml-dsa.js';
 
 /**
  * Verification against the committed fixtures — foreign certificates whose
@@ -419,5 +422,134 @@ describe('ECDSA malleability', () => {
         expect(await verifySelfSignature(twin)).toBe(true);
         expect(twin.der).not.toEqual(original.der);
         expect(twin.tbsDer).toEqual(original.tbsDer);
+    });
+});
+
+// ── ML-DSA (RFC 9881; ADR 0026) ──────────────────────────────────────
+//
+// The three self-signed certificates of RFC 9881 Appendix C.3 — one per
+// parameter set, signed by the RFC's authors — and a small OpenSSL 3.5
+// hierarchy: a root, a leaf, a CRL and an OCSP response
+// (tests/fixtures/PROVENANCE.md). The host decides; nothing here does.
+
+const HOST_HAS_ML_DSA = await hostImportsMlDsa();
+
+describe('ML-DSA signatures (RFC 9881 §3)', () => {
+    const keyUnsupported = expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED' });
+    const root = mlDsaCertificate('root-ml-dsa-65');
+    const leaf = mlDsaCertificate('leaf-ml-dsa-44');
+    const crl = parseCertificateList(mlDsaBytes('crl-ml-dsa-65'), { onDiagnostic: () => undefined });
+    const basic = parseOcspResponse(mlDsaBytes('ocsp-ml-dsa-65'), { onDiagnostic: () => undefined }).basicResponse as OcspBasicResponse;
+
+    let restore: (() => void) | undefined;
+    afterEach(() => {
+        restore?.();
+        restore = undefined;
+    });
+
+    describe.each(ML_DSA_SETS)('the RFC 9881 Appendix C.3 certificate %s', (name, kind, dotted, hostName, signatureOctets) => {
+        const example = mlDsaCertificate(name);
+
+        it(`should be read as an ${kind} key under a signature ${dotted}`, () => {
+            expect(example.subjectPublicKeyInfo.kind).toBe(kind);
+            expect(example.signatureAlgorithm).toMatchObject({ oid: dotted, parameters: undefined });
+            expect(example.signatureValue.bytes).toHaveLength(signatureOctets);
+        });
+
+        it.runIf(HOST_HAS_ML_DSA)('should verify its own signature on this host', async () => {
+            await expect(verifySelfSignature(example)).resolves.toBe(true);
+        });
+
+        it.runIf(HOST_HAS_ML_DSA)('should not verify on this host once a signed octet is altered', async () => {
+            const altered = Uint8Array.from(mlDsaBytes(name));
+            // Inside the issuer's "LAMPS WG": the certificate still parses, and is another certificate.
+            const at = Buffer.from(altered).indexOf('LAMPS WG');
+            expect(at).toBeGreaterThan(0);
+            altered[at] = 0x4d;
+            const other = parseCertificate(altered, { onDiagnostic: () => undefined });
+            await expect(verifyCertificateSignature(other, example)).resolves.toBe(false);
+        });
+
+        it.runIf(!HOST_HAS_ML_DSA)('should be refused as PKI_CRYPTO_KEY_UNSUPPORTED on this host, which has no ML-DSA', async () => {
+            await expect(verifySelfSignature(example)).rejects.toThrow(keyUnsupported);
+        });
+
+        it('should be refused as PKI_CRYPTO_KEY_UNSUPPORTED on a host that refuses the key, naming the algorithm the host was asked for', async () => {
+            restore = refuseMlDsa();
+            const refusal = verifySelfSignature(example);
+            await expect(refusal).rejects.toBeInstanceOf(PkiCryptoError);
+            await expect(refusal).rejects.toMatchObject({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: dotted, message: expect.stringContaining(hostName) });
+        });
+
+        it(`should reach an accepting host as { name: '${hostName}' } with its own key, signature and tbsCertificate`, async () => {
+            const host = acceptMlDsa();
+            restore = host.restore;
+            await expect(verifySelfSignature(example)).resolves.toBe(true);
+            expect(host.verifications).toHaveLength(1);
+            expect(host.verifications[0]).toMatchObject({ importName: hostName, format: 'spki', extractable: false, usages: ['verify'], verifyParams: { name: hostName } });
+            expect(host.verifications[0]?.spki).toEqual(example.subjectPublicKeyInfo.der);
+            expect(host.verifications[0]?.signature).toEqual(example.signatureValue.bytes);
+            expect(host.verifications[0]?.data).toEqual(example.tbsDer);
+        });
+
+        it('should answer false, without asking the host, under the key of another parameter set', async () => {
+            // The substitution class: a signature that says "ML-DSA-65" is not
+            // offered to an ML-DSA-44 key to see what the host makes of it.
+            const host = acceptMlDsa();
+            restore = host.restore;
+            for (const [other, otherKind] of ML_DSA_SETS) {
+                if (otherKind === kind) continue;
+                await expect(verifyCertificateSignature(example, mlDsaCertificate(other))).resolves.toBe(false);
+            }
+            expect(host.verifications).toEqual([]);
+        });
+    });
+
+    it.runIf(HOST_HAS_ML_DSA)('should verify the OpenSSL leaf, CRL and OCSP response under the root on this host, and not under the leaf', async () => {
+        await expect(verifyCertificateSignature(leaf, root)).resolves.toBe(true);
+        await expect(verifyCrlSignature(crl, root)).resolves.toBe(true);
+        await expect(verifyOcspSignature(basic, root)).resolves.toBe(true);
+        await expect(verifyCertificateSignature(leaf, leaf)).resolves.toBe(false);
+    });
+
+    it.runIf(!HOST_HAS_ML_DSA)('should refuse the OpenSSL leaf, CRL and OCSP response as PKI_CRYPTO_KEY_UNSUPPORTED on this host', async () => {
+        await expect(verifyCertificateSignature(leaf, root)).rejects.toThrow(keyUnsupported);
+        await expect(verifyCrlSignature(crl, root)).rejects.toThrow(keyUnsupported);
+        await expect(verifyOcspSignature(basic, root)).rejects.toThrow(keyUnsupported);
+    });
+
+    it('should refuse a certificate, a CRL and an OCSP response alike on a host that refuses the key', async () => {
+        restore = refuseMlDsa();
+        await expect(verifyCertificateSignature(leaf, root)).rejects.toThrow(keyUnsupported);
+        await expect(verifyCrlSignature(crl, root)).rejects.toThrow(keyUnsupported);
+        await expect(verifyOcspSignature(basic, root)).rejects.toThrow(keyUnsupported);
+    });
+
+    it('should put a certificate, a CRL and an OCSP response to an accepting host with the bytes each one signs', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifyCertificateSignature(leaf, root)).resolves.toBe(true);
+        await expect(verifyCrlSignature(crl, root)).resolves.toBe(true);
+        await expect(verifyOcspSignature(basic, root)).resolves.toBe(true);
+        expect(host.verifications.map((v) => v.importName)).toEqual(['ML-DSA-65', 'ML-DSA-65', 'ML-DSA-65']);
+        expect(host.verifications.map((v) => v.data)).toEqual([leaf.tbsDer, crl.tbsDer, basic.tbsDer]);
+        expect(host.verifications.every((v) => v.signature.length === 3309)).toBe(true);
+    });
+
+    it('should refuse an ML-DSA signature algorithm that carries parameters as unsupported — RFC 9881 §3: "MUST be absent"', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        const withParameters = algorithm('2.16.840.1.101.3.4.3.18', nullValue());
+        const der = certificate({ tbs: tbsCertificate({ signature: withParameters }), signatureAlgorithm: withParameters });
+        const cert = parseCertificate(der, { onDiagnostic: () => undefined });
+        await expect(verifyCertificateSignature(cert, root)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+        expect(host.verifications).toEqual([]);
+    });
+
+    it('should keep HashML-DSA out: RFC 9881 §8.3 forbids it in PKIX, and its identifier is not the pure one', async () => {
+        const hashMlDsa = algorithm('2.16.840.1.101.3.4.3.33');
+        const der = certificate({ tbs: tbsCertificate({ signature: hashMlDsa }), signatureAlgorithm: hashMlDsa });
+        const cert = parseCertificate(der, { onDiagnostic: () => undefined });
+        await expect(verifyCertificateSignature(cert, root)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
     });
 });

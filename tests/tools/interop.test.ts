@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { Artefact } from '../../scripts/lib/interop-artefacts.ts';
 import { toWslPath } from '../../scripts/lib/interop-host.ts';
 import { canonical, compareFacts, glob, judge, type LintWaiver } from '../../scripts/lib/interop-judge.ts';
-import { pemBlocks } from '../../scripts/lib/interop-reads.ts';
+import { expectVerifiedOrNotChecked, pemBlocks } from '../../scripts/lib/interop-reads.ts';
 import {
     certtoolSanDns,
     gpgsmVerified,
@@ -210,6 +210,21 @@ describe('the readers of foreign output (interop-tools)', () => {
     it('should translate a host path for WSL', () => {
         expect(toWslPath('C:\\Users\\x\\a b.der')).toBe('/mnt/c/Users/x/a b.der');
         expect(toWslPath('/already/posix')).toBe('/already/posix');
+    });
+
+    it('should take either answer a host may give for ML-DSA, and no third one (ADR 0026)', () => {
+        const notChecked = { code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED' };
+        expect(expectVerifiedOrNotChecked('case', { valid: true, reasons: [] })).toEqual([]);
+        expect(expectVerifiedOrNotChecked('case', { valid: false, reasons: [notChecked] })).toEqual([]);
+        // Not checked for another reason, not checked and something else, or a verdict: each disagrees with the tool that signed.
+        expect(expectVerifiedOrNotChecked('case', { valid: false, reasons: [{ code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }] })).toHaveLength(1);
+        expect(expectVerifiedOrNotChecked('case', { valid: false, reasons: [notChecked, { code: 'PKI_REASON_EXPIRED' }] })).toHaveLength(1);
+        expect(expectVerifiedOrNotChecked('case', { valid: false, reasons: [{ code: 'PKI_REASON_SIGNATURE_INVALID' }] })[0]).toContain('case: neither valid nor reported not checked');
+        expect(expectVerifiedOrNotChecked('case', { valid: false, reasons: [] })).toHaveLength(1);
+    });
+
+    it('should declare the two ML-DSA cases OpenSSL writes', () => {
+        expect(READ_CASES.filter((c) => c.id.includes('ml-dsa')).map((c) => [c.id, c.tool])).toEqual([['openssl:cert-ml-dsa', 'openssl'], ['openssl:cms-ml-dsa', 'openssl']]);
     });
 });
 

@@ -53,6 +53,16 @@ export function fixtureSeeds(): Uint8Array[] {
         .map((f) => new Uint8Array(readFileSync(`tests/fixtures/certs/${f}`)));
 }
 
+/**
+ * An ML-DSA certificate: the ML-DSA-44 example of RFC 9881 Appendix C.3, the
+ * smallest of the three. No test here can build one — pkinative signs nothing
+ * with ML-DSA (ADR 0026) — and a 1312-octet key under a 2420-octet signature
+ * is a shape no other seed has.
+ */
+function mlDsaSeed(): Uint8Array {
+    return new Uint8Array(readFileSync('tests/fixtures/ml-dsa/rfc9881-ml-dsa-44.der'));
+}
+
 /** An RFC 6960 §4.2.1 response, built field by field: `successful`, one `good` answer, responder by key hash. */
 function ocspResponse(): Uint8Array {
     const generalized = (text: string): Uint8Array => universal(24, ascii(text));
@@ -148,7 +158,7 @@ export async function fuzzSeeds(): Promise<Readonly<Record<FuzzTarget, readonly 
 
     return {
         asn1: [...fixtures, signed],
-        x509: [...fixtures, signer.certificate.der, tsa.certificate.der],
+        x509: [...fixtures, signer.certificate.der, tsa.certificate.der, mlDsaSeed()],
         pem: [pem],
         cms: [signed, cmsContentInfo()],
         crl: [await makeCrl(root, [signer.certificate]), await makeCrl(root)],

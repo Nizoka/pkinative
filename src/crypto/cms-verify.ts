@@ -48,7 +48,9 @@ export interface VerifySignerInfoSignatureOptions {
  * Returns a boolean; it throws only when the question could not be put. A
  * tampered signature, an unusable ECDSA encoding, a key that cannot carry the
  * algorithm, and a `digestAlgorithm` that contradicts the signature algorithm
- * (`ecdsa-with-SHA384` over a SHA-256 digest, MD5 anywhere) are all `false`:
+ * (`ecdsa-with-SHA384` over a SHA-256 digest, MD5 anywhere, an ML-DSA signer
+ * with signed attributes over a digest outside its row of RFC 9882 §3.3
+ * Table 1 — SHA-1 among them) are all `false`:
  * an inconsistent SignerInfo does not stand up, and `verifySignedData` names
  * the precise reason by asking the same question.
  *
@@ -85,7 +87,10 @@ export interface VerifySignerInfoSignatureOptions {
  *   `PKI_CRYPTO_ALGORITHM_REFUSED` for SHA-1 without `allowSha1`;
  *   `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses to import the key — an
  *   Ed448 signer on a runtime without Ed448 (Bun, Chromium), as for an Ed448
- *   certificate signature. A signer certificate whose key is `id-RSASSA-PSS`
+ *   certificate signature, and an ML-DSA signer on a runtime without ML-DSA
+ *   (Node.js 22), since 1.1.0 (ADR 0026; it was
+ *   `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` on every host before). A signer
+ *   certificate whose key is `id-RSASSA-PSS`
  *   is imported under `rsaEncryption` once held to its parameters (see
  *   `verifyCertificateSignature`); such a key signing with PKCS#1 v1.5, or
  *   under RSASSA-PSS parameters its own exclude, is `false` (RFC 4055 §1.2
@@ -109,8 +114,10 @@ export async function verifySignerInfoSignature(
 
     // Before resolution, so an inconsistent pair is a `false` even when one
     // half would also be refused: MD5 is a verdict on the signer, not a gap in
-    // what this runtime can check.
-    if (_cmsAlgorithmProblem(info.digestAlgorithm, info.signatureAlgorithm) !== null) return false;
+    // what this runtime can check. An ML-DSA signer without signed attributes
+    // signs the content itself, and RFC 9882 §3.3 has its digestAlgorithm
+    // ignored: the third argument says which case this is.
+    if (_cmsAlgorithmProblem(info.digestAlgorithm, info.signatureAlgorithm, info.signedAttributesDer !== undefined) !== null) return false;
 
     const resolved = resolveCmsAlgorithm(info.digestAlgorithm, info.signatureAlgorithm, certificate.subjectPublicKeyInfo);
     if (resolved === null) return false;

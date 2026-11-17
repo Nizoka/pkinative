@@ -836,9 +836,25 @@ describe('.github/runtime-smoke/checks.mjs', () => {
         // it runs against src/ on every gate run, the way the fuzz targets
         // are held (tests/fuzzing/targets.test.ts).
         const lines = await (await load()).runChecks(await import('../../src/index.js'));
-        expect(lines).toHaveLength(6);
+        expect(lines).toHaveLength(7);
         // Node has Ed448, so here the host-dependent check lands on the verified side.
         expect(lines[5]).toMatch(/^Ed448 CMS signer .*verified/u);
+        // ML-DSA is the host's too (ADR 0026), and Node.js has it from 24.7 only:
+        // either answer is right here, as it is in the runtimes job.
+        expect(lines[6]).toMatch(/^ML-DSA certificate chain .*: (verified — this host has ML-DSA|SIGNATURE_NOT_CHECKED \/ PKI_CRYPTO_KEY_UNSUPPORTED — this host has no ML-DSA)$/u);
+    });
+
+    it('should accept either answer for ML-DSA and refuse a third, whichever host runs it', async () => {
+        const real = await import('../../src/index.js');
+        const smoke = await load();
+        // The chain reports are the ML-DSA check's only use of verifyCertificateChain.
+        const chain = (reasons: readonly unknown[]): unknown => ({ ...real, verifyCertificateChain: () => Promise.resolve({ valid: reasons.length === 0, reasons }) });
+        const notChecked = { code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED' };
+        expect((await smoke.runChecks(chain([notChecked])))[6]).toMatch(/this host has no ML-DSA$/u);
+        await expect(smoke.runChecks(chain([{ code: 'PKI_REASON_SIGNATURE_INVALID' }]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain: expected verified, or not checked/u);
+        await expect(smoke.runChecks(chain([{ code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain/u);
+        // A host that says yes to the chain must say no to the altered one.
+        await expect(smoke.runChecks(chain([]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain with an altered signature/u);
     });
 
     it('should fail loudly when the package under test misbehaves', async () => {

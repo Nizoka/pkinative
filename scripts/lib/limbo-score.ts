@@ -94,7 +94,12 @@ export type CaseVerdict =
  * ones.
  */
 export const SKIP_FEATURES: Readonly<Record<string, string>> = Object.freeze({
-    'has-mldsa': 'ML-DSA (FIPS 204) is not in Web Crypto, and pkinative implements no signature algorithm itself',
+    // 1.1.0 verifies ML-DSA where the host does (ADR 0026), so the verdict of
+    // such a case is no longer one fact: `valid` on Node.js 24.7 and later,
+    // `PKI_REASON_SIGNATURE_NOT_CHECKED` on Node.js 22. A baseline holds one
+    // answer per case, so the cases stay skipped until every runtime the
+    // conformance run uses gives the same one.
+    'has-mldsa': 'ML-DSA (FIPS 204) is verified only where the host\'s Web Crypto implements it (ADR 0026): the verdict depends on the runtime scoring the case, and the baseline records one verdict per case',
 });
 
 /**
