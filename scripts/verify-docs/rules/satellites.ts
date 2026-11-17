@@ -269,12 +269,48 @@ const satelliteStamps: Rule = {
 
 interface Surfaces {
     readonly surfaces?: { readonly cli?: { readonly meta?: string[] }; readonly mcp?: { readonly meta?: string[] } };
-    readonly capabilities?: ReadonlyArray<{ readonly id?: string; readonly cli?: { readonly commands?: string[] }; readonly mcp?: { readonly tools?: string[] } }>;
+    readonly capabilities?: ReadonlyArray<{
+        readonly id?: string;
+        readonly cli?: { readonly commands?: string[]; readonly pending?: unknown };
+        readonly mcp?: { readonly tools?: string[]; readonly pending?: unknown };
+    }>;
+}
+
+/** The shortest `pending` that can say which satellite release is awaited and what it should expose. */
+const PENDING_REASON_MIN = 40;
+
+/**
+ * The names one satellite exposes a capability under — or none, when the
+ * capability says in so many words that the satellite does not expose it yet.
+ *
+ * The engine releases first: an export of a minor has no command and no tool
+ * until each satellite's own next minor, and the two honest ways to write that
+ * are to leave the export out of the matrix (which `surfaces-parity` refuses)
+ * or to say it is awaited. `pending` is that sentence. It replaces the names
+ * and never accompanies them — a surface exposes a capability or awaits it —
+ * and it is a reason somebody can act on, not a flag.
+ */
+function exposedNames(id: string, field: 'cli.commands' | 'mcp.tools', names: unknown, pending: unknown, what: string, out: Finding[]): readonly string[] {
+    const side = field.slice(0, 3);
+    if (pending === undefined) {
+        if (!isStringArray(names) || names.length === 0) {
+            out.push(error(SURFACES, `capability "${id}" has no ${field} — name the ${what} that expose it, or say under ${side}.pending what the satellite has yet to ship`));
+            return [];
+        }
+        return names;
+    }
+    if (typeof pending !== 'string' || pending.trim().length < PENDING_REASON_MIN) {
+        out.push(error(SURFACES, `capability "${id}" marks ${side} pending without a reason anyone could act on — say which release of the satellite is awaited and what it should expose`));
+    }
+    if (names !== undefined) {
+        out.push(error(SURFACES, `capability "${id}" has both ${field} and ${side}.pending — a surface exposes a capability or awaits it, never both`));
+    }
+    return [];
 }
 
 const surfacesShape: Rule = {
     id: 'surfaces-shape',
-    summary: 'Every capability of docs/data/surfaces.json names the pkinative-cli command lines (docs/data/cli-surface.json) and the pkinative-mcp tools (packages.pkinative-mcp.tools) that expose it, and only real ones; and every command line and every tool belongs to a capability or to the surface\'s declared meta list — the matrix a reader chooses a surface from cannot be smaller than the satellites.',
+    summary: 'Every capability of docs/data/surfaces.json names the pkinative-cli command lines (docs/data/cli-surface.json) and the pkinative-mcp tools (packages.pkinative-mcp.tools) that expose it, and only real ones — or says under cli.pending / mcp.pending, in a sentence and instead of any name, what that satellite has yet to ship; and every command line and every tool belongs to a capability or to the surface\'s declared meta list — the matrix a reader chooses a surface from cannot be smaller than the satellites, and cannot claim a command no satellite has.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
@@ -289,15 +325,13 @@ const surfacesShape: Rule = {
         for (const meta of usedTools) if (!tools.has(meta)) out.push(error(SURFACES, `surfaces.mcp.meta names ${meta}, which the MCP server does not register`));
         for (const c of parsed.value.capabilities ?? []) {
             const id = c.id ?? '?';
-            const commands = c.cli?.commands;
-            const capabilityTools = c.mcp?.tools;
-            if (!isStringArray(commands) || commands.length === 0) out.push(error(SURFACES, `capability "${id}" has no cli.commands — name the command lines that expose it`));
-            if (!isStringArray(capabilityTools) || capabilityTools.length === 0) out.push(error(SURFACES, `capability "${id}" has no mcp.tools — name the tools that expose it`));
-            for (const command of commands ?? []) {
+            const commands = exposedNames(id, 'cli.commands', c.cli?.commands, c.cli?.pending, 'command lines', out);
+            const capabilityTools = exposedNames(id, 'mcp.tools', c.mcp?.tools, c.mcp?.pending, 'tools', out);
+            for (const command of commands) {
                 if (!lines.has(command)) out.push(error(SURFACES, `capability "${id}" names the CLI command line "${command}", which docs/data/cli-surface.json does not have`));
                 usedLines.add(command);
             }
-            for (const tool of capabilityTools ?? []) {
+            for (const tool of capabilityTools) {
                 if (!tools.has(tool)) out.push(error(SURFACES, `capability "${id}" names the MCP tool ${tool}, which packages.pkinative-mcp.tools does not list`));
                 usedTools.add(tool);
             }

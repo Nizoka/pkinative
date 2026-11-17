@@ -269,6 +269,38 @@ describe('verify-docs rule table', () => {
         expect(await runRules(createMemoryContext(files), RULES, 'satellite-stamps')).toEqual([]);
     });
 
+    // The engine releases before its satellites: an export of a minor has no
+    // command and no tool until each satellite's own next minor. The matrix
+    // says so in a sentence, in place of the names — never beside them.
+    const AWAITED = 'awaits the next minor of the satellite, which should expose it under its own inspect command';
+    const withCapability = (surfaces: { cli: unknown; mcp: unknown }): Record<string, string> => {
+        const files = { ...TREE };
+        const registry = JSON.parse(files['docs/data/surfaces.json'] ?? '{}') as { capabilities: unknown[] };
+        registry.capabilities.push({ id: 'awaited-capability', capability: 'An export no satellite reaches yet', exports: [], since: '9.9.0', ...surfaces });
+        files['docs/data/surfaces.json'] = JSON.stringify(registry, null, 2);
+        return files;
+    };
+
+    it('should let surfaces-shape pass a capability no satellite exposes yet, when each surface says so in a sentence', async () => {
+        const files = withCapability({ cli: { pending: AWAITED }, mcp: { pending: AWAITED } });
+        expect(await runRules(createMemoryContext(files), RULES, 'surfaces-shape')).toEqual([]);
+        // …and one satellite may be ahead of the other.
+        const half = withCapability({ cli: { commands: ['tsp inspect'] }, mcp: { pending: AWAITED } });
+        expect(await runRules(createMemoryContext(half), RULES, 'surfaces-shape')).toEqual([]);
+    });
+
+    it.each([
+        ['neither a command nor a pending sentence', { cli: {}, mcp: { pending: AWAITED } }, 'has no cli.commands'],
+        ['neither a tool nor a pending sentence', { cli: { pending: AWAITED }, mcp: { tools: [] } }, 'has no mcp.tools'],
+        ['a pending flag that gives no reason', { cli: { pending: true }, mcp: { pending: AWAITED } }, 'marks cli pending without a reason'],
+        ['a pending sentence too short to act on', { cli: { pending: AWAITED }, mcp: { pending: 'later' } }, 'marks mcp pending without a reason'],
+        ['pending commands beside the commands they replace', { cli: { commands: ['tsp inspect'], pending: AWAITED }, mcp: { pending: AWAITED } }, 'has both cli.commands and cli.pending'],
+        ['pending tools beside the tools they replace', { cli: { pending: AWAITED }, mcp: { tools: ['inspect_timestamp'], pending: AWAITED } }, 'has both mcp.tools and mcp.pending'],
+    ])('should fire surfaces-shape on a capability with %s', async (_what, surfaces, message) => {
+        const problems = await runRules(createMemoryContext(withCapability(surfaces)), RULES, 'surfaces-shape');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/data/surfaces.json', message: expect.stringContaining(message) })]);
+    });
+
     it.each([
         ['the subcommand count', 'docs/guides/cli.md', '47 subcommands', '48 subcommands', 'quotes "48 subcommands"'],
         ['the commands without subcommands', 'docs/guides/cli.md', 'the 6 commands that take none', 'the 7 commands that take none', 'quotes "7 commands that take none"'],

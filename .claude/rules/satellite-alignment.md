@@ -25,7 +25,7 @@ pkinative-cli and pkinative-mcp are separate repositories that release on their 
 - `satellite-manifest`: `packages.<name>` agrees with itself and with `docs/data/cli-surface.json`.
 - `satellite-counts`: every count quoted in prose — tools, prompts, wrapper codes, commands, invocations, error classes, subcommands, schema subjects, groups, environment variables — on a line that says which satellite it counts.
 - `satellite-stamps`: every `pkinative-cli X.Y.Z` / `pkinative-mcp X.Y.Z` (also `@X.Y.Z`, the tarball name, "at the vX.Y.Z tag"), "released on <date>" and `pkinative ^X.Y.Z`, in the prose, the playground scripts, the use-case diagrams and `docs/data/surfaces.json`.
-- `cli-surface-parity`, `mcp-surface-parity`: the guides and the playgrounds document exactly the commands, flags, error classes, tools, prompts and variables recorded. `surfaces-shape`: every command line and every tool belongs to a capability of `docs/data/surfaces.json`.
+- `cli-surface-parity`, `mcp-surface-parity`: the guides and the playgrounds document exactly the commands, flags, error classes, tools, prompts and variables recorded. `surfaces-shape`: every command line and every tool belongs to a capability of `docs/data/surfaces.json`; a capability a satellite has yet to expose says so under `cli.pending` / `mcp.pending`, in a sentence and instead of names — the engine releases first, and the matrix never claims a command no satellite has.
 - `versions-widget`, `jsonld-version`: the fallback table, the badges and the schema.org nodes.
 
 ## Conventions
