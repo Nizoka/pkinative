@@ -138,7 +138,7 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A live page linking a retired URL: the redirect stub would stay load-bearing forever.
     'redirect-stubs': (f) => edit(f, 'docs/playgrounds/index.html', 'href="certificate.html"', 'href="../playground/certificate.html"'),
     // A command counted in the manifest that its own groups do not list.
-    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commandCount": 18', '"commandCount": 19'),
+    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commands": 18', '"commands": 19'),
     // pdfnative's defect, replayed: the site advertises one tool count, the server registers another.
     'satellite-counts': (f) => edit(f, 'docs/guides/mcp.md', /\b34 tools\b/, '35 tools'),
     // A tool dropped from the matrix: the reader choosing a surface no longer sees it exists.

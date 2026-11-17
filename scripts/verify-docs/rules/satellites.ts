@@ -36,10 +36,8 @@ export interface CliPackage {
     readonly repo?: unknown;
     readonly binary?: unknown;
     readonly pin?: unknown;
-    readonly commandCount?: unknown;
-    readonly invocationCount?: unknown;
+    readonly counts?: { readonly commands?: unknown; readonly invocations?: unknown; readonly errorClasses?: unknown; readonly schemaSubjects?: unknown };
     readonly commandGroups?: Record<string, string[]>;
-    readonly errorClassCount?: unknown;
     readonly envVars?: unknown;
 }
 
@@ -50,15 +48,13 @@ export interface McpPackage {
     readonly repo?: unknown;
     readonly binary?: unknown;
     readonly pin?: unknown;
-    readonly toolCount?: unknown;
+    readonly counts?: { readonly tools?: unknown; readonly prompts?: unknown; readonly wrapperCodes?: unknown };
     readonly tools?: string[];
     readonly toolGroups?: Record<string, number>;
     readonly toolAnnotations?: { readonly readOnly?: unknown; readonly writes?: string[]; readonly produces?: string[] };
-    readonly promptCount?: unknown;
     readonly prompts?: string[];
     readonly resourceTemplates?: string[];
     readonly envVars?: string[];
-    readonly wrapperCodeCount?: unknown;
 }
 
 interface Flag { readonly name: string }
@@ -95,7 +91,7 @@ const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every
 
 const satelliteManifest: Rule = {
     id: 'satellite-manifest',
-    summary: 'packages.pkinative-cli and packages.pkinative-mcp of docs/assets/ecosystem.json are complete and agree with themselves — published with a semver version, a Nizoka repository, a binary and a ^ pin; the command count with the command groups and with docs/data/cli-surface.json (version, groups, invocations, error classes); the tool count with the tool list, its groups and its three annotation classes; the prompt count with the prompt list.',
+    summary: 'packages.pkinative-cli and packages.pkinative-mcp of docs/assets/ecosystem.json are complete and agree with themselves — published with a semver version, a Nizoka repository, a binary and a ^ pin; counts.commands with the command groups and with docs/data/cli-surface.json (version, groups, invocations, error classes); counts.tools with the tool list, its groups and its three annotation classes; counts.prompts with the prompt list.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
@@ -112,19 +108,19 @@ const satelliteManifest: Rule = {
         // The CLI: groups, count and the snapshot of its own manifest.
         const groups = cli.commandGroups ?? {};
         const grouped = Object.values(groups).flat();
-        if (cli.commandCount !== grouped.length) out.push(error(MANIFEST, `packages.pkinative-cli.commandCount is ${String(cli.commandCount)}; its commandGroups list ${String(grouped.length)}`));
+        if (cli.counts?.commands !== grouped.length) out.push(error(MANIFEST, `packages.pkinative-cli.counts.commands is ${String(cli.counts?.commands)}; its commandGroups list ${String(grouped.length)}`));
         if (surface.version !== cli.version) out.push(error(CLI_SURFACE, `snapshots pkinative-cli ${String(surface.version)}; the manifest records ${String(cli.version)} — re-run scripts/build-cli-surface.ts on the published CLI`));
         const snapshot = new Map((surface.commands ?? []).map((c) => [c.name, c.group]));
         for (const [group, names] of Object.entries(groups)) {
             for (const name of names) if (snapshot.get(name) !== group) out.push(error(MANIFEST, `packages.pkinative-cli.commandGroups puts ${name} in "${group}"; the CLI's own manifest says ${snapshot.has(name) ? `"${String(snapshot.get(name))}"` : 'it does not exist'}`));
         }
         for (const name of snapshot.keys()) if (!grouped.includes(name)) out.push(error(MANIFEST, `the CLI ships the command ${name}, which packages.pkinative-cli.commandGroups does not list`));
-        if (cli.invocationCount !== invocations(surface).length) out.push(error(MANIFEST, `packages.pkinative-cli.invocationCount is ${String(cli.invocationCount)}; the CLI surface has ${String(invocations(surface).length)} runnable command lines`));
-        if (cli.errorClassCount !== (surface.errorClasses ?? []).length) out.push(error(MANIFEST, `packages.pkinative-cli.errorClassCount is ${String(cli.errorClassCount)}; the CLI surface declares ${String((surface.errorClasses ?? []).length)} error classes`));
+        if (cli.counts?.invocations !== invocations(surface).length) out.push(error(MANIFEST, `packages.pkinative-cli.counts.invocations is ${String(cli.counts?.invocations)}; the CLI surface has ${String(invocations(surface).length)} runnable command lines`));
+        if (cli.counts?.errorClasses !== (surface.errorClasses ?? []).length) out.push(error(MANIFEST, `packages.pkinative-cli.counts.errorClasses is ${String(cli.counts?.errorClasses)}; the CLI surface declares ${String((surface.errorClasses ?? []).length)} error classes`));
 
         // The MCP server: tools, their groups and annotations, prompts.
         const tools = isStringArray(mcp.tools) ? mcp.tools : [];
-        if (mcp.toolCount !== tools.length) out.push(error(MANIFEST, `packages.pkinative-mcp.toolCount is ${String(mcp.toolCount)}; its tools list ${String(tools.length)}`));
+        if (mcp.counts?.tools !== tools.length) out.push(error(MANIFEST, `packages.pkinative-mcp.counts.tools is ${String(mcp.counts?.tools)}; its tools list ${String(tools.length)}`));
         if (new Set(tools).size !== tools.length) out.push(error(MANIFEST, 'packages.pkinative-mcp.tools names a tool twice'));
         const groupTotal = Object.values(mcp.toolGroups ?? {}).reduce((a, b) => a + b, 0);
         if (groupTotal !== tools.length) out.push(error(MANIFEST, `packages.pkinative-mcp.toolGroups add up to ${String(groupTotal)}; the server registers ${String(tools.length)} tools`));
@@ -132,7 +128,7 @@ const satelliteManifest: Rule = {
         const produces = mcp.toolAnnotations?.produces ?? [];
         for (const t of [...writes, ...produces]) if (!tools.includes(t)) out.push(error(MANIFEST, `packages.pkinative-mcp.toolAnnotations names ${t}, which is not one of its tools`));
         if (Number(mcp.toolAnnotations?.readOnly) + writes.length + produces.length !== tools.length) out.push(error(MANIFEST, `packages.pkinative-mcp.toolAnnotations: ${String(mcp.toolAnnotations?.readOnly)} read-only + ${String(writes.length)} writing + ${String(produces.length)} producing is not ${String(tools.length)} tools`));
-        if (!isStringArray(mcp.prompts) || mcp.promptCount !== mcp.prompts.length) out.push(error(MANIFEST, `packages.pkinative-mcp.promptCount is ${String(mcp.promptCount)}; its prompts list ${String(isStringArray(mcp.prompts) ? mcp.prompts.length : 0)}`));
+        if (!isStringArray(mcp.prompts) || mcp.counts?.prompts !== mcp.prompts.length) out.push(error(MANIFEST, `packages.pkinative-mcp.counts.prompts is ${String(mcp.counts?.prompts)}; its prompts list ${String(isStringArray(mcp.prompts) ? mcp.prompts.length : 0)}`));
         return out;
     },
 };
@@ -154,13 +150,13 @@ const MCP_CONTEXT = /\bMCP\b|pkinative-mcp/;
 const CLI_CONTEXT = /\bCLI\b|pkinative-cli|`pkinative [a-z]/;
 
 const COUNT_PHRASES: readonly CountPhrase[] = [
-    { phrase: '(?:MCP )?tools', value: (_c, m) => m.toolCount, context: MCP_CONTEXT },
-    { phrase: '(?:MCP )?prompts', value: (_c, m) => m.promptCount, context: MCP_CONTEXT },
-    { phrase: 'wrapper codes', value: (_c, m) => m.wrapperCodeCount },
+    { phrase: '(?:MCP )?tools', value: (_c, m) => m.counts?.tools, context: MCP_CONTEXT },
+    { phrase: '(?:MCP )?prompts', value: (_c, m) => m.counts?.prompts, context: MCP_CONTEXT },
+    { phrase: 'wrapper codes', value: (_c, m) => m.counts?.wrapperCodes },
     // "the 6 commands that take none" counts the commands without subcommands, not the commands.
-    { phrase: '(?:CLI )?commands(?! that take none| without)', value: (c) => c.commandCount, context: CLI_CONTEXT },
-    { phrase: 'invocations', value: (c) => c.invocationCount },
-    { phrase: 'error classes', value: (c) => c.errorClassCount, context: /`E_|\bCLI\b|pkinative-cli/ },
+    { phrase: '(?:CLI )?commands(?! that take none| without)', value: (c) => c.counts?.commands, context: CLI_CONTEXT },
+    { phrase: 'invocations', value: (c) => c.counts?.invocations },
+    { phrase: 'error classes', value: (c) => c.counts?.errorClasses, context: /`E_|\bCLI\b|pkinative-cli/ },
 ];
 
 /** The prose a satellite count may appear in: the documentation, plus the root files that describe the ecosystem. */
@@ -168,7 +164,7 @@ const COUNT_SOURCES = (ctx: RuleContext): string[] => [...new Set([...PROSE_SOUR
 
 const satelliteCounts: Rule = {
     id: 'satellite-counts',
-    summary: 'Every count of a satellite quoted in the README, the root documents, the guides and the site — "34 tools", "seven prompts", "18 commands", "53 invocations", "13 error classes", "21 wrapper codes", in digits or in words — equals packages.pkinative-cli / packages.pkinative-mcp of docs/assets/ecosystem.json; a tools or prompts count is read on a line about the MCP server, a commands or error-classes count on a line about the CLI.',
+    summary: 'Every count of a satellite quoted in the README, the root documents, the guides and the site — "34 tools", "seven prompts", "18 commands", "53 invocations", "13 error classes", "21 wrapper codes", in digits or in words — equals packages.pkinative-cli.counts / packages.pkinative-mcp.counts of docs/assets/ecosystem.json; a tools or prompts count is read on a line about the MCP server, a commands or error-classes count on a line about the CLI.',
     check(ctx) {
         const sat = readSatellites(ctx);
         if ('finding' in sat) return [sat.finding];
