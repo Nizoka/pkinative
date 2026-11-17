@@ -5,7 +5,7 @@
  * against its definition: RSA (RFC 3279 §2.3.1) and RSASSA-PSS (RFC 4055),
  * elliptic curves (RFC 5480), EdDSA and XDH (RFC 8410 §3 and §4) and ML-DSA
  * (RFC 9881 §2, with the key sizes of FIPS 204). Any other algorithm is kept
- * as `kind: 'unknown'`.
+ * as `kind: 'unknown'`, with the `info` PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED.
  *
  * This reads public keys; it performs no arithmetic on them.
  *
@@ -29,7 +29,7 @@ import type {
     UnknownPublicKeyInfo,
 } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
-import { spkiEcParametersInvalidDiagnostic, spkiRsaExponentWeakDiagnostic } from '../core/pki-diagnostics.js';
+import { spkiAlgorithmUnrecognisedDiagnostic, spkiEcParametersInvalidDiagnostic, spkiRsaExponentWeakDiagnostic } from '../core/pki-diagnostics.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 
 const CODE = 'PKI_X509_SPKI_INVALID';
@@ -193,6 +193,11 @@ export function _readSubjectPublicKeyInfo(node: Asn1Node | undefined, ctx: Asn1C
     if (algorithm.oid === OID_EC) return readEc(parts, ctx);
     const octetKey = OCTET_KEYS.get(algorithm.oid);
     if (octetKey !== undefined) return readOctetKey(parts, octetKey);
+    // RFC 5280 §4.1.2.7 names no closed set of key algorithms, so this is an
+    // `info`: the key is kept, `strict` does not refuse it, and the caller is
+    // told why it was not classified. The AlgorithmIdentifier is the first
+    // value of the SEQUENCE, so it starts where the content does.
+    ctx.emitter.emit(spkiAlgorithmUnrecognisedDiagnostic(`${path}.algorithm`, algorithm.oid, seq.offset + seq.headerLength));
     const info: UnknownPublicKeyInfo = { kind: 'unknown', algorithm, publicKey: parts.publicKey, der: seq.bytes };
     return Object.freeze(info);
 }

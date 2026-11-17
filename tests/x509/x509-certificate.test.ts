@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
 import type { PkiDiagnostic, PkiParseOptions } from '../../src/types/pki-types.js';
@@ -234,6 +234,39 @@ describe('parseCertificate', () => {
             const der = leaf(BC_LEAF, extension('2.5.29.15', bitString([0x05]), true));
             expect(parseCertificate(der, QUIET).diagnostics.map((d) => d.code)).toContain('PKI_DIAG_KEY_CERT_SIGN_WITHOUT_CA');
             expect(codeOf(() => parseCertificate(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        });
+    });
+
+    describe('a public key of an algorithm it does not classify', () => {
+        // 1.2.3.4 is no key algorithm and never will be: the test does not
+        // depend on which real schemes the engine has learnt.
+        const der = certificate({ subjectPublicKeyInfo: sequence(algorithm('1.2.3.4'), bitString([1, 2, 3])) });
+
+        it('should report PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED at tbsCertificate.subjectPublicKeyInfo.algorithm, as an info', () => {
+            const seen: PkiDiagnostic[] = [];
+            const cert = parseCertificate(der, { onDiagnostic: (d) => { seen.push(d); } });
+            expect(seen.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', 'info', 'tbsCertificate.subjectPublicKeyInfo.algorithm']]);
+            expect(cert.diagnostics).toEqual(seen);
+            expect(cert.subjectPublicKeyInfo.kind).toBe('unknown');
+            // The offset is the AlgorithmIdentifier's own, in the input.
+            expect(der[seen[0]?.offset ?? 0]).toBe(0x30);
+            expect([...der.subarray((seen[0]?.offset ?? 0) + 2, (seen[0]?.offset ?? 0) + 7)]).toEqual([...oid('1.2.3.4')]);
+        });
+
+        it('should parse it under strict, with the diagnostic recorded: an info never refuses', () => {
+            const cert = parseCertificate(der, { strict: true });
+            expect(cert.subjectPublicKeyInfo).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
+            expect(cert.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED']);
+        });
+
+        it('should warn once on the default sink', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            try {
+                parseCertificate(der);
+                expect(warn).toHaveBeenCalledTimes(1);
+            } finally {
+                warn.mockRestore();
+            }
         });
     });
 

@@ -3,7 +3,7 @@ import { createAsn1Context } from '../../src/asn1/asn1-context.js';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { _readSubjectPublicKeyInfo } from '../../src/x509/x509-spki.js';
 import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
-import type { PkiParseOptions } from '../../src/types/pki-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from '../../src/types/pki-types.js';
 import type { SubjectPublicKeyInfo } from '../../src/types/x509-types.js';
 import { algorithm, bitString, integer, nullValue, octetString, oid, rsaKey } from '../helpers/cert-builder.js';
 import { concat, sequence, universal } from '../helpers/raw-der-builder.js';
@@ -206,6 +206,51 @@ describe('_readSubjectPublicKeyInfo', () => {
         const key = readSpki(spki(algorithm('1.2.3.4', nullValue()), bitString([1, 2, 3])));
         expect(key).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
         expect([...key.publicKey.bytes]).toEqual([1, 2, 3]);
+    });
+
+    // RFC 5280 §4.1.2.7 names no closed set of key algorithms: the key is kept,
+    // and the reader says why it was not classified — as an `info`, so that a
+    // valid certificate under an algorithm the engine does not know yet still
+    // parses under `strict`.
+    describe('an algorithm it does not classify', () => {
+        const UNKNOWN = spki(algorithm('1.2.3.4', nullValue()), bitString([1, 2, 3]));
+
+        it('should report PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED once, as an info at the AlgorithmIdentifier, naming the OID', () => {
+            const seen: PkiDiagnostic[] = [];
+            const key = readSpki(UNKNOWN, { onDiagnostic: (d) => { seen.push(d); } });
+            expect(seen.map((d) => ({ code: d.code, severity: d.severity, path: d.path, offset: d.offset, standard: d.standard })))
+                .toEqual([{ code: 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', severity: 'info', path: 'spki.algorithm', offset: 2, standard: 'RFC 5280 §4.1.2.7' }]);
+            expect(seen[0]?.message).toContain('1.2.3.4');
+            expect(key.kind).toBe('unknown');
+        });
+
+        it('should give the offset of the AlgorithmIdentifier behind a long-form SEQUENCE header', () => {
+            const seen: (number | undefined)[] = [];
+            readSpki(spki(algorithm('1.2.3.4'), bitString(new Array<number>(200).fill(7))), { onDiagnostic: (d) => { seen.push(d.offset); } });
+            expect(seen).toEqual([3]);
+        });
+
+        it('should keep the key under strict: an info is reported, never refused', () => {
+            const ctx = createAsn1Context({ strict: true });
+            const key = _readSubjectPublicKeyInfo(decodeAsn1(UNKNOWN), ctx, 'spki', 0);
+            expect(key).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
+            expect(ctx.emitter.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED']);
+        });
+
+        it.each<[string, Uint8Array]>([
+            ['an RSA key', rsaKey([0x41, 0x02, 0x03])],
+            ['an Ed25519 key', spki(algorithm(ED25519), bitString(new Array<number>(32).fill(7)))],
+            ['an EC key on P-256', spki(ecAlgorithm(P256), bitString(point(65)))],
+        ])('should say nothing about %s', (_label, bytes) => {
+            expect(diagnosticsOf(bytes)).toEqual([]);
+        });
+
+        it('should refuse a malformed key structure without also diagnosing its algorithm', () => {
+            const seen: string[] = [];
+            expect(() => readSpki(sequence(algorithm('1.2.3.4'), octetString([1, 2, 3])), { onDiagnostic: (d) => { seen.push(d.code); } }))
+                .toThrow(expect.objectContaining({ code: 'PKI_X509_SPKI_INVALID' }));
+            expect(seen).toEqual([]);
+        });
     });
 
     describe('structure', () => {

@@ -376,6 +376,29 @@ export function spkiEcParametersInvalidDiagnostic(path: string, namedCurve: stri
 }
 
 /**
+ * A SubjectPublicKeyInfo whose algorithm pkinative does not classify: the key
+ * is kept as `kind: 'unknown'`, bytes and AlgorithmIdentifier untouched.
+ *
+ * An `info`, never a `warning`: RFC 5280 §4.1.2.7 does not restrict the
+ * subject key to a registered algorithm, so a valid certificate carrying a
+ * key from a scheme the engine does not know yet keeps parsing under
+ * `strict: true`. What the caller learns is why the key was not classified,
+ * and that no signature will be found valid under it — `resolveAlgorithm`
+ * answers "this key cannot have signed that" for every signature algorithm it
+ * knows, and refuses the ones it does not (`PKI_CRYPTO_ALGORITHM_UNSUPPORTED`).
+ *
+ * @param path   The path of the key's AlgorithmIdentifier.
+ * @param oid    The algorithm OID, in dotted form.
+ * @param offset The absolute offset of the AlgorithmIdentifier, when known.
+ * @returns The diagnostic.
+ */
+export function spkiAlgorithmUnrecognisedDiagnostic(path: string, oid: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', 'info', 'RFC 5280 §4.1.2.7',
+        `the public key algorithm ${oid} is not one pkinative classifies; the key is kept as kind 'unknown' with its bytes, and no signature can be verified under it`,
+        path, offset);
+}
+
+/**
  * A CRL extension whose value pkinative drops rather than reads.
  *
  * `cRLNumber`, `deltaCRLIndicator`, and an entry's `reasonCode` and

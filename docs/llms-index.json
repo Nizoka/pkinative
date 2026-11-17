@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 423035,
-      "approxTokens": 105759
+      "bytes": 423612,
+      "approxTokens": 105903
     },
     {
       "url": "llms-recipes.txt",
@@ -42,8 +42,8 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 39982,
-      "approxTokens": 9996
+      "bytes": 40872,
+      "approxTokens": 10218
     },
     {
       "url": "data/limits.json",
@@ -331,8 +331,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35079,
-      "approxTokens": 8770
+      "bytes": 35656,
+      "approxTokens": 8914
     },
     {
       "title": "Choosing a library and a surface",

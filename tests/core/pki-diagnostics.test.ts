@@ -159,6 +159,7 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH', diagnostics.ocspResponderIdMismatchDiagnostic('ocsp', 'byKey')],
         ['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', diagnostics.ocspSingleResponseUnrequestedDiagnostic('ocsp', 3)],
         ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', diagnostics.ocspNoCheckCriticalDiagnostic('ocsp')],
+        ['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', diagnostics.spkiAlgorithmUnrecognisedDiagnostic('tbsCertificate.subjectPublicKeyInfo.algorithm', '1.2.3.4', 160)],
     ];
 
     it.each(cases)('should build %s as a frozen, fully described payload', (code, payload) => {
