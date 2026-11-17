@@ -1,0 +1,100 @@
+name: Mutation
+
+# "After a change under src/, every mutant of the changed files is killed"
+# (AGENTS.md §The gate) was held by whoever made the change, on their own
+# machine. This runs it for a pull request: the files of src/ the pull
+# request adds or modifies, and only those — scripts/mutate.ts applies each
+# mutant to a sandbox copy and asks the suites that import the file whether
+# they notice.
+#
+# Advisory: not a required check of .github/rulesets/main.json. A run takes
+# minutes per file on a shared runner, and a red here is a test gap to close
+# or an equivalent mutant to argue in scripts/data/mutation-equivalents.json
+# — the work of the pull request that touched the file, not a reason to
+# block an unrelated one. A pull request that touches no file of src/ runs
+# nothing and stays green.
+#
+# Manual dispatch runs the files it is given, or every executable module of
+# src/ when given none (hours, not minutes).
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Comma-separated src/ files (empty: every executable module of src/)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit # 2026-11-17: first runs of the job; block once its endpoints are baselined
+
+      # Two commits: on a pull request the checkout is its merge commit,
+      # whose first parent is the base branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # The event name and the dispatch input reach the script through the
+      # environment, never through a template expansion inside `run:`.
+      - name: Select the source files to mutate
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_FILES: ${{ inputs.files }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            FILES=$(git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'src/*.ts' 'src/**/*.ts' | paste -sd, -)
+          else
+            FILES="${INPUT_FILES}"
+          fi
+          echo "files=${FILES}" >> "${GITHUB_OUTPUT}"
+          echo "mutation targets: ${FILES:-none named}"
+
+      - name: Run the mutants
+        if: github.event_name != 'pull_request' || steps.select.outputs.files != ''
+        env:
+          FILES: ${{ steps.select.outputs.files }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FILES}" ]; then
+            npx tsx scripts/mutate.ts --files "${FILES}"
+          else
+            npx tsx scripts/mutate.ts
+          fi
+
+      - name: Upload the mutation report
+        if: always() && (github.event_name != 'pull_request' || steps.select.outputs.files != '')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-report
+          path: test-output/mutation/report.json
+          retention-days: 14
+          if-no-files-found: ignore

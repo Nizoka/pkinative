@@ -61,6 +61,7 @@ describe('every workflow', () => {
             'dependency-review.yml',
             'docs.yml',
             'fuzz.yml',
+            'mutation.yml',
             'publish.yml',
             'scorecard.yml',
         ]);
@@ -447,6 +448,45 @@ function npmCacheEnabled(step: string, pkg: { packageManager?: string; devEngine
     const automatic = (pkg.packageManager ?? '').startsWith('npm@') || pkg.devEngines?.packageManager?.name === 'npm';
     return automatic && !/^\s+package-manager-cache:\s*false\s*$/m.test(step);
 }
+
+describe('mutation.yml', () => {
+    const mutation = readWorkflow('mutation.yml');
+    /** The body of every `run: |` block of the workflow. */
+    const runBlocks = [...mutation.matchAll(/^( +)run: \|\s*\n((?:\1 {2,}[^\n]*\n|\s*\n)+)/gm)].map((m) => m[2]);
+
+    it('should run on pull requests and on demand, and be required by no ruleset', () => {
+        // "100 % killed on every changed file of src/" was held by whoever
+        // made the change. The workflow runs it; it stays advisory, because
+        // a run is minutes per file and a survivor is the work of the pull
+        // request that touched the file.
+        expect(mutation).toMatch(/^on:\s*\n\s+pull_request:\s*\n\s+branches: \[main, master\]\s*\n\s+workflow_dispatch:\s*\n\s+inputs:\s*\n\s+files:/m);
+        expect(mutation).not.toMatch(/^\s+schedule:/m);
+        expect(mutation).not.toMatch(/continue-on-error/);
+        const ruleset = JSON.parse(readText('.github', 'rulesets', 'main.json')) as { rules: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string }> } }> };
+        const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
+        expect(contexts).not.toContain('mutation');
+    });
+
+    it('should mutate exactly the src/ files the pull request adds or modifies', () => {
+        // The checkout of a pull request is its merge commit: the first
+        // parent is the base branch, so two commits are enough and the diff
+        // is what the pull request changes — no deleted file, nothing
+        // outside src/.
+        expect(mutation).toMatch(/^\s+fetch-depth: 2\s*$/m);
+        expect(mutation).toContain("git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'src/*.ts' 'src/**/*.ts'");
+        expect(mutation).toContain('npx tsx scripts/mutate.ts --files "${FILES}"');
+        expect(mutation).toMatch(/if: github\.event_name != 'pull_request' \|\| steps\.select\.outputs\.files != ''/);
+    });
+
+    it('should pass the event and the dispatch input through the environment, never into a script', () => {
+        // A `${{ … }}` inside `run:` is expanded before the shell reads the
+        // script: a dispatch input would be code (zizmor template-injection).
+        expect(runBlocks.length).toBeGreaterThanOrEqual(2);
+        for (const block of runBlocks) expect(block, block).not.toContain('${{');
+        expect(mutation).toMatch(/^\s+EVENT_NAME: \$\{\{ github\.event_name \}\}\s*$/m);
+        expect(mutation).toMatch(/^\s+INPUT_FILES: \$\{\{ inputs\.files \}\}\s*$/m);
+    });
+});
 
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');

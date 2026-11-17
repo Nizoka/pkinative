@@ -18,7 +18,7 @@ paths:
 
 ## Runners
 - Conformance: `scripts/validate-certs.ts` loads `dist/index.js` — `npm run build` first. Corpora are pinned in `scripts/lib/corpora.ts` (commit + SHA-256), downloaded to `test-output/corpora/`, never committed, never read whole. Baselines (`scripts/data/limbo-*.json`) change only through `--update-baseline`, every changed entry reviewed.
-- Mutation: `scripts/mutate.ts` (`--files a,b`), sandbox under `test-output/mutation/`; equivalents in `scripts/data/mutation-equivalents.json` keyed `<file>:<line>:<column>:<operator>` — ids drift when lines move; re-anchor them, never delete them silently.
+- Mutation: `scripts/mutate.ts` (`--files a,b`), sandbox under `test-output/mutation/`; equivalents in `scripts/data/mutation-equivalents.json` keyed `<file>:<line>:<column>:<operator>` — ids drift when lines move; re-anchor them, never delete them silently. The advisory `Mutation` workflow runs it on the `src/` files a pull request changes.
 - Frozen snapshots: `scripts/build-{api,errors,refusals}-frozen.ts` — `--ratchet` in a stable phase, `--major` only for a new X.0.0, never hand-edited.
 
 ## .github/
