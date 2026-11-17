@@ -72,8 +72,8 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 20350,
-      "approxTokens": 5088
+      "bytes": 20374,
+      "approxTokens": 5094
     }
   ],
   "guides": [
