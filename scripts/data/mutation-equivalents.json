@@ -1149,7 +1149,7 @@
       "reason": "Message-only: as the conditional at 81:110 — the comparison only picks the type name rendered in the message."
     },
     {
-      "id": "src/x509/x509-spki.ts:135:60:number-1",
+      "id": "src/x509/x509-spki.ts:160:60:number-1",
       "original": "3",
       "replacement": "2",
       "reason": "Semantic: an unnamed-curve uncompressed point must also have an odd length, and the only length that satisfies >= 2 but not >= 3 is 2, which is even."

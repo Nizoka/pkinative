@@ -3,9 +3,11 @@
  * ================================
  * RFC 5280 §4.1.2.7, with the key of each recognised algorithm checked
  * against its definition: RSA (RFC 3279 §2.3.1) and RSASSA-PSS (RFC 4055),
- * elliptic curves (RFC 5480), EdDSA and XDH (RFC 8410 §3 and §4) and ML-DSA
- * (RFC 9881 §2, with the key sizes of FIPS 204). Any other algorithm is kept
- * as `kind: 'unknown'`, with the `info` PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED.
+ * elliptic curves (RFC 5480), EdDSA and XDH (RFC 8410 §3 and §4), ML-DSA
+ * (RFC 9881 §2 and §4, with the key sizes of FIPS 204), pure SLH-DSA
+ * (RFC 9909 §5, FIPS 205) and ML-KEM (RFC 9935 §3 and §4, FIPS 203). Any
+ * other algorithm is kept as `kind: 'unknown'`, with the `info`
+ * PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED.
  *
  * This reads public keys; it performs no arithmetic on them.
  *
@@ -50,9 +52,17 @@ const CURVES: ReadonlyMap<string, { readonly curve: EcCurve; readonly size: numb
 interface OctetKeySpec {
     readonly kind: OctetPublicKeyInfo['kind'];
     readonly length: number;
-    readonly standard: 'RFC 8410 §3' | 'RFC 9881 §2';
+    readonly standard: 'RFC 8410 §3' | 'RFC 9881 §2' | 'RFC 9909 §5' | 'RFC 9935 §3';
 }
 
+/**
+ * The SLH-DSA entries are the twelve **pure** parameter sets (NIST CSOR
+ * sigAlgs 20 to 31); a public key is PK.seed ‖ PK.root, 2n octets with n of
+ * 16, 24 or 32 (RFC 9909 §5, FIPS 205 §9.1). The HashSLH-DSA identifiers
+ * (sigAlgs 35 to 46) are not here and stay `unknown`. The ML-KEM entries are
+ * the encapsulation keys of FIPS 203 (RFC 9935 §4). Both families are read
+ * and nothing more (ADR 0026).
+ */
 const OCTET_KEYS: ReadonlyMap<string, OctetKeySpec> = /*#__PURE__*/ new Map<string, OctetKeySpec>([
     ['1.3.101.110', { kind: 'x25519', length: 32, standard: 'RFC 8410 §3' }],
     ['1.3.101.111', { kind: 'x448', length: 56, standard: 'RFC 8410 §3' }],
@@ -61,6 +71,21 @@ const OCTET_KEYS: ReadonlyMap<string, OctetKeySpec> = /*#__PURE__*/ new Map<stri
     ['2.16.840.1.101.3.4.3.17', { kind: 'ml-dsa-44', length: 1312, standard: 'RFC 9881 §2' }],
     ['2.16.840.1.101.3.4.3.18', { kind: 'ml-dsa-65', length: 1952, standard: 'RFC 9881 §2' }],
     ['2.16.840.1.101.3.4.3.19', { kind: 'ml-dsa-87', length: 2592, standard: 'RFC 9881 §2' }],
+    ['2.16.840.1.101.3.4.3.20', { kind: 'slh-dsa-sha2-128s', length: 32, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.21', { kind: 'slh-dsa-sha2-128f', length: 32, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.22', { kind: 'slh-dsa-sha2-192s', length: 48, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.23', { kind: 'slh-dsa-sha2-192f', length: 48, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.24', { kind: 'slh-dsa-sha2-256s', length: 64, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.25', { kind: 'slh-dsa-sha2-256f', length: 64, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.26', { kind: 'slh-dsa-shake-128s', length: 32, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.27', { kind: 'slh-dsa-shake-128f', length: 32, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.28', { kind: 'slh-dsa-shake-192s', length: 48, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.29', { kind: 'slh-dsa-shake-192f', length: 48, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.30', { kind: 'slh-dsa-shake-256s', length: 64, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.3.31', { kind: 'slh-dsa-shake-256f', length: 64, standard: 'RFC 9909 §5' }],
+    ['2.16.840.1.101.3.4.4.1', { kind: 'ml-kem-512', length: 800, standard: 'RFC 9935 §3' }],
+    ['2.16.840.1.101.3.4.4.2', { kind: 'ml-kem-768', length: 1184, standard: 'RFC 9935 §3' }],
+    ['2.16.840.1.101.3.4.4.3', { kind: 'ml-kem-1024', length: 1568, standard: 'RFC 9935 §3' }],
 ]);
 
 interface KeyParts {
