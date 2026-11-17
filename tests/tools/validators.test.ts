@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -28,11 +28,14 @@ const stream = (...lines: string[]): string => `${lines.join('\n')}\n`;
 
 describe('the blob transport', () => {
     it('should frame every certificate by length, so a DER octet can never be a delimiter', () => {
-        const path = join(tmpdir(), `pkinative-blob-${String(process.pid)}.bin`);
+        // A directory only this process can name: a predictable file in the
+        // shared temporary directory can be planted by another local user.
+        const dir = mkdtempSync(join(tmpdir(), 'pkinative-blob-'));
+        const path = join(dir, 'certs.bin');
         const certs = [Uint8Array.of(0x30, 0x00), new Uint8Array(0), Uint8Array.of(0xff, 0xff, 0xff)];
         writeBlob(path, certs);
         const blob = readFileSync(path);
-        rmSync(path, { force: true });
+        rmSync(dir, { recursive: true, force: true });
         expect(blob.subarray(0, 8).toString('ascii')).toBe('PKIBLOB1');
         expect(blob.readUInt32BE(8)).toBe(3);
         let at = 12;

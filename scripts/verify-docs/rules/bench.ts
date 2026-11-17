@@ -92,7 +92,9 @@ const benchParity: Rule = {
             out.push(error(WORKFLOW, 'missing — the trend is only a trend if something records it on a schedule'));
         } else {
             if (!/run:\s*npm run bench\b/.test(workflow)) out.push(error(WORKFLOW, 'never runs `npm run bench`, so whatever it archives is not this repository\'s benchmark'));
-            if (!/^on:\n(?:[ \t]+[^\n]*\n)*?[ \t]+schedule:/m.test(workflow)) out.push(error(WORKFLOW, 'has no `schedule:` trigger — a trend needs more than one point'));
+            // `[ \t][^\n]*`, not `[ \t]+[^\n]*`: two quantifiers over the same
+            // blanks backtrack polynomially on a long run of indentation.
+            if (!/^on:\n(?:[ \t][^\n]*\n)*?[ \t]+schedule:/m.test(workflow)) out.push(error(WORKFLOW, 'has no `schedule:` trigger — a trend needs more than one point'));
             if (/^\s*pull_request:/m.test(workflow)) out.push(error(WORKFLOW, 'triggers on pull_request; a shared runner varies 2-5x run to run, so a per-PR benchmark reports noise as news'));
         }
 

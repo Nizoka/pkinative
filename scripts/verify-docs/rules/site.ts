@@ -18,7 +18,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 import { ENGINE_SOURCE_SLOT, footerHtml, GUIDES, NO_ENGINE_SLOT, guideAnchors, guideOutputs, isRedirectStub, navHtml, PLAYGROUNDS, SITE, switcherHtml, type NavSection, type Reader } from '../../build-guides.js';
 import { llmsOutputs } from '../../build-llms-full.js';
-import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
+import { error, escapeRegExp, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 
 const reader = (ctx: RuleContext): Reader => (path) => ctx.read(path);
 
@@ -153,7 +153,7 @@ const seoHead: Rule = {
             ['viewport', /<meta name="viewport" content="width=device-width, initial-scale=1\.0">/],
             ['a non-empty <title>', /<title>[^<]{10,}<\/title>/],
             ['a meta description of 50 to 300 characters', /<meta name="description" content="[^"]{50,300}">/],
-            ['a canonical URL on pkinative.dev', new RegExp(`<link rel="canonical" href="${SITE.replace(/\./g, '\\.')}/`)],
+            ['a canonical URL on pkinative.dev', new RegExp(`<link rel="canonical" href="${escapeRegExp(SITE)}/`)],
             ['og:title', /<meta property="og:title" content="[^"]+">/],
             ['og:description', /<meta property="og:description" content="[^"]+">/],
             ['og:image', /<meta property="og:image" content="https:\/\/[^"]+">/],
@@ -703,11 +703,11 @@ const releasePrDrafts: Rule = {
                 continue;
             }
             const text = ctx.read(draft) ?? '';
-            if (!new RegExp(`^# release: v${version.replace(/\./g, '\\.')} — .+`, 'm').test(text)) {
+            if (!new RegExp(`^# release: v${escapeRegExp(version)} — .+`, 'm').test(text)) {
                 out.push(error(draft, `must start with "# release: v${version} — <headline>", the title the pull request carries`));
             }
             for (const section of ['Independent audit', 'Validation', 'Human-in-the-loop — steps for the maintainer', 'Self-review checklist']) {
-                if (!new RegExp(`^## ${section.replace(/[—]/g, '—')}`, 'm').test(text)) {
+                if (!new RegExp(`^## ${escapeRegExp(section)}`, 'm').test(text)) {
                     out.push(error(draft, `lacks the "## ${section}" section (release-notes/PR_TEMPLATE.md); the release audit reads it by name`));
                 }
             }
