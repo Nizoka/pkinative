@@ -1,0 +1,16 @@
+{
+  "$comment": "Files of the v1.0.0 test suite that scripts/run-compat.ts does not run against the current sources. Every entry carries a reason and a kind: \"tree\" for a test of the repository (its docs, its workflows, its tooling) rather than of the engine, \"behaviour\" for a file whose assertions the engine changed on purpose — each such change is named in the release note's Decision surface or Downstream integration notes.",
+  "tag": "v1.0.0",
+  "exclude": [
+    {
+      "pattern": "tests/docs/**",
+      "kind": "tree",
+      "reason": "Repository-tree tests (the verify-docs rules over the site and the registries, the recipes index, the guide fences, the fixture budget), not engine behaviour: the current suite covers today's tree."
+    },
+    {
+      "pattern": "tests/tools/**",
+      "kind": "tree",
+      "reason": "Repository-tree tests (workflow pins, the guard hook, the agent configuration, the architecture and API-surface classifiers, the mutation runner), not engine behaviour: the current suite covers today's tree."
+    }
+  ]
+}

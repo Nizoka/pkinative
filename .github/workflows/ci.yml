@@ -106,6 +106,50 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # The 1.x promise, run rather than stated: the test suite of the previous
+  # release, exactly as it was tagged, against today's src/
+  # (scripts/run-compat.ts). The three frozen snapshots hold what the surface
+  # is; this holds what the release did. Blocking: a test of the previous
+  # release that fails here is a breaking change until
+  # tests/compat/allow-<version>.json names it with its reason.
+  #
+  # Not a gate step, so that the publish path never depends on a tag having
+  # been fetched: a commit reaches main only through this required check.
+  compat-previous:
+    name: compat-previous
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit # 2026-11-17: first runs of the job; block once its endpoints are baselined
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # The previous tag only, and anonymously — the repository is public —
+      # so the checkout above keeps its credentials off the runner.
+      - name: Fetch the previous release tag
+        run: |
+          set -euo pipefail
+          TAG=$(npx tsx scripts/run-compat.ts --print-tag)
+          git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+
+      - name: Run the previous release's test suite against the current sources
+        run: npm run compat:previous
+
   # README.md and the landing page say the same build runs on Node, browsers,
   # Deno and Bun. The gate proves Node; this proves the rest, on the BUILT
   # package: one parse, a verify per signature family, a PKCS#12 opened and

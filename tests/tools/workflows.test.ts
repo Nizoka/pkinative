@@ -299,6 +299,24 @@ describe('ci.yml', () => {
         expect(check).toBeLessThan(job.indexOf('/actionlint" -color'));
     });
 
+    it('should run the previous release\'s suite against the current sources, with the tag fetched anonymously', () => {
+        // The promise run rather than stated (pdfnative 1.9.0's compat-previous).
+        // The checkout keeps its credentials off the runner, so the one tag
+        // the allow-list names is fetched in its own step, from the public
+        // repository, before the suite runs.
+        const job = ciJob('compat-previous');
+        expect(job).toMatch(/^ {4}name: compat-previous\s*$/m);
+        expect(job).toMatch(/persist-credentials: false/);
+        const fetch = job.indexOf('TAG=$(npx tsx scripts/run-compat.ts --print-tag)');
+        const run = job.indexOf('run: npm run compat:previous');
+        expect(fetch).toBeGreaterThan(job.indexOf('npm ci --ignore-scripts'));
+        expect(job).toContain('git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"');
+        expect(run).toBeGreaterThan(fetch);
+        expect(job).not.toMatch(/continue-on-error/);
+        expect(contexts).toContain('compat-previous');
+        expect((JSON.parse(readText('package.json')) as { scripts: Record<string, string> }).scripts['compat:previous']).toBe('npx tsx scripts/run-compat.ts');
+    });
+
     it('should run reuse lint from a requirements file pinned by hash, with nothing built and nothing resolved', () => {
         // The roadmap's 1.1 item: REUSE.toml was held to its shape by a rule
         // and the tool itself was run by hand. A Python tool is not a dev

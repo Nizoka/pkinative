@@ -73,6 +73,7 @@
     "conformance": "npx tsx scripts/validate-certs.ts --require-all",
     "interop": "npx tsx scripts/run-interop.ts",
     "mutate": "npx tsx scripts/mutate.ts",
+    "compat:previous": "npx tsx scripts/run-compat.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
