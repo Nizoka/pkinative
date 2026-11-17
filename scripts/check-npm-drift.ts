@@ -49,6 +49,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SATELLITES } from './lib/satellite-surface.js';
 
 export const PACKAGE = 'pkinative';
 /** The name reservation, published by hand before Trusted Publishing could be configured. */
@@ -94,8 +95,8 @@ export function decideNpmDrift(manifestVersion: string, registry: RegistryState)
     return out;
 }
 
-/** The satellites the site documents: separate repositories, published from 1.0.0, never under the pre-1.0 policy. */
-export const SATELLITES: readonly string[] = ['pkinative-cli', 'pkinative-mcp'];
+/** The satellites the site documents (scripts/lib/satellite-surface.ts): separate repositories, published from 1.0.0, never under the pre-1.0 policy. */
+export { SATELLITES };
 
 /**
  * Every problem with a satellite's registry state against its record in the

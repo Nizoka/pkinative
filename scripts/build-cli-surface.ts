@@ -15,6 +15,12 @@
  * holds the CLI guide and the command builder to this file, and this file to
  * `packages.pkinative-cli` of docs/assets/ecosystem.json.
  *
+ * `--from` also takes a satellite surface (`docs/assets/surface.json` of a
+ * pkinative-cli checkout, .claude/skills/satellite-align/surface-contract.md):
+ * its `structured` half is the same projection. `scripts/satellite-sync.ts
+ * --apply` calls `renderCliSurface` itself; this script stays as the manual
+ * path.
+ *
  * Online by nature (it needs the published CLI), so never a gate step: run it
  * when the manifest's pkinative-cli version moves.
  *
@@ -24,27 +30,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cliManifestOf, commandOf, flagOf, normaliseSurface, type CliManifest } from './lib/satellite-surface.js';
 
 export const CLI_SURFACE = 'docs/data/cli-surface.json';
-
-interface Flag { readonly name: string; readonly alias?: string; readonly value?: string; readonly repeatable?: boolean }
-interface Operands { readonly max?: number; readonly for?: readonly string[] }
-interface Invocation { readonly name: string; readonly summary: string; readonly flags?: readonly Flag[]; readonly operands?: Operands }
-interface Command extends Invocation { readonly group: string; readonly subcommands?: readonly Invocation[] }
-interface CliManifest {
-    readonly name: string;
-    readonly version: string;
-    readonly pkinative: string;
-    readonly offline: boolean;
-    readonly wire: Record<string, string>;
-    readonly exitCodes: Record<string, string>;
-    readonly errorCodes: ReadonlyArray<{ readonly code: string; readonly meaning: string }>;
-    readonly globalFlags: readonly Flag[];
-    readonly commands: readonly Command[];
-}
-
-const flagOf = (f: Flag): Flag => ({ name: f.name, ...(f.alias === undefined ? {} : { alias: f.alias }), ...(f.value === undefined ? {} : { value: f.value }), ...(f.repeatable === true ? { repeatable: true } : {}) });
-const invocationOf = (i: Invocation): Invocation => ({ name: i.name, summary: i.summary, flags: (i.flags ?? []).map(flagOf), ...(i.operands === undefined ? {} : { operands: i.operands }) });
 
 /** The snapshot for one manifest, as the file's text. */
 export function renderCliSurface(manifest: CliManifest): string {
@@ -61,26 +49,28 @@ export function renderCliSurface(manifest: CliManifest): string {
         exitCodes: manifest.exitCodes,
         errorClasses: manifest.errorCodes.map(({ code, meaning }) => ({ code, meaning })),
         globalFlags: manifest.globalFlags.map(flagOf),
-        commands: manifest.commands.map((c) => ({
-            name: c.name,
-            group: c.group,
-            summary: c.summary,
-            ...((c.subcommands ?? []).length === 0
-                ? { flags: (c.flags ?? []).map(flagOf), ...(c.operands === undefined ? {} : { operands: c.operands }) }
-                : { subcommands: (c.subcommands ?? []).map(invocationOf) }),
-        })),
+        commands: manifest.commands.map(commandOf),
     };
     return `${JSON.stringify(surface, null, 2)}\n`;
+}
+
+/** The capability manifest of a `--from` file: the manifest itself, or the one a satellite surface carries. */
+export function manifestOf(parsed: unknown): CliManifest {
+    if ((parsed as { kind?: unknown } | null)?.kind !== 'satellite-surface') return parsed as CliManifest;
+    const manifest = cliManifestOf(normaliseSurface(parsed, 'pkinative-cli'));
+    if (manifest === null) throw new Error('build-cli-surface: the surface carries no structured.commands, errorClasses and globalFlags to project');
+    return manifest;
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
     const from = process.argv[process.argv.indexOf('--from') + 1];
     if (!process.argv.includes('--from') || from === undefined) {
-        console.error('usage: npm run docs:cli-surface -- --from <file written by `npx -y pkinative-cli@<version> schema manifest`>');
+        console.error('usage: npm run docs:cli-surface -- --from <file written by `npx -y pkinative-cli@<version> schema manifest`, or a pkinative-cli docs/assets/surface.json>');
         process.exit(2);
     }
     const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-    const text = renderCliSurface(JSON.parse(readFileSync(from, 'utf8')) as CliManifest);
+    // A capture redirected from PowerShell starts with a byte-order mark.
+    const text = renderCliSurface(manifestOf(JSON.parse(readFileSync(from, 'utf8').replace(/^﻿/, '')) as unknown));
     writeFileSync(join(root, CLI_SURFACE), text);
     console.error(`build-cli-surface: ${CLI_SURFACE} written`);
 }
