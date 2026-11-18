@@ -44,7 +44,7 @@ Every field is listed with its type in `docs/assets/api.json` (the `members` of 
 | `signatureValue` | `{ bytes, unusedBits }` — the signature; `verifyCertificateSignature(cert, issuer)` checks it |
 | `issuer`, `subject` | `{ rdns, der }`: each RDN a list of `{ type, value, valueDer }`, `value` a `{ stringType, value, raw }` string when the attribute is one |
 | `validity` | `{ notBefore, notAfter }`, each `{ type, epochMilliseconds, text }` |
-| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87` add `key`; `unknown` adds nothing |
+| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87`, the twelve `slh-dsa-…` kinds (`slh-dsa-sha2-128s` to `slh-dsa-shake-256f`) and `ml-kem-512`, `ml-kem-768`, `ml-kem-1024` add `key`; `unknown` adds nothing |
 | `issuerUniqueId`, `subjectUniqueId` | `{ bytes, unusedBits }` or `undefined` |
 | `extensions`, `diagnostics` | In encoded order, below |
 
@@ -149,7 +149,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 23 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files.
+- [recipes/](../../recipes/) — 24 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.

@@ -39,7 +39,7 @@ const EXPECT_SILENT = new Set<string>([
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
     'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:287', 'src/verify/verify-signed-data.ts:170',
     'src/revocation/ocsp-check.ts:163', 'src/verify/verify-pkcs12.ts:128',
-    'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:55',
+    'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:57',
 ]);
 
 /** Fences that print their success: the line the prose shows must appear. */
@@ -199,7 +199,7 @@ beforeAll(async () => {
     overrides = {
         // The key modules' `pemText` is a private key, `bytes` a PKCS#12; one example decrypts under its own password.
         'src/keys/': { pemText: pkinative.encodePem('PRIVATE KEY', pkcs8), bytes: seeds.pkcs12[0], certificates: [] },
-        'src/keys/key-import.ts:201': { pemText: pkinative.encodePem('ENCRYPTED PRIVATE KEY', await shroudKey(pkcs8, 'correct horse battery staple')) },
+        'src/keys/key-import.ts:212': { pemText: pkinative.encodePem('ENCRYPTED PRIVATE KEY', await shroudKey(pkcs8, 'correct horse battery staple')) },
         // The TSP modules' `reply` is a fetch Response of a TimeStampResp; `token` a parsed TimeStampToken.
         'src/cms/tsp-response.ts': { reply: { arrayBuffer: async () => tspReply.buffer.slice(tspReply.byteOffset, tspReply.byteOffset + tspReply.byteLength) } },
         'src/cms/tsp-tst-info.ts': { token: pkinative.parseTimeStampToken(tokenDer) },

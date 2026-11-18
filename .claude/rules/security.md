@@ -27,8 +27,9 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
   `tests/tools/architecture.test.ts` enforces both from the syntax tree.
 - **Bytes are `isBytes`, never `instanceof Uint8Array`** (`src/core/bytes.ts`): a view from another realm is still bytes; the
   architecture test forbids the `instanceof` outside that module.
-- **An algorithm the host lacks is a verdict, never a throw.** `importKey` refusing a curve (Ed448 on Bun or Chromium) yields the
-  unsupported reason; a key whose own AlgorithmIdentifier the host cannot import (id-RSASSA-PSS) is re-wrapped as
+- **An algorithm the host lacks is a verdict, never a throw.** `importKey` refusing a curve (Ed448 on Bun or Chromium) or an
+  algorithm (ML-DSA on Node.js 22, ADR 0026) yields the unsupported reason — and that refusal is the only detection: no
+  feature probe, no runtime name, no version test; a key whose own AlgorithmIdentifier the host cannot import (id-RSASSA-PSS) is re-wrapped as
   rsaEncryption **after** its RFC 4055 parameters have been checked against the signature — Web Crypto never sees
   parameters it would ignore.
 - **No object keys from input.** Decoded names and OIDs go into arrays or `Map`s, never into plain object keys

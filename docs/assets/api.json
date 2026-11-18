@@ -3048,7 +3048,7 @@
       "kind": "type",
       "module": "src/types/x509-types.ts",
       "signature": "export interface OctetPublicKeyInfo extends PublicKeyInfoBase",
-      "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410; ML-DSA: RFC 9881, key sizes of FIPS 204).",
+      "summary": "A key whose subjectPublicKey is the raw key octets: the Edwards and Montgomery curves (RFC 8410), ML-DSA (RFC 9881 §4, key sizes of FIPS 204), the twelve pure SLH-DSA parameter sets (RFC 9909 §5, FIPS 205) and ML-KEM (RFC 9935 §4, FIPS 203).",
       "throws": null,
       "params": null,
       "returns": null,
@@ -3073,7 +3073,7 @@
         },
         {
           "name": "kind",
-          "type": "'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87'",
+          "type": "",
           "optional": false,
           "summary": "Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`."
         },
@@ -4393,7 +4393,7 @@
       "name": "PrivateKeyKind",
       "kind": "type",
       "module": "src/types/key-types.ts",
-      "signature": "export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown'",
+      "signature": "export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87' | 'unknown'",
       "summary": "The kinds of private key a PrivateKeyInfo can name that pkinative recognises.",
       "throws": null,
       "params": null,
@@ -6782,7 +6782,7 @@
       "summary": "Whether this runtime can verify a signature at all.",
       "throws": [],
       "params": [],
-      "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448 and Ed25519 are missing on several runtimes that answer `true`.",
+      "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448, Ed25519 and ML-DSA are missing on runtimes that answer `true`.",
       "members": null
     },
     {

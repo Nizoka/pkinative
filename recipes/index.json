@@ -762,6 +762,24 @@
         "ocspSignatureCovers=true",
         "ocspRefused=PKI_X509_STRUCTURE_INVALID"
       ]
+    },
+    {
+      "file": "verify-ml-dsa.ts",
+      "task": "Verify an ML-DSA certificate chain and CMS message where the host has ML-DSA, and read the not-checked report where it has not — never branching on the runtime",
+      "surface": [
+        "parseCertificate",
+        "verifyCertificateChain",
+        "verifyCertificateSignature",
+        "verifySignedData",
+        "PkiReason"
+      ],
+      "since": "1.1.0",
+      "expects": [
+        "keys=ml-dsa-65 ml-dsa-44",
+        "decided=true",
+        "sameAnswer=true",
+        "wrongParameterSet=false"
+      ]
     }
   ]
 }
