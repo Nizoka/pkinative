@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript</title>
-  <meta name="description" content="Parse, verify and build X.509 in TypeScript with zero runtime dependencies: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12.">
+  <meta name="description" content="Parse, verify and build X.509 in TypeScript with zero runtime dependencies: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12, ML-DSA verification where the host supports it, RFC 5755 attribute certificates.">
   <meta name="keywords" content="x509, asn1, der, pem, typescript, zero-dependency, certificate, rfc 5280, path validation, crl, ocsp, cms, rfc 3161, pkcs12, pkcs8, web crypto, pki">
   <meta name="author" content="Nizoka">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -78,9 +78,12 @@
           "CRL and OCSP revocation checking",
           "RFC 5652 CMS SignedData and RFC 3161 timestamps",
           "PKCS#8 and PKCS#12 under PBES2",
+          "ML-DSA (FIPS 204) signature verification where the host supports it",
+          "RFC 5755 attribute certificates, read and signature-checked",
+          "OCSP and RFC 3161 request readers",
           "Zero runtime dependencies"
         ],
-        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure: strict ASN.1 DER, RFC 7468 PEM, complete RFC 5280 X.509, signature verification through Web Crypto, section 6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12."
+        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure: strict ASN.1 DER, RFC 7468 PEM, complete RFC 5280 X.509, signature verification through Web Crypto, section 6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12, ML-DSA verification where the host supports it, RFC 5755 attribute certificates."
       },
       {
         "@type": "SoftwareApplication",

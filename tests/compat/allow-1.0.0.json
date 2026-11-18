@@ -20,7 +20,7 @@
     {
       "pattern": "tests/core/pki-diagnostics.test.ts",
       "kind": "tree",
-      "reason": "One assertion holds the factories to the current docs/data/diagnostics.json code for code, and the registry is additions-only (ADR 0013): the 14 codes 1.1.0 adds are outside the v1.0.0 list. The current suite runs the same file with them."
+      "reason": "One assertion holds the factories to the current docs/data/diagnostics.json code for code, and the registry is additions-only (ADR 0013): the 14 codes 1.1.0 adds are outside the v1.0.0 list. The runner excludes by file, so this file's emitter and strict tests leave with that assertion; the current suite runs the same file, with them and with the new codes."
     },
     {
       "pattern": "tests/fuzzing/targets.test.ts",

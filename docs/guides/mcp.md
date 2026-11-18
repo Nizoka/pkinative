@@ -306,7 +306,7 @@ Every engine tool's result also carries `diagnostics[]` (de-duplicated by code a
 
 ### `describe_engine`
 
-**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine's 58 error codes, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
+**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine registries as the server vendors them at its pinned engine tag — for 1.0.0: 57 errors, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
 
 ### `explain_code`
 

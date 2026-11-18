@@ -24,7 +24,7 @@ Each of these is a recorded decision, not a gap on a roadmap: the [decision reco
 | To write a PKCS#8 or PKCS#12, or to generate or export a key | Web Crypto's `encrypt`, `wrapKey`, `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md), [ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)) | Web Crypto or `node:crypto` in your own code, or OpenSSL |
 | To verify DSA signatures | Web Crypto implements none of it, and pkinative implements no signature algorithm ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)) | `node:crypto` on Node.js |
 | To fetch a CRL, an OCSP response, a missing intermediate or a timestamp | The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker's choosing ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)) | Fetch them yourself and pass the bytes |
-| ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope through 1.0; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
+| ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope in 1.x; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
 | Distinguished names matched by RFC 5280 §7.1 preparation when building chains | Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal ([ADR 0005](../adr/0005-names-compared-by-encoded-bytes.md)) | Re-issue with consistent encodings |
 
 ## The alternatives, by the facts
@@ -45,7 +45,7 @@ node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinat
 ## When pkinative is the right choice
 
 - You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.
-- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 87 KB minified, describing a key file about 45 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
+- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 90 KB minified, describing a key file about 45 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
 - You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.

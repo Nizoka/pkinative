@@ -91,7 +91,7 @@ The SCT list reader (RFC 6962), CRL and OCSP-response writers, RFC 5755 §5 vali
 ## Human-in-the-loop — steps for the maintainer
 
 1. Push `chore/release-v1.1.0`, open the pull request with this body, squash-merge with the title `release: v1.1.0 — post-quantum verification, attribute certificates, request readers`.
-2. Ruleset `main`: add the contexts `ci (26)` and `compat-previous` only once the workflow is on `main`, or the release pull request blocks itself. Required checks then: `ci (22)`, `ci (24)`, `ci (26)`, `windows`, `macos`, `compat-previous`, `runtimes`, `workflow lint`, `conformance`, `conformance-windows`, `conformance-macos`, `dependency-review`.
+2. Rulesets: **the live `main` ruleset (24453575) targets no branch (`include: []`) and has no status-check rule — nothing is required today.** Import `.github/rulesets/main.json` and `tags.json` after the merge, once the workflows that report `ci (26)` and `compat-previous` are on `main` (earlier, the release pull request would block itself). Required checks then: `ci (22)`, `ci (24)`, `ci (26)`, `windows`, `macos`, `compat-previous`, `runtimes`, `workflow lint`, `conformance`, `conformance-windows`, `conformance-macos`, `dependency-review`.
 3. `ci (22)` and `picomatch`: merge as an administrator, or wait for the patched release (see **Known red**).
 4. Publish the GitHub Release `v1.1.0` (body = `release-notes/v1.1.0.md`). `publish.yml` passes its `guard` job, waits for the `npm-publish` reviewer, publishes and attests; then `npm view pkinative version` names 1.1.0 and `npm run check:npm-drift` is clean.
 5. Release `v1.0.0` was published without its five files: attach them by hand, or the weekly drift check stays red on that release.
@@ -100,7 +100,9 @@ The SCT list reader (RFC 6962), CRL and OCSP-response writers, RFC 5755 §5 vali
    - file-system-race (×10), http-to-file-access: development scripts over repository paths; bytes are written after a SHA-256 check.
    - incomplete multi-character sanitization (×6), path-injection (×4), stored-xss: test and generator code over the repository's own files, no untrusted input.
    - weak-cryptographic-algorithm (SHA-1): the OCSP CertID hash RFC 6960 §4.1.1 defines, over public data.
-   - Scorecard BranchProtection (the ruleset is invisible without an admin token), PinnedDependencies (deliberate, `publish.yml` installs the pinned npm client), Maintained and CodeReview (repository age, single maintainer).
+   - Scorecard BranchProtection: a true finding until the rulesets are imported (step 2) — do not dismiss. PinnedDependencies (deliberate, `publish.yml` installs the pinned npm client), Maintained and CodeReview (repository age, single maintainer).
+   - Scorecard SecurityPolicy (#5): SECURITY.md is present and names the private reporting channel; the finding's "no linked content" is not explained by the file. Re-read it after the next Scorecard run on `main`; dismiss only if it persists with the file unchanged.
+   - Scorecard Vulnerabilities (#36): the vite, vitest and pyasn1 advisories are closed by this branch; it stays open on `picomatch` until upstream ships a fix (see **Known red**). Do not dismiss.
    - Scorecard CII-Best-Practices: register the project at bestpractices.dev and add the badge.
 8. Satellites: file the drafts in `pkinative-cli/.github/drafts/`, `pkinative-mcp/.github/drafts/` and `pdfnative-cli/.github/drafts/`; after their next minors, `npm run satellites:sync` then `/satellite-align`.
 9. Re-upload the social preview if the title changed.

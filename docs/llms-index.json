@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 5907,
-      "approxTokens": 1477
+      "bytes": 6141,
+      "approxTokens": 1535
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 438569,
-      "approxTokens": 109642
+      "bytes": 438869,
+      "approxTokens": 109717
     },
     {
       "url": "llms-recipes.txt",
@@ -241,8 +241,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 53329,
-      "approxTokens": 13332
+      "bytes": 53400,
+      "approxTokens": 13350
     },
     {
       "title": "MCP use cases",
@@ -349,8 +349,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18867,
-      "approxTokens": 4717
+      "bytes": 18862,
+      "approxTokens": 4716
     }
   ]
 }
