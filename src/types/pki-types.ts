@@ -170,7 +170,8 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH'
     | 'PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED'
     | 'PKI_DIAG_OCSP_NOCHECK_CRITICAL'
-    | 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED';
+    | 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED'
+    | 'PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';

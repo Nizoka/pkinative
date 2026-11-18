@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
@@ -266,6 +267,122 @@ describe('parseCertificate', () => {
                 expect(warn).toHaveBeenCalledTimes(1);
             } finally {
                 warn.mockRestore();
+            }
+        });
+    });
+
+    // ADR 0026: the three post-quantum key families whose RFC says what a
+    // keyUsage may assert. One `it` per sentence, named with its section.
+    describe('keyUsage against a post-quantum key (RFC 9881 §5, RFC 9909 §6, RFC 9935 §5)', () => {
+        const CODE = 'PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH';
+        /** RFC 5280 §4.2.1.3, the named bits in order. */
+        const BITS = ['digitalSignature', 'nonRepudiation', 'keyEncipherment', 'dataEncipherment', 'keyAgreement', 'keyCertSign', 'cRLSign', 'encipherOnly', 'decipherOnly'];
+        /** A critical keyUsage asserting exactly these bits, as DER writes a named bit list: no trailing zero bit. */
+        const keyUsage = (...names: readonly string[]): Uint8Array => {
+            const indexes = names.map((n) => BITS.indexOf(n));
+            const last = Math.max(-1, ...indexes);
+            const bytes = new Array<number>(last < 0 ? 0 : (last >> 3) + 1).fill(0);
+            for (const i of indexes) bytes[i >> 3] = (bytes[i >> 3] as number) | (0x80 >> (i & 7));
+            return extension('2.5.29.15', bitString(bytes, last < 0 ? 0 : 7 - (last & 7)), true);
+        };
+        const key = (dotted: string, length: number, parameters?: Uint8Array): Uint8Array => sequence(algorithm(dotted, parameters), bitString(new Array<number>(length).fill(7)));
+        const KEYS = {
+            'ml-dsa-44': key('2.16.840.1.101.3.4.3.17', 1312),
+            'ml-dsa-65': key('2.16.840.1.101.3.4.3.18', 1952),
+            'ml-dsa-87': key('2.16.840.1.101.3.4.3.19', 2592),
+            'slh-dsa-sha2-128s': key('2.16.840.1.101.3.4.3.20', 32),
+            'slh-dsa-shake-256f': key('2.16.840.1.101.3.4.3.31', 64),
+            'ml-kem-512': key('2.16.840.1.101.3.4.4.1', 800),
+            'ml-kem-768': key('2.16.840.1.101.3.4.4.2', 1184),
+            'ml-kem-1024': key('2.16.840.1.101.3.4.4.3', 1568),
+        } as const;
+        const SIGNATURE_KEYS = ['ml-dsa-44', 'ml-dsa-65', 'ml-dsa-87', 'slh-dsa-sha2-128s', 'slh-dsa-shake-256f'] as const;
+        const KEM_KEYS = ['ml-kem-512', 'ml-kem-768', 'ml-kem-1024'] as const;
+        const cert = (spki: Uint8Array, ...extensions: readonly Uint8Array[]): Uint8Array =>
+            certificate({ subjectPublicKeyInfo: spki, trailing: [explicit(3, sequence(...extensions, AUTHORITY_KEY_ID))] });
+        const raised = (der: Uint8Array): PkiDiagnostic[] => {
+            const seen: PkiDiagnostic[] = [];
+            parseCertificate(der, { onDiagnostic: (d) => { seen.push(d); } });
+            return seen.filter((d) => d.code === CODE);
+        };
+
+        it.each(SIGNATURE_KEYS)('should say nothing about an %s key that asserts only signature usages — "at least one of" the four', (kind) => {
+            for (const usages of [['digitalSignature'], ['nonRepudiation'], ['keyCertSign'], ['cRLSign'], ['digitalSignature', 'nonRepudiation', 'keyCertSign', 'cRLSign']]) {
+                expect(raised(cert(KEYS[kind], keyUsage(...usages)))).toEqual([]);
+            }
+        });
+
+        it.each(SIGNATURE_KEYS.flatMap((kind) => ['keyEncipherment', 'dataEncipherment', 'keyAgreement', 'encipherOnly', 'decipherOnly'].map((usage) => [kind, usage] as const)))(
+            'should report an %s key that asserts %s beside digitalSignature — "MUST NOT have any of"',
+            (kind, usage) => {
+                const [diagnostic] = raised(cert(KEYS[kind], keyUsage('digitalSignature', usage)));
+                expect(diagnostic).toMatchObject({ code: CODE, severity: 'warning', path: 'tbsCertificate.extensions.keyUsage', standard: 'RFC 9881 §5, RFC 9909 §6, RFC 9935 §5' });
+                // The message names the clause of the key's own RFC, the key and what it asserts.
+                expect(diagnostic?.message).toContain(kind.startsWith('ml-dsa-') ? 'RFC 9881 §5' : 'RFC 9909 §6');
+                expect(diagnostic?.message).toContain(kind);
+                expect(diagnostic?.message).toContain(`[digitalSignature, ${usage}]`);
+            },
+        );
+
+        it.each(SIGNATURE_KEYS)('should report an %s key whose only usage is one it cannot have', (kind) => {
+            expect(raised(cert(KEYS[kind], keyUsage('keyEncipherment')))).toHaveLength(1);
+            expect(raised(cert(KEYS[kind], keyUsage('keyAgreement', 'decipherOnly')))).toHaveLength(1);
+        });
+
+        it.each(SIGNATURE_KEYS)('should report an %s key whose keyUsage asserts nothing: not one of the four is set', (kind) => {
+            // RFC 5280 already wants one bit (PKI_DIAG_KEY_USAGE_EMPTY); RFC 9881 §5 and RFC 9909 §6 want one of these four.
+            const seen: string[] = [];
+            parseCertificate(cert(KEYS[kind], keyUsage()), { onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(seen).toEqual(expect.arrayContaining(['PKI_DIAG_KEY_USAGE_EMPTY', CODE]));
+        });
+
+        it.each(KEM_KEYS)('should say nothing about an %s key that asserts keyEncipherment alone (RFC 9935 §5)', (kind) => {
+            expect(raised(cert(KEYS[kind], keyUsage('keyEncipherment')))).toEqual([]);
+        });
+
+        it.each(KEM_KEYS.flatMap((kind) => [
+            ['digitalSignature'], ['keyAgreement'], ['dataEncipherment'],
+            ['keyEncipherment', 'dataEncipherment'], ['digitalSignature', 'keyEncipherment'], ['keyEncipherment', 'keyAgreement', 'decipherOnly'], [],
+        ].map((usages) => [kind, usages] as const)))('should report an %s key that asserts %j — keyEncipherment "MUST be the only key usage set"', (kind, usages) => {
+            const [diagnostic] = raised(cert(KEYS[kind], keyUsage(...usages)));
+            expect(diagnostic).toMatchObject({ code: CODE, severity: 'warning', path: 'tbsCertificate.extensions.keyUsage' });
+            expect(diagnostic?.message).toContain('RFC 9935 §5');
+            expect(diagnostic?.message).toContain(kind);
+        });
+
+        it.each([...SIGNATURE_KEYS, ...KEM_KEYS])('should say nothing about an %s key without a keyUsage — each sentence opens "if the keyUsage extension is present"', (kind) => {
+            expect(raised(cert(KEYS[kind], SUBJECT_KEY_ID))).toEqual([]);
+        });
+
+        it('should say nothing when the extension is left undecoded: an unread keyUsage is not judged', () => {
+            const seen: string[] = [];
+            parseCertificate(cert(KEYS['ml-dsa-65'], keyUsage('keyEncipherment')), { decodeExtensions: false, onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(seen).not.toContain(CODE);
+        });
+
+        it.each<[string, Uint8Array]>([
+            ['an RSA key', sequence(algorithm('1.2.840.113549.1.1.1', nullValue()), bitString(sequence(integer([0x41, 0x02, 0x03]), integer([0x01, 0x00, 0x01]))))],
+            ['an EC key', sequence(algorithm('1.2.840.10045.2.1', oid('1.2.840.10045.3.1.7')), bitString([0x04, ...new Array<number>(64).fill(1)]))],
+            ['an Ed25519 key', key('1.3.101.112', 32)],
+            ['an X25519 key', key('1.3.101.110', 32)],
+            ['a key of an algorithm pkinative does not classify', key('1.2.3.4', 8)],
+        ])('should say nothing about %s, whatever its keyUsage: no RFC of these three speaks of it', (_label, spki) => {
+            for (const usages of [['keyEncipherment'], ['digitalSignature', 'keyAgreement'], ['keyEncipherment', 'dataEncipherment'], []]) {
+                expect(raised(cert(spki, keyUsage(...usages)))).toEqual([]);
+            }
+        });
+
+        it('should refuse the certificate under strict: a warning is a MUST the issuer broke', () => {
+            const error = thrown(() => parseCertificate(cert(KEYS['ml-kem-768'], keyUsage('digitalSignature')), { strict: true }));
+            expect(error).toBeInstanceOf(PkiError);
+            expect(error).toMatchObject({ code: 'PKI_STRICT_DIAGNOSTIC' });
+            expect((error as PkiError).message).toContain(CODE);
+            expect(() => parseCertificate(cert(KEYS['ml-kem-768'], keyUsage('keyEncipherment'), SUBJECT_KEY_ID), { strict: true })).not.toThrow();
+        });
+
+        it('should say nothing about the fixtures OpenSSL and the RFC 9881 authors wrote', () => {
+            for (const name of ['root-ml-dsa-65', 'leaf-ml-dsa-44', 'rfc9881-ml-dsa-44', 'rfc9881-ml-dsa-65', 'rfc9881-ml-dsa-87']) {
+                expect(raised(new Uint8Array(readFileSync(`tests/fixtures/ml-dsa/${name}.der`))), name).toEqual([]);
             }
         });
     });

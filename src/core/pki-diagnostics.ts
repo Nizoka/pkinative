@@ -629,6 +629,31 @@ export function defaultEncodedDiagnostic(path: string, value: string, offset?: n
         path, offset);
 }
 
+/**
+ * A keyUsage that asserts what the certified key's algorithm cannot do, or
+ * leaves out what it is for.
+ *
+ * Three documents say what a post-quantum key may assert when the extension
+ * is present. An ML-DSA key (RFC 9881 §5) and an SLH-DSA key (RFC 9909 §6)
+ * sign and do nothing else: at least one of digitalSignature, nonRepudiation,
+ * keyCertSign and cRLSign, and none of keyEncipherment, dataEncipherment,
+ * keyAgreement, encipherOnly and decipherOnly. An ML-KEM key (RFC 9935 §5)
+ * encapsulates and does nothing else: keyEncipherment, alone. Each sentence
+ * is addressed to the issuing CA, so this is a `warning` and not a refusal:
+ * the certificate parses, and no signature is ever verified under a key that
+ * cannot sign, whatever its keyUsage claims.
+ *
+ * @param kind        The key kind, which names the algorithm.
+ * @param usages      The usages the extension asserts, in bit order.
+ * @param requirement The clause the usages contradict, and what it requires.
+ * @returns The diagnostic.
+ */
+export function keyUsageKeyAlgorithmMismatchDiagnostic(kind: string, usages: readonly string[], requirement: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH', 'warning', 'RFC 9881 §5, RFC 9909 §6, RFC 9935 §5',
+        `keyUsage asserts [${usages.join(', ')}] in a certificate whose key is ${kind}; ${requirement}`,
+        'tbsCertificate.extensions.keyUsage', undefined);
+}
+
 // ── Payload factories — the rest of the RFC 5280 §4.1–§4.2 profile ───
 //
 // Each is one requirement sentence of scripts/data/rfc5280-requirements.json,
