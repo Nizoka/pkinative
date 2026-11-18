@@ -239,6 +239,14 @@ describe('parseAttributeCertificate', () => {
             strictRefuses(der);
         });
 
+        it('should refuse a holder whose entityName is an empty GeneralNames (RFC 5280 §4.2.1.6: SIZE (1..MAX)), which would bind the attributes to nobody without a word', () => {
+            refuses(attributeCertificate({ holder: sequence(implicitSequence(1)) }), 'PKI_X509_STRUCTURE_INVALID');
+        });
+
+        it('should refuse a baseCertificateID whose issuer is an empty GeneralNames', () => {
+            refuses(attributeCertificate({ holder: holderByCertificate(...issuerSerialComponents(sequence())) }), 'PKI_X509_STRUCTURE_INVALID');
+        });
+
         it('should report a holder with two options as the info PKI_DIAG_AC_HOLDER_MULTIPLE, which strict does not refuse', () => {
             const holder = sequence(implicitSequence(0, ...issuerSerialComponents()), implicitSequence(1, rfc822Name('alice@example.com')));
             const der = attributeCertificate({ holder });

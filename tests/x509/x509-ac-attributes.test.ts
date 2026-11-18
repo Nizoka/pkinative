@@ -152,6 +152,14 @@ describe('authenticationInfo and accessIdentity (RFC 5755 §4.4.1, §4.4.2)', ()
 });
 
 describe('chargingIdentity and group: IetfAttrSyntax (RFC 5755 §4.4, §4.4.3, §4.4.4)', () => {
+    it('should refuse an empty roleAuthority: GeneralNames holds at least one name (RFC 5280 §4.2.1.6)', () => {
+        refuses('PKI_X509_STRUCTURE_INVALID', attribute(OID_ROLE, roleSyntax(undefined, [])));
+    });
+
+    it('should refuse an empty policyAuthority', () => {
+        refuses('PKI_X509_STRUCTURE_INVALID', attribute(OID_GROUP, ietfAttrSyntax([utf8('admins')], [])));
+    });
+
     it('should read the three value choices and a policyAuthority', () => {
         const group = first(attribute(OID_GROUP, ietfAttrSyntax([utf8('admins'), utf8('ops')], [uriName('urn:authority')])));
         expect(group.kind).toBe('group');

@@ -48,7 +48,7 @@ import type {
 } from '../types/attribute-certificate-types.js';
 import { PkiError } from '../types/pki-errors.js';
 import type { DistinguishedName, GeneralName, ParseCertificateOptions, SerialNumber, Validity } from '../types/x509-types.js';
-import { _readAcAttributes } from './x509-ac-attributes.js';
+import { _readAcAttributes, _readAcGeneralNames } from './x509-ac-attributes.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
 import { _readExtensionSequence } from './x509-certificate.js';
 import { AC_EXTENSION_DECODERS } from './x509-ext-attribute-certificate.js';
@@ -94,7 +94,7 @@ function readIssuerSerial(node: Asn1Node, ctx: Asn1Context, path: string): Issue
         throw certificateError(STRUCTURE, path, node.offset, `holds ${String(children.length)} values; IssuerSerial is issuer, serial and an optional issuerUID`);
     }
     const issuerNode = expectUniversalField(children[0], TAG_SEQUENCE, `${path}.issuer`, STRUCTURE, node.offset);
-    const issuer = _readGeneralNameList(issuerNode, ctx, `${path}.issuer`, false);
+    const issuer = _readAcGeneralNames(issuerNode, ctx, `${path}.issuer`);
     const serial = readSerial(expectUniversalField(children[1], TAG_INTEGER, `${path}.serial`, STRUCTURE, node.offset), ctx);
     const uidNode = children[2];
     const issuerUid = uidNode === undefined ? undefined : _readBitString(expectUniversalField(uidNode, TAG_BIT_STRING, `${path}.issuerUID`, STRUCTURE, node.offset), ctx);
@@ -137,7 +137,7 @@ function readHolder(node: Asn1Node | undefined, ctx: Asn1Context, parentOffset: 
     const [baseNode, nameNode, digestNode] = fields;
     const holder: AttributeCertificateHolder = {
         baseCertificateId: baseNode === undefined ? undefined : readIssuerSerial(baseNode, ctx, `${path}.baseCertificateID`),
-        entityName: nameNode === undefined ? undefined : _readGeneralNameList(nameNode, ctx, `${path}.entityName`, false),
+        entityName: nameNode === undefined ? undefined : _readAcGeneralNames(nameNode, ctx, `${path}.entityName`),
         objectDigestInfo: digestNode === undefined ? undefined : readObjectDigestInfo(digestNode, ctx, `${path}.objectDigestInfo`),
         der: seq.bytes,
     };

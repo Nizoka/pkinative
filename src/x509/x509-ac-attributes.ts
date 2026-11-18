@@ -39,6 +39,7 @@ import type {
     ServiceAuthInfo,
 } from '../types/attribute-certificate-types.js';
 import type { PkiCertificateError } from '../types/pki-errors.js';
+import type { GeneralName } from '../types/x509-types.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readGeneralName, _readGeneralNameList } from './x509-general-name.js';
 
@@ -90,6 +91,19 @@ function readIetfAttrValue(node: Asn1Node, ctx: Asn1Context, path: string): Ietf
     throw malformed(path, node.offset, `is ${tagLabel(node.tagClass, node.tagNumber)}; an IetfAttrSyntax value is an OCTET STRING, an OBJECT IDENTIFIER or a UTF8String`);
 }
 
+/**
+ * GeneralNames is `SEQUENCE SIZE (1..MAX) OF GeneralName` (RFC 5280
+ * §4.2.1.6): where an attribute certificate names a holder, a reference or an
+ * authority, an empty list names nobody and is refused, not read as `[]`.
+ *
+ * @internal
+ */
+export function _readAcGeneralNames(container: Asn1Node, ctx: Asn1Context, path: string): readonly GeneralName[] {
+    const names = _readGeneralNameList(container, ctx, path, false);
+    if (names.length === 0) throw certificateError(STRUCTURE, path, container.offset, 'is empty; GeneralNames holds at least one name');
+    return names;
+}
+
 function readIetfAttrSyntax(node: Asn1Node, ctx: Asn1Context, path: string): IetfAttrSyntax {
     const seq = expectField(node, TAG_SEQUENCE, path, node.offset);
     const first = seq.children[0];
@@ -97,7 +111,7 @@ function readIetfAttrSyntax(node: Asn1Node, ctx: Asn1Context, path: string): Iet
     if (seq.children.length !== (hasAuthority ? 2 : 1)) {
         throw malformed(path, seq.offset, `holds ${String(seq.children.length)} values; IetfAttrSyntax is an optional policyAuthority [0] and the values`);
     }
-    const policyAuthority = hasAuthority ? _readGeneralNameList(first, ctx, `${path}.policyAuthority`, false) : undefined;
+    const policyAuthority = hasAuthority ? _readAcGeneralNames(first, ctx, `${path}.policyAuthority`) : undefined;
     const list = expectField(seq.children[hasAuthority ? 1 : 0], TAG_SEQUENCE, `${path}.values`, seq.offset);
     enforceLimit(ctx.limits, 'maxAttributes', list.children.length, `the values of ${path}`);
     const values: IetfAttrValue[] = [];
@@ -121,7 +135,7 @@ function readRoleSyntax(node: Asn1Node, ctx: Asn1Context, path: string): RoleSyn
     if (nameNode === undefined || nameNode.tagClass !== 'context' || nameNode.tagNumber !== 1 || !nameNode.constructed || nameNode.children.length !== 1) {
         throw malformed(`${path}.roleName`, seq.offset, 'is missing or is not one GeneralName under the explicit [1] tag');
     }
-    const roleAuthority = authorityNode === undefined ? undefined : _readGeneralNameList(authorityNode, ctx, `${path}.roleAuthority`, false);
+    const roleAuthority = authorityNode === undefined ? undefined : _readAcGeneralNames(authorityNode, ctx, `${path}.roleAuthority`);
     const roleName = _readGeneralName(nameNode.children[0] as Asn1Node, ctx, `${path}.roleName`, false);
     if (roleName.kind !== 'uniformResourceIdentifier') {
         ctx.emitter.emit(acAttributeProfileDiagnostic(`the roleName is a ${roleName.kind}, not a uniformResourceIdentifier`, '§4.4.5', `${path}.roleName`, nameNode.offset));
