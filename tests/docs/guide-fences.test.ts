@@ -8,6 +8,7 @@ import * as pkinative from '../../src/index.js';
 import { GUIDE_INPUTS, extractTsFences, guideFiles, type Fence } from '../../scripts/check-guides.js';
 import { fuzzSeeds } from '../fuzzing/_fuzz-seeds.js';
 import { shroudKey } from '../helpers/pkcs12-builder.js';
+import { acInfo, attributeCertificate, directoryName, generalNames, v2Form } from '../helpers/attribute-certificate-builder.js';
 import { DAY, issue, issueTsa, keyPair, makeToken, rawSign, sha, spkiOf, tstInfo, type Authority, type Holder } from '../verify/_cms-pki.js';
 
 /**
@@ -33,13 +34,13 @@ const NOT_RUN: Readonly<Record<string, string>> = {};
 
 /** Fences whose only output is a failure: no log line, no returned string, is the proof they succeeded. */
 const EXPECT_SILENT = new Set<string>([
-    'README.md:77', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:95',
+    'README.md:77', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:97',
     'docs/guides/use-cases.md:105', 'docs/guides/use-cases.md:133', 'docs/guides/use-cases.md:164',
     'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
     'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:287', 'src/verify/verify-signed-data.ts:170',
     'src/revocation/ocsp-check.ts:163', 'src/verify/verify-pkcs12.ts:128',
-    'src/crypto/x509-verify.ts:107', 'src/crypto/x509-verify.ts:219', 'src/crypto/x509-verify.ts:253', 'src/crypto/cms-verify.ts:57',
+    'src/crypto/x509-verify.ts:108', 'src/crypto/x509-verify.ts:220', 'src/crypto/x509-verify.ts:254', 'src/crypto/x509-verify.ts:294', 'src/crypto/cms-verify.ts:57',
 ]);
 
 /** Fences that print their success: the line the prose shows must appear. */
@@ -92,6 +93,12 @@ async function makeCrlNow(ca: Authority): Promise<Uint8Array> {
         pkinative.encodeTime(NOW - 20 * DAY, 'UTCTime'), pkinative.encodeTime(NOW + 20 * DAY, 'UTCTime'),
     ]);
     return pkinative.encodeSequence([tbs, ED25519, pkinative.encodeBitString(await rawSign({ name: 'Ed25519' }, ca.key, tbs))]);
+}
+
+/** An RFC 5755 attribute certificate whose v2Form issuer is `ca`, signed by its key. */
+async function signedAttributeCertificate(ca: Authority): Promise<Uint8Array> {
+    const info = acInfo({ signature: ED25519, issuer: v2Form(generalNames(directoryName(ca.certificate.subject.der))) });
+    return attributeCertificate({ info, signatureAlgorithm: ED25519, signatureValue: pkinative.encodeBitString(await rawSign({ name: 'Ed25519' }, ca.key, info)) });
 }
 
 /** A `good` BasicOCSPResponse about `certificate`, signed by its issuer `ca`, current NOW ± 1 day, echoing `nonce` when given. */
@@ -207,7 +214,9 @@ beforeAll(async () => {
         'src/build/build-signed-data.ts:653': { nonce: 0x1234n },
         // The OCSP modules' `bytes` is a response; the check example names the CertID hashes and the responder.
         'src/revocation/ocsp-': { bytes: ocspDer, issuerNameHash: await sha('SHA-1', root.certificate.subject.der), issuerKeyHash: await sha('SHA-1', root.certificate.subjectPublicKeyInfo.publicKey.bytes), responder: root.certificate, yourPolicySaysSo: true },
-        'src/crypto/x509-verify.ts:253': { bytes: ocspDer },
+        'src/crypto/x509-verify.ts:294': { bytes: ocspDer },
+        // An RFC 5755 attribute certificate the guide root signed.
+        'src/crypto/x509-verify.ts:254': { bytes: await signedAttributeCertificate(root) },
     };
     fetchStub = async (url, init) => {
         let body: Uint8Array;

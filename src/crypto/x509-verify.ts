@@ -252,8 +252,8 @@ export async function verifyCrlSignature(
  * Verify that an AC issuer's key signed this attribute certificate (RFC 5755).
  *
  * ```ts
- * const ac = parseAttributeCertificate(acDer);
- * if (!await verifyAttributeCertificateSignature(ac, acIssuerCertificate)) return 'not from that AC issuer';
+ * const ac = parseAttributeCertificate(bytes);
+ * if (!await verifyAttributeCertificateSignature(ac, issuer)) return 'not from that AC issuer';
  * ```
  *
  * The same check as {@link verifyCertificateSignature}: the outer
