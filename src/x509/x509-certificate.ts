@@ -68,7 +68,7 @@ import type {
     Validity,
 } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
-import { _decodeExtension } from './x509-extensions.js';
+import { _decodeExtension, type ExtraExtensionDecoders } from './x509-extensions.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readName } from './x509-name.js';
 import { _readSubjectPublicKeyInfo } from './x509-spki.js';
@@ -297,17 +297,26 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
  * `extensionRequest` attribute (x509-csr.ts). One reader, so a request's
  * extensions are held to exactly what a certificate's are — the same codes, the
  * same bound, the same decoders. `counted` is what the `maxExtensions` bound is
- * said to count when it trips.
+ * said to count when it trips. `extra` decoders apply to this sequence only:
+ * an attribute certificate passes the extensions of RFC 5755 §4.3.
  *
  * @internal
  */
-export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: Uint8Array, decode: boolean, path: string, counted: string): readonly Extension[] {
+export function _readExtensionSequence<E = never>(
+    seq: Asn1Node,
+    ctx: Asn1Context,
+    input: Uint8Array,
+    decode: boolean,
+    path: string,
+    counted: string,
+    extra?: ExtraExtensionDecoders<E>,
+): ReadonlyArray<Extension | E> {
     if (seq.children.length === 0) {
         throw certificateError('PKI_X509_EXTENSIONS_EMPTY', path, seq.offset, 'is present but holds no extension; RFC 5280 requires at least one');
     }
     enforceLimit(ctx.limits, 'maxExtensions', seq.children.length, counted);
     const seen = new Set<string>();
-    const extensions: Extension[] = [];
+    const extensions: Array<Extension | E> = [];
     for (let i = 0; i < seq.children.length; i++) {
         const extPath = `${path}[${i}]`;
         const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE, seq.offset);
@@ -333,10 +342,10 @@ export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: U
         } else if (valueNode.constructed) {
             // A BER segmented extnValue was joined into a copy: decode the copy. Offsets
             // inside it count from the joined content (documented in x509-extensions.ts).
-            extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
+            extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath, extra));
         } else {
             const start = valueNode.offset + valueNode.headerLength;
-            extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
+            extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath, extra));
         }
     }
     return Object.freeze(extensions);

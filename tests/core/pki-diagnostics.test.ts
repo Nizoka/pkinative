@@ -164,6 +164,15 @@ describe('diagnostic payload factories', () => {
         ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', diagnostics.ocspNoCheckCriticalDiagnostic('ocsp')],
         ['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', diagnostics.spkiAlgorithmUnrecognisedDiagnostic('tbsCertificate.subjectPublicKeyInfo.algorithm', '1.2.3.4', 160)],
         ['PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH', diagnostics.keyUsageKeyAlgorithmMismatchDiagnostic('ml-dsa-65', ['digitalSignature', 'keyEncipherment'], 'RFC 9881 §5 requires what it requires')],
+        ['PKI_DIAG_AC_HOLDER_EMPTY', diagnostics.acHolderEmptyDiagnostic(8)],
+        ['PKI_DIAG_AC_HOLDER_MULTIPLE', diagnostics.acHolderMultipleDiagnostic(['baseCertificateID', 'entityName'], 8)],
+        ['PKI_DIAG_AC_ISSUER_V1_FORM', diagnostics.acIssuerV1FormDiagnostic(40)],
+        ['PKI_DIAG_AC_ISSUER_NOT_PROFILED', diagnostics.acIssuerNotProfiledDiagnostic('names 2 GeneralNames', 40)],
+        ['PKI_DIAG_AC_ATTRIBUTES_EMPTY', diagnostics.acAttributesEmptyDiagnostic(90)],
+        ['PKI_DIAG_AC_ATTRIBUTE_DUPLICATE', diagnostics.acAttributeDuplicateDiagnostic('2.5.4.72', 'acinfo.attributes[1]', 120)],
+        ['PKI_DIAG_AC_ATTRIBUTE_PROFILE', diagnostics.acAttributeProfileDiagnostic('the roleName is not a URI', '§4.4.5', 'acinfo.attributes[0].values[0]', 130)],
+        ['PKI_DIAG_AC_EXTENSION_CRITICALITY', diagnostics.acExtensionCriticalityDiagnostic('targetInformation', 'critical', 'acinfo.extensions[0]')],
+        ['PKI_DIAG_AC_EXTENSION_PROFILE', diagnostics.acExtensionProfileDiagnostic('the audit identity is 21 octets long', '§4.3.1', 'acinfo.extensions[0]', 200)],
     ];
 
     it.each(cases)('should build %s as a frozen, fully described payload', (code, payload) => {

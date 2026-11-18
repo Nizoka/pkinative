@@ -89,21 +89,21 @@ function _diagnostic(
 
 // ── Payload factories — serial, algorithms, version ──────────────────
 
-export function serialTooLongDiagnostic(octets: number, offset?: number): PkiDiagnostic {
+export function serialTooLongDiagnostic(octets: number, offset?: number, path = 'tbsCertificate.serialNumber'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SERIAL_TOO_LONG', 'warning', 'RFC 5280 §4.1.2.2',
         `the serial number is ${octets} octets long; RFC 5280 allows at most 20, and some verifiers refuse longer serials`,
-        'tbsCertificate.serialNumber', offset);
+        path, offset);
 }
 
-export function serialNotPositiveDiagnostic(offset?: number): PkiDiagnostic {
+export function serialNotPositiveDiagnostic(offset?: number, path = 'tbsCertificate.serialNumber'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SERIAL_NOT_POSITIVE', 'warning', 'RFC 5280 §4.1.2.2',
         'the serial number is zero or negative; RFC 5280 requires a positive integer (the value is still returned as decoded)',
-        'tbsCertificate.serialNumber', offset);
+        path, offset);
 }
 
-export function signatureAlgorithmMismatchDiagnostic(outer: string, inner: string): PkiDiagnostic {
+export function signatureAlgorithmMismatchDiagnostic(outer: string, inner: string, innerPath = 'tbsCertificate.signature'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH', 'warning', 'RFC 5280 §4.1.1.2',
-        `signatureAlgorithm (${outer}) differs from tbsCertificate.signature (${inner}); a verifier must refuse this certificate`,
+        `signatureAlgorithm (${outer}) differs from ${innerPath} (${inner}); a verifier must refuse this certificate`,
         'signatureAlgorithm', undefined);
 }
 
@@ -139,10 +139,10 @@ export function generalizedTimeFractionDiagnostic(path: string, text: string, of
         path, offset);
 }
 
-export function validityInvertedDiagnostic(notBefore: string, notAfter: string): PkiDiagnostic {
+export function validityInvertedDiagnostic(notBefore: string, notAfter: string, path = 'tbsCertificate.validity'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_VALIDITY_INVERTED', 'warning', 'RFC 5280 §4.1.2.5',
         `notBefore (${notBefore}) is later than notAfter (${notAfter}); the certificate is valid at no instant`,
-        'tbsCertificate.validity', undefined);
+        path, undefined);
 }
 
 // ── Payload factories — names ────────────────────────────────────────
@@ -869,6 +869,65 @@ export function caRepositoryNoHttpOrLdapUriDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_CA_REPOSITORY_NO_HTTP_OR_LDAP_URI', 'info', 'RFC 5280 §4.2.2.2',
         'no id-ad-caRepository access location is an HTTP or LDAP URI; RFC 5280 says at least one should be',
         'tbsCertificate.extensions.subjectInfoAccess', undefined);
+}
+
+// ── Payload factories — attribute certificates (RFC 5755) ────────────
+
+export function acHolderEmptyDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_HOLDER_EMPTY', 'warning', 'RFC 5755 §4.2.2',
+        'the Holder carries none of baseCertificateID, entityName and objectDigestInfo; the attributes are bound to nobody',
+        'acinfo.holder', offset);
+}
+
+export function acHolderMultipleDiagnostic(options: readonly string[], offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_HOLDER_MULTIPLE', 'info', 'RFC 5755 §4.2.2',
+        `the Holder carries ${options.join(' and ')}; RFC 5755 recommends one option only, since which one is normative is unclear`,
+        'acinfo.holder', offset);
+}
+
+export function acIssuerV1FormDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ISSUER_V1_FORM', 'warning', 'RFC 5755 §4.2.3',
+        'the issuer uses the v1Form choice, which RFC 5755 forbids; its names are read as issuerName',
+        'acinfo.issuer', offset);
+}
+
+export function acIssuerNotProfiledDiagnostic(why: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ISSUER_NOT_PROFILED', 'warning', 'RFC 5755 §4.2.3',
+        `the issuer ${why}; RFC 5755 requires exactly one non-empty directoryName in issuerName, and neither baseCertificateID nor objectDigestInfo`,
+        'acinfo.issuer', offset);
+}
+
+export function acAttributesEmptyDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTES_EMPTY', 'warning', 'RFC 5755 §4.2.7',
+        'the attributes SEQUENCE is empty; RFC 5755 requires an AC to contain at least one attribute',
+        'acinfo.attributes', offset);
+}
+
+export function acAttributeDuplicateDiagnostic(oid: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTE_DUPLICATE', 'warning', 'RFC 5755 §4.2.7',
+        `the attribute type ${oid} occurs more than once; RFC 5755 allows each type once, multi-valued if need be`,
+        path, offset);
+}
+
+/** A §4.4 attribute its syntax admits and its profile forbids; `clause` names the subsection. */
+export function acAttributeProfileDiagnostic(why: string, clause: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTE_PROFILE', 'warning', 'RFC 5755 §4.4',
+        `${why} (RFC 5755 ${clause}); the value is still returned as decoded`,
+        path, offset);
+}
+
+/** An AC extension whose criticality is the opposite of `required`, the one RFC 5755 §4.3 sets for it. */
+export function acExtensionCriticalityDiagnostic(name: string, required: 'critical' | 'non-critical', path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_EXTENSION_CRITICALITY', 'warning', 'RFC 5755 §4.3',
+        `${name} must be ${required} in an attribute certificate, and is not; a verifier that does not recognise a critical extension refuses the AC`,
+        path, undefined);
+}
+
+/** A §4.3 extension its syntax admits and its profile forbids; `clause` names the subsection. */
+export function acExtensionProfileDiagnostic(why: string, clause: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_EXTENSION_PROFILE', 'warning', 'RFC 5755 §4.3',
+        `${why} (RFC 5755 ${clause}); the value is still returned as decoded`,
+        path, offset);
 }
 
 // ── Payload factories — accepted tolerances ──────────────────────────

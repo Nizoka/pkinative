@@ -73,12 +73,22 @@ const DECODERS: ReadonlyMap<string, Decoder> = /*#__PURE__*/ new Map<string, Dec
 ]);
 
 /**
- * Decode one extension value. `data` ends where the value ends and `start`
- * is where it begins, so offsets are those of `data`.
+ * Decoders a reader adds to the shared map for one structure only — the
+ * extensions RFC 5755 §4.3 defines for attribute certificates, which a
+ * public-key certificate keeps as `unknown` (ADR 0028).
  *
  * @internal
  */
-export function _decodeExtension(
+export type ExtraExtensionDecoders<E> = ReadonlyMap<string, (input: ExtensionInput) => E>;
+
+/**
+ * Decode one extension value. `data` ends where the value ends and `start`
+ * is where it begins, so offsets are those of `data`. `extra` decoders are
+ * consulted before the shared ones.
+ *
+ * @internal
+ */
+export function _decodeExtension<E = never>(
     data: Uint8Array,
     start: number,
     oid: string,
@@ -86,8 +96,9 @@ export function _decodeExtension(
     valueDer: Uint8Array,
     ctx: Asn1Context,
     path: string,
-): Extension {
-    const decoder = DECODERS.get(oid);
+    extra?: ExtraExtensionDecoders<E>,
+): Extension | E {
+    const decoder = extra?.get(oid) ?? DECODERS.get(oid);
     if (decoder === undefined) {
         if (critical) ctx.emitter.emit(unknownCriticalExtensionDiagnostic(oid, path));
         const extension: UnknownExtension = { kind: 'unknown', oid, critical, valueDer };

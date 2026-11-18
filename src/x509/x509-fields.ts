@@ -24,6 +24,7 @@ const REMEDIES: Readonly<Record<PkiCertificateErrorCode, string>> = /*#__PURE__*
     PKI_X509_EXTENSION_DUPLICATE: 'which instance a verifier reads is undefined, so the certificate is refused',
     PKI_X509_EXTENSION_MALFORMED: 'parse with decodeExtensions: false to keep every extension raw',
     PKI_X509_GENERAL_NAME_INVALID: 'the issuer encoded the name wrongly',
+    PKI_X509_ATTRIBUTE_MALFORMED: 'the AC issuer encoded the attribute wrongly; its raw values are not exposed for a value that does not match its syntax',
 });
 
 /**

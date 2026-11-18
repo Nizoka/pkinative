@@ -171,7 +171,16 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED'
     | 'PKI_DIAG_OCSP_NOCHECK_CRITICAL'
     | 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED'
-    | 'PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH';
+    | 'PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH'
+    | 'PKI_DIAG_AC_HOLDER_EMPTY'
+    | 'PKI_DIAG_AC_HOLDER_MULTIPLE'
+    | 'PKI_DIAG_AC_ISSUER_V1_FORM'
+    | 'PKI_DIAG_AC_ISSUER_NOT_PROFILED'
+    | 'PKI_DIAG_AC_ATTRIBUTES_EMPTY'
+    | 'PKI_DIAG_AC_ATTRIBUTE_DUPLICATE'
+    | 'PKI_DIAG_AC_ATTRIBUTE_PROFILE'
+    | 'PKI_DIAG_AC_EXTENSION_CRITICALITY'
+    | 'PKI_DIAG_AC_EXTENSION_PROFILE';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';
