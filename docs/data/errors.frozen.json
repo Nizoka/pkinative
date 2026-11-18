@@ -46,6 +46,7 @@
     { "code": "PKI_X509_EXTENSION_DUPLICATE", "class": "PkiCertificateError" },
     { "code": "PKI_X509_EXTENSION_MALFORMED", "class": "PkiCertificateError" },
     { "code": "PKI_X509_GENERAL_NAME_INVALID", "class": "PkiCertificateError" },
+    { "code": "PKI_X509_ATTRIBUTE_MALFORMED", "class": "PkiCertificateError" },
     { "code": "PKI_LIMIT_EXCEEDED", "class": "PkiLimitError" },
     { "code": "PKI_LIMIT_INVALID", "class": "PkiLimitError" },
     { "code": "PKI_CRYPTO_UNAVAILABLE", "class": "PkiCryptoError" },

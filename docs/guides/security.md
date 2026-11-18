@@ -113,7 +113,7 @@ Every published vulnerability of a PKI library whose class pkinative could share
 
 CVE-2022-36083 is the one that applied: a PKCS#12 with no MAC could make `openPkcs12` run one ten-million-iteration PBKDF2 per entry. `maxPkcs12KdfIterations` bounds the work of a whole file and refuses it at parse, before anything is derived.
 
-Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eight targets in `fuzz/` — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses, RFC 3161 timestamps, and PKCS#12 with PKCS#8 — each seeded with a real structure of its grammar and each executed against `src/` on every gate run by `tests/fuzzing/targets.test.ts`.
+Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eleven targets in `fuzz/` — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses and requests, RFC 3161 timestamps and requests, PKCS#12 with PKCS#8, and attribute certificates — each seeded with a real structure of its grammar and each executed against `src/` on every gate run by `tests/fuzzing/targets.test.ts`.
 
 ## Reporting a vulnerability
 

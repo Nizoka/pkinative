@@ -342,7 +342,7 @@ function checkNonce(basic: OcspBasicResponse, input: CheckOcspStatusInput, path:
 function unwrapOctetString(bytes: Uint8Array): Uint8Array | null {
     if (bytes.length < 2 || bytes[0] !== 0x04) return null;
     const length = bytes[1] as number;
-    // Short form only: a nonce is at most 32 octets (RFC 8954 §2.1), so a
+    // Short form only: a nonce is at most 128 octets (RFC 9654 §2.1), so a
     // long-form length here is not a nonce this code should try to read.
     if (length > 0x7f || 2 + length > bytes.length) return null;
     return bytes.subarray(2, 2 + length);

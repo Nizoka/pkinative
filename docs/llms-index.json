@@ -1,7 +1,7 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-10-17",
+  "verifiedOn": "2026-11-18",
   "artefacts": [
     {
       "url": "llms.txt",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 438316,
-      "approxTokens": 109579
+      "bytes": 438569,
+      "approxTokens": 109642
     },
     {
       "url": "llms-recipes.txt",
@@ -79,7 +79,7 @@
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -159,8 +159,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 65365,
-      "approxTokens": 16341
+      "bytes": 65391,
+      "approxTokens": 16348
     },
     {
       "title": "CLI use cases",
@@ -241,8 +241,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 53278,
-      "approxTokens": 13320
+      "bytes": 53329,
+      "approxTokens": 13332
     },
     {
       "title": "MCP use cases",
@@ -273,8 +273,8 @@
         "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15860,
-      "approxTokens": 3965
+      "bytes": 15911,
+      "approxTokens": 3978
     },
     {
       "title": "Conformance",
@@ -306,8 +306,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 20718,
-      "approxTokens": 5180
+      "bytes": 20757,
+      "approxTokens": 5189
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -349,8 +349,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18781,
-      "approxTokens": 4695
+      "bytes": 18867,
+      "approxTokens": 4717
     }
   ]
 }

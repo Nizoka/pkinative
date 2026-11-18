@@ -592,7 +592,7 @@
 </tr>
 </tbody></table>
 <p>CVE-2022-36083 is the one that applied: a PKCS#12 with no MAC could make <code>openPkcs12</code> run one ten-million-iteration PBKDF2 per entry. <code>maxPkcs12KdfIterations</code> bounds the work of a whole file and refuses it at parse, before anything is derived.</p>
-<p>Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eight targets in <code>fuzz/</code> — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses, RFC 3161 timestamps, and PKCS#12 with PKCS#8 — each seeded with a real structure of its grammar and each executed against <code>src/</code> on every gate run by <code>tests/fuzzing/targets.test.ts</code>.</p>
+<p>Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eleven targets in <code>fuzz/</code> — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses and requests, RFC 3161 timestamps and requests, PKCS#12 with PKCS#8, and attribute certificates — each seeded with a real structure of its grammar and each executed against <code>src/</code> on every gate run by <code>tests/fuzzing/targets.test.ts</code>.</p>
 <h2 id="reporting-a-vulnerability">Reporting a vulnerability <a class="heading-anchor" href="#reporting-a-vulnerability" aria-label="Link to this section">#</a></h2>
 <p>Report privately, never in an issue: through <a href="https://github.com/Nizoka/pkinative/security/advisories/new" target="_blank" rel="noopener">GitHub&#39;s private vulnerability reporting</a>, or by email to <a href="mailto:security@pkinative.dev">security@pkinative.dev</a>. See <a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a> for scope and response times.</p>
     </article>

@@ -17,7 +17,7 @@ npm install -g pkinative-mcp
 pkinative-mcp
 ```
 
-The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || >=25.8.2` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
+The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
 
 ## Configuration by client
 
