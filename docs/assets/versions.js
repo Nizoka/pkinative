@@ -20,7 +20,7 @@
     var NPM = 'https://registry.npmjs.org/';
     var PKGS = ['pkinative', 'pkinative-cli', 'pkinative-mcp'];
     var FALLBACK = {
-        'pkinative': { version: '1.0.0', pin: null },
+        'pkinative': { version: '1.1.0', pin: null },
         'pkinative-cli': { version: '1.0.0', pin: '^1.0.0' },
         'pkinative-mcp': { version: '1.0.0', pin: '^1.0.0' }
     };

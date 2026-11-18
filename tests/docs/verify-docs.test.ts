@@ -729,13 +729,13 @@ describe('verify-docs rule table', () => {
 
     it('should hold a refusal a 1.x release added to that release\'s note, under its fixed heading', async () => {
         const files = { ...TREE };
-        refusalsStable(files, '1.1.0', '1.1.0');
+        refusalsStable(files, '1.2.0', '1.2.0');
         addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
-        addRefusal(files, SNAPSHOT, `    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "since": "1.1.0" },`);
-        expect(await refusalProblems(files)).toEqual([expect.stringMatching(/^is missing — 1 refusal\(s\) of docs\/data\/refusals\.frozen\.json were added by 1\.1\.0/)]);
-        files['release-notes/v1.1.0.md'] = '# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- nothing listed\n';
+        addRefusal(files, SNAPSHOT, `    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "since": "1.2.0" },`);
+        expect(await refusalProblems(files)).toEqual([expect.stringMatching(/^is missing — 1 refusal\(s\) of docs\/data\/refusals\.frozen\.json were added by 1.2.0/)]);
+        files['release-notes/v1.2.0.md'] = '# pkinative v1.2.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- nothing listed\n';
         expect(await refusalProblems(files)).toEqual([expect.stringContaining(`does not list ${NEW_HASH.slice(0, 16)}`)]);
-        files['release-notes/v1.1.0.md'] = `# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- \`${NEW_HASH.slice(0, 16)}\` — now refused with \`PKI_X509_GENERAL_NAME_INVALID\`.\n`;
+        files['release-notes/v1.2.0.md'] = `# pkinative v1.2.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- \`${NEW_HASH.slice(0, 16)}\` — now refused with \`PKI_X509_GENERAL_NAME_INVALID\`.\n`;
         expect(await refusalProblems(files)).toEqual([]);
     });
 

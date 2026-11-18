@@ -12,7 +12,7 @@
 
 Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
-> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
+> **Status: 1.1 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
 
 pkinative reads certificates and verifies them the whole way: signatures, RFC 5280 §6 paths, CRL and OCSP revocation, host names and key purposes. It reads, builds and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files into non-extractable Web Crypto keys, and creates certificates and certification requests — with Web Crypto doing every signature.
 
@@ -57,8 +57,8 @@ npm audit signatures   # optional: verify the registry signatures and provenance
 Every GitHub release also carries that same tarball, fetched back from the registry, and three SBOMs — CycloneDX and SPDX for the package, CycloneDX for the toolchain that built it — all attested with Sigstore build provenance:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz
-gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
+npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz
+gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
 A plain git install (`github:Nizoka/pkinative#v1.0.0`) does not work: `dist/` is not committed. Every runtime runs the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.

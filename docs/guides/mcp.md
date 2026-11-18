@@ -4,7 +4,7 @@
 
 [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) exposes the engine to any client that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP. With it installed an assistant can be asked *"Is this server certificate trustworthy for this host today, given the CRL I fetched?"* and answer by calling `verify_certificate_chain`, reasoning on a typed verdict instead of prose.
 
-All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of pkinative 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
+All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of the engine release it was built on, 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
 
 ## Installation
 
@@ -310,7 +310,7 @@ Every engine tool's result also carries `diagnostics[]` (de-duplicated by code a
 
 ### `explain_code`
 
-**Purpose:** any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
+**Purpose:** any code this server can emit, explained from the registries vendored at the engine tag the server was built on — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
 
 ### `draft_governance_issue`
 

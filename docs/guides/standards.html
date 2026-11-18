@@ -293,7 +293,7 @@
 <td>FIPS 204 and RFC 9881 — ML-DSA in certificates and CRLs</td>
 <td>Reading the keys; verifying signatures through Web Crypto, where the host has ML-DSA</td>
 <td>applies, host-dependent</td>
-<td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/crypto/crypto-algorithms.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>tests/verify/verify-ml-dsa.test.ts</code>, <code>tests/keys/key-pkcs8.test.ts</code>; <code>tests/fixtures/ml-dsa/</code>, the three certificates of RFC 9881 Appendix C.3 and an OpenSSL 3.5 hierarchy; <code>recipes/verify-ml-dsa.ts</code>; <code>.github/runtime-smoke/checks.mjs</code>; <code>openssl:cert-ml-dsa</code></td>
+<td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/crypto/crypto-algorithms.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>tests/verify/verify-ml-dsa.test.ts</code>, <code>tests/keys/key-pkcs8.test.ts</code>; the ML-DSA fixtures listed in <code>tests/fixtures/PROVENANCE.md</code> — the three certificates of RFC 9881 Appendix C.3 and an OpenSSL 3.5 hierarchy; <code>recipes/verify-ml-dsa.ts</code>; <code>.github/runtime-smoke/checks.mjs</code>; <code>openssl:cert-ml-dsa</code></td>
 <td>Verified where the host verifies ML-DSA, <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> with <code>PKI_CRYPTO_KEY_UNSUPPORTED</code> where it does not (<a href="../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md">ADR 0026</a>). Pure ML-DSA only: HashML-DSA is refused, as §8.3 excludes it from PKIX. Nothing is signed with ML-DSA, and a private key (§6) is described, not imported. A <code>keyUsage</code> that §5 forbids is <code>PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH</code>.</td>
 </tr>
 <tr>

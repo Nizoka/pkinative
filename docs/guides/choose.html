@@ -259,7 +259,7 @@
 <td>A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine&#39;s floor)</td>
 </tr>
 </tbody></table>
-<p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
+<p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of the engine release they were built on, 1.0.0; the exports 1.1.0 adds reach them with their next minor. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
 <p>Every capability <code>docs/data/surfaces.json</code> lists, by surface:</p>
 <table tabindex="0">
 <thead>
