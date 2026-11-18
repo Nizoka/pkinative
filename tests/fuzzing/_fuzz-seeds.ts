@@ -38,10 +38,33 @@ import {
     shroudedKeyBag,
 } from '../helpers/pkcs12-builder.js';
 import { ascii, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+import {
+    NO_REV_AVAIL,
+    OID_ACCESS_IDENTITY,
+    OID_AUTHENTICATION_INFO,
+    OID_CHARGING_IDENTITY,
+    OID_CLEARANCE,
+    OID_GROUP,
+    OID_ROLE,
+    TARGET_INFORMATION,
+    attribute,
+    attributeCertificate,
+    clearance,
+    ietfAttrSyntax,
+    implicitSequence,
+    issuerSerialComponents,
+    objectDigestComponents,
+    rfc822Name,
+    roleSyntax,
+    securityCategory,
+    serviceAuthInfo,
+    uriName,
+    v2Form,
+} from '../helpers/attribute-certificate-builder.js';
 import { issue, issueTsa, makeCrl, makeRoot, makeToken, sha, tstInfo } from '../verify/_cms-pki.js';
 
 /** The target names, as `fuzz/<name>.js`. */
-export type FuzzTarget = 'asn1' | 'cms' | 'crl' | 'ocsp-request' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp-request' | 'tsp' | 'x509';
+export type FuzzTarget = 'asn1' | 'attribute-certificate' | 'cms' | 'crl' | 'ocsp-request' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp-request' | 'tsp' | 'x509';
 
 const PASSWORD = 'fuzz-seed';
 
@@ -126,6 +149,35 @@ function timeStampRequests(): Uint8Array[] {
     ];
 }
 
+/**
+ * RFC 5755 attribute certificates, built field by field: the default one (a
+ * holder by certificate, one role, a targeting extension), and one carrying
+ * every attribute type of §4.4 and every AC-only extension of §4.3 under a
+ * holder with all three references — every shape the reader decodes.
+ */
+function attributeCertificates(): Uint8Array[] {
+    const holder = sequence(
+        implicitSequence(0, ...issuerSerialComponents()),
+        implicitSequence(1, rfc822Name('holder@example.com')),
+        implicitSequence(2, ...objectDigestComponents(2, '1.2.3.9')),
+    );
+    const attributes = sequence(
+        attribute(OID_AUTHENTICATION_INFO, serviceAuthInfo([1, 2, 3])),
+        attribute(OID_ACCESS_IDENTITY, serviceAuthInfo()),
+        attribute(OID_CHARGING_IDENTITY, ietfAttrSyntax([universal(4, [1, 2])], [uriName('urn:authority')])),
+        attribute(OID_GROUP, ietfAttrSyntax([universal(12, ascii('admins')), universal(12, ascii('ops'))])),
+        attribute(OID_ROLE, roleSyntax(uriName('urn:admin'), [uriName('urn:authority')])),
+        attribute(OID_CLEARANCE, clearance('1.2.3.4', universal(3, [2, 0xa4]), tlv(0, true, 17, securityCategory()))),
+        attribute('1.2.3.4', universal(12, ascii('other'))),
+    );
+    const extensions = sequence(
+        TARGET_INFORMATION,
+        NO_REV_AVAIL,
+        sequence(universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x04]), universal(1, [0xff]), universal(4, universal(4, [7, 7, 7]))),
+    );
+    return [attributeCertificate(), attributeCertificate({ holder, issuer: v2Form(), attributes, trailing: [universal(3, [0, 0x5a]), extensions] })];
+}
+
 /** Every target's seeds. Keys are generated, so two calls give different bytes of the same shapes. */
 export async function fuzzSeeds(): Promise<Readonly<Record<FuzzTarget, readonly Uint8Array[]>>> {
     const fixtures = fixtureSeeds();
@@ -158,6 +210,7 @@ export async function fuzzSeeds(): Promise<Readonly<Record<FuzzTarget, readonly 
 
     return {
         asn1: [...fixtures, signed],
+        'attribute-certificate': attributeCertificates(),
         x509: [...fixtures, signer.certificate.der, tsa.certificate.der, mlDsaSeed()],
         pem: [pem],
         cms: [signed, cmsContentInfo()],

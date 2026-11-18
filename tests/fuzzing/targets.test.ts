@@ -28,7 +28,7 @@ import { type FuzzTarget, fuzzSeeds } from './_fuzz-seeds.js';
 type Target = { readonly fuzz: (data: Uint8Array) => void };
 
 const TARGETS = readdirSync('fuzz').filter((f) => f.endsWith('.js')).sort();
-const EXPECTED: readonly FuzzTarget[] = ['asn1', 'cms', 'crl', 'ocsp-request', 'ocsp', 'pem', 'pkcs12', 'tsp-request', 'tsp', 'x509'];
+const EXPECTED: readonly FuzzTarget[] = ['asn1', 'attribute-certificate', 'cms', 'crl', 'ocsp-request', 'ocsp', 'pem', 'pkcs12', 'tsp-request', 'tsp', 'x509'];
 
 /** Certificates' building blocks, an OID, PEM text, and bytes that are none of those — shared by every target. */
 function sharedCorpus(): Uint8Array[] {
@@ -50,6 +50,7 @@ const quiet = { onDiagnostic: (): undefined => undefined };
 /** What each target's seeds must be: input its first parser reads without refusing. */
 const READS: Readonly<Record<FuzzTarget, (seed: Uint8Array) => unknown>> = {
     asn1: (s) => pkinative.decodeAsn1(s, { encodingRules: 'ber' }),
+    'attribute-certificate': (s) => pkinative.parseAttributeCertificate(s, quiet),
     x509: (s) => pkinative.parseCertificate(s, quiet),
     pem: (s) => pkinative.decodePem(new TextDecoder().decode(s), quiet),
     cms: (s) => pkinative.parseSignedData(s, quiet),
