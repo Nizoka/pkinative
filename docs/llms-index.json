@@ -18,20 +18,20 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 428186,
-      "approxTokens": 107047
+      "bytes": 433208,
+      "approxTokens": 108302
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 136674,
-      "approxTokens": 34169
+      "bytes": 144171,
+      "approxTokens": 36043
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 305627,
-      "approxTokens": 76407
+      "bytes": 315680,
+      "approxTokens": 78920
     },
     {
       "url": "data/errors.json",
@@ -42,20 +42,20 @@
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 41899,
-      "approxTokens": 10475
+      "bytes": 43636,
+      "approxTokens": 10909
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5297,
-      "approxTokens": 1324
+      "bytes": 5548,
+      "approxTokens": 1387
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
-      "bytes": 13643,
-      "approxTokens": 3411
+      "bytes": 15238,
+      "approxTokens": 3810
     },
     {
       "url": "data/playgrounds.json",
@@ -94,8 +94,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 14609,
-      "approxTokens": 3652
+      "bytes": 14633,
+      "approxTokens": 3658
     },
     {
       "title": "Use cases",
@@ -126,8 +126,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 84909,
-      "approxTokens": 21227
+      "bytes": 85505,
+      "approxTokens": 21376
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -291,8 +291,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 47208,
-      "approxTokens": 11802
+      "bytes": 47581,
+      "approxTokens": 11895
     },
     {
       "title": "Standards",
@@ -306,8 +306,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 19269,
-      "approxTokens": 4817
+      "bytes": 19818,
+      "approxTokens": 4955
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -328,11 +328,12 @@
         "cms-and-timestamps",
         "private-keys-and-pkcs12",
         "diagnostics",
+        "strict-in-the-verify-and-check-verbs",
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 36454,
-      "approxTokens": 9114
+      "bytes": 39318,
+      "approxTokens": 9830
     },
     {
       "title": "Choosing a library and a surface",
@@ -348,8 +349,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18362,
-      "approxTokens": 4591
+      "bytes": 18781,
+      "approxTokens": 4695
     }
   ]
 }
