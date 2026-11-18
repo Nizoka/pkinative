@@ -780,6 +780,41 @@
         "sameAnswer=true",
         "wrongParameterSet=false"
       ]
+    },
+    {
+      "file": "attribute-certificate.ts",
+      "task": "Read an RFC 5755 attribute certificate, check its signature against the AC issuer, and compose the holder, targeting, validity and issuer-path checks RFC 5755 section 5 leaves to the caller",
+      "surface": [
+        "parseAttributeCertificate",
+        "verifyAttributeCertificateSignature",
+        "verifyCertificateChain",
+        "createCertificate",
+        "encodeImplicit",
+        "encodeExplicit",
+        "encodeTlv",
+        "encodeTime",
+        "encodeAttribute",
+        "AttributeCertificate",
+        "GeneralName"
+      ],
+      "since": "1.1.0",
+      "expects": [
+        "version=2",
+        "diagnostics=0",
+        "issuer=CN=Example AC Issuer",
+        "role=urn:example:role:operator",
+        "extensions=authorityKeyIdentifier,targetInformation",
+        "signed=true",
+        "named=true",
+        "issuerPath=true",
+        "notCa=true",
+        "current=true",
+        "holder=true",
+        "otherHolder=false",
+        "targeted=true",
+        "elsewhere=false",
+        "forged=false"
+      ]
     }
   ]
 }
