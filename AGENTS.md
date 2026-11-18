@@ -100,7 +100,7 @@ verify → types, core, asn1, hash, x509, crypto, path, revocation, cms, keys
 
 `docs/assets/ecosystem.json` is the source of every count, version and contract quoted in the docs (`verify:docs` enforces).
 Coverage: 100 % on four axes in `vitest.config.ts`, no override; an unreachable branch is removed or carries a justified `v8 ignore`.
-`scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) give every MUST/SHOULD sentence a status naming its test or a closed-list exclusion reason.
+`scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468, 5755) give every MUST/SHOULD sentence a status naming its test or a closed-list exclusion reason.
 
 ## Ecosystem
 

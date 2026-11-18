@@ -1,0 +1,534 @@
+{
+  "$comment": "Every requirement sentence (MUST, MUST NOT, SHALL, SHALL NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED) of RFC 5755 §4 with its subsections (the attribute certificate profile: fields, extensions, attribute types, the AC issuer's PKC), extracted from the pinned text by scripts/lib/rfc-requirements.ts and accounted for exactly once: `test` names the Vitest file and the title of the case that exercises the sentence's keyword, with a sentence saying how; `excluded` gives a reason from EXCLUSION_REASONS and a sentence written by reading it; `todo` fails the conformance gate under --require-all. The id is <section>-<ordinal>-<first 8 hex of SHA-256 of the text>. §5 (validation) is outside the scope by ADR 0028: pkinative reads attribute certificates and checks their signature, and does not judge them. When the pin changes, the runner lists every sentence that is new or gone; review each one — never bulk-assign a reason.",
+  "rfc": "RFC 5755",
+  "sha256": "444553b1e8d7312dd286fe9c4d0a8462ca33f9742c6b8594da287c61490f120a",
+  "errata": [
+    {
+      "id": 6567,
+      "section": "4.3.4",
+      "type": "Editorial",
+      "decision": "Verified. Renames id-ce-authorityInfoAccess to id-pe-authorityInfoAccess in the §4.3.4 table; the OID { id-pe 1 } is unchanged, and the reader decodes 1.3.6.1.5.5.7.1.1 with the certificate decoder. The table line is extracted as written in the pinned text (4.3.4-3)."
+    }
+  ],
+  "requirements": {
+    "4-1-0c9bd81b": {
+      "section": "4",
+      "text": "Conforming implementations MUST support the profile specified in this section.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read with zero diagnostics",
+      "why": "The default AC built by the test builder exercises every field of the §4 profile — a baseCertificateID holder, a v2Form issuer, a role, a critical targetInformation — and the reader returns it with no diagnostic."
+    },
+    "4.2-1-1d3783ff": {
+      "section": "4.2",
+      "text": "Conforming implementations MUST be able to support the dNSName, directoryName, uniformResourceIdentifier, and iPAddress options.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read every GeneralName form RFC 5755 §4.2 requires",
+      "why": "A holder entityName carrying a dNSName, a directoryName, a uniformResourceIdentifier and an iPAddress is read with each of the four kinds and no diagnostic."
+    },
+    "4.2-2-c1dc4552": {
+      "section": "4.2",
+      "text": "Implementations SHOULD also support the SRVName, as defined in [X509-SRV].",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "An SRVName (RFC 4985) is an otherName: the GeneralName reader returns it with its type-id and its value node, undecoded, as it returns every otherName; interpreting it is the caller's, as ADR 0028 scopes the AC reader to the structure."
+    },
+    "4.2-3-65fc8465": {
+      "section": "4.2",
+      "text": "Conforming implementations MUST NOT use the x400Address, ediPartyName, or registeredID options.",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Addressed to the implementation that writes an AC; pkinative writes none, and the reader returns an x400Address, an ediPartyName or a registeredID exactly as in a certificate, leaving a name it cannot match to the caller's matching rule."
+    },
+    "4.2.1-1-84405a59": {
+      "section": "4.2.1",
+      "text": "The version field MUST have the value of v2.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should refuse version %i with PKI_X509_VERSION_INVALID",
+      "why": "Versions 0, 2 and 3 are refused with PKI_X509_VERSION_INVALID, and the v1 AC of X.509 (1997), which has no version field, is refused the same way in the next case."
+    },
+    "4.2.2-1-cf8fd7d4": {
+      "section": "4.2.2",
+      "text": "For any environment where the AC is passed in an authenticated message or session and where the authentication is based on the use of an X.509 PKC, the Holder field SHOULD use the baseCertificateID.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Whether the AC travels in a session authenticated by a PKC is a fact about the protocol carrying it, not about the AC's bytes; the reader returns whichever holder option the AC uses."
+    },
+    "4.2.2-2-33ad9cdd": {
+      "section": "4.2.2",
+      "text": "With the baseCertificateID option, the holder's PKC serialNumber and issuer MUST be identical to the AC Holder field.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Holder binding is RFC 5755 §5, which ADR 0028 leaves to the caller: the reader returns holder.baseCertificateId, and recipes/attribute-certificate.ts compares its issuer and serial with the presented certificate."
+    },
+    "4.2.2-3-10061fc5": {
+      "section": "4.2.2",
+      "text": "The PKC issuer MUST have a non-empty distinguished name that is to be present as the single value of the holder.baseCertificateID.issuer construct in the directoryName field.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The holder's PKC issuer as the single non-empty directoryName of baseCertificateID.issuer is not diagnosed: ADR 0028 ships the reader, and the recipe's holder check accepts only that one directoryName when it compares the names."
+    },
+    "4.2.2-4-123c7b89": {
+      "section": "4.2.2",
+      "text": "The AC holder.baseCertificateID.issuerUID field MUST only be used if the holder's PKC contains an issuerUniqueID field.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Needs the holder's PKC to see whether it carries an issuerUniqueID: holder binding against a certificate is §5 and the caller's (ADR 0028); the reader returns baseCertificateId.issuerUid for that comparison."
+    },
+    "4.2.2-5-7168633a": {
+      "section": "4.2.2",
+      "text": "If both the AC holder.baseCertificateID.issuerUID and the PKC issuerUniqueID fields are present, the same value MUST be present in both fields.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Comparing baseCertificateID.issuerUID with the holder PKC's issuerUniqueID is part of the §5 holder binding ADR 0028 leaves to the caller; both values are returned as BIT STRINGs to compare."
+    },
+    "4.2.2-6-f11e859c": {
+      "section": "4.2.2",
+      "text": "If the Holder field uses the entityName option and the underlying authentication is based on a PKC, the entityName MUST be the same as the PKC subject field or one of the values of the PKC subjectAltName field extension (if present).",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Matching an entityName against the subject or subjectAltName of the PKC that authenticated the holder is §5 holder binding, not implemented in 1.1.0 (ADR 0028); the names are returned decoded for that match."
+    },
+    "4.2.2-7-92840026": {
+      "section": "4.2.2",
+      "text": "In any other case where the Holder field uses the entityName option, only one name SHOULD be present.",
+      "status": "excluded",
+      "reason": "not-decidable-from-bytes",
+      "why": "Applies \"in any other case\" than PKC-based authentication, which the AC's bytes cannot show; the reader returns every entityName in encoded order."
+    },
+    "4.2.2-8-118cf4d8": {
+      "section": "4.2.2",
+      "text": "Any protocol conforming to this profile SHOULD specify which AC holder option is to be used and how this fits with the supported authentication schemes defined in that protocol.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "Addressed to the protocols that carry ACs, which choose the holder option; nothing in an AC or in its reader can satisfy or violate it."
+    },
+    "4.2.3-1-6fb378cf": {
+      "section": "4.2.3",
+      "text": "ACs conforming to this profile MUST use the v2Form choice, which MUST contain one and only one GeneralName in the issuerName, which MUST contain a non-empty distinguished name in the directoryName field.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a v2Form issuer with %s as PKI_DIAG_AC_ISSUER_NOT_PROFILED",
+      "why": "Two names, a dNSName, an empty name, no issuerName and an empty v2Form each raise the warning, leave issuer.name undefined, and are refused under strict: true."
+    },
+    "4.2.3-2-7d15a87b": {
+      "section": "4.2.3",
+      "text": "This means that all AC issuers MUST have non-empty distinguished names.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a v2Form issuer with %s as PKI_DIAG_AC_ISSUER_NOT_PROFILED",
+      "why": "The \"an empty distinguished name\" row of the table: a v2Form whose one directoryName has no RDN is diagnosed and its issuer.name is undefined."
+    },
+    "4.2.3-3-3afe0bd1": {
+      "section": "4.2.3",
+      "text": "ACs conforming to this profile MUST omit the baseCertificateID and objectDigestInfo fields.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read and diagnose a v2Form baseCertificateID and objectDigestInfo",
+      "why": "A v2Form carrying both forbidden fields is read — both are returned decoded — and diagnosed once, the message naming the two fields."
+    },
+    "4.2.4-1-f57a680d": {
+      "section": "4.2.4",
+      "text": "This MUST be one of the signing algorithms defined in [PKIXALGS] or defined in any IETF-approved update to [PKIXALGS].",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "verifyAttributeCertificateSignature resolves the algorithm through the table certificates use (SIGNATURE_BY_OID, src/crypto/crypto-algorithms.ts): an algorithm outside the PKIX ones pkinative maps is PKI_CRYPTO_ALGORITHM_UNSUPPORTED."
+    },
+    "4.2.4-2-a0c578df": {
+      "section": "4.2.4",
+      "text": "Conforming implementations MUST honor all MUST/SHOULD/MAY signing algorithm statements specified in [PKIXALGS] or IETF-approved updates to [PKIXALGS].",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "The AC signature goes through verifySignedStructure, the path certificates and CRLs take, so every algorithm rule held there — RSA-PSS parameters, the SHA-1 refusal, ML-DSA parameter sets — applies to an AC unchanged."
+    },
+    "4.2.5-1-091887a3": {
+      "section": "4.2.5",
+      "text": "For any conforming AC, the issuer/serialNumber pair MUST form a unique combination, even if ACs are very short-lived.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Uniqueness of the issuer and serial pair is a property of everything one AC issuer has issued, which no single AC can show."
+    },
+    "4.2.5-2-a4e68571": {
+      "section": "4.2.5",
+      "text": "AC users MUST be able to handle serialNumber values longer than 4 octets.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a serial longer than 20 octets at acinfo.serialNumber, and accept 20",
+      "why": "The 20-octet serial of this case is read without diagnostic and returned with its bytes, hex and bigint value; the reader has no four-octet assumption anywhere."
+    },
+    "4.2.5-3-c0ddf094": {
+      "section": "4.2.5",
+      "text": "Conformant ACs MUST NOT contain serialNumber values longer than 20 octets.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a serial longer than 20 octets at acinfo.serialNumber, and accept 20",
+      "why": "A 21-octet serial raises PKI_DIAG_SERIAL_TOO_LONG at the path acinfo.serialNumber."
+    },
+    "4.2.5-4-d1096066": {
+      "section": "4.2.5",
+      "text": "Each AC issuer MUST ensure that each AC that it issues contains a unique serial number.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "A duty of the AC issuer over its whole issuance: one AC cannot show that another AC of the same issuer carries a different serial."
+    },
+    "4.2.6-1-34fb06bf": {
+      "section": "4.2.6",
+      "text": "For the purposes of this profile, GeneralizedTime values MUST be expressed in Coordinated universal time (UTC) (also known as Greenwich Mean Time or Zulu)) and MUST include seconds (i.e., times are YYYYMMDDHHMMSSZ), even when the number of seconds is zero.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should refuse a GeneralizedTime without its seconds or its Z",
+      "why": "Times without seconds, without Z or with an offset are refused with PKI_ASN1_TIME_INVALID, the DER time rule the decoder applies to every GeneralizedTime."
+    },
+    "4.2.6-2-4548f473": {
+      "section": "4.2.6",
+      "text": "GeneralizedTime values MUST NOT include fractional seconds.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose fractional seconds at their path",
+      "why": "A fractional notBeforeTime or notAfterTime raises PKI_DIAG_GENERALIZED_TIME_FRACTION at its own path under acinfo.attrCertValidityPeriod."
+    },
+    "4.2.6-3-e5710e1c": {
+      "section": "4.2.6",
+      "text": "AC users MUST be able to handle an AC which, at the time of processing, has parts of its validity period or all its validity period in the past or in the future (a post-dated AC).",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read a validity period wholly in the past or wholly in the future",
+      "why": "Periods in 1990 and in 2090 are read without diagnostic: the reader compares nothing with a clock, leaving the instant of evaluation to the caller."
+    },
+    "4.2.7-1-3ecfbd9c": {
+      "section": "4.2.7",
+      "text": "For a given AC, each AttributeType OBJECT IDENTIFIER in the sequence MUST be unique.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should diagnose a repeated attribute type as PKI_DIAG_AC_ATTRIBUTE_DUPLICATE",
+      "why": "A role repeated after another attribute is diagnosed at the second occurrence's path, both occurrences are returned, and strict: true refuses the AC."
+    },
+    "4.2.7-2-b726d704": {
+      "section": "4.2.7",
+      "text": "AC users MUST be able to handle multiple values for all attribute types.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should read a SvceAuthInfo with and without authInfo",
+      "why": "An authenticationInfo attribute with two values is decoded value by value, each SvceAuthInfo returned in encoded order."
+    },
+    "4.2.7-3-55fe6dc2": {
+      "section": "4.2.7",
+      "text": "An AC MUST contain at least one attribute.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should diagnose an empty attributes SEQUENCE as PKI_DIAG_AC_ATTRIBUTES_EMPTY",
+      "why": "An AC whose attributes SEQUENCE is empty is read with an empty list and the warning, which strict: true turns into a refusal."
+    },
+    "4.2.7-4-bbe340ba": {
+      "section": "4.2.7",
+      "text": "That is, the SEQUENCE OF Attributes MUST NOT be of zero length.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should diagnose an empty attributes SEQUENCE as PKI_DIAG_AC_ATTRIBUTES_EMPTY",
+      "why": "The zero-length SEQUENCE OF the sentence restates is the one this case builds, and the diagnostic names the path acinfo.attributes."
+    },
+    "4.2.8-1-40be5076": {
+      "section": "4.2.8",
+      "text": "This field MUST NOT be used unless it is also used in the AC issuer's PKC, in which case it MUST be used.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read an issuerUniqueID and diagnose it as PKI_DIAG_UNIQUE_ID_PRESENT",
+      "why": "An issuerUniqueID is returned and diagnosed: RFC 5280 §4.1.2.8 forbids a conforming CA to give the issuer's PKC one, so a conforming AC never carries it."
+    },
+    "4.2.8-2-3328595b": {
+      "section": "4.2.8",
+      "text": "Note that [PKIXPROF] states that this field SHOULD NOT be used by conforming certification authorities (CAs), but that applications SHOULD be able to parse PKCs containing the field.",
+      "status": "excluded",
+      "reason": "covered-elsewhere",
+      "why": "About PKCs, not ACs: parseCertificate reads issuerUniqueID and subjectUniqueID and reports them with PKI_DIAG_UNIQUE_ID_PRESENT, held by the RFC 5280 inventory."
+    },
+    "4.2.9-1-3ea5381c": {
+      "section": "4.2.9",
+      "text": "An AC-using system MUST reject an AC if it encounters a critical extension it does not recognize; however, a non-critical extension may be ignored if it is not recognized.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose an unrecognised critical extension, which an AC-using system must reject",
+      "why": "An unknown critical extension raises PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION, refused under strict: true; the same extension non-critical raises nothing."
+    },
+    "4.3.1-1-f54ebf9b": {
+      "section": "4.3.1",
+      "text": "Ideally, it SHOULD be infeasible to derive the AC holder's identity from the audit identity value without the cooperation of the AC issuer.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "How the AC issuer derives the audit identity from the holder is invisible in the octets of the extension, which the reader returns opaque."
+    },
+    "4.3.1-2-530beb88": {
+      "section": "4.3.1",
+      "text": "The value of the audit identity, along with the AC issuer/serial, SHOULD then be used for audit/logging purposes.",
+      "status": "excluded",
+      "reason": "relying-party",
+      "why": "What a server logs is the application's choice; the reader returns the identity, and the issuer and serial, for it to log."
+    },
+    "4.3.1-3-4399123c": {
+      "section": "4.3.1",
+      "text": "The server/service administrator in combination with the AC issuer MUST be able to identify the AC holder in cases where misbehavior is detected.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "An operational duty shared by the administrator and the AC issuer when misbehaviour is detected, outside any encoding."
+    },
+    "4.3.1-4-7b15e32a": {
+      "section": "4.3.1",
+      "text": "This means that the AC issuer MUST be able to determine the actual identity of the AC holder from the audit identity.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "The AC issuer's ability to map an audit identity back to a holder is a record it keeps, not a property of the AC."
+    },
+    "4.3.1-5-5a53ba8f": {
+      "section": "4.3.1",
+      "text": "As the AC verifier might otherwise use the AC holder or some other identifying value for audit purposes, this extension MUST be critical when used.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a non-critical audit identity as PKI_DIAG_AC_EXTENSION_CRITICALITY",
+      "why": "An auditIdentity without the critical flag raises the warning at its extension path and is refused under strict: true."
+    },
+    "4.3.1-6-1c09a6b5": {
+      "section": "4.3.1",
+      "text": "The value of an audit identity MUST be longer than zero octets.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose an audit identity of %i octets as PKI_DIAG_AC_EXTENSION_PROFILE",
+      "why": "The zero-octet row: an empty audit identity is read and diagnosed, and refused under strict: true."
+    },
+    "4.3.1-7-57dc95cf": {
+      "section": "4.3.1",
+      "text": "The value of an audit identity MUST NOT be longer than 20 octets.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose an audit identity of %i octets as PKI_DIAG_AC_EXTENSION_PROFILE",
+      "why": "The 21-octet row; the case before it reads 1 and 20 octets without diagnostic, so the bound is exact on both sides."
+    },
+    "4.3.1-8-9a6bab5e": {
+      "section": "4.3.1",
+      "text": "name id-pe-ac-auditIdentity OID { id-pe 4 } syntax OCTET STRING criticality MUST be TRUE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read a critical audit identity of 1 to 20 octets with no diagnostic",
+      "why": "id-pe-ac-auditIdentity (1.3.6.1.5.5.7.1.4) is decoded as an OCTET STRING and, marked critical, raises nothing."
+    },
+    "4.3.2-1-4378a302": {
+      "section": "4.3.2",
+      "text": "The intent is that the AC SHOULD only be usable at the specified servers/services.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Using an AC only at its targets is the §5 targeting check ADR 0028 leaves to the caller; the reader returns every target, and recipes/attribute-certificate.ts shows the check."
+    },
+    "4.3.2-2-be0ef2c1": {
+      "section": "4.3.2",
+      "text": "An (honest) AC verifier who is not amongst the named servers/services MUST reject the AC.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Rejecting an AC at a server it does not name is a verifier's decision about its own identity, which the reader cannot know; ADR 0028 defers the verb that would take it."
+    },
+    "4.3.2-3-f80bba80": {
+      "section": "4.3.2",
+      "text": "The targetCert CHOICE within the Target structure is only present to allow future compatibility with [X.509-2000] and MUST NOT be used.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should keep a targetCert as its DER and diagnose it",
+      "why": "A targetCert target is returned as its DER under kind targetCert and raises PKI_DIAG_AC_EXTENSION_PROFILE."
+    },
+    "4.3.2-4-5718143e": {
+      "section": "4.3.2",
+      "text": "Conforming AC issuer implementations MUST only produce one \"Targets\" element.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should flatten several Targets elements into one list, and diagnose them",
+      "why": "An extension with two Targets elements raises PKI_DIAG_AC_EXTENSION_PROFILE, the issuer-side MUST this sentence states."
+    },
+    "4.3.2-5-761c253a": {
+      "section": "4.3.2",
+      "text": "Conforming AC users MUST be able to accept a \"SEQUENCE OF Targets\".",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should flatten several Targets elements into one list, and diagnose them",
+      "why": "The same extension is read rather than refused: a SEQUENCE OF two Targets parses, as an AC user must accept it."
+    },
+    "4.3.2-6-fae0b984": {
+      "section": "4.3.2",
+      "text": "If more than one Targets element is found in an AC, the extension MUST be treated as if all Target elements had been found within one Targets element.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should flatten several Targets elements into one list, and diagnose them",
+      "why": "The targets of both elements come back as one list, a.example then b.example, as if found in one Targets element."
+    },
+    "4.3.2-7-6b147dbe": {
+      "section": "4.3.2",
+      "text": "name id-ce-targetInformation OID { id-ce 55 } syntax SEQUENCE OF Targets criticality MUST be TRUE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a non-critical targetInformation",
+      "why": "id-ce-targetInformation (2.5.29.55) without the critical flag raises PKI_DIAG_AC_EXTENSION_CRITICALITY."
+    },
+    "4.3.3-1-8a55e2a5": {
+      "section": "4.3.3",
+      "text": "As with PKCs, this extension SHOULD be included in ACs.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "A SHOULD to the AC issuer; the certificate warning PKI_DIAG_AKI_MISSING answers a MUST of RFC 5280, and raising it for an AC would make strict: true refuse conforming ACs — extensions shows whether the field is there."
+    },
+    "4.3.3-2-2d75add5": {
+      "section": "4.3.3",
+      "text": "However, as this profile states (in Section 4.2.3), ACs MUST use the v2Form with issuerName CHOICE, this duplication does not arise.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read the v1Form, and diagnose it as PKI_DIAG_AC_ISSUER_V1_FORM",
+      "why": "An issuer in the v1Form is read with form v1Form and diagnosed, and strict: true refuses it: only v2Form with issuerName conforms."
+    },
+    "4.3.3-3-0eabeff3": {
+      "section": "4.3.3",
+      "text": "name id-ce-authorityKeyIdentifier OID { id-ce 35 } syntax AuthorityKeyIdentifier criticality MUST be FALSE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a critical %s, which RFC 5755 requires non-critical",
+      "why": "The authorityKeyIdentifier row: a critical AKI raises PKI_DIAG_AKI_CRITICAL, the warning certificates get for the same rule."
+    },
+    "4.3.4-1-1bc8c7dd": {
+      "section": "4.3.4",
+      "text": "The accessLocation MUST contain a URI, and the URI MUST contain an HTTP URL [HTTP-URL] that specifies the location of an OCSP responder.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The authorityInfoAccess is decoded by the certificate decoder, which holds caIssuers locations to RFC 5280 and has no AC rule for id-ad-ocsp locations; AC revocation is not implemented (ADR 0028), so no OCSP location of an AC is ever used."
+    },
+    "4.3.4-2-df0abb05": {
+      "section": "4.3.4",
+      "text": "The AC issuer MUST, of course, maintain an OCSP responder at this location.",
+      "status": "excluded",
+      "reason": "issuer-policy",
+      "why": "Running an OCSP responder at the location named is an operational duty of the AC issuer, outside the AC."
+    },
+    "4.3.4-3-adfd5235": {
+      "section": "4.3.4",
+      "text": "name id-ce-authorityInfoAccess OID { id-pe 1 } syntax AuthorityInfoAccessSyntax criticality MUST be FALSE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a critical %s, which RFC 5755 requires non-critical",
+      "why": "The authorityInfoAccess row: a critical AIA raises PKI_DIAG_AIA_CRITICAL, as in a certificate."
+    },
+    "4.3.5-1-90162464": {
+      "section": "4.3.5",
+      "text": "If the crlDistributionPoints extension is present, then exactly one distribution point MUST be present.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "One distribution point only is an AC profile rule on crlDistributionPoints that is not diagnosed: the certificate decoder reads every point, and AC revocation, which would use them, is not implemented (ADR 0028)."
+    },
+    "4.3.5-2-5e262f92": {
+      "section": "4.3.5",
+      "text": "The crlDistributionPoints extension MUST use the DistributionPointName option, which MUST contain a fullName, which MUST contain a single name form.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The fullName with a single name form is not held to this AC rule: the decoder applies RFC 5280's distribution point diagnostics only, ADR 0028 shipping no AC revocation."
+    },
+    "4.3.5-3-f0afc2b1": {
+      "section": "4.3.5",
+      "text": "That name MUST contain either a distinguished name or a URI.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "A distinguished name or a URI as the only name of the point is the AC profile's narrowing, not diagnosed; the decoded names are returned for a caller who fetches the CRL itself (ADR 0028)."
+    },
+    "4.3.5-4-09023767": {
+      "section": "4.3.5",
+      "text": "The URI MUST be either an HTTP URL [HTTP-URL] or a Lightweight Directory Access Protocol (LDAP) URL [LDAP-URL].",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The certificate decoder already reports a point without an HTTP or LDAP URI (PKI_DIAG_DISTRIBUTION_POINT_NO_HTTP_OR_LDAP_URI) for RFC 5280; this AC sentence is not separately held, AC revocation being out of 1.1.0 (ADR 0028)."
+    },
+    "4.3.5-5-061c6219": {
+      "section": "4.3.5",
+      "text": "name id-ce-cRLDistributionPoints OID { id-ce 31 } syntax CRLDistributionPoints criticality MUST be FALSE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a critical %s, which RFC 5755 requires non-critical",
+      "why": "The crlDistributionPoints row: RFC 5280 makes this an info, so the AC adds PKI_DIAG_AC_EXTENSION_CRITICALITY, a warning that strict: true refuses."
+    },
+    "4.3.6-1-e4871ebb": {
+      "section": "4.3.6",
+      "text": "This extension MUST be non-critical.",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should diagnose a critical noRevAvail",
+      "why": "A critical noRevAvail raises PKI_DIAG_AC_EXTENSION_CRITICALITY and is refused under strict: true."
+    },
+    "4.3.6-2-cd0ac1c8": {
+      "section": "4.3.6",
+      "text": "name id-ce-noRevAvail OID { id-ce 56 } syntax NULL (i.e., '0500'H is the DER encoding) criticality MUST be FALSE",
+      "status": "test",
+      "file": "tests/x509/x509-attribute-certificate.test.ts",
+      "test": "should read a non-critical noRevAvail",
+      "why": "id-ce-noRevAvail (2.5.29.56) with the NULL 0500 is decoded as kind noRevAvail with no diagnostic; a NULL carrying content is refused with PKI_X509_EXTENSION_MALFORMED in the same group."
+    },
+    "4.4-1-a671b50c": {
+      "section": "4.4",
+      "text": "All multi-valued attributes using this syntax are restricted so that each value MUST use the same choice of value syntax.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should diagnose values that mix their choices",
+      "why": "An IetfAttrSyntax with a UTF8String and an OBJECT IDENTIFIER raises PKI_DIAG_AC_ATTRIBUTE_PROFILE at its values path, refused under strict: true."
+    },
+    "4.4.2-1-d1f0e9ed": {
+      "section": "4.4.2",
+      "text": "For this attribute the authInfo field MUST NOT be present.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should read an accessIdentity, and diagnose one that carries authInfo",
+      "why": "The second SvceAuthInfo of an accessIdentity carries authInfo and is diagnosed at that authInfo path; the first, without it, raises nothing."
+    },
+    "4.4.5-1-d8f100f4": {
+      "section": "4.4.5",
+      "text": "The roleName field MUST be present, and roleName MUST use the uniformResourceIdentifier CHOICE of the GeneralName.",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should diagnose a roleName that is not a URI",
+      "why": "A roleName that is a dNSName is diagnosed; a RoleSyntax without its roleName [1] is refused with PKI_X509_ATTRIBUTE_MALFORMED in the case after it."
+    },
+    "4.4.6-1-5cf5dcbf": {
+      "section": "4.4.6",
+      "text": "Implementations MUST support the clearance attribute as defined in [X.501-1997].",
+      "status": "test",
+      "file": "tests/x509/x509-ac-attributes.test.ts",
+      "test": "should read the named classes of a classList and keep its bits",
+      "why": "The X.501 (1997) Clearance under 2.5.4.55 is decoded: policyId, the named classes of the ClassList BIT STRING and its raw bits."
+    },
+    "4.4.6-2-ae81b10a": {
+      "section": "4.4.6",
+      "text": "Implementations SHOULD support decoding the clearance syntax from [RFC3281] and the errata report against it (see Appendix C).",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "The RFC 3281 clearance (2.5.1.5.55, tagged fields) is kept as kind unknown with its values' DER: ADR 0028 records that no issuer outputs it any more and that §4.4.6 forbids outputting it."
+    },
+    "4.4.6-3-22bb705f": {
+      "section": "4.4.6",
+      "text": "Implementations MUST NOT output the clearance attribute as defined in [RFC3281].",
+      "status": "excluded",
+      "reason": "producer-policy",
+      "why": "Addressed to implementations that output ACs; pkinative outputs none, and reads the RFC 3281 form only as an unknown attribute."
+    },
+    "4.5-1-1ed698b6": {
+      "section": "4.5",
+      "text": "The AC issuer's PKC MUST conform to [PKIXPROF], and the keyUsage extension in the PKC MUST NOT explicitly indicate that the AC issuer's public key cannot be used to validate a digital signature.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "A property of the AC issuer's PKC, checked when the caller validates that certificate (verifyCertificateChain and its keyUsage); the AC verdict that would require it is deferred by ADR 0028."
+    },
+    "4.5-2-d2860dc2": {
+      "section": "4.5",
+      "text": "In order to avoid confusion regarding serial numbers and revocations, an AC issuer MUST NOT also be a PKC Issuer.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "Whether an AC issuer also issues PKCs is decided over its certificate, not the AC: the recipe composes the cA check, and ADR 0028 defers the verb."
+    },
+    "4.5-3-ffa84613": {
+      "section": "4.5",
+      "text": "So, the AC issuer's PKC MUST NOT have a basicConstraints extension with the cA boolean set to TRUE.",
+      "status": "excluded",
+      "reason": "not-implemented",
+      "why": "recipes/attribute-certificate.ts reads basicConstraints on the issuer's certificate and refuses cA TRUE; no library verb takes the decision in 1.1.0 (ADR 0028)."
+    }
+  }
+}
