@@ -173,10 +173,46 @@ export type {
     CsrAttribute,
     CertificationRequest,
 } from './types/x509-types.js';
+export { parseAttributeCertificate } from './x509/x509-attribute-certificate.js';
+export type {
+    AttributeCertificate,
+    AttributeCertificateHolder,
+    AttributeCertificateIssuer,
+    IssuerSerial,
+    DigestedObjectType,
+    ObjectDigestInfo,
+    AttributeCertificateAttributeBase,
+    AttributeCertificateAttribute,
+    ServiceAuthInfo,
+    AuthenticationInfoAttribute,
+    AccessIdentityAttribute,
+    IetfAttrValue,
+    IetfAttrSyntax,
+    ChargingIdentityAttribute,
+    GroupAttribute,
+    RoleSyntax,
+    RoleAttribute,
+    ClassListName,
+    SecurityCategory,
+    Clearance,
+    ClearanceAttribute,
+    UnknownAttributeCertificateAttribute,
+    AttributeCertificateTarget,
+    TargetInformationExtension,
+    AuditIdentityExtension,
+    NoRevAvailExtension,
+    AttributeCertificateExtension,
+} from './types/attribute-certificate-types.js';
 
 // ── 7. Verification — signatures through Web Crypto, certification paths (RFC 5280 section 6), revocation, the one-call verdicts ──
 
-export { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from './crypto/x509-verify.js';
+export {
+    verifyCertificateSignature,
+    verifyCrlSignature,
+    verifyOcspSignature,
+    verifySelfSignature,
+    verifyAttributeCertificateSignature,
+} from './crypto/x509-verify.js';
 export type { VerifyCertificateSignatureOptions } from './crypto/x509-verify.js';
 export { canVerify } from './crypto/webcrypto.js';
 export { findRevocation, parseCertificateList } from './revocation/crl-parse.js';

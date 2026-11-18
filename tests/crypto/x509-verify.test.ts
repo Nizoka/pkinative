@@ -8,10 +8,13 @@ import { PkiCryptoError, PkiError } from '../../src/types/pki-errors.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import type { CertificateList } from '../../src/types/crl-types.js';
 import type { OcspBasicResponse } from '../../src/types/ocsp-types.js';
-import { verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from '../../src/crypto/x509-verify.js';
+import { verifyAttributeCertificateSignature, verifyCertificateSignature, verifyCrlSignature, verifyOcspSignature, verifySelfSignature } from '../../src/crypto/x509-verify.js';
+import type { AttributeCertificate } from '../../src/types/attribute-certificate-types.js';
+import { parseAttributeCertificate } from '../../src/x509/x509-attribute-certificate.js';
+import { acInfo, attributeCertificate } from '../helpers/attribute-certificate-builder.js';
 import { canVerify } from '../../src/crypto/webcrypto.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
-import { algorithm, bitString, certificate, ecKey, nullValue, tbsCertificate } from '../helpers/cert-builder.js';
+import { ECDSA_SHA256, algorithm, bitString, certificate, ecKey, integer, nullValue, tbsCertificate } from '../helpers/cert-builder.js';
 import { parseCertificateList } from '../../src/revocation/crl-parse.js';
 import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
 import { ML_DSA_SETS, acceptMlDsa, hostImportsMlDsa, mlDsaBytes, mlDsaCertificate, refuseMlDsa } from '../verify/_ml-dsa.js';
@@ -551,5 +554,66 @@ describe('ML-DSA signatures (RFC 9881 §3)', () => {
         const der = certificate({ tbs: tbsCertificate({ signature: hashMlDsa }), signatureAlgorithm: hashMlDsa });
         const cert = parseCertificate(der, { onDiagnostic: () => undefined });
         await expect(verifyCertificateSignature(cert, root)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+    });
+});
+
+describe('verifyAttributeCertificateSignature (RFC 5755)', () => {
+    // An AC issuer with a fresh P-256 key: its certificate is built and signed
+    // by createCertificate, and the AC's acinfo is signed by node:crypto — the
+    // AC's signature never passes through pkinative before it is verified.
+    const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    const other = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    const issuerCertificate = async (key: KeyObject = pair.publicKey): Promise<Certificate> => parseCertificate(await createCertificate({
+        serialNumber: 7n,
+        subject: [[{ type: '2.5.4.3', value: 'AC Issuer' }]],
+        notBefore: Date.UTC(2026, 0, 1),
+        notAfter: Date.UTC(2027, 0, 1),
+        subjectPublicKey: new Uint8Array(key.export({ type: 'spki', format: 'der' })),
+    }, {
+        algorithm: { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
+        produceSignature: (data) => Promise.resolve(new Uint8Array(nodeSign('sha256', data, { key: pair.privateKey, dsaEncoding: 'ieee-p1363' }))),
+    }), { onDiagnostic: () => undefined });
+    const signed = (hash = 'sha256', algorithmOid = ECDSA_SHA256, outer?: Uint8Array): AttributeCertificate => {
+        const info = acInfo({ signature: algorithm(algorithmOid) });
+        const der = attributeCertificate({ info, signatureAlgorithm: outer ?? algorithm(algorithmOid), signatureValue: bitString(nodeSign(hash, info, pair.privateKey)) });
+        return parseAttributeCertificate(der, { onDiagnostic: () => undefined });
+    };
+
+    it('should answer true for an AC its issuer signed', async () => {
+        await expect(verifyAttributeCertificateSignature(signed(), await issuerCertificate())).resolves.toBe(true);
+    });
+
+    it('should answer false under another key, and for an acinfo the signature does not cover', async () => {
+        await expect(verifyAttributeCertificateSignature(signed(), await issuerCertificate(other.publicKey))).resolves.toBe(false);
+        const genuine = signed();
+        const info = acInfo({ signature: algorithm(ECDSA_SHA256), serialNumber: integer([0x7f]) });
+        const forged = parseAttributeCertificate(attributeCertificate({ info, signatureValue: bitString(genuine.signatureValue.bytes) }), { onDiagnostic: () => undefined });
+        await expect(verifyAttributeCertificateSignature(forged, await issuerCertificate())).resolves.toBe(false);
+    });
+
+    it('should answer false when the outer signatureAlgorithm differs from acinfo.signature, unless the match is waived', async () => {
+        const ac = signed('sha256', ECDSA_SHA256, algorithm(ECDSA_SHA256, nullValue()));
+        await expect(verifyAttributeCertificateSignature(ac, await issuerCertificate())).resolves.toBe(false);
+        await expect(verifyAttributeCertificateSignature(ac, await issuerCertificate(), { requireAlgorithmMatch: false })).resolves.toBe(true);
+    });
+
+    it('should refuse a SHA-1 signature unless allowSha1', async () => {
+        const ac = signed('sha1', '1.2.840.10045.4.1');
+        await expect(verifyAttributeCertificateSignature(ac, await issuerCertificate())).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_REFUSED' }));
+        await expect(verifyAttributeCertificateSignature(ac, await issuerCertificate(), { allowSha1: true })).resolves.toBe(true);
+    });
+
+    it.each<[string, unknown]>([
+        ['null', null],
+        ['raw bytes', new Uint8Array(4)],
+        ['an object without tbsDer', { signatureAlgorithm: {} }],
+    ])('should reject an AC given as %s with PKI_INVALID_INPUT', async (_what, value) => {
+        await expect(verifyAttributeCertificateSignature(value as AttributeCertificate, await issuerCertificate()))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
+    });
+
+    it('should reject an issuer that is not a parsed certificate', async () => {
+        await expect(verifyAttributeCertificateSignature(signed(), signed() as unknown as Certificate))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
 });

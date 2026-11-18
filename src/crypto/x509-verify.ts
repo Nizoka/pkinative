@@ -28,6 +28,7 @@
 
 import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
+import type { AttributeCertificate } from '../types/attribute-certificate-types.js';
 import type { CertificateList } from '../types/crl-types.js';
 import type { OcspBasicResponse } from '../types/ocsp-types.js';
 import type { Certificate } from '../types/x509-types.js';
@@ -245,6 +246,46 @@ export async function verifyCrlSignature(
     }
     const signer = assertCertificate(issuer, 'issuer');
     return verifySignedStructure(crl, signer, resolveOptions(options));
+}
+
+/**
+ * Verify that an AC issuer's key signed this attribute certificate (RFC 5755).
+ *
+ * ```ts
+ * const ac = parseAttributeCertificate(acDer);
+ * if (!await verifyAttributeCertificateSignature(ac, acIssuerCertificate)) return 'not from that AC issuer';
+ * ```
+ *
+ * The same check as {@link verifyCertificateSignature}: the outer
+ * `signatureAlgorithm` must equal `acinfo.signature`, SHA-1 is refused unless
+ * `allowSha1`, and a signature that does not stand up is `false`.
+ *
+ * **A `true` here says only that the key signed `ac.tbsDer`.** It does not say
+ * the AC is valid: RFC 5755 §5 also asks for the issuer's certificate path to
+ * a trust anchor (`verifyCertificateChain`), the AC's validity at the time of
+ * evaluation, the holder's binding to the entity presenting the AC, the
+ * targeting check, the AC's revocation status, and an issuer certificate that
+ * is not a CA's (§4.5). pkinative does not compose those in 1.1.0 (ADR 0028);
+ * `recipes/attribute-certificate.ts` shows the composition.
+ *
+ * @param ac      A parsed attribute certificate, from `parseAttributeCertificate`.
+ * @param issuer  The AC issuer's public-key certificate.
+ * @param options See {@link VerifyCertificateSignatureOptions}.
+ * @returns Whether the issuer's key signed `ac.tbsDer`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
+ * @throws {PkiEncodingError} As {@link verifyCertificateSignature}.
+ */
+export async function verifyAttributeCertificateSignature(
+    ac: AttributeCertificate,
+    issuer: Certificate,
+    options?: VerifyCertificateSignatureOptions,
+): Promise<boolean> {
+    if (typeof ac !== 'object' || ac === null || !isBytes(ac.tbsDer)) {
+        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: ac must be an AttributeCertificate from parseAttributeCertificate(), not raw bytes');
+    }
+    const signer = assertCertificate(issuer, 'issuer');
+    return verifySignedStructure(ac, signer, resolveOptions(options));
 }
 
 /**
