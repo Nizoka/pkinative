@@ -253,6 +253,18 @@
       }
     },
     {
+      "id": "x509-attribute-certificate",
+      "capability": "Read an RFC 5755 attribute certificate — holder, issuer, validity, the six attributes of §4.4 (role, group, clearance, access and charging identities, service authentication) and the extensions only an AC carries, the profile reported as diagnostics — and check its signature against the AC issuer's certificate; RFC 5755 §5 validation is the caller's composition (ADR 0028)",
+      "exports": ["parseAttributeCertificate", "verifyAttributeCertificateSignature"],
+      "since": "1.1.0",
+      "cli": {
+        "pending": "No command reads an attribute certificate yet: awaits the next minor of pkinative-cli, proposed as `acert inspect` and `acert verify-signature`."
+      },
+      "mcp": {
+        "pending": "No tool reads an attribute certificate yet: awaits the next minor of pkinative-mcp, proposed as `inspect_attribute_certificate` and `verify_attribute_certificate_signature`."
+      }
+    },
+    {
       "id": "cms-signed-data",
       "capability": "Read, create and verify an RFC 5652 CMS SignedData — a .p7s, an S/MIME signature, a PDF /Contents — signed through Web Crypto or an external signer such as an HSM, and verified in one call that keeps intact (unaltered) apart from valid (unaltered and trusted)",
       "exports": ["parseSignedData", "createSignedData", "addUnsignedAttribute", "verifySignerInfoSignature", "verifySignedData", "PkiCmsError"],

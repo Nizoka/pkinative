@@ -248,8 +248,8 @@
     },
     "typeSurface": {
       "$comment": "The declaration file's real driver. Bytes drift with TSDoc wording, so a byte budget alone can be raised without anyone noticing that the surface doubled; these two counts cannot change by accident. Derived from docs/assets/api.json and held to it by type-surface-parity. Subpath exports were decided at 1.0 by ADR 0016: one entry point for 1.x; raising the dist/index.d.ts budget of declared.bundle reopens the question.",
-      "exportedTypes": 181,
-      "exportedValues": 119
+      "exportedTypes": 208,
+      "exportedValues": 121
     },
     "socialImages": [
       {
@@ -318,6 +318,13 @@
       "clauses": 0,
       "tests": 8,
       "excluded": 4
+    },
+    "rfc5755": {
+      "commit": "444553b1e8d7312dd286fe9c4d0a8462ca33f9742c6b8594da287c61490f120a",
+      "requirements": 69,
+      "clauses": 0,
+      "tests": 36,
+      "excluded": 33
     }
   }
 }

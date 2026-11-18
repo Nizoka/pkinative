@@ -1,7 +1,7 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-11-18",
+  "verifiedOn": "2026-10-17",
   "artefacts": [
     {
       "url": "llms.txt",
@@ -12,50 +12,50 @@
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 8754,
-      "approxTokens": 2189
+      "bytes": 9176,
+      "approxTokens": 2294
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 433399,
-      "approxTokens": 108350
+      "bytes": 438316,
+      "approxTokens": 109579
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 144171,
-      "approxTokens": 36043
+      "bytes": 153565,
+      "approxTokens": 38391
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 315680,
-      "approxTokens": 78920
+      "bytes": 347979,
+      "approxTokens": 86995
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 30139,
-      "approxTokens": 7535
+      "bytes": 31649,
+      "approxTokens": 7912
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 43636,
-      "approxTokens": 10909
+      "bytes": 49008,
+      "approxTokens": 12252
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5548,
-      "approxTokens": 1387
+      "bytes": 5932,
+      "approxTokens": 1483
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
-      "bytes": 15238,
-      "approxTokens": 3810
+      "bytes": 16216,
+      "approxTokens": 4054
     },
     {
       "url": "data/playgrounds.json",
@@ -72,14 +72,14 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 20374,
-      "approxTokens": 5094
+      "bytes": 20568,
+      "approxTokens": 5142
     }
   ],
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -94,8 +94,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 14633,
-      "approxTokens": 3658
+      "bytes": 15344,
+      "approxTokens": 3836
     },
     {
       "title": "Use cases",
@@ -159,8 +159,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 65391,
-      "approxTokens": 16348
+      "bytes": 65365,
+      "approxTokens": 16341
     },
     {
       "title": "CLI use cases",
@@ -241,8 +241,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 53318,
-      "approxTokens": 13330
+      "bytes": 53278,
+      "approxTokens": 13320
     },
     {
       "title": "MCP use cases",
@@ -291,8 +291,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 47581,
-      "approxTokens": 11895
+      "bytes": 48369,
+      "approxTokens": 12092
     },
     {
       "title": "Standards",
@@ -306,8 +306,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 19857,
-      "approxTokens": 4964
+      "bytes": 20718,
+      "approxTokens": 5180
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -332,8 +332,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 39318,
-      "approxTokens": 9830
+      "bytes": 41514,
+      "approxTokens": 10379
     },
     {
       "title": "Choosing a library and a surface",
@@ -349,8 +349,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18867,
-      "approxTokens": 4717
+      "bytes": 18781,
+      "approxTokens": 4695
     }
   ]
 }

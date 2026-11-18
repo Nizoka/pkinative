@@ -104,6 +104,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | The one-call verdict | `verifyCertificateChain` — path building, RFC 5280 §6 validation, host name, key purpose and revocation in one report that lists every reason at once ([use cases](docs/guides/use-cases.md#just-tell-me-whether-to-accept-this-certificate)) |
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
 | Certification requests | `parseCertificationRequest` (PKCS#10, a `CertificationRequest`: subject, key, attributes and the extensions it asks for, read with the certificate's own readers), `verifyCertificationRequest` — the proof of possession checked with the key inside the request, as a `VerifyCertificationRequestReport` that never throws for bad bytes (`VerifyCertificationRequestOptions` for `allowSha1` and the reading options) |
+| Attribute certificates | `parseAttributeCertificate` (RFC 5755: holder, issuer, the six attributes of §4.4, the AC-only extensions, the profile as diagnostics), `verifyAttributeCertificateSignature` — read and signature-checked; §5 validation is the caller's composition ([recipe](recipes/attribute-certificate.ts)) |
 | Signature verification | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` — one signature against one issuer key, through Web Crypto; `PkiCryptoError` when it could not be checked, never when it failed |
 | Creation | `createCertificate`, `createCertificationRequest` (PKCS#10), `canSign` — signed by a Web Crypto key or an `ExternalSigner`; the structural encoders `encodeDistinguishedName`, `encodeExtensions`, `encodeSubjectAltName`, `encodeKeyUsage`, `KEY_USAGE_BITS`, `encodeSubjectPublicKeyInfo` and the rest |
 | Paths | `buildCertificatePath`, `validateCertificatePath` — RFC 5280 §6 with name constraints and the policy tree |
@@ -117,7 +118,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints, key identifiers and hashing | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier`; `shake256` (FIPS 202, over public data — the digest an Ed448 CMS signer uses) |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 300 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 329 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -147,7 +148,7 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 - **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a `warning` (refused under `strict: true`); a value past its RFC 5280 Appendix A.1 upper bound, or a country code outside ISO 3166-1, is read as it is with an `info` (`PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG`, `PKI_DIAG_NAME_COUNTRY_UNKNOWN`). TeletexString is read as Latin-1, with a diagnostic.
 - **The Certificate Transparency SCT list** is kept in its TLS encoding, neither decoded nor verified.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
-- **Attribute certificates** (ITU-T X.509 §12 and RFC 5755) are not read; the scope and priority are determined when a consumer requests one.
+- **Attribute certificates** (RFC 5755) are read and signature-checked; RFC 5755 §5 validation is not implemented — holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller's composition ([ADR 0028](docs/adr/0028-attribute-certificates-are-read-not-judged.md), `recipes/attribute-certificate.ts`).
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.
 
 ## What pkinative will NOT do

@@ -151,7 +151,7 @@
 <td>Read through the RFC 5280 profile, never beyond it</td>
 <td>partial</td>
 <td>Everything under RFC 5280 below</td>
-<td>Extensions X.509 defines and RFC 5280 does not are kept undecoded (<code>kind: &#39;unknown&#39;</code>). Attribute certificates are not read.</td>
+<td>Extensions X.509 defines and RFC 5280 does not are kept undecoded (<code>kind: &#39;unknown&#39;</code>). Attribute certificates are read through the RFC 5755 profile (row below).</td>
 </tr>
 <tr>
 <td>ITU-T X.520 | ISO/IEC 9594-6 — attribute types</td>
@@ -267,6 +267,13 @@
 <td>applies</td>
 <td><code>tests/pem/pem.test.ts</code>, <code>tests/fuzzing/pem-malformed.test.ts</code>; the pinned text of §2–5 held sentence by sentence (<code>scripts/data/rfc7468-requirements.json</code>)</td>
 <td>Strict mode refuses the whitespace §2 asks parsers to ignore; lax mode accepts it with a diagnostic.</td>
+</tr>
+<tr>
+<td>RFC 5755 — attribute certificates</td>
+<td>Reading (<code>parseAttributeCertificate</code>): the §4.1 structure, the §4.2–§4.3 profile as diagnostics, the six attributes of §4.4 and the three AC-only extensions; the signature (<code>verifyAttributeCertificateSignature</code>)</td>
+<td>partial</td>
+<td><code>tests/x509/x509-attribute-certificate.test.ts</code>, <code>tests/x509/x509-ac-attributes.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>recipes/attribute-certificate.ts</code>, <code>fuzz/attribute-certificate.js</code>; the pinned text of §4 held sentence by sentence (<code>scripts/data/rfc5755-requirements.json</code>)</td>
+<td>§5 validation is not implemented (<a href="../adr/0028-attribute-certificates-are-read-not-judged.md">ADR 0028</a>): holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller&#39;s composition, shown by the recipe. The RFC 3281 clearance syntax is kept undecoded, and no AC is written.</td>
 </tr>
 <tr>
 <td>RFC 5958 — PKCS#8; RFC 8018 — PBES2 and PBKDF2</td>
