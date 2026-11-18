@@ -611,6 +611,23 @@ describe('verify-docs rule table', () => {
         expect(await surfaceProblems(files)).toEqual([]);
     });
 
+    it('should accept in error-codes-frozen a code a ratchet recorded, and fire on one younger than the ratchet', async () => {
+        const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
+        const snapshot = JSON.parse(TREE['docs/data/errors.frozen.json'] ?? '{}') as { codes: Array<Record<string, unknown>> };
+        const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
+        const source = (TREE['src/types/pki-errors.ts'] ?? '').replace("    | 'PKI_KEY_VERSION_UNSUPPORTED'", "    | 'PKI_KEY_ADDED'\n    | 'PKI_KEY_VERSION_UNSUPPORTED'");
+        const ratcheted = (since: string): Record<string, string> => ({
+            ...TREE,
+            'src/types/pki-errors.ts': source,
+            'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, { ...added, since }] }, null, 2),
+            'docs/data/errors.frozen.json': JSON.stringify({ ...snapshot, asOf: '1.4.0', codes: [...snapshot.codes, { code: 'PKI_KEY_ADDED', class: 'PkiKeyError' }] }, null, 2),
+        });
+        expect(source).toContain("'PKI_KEY_ADDED'");
+        expect(await runRules(createMemoryContext(ratcheted('1.4.0')), RULES, 'error-codes-frozen')).toEqual([]);
+        const problems = await runRules(createMemoryContext(ratcheted('1.5.0')), RULES, 'error-codes-frozen');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringMatching(/^PKI_KEY_ADDED is in the snapshot, which reaches 1\.4\.0, but claims "since": "1\.5\.0"/)]);
+    });
+
     it('should fire api-surface-frozen in the rehearsal on a new error code, whatever its since, while error-codes-frozen accepts it', async () => {
         const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
         const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', since: '0.9.0', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
