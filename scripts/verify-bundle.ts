@@ -98,7 +98,8 @@ export const PROBES: readonly Probe[] = [
     // the RFC 3986/4516 grammar they need (core/uri.ts), the EC-parameter and
     // RSA-exponent diagnostics and the control-character check on general names.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 86 KB → 90 KB, measured at 87.3 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the X.520 upper-bound and ISO 3166-1 checks; the extension reader shared with the PKCS#10 reader.
-    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 90 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
+    // 1.1.0 (2026-11-18): 90 KB → 93 KB, measured at 90.1 KB — the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts, and the SLH-DSA and ML-KEM key kinds.
+    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 93 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
     // 1.0.0 audit: 11 KB → 12 KB, measured at 11.1 KB — the PkiError brand that
     // keeps instanceof true across the ESM and CJS builds.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 12 KB → 14 KB, measured at 13.7 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
@@ -241,7 +242,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 20 KB → 21 KB, measured at 20.5 KB — the RSA
     // exponent refusal and the RSASSA-PSS parameter grammar.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 21 KB → 23 KB, measured at 22.6 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; Ed448 resolved to the host, the PSS re-wrap.
-    { exports: ['verifySignerInfoSignature'], maxBytes: 23 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
+    // 1.1.0 (2026-11-18): 23 KB → 25 KB, measured at 23.8 KB — the three ML-DSA rows of the signature table and the digest rule of RFC 9882 §3.3.
+    { exports: ['verifySignerInfoSignature'], maxBytes: 25 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
     // The two CMS verdicts are `verifyCertificateChain` plus the CMS layer,
     // which is exactly what they are: 121.7 + ~45 KB.
     // 1.0.0 audit: 176 KB → 190 KB, measured at 182.9 KB — everything
@@ -249,7 +251,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 190 KB → 210 KB, measured at 206.0 KB — the chain
     // report's growth above, the SHA-1 imprint gate and the clock read once.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 210 KB → 225 KB, measured at 219.6 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; SHAKE256 (Keccak-f[1600]) for Ed448 signers, the certReq diagnostics, the chain's lazy search.
-    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 225 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0 (2026-11-18): 225 KB → 232 KB, measured at 225.8 KB — ML-DSA, strict in the verify verbs (ADR 0025), and the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts.
+    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 232 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.8 band, weighed from three sides — measured 2026-09-29 at 39.8,
     // 44.3 and 94.4 KB.
     //
@@ -269,7 +272,8 @@ export const PROBES: readonly Probe[] = [
     // certificate reader's profile diagnostics, which the bag's certificates
     // pass through, and the PBMAC1 key-length floor.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 120 KB → 128 KB, measured at 124.9 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the id-RSASSA-PSS key re-wrapped in importPrivateKey and the PSS case of _algorithmOf.
-    { exports: ['openPkcs12'], maxBytes: 128 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0 (2026-11-18): 128 KB → 132 KB, measured at 128.4 KB — strict and the diagnostic sink honoured (ADR 0025), ML-DSA, and the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts.
+    { exports: ['openPkcs12'], maxBytes: 132 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
     // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules;
     // 172 KB → 236 KB, measured at 225.3 KB with CMS and RFC 3161 — the largest
@@ -282,7 +286,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 280 KB → 300 KB, measured at 296.3 KB — the sum of
     // the leaves above: 37 diagnostics and the checks behind them.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 300 KB → 320 KB, measured at 314.6 KB — the sum of the above — the 1.1 list at 1.0.0: the PKCS#10 reader and verdict, SHAKE256, the PSS re-wrap, Ed448 CMS both ways, the lazy search, the X.680 readers, 15 diagnostics; still under the ~320 KB projection written for 1.0.
-    { exports: ['*'], maxBytes: 320 * 1024, mustNotContain: [] },
+    // 1.1.0 (2026-11-18): 320 KB → 355 KB, measured at 345.3 KB — the sum of the above and the three readers no other probe imports: attribute certificates (RFC 5755), the OCSP request and the timestamp request.
+    { exports: ['*'], maxBytes: 355 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {
