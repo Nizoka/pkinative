@@ -32,6 +32,7 @@ applyTo: "src/index.ts,src/types/**"
 - Return types: always explicit, never inferred for public API
 - Outputs declare every key (`readonly x: T | undefined`); inputs accept `?: T | undefined`, so consumers compile with or without `exactOptionalPropertyTypes`
 - Decoded structures are immutable (`readonly` everywhere) and expose zero-copy `Uint8Array` views of the input; document that the caller must not mutate the input
+- What a reader returns is frozen to the last nested object and list, the empty ones included: `Object.freeze([])`, never a bare `[]`, and a copy of the emitter's diagnostics, never the emitter's own array (`tests/property/frozen-results.test.ts`)
 - Times are `epochMilliseconds` numbers, never `Date` (mutable, and a lossy representation of year 0000–9999 text)
 
 ## Naming Conventions

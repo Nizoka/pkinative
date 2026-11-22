@@ -12,6 +12,9 @@ Everything in AGENTS.md applies; this file holds only what is specific to Claude
 - Area rules `.claude/rules/*.md` load themselves when you read a file in their `paths`; do not open `.github/instructions/` (the same text),
   and never edit a rule: edit the instruction file, then `npm run agents:rules`.
 - Conformance corpora are queried with `scripts/validate-certs.ts`, after `npm run build` (the runner loads `dist/`).
+- Probe the public surface from `src/` (`node --import tsx -e`), never from `dist/`: a command naming `dist/` or `test-output/` is denied whole, so log outside the repository.
+- A line added or removed under `src/` moves two line-indexed registries — the ids of `scripts/data/mutation-equivalents.json` and the TSDoc fence keys of
+  `tests/docs/guide-fences.test.ts`: re-anchor both from `git diff -U0 HEAD -- <file>` before the gate, and prefer an edit that keeps the line count.
 - `.claude/hooks/guard.mjs` (PreToolUse on `Bash|PowerShell`) denies the maintainer's acts — publishing, pushing, tagging, `gh` writes — in every segment
   and quoted payload of a command (.github/AGENT_RULES.md §5): prepare, then stop. A commit message that names one goes in a file (`git commit -F`). No `Co-Authored-By` trailer.
 - Plans name the files, the commands and the expected gate outcome, and summarise gate output.
