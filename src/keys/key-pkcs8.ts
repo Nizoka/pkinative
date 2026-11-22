@@ -103,7 +103,7 @@ export function _readPrivateKeyInfo(node: Asn1Node | undefined, ctx: Asn1Context
     // The octets are the secret: checked for shape, never kept.
     _readOctetString(_expectField(keyNode, TAG_OCTET_STRING, `${path}.privateKey`, seq.offset, 'an OCTET STRING private key'), ctx);
 
-    let attributes: readonly Attribute[] = [];
+    let attributes: readonly Attribute[] = Object.freeze([]);
     let publicKey: BitString | undefined;
     let rank = -1;
     for (const field of optional) {
@@ -176,7 +176,7 @@ export function parsePrivateKeyInfo(der: Uint8Array, options?: PkiParseOptions):
     const bytes = assertBytes(der, 'parsePrivateKeyInfo input');
     const ctx = createAsn1Context(options);
     const info = _readPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, 'privateKeyInfo', 0);
-    return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+    return Object.freeze({ ...info, diagnostics: Object.freeze([...ctx.emitter.diagnostics]) });
 }
 
 /**
@@ -198,5 +198,5 @@ export function parseEncryptedPrivateKeyInfo(der: Uint8Array, options?: PkiParse
     const bytes = assertBytes(der, 'parseEncryptedPrivateKeyInfo input');
     const ctx = createAsn1Context(options);
     const info = _readEncryptedPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, 'encryptedPrivateKeyInfo', 0);
-    return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+    return Object.freeze({ ...info, diagnostics: Object.freeze([...ctx.emitter.diagnostics]) });
 }

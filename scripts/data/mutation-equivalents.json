@@ -51,145 +51,145 @@
       "reason": "Message-only: `where()` only chooses the words 'input' or 'enclosing value' in a PKI_ASN1_TRUNCATED message; the error's code, class, path and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:147:23:relational",
+      "id": "src/asn1/asn1-encode.ts:148:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration of hexToBytes writes parseInt('', 16) = NaN to out[out.length], an out-of-bounds index of a Uint8Array, which a typed array ignores; the returned octets are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:175:79:number-1",
+      "id": "src/asn1/asn1-encode.ts:176:79:number-1",
       "original": "2",
       "replacement": "1",
       "reason": "Semantic: the padStart never pads. The loop above leaves v ≥ −2^(8·octets − 1), so (1n << 8·octets) + v lies in [2^(8·octets − 1), 2^(8·octets)) and its hex form has exactly 2·octets digits; padStart to 2·octets or to octets returns it unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:330:17:relational",
+      "id": "src/asn1/asn1-encode.ts:333:17:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: the extra case is bit === highest, where the mutant assigns highest the value it already holds."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:334:19:number-1",
+      "id": "src/asn1/asn1-encode.ts:337:19:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: highest starts at −1 and only grows, so highest < −1 is never true — the mutant is the if-false mutant at 333:9, whose fall-through for the empty input yields the same 03 01 00."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:334:9:if-false",
+      "id": "src/asn1/asn1-encode.ts:337:9:if-false",
       "original": "highest < 0",
       "replacement": "false",
       "reason": "Semantic: highest < 0 holds only for an empty input (highest = −1, no position). The fall-through then builds new Uint8Array((−1 >> 3) + 1) = an empty array, sets no bit, and calls encodeBitString(empty, 7 − (−1 & 7)) = encodeBitString(empty, 0) — the early return's own call, so the output is 03 01 00 either way (pinned by 'should encode no bit as the empty BIT STRING')."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:101:logical",
+      "id": "src/asn1/asn1-encode.ts:394:101:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:120:relational",
+      "id": "src/asn1/asn1-encode.ts:394:120:relational",
       "original": ">=",
       "replacement": ">",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:123:number+1",
+      "id": "src/asn1/asn1-encode.ts:394:123:number+1",
       "original": "0xd800",
       "replacement": "55297",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:123:number-1",
+      "id": "src/asn1/asn1-encode.ts:394:123:number-1",
       "original": "0xd800",
       "replacement": "55295",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:130:logical",
+      "id": "src/asn1/asn1-encode.ts:394:130:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:149:relational",
+      "id": "src/asn1/asn1-encode.ts:394:149:relational",
       "original": "<=",
       "replacement": "<",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:152:number+1",
+      "id": "src/asn1/asn1-encode.ts:394:152:number+1",
       "original": "0xdfff",
       "replacement": "57344",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:152:number-1",
+      "id": "src/asn1/asn1-encode.ts:394:152:number-1",
       "original": "0xdfff",
       "replacement": "57342",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:95:equality",
+      "id": "src/asn1/asn1-encode.ts:394:95:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the findIndex expression on this line only computes the index that outOfRange quotes in the PKI_ASN1_VALUE_OUT_OF_RANGE message; outOfRange passes no offset, and the refusal is decided by encodeUtf8 returning null, before the expression runs. Code, class and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:99:number+1",
+      "id": "src/asn1/asn1-encode.ts:394:99:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:391:99:number-1",
+      "id": "src/asn1/asn1-encode.ts:394:99:number-1",
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as 376:95 — part of the index quoted in the message of a refusal already decided by encodeUtf8."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:403:28:number+1",
+      "id": "src/asn1/asn1-encode.ts:406:28:number+1",
       "original": "0x7f",
       "replacement": "128",
       "reason": "Semantic: the only code the mutant lets past the range test is 0x80, which every allowed predicate then refuses (isPrintableOctet tops out at 0x7a, isIa5Octet is b < 0x80, isVisibleOctet ≤ 0x7e, isNumericOctet ≤ 0x39), so the same PKI_ASN1_VALUE_OUT_OF_RANGE is thrown at the same index."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:410:31:relational",
+      "id": "src/asn1/asn1-encode.ts:413:31:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra TeletexString iteration reads charCodeAt(value.length) = NaN, which fails NaN > 0xff, and writes it to content[value.length], an out-of-bounds index the Uint8Array ignores."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:418:31:relational",
+      "id": "src/asn1/asn1-encode.ts:421:31:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra BMPString iteration reads charCodeAt(value.length) = NaN, which fails the surrogate test, and writes NaN >> 8 and NaN & 0xff to content[2·length] and content[2·length + 1], out-of-bounds indices the Uint8Array ignores."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:435:38:number+1",
+      "id": "src/asn1/asn1-encode.ts:438:38:number+1",
       "original": "24",
       "replacement": "25",
       "reason": "Semantic: code is at most 0x10FFFF (a for…of step is one unit or one surrogate pair), and 0x10FFFF >>> 24, >>> 25 and >>> 23 are all 0, so the first octet of every UniversalString character is 00 either way."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:435:38:number-1",
+      "id": "src/asn1/asn1-encode.ts:438:38:number-1",
       "original": "24",
       "replacement": "23",
       "reason": "Semantic: as 420:38:number+1 — code ≤ 0x10FFFF < 2^23, so code >>> 23 is 0 like code >>> 24."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:476:83:conditional",
+      "id": "src/asn1/asn1-encode.ts:479:83:conditional",
       "original": "type === 'rfc5280' ? 'RFC 5280 forbids in certificates' : 'UTCTime cannot hold'",
       "replacement": "(type === 'rfc5280' ? 'UTCTime cannot hold' : 'RFC 5280 forbids in certificates')",
       "reason": "Message-only: the conditional only chooses which rule the PKI_ASN1_VALUE_OUT_OF_RANGE message for a fraction of a second names; the refusal is decided by millisecond !== 0 && type !== 'GeneralizedTime', and the code and class are unchanged."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:476:88:equality",
+      "id": "src/asn1/asn1-encode.ts:479:88:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the test of the message-rendering conditional at 461:83."
     },
     {
-      "id": "src/asn1/asn1-encode.ts:490:23:relational",
+      "id": "src/asn1/asn1-encode.ts:493:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration writes charCodeAt(text.length) = NaN to content[text.length], an out-of-bounds index the Uint8Array ignores."
@@ -249,37 +249,37 @@
       "reason": "Semantic: as 21:21:number-1 — the extra case is value === 2^46 − 1, where switching to bigint one octet early computes the same exact integer the number path would (its largest successor is 2^53 − 1), so every arc string is identical."
     },
     {
-      "id": "src/asn1/asn1-read.ts:285:24:number-1",
+      "id": "src/asn1/asn1-read.ts:286:24:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: with unusedBits 0 the mask (1 << 0) - 1 is 0, so the masked last octet is 0 and the branch is not taken either way; content holds at least one octet here."
     },
     {
-      "id": "src/asn1/asn1-read.ts:390:23:relational",
+      "id": "src/asn1/asn1-read.ts:391:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra iteration reads charCodeAt(value.length), which is NaN, and CODE_EXTENSION_CONTROLS holds no NaN key."
     },
     {
-      "id": "src/asn1/asn1-read.ts:62:116:conditional",
+      "id": "src/asn1/asn1-read.ts:63:116:conditional",
       "original": "node === null ? 'null' : typeof node",
       "replacement": "(node === null ? typeof node : 'null')",
       "reason": "Message-only: the expression only names the received type in the PKI_INVALID_INPUT message ('got null' or 'got object'); the error's code, class, path and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-read.ts:62:121:equality",
+      "id": "src/asn1/asn1-read.ts:63:121:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant on this line; the error's code, class, path and offset are unchanged."
     },
     {
-      "id": "src/asn1/asn1-time.ts:87:9:if-true",
+      "id": "src/asn1/asn1-time.ts:88:9:if-true",
       "original": "f.zone !== 'Z'",
       "replacement": "true",
       "reason": "Semantic: for the zone 'Z' the forced branch reads Number('Z'.slice(1, 3)) and Number('Z'.slice(3, 5)), both Number('') = 0, which pass the hours > 23 || minutes > 59 test and give offsetMinutes = (+1) · 0 = 0 — the value the skipped branch leaves. Every Z time yields the same instant."
     },
     {
-      "id": "src/asn1/asn1-time.ts:89:48:number+1",
+      "id": "src/asn1/asn1-time.ts:90:48:number+1",
       "original": "5",
       "replacement": "6",
       "reason": "Semantic: f.zone is either 'Z' (which skips the branch) or zoneOf's text.slice(-5), exactly five characters ±hhmm because both grammars end in [+-]\\d{4}; slice(3, 6) of a five-character string equals slice(3, 5)."
@@ -501,7 +501,7 @@
       "reason": "Semantic: the only octet the mutant adds to the four-octet branch is 0xEF, which the preceding three-octet branch (b0 >= 0xe0 && b0 <= 0xef) has already taken."
     },
     {
-      "id": "src/crypto/crypto-algorithms.ts:571:9:if-false",
+      "id": "src/crypto/crypto-algorithms.ts:572:9:if-false",
       "original": "signatureAlgorithm.oid === RSA_ENCRYPTION",
       "replacement": "false",
       "reason": "Semantic: rsaEncryption is not a key of SIGNATURE_BY_OID, so without the early return the shape lookup on the next line is undefined and the function returns null all the same."
@@ -537,7 +537,7 @@
       "reason": "Semantic: the extra input admitted is exactly 7 octets, which no branch can turn into a result. The long form needs 3 + content = 7 with content ≥ 0x80 and fails line 77 or 82; the short form needs content = 5, and two INTEGERs need at least 3 octets each (tag, length ≥ 1, one value octet), so the second readInteger fails at line 152, 155 or 158 and returns null. Every octet read before those checks (indices 0, 1, 2, then each INTEGER's tag and length under line 152) is inside the 7, so no RangeError either."
     },
     {
-      "id": "src/hash/fingerprint.ts:66:9:if-true",
+      "id": "src/hash/fingerprint.ts:67:9:if-true",
       "original": "subtle !== undefined && typeof subtle.digest === 'function'",
       "replacement": "true",
       "reason": "Semantic: the guard only spares a throw that the try/catch below it already absorbs. When subtle is undefined, or its digest is not a function, the forced call raises a TypeError inside the try block, the catch swallows it, and the function returns hash(bytes) — the pure-path result the guard would have chosen. A host whose digest is a function takes the same path with or without the mutant."
@@ -579,43 +579,43 @@
       "reason": "Semantic: as 78:28 relational — the bound 81 adds the single step j = 80, whose writes past the 80-word arrays are discarded and whose scratch t is overwritten at round 0 before it is read."
     },
     {
-      "id": "src/keys/key-import.ts:116:150:conditional",
+      "id": "src/keys/key-import.ts:117:150:conditional",
       "original": "algorithm === null ? 'null' : typeof algorithm",
       "replacement": "(algorithm === null ? typeof algorithm : 'null')",
       "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message ('got null' / 'got string'); the refusal, its class and its code are decided by the enclosing `typeof algorithm !== 'object' || algorithm === null` test on line 114."
     },
     {
-      "id": "src/keys/key-import.ts:116:160:equality",
+      "id": "src/keys/key-import.ts:117:160:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 116:150."
     },
     {
-      "id": "src/keys/key-import.ts:170:13:if-false",
+      "id": "src/keys/key-import.ts:171:13:if-false",
       "original": "pkcs8 !== info.der",
       "replacement": "false",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:170:44:number+1",
+      "id": "src/keys/key-import.ts:171:44:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:170:44:number-1",
+      "id": "src/keys/key-import.ts:171:44:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Hygiene-only: the re-wrapped PrivateKeyInfo copy belongs to importPrivateKey alone and is wiped in `finally` after the host imported it, a best effort the engine may already have defeated; no caller holds the buffer, so skipping the wipe or filling it with another octet changes nothing observable. The caller-buffer-untouched test pins the other half (the caller's DER is never written)."
     },
     {
-      "id": "src/keys/key-import.ts:251:119:conditional",
+      "id": "src/keys/key-import.ts:252:119:conditional",
       "original": "password === null ? 'null' : typeof password",
       "replacement": "(password === null ? typeof password : 'null')",
       "reason": "Message-only: the expression only names the received type in the PKI_INVALID_OPTION message; the refusal, its class and its code are decided by the string / Uint8Array test on line 250 — the twin of the key-pbes2.ts:244:118 entry."
     },
     {
-      "id": "src/keys/key-import.ts:251:128:equality",
+      "id": "src/keys/key-import.ts:252:128:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 251:119."
@@ -645,7 +645,7 @@
       "reason": "Message-only: the same message-rendering expression as the conditional mutant at 242:118."
     },
     {
-      "id": "src/path/path-build.ts:204:17:if-false",
+      "id": "src/path/path-build.ts:218:17:if-false",
       "original": "limitHit",
       "replacement": "false",
       "reason": "Semantic: limitHit is set only when explored has reached maxPathsExplored, and explored never decreases. Without the early return the loop goes on to its next issuer, where a revisited one is skipped without effect and any other meets the same explored >= maxPathsExplored test, sets limitHit again and returns null; a loop with no issuer left returns null as well. The search, explored and the report are identical."
@@ -723,157 +723,157 @@
       "reason": "Semantic: a dead candidate cannot list the live wildcard as a child (a step (2) kill takes the whole subtree, a pruned node has no children), so the mutant finds the first live node of depth n-1, which may not be the wildcard's parent. The added nodes stay alive whoever adopts them — pruning never touches the deepest level — and the adopter, being live, has a live chain to the root and keeps it after the prune; wrapUpPolicies reads only the deepest level's alive flags, so the returned set and the null verdict are the same."
     },
     {
-      "id": "src/path/path-server-name.ts:133:23:number+1",
+      "id": "src/path/path-server-name.ts:134:23:number+1",
       "original": "45",
       "replacement": "46",
       "reason": "Semantic: no IPv6 text in RFC 4291 §2.2 form is longer than 45 characters (six four-digit groups and a dotted quad), so every text the bound refuses also fails the group grammar or the group count in ipv6Octets and comes back null; the bound changes only how much of a long string is walked before that answer."
     },
     {
-      "id": "src/path/path-server-name.ts:247:9:if-false",
+      "id": "src/path/path-server-name.ts:254:9:if-false",
       "original": "text.length > MAX_IPV6_TEXT",
       "replacement": "false",
       "reason": "Semantic: no IPv6 text in RFC 4291 §2.2 form is longer than 45 characters (six four-digit groups and a dotted quad), so every text the bound refuses also fails the group grammar or the group count in ipv6Octets and comes back null; the bound changes only how much of a long string is walked before that answer."
     },
     {
-      "id": "src/path/path-server-name.ts:324:22:number+1",
+      "id": "src/path/path-server-name.ts:333:22:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Semantic: skipping the check on the second label leaves a pattern whose second label carries `*` to the suffix comparison — matchDnsName refuses a reference carrying `*` before it reaches this line, so the host has no `*` in any label; a pattern with `*` past its first label then has a `*` in the suffix it compares, and the suffix comparison on the next lines can never equal the `*`-free host suffix — the same false this line returns earlier."
     },
     {
-      "id": "src/path/path-server-name.ts:324:9:if-false",
+      "id": "src/path/path-server-name.ts:333:9:if-false",
       "original": "labels.slice(1).some((label) => label.includes('*'))",
       "replacement": "false",
       "reason": "Semantic: matchDnsName refuses a reference carrying `*` before it reaches this line, so the host has no `*` in any label; a pattern with `*` past its first label then has a `*` in the suffix it compares, and the suffix comparison on the next lines can never equal the `*`-free host suffix — the same false this line returns earlier."
     },
     {
-      "id": "src/path/path-validate.ts:281:48:relational",
+      "id": "src/path/path-validate.ts:283:48:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the extra case is constraint === state.maxPathLength, where the mutant assigns maxPathLength the value it already holds."
     },
     {
-      "id": "src/pem/pem.ts:146:31:number+1",
+      "id": "src/pem/pem.ts:147:31:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: bodyStart is read only by the probe on line 160, which picks between two PKI_PEM_UNTERMINATED throws with the same class, code and offset (beginLine.start); skipping one more line can only change which remedy the message names."
     },
     {
-      "id": "src/pem/pem.ts:146:31:number-1",
+      "id": "src/pem/pem.ts:147:31:number-1",
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as number+1 at the same position — the extra line the probe sees is the BEGIN line itself, which in strict mode matched with no surrounding whitespace, and either way both branches throw PKI_PEM_UNTERMINATED at beginLine.start."
     },
     {
-      "id": "src/pem/pem.ts:160:17:if-true",
+      "id": "src/pem/pem.ts:161:17:if-true",
       "original": "!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))",
       "replacement": "true",
       "reason": "Message-only: both branches of an unterminated block throw PkiEncodingError PKI_PEM_UNTERMINATED at beginLine.start; the condition only chooses the remedy text ('decode with mode: lax' vs 'truncated or spliced'). Code, class and offset are pinned by the missing-END and spaced-END vectors."
     },
     {
-      "id": "src/pem/pem.ts:160:17:not-removal",
+      "id": "src/pem/pem.ts:161:17:not-removal",
       "original": "!lax",
       "replacement": "(lax)",
       "reason": "Message-only: as if-true at 160:17 — the guard selects between two PKI_PEM_UNTERMINATED throws with identical class, code and offset."
     },
     {
-      "id": "src/pem/pem.ts:160:17:throw-guard",
+      "id": "src/pem/pem.ts:161:17:throw-guard",
       "original": "!lax && lines.slice(bodyStart).some((l) => l.text !== l.text.trim() && END.test(l.text.trim()))",
       "replacement": "false",
       "reason": "Message-only: disabling the first throw falls through to the second, which raises the same PKI_PEM_UNTERMINATED PkiEncodingError at the same offset with the generic message."
     },
     {
-      "id": "src/pem/pem.ts:160:22:logical",
+      "id": "src/pem/pem.ts:161:22:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as if-true at 160:17 — any truth value of the condition ends in PKI_PEM_UNTERMINATED at beginLine.start."
     },
     {
-      "id": "src/pem/pem.ts:160:67:equality",
+      "id": "src/pem/pem.ts:161:67:equality",
       "original": "!==",
       "replacement": "===",
       "reason": "Message-only: as if-true at 160:17 — the whitespace probe only chooses the message of a PKI_PEM_UNTERMINATED throw whose code and offset are fixed."
     },
     {
-      "id": "src/pem/pem.ts:160:85:logical",
+      "id": "src/pem/pem.ts:161:85:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as if-true at 160:17 — the probe only chooses the message of a PKI_PEM_UNTERMINATED throw whose code and offset are fixed."
     },
     {
-      "id": "src/pem/pem.ts:210:79:relational",
+      "id": "src/pem/pem.ts:211:79:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: keeping zero lengths in `lengths` matters only when the content has an empty line, and then the third disjunct on line 212 (`content.some((l) => l.text.length === 0)`) is already true, so the diagnostic is emitted either way; without an empty line the two filters keep the same elements."
     },
     {
-      "id": "src/pem/pem.ts:210:81:number-1",
+      "id": "src/pem/pem.ts:211:81:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: lengths are never negative, so `n > -1` is `n >= 0` — equivalent for the reason given for 210:79 (a kept zero implies an empty line, which the third disjunct already reports)."
     },
     {
-      "id": "src/pem/pem.ts:222:48:number+1",
+      "id": "src/pem/pem.ts:223:48:number+1",
       "original": "1",
       "replacement": "2",
       "reason": "Message-only: `k + 1` renders the 1-based line number in the PKI_PEM_BASE64_INVALID message; the offset of the throw is line.start, pinned by the strict offset vectors."
     },
     {
-      "id": "src/pem/pem.ts:222:48:number-1",
+      "id": "src/pem/pem.ts:223:48:number-1",
       "original": "1",
       "replacement": "0",
       "reason": "Message-only: as number+1 at the same position — only the rendered line number changes."
     },
     {
-      "id": "src/pem/pem.ts:235:13:if-true",
+      "id": "src/pem/pem.ts:236:13:if-true",
       "original": "!lax && lines.some((l) => BEGIN.test(l.text.trim()))",
       "replacement": "true",
       "reason": "Message-only: both branches of an empty result throw PkiEncodingError PKI_PEM_NO_BLOCK at offset 0; the condition only chooses the remedy text (whitespace around BEGIN vs no BEGIN line at all)."
     },
     {
-      "id": "src/pem/pem.ts:235:13:not-removal",
+      "id": "src/pem/pem.ts:236:13:not-removal",
       "original": "!lax",
       "replacement": "(lax)",
       "reason": "Message-only: as if-true at 235:13 — the guard selects between two PKI_PEM_NO_BLOCK throws with identical class, code and offset."
     },
     {
-      "id": "src/pem/pem.ts:235:13:throw-guard",
+      "id": "src/pem/pem.ts:236:13:throw-guard",
       "original": "!lax && lines.some((l) => BEGIN.test(l.text.trim()))",
       "replacement": "false",
       "reason": "Message-only: disabling the first throw falls through to the second, the same PKI_PEM_NO_BLOCK PkiEncodingError at offset 0 with the generic message."
     },
     {
-      "id": "src/pem/pem.ts:235:18:logical",
+      "id": "src/pem/pem.ts:236:18:logical",
       "original": "&&",
       "replacement": "||",
       "reason": "Message-only: as if-true at 235:13 — any truth value of the condition ends in PKI_PEM_NO_BLOCK at offset 0."
     },
     {
-      "id": "src/pem/pem.ts:61:23:relational",
+      "id": "src/pem/pem.ts:62:23:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: the one extra iteration reads text.charCodeAt(text.length), which is NaN — neither 0x0A nor 0x0D — so it takes the `continue` and pushes no line; `start` and every pushed line are unchanged."
     },
     {
-      "id": "src/pem/pem.ts:68:15:relational",
+      "id": "src/pem/pem.ts:69:15:relational",
       "original": "<",
       "replacement": "<=",
       "reason": "Semantic: start never exceeds text.length, so `start <= text.length` is always true — the same mutant as if-true at 68:9, equivalent for the same reason (only a trailing empty line is added)."
     },
     {
-      "id": "src/pem/pem.ts:68:9:if-true",
+      "id": "src/pem/pem.ts:69:9:if-true",
       "original": "start < text.length",
       "replacement": "true",
       "reason": "Semantic: when start === text.length the mutant appends one empty line after the last terminator. An empty last line can never sit between a BEGIN and an END (nothing follows it), matches neither boundary regex, has text === trim() for the strict whitespace probes, and inside an unterminated block only joins a body that is refused with PKI_PEM_UNTERMINATED regardless."
     },
     {
-      "id": "src/pem/pem.ts:99:107:conditional",
+      "id": "src/pem/pem.ts:100:107:conditional",
       "original": "text === null ? 'null' : typeof text",
       "replacement": "(text === null ? typeof text : 'null')",
       "reason": "Message-only: the expression names the received type in the PKI_INVALID_INPUT message; the refusal, its class and its code are decided by the enclosing typeof test (pinned by the non-string and null text vectors)."
     },
     {
-      "id": "src/pem/pem.ts:99:112:equality",
+      "id": "src/pem/pem.ts:100:112:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: as the conditional at 99:107 — the comparison only picks the type name rendered in the PKI_INVALID_INPUT message."
@@ -885,109 +885,109 @@
       "reason": "Semantic: sameBytes returns false on line 531 unless a.length === b.length, so the one extra iteration compares a[a.length] with b[a.length] — both out of range of their typed-array views, so both undefined (an integer-indexed exotic object never reads past its view, whatever the underlying buffer holds) — which is no mismatch; the loop ends and returns true exactly as the original does. The argument of src/core/bytes.ts:86:23."
     },
     {
-      "id": "src/revocation/ocsp-request.ts:150:13:throw-guard",
+      "id": "src/revocation/ocsp-request.ts:155:13:throw-guard",
       "original": "!isBytes(nonce)",
       "replacement": "false",
       "reason": "Message-only: with the guard disabled a non-bytes nonce reaches encodeOctetString(nonce) two statements later, before anything is pushed or returned, and that encoder's assertBytes applies the same isBytes predicate and throws the same class (PkiError) with the same code (PKI_INVALID_INPUT); only the wording differs ('the OCSP nonce must be a Uint8Array…' against 'encodeOctetString bytes must be a Uint8Array…'). 'should refuse a nonce that is not bytes' pins class and code."
     },
     {
-      "id": "src/verify/verify-chain.ts:372:88:relational",
+      "id": "src/verify/verify-chain.ts:368:88:relational",
       "original": ">",
       "replacement": ">=",
       "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
     },
     {
-      "id": "src/verify/verify-chain.ts:372:90:number-1",
+      "id": "src/verify/verify-chain.ts:368:90:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: validateCertificatePath pushes PKI_REASON_NO_TRUST_ANCHOR whenever it ends unanchored, and it can end anchored only after walking at least the leaf; buildCertificatePath returns such a report's path unchanged. So anchored — no NO_TRUST_ANCHOR among the reasons — already implies report.path.length >= 1, and the clause is true on every input that reaches it."
     },
     {
-      "id": "src/verify/verify-chain.ts:442:13:if-false",
+      "id": "src/verify/verify-chain.ts:438:13:if-false",
       "original": "verified === false",
       "replacement": "false",
       "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is false, where answer keeps the undefined (or the false set by ??= for an earlier candidate) it held instead of becoming false. Every reader of the answer asks only whether it is true (see 439:13:if-true); checkRevocation alone words REVOCATION_UNKNOWN differently for false and undefined."
     },
     {
-      "id": "src/verify/verify-chain.ts:442:13:if-true",
+      "id": "src/verify/verify-chain.ts:438:13:if-true",
       "original": "verified === false",
       "replacement": "true",
       "reason": "Message-only: verified === true has already returned, so the mutant differs only when verified is undefined (the signature could not be checked), where it turns answer from undefined into false. Every reader of the answer asks only whether it is true — checkRevocation (signatureVerified !== true, and === true before REVOKED), the delta pairing (!== true) and _signerStillGood (!== true) — so the codes, paths and verdicts are unchanged; checkRevocation alone words the REVOCATION_UNKNOWN message differently for false (\"did not verify\") and undefined (\"never checked\")."
     },
     {
-      "id": "src/verify/verify-chain.ts:442:22:equality",
+      "id": "src/verify/verify-chain.ts:438:22:equality",
       "original": "===",
       "replacement": "!==",
       "reason": "Message-only: verified === true has already returned, so verified !== false holds exactly when verified is undefined — the same single case as the if-true mutant at 424:13, with the same consequence: false in place of undefined, read by every consumer only as \"not true\", and worded differently in the REVOCATION_UNKNOWN message."
     },
     {
-      "id": "src/verify/verify-chain.ts:469:65:logical",
+      "id": "src/verify/verify-chain.ts:465:65:logical",
       "original": "||",
       "replacement": "&&",
       "reason": "Semantic: an instant cannot be both before notBefore and after notAfter, so the mutant is the if-false mutant at 466:9 — buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
     },
     {
-      "id": "src/verify/verify-chain.ts:469:9:if-false",
+      "id": "src/verify/verify-chain.ts:465:9:if-false",
       "original": "ctx.at < candidate.validity.notBefore.epochMilliseconds || ctx.at > candidate.validity.notAfter.epochMilliseconds",
       "replacement": "false",
       "reason": "Semantic: buildCertificatePath on the next lines validates the candidate as path[0], and validateCertificatePath reports PKI_REASON_EXPIRED or PKI_REASON_NOT_YET_VALID for a validity window that does not hold `at` (§6.1.3 (a)(2)) on every path it judges, so own.valid is false and the function returns false all the same; a candidate that is a path certificate or an anchor has already returned on the line above."
     },
     {
-      "id": "src/verify/verify-chain.ts:630:80:return-boolean",
+      "id": "src/verify/verify-chain.ts:626:80:return-boolean",
       "original": "false",
       "replacement": "true",
       "reason": "Control-flow-only: the value returned once limitHit is set is never consulted — every enclosing frame of `extend` reads `limitHit` right after its recursive call and returns too, and the top-level `await extend(...)` discards the value — so no further link is asked for either way; `_searchVerdicts` returns void and the builder receives the same memo (held by the exact-budget tests of tests/verify/verify-chain.test.ts)."
     },
     {
-      "id": "src/verify/verify-chain.ts:640:17:if-false",
+      "id": "src/verify/verify-chain.ts:636:17:if-false",
       "original": "limitHit",
       "replacement": "false",
       "reason": "Control-flow-only: without the early return, the loop goes on to the next sibling, whose iteration tests `explored >= limits.maxPathsExplored` before anything else — true once limitHit is, since explored only grows — and returns without asking for a link; every frame unwinds the same way with no verdict requested, so the memo the builder receives is identical (the exact-budget tests of tests/verify/verify-chain.test.ts pin that memo)."
     },
     {
-      "id": "src/verify/verify-chain.ts:640:34:return-boolean",
+      "id": "src/verify/verify-chain.ts:636:34:return-boolean",
       "original": "false",
       "replacement": "true",
       "reason": "Control-flow-only: returning true after limitHit makes the parent frame return true as well, where it would have read `limitHit` and returned false — the search unwinds either way without asking for another link, and the top-level `await extend(...)` discards the value; `_searchVerdicts` returns void, so the builder receives the same memo."
     },
     {
-      "id": "src/verify/verify-chain.ts:743:13:if-true",
+      "id": "src/verify/verify-chain.ts:739:13:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:769:26:number-1",
+      "id": "src/verify/verify-chain.ts:765:26:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:769:50:number-1",
+      "id": "src/verify/verify-chain.ts:765:50:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Message-only: an array length is never -1, so the condition is always false — the if-false mutant at 590:9, with its argument."
     },
     {
-      "id": "src/verify/verify-chain.ts:769:9:if-false",
+      "id": "src/verify/verify-chain.ts:765:9:if-false",
       "original": "lists.length === 0 && stapled.length === 0",
       "replacement": "false",
       "reason": "Message-only: with no list and no response, the code past the early return parses nothing, finds no list covering any certificate (mine stays empty, so the reason-mask push adds nothing) and runs no OCSP loop; what remains is the final requirement check, which pushes PKI_REASON_REVOCATION_UNKNOWN at path[0] exactly when requireRevocation is true and nothing covered path[0] — the code, path and condition of the early return's own reason, with other wording."
     },
     {
-      "id": "src/verify/verify-chain.ts:854:17:if-true",
+      "id": "src/verify/verify-chain.ts:850:17:if-true",
       "original": "!signed.has(index)",
       "replacement": "true",
       "reason": "Semantic: signed is a cache of _crlSigner, keyed by the list's index. _crlSigner keeps no state between calls — it reads the input, the path and the parsed lists, none of which this function changes — and returns the same answer for the same list, so asking it again on every visit stores the value the cache already holds. Only the number of signature verifications performed changes, and _crlSigner counts none into the report."
     },
     {
-      "id": "src/verify/verify-chain.ts:924:91:number+1",
+      "id": "src/verify/verify-chain.ts:920:91:number+1",
       "original": "0",
       "replacement": "1",
       "reason": "Semantic: the fallback is read only when no single response names the leaf's serial (mine is undefined). The digest then chooses how the expected CertID is computed, and a CertID matches only when its serial does too, so no answer can match under any digest and checkOcspStatus returns the same no-matching-answer verdict; _digestOf(undefined) yields SHA-1, a member of the same two-value range."
     },
     {
-      "id": "src/verify/verify-chain.ts:924:91:number-1",
+      "id": "src/verify/verify-chain.ts:920:91:number-1",
       "original": "0",
       "replacement": "-1",
       "reason": "Semantic: responses[-1] is undefined, so the digest falls to SHA-1 — read only when no single response names the leaf's serial, where no CertID can match under any digest (see 727:91:number+1)."
@@ -1005,13 +1005,13 @@
       "reason": "Semantic: the mutant passes { content } in two more cases, and neither is observable. With signed attributes and content, verifySignerInfoSignature covers `signedAttributesDer ?? options.content` (src/crypto/cms-verify.ts), and the parser sets signedAttributes and signedAttributesDer together (cms-signed-data.ts), so the content is never read. Without signed attributes and without content the function has already returned (CMS_CONTENT_MISSING or API_MISUSE above), so { content: undefined } is never passed. Recorded at 7d0a172, removed at 85b4099 as killed; measured surviving the direct and the 17 reaching suites on 2026-11-17, on a line the 1.1.0 change did not touch."
     },
     {
-      "id": "src/verify/verify-timestamp.ts:317:110:number+1",
+      "id": "src/verify/verify-timestamp.ts:319:110:number+1",
       "original": "1000",
       "replacement": "1001",
       "reason": "Semantic: the TSTInfo reader refuses micros outside 1..999 (RFC 3161 §2.4.2, tsp-tst-info.ts), so micros / 1000 and micros / 1001 both lie strictly between 0 and 1. genTime and the whole part of the slack are integers, and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 for every f in (0, 1): earliest and latest are identical."
     },
     {
-      "id": "src/verify/verify-timestamp.ts:317:110:number-1",
+      "id": "src/verify/verify-timestamp.ts:319:110:number-1",
       "original": "1000",
       "replacement": "999",
       "reason": "Semantic: with micros in 1..999, micros / 999 lies in (0, 1] — 1 exactly at 999 — and floor(g - k - f) = g - k - 1 and ceil(g + k + f) = g + k + 1 hold for every f in (0, 1] when g and k are integers, as they are with micros / 1000: earliest and latest are identical."

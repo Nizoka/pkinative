@@ -38,14 +38,14 @@ const EXPECT_SILENT = new Set<string>([
     'docs/guides/use-cases.md:105', 'docs/guides/use-cases.md:133', 'docs/guides/use-cases.md:164',
     'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
-    'src/path/path-validate.ts:396', 'src/verify/verify-chain.ts:287', 'src/verify/verify-signed-data.ts:170',
-    'src/revocation/ocsp-check.ts:163', 'src/verify/verify-pkcs12.ts:128',
-    'src/crypto/x509-verify.ts:108', 'src/crypto/x509-verify.ts:220', 'src/crypto/x509-verify.ts:254', 'src/crypto/x509-verify.ts:294', 'src/crypto/cms-verify.ts:57',
+    'src/path/path-validate.ts:398', 'src/verify/verify-chain.ts:280', 'src/verify/verify-signed-data.ts:171',
+    'src/revocation/ocsp-check.ts:164', 'src/verify/verify-pkcs12.ts:128',
+    'src/crypto/x509-verify.ts:109', 'src/crypto/x509-verify.ts:235', 'src/crypto/x509-verify.ts:269', 'src/crypto/x509-verify.ts:309', 'src/crypto/cms-verify.ts:57',
 ]);
 
 /** Fences that print their success: the line the prose shows must appear. */
 const EXPECT_PRINTED: Readonly<Record<string, RegExp>> = {
-    'src/verify/verify-timestamp.ts:176': /^existed by 20\d\d-/,
+    'src/verify/verify-timestamp.ts:177': /^existed by 20\d\d-/,
     'docs/guides/use-cases.md:401': /^good$/,
 };
 
@@ -206,17 +206,17 @@ beforeAll(async () => {
     overrides = {
         // The key modules' `pemText` is a private key, `bytes` a PKCS#12; one example decrypts under its own password.
         'src/keys/': { pemText: pkinative.encodePem('PRIVATE KEY', pkcs8), bytes: seeds.pkcs12[0], certificates: [] },
-        'src/keys/key-import.ts:212': { pemText: pkinative.encodePem('ENCRYPTED PRIVATE KEY', await shroudKey(pkcs8, 'correct horse battery staple')) },
+        'src/keys/key-import.ts:213': { pemText: pkinative.encodePem('ENCRYPTED PRIVATE KEY', await shroudKey(pkcs8, 'correct horse battery staple')) },
         // The TSP modules' `reply` is a fetch Response of a TimeStampResp; `token` a parsed TimeStampToken.
         'src/cms/tsp-response.ts': { reply: { arrayBuffer: async () => tspReply.buffer.slice(tspReply.byteOffset, tspReply.byteOffset + tspReply.byteLength) } },
         'src/cms/tsp-tst-info.ts': { token: pkinative.parseTimeStampToken(tokenDer) },
         // A timestamp request's nonce is a bigint (RFC 3161 §2.4.1), an OCSP request's is octets.
-        'src/build/build-signed-data.ts:653': { nonce: 0x1234n },
+        'src/build/build-signed-data.ts:659': { nonce: 0x1234n },
         // The OCSP modules' `bytes` is a response; the check example names the CertID hashes and the responder.
         'src/revocation/ocsp-': { bytes: ocspDer, issuerNameHash: await sha('SHA-1', root.certificate.subject.der), issuerKeyHash: await sha('SHA-1', root.certificate.subjectPublicKeyInfo.publicKey.bytes), responder: root.certificate, yourPolicySaysSo: true },
-        'src/crypto/x509-verify.ts:294': { bytes: ocspDer },
+        'src/crypto/x509-verify.ts:309': { bytes: ocspDer },
         // An RFC 5755 attribute certificate the guide root signed.
-        'src/crypto/x509-verify.ts:254': { bytes: await signedAttributeCertificate(root) },
+        'src/crypto/x509-verify.ts:269': { bytes: await signedAttributeCertificate(root) },
     };
     fetchStub = async (url, init) => {
         let body: Uint8Array;

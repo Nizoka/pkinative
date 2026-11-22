@@ -7691,7 +7691,9 @@
       "module": "src/path/path-purpose.ts",
       "signature": "export function checkExtendedKeyUsage( path: readonly Certificate[], purpose: string, options?: CheckExtendedKeyUsageOptions, ): readonly PkiReason[]",
       "summary": "Check that every certificate in a path permits a purpose.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "path",
@@ -7753,7 +7755,9 @@
       "module": "src/path/path-server-name.ts",
       "signature": "export function checkServerName( certificate: Certificate, reference: ServerIdentity, options?: CheckServerNameOptions, ): readonly PkiReason[]",
       "summary": "Check that a certificate names the host or address the caller asked about.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "certificate",
@@ -8476,7 +8480,8 @@
       "signature": "export function encodeNamedBits(bits: Iterable<number>): Uint8Array",
       "summary": "Encode a named-bit BIT STRING with the DER trailing-zero rule.",
       "throws": [
-        "PkiEncodingError"
+        "PkiEncodingError",
+        "PkiError"
       ],
       "params": [
         {
@@ -8682,7 +8687,8 @@
       "signature": "export function encodeSignatureAlgorithm(signer: Signer): Uint8Array",
       "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
       "throws": [
-        "PkiCryptoError"
+        "PkiCryptoError",
+        "PkiError"
       ],
       "params": [
         {
@@ -9009,7 +9015,9 @@
       "module": "src/path/path-server-name.ts",
       "signature": "export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean",
       "summary": "RFC 6125 §6.4: a presented `dNSName` against a reference host name.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "presented",
@@ -9412,6 +9420,7 @@
       "throws": [
         "PkiCmsError",
         "PkiEncodingError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [

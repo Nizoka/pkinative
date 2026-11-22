@@ -52,7 +52,8 @@
  * @module revocation/ocsp-check
  */
 
-import { bytesEqual } from '../core/bytes.js';
+import { A_CERTIFICATE, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
+import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
 import {
     createDiagnosticEmitter,
@@ -196,8 +197,13 @@ const MINUTE = 60_000;
  *   `strict: true`, for the first `warning` diagnostic the decision raises;
  *   `PKI_INVALID_OPTION` for a `futureTolerance` or `staleTolerance` that is
  *   not a finite number of milliseconds, zero or more.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `input`, its `response` or its `expected` is not an object, a
+ *   member of `expected` or the `nonce` is not bytes, `signer` is not a certificate from `parseCertificate`, or
+ *   `at` is not a finite number — each where the decision first needs it, so a response that declined is still answered.
  */
 export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[] {
+    assertObject(input, 'the checkOcspStatus input');
+    assertObject(input.response, 'response');
     const out: PkiReason[] = [];
     const path = 'ocsp';
 
@@ -205,7 +211,7 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
     // unknown with the status named, because `tryLater` and `unauthorized` call
     // for different next moves and a caller needs to know which it got.
     if (input.response.status !== 'successful') {
-        out.push(revocationUnknownReason(path, `the responder declined with ${input.response.status}, which says nothing about this certificate`));
+        out.push(revocationUnknownReason(path, `the responder declined with ${describeValue(input.response.status)}, which says nothing about this certificate`));
         return out;
     }
     const basic = input.response.basicResponse;
@@ -233,7 +239,13 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
     // `responses[0]`: a response may carry several, and taking the first is
     // how a client reads somebody else's status as its own. The responses
     // came out of the parser, bounded by `maxOcspSingleResponses`.
-    const answers = basic.responses.filter((single) => matches(single, input.expected));
+    const expected = input.expected;
+    // Read only when there is an answer to compare it with, as 1.0.0 did.
+    if (basic.responses.length > 0) {
+        assertObject(expected, 'expected');
+        for (const name of ['issuerNameHash', 'issuerKeyHash', 'serialNumber'] as const) assertBytes(expected[name], `expected.${name}`);
+    }
+    const answers = basic.responses.filter((single) => matches(single, expected));
     const answer = answers[0];
     if (answer === undefined) {
         out.push(revocationMismatchReason(path, describeMismatch(basic, input)));
@@ -282,6 +294,8 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
  * identifier RFC 5280 §4.2.1.2 method (1) computes.
  */
 function _signerDiagnostics(basic: OcspBasicResponse, signer: Certificate, path: string, emitter: PkiDiagnosticEmitter): void {
+    // Told by the one member the responderID is compared with.
+    assertParsed(signer, 'signer', A_CERTIFICATE, [basic.responderId.kind === 'byName' ? 'subject.der' : 'subjectPublicKeyInfo.publicKey.bytes']);
     if (!_responderIdMatches(basic.responderId, signer)) emitter.emit(ocspResponderIdMismatchDiagnostic(path, basic.responderId.kind));
     if (getExtension(signer, 'ocspNoCheck')?.critical === true) emitter.emit(ocspNoCheckCriticalDiagnostic(path));
 }
@@ -322,6 +336,7 @@ function hex(bytes: Uint8Array): string {
 function checkNonce(basic: OcspBasicResponse, input: CheckOcspStatusInput, path: string): PkiReason[] {
     const sent = input.nonce;
     if (sent === undefined) return [];
+    assertBytes(sent, 'nonce');
     const echoed = basic.extensions.find((extension) => extension.oid === OCSP_NONCE_OID);
     if (echoed === undefined) {
         return input.requireNonce === true
@@ -354,9 +369,10 @@ function checkFreshness(answer: OcspSingleResponse, input: CheckOcspStatusInput,
     // A tolerance is the caller's; NaN or a negative one would silently disable the check it tunes.
     for (const [name, value] of [['futureTolerance', input.futureTolerance], ['staleTolerance', input.staleTolerance]] as const) {
         if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${name} must be a finite number of milliseconds, zero or more, got ${String(value)} — leave it out for the default`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${name} must be a finite number of milliseconds, zero or more, got ${describeValue(value)} — leave it out for the default`);
         }
     }
+    assertInstant(input.at, 'at');
     const future = input.futureTolerance ?? MINUTE;
     if (answer.thisUpdate.epochMilliseconds > input.at + future) {
         out.push(revocationStaleReason(path, undefined, input.at));

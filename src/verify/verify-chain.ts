@@ -62,10 +62,10 @@ import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies, _interimReasons } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
-import { assertBytes, bytesEqual, isBytes } from '../core/bytes.js';
+import { assertArray, assertCertificate, assertCertificates, assertInstant, assertObject, assertReiterable, listOf } from '../core/arguments.js';
+import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { resolveLimits } from '../core/pki-limits.js';
-import { PkiError } from '../types/pki-errors.js';
 import type { BuildCertificatePathInput, BuildCertificatePathReport } from '../path/path-build.js';
 import type { SignatureResult } from '../types/path-types.js';
 import type { PkiDiagnosticHandler, PkiLimits, PkiParseOptions } from '../types/pki-types.js';
@@ -224,17 +224,10 @@ export { _pkiError };
  *
  * @internal
  */
-export function _assertCertificates(values: readonly unknown[], what: string): void {
-    for (const [index, value] of values.entries()) {
-        const candidate = value as Partial<Certificate> | null;
-        if (typeof value !== 'object' || candidate === null
-            || !isBytes(candidate.der)
-            || !isBytes(candidate.subject?.der)
-            || !isBytes(candidate.issuer?.der)
-            || !Array.isArray(candidate.extensions)) {
-            throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what}[${String(index)}] must be a certificate from parseCertificate — pass the parsed value, not its DER`);
-        }
-    }
+export function _assertCertificates(values: unknown, what: string): void {
+    // 1.0.0 took a `Set` as well as an array; the list is read again after this.
+    assertReiterable(values, what);
+    assertCertificates([...values], what);
 }
 
 /**
@@ -309,17 +302,20 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  * @throws {PkiError} `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`,
  *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean,
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate`
- *   produced.
+ *   produced, a list is not an array, or `at` is not a finite number.
  */
 export async function verifyCertificateChain(input: VerifyCertificateChainInput): Promise<VerifyCertificateChainReport> {
-    _assertCertificates([input.leaf], 'leaf');
+    assertObject(input, 'the verifyCertificateChain input');
+    assertCertificate(input.leaf, 'leaf');
     _assertCertificates(input.candidates ?? [], 'candidates');
-    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    assertCertificates(input.trustAnchors, 'trustAnchors');
     _assertArguments([
-        ...(input.crls ?? []).map((der, index) => [`crls[${String(index)}]`, der] as const),
-        ...(input.ocspResponses ?? []).map((der, index) => [`ocspResponses[${String(index)}]`, der] as const),
+        ...listOf(input.crls, 'crls').map((der, index) => [`crls[${String(index)}]`, der] as const),
+        ...listOf(input.ocspResponses, 'ocspResponses').map((der, index) => [`ocspResponses[${String(index)}]`, der] as const),
         ['ocspNonce', input.ocspNonce],
     ], { limits: input.limits ?? {}, strict: input.strict });
+    if (input.purposes !== undefined) assertArray(input.purposes, 'purposes');
+    if (input.at !== undefined) assertInstant(input.at, 'at');
     const at = input.at ?? Date.now();
     const candidates = input.candidates ?? [];
 

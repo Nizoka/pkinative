@@ -23,6 +23,7 @@
  */
 
 import { OID_KP_TIMESTAMPING } from '../core/cms-oids.js';
+import { assertCertificates, assertInstant, assertObject, listOf } from '../core/arguments.js';
 import { bytesEqual } from '../core/bytes.js';
 import { createDiagnosticEmitter, tspCertReqUnmetDiagnostic, tspCertsUnrequestedDiagnostic } from '../core/pki-diagnostics.js';
 import {
@@ -189,10 +190,11 @@ interface _Expectation {
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
  *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
  *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean or an `onDiagnostic` that is not a function;
- *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made.
+ *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made, a list is not an array, or `at` is not a finite number.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */
 export async function verifyTimeStampToken(input: VerifyTimeStampTokenInput): Promise<VerifyTimeStampTokenReport> {
+    assertObject(input, 'the verifyTimeStampToken input');
     // What the request, the response and the token say about themselves goes
     // to the caller's handler when there is one, and nowhere otherwise: a
     // verdict call reports in its report and does not warn on the console.
@@ -343,13 +345,16 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
     // Misuse is decided here, before the parse in the caller converts every
     // refusal into a reason about the token.
     _assertCertificates(input.certificates ?? [], 'certificates');
-    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    assertCertificates(input.trustAnchors, 'trustAnchors');
     _assertArguments([
         ['token', input.token], ['response', input.response], ['request', input.request], ['data', input.data], ['imprint', input.imprint],
     ], reading);
     // The request is the caller's own question, not evidence: it is read
     // without `strict`, and a malformed one throws as misuse.
     const request = input.request === undefined ? undefined : _parseTimeStampRequest(input.request, { limits: reading.limits, onDiagnostic: reading.onDiagnostic });
+    // After the refusals 1.0.0 already made, so that each keeps its code.
+    for (const what of ['crls', 'ocspResponses'] as const) listOf(input[what], what);
+    if (input.at !== undefined) assertInstant(input.at, 'at');
     return {
         imprint: input.imprint,
         data: input.data,

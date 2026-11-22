@@ -35,6 +35,7 @@ import { encodeNull, encodeObjectIdentifier, encodeSequence, encodeTlv } from '.
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
 import { TAG_BIT_STRING, TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { describeValue } from '../core/arguments.js';
 import { concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -725,10 +726,10 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     if (algorithm.name === 'RSA-PSS') {
         const hashOid = OID_BY_HASH.get(algorithm.hash);
         const size = HASH_BYTES.get(algorithm.hash);
-        if (hashOid === undefined || size === undefined) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, '1.2.840.113549.1.1.10');
+        if (hashOid === undefined || size === undefined) throw unsupported(`RSASSA-PSS with ${describeValue(algorithm.hash)} is not a digest pkinative writes`, '1.2.840.113549.1.1.10');
         const saltLength = algorithm.saltLength ?? size;
         if (!Number.isInteger(saltLength) || saltLength < 0) {
-            throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, '1.2.840.113549.1.1.10');
+            throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${describeValue(algorithm.saltLength)}`, '1.2.840.113549.1.1.10');
         }
         return {
             oid: '1.2.840.113549.1.1.10',
@@ -739,14 +740,14 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
         };
     }
 
-    const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
-    if (oid === undefined) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, '');
+    const oid = typeof algorithm.name === 'string' && typeof algorithm.hash === 'string' ? OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`) : undefined;
+    if (oid === undefined) throw unsupported(`${describeValue(algorithm.name)} with ${describeValue(algorithm.hash)} has no RFC 5280 signature OID`, '');
     if (algorithm.name === 'ECDSA') {
         // The type requires the curve; a JavaScript caller or a cast can omit it. Without it the
         // r‖s the host returns would be written as it stands, a signature no verifier accepts —
         // an artefact that fails closed everywhere, which is still a lie in the writer's output.
         if (algorithm.namedCurve !== 'P-256' && algorithm.namedCurve !== 'P-384' && algorithm.namedCurve !== 'P-521') {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: an ECDSA signing key names its curve — algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${String(algorithm.namedCurve)}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: an ECDSA signing key names its curve — algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${describeValue(algorithm.namedCurve)}`);
         }
         return {
             oid,

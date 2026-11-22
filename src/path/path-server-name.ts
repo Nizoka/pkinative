@@ -56,7 +56,8 @@
  * @module path/path-server-name
  */
 
-import { bytesEqual } from '../core/bytes.js';
+import { assertArray, assertObject, assertString } from '../core/arguments.js';
+import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { nameExcludedReason, nameMismatchReason, nameNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate, GeneralName } from '../types/x509-types.js';
@@ -152,14 +153,19 @@ const MAX_IPV6_TEXT = 45;
  * @param options     See {@link CheckServerNameOptions}.
  * @returns `PKI_REASON_NAME_MISMATCH` when nothing matches; empty when
  *   something does.
- * @throws Never — a mismatch is an answer, and every input shape is one of the
- *   two `ServerIdentity` members.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `certificate` is not one from `parseCertificate`, `reference` is not
+ *   an object naming a string (`dns`) or the octets of an address (`ip`), or `options.path` is not an array —
+ *   never for a mismatch, which is an answer.
  */
 export function checkServerName(
     certificate: Certificate,
     reference: ServerIdentity,
     options?: CheckServerNameOptions,
 ): readonly PkiReason[] {
+    // The certificate is refused by getExtension when it is not one.
+    assertObject(reference, 'the server identity');
+    if (reference.kind === 'ip') assertBytes(reference.value, 'the address of the server identity');
+    else assertString(reference.value, 'the name of the server identity');
     const identity = asAddress(reference);
     const san = getExtension(certificate, 'subjectAltName');
     const names = san?.names ?? [];
@@ -197,6 +203,7 @@ export function checkServerName(
         return [nameMismatchReason('certificate.subject', identityText(reference),
             `commonName ${JSON.stringify(matched)} matches, but the commonName fallback needs options.path — the validated path — so that the dNSName name constraints of the CAs that issued the certificate apply to it`)];
     }
+    assertArray(options.path, 'options.path');
     const verdict = constrainedCommonName(certificate, options.path, matched);
     if (verdict === null) return [];
     return [verdict.why === 'excluded'
@@ -298,9 +305,11 @@ function fold(text: string): string {
  * @param reference The host the caller asked about.
  * @param options   `allowWildcards: false` refuses every wildcard; on by default.
  * @returns Whether they identify the same host.
- * @throws Never — every string is either a match or not one.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either name is not a string.
  */
 export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean {
+    assertString(presented, 'the presented name');
+    assertString(reference, 'the reference name');
     // An empty or NUL-bearing name identifies nothing. Exact comparison would
     // already refuse them, but saying so here makes the intent explicit — a
     // NUL in a certificate name is CVE-2009-2408's whole mechanism.

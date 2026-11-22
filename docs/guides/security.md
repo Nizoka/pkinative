@@ -45,6 +45,10 @@ Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the 
 
 A structural failure throws a `PkiError` subclass — `PkiEncodingError` for X.690, OID and PEM syntax, `PkiCertificateError` for the RFC 5280 structure, `PkiLimitError` for a limit, `PkiCryptoError` for a Web Crypto operation that could not run, `PkiCmsError` and `PkiKeyError` for CMS and key containers — with a stable `code`. A conformance concern is a diagnostic. The two never mix: a diagnostic never hides a structural failure, and a thrown error never carries a merely pedantic concern. Any other exception escaping on malformed input — a `TypeError`, a `RangeError` — is a bug, and the fuzzing suites plus the conformance gate check that none does across every truncation, every single-octet mutation and 30 361 unique x509-limbo certificates.
 
+The same holds for a call the type checker never saw. A script without types, or a tool forwarding what a model wrote, passes `undefined` where an input object is expected: every function of the entry point refuses an argument of the wrong type with a `PkiError` — `PKI_INVALID_INPUT`, unless the argument has a code of its own — where it first reads it, and two suites check that nothing else escapes: one calls each of them with everything wrong at once, the other starts from a valid call and makes it wrong in one place. An argument, its members and the members of those are each checked where the function reads them. A value a reader made is told by the bytes the function reads from it; one built by hand to pass for it is not walked.
+
+What a reader returns is frozen, to the last nested list: the certificate a path builder, a revocation check and a report all hold cannot be changed by any of them.
+
 Decoded names and OIDs are kept in arrays and `Map`s, never as plain object keys, so a crafted `__proto__` cannot reach an object prototype (CWE-1321). `formatDistinguishedName` escapes control characters, so a crafted name cannot drive the terminal that prints it.
 
 ## Cryptography pkinative does not own

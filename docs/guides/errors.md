@@ -51,7 +51,7 @@ One code of that class is the exception, and it is on the decrypting side, where
 
 ### Usage
 
-- `PKI_INVALID_INPUT` — the input has the wrong type: not a `Uint8Array`, not a string, not a parsed certificate.
+- `PKI_INVALID_INPUT` — the input has the wrong type: not a `Uint8Array`, not a string, not the object, list or instant the function documents, not a parsed certificate.
 - `PKI_INVALID_OPTION` — an option fails validation, e.g. `encodingRules: 'cer'`.
 - `PKI_API_MISUSE` — a caller contract is violated, e.g. DER-encoding an indefinite-length node, or reading an implicitly tagged value without saying its type.
 - `PKI_STRICT_DIAGNOSTIC` — `strict: true` refused an input because of its first `warning` diagnostic; the message carries that diagnostic's code. Thrown by the parsers and by `checkRevocation` and `checkOcspStatus`; a verify report carries it as the `errorCode` of a `PKI_REASON_INPUT_MALFORMED` instead (see [`strict` in the verify and check verbs](#strict-in-the-verify-and-check-verbs)).

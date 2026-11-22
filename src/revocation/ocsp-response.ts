@@ -129,7 +129,7 @@ export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): O
         der: der.subarray(outer.offset, outer.end),
         status,
         basicResponse,
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 
@@ -245,19 +245,19 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     }
 
     const extensionsField = fields[at];
-    const extensions = extensionsField === undefined ? [] : readExtensions(der, extensionsField, ctx, 'ResponseData.responseExtensions');
+    const extensions = extensionsField === undefined ? Object.freeze([]) : readExtensions(der, extensionsField, ctx, 'ResponseData.responseExtensions');
     return { responderId, producedAt, responses: Object.freeze(responses), extensions };
 }
 
 function readResponderId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): OcspResponderId {
     const inner = fieldsOf(der, field, 'ResponseData.responderID', 1)[0];
     if (inner === undefined) throw ocspError('ResponseData.responderID', field.offset, 'is empty');
-    if (field.tagNumber === 1) return { kind: 'byName', nameDer: der.subarray(inner.offset, inner.end) };
+    if (field.tagNumber === 1) return Object.freeze({ kind: 'byName', nameDer: der.subarray(inner.offset, inner.end) });
     const node = decodeAt(der, inner, ctx);
     if (node.tagClass !== 'universal' || node.tagNumber !== 4) {
         throw ocspError('ResponseData.responderID', inner.offset, 'byKey is not an OCTET STRING');
     }
-    return { kind: 'byKey', keyHash: node.content };
+    return Object.freeze({ kind: 'byKey', keyHash: node.content });
 }
 
 /**
@@ -285,7 +285,7 @@ function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context
         status: readCertStatus(der, statusField, ctx, `${path}.certStatus`),
         thisUpdate: _readTime(decodeAt(der, thisUpdateField, ctx), ctx, undefined),
         nextUpdate,
-        extensions: extensionsField === undefined ? [] : readExtensions(der, extensionsField, ctx, `${path}.singleExtensions`),
+        extensions: extensionsField === undefined ? Object.freeze([]) : readExtensions(der, extensionsField, ctx, `${path}.singleExtensions`),
     });
 }
 
@@ -298,8 +298,8 @@ function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context
  */
 function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): OcspCertStatus {
     if (field.tagClass !== 'context') throw ocspError(path, field.offset, 'is not a context-tagged CHOICE');
-    if (field.tagNumber === 0) return { kind: 'good' };
-    if (field.tagNumber === 2) return { kind: 'unknown' };
+    if (field.tagNumber === 0) return Object.freeze({ kind: 'good' });
+    if (field.tagNumber === 2) return Object.freeze({ kind: 'unknown' });
     if (field.tagNumber !== 1) throw ocspError(path, field.offset, `is [${String(field.tagNumber)}]; RFC 6960 defines [0] good, [1] revoked and [2] unknown`);
 
     // RevokedInfo ::= SEQUENCE { revocationTime GeneralizedTime,
@@ -313,7 +313,7 @@ function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
         const inner = fieldsOf(der, reasonField, `${path}.revocationReason`, 1)[0];
         if (inner !== undefined && inner.length === 1) reason = REASONS[der[inner.contentStart] as number];
     }
-    return { kind: 'revoked', revocationTime: _readTime(decodeAt(der, timeField, ctx), ctx, undefined), reason };
+    return Object.freeze({ kind: 'revoked', revocationTime: _readTime(decodeAt(der, timeField, ctx), ctx, undefined), reason });
 }
 
 /** The OID of `cRLReason`, re-exported so a caller can find it on an extension. */

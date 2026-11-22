@@ -212,7 +212,7 @@
 <h2 id="error-codes">Error codes <a class="heading-anchor" href="#error-codes" aria-label="Link to this section">#</a></h2>
 <h3 id="usage">Usage <a class="heading-anchor" href="#usage" aria-label="Link to this section">#</a></h3>
 <ul>
-<li><code>PKI_INVALID_INPUT</code> — the input has the wrong type: not a <code>Uint8Array</code>, not a string, not a parsed certificate.</li>
+<li><code>PKI_INVALID_INPUT</code> — the input has the wrong type: not a <code>Uint8Array</code>, not a string, not the object, list or instant the function documents, not a parsed certificate.</li>
 <li><code>PKI_INVALID_OPTION</code> — an option fails validation, e.g. <code>encodingRules: &#39;cer&#39;</code>.</li>
 <li><code>PKI_API_MISUSE</code> — a caller contract is violated, e.g. DER-encoding an indefinite-length node, or reading an implicitly tagged value without saying its type.</li>
 <li><code>PKI_STRICT_DIAGNOSTIC</code> — <code>strict: true</code> refused an input because of its first <code>warning</code> diagnostic; the message carries that diagnostic&#39;s code. Thrown by the parsers and by <code>checkRevocation</code> and <code>checkOcspStatus</code>; a verify report carries it as the <code>errorCode</code> of a <code>PKI_REASON_INPUT_MALFORMED</code> instead (see <a href="#strict-in-the-verify-and-check-verbs"><code>strict</code> in the verify and check verbs</a>).</li>

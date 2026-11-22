@@ -26,6 +26,7 @@
  * @module crypto/x509-verify
  */
 
+import { A_CERTIFICATE, assertParsed } from '../core/arguments.js';
 import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { AttributeCertificate } from '../types/attribute-certificate-types.js';
@@ -134,8 +135,8 @@ export async function verifyCertificateSignature(
     issuer: Certificate,
     options?: VerifyCertificateSignatureOptions,
 ): Promise<boolean> {
-    const subject = assertCertificate(certificate, 'certificate');
-    const signer = assertCertificate(issuer, 'issuer');
+    const subject = assertSignedCertificate(certificate, 'certificate');
+    const signer = assertSignedCertificate(issuer, 'issuer');
     return verifySignedStructure(subject, signer, resolveOptions(options));
 }
 
@@ -161,6 +162,20 @@ interface SignedStructure {
      */
     readonly tbsSignatureAlgorithm?: { readonly der: Uint8Array } | undefined;
     readonly signatureValue: { readonly bytes: Uint8Array; readonly unusedBits: number };
+}
+
+/**
+ * Whether `value` holds, as bytes, every member {@link verifySignedStructure}
+ * reads from a signed structure — told before any of them is read, so that
+ * what is not a parsed value is a refusal and not a `TypeError`.
+ */
+function isSignedStructure(value: unknown): value is SignedStructure {
+    const candidate = value as { readonly [K in keyof SignedStructure]?: { readonly der?: unknown; readonly bytes?: unknown } | null } | null;
+    return typeof value === 'object' && candidate !== null
+        && isBytes(candidate.tbsDer)
+        && isBytes(candidate.signatureAlgorithm?.der)
+        && isBytes(candidate.signatureValue?.bytes)
+        && (candidate.tbsSignatureAlgorithm === undefined || isBytes(candidate.tbsSignatureAlgorithm?.der));
 }
 
 /** The options with their defaults applied, once, so every entry point agrees. */
@@ -241,10 +256,10 @@ export async function verifyCrlSignature(
     issuer: Certificate,
     options?: VerifyCertificateSignatureOptions,
 ): Promise<boolean> {
-    if (typeof crl !== 'object' || crl === null || !isBytes(crl.tbsDer)) {
+    if (!isSignedStructure(crl)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: crl must be a CertificateList from parseCertificateList(), not raw bytes');
     }
-    const signer = assertCertificate(issuer, 'issuer');
+    const signer = assertSignedCertificate(issuer, 'issuer');
     return verifySignedStructure(crl, signer, resolveOptions(options));
 }
 
@@ -281,10 +296,10 @@ export async function verifyAttributeCertificateSignature(
     issuer: Certificate,
     options?: VerifyCertificateSignatureOptions,
 ): Promise<boolean> {
-    if (typeof ac !== 'object' || ac === null || !isBytes(ac.tbsDer)) {
+    if (!isSignedStructure(ac)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: ac must be an AttributeCertificate from parseAttributeCertificate(), not raw bytes');
     }
-    const signer = assertCertificate(issuer, 'issuer');
+    const signer = assertSignedCertificate(issuer, 'issuer');
     return verifySignedStructure(ac, signer, resolveOptions(options));
 }
 
@@ -314,10 +329,10 @@ export async function verifyAttributeCertificateSignature(
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  */
 export async function verifyOcspSignature(basicResponse: OcspBasicResponse, responder: Certificate): Promise<boolean> {
-    if (typeof basicResponse !== 'object' || basicResponse === null || !isBytes(basicResponse.tbsDer)) {
+    if (!isSignedStructure(basicResponse)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: basicResponse must come from parseOcspResponse(), not raw bytes — and a response whose status is not successful has none');
     }
-    const signer = assertCertificate(responder, 'responder');
+    const signer = assertSignedCertificate(responder, 'responder');
     // No algorithm-match check: RFC 6960 names the algorithm once, so there is
     // no second field that could disagree with it. SHA-1 is refused here with no
     // opt-in at all: a revocation answer is a live authentication decision, and
@@ -341,17 +356,15 @@ export async function verifyOcspSignature(basicResponse: OcspBasicResponse, resp
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  */
 export async function verifySelfSignature(certificate: Certificate, options?: VerifyCertificateSignatureOptions): Promise<boolean> {
-    const self = assertCertificate(certificate, 'certificate');
-    if (!bytesEqual(self.subject.der, self.issuer.der)) return false;
-    return verifyCertificateSignature(self, self, options);
+    // The two names, which this reads; what the signature needs is refused
+    // by the call below, as it is for any other pair.
+    assertParsed(certificate, 'certificate', A_CERTIFICATE, ['subject.der', 'issuer.der']);
+    if (!bytesEqual(certificate.subject.der, certificate.issuer.der)) return false;
+    return verifyCertificateSignature(certificate, certificate, options);
 }
 
-function assertCertificate(value: unknown, what: string): Certificate {
-    const candidate = value as Partial<Certificate> | null;
-    if (typeof value !== 'object' || candidate === null
-        || !isBytes(candidate.tbsDer)
-        || typeof candidate.signatureAlgorithm !== 'object' || candidate.signatureAlgorithm === null
-        || typeof candidate.subjectPublicKeyInfo !== 'object' || candidate.subjectPublicKeyInfo === null) {
+function assertSignedCertificate(value: unknown, what: string): Certificate {
+    if (!isSignedStructure(value) || !isBytes((value as Partial<Certificate>).subjectPublicKeyInfo?.der)) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what} must be a certificate from parseCertificate — pass the parsed value, not its DER`);
     }
     return value as Certificate;

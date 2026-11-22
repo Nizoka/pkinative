@@ -25,7 +25,7 @@ import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { _readObjectIdentifier, readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBoolean, _readInteger, _readOctetString } from '../asn1/asn1-read.js';
 import { _readTime } from '../asn1/asn1-time.js';
-import { toHex } from '../core/bytes.js';
+import { assertBytes, toHex } from '../core/bytes.js';
 import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node } from '../types/asn1-types.js';
@@ -109,10 +109,11 @@ export function _serialOf(node: Asn1Node, ctx: Asn1Context): SerialNumber {
  *   version other than 1.
  * @throws {PkiEncodingError} For any DER violation.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions` or the decoder's limits.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a `Uint8Array`.
  */
 export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInfo {
     const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
-    const root = decodeWithContext(der, ctx, false);
+    const root = decodeWithContext(assertBytes(der, 'parseTstInfo input'), ctx, false);
     const path = 'TSTInfo';
     if (root.tagClass !== 'universal' || root.tagNumber !== 16) throw _tspError(path, root.offset, 'is not a SEQUENCE');
 
@@ -152,7 +153,7 @@ export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInf
     let ordering = false;
     let nonce: bigint | undefined;
     let tsa: TstInfo['tsa'];
-    let extensions: readonly Extension[] = [];
+    let extensions: readonly Extension[] = Object.freeze([]);
     const next = (): Asn1Node | undefined => fields[at];
 
     let field = next();

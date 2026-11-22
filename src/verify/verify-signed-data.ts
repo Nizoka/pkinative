@@ -27,6 +27,7 @@
  */
 
 import { parseSignedData } from '../cms/cms-signed-data.js';
+import { assertCertificates, assertInstant, assertObject, listOf } from '../core/arguments.js';
 import { cmsNoSignersReason, inputMalformedReason } from '../core/pki-reasons.js';
 import type { PkiTime } from '../types/asn1-types.js';
 import type { SignedData } from '../types/cms-types.js';
@@ -189,16 +190,17 @@ export interface VerifySignedDataReport {
  *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
  *   `PKI_INVALID_OPTION` for a malformed `encodingRules`, `allowTrailingData`,
  *   `strict` or `onDiagnostic`; `PKI_INVALID_INPUT`
- *   when a certificate is not one `parseCertificate` made.
+ *   when a certificate is not one `parseCertificate` made, a list is not an array, or `at` is not a finite number.
  */
 export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport> {
+    assertObject(input, 'the verifySignedData input');
     if (input.content !== undefined && input.contentDigest !== undefined) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: pass the detached content or its digest, not both — there would be two answers to which bytes were signed');
     }
     // Misuse is decided here, before the parse below converts every refusal
     // into a reason about the message.
     _assertCertificates(input.certificates ?? [], 'certificates');
-    _assertCertificates(input.trustAnchors, 'trustAnchors');
+    assertCertificates(input.trustAnchors, 'trustAnchors');
     _assertArguments([['signedData', input.signedData], ['content', input.content], ['contentDigest', input.contentDigest]], {
         limits: input.limits ?? {},
         strict: input.strict,
@@ -234,6 +236,9 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     if (signedData.content !== undefined && (input.content !== undefined || input.contentDigest !== undefined)) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: this message carries its own content, so the content or digest passed alongside it is ambiguous — drop it, or verify the message whose content is detached');
     }
+    // After the refusals 1.0.0 already made, so that each keeps its code.
+    for (const what of ['crls', 'ocspResponses', 'purposes'] as const) listOf<unknown>(input[what], what);
+    if (input.at !== undefined) assertInstant(input.at, 'at');
 
     if (signedData.signerInfos.length === 0) {
         // `[].every(valid)` is true, and a verifier written that way calls a

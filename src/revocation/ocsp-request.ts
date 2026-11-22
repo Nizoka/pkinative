@@ -34,6 +34,7 @@ import { readTlvHeader, walkChildren, type TlvHeader } from '../asn1/asn1-cursor
 import { encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { _readBitString } from '../asn1/asn1-read.js';
 import { encodeAlgorithmIdentifier } from '../build/build-structures.js';
+import { A_CERTIFICATE, assertParsed, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { ocspNonceLengthDiagnostic, ocspRequestExtensionCriticalDiagnostic, ocspRequestSignedUnnamedDiagnostic } from '../core/pki-diagnostics.js';
 import { _pkiError } from '../core/pki-error-guard.js';
@@ -86,11 +87,15 @@ export interface CreateOcspRequestOptions {
  * @param issuer      The certificate that issued it.
  * @param algorithm   The digest; SHA-1 by default.
  * @returns The encoded `CertID`.
- * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed; `PKI_INVALID_OPTION` for a digest other than SHA-1 or SHA-256.
  */
 export function encodeOcspCertId(certificate: Certificate, issuer: Certificate, algorithm: OcspHashAlgorithm = 'SHA-1'): Uint8Array {
-    assertParsed(certificate, 'certificate');
-    assertParsed(issuer, 'issuer');
+    assertParsed(certificate, 'certificate', A_CERTIFICATE, ['der', 'serialNumber.bytes']);
+    assertParsed(issuer, 'issuer', A_CERTIFICATE, ['der', 'subject.der', 'subjectPublicKeyInfo.publicKey.bytes']);
+    // Asked for its own names only, and before anything is hashed with the wrong one.
+    if (typeof algorithm !== 'string' || !Object.prototype.hasOwnProperty.call(HASH_OID, algorithm)) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: the CertID digest must be 'SHA-1' or 'SHA-256', got ${describeValue(algorithm)}`);
+    }
     const digest = algorithm === 'SHA-1' ? sha1 : sha256;
     // The encoded Name, tag and length included. RFC 6960 §4.1.1: "the hash of
     // the issuer's distinguished name (DN)", and the DN is the encoded field.
@@ -169,12 +174,6 @@ export function createOcspRequest(certificate: Certificate, issuer: Certificate,
     }
     // version [0] takes its DEFAULT v1 and is omitted, as DER requires.
     return encodeSequence([encodeSequence(fields)]);
-}
-
-function assertParsed(value: unknown, what: string): void {
-    if (typeof value !== 'object' || value === null || !isBytes((value as Certificate).der)) {
-        throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what} must be a Certificate from parseCertificate(), not raw bytes`);
-    }
 }
 
 // ── Reading a request ────────────────────────────────────────────────
@@ -261,7 +260,7 @@ export function parseOcspRequest(der: Uint8Array, options?: PkiParseOptions): Oc
         extensions: body.extensions,
         nonce: body.nonce,
         signature,
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 
@@ -306,7 +305,7 @@ function readTbsRequest(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): TbsR
         requests.push(readRequest(der, entry, ctx, where));
     }
 
-    let extensions: readonly Extension[] = [];
+    let extensions: readonly Extension[] = Object.freeze([]);
     let nonce: Uint8Array | undefined;
     const extensionsField = fields[at];
     if (extensionsField !== undefined) {
@@ -333,7 +332,7 @@ function readRequest(der: Uint8Array, entry: TlvHeader, ctx: Asn1Context, path: 
     return Object.freeze({
         certId: _readCertId('OCSPRequest', der, idField, ctx, `${path}.reqCert`),
         certIdDer: der.subarray(idField.offset, idField.end),
-        extensions: extensionsField === undefined ? [] : readRequestExtensions(der, extensionsField, ctx, `${path}.singleRequestExtensions`),
+        extensions: extensionsField === undefined ? Object.freeze([]) : readRequestExtensions(der, extensionsField, ctx, `${path}.singleRequestExtensions`),
     });
 }
 

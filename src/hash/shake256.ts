@@ -19,6 +19,7 @@
  * @module hash/shake256
  */
 
+import { describeValue } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
 
@@ -158,7 +159,7 @@ const MAX_OUTPUT_OCTETS = 1_048_576;
 export function shake256(input: Uint8Array, outputLength: number): Uint8Array {
     const bytes = assertBytes(input, 'shake256 input');
     if (!Number.isInteger(outputLength) || outputLength < 0 || outputLength > MAX_OUTPUT_OCTETS) {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: shake256 outputLength must be an integer number of octets from 0 to ${String(MAX_OUTPUT_OCTETS)}, got ${String(outputLength)} — an Ed448 CMS signer uses 64, and a digest is not a stream`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: shake256 outputLength must be an integer number of octets from 0 to ${String(MAX_OUTPUT_OCTETS)}, got ${describeValue(outputLength)} — an Ed448 CMS signer uses 64, and a digest is not a stream`);
     }
 
     // Pad: the message, the domain separator with the first pad bit, zeros,

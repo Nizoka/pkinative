@@ -97,6 +97,7 @@ export const DEFAULT_TARGETS: ReadonlyArray<{ readonly file: string; readonly sa
     { file: 'src/cms/tsp-request.ts' },
     { file: 'src/cms/tsp-response.ts' },
     { file: 'src/cms/tsp-tst-info.ts' },
+    { file: 'src/core/arguments.ts' },
     { file: 'src/core/base64.ts' },
     { file: 'src/core/bytes.ts' },
     { file: 'src/core/name-oids.ts' },

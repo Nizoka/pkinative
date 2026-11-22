@@ -139,7 +139,7 @@ export function _readCertId(message: _OcspMessage, der: Uint8Array, field: TlvHe
 export function _readExtensions(message: _OcspMessage, der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): readonly Extension[] {
     if (field.tagClass !== 'context') throw _ocspError(message, path, field.offset, 'is not a context-tagged Extensions field');
     const wrapper = _fieldsOf(message, der, field, path, 1)[0];
-    if (wrapper === undefined) return [];
+    if (wrapper === undefined) return Object.freeze([]);
     const out: Extension[] = [];
     let index = 0;
     for (const entry of walkChildren(der, wrapper, path)) {

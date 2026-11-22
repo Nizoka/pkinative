@@ -36,6 +36,7 @@
  * @module path/path-build
  */
 
+import { A_CERTIFICATE, assertArray, assertIterable, assertObject, assertParsed, assertParsedList } from '../core/arguments.js';
 import { bytesEqual } from '../core/bytes.js';
 import { limitExceededReason } from '../core/pki-reasons.js';
 import { resolveLimits } from '../core/pki-limits.js';
@@ -43,7 +44,7 @@ import type { ValidateCertificatePathInput, ValidateCertificatePathReport } from
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
 import { checkExtendedKeyUsage } from './path-purpose.js';
-import { _signatureIndex, _validateIndexed } from './path-validate.js';
+import { _assertValidation, _signatureIndex, _validateIndexed } from './path-validate.js';
 
 /** What to build from, and everything needed to judge each candidate. */
 export interface BuildCertificatePathInput extends Omit<ValidateCertificatePathInput, 'path'> {
@@ -117,9 +118,20 @@ const fingerprint = (certificate: Certificate): string => {
  * @returns The first accepted path with §6's report, or the report of the
  *   attempt that got furthest; `explored` counts the candidates tried.
  * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `input` is not an object, `leaf`, a candidate or a trust anchor is not a certificate
+ *   from `parseCertificate`, `candidates` cannot be iterated, `at` is not a finite number, or — each where the search
+ *   first reads it — `signatures`, `purposes` or `initialPolicySet` is not a list of what it documents.
  */
 export function buildCertificatePath(input: BuildCertificatePathInput): BuildCertificatePathReport {
+    assertObject(input, 'the buildCertificatePath input');
     const limits = resolveLimits(input.limits);
+    // Once, here: every path the search tries is validated without its guards.
+    _assertValidation(input);
+    assertParsed(input.leaf, 'leaf', A_CERTIFICATE, ['der', 'subject.der', 'issuer.der']);
+    // A bag is read once, in the loop below, which is where each candidate is
+    // told: 1.0.0 took a `Set`, and a generator, which a guard here would spend.
+    assertIterable(input.candidates, 'candidates');
+    assertParsedList(input.trustAnchors, 'trustAnchors', A_CERTIFICATE, ['der']);
     const anchors = new Set(input.trustAnchors.map((c) => fingerprint(c)));
     // An anchor is a name and a key (RFC 5280 §6.1.1 (d)): a candidate that
     // copies an anchor's name under another key is not where a path ends, it
@@ -135,6 +147,7 @@ export function buildCertificatePath(input: BuildCertificatePathInput): BuildCer
     // would happily construct a path §6 then refuses.
     const bySubject = new Map<string, Certificate[]>();
     for (const candidate of input.candidates) {
+        assertParsed(candidate, 'a candidate', A_CERTIFICATE, ['subject.der']);
         const key = hexOf(candidate.subject.der);
         bySubject.set(key, [...(bySubject.get(key) ?? []), candidate]);
     }
@@ -164,6 +177,7 @@ export function buildCertificatePath(input: BuildCertificatePathInput): BuildCer
     const judge = (path: readonly Certificate[]): ValidateCertificatePathReport => {
         const report = _validateIndexed({ ...input, path }, signatures);
         if (!report.valid || input.purposes === undefined) return report;
+        assertArray(input.purposes, 'purposes');
         const refused = input.purposes.flatMap((purpose) => [...checkExtendedKeyUsage(report.path, purpose)]);
         return refused.length === 0 ? report : { valid: false, reasons: refused, path: report.path };
     };

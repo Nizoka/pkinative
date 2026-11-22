@@ -1,7 +1,7 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-11-18",
+  "verifiedOn": "2026-11-23",
   "artefacts": [
     {
       "url": "llms.txt",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 438869,
-      "approxTokens": 109717
+      "bytes": 439865,
+      "approxTokens": 109966
     },
     {
       "url": "llms-recipes.txt",
@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 347979,
-      "approxTokens": 86995
+      "bytes": 348117,
+      "approxTokens": 87029
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 31649,
-      "approxTokens": 7912
+      "bytes": 32156,
+      "approxTokens": 8039
     },
     {
       "url": "data/diagnostics.json",
@@ -126,8 +126,8 @@
         "private-keys-and-pkcs12",
         "what-none-of-these-do"
       ],
-      "bytes": 85505,
-      "approxTokens": 21376
+      "bytes": 85532,
+      "approxTokens": 21383
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -273,8 +273,8 @@
         "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15911,
-      "approxTokens": 3978
+      "bytes": 16824,
+      "approxTokens": 4206
     },
     {
       "title": "Conformance",
@@ -332,8 +332,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 41514,
-      "approxTokens": 10379
+      "bytes": 41570,
+      "approxTokens": 10393
     },
     {
       "title": "Choosing a library and a surface",

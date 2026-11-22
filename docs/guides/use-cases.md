@@ -232,7 +232,7 @@ Choosing which anchors to trust is yours, and so is fetching anything not alread
 
 **It takes signature verdicts, not keys**, and three things follow. `validateCertificatePath` is **synchronous** — putting `subtle.verify` inside would make the whole state machine asynchronous, unfuzzable without a host, and would mix an I/O-shaped failure with a logical one. It is **pure** — it reads data and returns a verdict, reaching nothing. And the signatures are checked before the walk, by whoever calls it.
 
-**It never throws for a validation issue.** An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in `limits` — throws. That is the [third vocabulary](errors.md#three-vocabularies-three-questions) doing its job: primitives return and throw, compositions report.
+**It never throws for a validation issue.** An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in `limits`, a value of the wrong type — throws. That is the [third vocabulary](errors.md#three-vocabularies-three-questions) doing its job: primitives return and throw, compositions report.
 
 **It reports every reason, not the first.** A certificate can be expired *and* issued by something that is not a CA, and a caller fixing one per round trip is a caller the report failed.
 

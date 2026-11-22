@@ -20,6 +20,7 @@
  * @module keys/key-import
  */
 
+import { describeValue } from '../core/arguments.js';
 import { decodeAsn1 } from '../asn1/asn1-decode.js';
 import { encodeNull, encodeObjectIdentifier, encodeSequence } from '../asn1/asn1-encode.js';
 import { resolveSigner } from '../crypto/crypto-algorithms.js';
@@ -41,7 +42,7 @@ const CUSTOMARY_HASH: Readonly<Record<'P-256' | 'P-384' | 'P-521', SignatureHash
 
 /** An algorithm in words, for an error message. */
 function _algorithmName(algorithm: SignatureAlgorithm): string {
-    return algorithm.name === 'ECDSA' ? `ECDSA on ${String(algorithm.namedCurve)}` : String(algorithm.name);
+    return algorithm.name === 'ECDSA' ? `ECDSA on ${describeValue(algorithm.namedCurve)}` : describeValue(algorithm.name);
 }
 
 function _mismatch(key: string, algorithm: SignatureAlgorithm): PkiError {

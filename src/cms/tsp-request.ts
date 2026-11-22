@@ -13,6 +13,7 @@
  * @module cms/tsp-request
  */
 
+import { describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
@@ -108,9 +109,11 @@ export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeSta
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the hash to timestamp must be a Uint8Array — hash the data first, with the algorithm you name in hashAlgorithm');
     }
     const name = options?.hashAlgorithm ?? 'SHA-256';
-    const algorithm = HASHES[name];
-    if (typeof algorithm !== 'object') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: hashAlgorithm must be 'SHA-256', 'SHA-384' or 'SHA-512', got ${String(name)} — SHA-1 is not offered for new timestamps, because a collision would let one token cover two documents`);
+    // An own name of the table and nothing else: `__proto__` is a name every
+    // object answers to, and a value that is not a string is no name at all.
+    const algorithm = typeof name === 'string' && Object.prototype.hasOwnProperty.call(HASHES, name) ? HASHES[name] : undefined;
+    if (algorithm === undefined) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: hashAlgorithm must be 'SHA-256', 'SHA-384' or 'SHA-512', got ${describeValue(name)} — SHA-1 is not offered for new timestamps, because a collision would let one token cover two documents`);
     }
     if (hash.length !== algorithm.bytes) {
         throw new PkiError('PKI_API_MISUSE', `pkinative: a ${name} hash is ${String(algorithm.bytes)} octets and this one is ${String(hash.length)} — pass the digest itself, computed with the algorithm you name`);
@@ -169,7 +172,7 @@ function readRequest(bytes: Uint8Array, ctx: Asn1Context, inspect: boolean): Req
     let policy: string | undefined;
     let nonce: bigint | undefined;
     let certReq = false;
-    let extensions: readonly Extension[] = [];
+    let extensions: readonly Extension[] = Object.freeze([]);
     // 0 = reqPolicy, 1 = nonce, 2 = certReq, 3 = extensions [0] — once each, in order.
     let last = -1;
     for (const field of rest) {
@@ -259,6 +262,6 @@ export function parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions
         nonce,
         certReq,
         extensions,
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }

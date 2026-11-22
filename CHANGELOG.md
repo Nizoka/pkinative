@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). Versions below 1.0.0 were never tagged or published; `0.0.1` on npm is the name reservation.
 
-## [1.1.0] – 2026-11-18
+## [1.1.0] – 2026-11-23
 
 ### Security
 
@@ -37,6 +37,9 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 
 ### Fixed
 
+- **fix: an argument of the wrong type is a `PkiError`, on every export.** 37 of the 108 functions of the entry point answered `undefined`, `null`, or an object whose members are not what the type says, with a `TypeError` from a property read — among them `createSignedData`, `checkRevocation`, `parseTstInfo` and the three `verify*` compositions. Each throws `PKI_INVALID_INPUT` where it first reads the value (`src/core/arguments.ts`); no code is new. Twenty more threw while writing the refusal's message for an object with no prototype. `tests/fuzzing/arguments.test.ts` calls every function of the entry point with hostile values, and `tests/fuzzing/argument-members.test.ts` makes a valid call of each of them wrong in one member at a time. An `at` that is not a finite number is refused the same way, a `Date` included, and so are a tolerance, a purpose, a nonce or a list of the wrong type; an OCSP CertID digest other than SHA-1 or SHA-256 is `PKI_INVALID_OPTION` before anything is hashed. A signature verifier given a value without its signed members throws the same code, where it answered `false` or a `TypeError`.
+- **fix: everything a reader returns is frozen, the empty lists included** — `extensions`, `attributes`, `statusStrings`, `failInfo`, the `diagnostics` of nine readers, and the `responderId` and `certStatus` of an OCSP response. `tests/property/frozen-results.test.ts` walks what every `parse*` and `decode*` export returns.
+- **fix(cms): `createTimeStampRequest` answers a `hashAlgorithm` outside its table with `PKI_INVALID_OPTION`**, `__proto__` included, which was `PKI_API_MISUSE`.
 - **fix(tooling): six code-scanning findings in the scripts and tests** — one `escapeRegExp` for the verify-docs rules, where three patterns escaped the dot only or replaced a character by itself; a private temporary directory in the blob round-trip test; a trigger pattern that backtracked polynomially; a script-block filter that missed a closing tag with blanks.
 - **docs: two sentences written before the first push** — "Coverage-guided fuzzing has not run on GitHub yet" (README) and "No workflow of this repository has run yet" (CONTRIBUTING) — now say what runs.
 

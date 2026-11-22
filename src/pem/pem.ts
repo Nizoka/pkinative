@@ -21,6 +21,7 @@
  * @module pem/pem
  */
 
+import { describeValue } from '../core/arguments.js';
 import { decodeBase64, encodeBase64 } from '../core/base64.js';
 import { assertBytes } from '../core/bytes.js';
 import { createDiagnosticEmitter, pemLaxAcceptedDiagnostic } from '../core/pki-diagnostics.js';
@@ -103,11 +104,11 @@ export function decodePem(text: string, options?: DecodePemOptions): readonly Pe
     }
     const mode = options?.mode ?? 'strict';
     if (mode !== 'strict' && mode !== 'lax') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: mode must be 'strict' or 'lax', got ${String(mode)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: mode must be 'strict' or 'lax', got ${describeValue(mode)}`);
     }
     const wanted = options?.label;
     if (wanted !== undefined && (typeof wanted !== 'string' || !isValidLabel(wanted))) {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: label must be an RFC 7468 label such as 'CERTIFICATE', got ${JSON.stringify(wanted)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: label must be an RFC 7468 label such as 'CERTIFICATE', got ${typeof wanted === 'string' ? JSON.stringify(wanted) : describeValue(wanted)}`);
     }
     if (options?.strict !== undefined && typeof options.strict !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: strict must be a boolean, got ${typeof options.strict}`);

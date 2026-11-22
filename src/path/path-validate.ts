@@ -64,6 +64,8 @@ import {
     wrapUpPolicies,
     type PolicyState,
 } from './path-policies.js';
+import { A_CERTIFICATE, assertArray, assertInstant, assertIterable, assertObject, assertParsedList } from '../core/arguments.js';
+import { assertBytes } from '../core/bytes.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { ValidateCertificatePathInput, ValidateCertificatePathReport, SignatureVerdict, SignatureResult } from '../types/path-types.js';
@@ -411,7 +413,7 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * **It never throws for a validation issue**, and it never throws for a
  * missing input either: an empty chain, no trust anchor and no signature
  * verdicts are all answers, reported as reasons. The only thing that can
- * throw is misusing the API — an unknown key in `limits`.
+ * throw is misusing the API — an unknown key in `limits`, a value of the wrong type.
  *
  * `nameConstraints`, `policyConstraints`, `policyMappings` and
  * `inhibitAnyPolicy` are processed (§6.1.3, §6.1.4); any **other** critical
@@ -425,9 +427,33 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  * @param input What to validate, and everything needed to judge it.
  * @returns The verdict and every reason behind it.
  * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `input` is not an object, `path` or `trustAnchors` is not an
+ *   array of certificates from `parseCertificate`, `signatures` is not a list of verdicts on such certificates,
+ *   `initialPolicySet` is not an array, or `at` is not a finite number.
  */
 export function validateCertificatePath(input: ValidateCertificatePathInput): ValidateCertificatePathReport {
-    return _validateIndexed(input, _signatureIndex(input.signatures ?? []));
+    assertObject(input, 'the validateCertificatePath input');
+    const signatures = _signatureIndex(input.signatures ?? []);
+    _assertValidation(input);
+    // The walk reads a certificate and the one after it: all are told before it starts.
+    assertParsedList(input.path, 'path', A_CERTIFICATE, ['der', 'subject.der', 'issuer.der']);
+    return _validateIndexed(input, signatures);
+}
+
+/**
+ * What a validation is refused for before it starts, in the order 1.0.0 read
+ * it: the limits first, then the instant and the anchors, by their name and
+ * key. Once per call of the public function — the search of
+ * `buildCertificatePath` validates up to `maxPathsExplored` paths against the
+ * same anchors. The policy set is told where the walk ends, which is where
+ * it is read.
+ *
+ * @internal
+ */
+export function _assertValidation(input: Omit<ValidateCertificatePathInput, 'path'>): void {
+    resolveLimits(input.limits);
+    assertInstant(input.at, 'at');
+    assertParsedList(input.trustAnchors, 'trustAnchors', A_CERTIFICATE, ['subject.der', 'subjectPublicKeyInfo.der']);
 }
 
 /**
@@ -441,13 +467,19 @@ export function validateCertificatePath(input: ValidateCertificatePathInput): Va
  * @internal
  */
 export function _signatureIndex(results: readonly SignatureResult[]): ReadonlyMap<string, SignatureEntry> {
+    assertIterable(results, 'signatures');
     const signatures = new Map<string, SignatureEntry>();
     // Bounded by the caller's verdict list, one entry each.
     for (const result of results) {
-        const subject = _hex(result.certificate.der);
+        // Each DER is read once, here: a verdict list is as long as the
+        // search is wide, and a guard that read it again would double that.
+        assertObject(result, 'a signature result');
+        assertObject(result.certificate, 'the certificate of a signature result');
+        const subject = _hex(assertBytes(result.certificate.der, 'the DER of a signature result\'s certificate'));
         const entry = { verdict: result.verdict, errorCode: result.errorCode, detail: result.detail };
         if (result.issuer !== undefined) {
-            signatures.set(`${subject}|${_hex(result.issuer.der)}`, entry);
+            assertObject(result.issuer, 'the issuer of a signature result');
+            signatures.set(`${subject}|${_hex(assertBytes(result.issuer.der, 'the DER of a signature result\'s issuer'))}`, entry);
             continue;
         }
         // Two issuer-less verdicts for one certificate that disagree cannot both
@@ -632,7 +664,9 @@ export function _validateIndexed(input: ValidateCertificatePathInput, signatures
 
     // §6.1.5 (g). Only a required explicit policy with nothing surviving
     // rejects a path; an empty tree nobody asked about is not a failure.
-    if (wrapUpPolicies(policies, input.initialPolicySet ?? []) === null) {
+    const initialPolicySet = input.initialPolicySet ?? [];
+    assertArray(initialPolicySet, 'initialPolicySet');
+    if (wrapUpPolicies(policies, initialPolicySet) === null) {
         state.reasons.push(noValidPolicyReason('path'));
     }
 

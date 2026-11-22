@@ -21,6 +21,7 @@
  * @module asn1/asn1-time
  */
 
+import { describeValue } from '../core/arguments.js';
 import type { Asn1Node, PkiTime, ReadTimeOptions, TimeType } from '../types/asn1-types.js';
 import { PkiEncodingError, PkiError } from '../types/pki-errors.js';
 import { createAsn1Context, noteBer, type Asn1Context } from './asn1-context.js';
@@ -183,7 +184,7 @@ export function readTime(node: Asn1Node, options?: ReadTimeOptions): PkiTime {
     const ctx = createAsn1Context(options);
     const implicitType = options?.timeType;
     if (implicitType !== undefined && implicitType !== 'UTCTime' && implicitType !== 'GeneralizedTime') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${describeValue(implicitType)}`);
     }
     return _readTime(checked, ctx, implicitType);
 }
