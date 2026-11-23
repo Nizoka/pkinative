@@ -512,7 +512,7 @@ const LOADER = 'docs/playgrounds/load-engine.js';
  */
 const cdnPin: Rule = {
     id: 'cdn-pin',
-    summary: 'docs/playgrounds/load-engine.js imports pkinative from esm.sh and then jsDelivr, pinned to packages.pkinative.version of docs/assets/ecosystem.json; no playground script imports a local engine copy or any other remote module, and no committed bundle or declared.playgroundBundle survives.',
+    summary: 'docs/playgrounds/load-engine.js imports pkinative from esm.sh and then jsDelivr, pinned to packages.pkinative.version of docs/assets/ecosystem.json, and a playground page that writes pkinative@x.y.z names that version; no playground script imports a local engine copy or any other remote module, and no committed bundle or declared.playgroundBundle survives.',
     check(ctx) {
         const manifest = readJson<{ packages?: { pkinative?: { version?: string } }; declared?: Record<string, unknown> }>(ctx, MANIFEST);
         if ('finding' in manifest) return [manifest.finding];
@@ -532,6 +532,14 @@ const cdnPin: Rule = {
                 if (/^https?:/.test(target) || /pkinative(\.min)?\.js$/.test(target)) {
                     out.push(error(path, `imports ${target} — a playground gets the engine from loadEngine() in load-engine.js, and nothing else from a third party`, lineContaining(text, target)));
                 }
+            }
+        }
+        // What a page says it loads is what the loader loads: a version written
+        // into a page's own text is a second pin, and at 1.1.0 it still said 1.0.0.
+        for (const path of ctx.list('docs/playgrounds').filter((p) => p.endsWith('.html'))) {
+            const text = ctx.read(path) ?? '';
+            for (const m of text.matchAll(/\bpkinative@(\d+\.\d+\.\d+)/g)) {
+                if (m[1] !== version) out.push(error(path, `says ${m[0]}; the loader runs pkinative@${version} — a page names the version it loads`, lineContaining(text, m[0])));
             }
         }
         for (const stale of ['docs/playgrounds/pkinative.js', 'docs/playground/pkinative.js']) {

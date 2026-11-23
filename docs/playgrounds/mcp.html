@@ -234,7 +234,7 @@
     </div>
     <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop PKI files here, or press Enter to choose them">Drop a certificate, CSR, CRL, OCSP response, .p7s, .tsr, a TEST key or a TEST .p12 here — or click to choose. It never leaves this tab.</div>
     <input type="file" id="file" multiple hidden>
-    <p class="pg-status info" id="status" role="status" aria-live="polite">Loading pkinative@1.0.0 from the CDN…</p>
+    <p class="pg-status info" id="status" role="status" aria-live="polite">Loading pkinative@1.1.0 from the CDN…</p>
 
     <div class="guide-content">
       <h3 id="your-files-heading">Your files</h3>
@@ -289,7 +289,7 @@
       <h2 id="limits">What this page does not do</h2>
       <ul>
         <li>It runs no MCP server and speaks no JSON-RPC: each Run is the engine call behind a tool, made in this tab. Where the browser result differs from the server's — the cache, the sandbox, the ceilings, the server half of <code>describe_engine</code> — the card says so.</li>
-        <li>It opens no connection but the one that loads pkinative@1.0.0 from esm.sh or jsDelivr, and the same-origin read of the code registries by <code>explain_code</code>. No CRL, OCSP or TSA is ever contacted — the server has no network code path either.</li>
+        <li>It opens no connection but the one that loads pkinative@1.1.0 from esm.sh or jsDelivr, and the same-origin read of the code registries by <code>explain_code</code>. No CRL, OCSP or TSA is ever contacted — the server has no network code path either.</li>
         <li>Nothing you drop or type is uploaded, stored or logged; reload the page and it is gone.</li>
         <li>No key leaves the tab. The page generates its two keys as non-extractable, reads only their public halves, and describes the keys it unwraps from a PKCS#12 by algorithm and usages — never by a byte. Drop TEST material only all the same.</li>
       </ul>

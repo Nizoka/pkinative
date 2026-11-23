@@ -124,6 +124,9 @@ export const EDITS: readonly Edit[] = [
     // The CDN pin the playgrounds load (ADR 0023, held by `cdn-pin`): the
     // published package of the version the site documents, never a later one.
     { file: 'docs/playgrounds/load-engine.js', what: 'VERSION (the CDN pin)', pattern: /^(const VERSION = ')\d+\.\d+\.\d+(';)$/m, replace: (v) => `$1${v}$2` },
+    // The same version where a playground page writes it (`cdn-pin` holds
+    // both): the MCP explorer's status line and its network statement.
+    { file: 'docs/playgrounds/mcp.html', what: 'pkinative@VERSION in the page text', pattern: /(\bpkinative@)\d+\.\d+\.\d+/g, replace: (v) => `$1${v}` },
     // The live-versions widget's fallback and the badges the landing page
     // ships written in (`versions-widget`); the satellites' entries move with
     // their own releases, never here.

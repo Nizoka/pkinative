@@ -464,6 +464,15 @@ describe('verify-docs rule table', () => {
         expect(problems).toEqual([expect.objectContaining({ file: 'README.md', message: expect.stringContaining('"Twenty-three named limits"') })]);
     });
 
+    it('should fire cdn-pin on a playground page that names another version than the one the loader runs', async () => {
+        // The MCP explorer said "pkinative@1.0.0" twice while its loader ran
+        // 1.1.0: the rule held the loader and not the pages that quote it.
+        const files = { ...TREE };
+        edit(files, 'docs/playgrounds/mcp.html', /Loading pkinative@\d+\.\d+\.\d+ /, 'Loading pkinative@0.9.0 ');
+        const problems = await runRules(createMemoryContext(files), RULES, 'cdn-pin');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playgrounds/mcp.html', message: expect.stringContaining('says pkinative@0.9.0') })]);
+    });
+
     it('should fire count-tokens on a stale error-code count on a playground page', async () => {
         // The playground hub quoted "44 codes" for a 57-code registry: the
         // playground pages were outside every count rule.
