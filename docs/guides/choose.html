@@ -224,7 +224,7 @@
 <td>3 115</td>
 </tr>
 </tbody></table>
-<p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>
+<p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them. <a href="migrate.html">Migrating from node-forge or pkijs</a> maps their calls to the ones that replace them.</p>
 <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
@@ -578,6 +578,7 @@
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

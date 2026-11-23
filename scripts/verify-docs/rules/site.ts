@@ -53,7 +53,7 @@ const llmsIndexSync = generatedSync('llms-index-sync',
 
 const llmsIndexQuality: Rule = {
     id: 'llms-index-quality',
-    summary: 'Every guide in docs/llms-index.json has a plain-text summary of at most 400 characters and unique, non-empty anchors — a generator bug passes the sync rule forever, so the content is read too.',
+    summary: 'Every guide in docs/llms-index.json has a plain-text summary of at most 400 characters and unique, non-empty anchors — a generator bug passes the sync rule forever, so the content is read too — and llms.txt, the hand-written entry point, links every guide.',
     check(ctx) {
         const parsed = readJson<{ guides?: Array<{ title: string; summary: string; anchors: string[] }> }>(ctx, 'docs/llms-index.json');
         if ('finding' in parsed) return [parsed.finding];
@@ -63,6 +63,12 @@ const llmsIndexQuality: Rule = {
             if (guide.summary.trim().length < 40 || guide.summary.length > 400) out.push(error('docs/llms-index.json', `${where}: summary must be 40 to 400 characters, found ${guide.summary.length}`));
             if (/\*\*|\]\(|^#/.test(guide.summary)) out.push(error('docs/llms-index.json', `${where}: summary still carries Markdown`));
             if (guide.anchors.some((a) => a === '') || new Set(guide.anchors).size !== guide.anchors.length) out.push(error('docs/llms-index.json', `${where}: anchors must be unique and non-empty`));
+        }
+        // llms.txt is written by hand and is what an agent reads first: a
+        // twelfth guide was rendered and indexed while it went on naming eleven.
+        const entry = ctx.read('llms.txt') ?? '';
+        for (const name of GUIDES) {
+            if (!entry.includes(`(${SITE}/guides/${name}.md)`)) out.push(error('llms.txt', `does not link ${SITE}/guides/${name}.md — the entry point lists every guide of GUIDES (scripts/build-guides.ts)`));
         }
         return out;
     },

@@ -6,8 +6,8 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 6141,
-      "approxTokens": 1535
+      "bytes": 6325,
+      "approxTokens": 1581
     },
     {
       "url": "agent-brief.md",
@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 440555,
-      "approxTokens": 110139
+      "bytes": 451740,
+      "approxTokens": 112935
     },
     {
       "url": "llms-recipes.txt",
@@ -349,8 +349,23 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18862,
-      "approxTokens": 4716
+      "bytes": 18959,
+      "approxTokens": 4740
+    },
+    {
+      "title": "Migrating from node-forge or pkijs",
+      "summary": "What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.",
+      "html": "guides/migrate.html",
+      "markdown": "guides/migrate.md",
+      "anchors": [
+        "three-differences-that-are-not-renames",
+        "from-node-forge",
+        "from-pkijs",
+        "what-has-no-counterpart-by-design",
+        "migrating-in-parts"
+      ],
+      "bytes": 10726,
+      "approxTokens": 2682
     }
   ]
 }

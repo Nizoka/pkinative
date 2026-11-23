@@ -44,7 +44,7 @@ Registry facts only, read on 2026-11-17 ([docs/data/comparison-2026-11-17.json](
 | jsrsasign | 11.1.5 | 0 | no | no | Broad: ASN.1, X.509, JWS, its own RSA and ECDSA in JavaScript |
 | micro509 | 0.19.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
 
-Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)).
+Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)). Coming from node-forge or pkijs, the [migration guide](docs/guides/migrate.md) maps each call you have to the one that replaces it.
 
 ## Installation
 

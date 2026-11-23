@@ -40,7 +40,7 @@ export const REPOSITORY = 'https://github.com/Nizoka/pkinative';
 export const NPM = 'https://www.npmjs.com/package/pkinative';
 
 /** The guides, in navigation order: the library first, then its two satellites, then the reference. */
-export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'cli', 'use-cases-cli', 'mcp', 'use-cases-mcp', 'security', 'conformance', 'standards', 'errors', 'choose'];
+export const GUIDES: readonly string[] = ['quickstart', 'use-cases', 'cli', 'use-cases-cli', 'mcp', 'use-cases-mcp', 'security', 'conformance', 'standards', 'errors', 'choose', 'migrate'];
 
 /** The satellites' packages, linked from every footer. */
 export const CLI_REPOSITORY = 'https://github.com/Nizoka/pkinative-cli';
@@ -476,7 +476,7 @@ export function renderGuidesIndex(read: Reader): string {
     }).join('\n');
     return page({
         title: 'Guides — pkinative',
-        description: 'The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, and choosing a library and a surface.',
+        description: 'The pkinative guides: quick start and use cases, the pkinative-cli and pkinative-mcp references and their use cases, the security model, conformance, standards, errors and diagnostics, choosing a library and a surface, and migrating from node-forge or pkijs.',
         // The URL, not the output path: under `cleanUrls` (npm run docs:serve,
         // and most static hosts) /guides/index.html is served at /guides, which
         // loses a path segment and 404s every relative stylesheet.

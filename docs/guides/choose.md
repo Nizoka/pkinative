@@ -40,7 +40,7 @@ Read from the npm registry on 2026-11-17 ([docs/data/comparison-2026-11-17.json]
 | jsrsasign 11.1.5 | 0 | no | no | 2.5 M |
 | micro509 0.19.0 | 0 | yes | yes | 3 115 |
 
-node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.
+node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them. [Migrating from node-forge or pkijs](migrate.md) maps their calls to the ones that replace them.
 
 ## When pkinative is the right choice
 

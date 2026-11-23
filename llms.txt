@@ -22,6 +22,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models
 - [MCP use cases](https://pkinative.dev/guides/use-cases-mcp.md): an agent triaging a failing chain, issuing a test certificate, offline revocation, opening keys safely
 - [Choosing a library and a surface](https://pkinative.dev/guides/choose.md): when to use pkinative, when another tool is the right one, and library, CLI or MCP server for each capability
+- [Migrating from node-forge or pkijs](https://pkinative.dev/guides/migrate.md): what each node-forge and pkijs call becomes, what changes shape, and what has no counterpart by design
 
 ## Data
 

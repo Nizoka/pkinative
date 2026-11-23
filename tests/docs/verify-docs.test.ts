@@ -464,6 +464,15 @@ describe('verify-docs rule table', () => {
         expect(problems).toEqual([expect.objectContaining({ file: 'README.md', message: expect.stringContaining('"Twenty-three named limits"') })]);
     });
 
+    it('should fire llms-index-quality on a guide the entry point llms.txt does not link', async () => {
+        // The migration guide was rendered, indexed and in the sitemap while
+        // llms.txt — written by hand — did not name it, and no rule said so.
+        const files = { ...TREE };
+        edit(files, 'llms.txt', /^- \[[^\]]+\]\(https:\/\/pkinative\.dev\/guides\/migrate\.md\)[^\n]*\n/m, '');
+        const problems = await runRules(createMemoryContext(files), RULES, 'llms-index-quality');
+        expect(problems).toEqual([expect.objectContaining({ file: 'llms.txt', message: expect.stringContaining('guides/migrate.md') })]);
+    });
+
     it('should fire cdn-pin on a playground page that names another version than the one the loader runs', async () => {
         // The MCP explorer said "pkinative@1.0.0" twice while its loader ran
         // 1.1.0: the rule held the loader and not the pages that quote it.
