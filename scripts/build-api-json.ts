@@ -182,6 +182,7 @@ function ownMembers(body: string): ApiMember[] {
     let doc: string[] = [];
     let inDoc = false;
     let depth = 0;
+    let open: { type: string } | null = null;
     for (const raw of body.split('\n')) {
         const line = raw.trim();
         if (depth === 0 && line.startsWith('/**')) {
@@ -198,10 +199,20 @@ function ownMembers(body: string): ApiMember[] {
             const type = m[3]?.startsWith('(') ? (m[3] ?? '').replace(/;$/, '') : (m[4] ?? '').replace(/;$/, '');
             members.push({ name: m[1] ?? '', type, optional: m[2] === '?', summary: summaryOf(doc.join('\n')) });
             doc = [];
+        } else if (open !== null && !/^(\/\*\*|\*)/.test(line)) {
+            // A member whose inline type spans lines — `expected: {` and the three
+            // lines under it — is written whole: its first line alone is `{`.
+            open.type = `${open.type} ${line}`;
         }
         for (const c of line) {
             if (c === '{' || c === '(') depth++;
             if (c === '}' || c === ')') depth--;
+        }
+        if (depth === 0) {
+            if (open !== null) open.type = open.type.replace(/;$/, '');
+            open = null;
+        } else if (m !== null) {
+            open = members[members.length - 1] ?? null;
         }
     }
     return members;

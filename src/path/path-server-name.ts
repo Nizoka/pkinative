@@ -56,7 +56,7 @@
  * @module path/path-server-name
  */
 
-import { assertArray, assertObject, assertString } from '../core/arguments.js';
+import { assertArray, assertFlags, assertObject, assertString } from '../core/arguments.js';
 import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { nameExcludedReason, nameMismatchReason, nameNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -169,6 +169,7 @@ export function checkServerName(
     const identity = asAddress(reference);
     const san = getExtension(certificate, 'subjectAltName');
     const names = san?.names ?? [];
+    assertFlags(options, 'options', ['allowWildcards', 'allowCommonNameFallback']);
     // §6.4.4: the presence of ANY dNSName or iPAddress makes the SAN
     // authoritative, even when none of them matches. A certificate with a SAN
     // full of other forms falls through to the CN rule, which is the only case
@@ -310,6 +311,7 @@ function fold(text: string): string {
 export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean {
     assertString(presented, 'the presented name');
     assertString(reference, 'the reference name');
+    assertFlags(options, 'options', ['allowWildcards']);
     // An empty or NUL-bearing name identifies nothing. Exact comparison would
     // already refuse them, but saying so here makes the intent explicit — a
     // NUL in a certificate name is CVE-2009-2408's whole mechanism.

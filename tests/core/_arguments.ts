@@ -84,6 +84,60 @@ export async function wrongInOnePlace(fn: (...args: never[]) => unknown, args: r
     return [...escaped].map(([cause, where]) => `${cause} — first by ${where}`);
 }
 
+/** What a caller without the type checker passes for `true` or `false`. */
+export const NOT_FLAGS: ReadonlyArray<readonly [string, unknown]> = [
+    ['the text "true"', 'true'],
+    ['the text "false"', 'false'],
+    ['one', 1],
+    ['zero', 0],
+    ['null', null],
+    ['an object', {}],
+];
+
+/** What stands where an object, a list or bytes are expected only by mistake. */
+export const NOT_OBJECTS: ReadonlyArray<readonly [string, unknown]> = [
+    ['a number', 42],
+    ['a string', 'x'],
+    ['a boolean', true],
+    ['a bigint', 1n],
+    ['a symbol', Symbol('not an object')],
+];
+
+/**
+ * The places of a valid call where a wrong value is **taken**: each argument
+ * and member `concerns` selects is replaced in turn by each value of `by`, and
+ * a call that then returns — or throws anything but a `PkiError` — is one line.
+ *
+ * `wrongInOnePlace` proves no `TypeError` escapes; this proves the refusal
+ * happens at all, for the kinds of value nothing else could stand for — and,
+ * when `code` is given, that it carries that code.
+ *
+ * @returns One line per place and replacement that was not refused, or was refused with another code.
+ */
+export async function takenInOnePlace(
+    fn: (...args: never[]) => unknown,
+    args: readonly unknown[],
+    concerns: (value: unknown) => boolean,
+    by: ReadonlyArray<readonly [string, unknown]>,
+    code?: string,
+): Promise<string[]> {
+    const taken: string[] = [];
+    for (const [index, argument] of args.entries()) {
+        for (const path of [[], ...membersOf(argument, 2)]) {
+            const valid = path.reduce<unknown>((at, key) => (at as Record<string | number, unknown>)[key], argument);
+            if (!concerns(valid)) continue;
+            for (const [label, value] of by) {
+                const call = args.map((a, i) => (i === index ? replaced(a, path, value) : a));
+                const error = await refusal(() => fn(...(call as never[])));
+                const where = `argument ${String(index)}${path.map((key) => `.${String(key)}`).join('')} = ${label}`;
+                if (!(error instanceof PkiError)) taken.push(where);
+                else if (code !== undefined && error.code !== code) taken.push(`${where}: refused with ${error.code}, not ${code}`);
+            }
+        }
+    }
+    return taken;
+}
+
 /** What `call` throws or rejects with, or `undefined` when it does neither. */
 export async function refusal(call: () => unknown): Promise<unknown> {
     try {

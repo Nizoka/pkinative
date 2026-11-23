@@ -1361,9 +1361,9 @@
         },
         {
           "name": "expected",
-          "type": "{",
+          "type": "{ readonly issuerNameHash: Uint8Array; readonly issuerKeyHash: Uint8Array; readonly serialNumber: Uint8Array; }",
           "optional": false,
-          "summary": "The `CertID` that was asked about, as `encodeOcspCertId` produced it."
+          "summary": "The three fields of the `CertID` that was asked about, each as bytes — not the DER `encodeOcspCertId` returns."
         },
         {
           "name": "at",
@@ -1912,7 +1912,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -1954,7 +1954,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -2002,7 +2002,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC`; an `info` is still only reported."
         },
         {
           "name": "onDiagnostic",
@@ -2049,7 +2049,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -2374,7 +2374,7 @@
         },
         {
           "name": "issuerSerial",
-          "type": "{",
+          "type": "{ readonly issuer: readonly GeneralName[]; readonly serialNumber: SerialNumber; } | undefined",
           "optional": false,
           "summary": "`issuerSerial`, when the signer included it; `undefined` otherwise."
         }
@@ -2543,7 +2543,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -2791,7 +2791,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -3873,7 +3873,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4017,7 +4017,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4059,7 +4059,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4332,7 +4332,7 @@
         },
         {
           "name": "pbmac1",
-          "type": "{",
+          "type": "{ readonly salt: Uint8Array; readonly iterations: number; readonly prf: Pbkdf2Prf; readonly keyLength: number; readonly hmac: Pbkdf2Prf; } | undefined",
           "optional": false,
           "summary": "Under PBMAC1, what the MAC key is derived with and which HMAC it keys; otherwise `undefined`."
         }
@@ -4783,7 +4783,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -5164,7 +5164,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -5206,7 +5206,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -5957,7 +5957,7 @@
         },
         {
           "name": "algorithmProtection",
-          "type": "{",
+          "type": "{ readonly digestAlgorithm: AlgorithmIdentifier; readonly signatureAlgorithm: AlgorithmIdentifier; } | undefined",
           "optional": false,
           "summary": "`CMSAlgorithmProtection` (RFC 6211): the signer's **signed** statement of the algorithms it used."
         },
@@ -7147,7 +7147,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -8252,7 +8252,9 @@
       "module": "src/asn1/asn1-encode.ts",
       "signature": "export function encodeBoolean(value: boolean): Uint8Array",
       "summary": "Encode a BOOLEAN (TRUE as 0xFF, as DER requires).",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "value",

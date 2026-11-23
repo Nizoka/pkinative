@@ -64,7 +64,7 @@ import {
     wrapUpPolicies,
     type PolicyState,
 } from './path-policies.js';
-import { A_CERTIFICATE, assertArray, assertInstant, assertIterable, assertObject, assertParsedList } from '../core/arguments.js';
+import { A_CERTIFICATE, assertArray, assertFlags, assertInstant, assertIterable, assertObject, assertParsedList } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -216,7 +216,7 @@ export function checkSignature(certificate: Certificate, context: PathContext, p
     const result = (issuer === undefined ? undefined : context.signatures.get(`${subject}|${_hex(issuer.der)}`))
         ?? context.signatures.get(subject);
     if (result === undefined) {
-        return signatureNotCheckedReason(path, 'PKI_CRYPTO_UNAVAILABLE', 'no signature verdict was supplied for this certificate');
+        return signatureNotCheckedReason(path, 'PKI_CRYPTO_UNAVAILABLE', issuer === undefined ? `no signature verdict was supplied for this certificate, and no certificate of its issuer, ${formatDistinguishedName(certificate.issuer)}, to check it with — supply that certificate among the candidates or the trust anchors` : 'no signature verdict was supplied for this certificate');
     }
     if (result === 'ambiguous') {
         return signatureNotCheckedReason(path, 'PKI_API_MISUSE',
@@ -454,6 +454,7 @@ export function _assertValidation(input: Omit<ValidateCertificatePathInput, 'pat
     resolveLimits(input.limits);
     assertInstant(input.at, 'at');
     assertParsedList(input.trustAnchors, 'trustAnchors', A_CERTIFICATE, ['subject.der', 'subjectPublicKeyInfo.der']);
+    assertFlags(input, 'input', ['requireExplicitPolicy', 'inhibitPolicyMapping', 'inhibitAnyPolicy']);
 }
 
 /**

@@ -25,7 +25,7 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 - **Safe on hostile input.** Every loop runs under a named, CWE-tagged, caller-configurable limit; nesting is iterative; every failure is a typed error with a stable code — never a `TypeError`.
 - **Complete.** Every RFC 5280 extension decoded to its ASN.1 module, every GeneralName form, every DirectoryString type, RFC 4514 names, RSA, EC, EdDSA, XDH, ML-DSA, SLH-DSA and ML-KEM keys.
 - **Honest about profiles.** What real issuers get wrong — a 21-octet serial, an explicit DEFAULT, a non-critical name constraint — is a diagnostic with its RFC section, not a crash and not silence.
-- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with the input.
+- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with what is being judged: only a call that is itself wrong throws.
 - **No cryptography it should not own.** pkinative never implements signing, key generation or arithmetic on secret material; every signature is created and verified through Web Crypto, with your key.
 - **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks the serial number, validity, CA flag and fingerprint of every parsed certificate against OpenSSL.
 - **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy. Beyond the library, the MCP server gives an assistant 34 typed tools and seven prompts, and the CLI a `--json` contract whose 13 error classes carry pkinative's codes verbatim.
@@ -160,7 +160,7 @@ No runtime dependency. No TypeScript implementation of signing, key generation o
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.0.0 |
+| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.1.0 |
 | [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
 | [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
 

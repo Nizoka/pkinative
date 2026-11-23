@@ -40,7 +40,7 @@
  * @module path/path-purpose
  */
 
-import { assertArray, assertString } from '../core/arguments.js';
+import { assertArray, assertFlags, assertString } from '../core/arguments.js';
 import { purposeNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
@@ -121,6 +121,7 @@ export function checkExtendedKeyUsage(
     // Each entry is refused by getExtension when it is not a certificate.
     assertArray(path, 'path');
     assertString(purpose, 'purpose');
+    assertFlags(options, 'options', ['restrictIssuers', 'requireExplicitPurpose']);
     const out: PkiReason[] = [];
     const restrictIssuers = options?.restrictIssuers !== false;
     for (const [index, certificate] of path.entries()) {

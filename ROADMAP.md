@@ -178,6 +178,12 @@ None is promised; each enters a release when it meets the bar of the rest — te
 - [ ] ML-DSA signing in the writers and ML-DSA private-key import, when the gate's runtime (`.nvmrc`) moves to a Node.js line whose Web Crypto signs it
 - [ ] SLH-DSA signature verification, once a runtime of the CI matrix verifies it
 
+## At the next major
+
+What the 1.x promise holds in place, and a major may move.
+
+- [ ] A certificate whose issuer was not supplied is reported as `PKI_REASON_ISSUER_NOT_FOUND`. In 1.x `verifyCertificateChain` reports it as `PKI_REASON_SIGNATURE_NOT_CHECKED` with `errorCode: 'PKI_CRYPTO_UNAVAILABLE'`, beside `PKI_REASON_NO_TRUST_ANCHOR`; the v1.0.0 test suite holds those codes, so 1.1.0 changed the message and the registries, not the codes
+
 ## Tooling — outside the engine's version line
 
 What the gate and the agents work with. Nothing here changes what the package exports.

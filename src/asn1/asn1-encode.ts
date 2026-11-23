@@ -11,7 +11,7 @@
  * @module asn1/asn1-encode
  */
 
-import { assertIterable, describeValue } from '../core/arguments.js';
+import { assertFlag, assertIterable, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, byteView, compareOctets, concatBytes } from '../core/bytes.js';
 import { encodeUtf8, isIa5Octet, isNumericOctet, isPrintableOctet, isVisibleOctet } from '../core/text.js';
 import type { Asn1Node, Asn1StringType, TagClass } from '../types/asn1-types.js';
@@ -70,6 +70,7 @@ export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: bo
         throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE',
             `pkinative: tag number ${describeValue(tagNumber)} is outside 0 to 2^31 − 1, or is the reserved universal tag 0 — pass a valid tag number`);
     }
+    assertFlag(constructed, 'constructed');
     const leading = (classIndex << 6) | (constructed ? 0x20 : 0);
     const identifier: number[] = [];
     if (tagNumber < 31) {
@@ -183,9 +184,10 @@ export function encodeInteger(value: bigint | number): Uint8Array {
  *
  * @param value The boolean.
  * @returns The BOOLEAN encoding.
- * @throws Never.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `value` is not a boolean.
  */
 export function encodeBoolean(value: boolean): Uint8Array {
+    if (typeof value !== 'boolean') throw new PkiError('PKI_INVALID_INPUT', `pkinative: encodeBoolean takes true or false, got ${describeValue(value)} — a value that reads as one is not one`);
     return encodeTlv('universal', TAG_BOOLEAN, false, Uint8Array.of(value ? 0xff : 0x00));
 }
 
@@ -265,6 +267,7 @@ export function encodeEnumerated(value: bigint | number): Uint8Array {
  * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array.
  */
 export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
+    assertOptions(options, 'options');
     return encodeTlv(options?.tagClass ?? 'context', tagNumber, true, assertBytes(inner, 'encodeExplicit inner'));
 }
 
@@ -299,6 +302,7 @@ export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?:
     }
     // The constructed bit belongs to the type being re-tagged, not to the
     // tag replacing it; carrying it over is the whole contract here.
+    assertOptions(options, 'options');
     const retagged = encodeTlv(options?.tagClass ?? 'context', tagNumber, (identifier & 0x20) !== 0, new Uint8Array(0));
     const header = retagged.length - 1;
     const out = new Uint8Array(header + bytes.length - 1);

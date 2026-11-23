@@ -254,7 +254,7 @@ function readValidity(node: Asn1Node | undefined, ctx: Asn1Context, parentOffset
 export function parseAttributeCertificate(der: Uint8Array, options?: ParseCertificateOptions): AttributeCertificate {
     const bytes = assertBytes(der, 'parseAttributeCertificate input');
     const ctx = createAsn1Context(options);
-    const decode = options?.decodeExtensions ?? true;
+    const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;
     if (typeof decode !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
     }

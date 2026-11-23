@@ -36,7 +36,7 @@ import {
 } from '../asn1/asn1-encode.js';
 import { decodeOid } from '../asn1/asn1-oid.js';
 import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
-import { A_CERTIFICATE, assertObject, assertParsed, describeValue, listOf } from '../core/arguments.js';
+import { A_CERTIFICATE, assertFlags, assertObject, assertOptions, assertParsed, describeValue, listOf } from '../core/arguments.js';
 import { assertBytes, byteView, bytesEqual, concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
@@ -378,6 +378,7 @@ async function resolveContent(input: CreateSignedDataInput, digest: CmsDigest): 
 export async function createSignedData(input: CreateSignedDataInput, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array> {
     // Each guard stands where 1.0.0 first read what it guards, so that a call
     // wrong in two places is still refused for the one it always was.
+    assertOptions(options, 'options');
     const limits: PkiLimits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     _assertSigner(signer);
     const digest = signerDigest(signer);
@@ -386,6 +387,7 @@ export async function createSignedData(input: CreateSignedDataInput, signer: Sig
     const signatureAlgorithm = encodeSignatureAlgorithm(signer);
     const digestAlgorithm = encodeAlgorithmIdentifier(DIGESTS[digest].oid);
     assertObject(input, 'the createSignedData input');
+    assertFlags(input, 'input', ['detached', 'signingCertificateV2', 'algorithmProtection']);
     const contentType = input.contentType ?? OID_DATA;
     const certificate = input.certificate;
     assertParsed(certificate, 'certificate', A_CERTIFICATE, ['der', 'serialNumber.bytes']);
@@ -566,6 +568,7 @@ function expectTag(header: TlvHeader | undefined, tagClass: TagClass, tagNumber:
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxInputBytes`, `maxSignerInfos` or `maxAttributes`.
  */
 export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: number, attributeDer: Uint8Array, options?: PkiBuildOptions): Uint8Array {
+    assertOptions(options, 'options');
     const limits: PkiLimits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     const der = assertBytes(signedDataDer, 'signedDataDer');
     const attribute = assertBytes(attributeDer, 'attributeDer');

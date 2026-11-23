@@ -26,7 +26,7 @@
  * @module crypto/x509-verify
  */
 
-import { A_CERTIFICATE, assertParsed } from '../core/arguments.js';
+import { A_CERTIFICATE, assertFlags, assertParsed } from '../core/arguments.js';
 import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { AttributeCertificate } from '../types/attribute-certificate-types.js';
@@ -180,6 +180,7 @@ function isSignedStructure(value: unknown): value is SignedStructure {
 
 /** The options with their defaults applied, once, so every entry point agrees. */
 function resolveOptions(options: VerifyCertificateSignatureOptions | undefined): { requireAlgorithmMatch: boolean; allowSha1: boolean } {
+    assertFlags(options, 'options', ['requireAlgorithmMatch', 'allowSha1']);
     return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
 }
 
@@ -330,7 +331,7 @@ export async function verifyAttributeCertificateSignature(
  */
 export async function verifyOcspSignature(basicResponse: OcspBasicResponse, responder: Certificate): Promise<boolean> {
     if (!isSignedStructure(basicResponse)) {
-        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: basicResponse must come from parseOcspResponse(), not raw bytes — and a response whose status is not successful has none');
+        throw new PkiError('PKI_INVALID_INPUT', 'pkinative: basicResponse must be the basicResponse of a parsed OCSP response — pass parseOcspResponse(der).basicResponse, not the response itself nor its bytes; a response whose status is not successful has none');
     }
     const signer = assertSignedCertificate(responder, 'responder');
     // No algorithm-match check: RFC 6960 names the algorithm once, so there is

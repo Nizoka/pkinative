@@ -10,7 +10,7 @@ pkinative is on npm, published with provenance from the tagged commit after the 
 npm install pkinative
 ```
 
-`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz`, and `gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz`, and `gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 ## Read a certificate
 
@@ -29,7 +29,7 @@ getExtension(cert, 'subjectAltName')?.names;      // [{ kind: 'dNSName', value: 
 getExtension(cert, 'basicConstraints')?.cA;       // false
 ```
 
-`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). Times are `epochMilliseconds` numbers, exact from year 0000 to 9999.
+`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). A time is an object, `{ type, epochMilliseconds, text }`: compare its `epochMilliseconds` — a number, exact from year 0000 to 9999 — never the object itself.
 
 ## What a certificate holds
 
@@ -151,7 +151,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 25 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host.
+- [recipes/](../../recipes/) — 25 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host, an attribute certificate and the checks RFC 5755 §5 leaves to you.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.

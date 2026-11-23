@@ -21,7 +21,7 @@ Two consequences worth knowing before you write a `catch`:
 - **A reason message never starts with `pkinative: `.** That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. `reason-parity` refuses it.
 - **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 58 error codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
 
-Unlike `PkiErrorCode`, frozen whole since 0.8, the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
+Like `PkiErrorCode` — frozen since 0.8: no code removed, renamed or moved to another class, an addition being semver-minor ([ADR 0012](../adr/0012-frozen-error-vocabulary.md)) — the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
 
 ## The error classes
 
@@ -203,4 +203,4 @@ One failure, three surfaces — a private key passed where a certificate is expe
 {"isError":true,"_meta":{"error":{"code":"PKI_PEM_UNEXPECTED_LABEL","message":"certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).","data":{"errorClass":"input","path":"certificate","remedy":"convert_pem mode:'decode' (lists the labels present)"}}}}
 ```
 
-Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The [CLI guide](cli.md#error-classes-codes-and-remedies) maps the 58 error codes to the 13 classes one by one, and the [MCP guide](mcp.md#error-model) lists the 21 wrapper codes.
+Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The [CLI guide](cli.md#error-classes-codes-and-remedies) maps the error codes to the 13 classes one by one — those pkinative-cli 1.0.0 was built against, so not yet the one this release adds for attribute certificates, and the [MCP guide](mcp.md#error-model) lists the 21 wrapper codes.

@@ -182,7 +182,7 @@
 <tr>
 <td><code>forge.pkcs12.pkcs12FromAsn1(obj, password)</code>, then <code>p12.getBags(filter)</code></td>
 <td><code>openPkcs12(p12Bytes, { password })</code></td>
-<td>PBES2 files only; a key comes out as a non-extractable <code>CryptoKey</code>, never as numbers</td>
+<td>PBES2 files only; a key comes out as a <code>SigningKey</code> — a non-extractable <code>CryptoKey</code> and its algorithm — never as numbers</td>
 </tr>
 <tr>
 <td><code>forge.pki.privateKeyFromPem(pem)</code>, <code>forge.pki.decryptRsaPrivateKey(pem, password)</code></td>
@@ -265,7 +265,7 @@ if (!report.valid) for (const reason of report.reasons) console.log(reason.code,
 <tr>
 <td><code>pkijs.PFX.fromBER(raw)</code>, then <code>.parseInternalValues({ password, checkIntegrity })</code></td>
 <td><code>openPkcs12(p12Bytes, { password })</code></td>
-<td>Integrity is checked unless you say otherwise; keys come out as non-extractable <code>CryptoKey</code>s</td>
+<td>Integrity is checked unless you say otherwise; keys come out as <code>SigningKey</code>s, each a non-extractable <code>CryptoKey</code> and its algorithm</td>
 </tr>
 <tr>
 <td><code>pkijs.TimeStampResp.fromBER(raw)</code>, then <code>.verify({ data, trustedCerts })</code></td>

@@ -150,7 +150,7 @@ function readAttributes(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
 export function parseCertificationRequest(der: Uint8Array, options?: ParseCertificateOptions): CertificationRequest {
     const bytes = assertBytes(der, 'parseCertificationRequest input');
     const ctx = createAsn1Context(options);
-    const decode = options?.decodeExtensions ?? true;
+    const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;
     if (typeof decode !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
     }

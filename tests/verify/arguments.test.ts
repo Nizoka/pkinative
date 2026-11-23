@@ -201,6 +201,19 @@ describe('the compositions, where each member is first read', () => {
         await expectInvalid(() => verifySignedData({ signedData: withSigners(signedData, []), trustAnchors: [root], at: 'now' as never }));
     });
 
+    it('verifyCertificateChain should refuse a requirement written as text, which 1.0.0 read as off', async () => {
+        await expectCode(() => verifyCertificateChain({ leaf, candidates: [root], trustAnchors: [root], at: AT, requireRevocation: 'true' as never }), 'PKI_INVALID_OPTION');
+    });
+
+    it('verifySignedData should still report a message it cannot read, whatever a flag is', async () => {
+        const report = await verifySignedData({ signedData: DER, trustAnchors: [root], allowSha1: 'no' as never });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+    });
+
+    it('verifySignedData should answer for the content passed twice first when a flag is wrong too', async () => {
+        await expectCode(() => verifySignedData({ signedData, content, trustAnchors: [root], atTimeStamp: 1 as never }), 'PKI_API_MISUSE');
+    });
+
     it('verifySignedData should answer for the content passed twice first when the instant is wrong too, as 1.0.0 did', async () => {
         await expectCode(() => verifySignedData({ signedData, content, trustAnchors: [root], at: 'now' as never }), 'PKI_API_MISUSE');
     });

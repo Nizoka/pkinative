@@ -8,11 +8,11 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 
 - [Agent brief](https://pkinative.dev/agent-brief.md): what to import, what to catch, what not to write
 - [Quick start](https://pkinative.dev/guides/quickstart.md): read a certificate, extensions, diagnostics, errors, limits
-- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes
+- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes — a large file: look an export up by its name rather than read it whole
 
 ## Guides
 
-- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`); ML-DSA verdicts, attribute certificates (`parseAttributeCertificate`) and reading a request back (`parseOcspRequest`, `parseTimeStampRequest`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification

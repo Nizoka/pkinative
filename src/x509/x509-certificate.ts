@@ -372,7 +372,7 @@ export function _readExtensionSequence<E = never>(
 export function parseCertificate(der: Uint8Array, options?: ParseCertificateOptions): Certificate {
     const bytes = assertBytes(der, 'parseCertificate input');
     const ctx = createAsn1Context(options);
-    const decode = options?.decodeExtensions ?? true;
+    const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;
     if (typeof decode !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
     }

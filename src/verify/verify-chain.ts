@@ -62,7 +62,7 @@ import { parseOcspResponse } from '../revocation/ocsp-response.js';
 import { parseCertificateList } from '../revocation/crl-parse.js';
 import { _crlScopeProblem, _deltaApplies, _interimReasons } from '../revocation/crl-scope.js';
 import { createAsn1Context } from '../asn1/asn1-context.js';
-import { assertArray, assertCertificate, assertCertificates, assertInstant, assertObject, assertReiterable, listOf } from '../core/arguments.js';
+import { assertArray, assertCertificate, assertCertificates, assertFlags, assertInstant, assertObject, assertReiterable, listOf } from '../core/arguments.js';
 import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { resolveLimits } from '../core/pki-limits.js';
@@ -316,6 +316,7 @@ export async function verifyCertificateChain(input: VerifyCertificateChainInput)
     ], { limits: input.limits ?? {}, strict: input.strict });
     if (input.purposes !== undefined) assertArray(input.purposes, 'purposes');
     if (input.at !== undefined) assertInstant(input.at, 'at');
+    assertFlags(input, 'input', ['requireOcspNonce', 'requireRevocation', 'allowSha1', 'requireExplicitPolicy', 'inhibitPolicyMapping', 'inhibitAnyPolicy']);
     const at = input.at ?? Date.now();
     const candidates = input.candidates ?? [];
 

@@ -25,6 +25,7 @@ import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { _readObjectIdentifier, readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBoolean, _readInteger, _readOctetString } from '../asn1/asn1-read.js';
 import { _readTime } from '../asn1/asn1-time.js';
+import { assertOptions } from '../core/arguments.js';
 import { assertBytes, toHex } from '../core/bytes.js';
 import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
@@ -112,6 +113,7 @@ export function _serialOf(node: Asn1Node, ctx: Asn1Context): SerialNumber {
  * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a `Uint8Array`.
  */
 export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInfo {
+    assertOptions(options, 'options');
     const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
     const root = decodeWithContext(assertBytes(der, 'parseTstInfo input'), ctx, false);
     const path = 'TSTInfo';

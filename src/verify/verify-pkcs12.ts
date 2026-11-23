@@ -32,6 +32,7 @@
  * @module verify/verify-pkcs12
  */
 
+import { assertFlag } from '../core/arguments.js';
 import { assertBytes, bytesEqual, isBytes } from '../core/bytes.js';
 import { enforceLimit, resolveLimits } from '../core/pki-limits.js';
 import {
@@ -168,6 +169,7 @@ export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): P
         ...(options.encodingRules === undefined ? {} : { encodingRules: options.encodingRules }),
     };
     _assertArguments([], reading);
+    assertFlag(options.allowUnverifiedIntegrity, 'allowUnverifiedIntegrity');
     const limits = resolveLimits(reading.limits);
     // Without Web Crypto nothing in a PKCS#12 can be opened or checked, so the
     // call could never succeed: that is said once, here, rather than once per

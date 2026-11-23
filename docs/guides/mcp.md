@@ -355,7 +355,7 @@ The smallest "can I trust this server certificate?" probe:
 
 A refused call is a tool result with `isError: true`, `content[0].text` = `<tool> failed [CODE]: message` and `_meta.error = { code, message, data }`. The code is one of two kinds:
 
-- **One of pkinative's 57 `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
+- **One of the engine's `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
 - **One of the server's 21 wrapper codes**, for the boundary the engine does not own — validation, sandbox, caps, secrets and output — each with its remedy:
 
 | Wrapper code | Raised when |

@@ -223,7 +223,7 @@ export interface PkiParseOptions {
     readonly encodingRules?: EncodingRules | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
-    /** Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`. */
+    /** Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it. */
     readonly strict?: boolean | undefined;
     /** Receive every diagnostic instead of the default once-per-code `console.warn`. */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;

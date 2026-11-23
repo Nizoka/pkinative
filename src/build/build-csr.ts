@@ -15,7 +15,7 @@
  */
 
 import { encodeImplicit, encodeInteger, encodeSequence, encodeSetOf } from '../asn1/asn1-encode.js';
-import { assertObject } from '../core/arguments.js';
+import { assertObject, assertOptions, listOf } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import type { CertificationRequestDescription, PkiBuildOptions } from '../types/build-types.js';
 import type { Signer } from '../types/crypto-types.js';
@@ -60,12 +60,13 @@ export async function createCertificationRequest(
     options?: PkiBuildOptions,
 ): Promise<Uint8Array> {
     assertObject(description, 'the request description');
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };
     const subject = description.subjectDer !== undefined
         ? assertBytes(description.subjectDer, 'subjectDer')
         : encodeDistinguishedName(description.subject, limits);
 
-    const extensions = description.extensions ?? [];
+    const extensions = listOf(description.extensions, 'extensions');
     const attributes = extensions.length === 0
         ? []
         : [encodeAttribute(EXTENSION_REQUEST, [encodeExtensions(extensions, limits)])];

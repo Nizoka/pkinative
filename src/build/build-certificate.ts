@@ -17,7 +17,7 @@
  */
 
 import { encodeBitString, encodeExplicit, encodeInteger, encodeNull, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
-import { assertObject } from '../core/arguments.js';
+import { assertObject, assertOptions, listOf } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import { coordinateBytes, resolveSigner } from '../crypto/crypto-algorithms.js';
 import { ecdsaRawToDer } from '../crypto/crypto-signature.js';
@@ -233,6 +233,7 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  */
 export async function createCertificate(description: CertificateDescription, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array> {
     assertObject(description, 'the certificate description');
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };
     const subject = description.subjectDer !== undefined
         ? assertBytes(description.subjectDer, 'subjectDer')
@@ -243,7 +244,7 @@ export async function createCertificate(description: CertificateDescription, sig
             ? encodeDistinguishedName(description.issuer, limits)
             : subject;
 
-    const extensions = description.extensions ?? [];
+    const extensions = listOf(description.extensions, 'extensions');
     const fields: Uint8Array[] = [
         // v3 whenever there are extensions, v1 otherwise. RFC 5280 §4.1.2.1
         // makes the version DEFAULT v1, so a v1 certificate omits the field

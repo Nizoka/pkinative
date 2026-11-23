@@ -28,7 +28,7 @@ import {
     encodeString,
     encodeTime,
 } from '../asn1/asn1-encode.js';
-import { assertArray, assertIterable, assertObject, describeValue } from '../core/arguments.js';
+import { assertArray, assertFlag, assertIterable, assertObject, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
@@ -150,6 +150,7 @@ export function encodeDistinguishedName(name: NameDescription, options?: PkiBuil
     if (!Array.isArray(name)) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
     }
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     let attributes = 0;
     const rdns: Uint8Array[] = [];
@@ -249,6 +250,7 @@ export function _wholeValue(bytes: Uint8Array, what: string, expected: string, t
  */
 export function encodeExtension(extension: ExtensionDescription): Uint8Array {
     assertObject(extension, 'an extension');
+    assertFlag(extension.critical, 'critical');
     const fields = [encodeObjectIdentifier(extension.oid)];
     if (extension.critical === true) fields.push(encodeBoolean(true));
     fields.push(encodeOctetString(_wholeValue(assertBytes(extension.value, `extension ${extension.oid} value`), `extension ${extension.oid} value`, 'the DER of one value, as encodeBasicConstraints and the other extension encoders return it')));
@@ -267,6 +269,7 @@ export function encodeExtension(extension: ExtensionDescription): Uint8Array {
  */
 export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: PkiBuildOptions): Uint8Array {
     assertArray(extensions, 'extensions');
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     enforceLimit(limits, 'maxExtensions', extensions.length, 'the extensions being built');
     const seen = new Set<string>();
@@ -332,6 +335,7 @@ export function encodeSubjectPublicKeyInfo(algorithmOid: string, publicKey: Uint
  */
 export function encodeBasicConstraints(options: { readonly cA: boolean; readonly pathLenConstraint?: number | undefined }): Uint8Array {
     assertObject(options, 'the basicConstraints description');
+    assertFlag(options.cA, 'cA');
     const fields: Uint8Array[] = [];
     // cA DEFAULT FALSE: omitted when false, as DER requires.
     if (options.cA) fields.push(encodeBoolean(true));

@@ -137,6 +137,7 @@ export const EDITS: readonly Edit[] = [
     // five since 0.9, when three were found still saying "0.3" at 0.8: no row
     // owned them, so no bump moved them. Three of them say "not on npm" and
     // leave at 1.0.0 through PRE_1_0_PROSE; the status line keeps its minor.
+    { file: 'README.md', what: 'the engine\'s Status cell of the Ecosystem table', pattern: /(every runtime with Web Crypto \| )\d+\.\d+\.\d+( \|)/, replace: (v) => `$1${v}$2` },
     { file: 'README.md', what: 'status line minor', pattern: /(\*\*Status: )\d+\.\d+( )/, replace: (v) => `$1${minor(v)}$2` },
     { file: 'docs/agent-brief.md', what: 'release-tarball minor', pattern: /\b\d+\.\d+( is the release tarball\b)/, replace: (v) => `${minor(v)}$1`, pre1: true },
     { file: 'README.md', what: 'install-section minor', pattern: /(pkinative )\d+\.\d+( is not on npm\.)/, replace: (v) => `$1${minor(v)}$2`, pre1: true },

@@ -1,8 +1,9 @@
 import { webcrypto } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as api from '../../src/index.js';
 import type { OcspBasicResponse, OcspCertId } from '../../src/index.js';
-import { refusal, wrongInOnePlace } from '../core/_arguments.js';
+import { NOT_FLAGS, NOT_OBJECTS, refusal, takenInOnePlace, wrongInOnePlace } from '../core/_arguments.js';
 import { attributeCertificate } from '../helpers/attribute-certificate-builder.js';
 import { authenticatedSafe, certBag, dataInfo, friendlyName, keyBag, pbmac1MacData, pfx, safeContents, shroudKey } from '../helpers/pkcs12-builder.js';
 import { AT, issue, issueTsa, keyPair, makeCrl, makeOcspResponse, makeRoot, makeToken, quiet, sha, tstInfo } from '../verify/_cms-pki.js';
@@ -134,9 +135,9 @@ describe('one member of the wrong type', () => {
             ['shake256', [content, 32]],
             // ── X.509: readers ──
             ['parseCertificate', [root.der, { ...OPTIONS, decodeExtensions: true }]],
-            ['parseCertificationRequest', [csrDer, OPTIONS]],
-            ['parseAttributeCertificate', [acDer, OPTIONS]],
-            ['decodeExtensionValue', [extension.oid, extension.value, OPTIONS]],
+            ['parseCertificationRequest', [csrDer, { ...OPTIONS, decodeExtensions: true }]],
+            ['parseAttributeCertificate', [acDer, { ...OPTIONS, decodeExtensions: true }]],
+            ['decodeExtensionValue', [extension.oid, extension.value, { ...OPTIONS, critical: true }]],
             ['getExtension', [leaf, '2.5.29.15']],
             ['formatDistinguishedName', [leaf.subject]],
             // ── Writers ──
@@ -191,22 +192,22 @@ describe('one member of the wrong type', () => {
             ['parsePrivateKeyInfo', [pkcs8, OPTIONS]],
             ['parseEncryptedPrivateKeyInfo', [shrouded, OPTIONS]],
             ['parsePkcs12', [pfxDer, OPTIONS]],
-            ['importPrivateKey', [pkcs8, { algorithm: ECDSA }]],
-            ['decryptPrivateKey', [shrouded, { password: 'password', algorithm: ECDSA }]],
+            ['importPrivateKey', [pkcs8, { algorithm: ECDSA, strict: false }]],
+            ['decryptPrivateKey', [shrouded, { password: 'password', algorithm: ECDSA, strict: false }]],
             ['verifyPkcs12Mac', [pkcs12, 'password']],
             ['openSafeContents', [pkcs12.contents[0], 'password', OPTIONS]],
             // ── Signatures ──
-            ['verifyCertificateSignature', [leaf, root, { allowSha1: false }]],
-            ['verifySelfSignature', [root, { allowSha1: false }]],
-            ['verifyCrlSignature', [crl, root, { allowSha1: false }]],
-            ['verifyOcspSignature', [ocsp.basicResponse, root, { allowSha1: false }]],
-            ['verifyAttributeCertificateSignature', [api.parseAttributeCertificate(acDer, quiet), root, { allowSha1: false }]],
-            ['verifySignerInfoSignature', [signerInfo, leaf, { content }]],
+            ['verifyCertificateSignature', [leaf, root, { allowSha1: false, requireAlgorithmMatch: true }]],
+            ['verifySelfSignature', [root, { allowSha1: false, requireAlgorithmMatch: true }]],
+            ['verifyCrlSignature', [crl, root, { allowSha1: false, requireAlgorithmMatch: true }]],
+            ['verifyOcspSignature', [ocsp.basicResponse, root]],
+            ['verifyAttributeCertificateSignature', [api.parseAttributeCertificate(acDer, quiet), root, { allowSha1: false, requireAlgorithmMatch: true }]],
+            ['verifySignerInfoSignature', [signerInfo, leaf, { content, allowSha1: false }]],
             // ── Compositions ──
-            ['verifyCertificationRequest', [csrDer, { allowSha1: false, limits: LIMITS, strict: false, ...quiet }]],
-            ['verifyCertificateChain', [{ leaf, candidates: [root], trustAnchors: [root], at: AT, serverName: dns, purposes: [SERVER_AUTH], crls: [crlDer], ocspResponses: [ocspDer], ocspNonce: Uint8Array.of(1), requireOcspNonce: false, requireRevocation: false, allowSha1: false, initialPolicySet: ['2.5.29.32.0'], limits: LIMITS, strict: false, ...quiet }]],
-            ['verifySignedData', [{ signedData, certificates: [leaf], trustAnchors: [root], purposes: [SERVER_AUTH], at: AT, crls: [crlDer], ocspResponses: [ocspDer], requireRevocation: false, atTimeStamp: false, allowSha1: false, allowTrailingData: false, encodingRules: 'der', limits: LIMITS, strict: false, ...quiet }]],
-            ['verifyTimeStampToken', [{ token, data: content, request, certificates: [tsa.certificate], trustAnchors: [root], at: AT, crls: [crlDer], ocspResponses: [ocspDer], requireRevocation: false, allowSha1: false, limits: LIMITS, strict: false, ...quiet }]],
+            ['verifyCertificationRequest', [csrDer, { allowSha1: false, decodeExtensions: true, limits: LIMITS, strict: false, ...quiet }]],
+            ['verifyCertificateChain', [{ leaf, candidates: [root], trustAnchors: [root], at: AT, serverName: dns, purposes: [SERVER_AUTH], crls: [crlDer], ocspResponses: [ocspDer], ocspNonce: Uint8Array.of(1), requireOcspNonce: false, requireRevocation: false, allowSha1: false, initialPolicySet: ['2.5.29.32.0'], requireExplicitPolicy: false, inhibitPolicyMapping: false, inhibitAnyPolicy: false, limits: LIMITS, strict: false, ...quiet }]],
+            ['verifySignedData', [{ signedData, certificates: [leaf], trustAnchors: [root], purposes: [SERVER_AUTH], at: AT, crls: [crlDer], ocspResponses: [ocspDer], requireRevocation: false, atTimeStamp: false, allowSha1: false, requireSigningCertificate: false, requireAlgorithmProtection: false, allowTrailingData: false, encodingRules: 'der', limits: LIMITS, strict: false, ...quiet }]],
+            ['verifyTimeStampToken', [{ token, data: content, request, certificates: [tsa.certificate], trustAnchors: [root], at: AT, crls: [crlDer], ocspResponses: [ocspDer], requireRevocation: false, allowSha1: false, allowNonCriticalTimeStampingEku: false, limits: LIMITS, strict: false, ...quiet }]],
             ['openPkcs12', [pfxDer, { password: 'password', allowUnverifiedIntegrity: false, limits: LIMITS, strict: false, ...quiet }]],
         );
     });
@@ -234,4 +235,90 @@ describe('one member of the wrong type', () => {
         }
         expect(report, report.join('\n')).toEqual([]);
     }, 300_000);
+
+    it('should refuse a flag that is not a boolean, on every function', async () => {
+        // `requireRevocation: 'true'` read as `=== true` is a check that stays
+        // off without a word; `cA: 'false'` read as truthy is a CA.
+        const report: string[] = [];
+        for (const [name, args] of calls) {
+            // One code for every flag; `encodeBoolean` takes a value to encode, not a flag.
+            const lines = await takenInOnePlace(api[name] as (...a: never[]) => unknown, args, (value) => typeof value === 'boolean', NOT_FLAGS, name === 'encodeBoolean' ? 'PKI_INVALID_INPUT' : 'PKI_INVALID_OPTION');
+            report.push(...lines.map((line) => `${name}: ${line}`));
+        }
+        expect(report, report.join('\n')).toEqual([]);
+    }, 300_000);
+
+    it('should refuse a number, a string or a boolean where an object, a list or bytes are expected', async () => {
+        const report: string[] = [];
+        for (const [name, args] of calls) {
+            const lines = await takenInOnePlace(api[name] as (...a: never[]) => unknown, args, (value) => typeof value === 'object' && value !== null, NOT_OBJECTS);
+            report.push(...lines.map((line) => `${name}: ${line}`));
+        }
+        const place = (line: string): string => line.replace(/ = .*$/, '');
+        const unexplained = report.filter((line) => !(place(line) in NOT_READ));
+        expect(unexplained, unexplained.join('\n')).toEqual([]);
+        // An exemption that no longer applies would hide the next defect at that place.
+        expect(Object.keys(NOT_READ).filter((exempt) => !report.some((line) => place(line) === exempt))).toEqual([]);
+    }, 300_000);
+
+    it('should name, in a call, every flag the types declare', () => {
+        // The manifest is generated from the sources: an optional boolean member of a type a
+        // function's signature names is a flag of that function, here or one level down.
+        const manifest = JSON.parse(readFileSync(new URL('../../docs/assets/api.json', import.meta.url), 'utf8')) as { exports: readonly Declared[] };
+        const flagsOf = new Map(manifest.exports.map((entry) => [entry.name, (entry.members ?? []).filter((m) => m.optional === true && /^boolean\b/.test((m.type ?? '').trim())).map((m) => m.name)] as const).filter(([, flags]) => flags.length > 0));
+        const namedIn = (text: string): string[] => [...new Set(text.match(/\b[A-Z][A-Za-z0-9]+\b/g) ?? [])].filter((type) => flagsOf.has(type));
+        const carries = (value: unknown, flag: string): boolean => {
+            const holder: unknown = Array.isArray(value) ? value[0] : value;
+            return typeof holder === 'object' && holder !== null && typeof (holder as Readonly<Record<string, unknown>>)[flag] === 'boolean';
+        };
+        const below = (value: unknown, member: string): unknown => {
+            const held = typeof value === 'object' && value !== null ? (value as Readonly<Record<string, unknown>>)[member] : undefined;
+            return Array.isArray(held) ? held[0] : held;
+        };
+        const missing: string[] = [];
+        for (const fn of manifest.exports.filter((entry) => typeof entry.signature === 'string' && typeof (api as Readonly<Record<string, unknown>>)[entry.name] === 'function')) {
+            const mine = calls.filter(([name]) => name === fn.name).flatMap(([, args]) => args);
+            for (const type of namedIn(fn.signature ?? '')) {
+                for (const flag of flagsOf.get(type) ?? []) {
+                    if (!mine.some((argument) => carries(argument, flag))) missing.push(`${fn.name}: ${type}.${flag}`);
+                }
+                // One level down: the delta of a revocation check, the extensions of a description.
+                for (const member of manifest.exports.find((entry) => entry.name === type)?.members ?? []) {
+                    for (const nested of namedIn(member.type ?? '')) {
+                        for (const flag of flagsOf.get(nested) ?? []) {
+                            if (!mine.some((argument) => carries(below(argument, member.name), flag))) missing.push(`${fn.name}: ${type}.${member.name} → ${nested}.${flag}`);
+                        }
+                    }
+                }
+            }
+        }
+        expect(missing.filter((line) => !(line in NOT_A_FLAG_HERE)), missing.join('\n')).toEqual([]);
+        expect(Object.keys(NOT_A_FLAG_HERE).filter((exempt) => !missing.includes(exempt))).toEqual([]);
+    });
 });
+
+/** Flags a function's options type declares and the function has no use for, each with the reason. */
+const NOT_A_FLAG_HERE: Readonly<Record<string, string>> = {
+    'decodeAsn1Sequence: DecodeAsn1Options.allowTrailingData': 'every value of the input is decoded in turn: nothing trails, so there is nothing to allow',
+};
+
+/** What the manifest says of an export: its signature when it is a function, its members when it is a type. */
+interface Declared {
+    readonly name: string;
+    readonly signature?: string;
+    readonly members?: ReadonlyArray<{ readonly name: string; readonly type?: string; readonly optional?: boolean }>;
+}
+
+/**
+ * Places where a wrong value is taken because the call never reads it: each
+ * with the reason, and each still required to be taken — an entry that stops
+ * applying fails the test.
+ */
+const NOT_READ: Readonly<Record<string, string>> = {
+    'checkRevocation: argument 0.delta.crlDer': 'this delta is not one for this base (it is the base itself), so its bytes are never walked',
+    'checkServerName: argument 2.path': 'the certificate has a dNSName, so the commonName fallback that reads the path is not taken',
+    'checkServerName: argument 2.path.0': 'as above: the path is read only by the commonName fallback',
+    'encodeSignatureAlgorithm: argument 0.key': 'only the algorithm is encoded; the key is read by the functions that sign',
+    'findRevocation: argument 2.issuerDer': 'the list is not indirect, so no entry names an issuer to compare',
+    'verifySignerInfoSignature: argument 2.content': 'this signer has signed attributes, which are what its signature covers',
+};

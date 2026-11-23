@@ -596,6 +596,14 @@ openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 
 `recipes/private-key.ts` reads, imports and decrypts PKCS#8 keys written by `node:crypto`, names the RSA algorithm, and refuses a 3DES and an Appendix C key by name; `recipes/pkcs12.ts` writes a PBMAC1 `.p12`, opens it in one call and with the primitives, signs with the key, and reads the unverifiable, the wrong-password and the legacy cases apart.
 
+## Post-quantum signatures, attribute certificates, and a request read back
+
+Three jobs the calls above already do, or do with one more:
+
+- **A chain or a message signed with ML-DSA.** Nothing changes in the call: `verifyCertificateChain`, `verifySignedData` and `verifyTimeStampToken` verify ML-DSA-44, -65 and -87 through the host's Web Crypto. On a host without the algorithm — Node.js before 24.7 — the report is `valid: false` with `PKI_REASON_SIGNATURE_NOT_CHECKED` and `errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED'`: the signature was not checked, which is not the same as bad. Branch on the reason, never on the runtime; `recipes/verify-ml-dsa.ts` runs on either kind of host.
+- **An attribute certificate** (RFC 5755). `parseAttributeCertificate` reads the holder, the issuer, the attributes and the extensions, and `verifyAttributeCertificateSignature` checks its signature against the issuer's certificate. What RFC 5755 §5 asks beyond that — the issuer's own chain, the validity period, the holder's binding, targeting, revocation — is yours to compose, and `recipes/attribute-certificate.ts` shows how.
+- **A request read back.** `parseTimeStampRequest` and `parseOcspRequest` read what `createTimeStampRequest` and `createOcspRequest` wrote, or what a client sent you: the imprint, policy and nonce of the one, the CertIDs and nonce of the other. `recipes/inspect-requests.ts` reads both.
+
 ## What none of these do
 
 Each of the cases above is complete. What is **not** here is deliberate, and the [choosing guide](choose.md#the-alternatives-by-the-facts) says what to use instead:

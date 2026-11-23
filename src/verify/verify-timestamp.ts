@@ -23,7 +23,7 @@
  */
 
 import { OID_KP_TIMESTAMPING } from '../core/cms-oids.js';
-import { assertCertificates, assertInstant, assertObject, listOf } from '../core/arguments.js';
+import { assertCertificates, assertFlags, assertInstant, assertObject, listOf } from '../core/arguments.js';
 import { bytesEqual } from '../core/bytes.js';
 import { createDiagnosticEmitter, tspCertReqUnmetDiagnostic, tspCertsUnrequestedDiagnostic } from '../core/pki-diagnostics.js';
 import {
@@ -355,6 +355,7 @@ function _expectation(input: VerifyTimeStampTokenInput, reading: PkiParseOptions
     // After the refusals 1.0.0 already made, so that each keeps its code.
     for (const what of ['crls', 'ocspResponses'] as const) listOf(input[what], what);
     if (input.at !== undefined) assertInstant(input.at, 'at');
+    assertFlags(input, 'input', ['requireRevocation', 'allowSha1', 'allowNonCriticalTimeStampingEku']);
     return {
         imprint: input.imprint,
         data: input.data,

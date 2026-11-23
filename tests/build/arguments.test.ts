@@ -155,6 +155,18 @@ describe('the signed writers, wrong in one member', () => {
         await expectCode(() => createSignedData({ content, certificate: leaf.certificate, sid: Object.create(null) as never }, leaf.signer), 'PKI_INVALID_OPTION');
     });
 
+    it.each([['a Set', new Set()], ['a number', 42], ['an object', {}]] as const)('the two writers should refuse %s as the extensions, which 1.0.0 dropped in silence', async (_label, value) => {
+        const subjectPublicKey = leaf.certificate.subjectPublicKeyInfo.der;
+        const description = { serialNumber: 1n, issuer: NAME, subject: NAME, notBefore: 0, notAfter: 1000, subjectPublicKey, extensions: value };
+        await expectInvalid(() => createCertificate(description as never, leaf.signer));
+        await expectInvalid(() => createCertificationRequest({ subject: NAME, subjectPublicKey, extensions: value } as never, leaf.signer));
+    });
+
+    it('encodeBasicConstraints should refuse a cA that only reads as a boolean, which 1.0.0 encoded as a CA', async () => {
+        await expectCode(() => encodeBasicConstraints({ cA: 'false' as never }), 'PKI_INVALID_OPTION');
+        expect(encodeBasicConstraints({ cA: false })).toEqual(Uint8Array.of(0x30, 0x00));
+    });
+
     it.each(WRONG)('createCertificationRequest should refuse %s as the signer', async (_label, value) => {
         await expectInvalid(() => createCertificationRequest({ subject: NAME, subjectPublicKey: leaf.certificate.subjectPublicKeyInfo.der }, value as never));
     });

@@ -27,7 +27,7 @@
  */
 
 import { parseSignedData } from '../cms/cms-signed-data.js';
-import { assertCertificates, assertInstant, assertObject, listOf } from '../core/arguments.js';
+import { assertCertificates, assertFlags, assertInstant, assertObject, listOf } from '../core/arguments.js';
 import { cmsNoSignersReason, inputMalformedReason } from '../core/pki-reasons.js';
 import type { PkiTime } from '../types/asn1-types.js';
 import type { SignedData } from '../types/cms-types.js';
@@ -239,6 +239,7 @@ export async function verifySignedData(input: VerifySignedDataInput): Promise<Ve
     // After the refusals 1.0.0 already made, so that each keeps its code.
     for (const what of ['crls', 'ocspResponses', 'purposes'] as const) listOf<unknown>(input[what], what);
     if (input.at !== undefined) assertInstant(input.at, 'at');
+    assertFlags(input, 'input', ['requireRevocation', 'atTimeStamp', 'allowSha1', 'requireSigningCertificate', 'requireAlgorithmProtection']);
 
     if (signedData.signerInfos.length === 0) {
         // `[].every(valid)` is true, and a verifier written that way calls a

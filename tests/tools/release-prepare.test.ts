@@ -62,6 +62,7 @@ describe('release-prepare — the bumps after 1.0.0', () => {
             expect(after[doc]).toContain('gh attestation verify pkinative-1.1.0.tgz');
         }
         expect(after['README.md']).toContain('**Status: 1.1 — stable, on npm.**');
+        expect(after['README.md']).toContain('every runtime with Web Crypto | 1.1.0 |');
         expect(after['docs/index.html']).not.toContain('releases/download/');
         expect(after['docs/agent-brief.md']).not.toContain('releases/download/');
         expect(after['docs/index.html']).toContain('data-copy="npm install pkinative"');

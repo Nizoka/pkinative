@@ -126,7 +126,7 @@
     {
       "code": "PKI_REASON_ISSUER_NOT_FOUND",
       "since": "0.5.0",
-      "returnedWhen": "No supplied certificate has a subject equal to this certificate's issuer.",
+      "returnedWhen": "In a path the caller supplied to validateCertificatePath, the next certificate does not have the subject this one names as its issuer. verifyCertificateChain builds the path itself and reports a missing issuer as PKI_REASON_SIGNATURE_NOT_CHECKED beside PKI_REASON_NO_TRUST_ANCHOR.",
       "remedy": "Supply the intermediate certificates. A server that sends only its leaf is the usual cause.",
       "standard": "RFC 5280 §6.1"
     },
@@ -140,8 +140,8 @@
     {
       "code": "PKI_REASON_SIGNATURE_NOT_CHECKED",
       "since": "0.5.0",
-      "returnedWhen": "The signature could not be checked here — no Web Crypto, or an algorithm this runtime refuses.",
-      "remedy": "This says nothing about whether the signature is valid. Ask again on a runtime that implements the algorithm; never treat it as a rejection.",
+      "returnedWhen": "The signature could not be checked here — no Web Crypto, an algorithm this runtime refuses, or, with errorCode PKI_CRYPTO_UNAVAILABLE beside PKI_REASON_NO_TRUST_ANCHOR, a certificate whose issuer was not supplied, so that there was no key to check it with.",
+      "remedy": "This says nothing about whether the signature is valid. Read errorCode and the message: for a missing issuer, supply the certificate the message names; otherwise ask again on a runtime that implements the algorithm. Never treat it as a rejection.",
       "standard": "RFC 5280 §6.1.3 (a)(1)"
     },
     {
@@ -210,7 +210,7 @@
     {
       "code": "PKI_REASON_CMS_ALGORITHM_MISMATCH",
       "since": "0.7.0",
-      "returnedWhen": "The digest named by digestAlgorithm, the one built into signatureAlgorithm and the one in a CMSAlgorithmProtection attribute disagree; or the signer used an algorithm refused outright, such as MD5 or id-ecPublicKey in place of an ECDSA signature algorithm.",
+      "returnedWhen": "The digest named by digestAlgorithm, the one built into signatureAlgorithm and the one in a CMSAlgorithmProtection attribute disagree; or the signer used an algorithm refused outright, such as MD5 or id-ecPublicKey in place of an ECDSA signature algorithm; or an ML-DSA signer with signed attributes names a digest RFC 9882 §3.3 does not allow for its parameter set.",
       "remedy": "Treat the signature as unverifiable. Disagreement between these fields is the shape of an algorithm-substitution attack (RFC 6211), and no conforming signer produces it.",
       "standard": "RFC 6211 §3"
     },

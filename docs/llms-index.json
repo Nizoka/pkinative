@@ -6,20 +6,20 @@
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 6325,
-      "approxTokens": 1581
+      "bytes": 6543,
+      "approxTokens": 1636
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 9176,
-      "approxTokens": 2294
+      "bytes": 10018,
+      "approxTokens": 2505
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 451740,
-      "approxTokens": 112935
+      "bytes": 454414,
+      "approxTokens": 113604
     },
     {
       "url": "llms-recipes.txt",
@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 348117,
-      "approxTokens": 87029
+      "bytes": 350206,
+      "approxTokens": 87552
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 32156,
-      "approxTokens": 8039
+      "bytes": 32813,
+      "approxTokens": 8203
     },
     {
       "url": "data/diagnostics.json",
@@ -94,8 +94,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 15344,
-      "approxTokens": 3836
+      "bytes": 15445,
+      "approxTokens": 3861
     },
     {
       "title": "Use cases",
@@ -124,10 +124,11 @@
         "sign-a-message-and-verify-one-the-whole-way",
         "prove-when-it-was-signed",
         "private-keys-and-pkcs12",
+        "post-quantum-signatures-attribute-certificates-and-a-request-read-back",
         "what-none-of-these-do"
       ],
-      "bytes": 85532,
-      "approxTokens": 21383
+      "bytes": 86940,
+      "approxTokens": 21735
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -159,8 +160,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 65391,
-      "approxTokens": 16348
+      "bytes": 65591,
+      "approxTokens": 16398
     },
     {
       "title": "CLI use cases",
@@ -241,7 +242,7 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 53400,
+      "bytes": 53398,
       "approxTokens": 13350
     },
     {
@@ -332,8 +333,8 @@
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 41570,
-      "approxTokens": 10393
+      "bytes": 41815,
+      "approxTokens": 10454
     },
     {
       "title": "Choosing a library and a surface",
@@ -349,8 +350,8 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18959,
-      "approxTokens": 4740
+      "bytes": 19332,
+      "approxTokens": 4833
     },
     {
       "title": "Migrating from node-forge or pkijs",
@@ -364,8 +365,8 @@
         "what-has-no-counterpart-by-design",
         "migrating-in-parts"
       ],
-      "bytes": 10726,
-      "approxTokens": 2682
+      "bytes": 10805,
+      "approxTokens": 2701
     }
   ]
 }

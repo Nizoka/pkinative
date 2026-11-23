@@ -16,7 +16,7 @@
  * @module hash/fingerprint
  */
 
-import { describeValue } from '../core/arguments.js';
+import { assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, toHex } from '../core/bytes.js';
 import type { FingerprintAlgorithm, FormatFingerprintOptions } from '../types/hash-types.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -84,6 +84,7 @@ export async function computeFingerprintAsync(der: Uint8Array, algorithm: Finger
  */
 export function formatFingerprint(digest: Uint8Array, options?: FormatFingerprintOptions): string {
     const bytes = assertBytes(digest, 'formatFingerprint digest');
+    assertOptions(options, 'options');
     const separator = options?.separator ?? ':';
     const letterCase = options?.letterCase ?? 'upper';
     if (typeof separator !== 'string') {

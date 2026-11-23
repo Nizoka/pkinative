@@ -35,7 +35,7 @@
  * @module revocation/crl-check
  */
 
-import { A_CERTIFICATE, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
+import { A_CERTIFICATE, assertFlag, assertFlags, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
 import { isBytes } from '../core/bytes.js';
 import {
     revocationOutOfScopeReason,
@@ -154,7 +154,7 @@ function _assertList(value: unknown, what: string): void {
  */
 function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefined {
     const delta = input.delta;
-    if (delta !== undefined) assertObject(delta, 'delta');
+    assertFlags(delta, 'delta', ['signatureVerified']);
     // A delta nobody vouched for is not read at all, its list included.
     if (delta === undefined || delta.signatureVerified !== true) return undefined;
     _assertList(delta.crl, 'delta.crl');
@@ -266,6 +266,7 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // would take it to mean.
     if (scope?.kind === 'unusable') out.push(unknownCriticalExtensionReason(path, scope.oid, 'revocation list'));
 
+    assertFlag(input.signatureVerified, 'signatureVerified');
     if (input.signatureVerified !== true) {
         out.push(revocationUnknownReason(path, input.signatureVerified === false
             ? 'the list\'s signature did not verify against the key it was checked with'

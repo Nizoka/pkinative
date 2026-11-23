@@ -526,7 +526,7 @@ pkinative schema summary cert inspect
 </tbody></table>
 <p><code>--config</code> together with <code>--no-config</code> is not refused: <code>--no-config</code> wins and the named file is never read.</p>
 <h2 id="error-classes-codes-and-remedies">Error classes, codes and remedies <a class="heading-anchor" href="#error-classes-codes-and-remedies" aria-label="Link to this section">#</a></h2>
-<p>Every failure is one of 13 classes. pkinative&#39;s 57 frozen error codes map to them by a fixed table — typed against the engine&#39;s code union, so an engine release that added a code would fail the CLI&#39;s type-check rather than leak as <code>E_RUNTIME</code> — and the engine&#39;s code always rides along, verbatim, in <code>error.pkiCode</code>.</p>
+<p>Every failure is one of 13 classes. The engine&#39;s frozen error codes map to them by a fixed table — typed against the engine&#39;s code union, so an engine release that added a code would fail the CLI&#39;s type-check rather than leak as <code>E_RUNTIME</code>; the table of pkinative-cli 1.0.0 holds the codes it was built against, so not the one this engine release adds, which is raised only when an attribute certificate is read and which that CLI never does — and the engine&#39;s code always rides along, verbatim, in <code>error.pkiCode</code>.</p>
 <table tabindex="0">
 <thead>
 <tr>

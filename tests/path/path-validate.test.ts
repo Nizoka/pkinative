@@ -16,6 +16,7 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { encodeImplicit, encodeSequence, encodeString } from '../../src/asn1/asn1-encode.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
+import { formatDistinguishedName } from '../../src/x509/x509-name-format.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import type { SignatureResult, SignatureVerdict } from '../../src/types/path-types.js';
 import * as raw from '../helpers/cert-builder.js';
@@ -266,6 +267,14 @@ describe('checkSignature — §6.1.3 (a)(1)', () => {
         const reason = checkSignature(LEAF, context(), 'path[0]');
         expect(reason?.code).toBe('PKI_REASON_SIGNATURE_NOT_CHECKED');
         expect(reason?.message).toContain('no signature verdict was supplied');
+    });
+
+    it('should name the issuer to supply when no certificate of the issuer was given, and only then', () => {
+        // A leaf whose intermediate is missing has no verdict because it has no
+        // issuer: what an agent reads must say which certificate to add.
+        const issuer = formatDistinguishedName(LEAF.issuer);
+        expect(checkSignature(LEAF, context(), 'path[0]')?.message).toContain(issuer);
+        expect(checkSignature(LEAF, context(), 'path[0]', LEAF)?.message).not.toContain(issuer);
     });
 });
 

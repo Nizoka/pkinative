@@ -138,7 +138,7 @@ export function decodeExtensionValue(oid: string, valueDer: Uint8Array, options?
     if (typeof oid !== 'string') throw new PkiError('PKI_INVALID_INPUT', `pkinative: decodeExtensionValue expects the extension OID as a dotted string, got ${typeof oid}`);
     if (!isValidOid(oid)) throw new PkiEncodingError('PKI_OID_INVALID', `pkinative: "${oid.slice(0, 64)}" is not a dotted-decimal OID X.660 allows — pass the extnID, e.g. 2.5.29.17`);
     const bytes = assertBytes(valueDer, 'decodeExtensionValue value');
-    const critical = options?.critical ?? false;
+    const critical = options?.critical === undefined ? false : options.critical;
     if (typeof critical !== 'boolean') throw new PkiError('PKI_INVALID_OPTION', `pkinative: critical must be a boolean, got ${typeof critical}`);
     return _decodeExtension(bytes, 0, oid, critical, bytes, createAsn1Context(options), 'extnValue');
 }

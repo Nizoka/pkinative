@@ -214,3 +214,47 @@ export function assertCertificates(values: unknown, what: string): asserts value
     assertArray(values, what);
     for (const [index, value] of values.entries()) assertCertificate(value, `${what}[${String(index)}]`);
 }
+
+/**
+ * Refuse an options argument that is given and is not an object. A number or
+ * a string has members too — every one of them `undefined` — so each option
+ * read from it is absent, and the call goes on as if none had been passed.
+ *
+ * @param value What the caller passed, or nothing.
+ * @param what  The argument's name, as the message gives it.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `value` is given and is not an object.
+ */
+export function assertOptions(value: unknown, what: string): void {
+    if (value !== undefined) assertObject(value, what);
+}
+
+/**
+ * Refuse a flag that is given and is not a boolean. Read as `=== true`, the
+ * text `'true'` leaves a check off without a word; read as truthy, the text
+ * `'false'` turns one on.
+ *
+ * @param value What the caller passed, or nothing.
+ * @param what  The flag's name, as the message gives it.
+ * @throws {PkiError} `PKI_INVALID_OPTION` when `value` is given and is not a boolean.
+ */
+export function assertFlag(value: unknown, what: string): void {
+    if (value !== undefined && typeof value !== 'boolean') {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${what} must be a boolean, got ${typeof value} — pass true or false, not a value that reads as one`);
+    }
+}
+
+/**
+ * Refuse the object that carries a function's flags when it is given and is
+ * not an object, then each of its flags that is not a boolean.
+ *
+ * @param owner What the caller passed for the options or the input, or nothing.
+ * @param what  The argument's name, as the message gives it.
+ * @param names The flags it may carry.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `owner` is given and is not an object;
+ *   `PKI_INVALID_OPTION` when one of the flags is given and is not a boolean.
+ */
+export function assertFlags(owner: unknown, what: string, names: readonly string[]): void {
+    if (owner === undefined) return;
+    assertObject(owner, what);
+    for (const name of names) assertFlag((owner as Readonly<Record<string, unknown>>)[name], name);
+}

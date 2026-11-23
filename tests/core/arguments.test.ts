@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-    A_CERTIFICATE, assertArray, assertCertificate, assertCertificates, assertInstant, assertIterable, assertObject, assertParsed, assertParsedList, assertReiterable,
-    assertString, describeValue, listOf,
+    A_CERTIFICATE, assertArray, assertCertificate, assertCertificates, assertFlag, assertFlags, assertInstant, assertIterable, assertObject, assertOptions, assertParsed,
+    assertParsedList, assertReiterable, assertString, describeValue, listOf,
 } from '../../src/core/arguments.js';
 import { PkiError } from '../../src/types/pki-errors.js';
 
@@ -252,5 +252,54 @@ describe('assertReiterable', () => {
         const once = (function* (): Generator<number> { yield 1; })();
         expect(() => { assertReiterable(once, 'candidates'); }).toThrow(INVALID);
         expect([...once]).toEqual([1]);
+    });
+});
+
+const OPTION = expect.objectContaining({ code: 'PKI_INVALID_OPTION' }) as unknown;
+
+describe('assertOptions', () => {
+    it.each(except('undefined', 'an object', 'an array'))('should refuse %s, whose options would all read as absent', (_label, value) => {
+        expect(() => { assertOptions(value, 'options'); }).toThrow(INVALID);
+        expect(() => { assertOptions(value, 'options'); }).toThrow(PkiError);
+    });
+
+    it('should accept options left out, and an object', () => {
+        expect(() => { assertOptions(undefined, 'options'); }).not.toThrow();
+        expect(() => { assertOptions({}, 'options'); }).not.toThrow();
+    });
+});
+
+describe('assertFlag', () => {
+    it.each([['the text "true"', 'true'], ['the text "false"', 'false'], ['one', 1], ['zero', 0], ['null', null], ['an object', {}]] as const)('should refuse %s, which only reads as a boolean', (_label, value) => {
+        expect(() => { assertFlag(value, 'requireRevocation'); }).toThrow(OPTION);
+        expect(() => { assertFlag(value, 'requireRevocation'); }).toThrow(PkiError);
+    });
+
+    it('should accept true, false and a flag left out', () => {
+        for (const value of [true, false, undefined]) expect(() => { assertFlag(value, 'requireRevocation'); }).not.toThrow();
+    });
+
+    it('should name the flag it refuses', () => {
+        expect(() => { assertFlag('true', 'requireRevocation'); }).toThrow(/requireRevocation/);
+    });
+});
+
+describe('assertFlags', () => {
+    it('should accept an owner left out, without reading a flag from it', () => {
+        expect(() => { assertFlags(undefined, 'options', ['allowSha1']); }).not.toThrow();
+    });
+
+    it.each(except('undefined', 'an object', 'an array'))('should refuse %s as the owner', (_label, value) => {
+        expect(() => { assertFlags(value, 'options', ['allowSha1']); }).toThrow(INVALID);
+    });
+
+    it('should refuse the first named flag that is not a boolean, and only a named one', () => {
+        expect(() => { assertFlags({ allowSha1: false, requireRevocation: 'true' }, 'input', ['allowSha1', 'requireRevocation']); }).toThrow(OPTION);
+        expect(() => { assertFlags({ allowSha1: 'no' }, 'input', ['allowSha1', 'requireRevocation']); }).toThrow(/allowSha1/);
+        expect(() => { assertFlags({ other: 'true' }, 'input', ['allowSha1']); }).not.toThrow();
+    });
+
+    it('should accept every named flag as a boolean or left out', () => {
+        expect(() => { assertFlags({ allowSha1: true }, 'input', ['allowSha1', 'requireRevocation']); }).not.toThrow();
     });
 });

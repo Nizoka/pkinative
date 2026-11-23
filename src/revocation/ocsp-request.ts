@@ -34,7 +34,7 @@ import { readTlvHeader, walkChildren, type TlvHeader } from '../asn1/asn1-cursor
 import { encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { _readBitString } from '../asn1/asn1-read.js';
 import { encodeAlgorithmIdentifier } from '../build/build-structures.js';
-import { A_CERTIFICATE, assertParsed, describeValue } from '../core/arguments.js';
+import { A_CERTIFICATE, assertOptions, assertParsed, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { ocspNonceLengthDiagnostic, ocspRequestExtensionCriticalDiagnostic, ocspRequestSignedUnnamedDiagnostic } from '../core/pki-diagnostics.js';
 import { _pkiError } from '../core/pki-error-guard.js';
@@ -146,6 +146,7 @@ const NULL_PARAMETERS = /*#__PURE__*/ encodeTlv('universal', 5, false, new Uint8
  *   or the nonce is not bytes.
  */
 export function createOcspRequest(certificate: Certificate, issuer: Certificate, options?: CreateOcspRequestOptions): Uint8Array {
+    assertOptions(options, 'options');
     const certId = encodeOcspCertId(certificate, issuer, options?.hashAlgorithm ?? 'SHA-1');
     const requestList = encodeSequence([encodeSequence([certId])]);
 

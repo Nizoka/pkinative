@@ -84,8 +84,8 @@
       "default": "true — every recognised extension is decoded",
       "semver": "frozen",
       "evidence": [
-        { "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions ?? true;" },
-        { "file": "src/x509/x509-csr.ts", "text": "const decode = options?.decodeExtensions ?? true;" }
+        { "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;" },
+        { "file": "src/x509/x509-csr.ts", "text": "const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;" }
       ]
     },
     {
@@ -93,7 +93,7 @@
       "in": ["DecodeExtensionValueOptions"],
       "default": "false",
       "semver": "frozen",
-      "evidence": [{ "file": "src/x509/x509-extensions.ts", "text": "const critical = options?.critical ?? false;" }]
+      "evidence": [{ "file": "src/x509/x509-extensions.ts", "text": "const critical = options?.critical === undefined ? false : options.critical;" }]
     },
     {
       "option": "critical",

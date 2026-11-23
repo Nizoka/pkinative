@@ -21,6 +21,7 @@ import type { Certificate } from '../types/x509-types.js';
 import { _cmsAlgorithmProblem, _importableSpki, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
+import { assertFlags } from '../core/arguments.js';
 import { isBytes } from '../core/bytes.js';
 
 /** Options of {@link verifySignerInfoSignature}. */
@@ -111,6 +112,7 @@ export async function verifySignerInfoSignature(
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: this signer has no signed attributes, so its signature is over the content itself — pass { content } with the eContent or the detached content');
     }
+    assertFlags(options, 'options', ['allowSha1']);
 
     // Before resolution, so an inconsistent pair is a `false` even when one
     // half would also be refused: MD5 is a verdict on the signer, not a gap in

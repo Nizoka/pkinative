@@ -39,8 +39,8 @@ const EXPECT_SILENT = new Set<string>([
     'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
     'src/path/path-validate.ts:398', 'src/verify/verify-chain.ts:280', 'src/verify/verify-signed-data.ts:171',
-    'src/revocation/ocsp-check.ts:164', 'src/verify/verify-pkcs12.ts:128',
-    'src/crypto/x509-verify.ts:109', 'src/crypto/x509-verify.ts:235', 'src/crypto/x509-verify.ts:269', 'src/crypto/x509-verify.ts:309', 'src/crypto/cms-verify.ts:57',
+    'src/revocation/ocsp-check.ts:164', 'src/verify/verify-pkcs12.ts:129',
+    'src/crypto/x509-verify.ts:109', 'src/crypto/x509-verify.ts:236', 'src/crypto/x509-verify.ts:270', 'src/crypto/x509-verify.ts:310', 'src/crypto/cms-verify.ts:58',
 ]);
 
 /** Fences that print their success: the line the prose shows must appear. */
@@ -211,12 +211,12 @@ beforeAll(async () => {
         'src/cms/tsp-response.ts': { reply: { arrayBuffer: async () => tspReply.buffer.slice(tspReply.byteOffset, tspReply.byteOffset + tspReply.byteLength) } },
         'src/cms/tsp-tst-info.ts': { token: pkinative.parseTimeStampToken(tokenDer) },
         // A timestamp request's nonce is a bigint (RFC 3161 §2.4.1), an OCSP request's is octets.
-        'src/build/build-signed-data.ts:659': { nonce: 0x1234n },
+        'src/build/build-signed-data.ts:662': { nonce: 0x1234n },
         // The OCSP modules' `bytes` is a response; the check example names the CertID hashes and the responder.
         'src/revocation/ocsp-': { bytes: ocspDer, issuerNameHash: await sha('SHA-1', root.certificate.subject.der), issuerKeyHash: await sha('SHA-1', root.certificate.subjectPublicKeyInfo.publicKey.bytes), responder: root.certificate, yourPolicySaysSo: true },
-        'src/crypto/x509-verify.ts:309': { bytes: ocspDer },
+        'src/crypto/x509-verify.ts:310': { bytes: ocspDer },
         // An RFC 5755 attribute certificate the guide root signed.
-        'src/crypto/x509-verify.ts:269': { bytes: await signedAttributeCertificate(root) },
+        'src/crypto/x509-verify.ts:270': { bytes: await signedAttributeCertificate(root) },
     };
     fetchStub = async (url, init) => {
         let body: Uint8Array;

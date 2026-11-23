@@ -52,8 +52,8 @@
  * @module revocation/ocsp-check
  */
 
-import { A_CERTIFICATE, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
-import { assertBytes, bytesEqual } from '../core/bytes.js';
+import { A_CERTIFICATE, assertFlags, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
+import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiError } from '../types/pki-errors.js';
 import {
     createDiagnosticEmitter,
@@ -83,7 +83,7 @@ export interface CheckOcspStatusInput {
     /** The parsed response. */
     readonly response: OcspResponse;
     /**
-     * The `CertID` that was asked about, as `encodeOcspCertId` produced it. Compared
+     * The three fields of the `CertID` that was asked about, each as bytes — not the DER `encodeOcspCertId` returns. Compared
      * to the answer's, field by field — which is RFC 6960 §3.2's first
      * requirement and the one a client that trusts the response order skips.
      */
@@ -219,6 +219,7 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
         out.push(revocationUnknownReason(path, 'the response carries no body'));
         return out;
     }
+    assertFlags(input, 'input', ['strict', 'signatureVerified', 'responderAuthorized', 'requireNonce']);
     const emitter = createDiagnosticEmitter(input.strict, input.onDiagnostic);
     if (input.signer !== undefined) _signerDiagnostics(basic, input.signer, path, emitter);
 
@@ -243,7 +244,7 @@ export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason
     // Read only when there is an answer to compare it with, as 1.0.0 did.
     if (basic.responses.length > 0) {
         assertObject(expected, 'expected');
-        for (const name of ['issuerNameHash', 'issuerKeyHash', 'serialNumber'] as const) assertBytes(expected[name], `expected.${name}`);
+        for (const name of ['issuerNameHash', 'issuerKeyHash', 'serialNumber'] as const) if (!isBytes(expected[name])) throw new PkiError('PKI_INVALID_INPUT', `pkinative: expected.${name} must be bytes — expected is the three fields of the CertID asked about, { issuerNameHash, issuerKeyHash, serialNumber }, not the DER encodeOcspCertId returns`);
     }
     const answers = basic.responses.filter((single) => matches(single, expected));
     const answer = answers[0];
@@ -336,7 +337,7 @@ function hex(bytes: Uint8Array): string {
 function checkNonce(basic: OcspBasicResponse, input: CheckOcspStatusInput, path: string): PkiReason[] {
     const sent = input.nonce;
     if (sent === undefined) return [];
-    assertBytes(sent, 'nonce');
+    if (!isBytes(sent)) throw new PkiError('PKI_INVALID_INPUT', `pkinative: nonce must be the bytes sent in the request, got ${describeValue(sent)} — pass the Uint8Array that was given to createOcspRequest`);
     const echoed = basic.extensions.find((extension) => extension.oid === OCSP_NONCE_OID);
     if (echoed === undefined) {
         return input.requireNonce === true

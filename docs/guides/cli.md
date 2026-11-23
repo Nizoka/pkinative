@@ -177,7 +177,7 @@ Usage errors are `E_USAGE`, exit 2, and they are detected before anything is wri
 
 ## Error classes, codes and remedies
 
-Every failure is one of 13 classes. pkinative's 57 frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME` — and the engine's code always rides along, verbatim, in `error.pkiCode`.
+Every failure is one of 13 classes. The engine's frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME`; the table of pkinative-cli 1.0.0 holds the codes it was built against, so not the one this engine release adds, which is raised only when an attribute certificate is read and which that CLI never does — and the engine's code always rides along, verbatim, in `error.pkiCode`.
 
 | Class | Exit | `PKI_*` codes mapped to it | When |
 |---|---|---|---|

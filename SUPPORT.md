@@ -5,7 +5,7 @@ Thanks for using **pkinative**! Here is where to get help depending on what you 
 ## :books: Documentation
 
 - **Quick start & API overview:** [README.md](./README.md)
-- **In-depth guides:** [`docs/guides/`](./docs/guides/) (quick start, use cases, the CLI and MCP references and their use cases, security model, conformance, standards, error codes, choosing a library and a surface), also at [pkinative.dev](https://pkinative.dev/guides/)
+- **In-depth guides:** [`docs/guides/`](./docs/guides/) (quick start, use cases, the CLI and MCP references and their use cases, security model, conformance, standards, error codes, choosing a library and a surface, migrating from node-forge or pkijs), also at [pkinative.dev](https://pkinative.dev/guides/)
 - **The command line and the MCP server:** [pkinative-cli](https://github.com/Nizoka/pkinative-cli) and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) are separate repositories with their own issue trackers and agent contracts ([CLI](https://github.com/Nizoka/pkinative-cli/blob/main/docs/AGENT_CONTRACT.md), [MCP](https://github.com/Nizoka/pkinative-mcp/blob/main/docs/AGENT_CONTRACT.md)); report a problem of the command or the server there, and one of the engine here
 - **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
 - **Roadmap:** [ROADMAP.md](./ROADMAP.md)
@@ -20,7 +20,7 @@ Thanks for using **pkinative**! Here is where to get help depending on what you 
   3. Include a **minimal reproduction** (code + inputs) and the **exact error code** (`err.code`) or the expected vs actual output.
   4. Attach the certificate or DER blob when relevant — **never a private key**. Public certificates only; redact anything confidential.
 
-Templates are provided for bug reports, feature requests and conformance reports.
+Templates are provided for bug reports, feature requests, conformance reports, interoperability reports and maintenance.
 
 ## :lock: Security vulnerabilities
 
@@ -38,7 +38,7 @@ Interested in contributing? Start with [CONTRIBUTING.md](./CONTRIBUTING.md) and 
 
 - **Private email support** — we do not offer one-on-one support; please use the public issue tracker above so the whole community benefits.
 - **Commercial SLAs** — pkinative is MIT-licensed open source with no warranty. Consider sponsoring or contributing patches if you rely on it heavily.
-- **Legacy Node versions** — only Node.js **22 LTS** and **24** are tested in CI (with Deno, Bun and headless Chromium smoke tests). Node.js below 22 is outside `engines` and is not supported.
+- **Legacy Node versions** — only Node.js **22**, **24** and **26** are tested in CI (with Deno, Bun and headless Chromium smoke tests). Node.js below 22 is outside `engines` and is not supported.
 
 ## :sparkles: Sponsor
 

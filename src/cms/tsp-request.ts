@@ -13,7 +13,7 @@
  * @module cms/tsp-request
  */
 
-import { describeValue } from '../core/arguments.js';
+import { assertFlags, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
@@ -108,6 +108,7 @@ export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeSta
     if (!isBytes(hash)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the hash to timestamp must be a Uint8Array — hash the data first, with the algorithm you name in hashAlgorithm');
     }
+    assertFlags(options, 'options', ['certReq']);
     const name = options?.hashAlgorithm ?? 'SHA-256';
     // An own name of the table and nothing else: `__proto__` is a name every
     // object answers to, and a value that is not a string is no name at all.
@@ -213,8 +214,8 @@ function readRequest(bytes: Uint8Array, ctx: Asn1Context, inspect: boolean): Req
  * @internal
  */
 export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): _TimeStampRequestDetails {
-    const bytes = assertBytes(der, 'TimeStampReq input');
-    const { messageImprint, policy, nonce, certReq } = readRequest(bytes, createAsn1Context({ ...options, encodingRules: 'der' }), false);
+    if (!isBytes(der)) throw new PkiError('PKI_INVALID_INPUT', 'pkinative: request must be the DER of the TimeStampReq that was sent — the bytes createTimeStampRequest returned, not what parseTimeStampRequest made of them');
+    const { messageImprint, policy, nonce, certReq } = readRequest(der, createAsn1Context({ ...options, encodingRules: 'der' }), false);
     return Object.freeze({ messageImprint, policy, nonce, certReq });
 }
 
@@ -252,6 +253,7 @@ export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOption
  */
 export function parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): TimeStampRequest {
     const bytes = assertBytes(der, 'parseTimeStampRequest input');
+    assertOptions(options, 'options');
     const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
     const { root, messageImprint, policy, nonce, certReq, extensions } = readRequest(bytes, ctx, true);
     return Object.freeze({
