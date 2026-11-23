@@ -138,6 +138,27 @@ describe('the revocation primitives, told a value by what they read', () => {
         await expectInvalid(() => checkOcspStatus({ response, expected, at: AT, signer: value as never }));
     });
 
+    // The signer is told by the one member the responderID is compared with
+    // (RFC 6960 §4.2.2.3): its key for `byKey`, its subject for `byName`.
+    describe.each([
+        ['byKey', 'its key', (c: Certificate): object => ({ subjectPublicKeyInfo: c.subjectPublicKeyInfo, extensions: c.extensions }), (c: Certificate): object => ({ subject: c.subject, extensions: c.extensions })],
+        ['byName', 'its subject', (c: Certificate): object => ({ subject: c.subject, extensions: c.extensions }), (c: Certificate): object => ({ subjectPublicKeyInfo: c.subjectPublicKeyInfo, extensions: c.extensions })],
+    ] as const)('checkOcspStatus, given a response whose responder is named %s', (kind, member, withIt, withoutIt) => {
+        const answered = (): OcspResponse => (kind === 'byKey' ? response : {
+            ...response,
+            basicResponse: { ...(response.basicResponse as OcspBasicResponse), responderId: { kind: 'byName', nameDer: root.subject.der } },
+        } as unknown as OcspResponse);
+
+        it(`should take a signer that carries ${member} and nothing else it does not read`, () => {
+            const reasons = checkOcspStatus({ response: answered(), expected, at: AT, signatureVerified: true, responderAuthorized: true, signer: withIt(root) as never, ...quiet });
+            expect(reasons.map((reason) => reason.code)).toEqual([]);
+        });
+
+        it(`should refuse a signer without ${member}`, async () => {
+            await expectInvalid(() => checkOcspStatus({ response: answered(), expected, at: AT, signer: withoutIt(root) as never }));
+        });
+    });
+
     it.each(NOT_INSTANTS)('checkOcspStatus should refuse %s as the instant', async (_label, value) => {
         await expectInvalid(() => checkOcspStatus({ response, expected, at: value as never }));
     });

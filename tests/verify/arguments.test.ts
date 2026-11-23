@@ -11,7 +11,7 @@ import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
 import { verifySignedData } from '../../src/verify/verify-signed-data.js';
 import { verifyTimeStampToken } from '../../src/verify/verify-timestamp.js';
 import { WRONG, expectCode, expectInvalid, refusal } from '../core/_arguments.js';
-import { AT, codes, issue, makeRoot } from './_cms-pki.js';
+import { AT, codes, issue, makeRoot, withSigners } from './_cms-pki.js';
 
 /**
  * The compositions, and the readers and key functions they call, given what
@@ -193,6 +193,12 @@ describe('the compositions, where each member is first read', () => {
     it('verifySignedData should still report a message it cannot read, whatever the instant is', async () => {
         const report = await verifySignedData({ signedData: DER, trustAnchors: [root], at: 'now' as never });
         expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+    });
+
+    it('verifySignedData should refuse a wrong instant once the message is read, whether or not a signer would have used it', async () => {
+        // No signer, so no chain is built and nothing downstream reads `at`:
+        // a misuse is refused the same way whatever the message holds.
+        await expectInvalid(() => verifySignedData({ signedData: withSigners(signedData, []), trustAnchors: [root], at: 'now' as never }));
     });
 
     it('verifySignedData should answer for the content passed twice first when the instant is wrong too, as 1.0.0 did', async () => {
