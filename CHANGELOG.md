@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **ci: the `node-current` workflow is removed.** Node.js adopted a schedule without odd lines; Node 27 is an alpha until 2027-04-22, so no line is Current. The workflow returns when one is.
 - **docs(security): the support period of the 1.x line is written down** (#16): no end date, an end announced one minor release ahead, only the latest minor receiving fixes ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md), amended).
 - **docs: the comparison with other libraries re-read from the npm registry on 2026-11-17** (`docs/data/comparison-2026-11-17.json`), peer dependencies counted apart.
+- **chore(package): the author's address is `hello@pkinative.dev`**, in `package.json` and `CITATION.cff`, and `funding` lists GitHub Sponsors beside plika.app; SUPPORT.md says what each is.
 - **chore(dependabot): no major proposals for `@types/node` and `marked`**; five GitHub Actions move to their current major (checkout 7, setup-node 7, setup-go 7, upload-artifact 7, download-artifact 8).
 
 ### Fixed

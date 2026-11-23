@@ -128,7 +128,7 @@
     "human-in-the-loop",
     "agent-safety"
   ],
-  "author": "Nizoka <hello@pdfnative.dev> (https://pdfnative.dev)",
+  "author": "Nizoka <hello@pkinative.dev> (https://pkinative.dev)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -138,10 +138,16 @@
   "bugs": {
     "url": "https://github.com/Nizoka/pkinative/issues"
   },
-  "funding": {
-    "type": "individual",
-    "url": "https://plika.app"
-  },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/Nizoka"
+    },
+    {
+      "type": "individual",
+      "url": "https://plika.app"
+    }
+  ],
   "engines": {
     "node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0"
   },

@@ -178,9 +178,15 @@ None is promised; each enters a release when it meets the bar of the rest — te
 - [ ] ML-DSA signing in the writers and ML-DSA private-key import, when the gate's runtime (`.nvmrc`) moves to a Node.js line whose Web Crypto signs it
 - [ ] SLH-DSA signature verification, once a runtime of the CI matrix verifies it
 
+## Tooling — outside the engine's version line
+
+What the gate and the agents work with. Nothing here changes what the package exports.
+
+- [ ] Anchor the two line-indexed registries on content instead of a line number. The ids of `scripts/data/mutation-equivalents.json` (`<file>:<line>:<column>:<operator>`) and the TSDoc fence keys of `tests/docs/guide-fences.test.ts` (`src/<file>:<line>`) move with every line added or removed under `src/` and are re-anchored by hand from a diff, which the audit fixes of 1.1.0 did five times. A key made of the file, the operator and the text of the line — with its occurrence when the text repeats — survives an edit elsewhere in the file: `scripts/mutate.ts` and the fence test read it, the entries are migrated once, and the re-anchoring step leaves `CLAUDE.md`
+
 ## How to Influence the Roadmap
 
 - **Open an issue** describing the use case and the standard that defines it.
 - **Report a conformance case** with the conformance template — the corpus grows from real certificates.
-- **Sponsor** development through [GitHub Sponsors](https://github.com/sponsors/Nizoka).
+- **Sponsor** development through [GitHub Sponsors](https://github.com/sponsors/Nizoka), or by buying a licence of [Plika](https://plika.app), the author's personal-finance application — see [SUPPORT.md](SUPPORT.md).
 - **Contribute** — see [CONTRIBUTING.md](CONTRIBUTING.md).

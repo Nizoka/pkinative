@@ -42,6 +42,15 @@ Interested in contributing? Start with [CONTRIBUTING.md](./CONTRIBUTING.md) and 
 
 ## :sparkles: Sponsor
 
-If pkinative saves you time or money, consider starring the repo or
-[sponsoring via GitHub Sponsors](https://github.com/sponsors/Nizoka). Every bit helps
-keep development sustainable.
+If pkinative saves you time or money, two things keep its development sustainable:
+
+- **GitHub Sponsors** — [github.com/sponsors/Nizoka](https://github.com/sponsors/Nizoka), once or monthly.
+- **A Plika licence** — [plika.app](https://plika.app) is the personal-finance application of pkinative's author; buying a licence is another way to
+  fund the time spent on the *native* libraries. It is the purchase of that product, not a donation: it buys nothing in pkinative, neither support nor priority.
+
+Starring the repository helps too.
+
+## :email: Contact
+
+- **Security** — [security@pkinative.dev](mailto:security@pkinative.dev), or GitHub private vulnerability reporting; the procedure is in [SECURITY.md](./SECURITY.md).
+- **Anything that cannot be a public issue** — [hello@pkinative.dev](mailto:hello@pkinative.dev). It is not a support channel: questions and bugs go to the issue tracker above.
