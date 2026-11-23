@@ -19,7 +19,7 @@ tests/
 ├── core/ asn1/ pem/ oid/ hash/ x509/ crypto/ build/ path/ revocation/ cms/ keys/ verify/   # one directory per src/ layer
 ├── fuzzing/        # one file per adversarial class, seeded, fixed budgets; reports.test.ts: every report function always resolves;
 │                   # arguments.test.ts: every export of the entry point, called with values of the wrong type;
-│                   # argument-members.test.ts: a valid call of every function, wrong in one member at a time
+│                   # argument-members.test.ts: a valid call of every function, wrong in one member at a time; flags and options refused
 ├── security/       # CVE-class replays, one test per published class, held to docs/data/cve-classes.json
 ├── property/       # seeded round-trip and repeatability properties (encode → decode → encode; same input, same bytes);
 │                   # frozen-results.test.ts: everything a parse*/decode* export returns is frozen — a new reader needs an input there

@@ -22,14 +22,17 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
 - **Every thrown value is a `PkiError` subclass** with a stable `code` and a message that starts with
   `pkinative: ` and names the remedy. A `TypeError` escaping from malformed input is a bug.
 - **An argument of the wrong type is a `PkiError`, on every export** — `PKI_INVALID_INPUT` from a new guard, the code it already had otherwise. Three levels — an argument, its members, the members
-  of those — are each refused where the function first reads them, never earlier: a call wrong in two places keeps the refusal it
-  had. The guards are in `src/core/arguments.ts` (`assertObject`, `assertArray`, `assertIterable`, `assertReiterable`, `assertString`,
-  `assertInstant`, `listOf`), with `assertBytes`. A value a reader made is told by `assertParsed`, with the bytes the function reads from it and
+  of those — are each refused where the function first reads them, never earlier: a refusal the function already made for a reason
+  of its own still answers first where it was read first. The guards are in `src/core/arguments.ts` (`assertObject`, `assertArray`, `assertIterable`, `assertReiterable`, `assertString`,
+  `assertInstant`, `listOf`, `assertOptions`, `assertFlag`, `assertFlags`), with `assertBytes`. **A flag is a boolean or absent** — read as
+  `=== true`, the text `'true'` leaves a check off without a word — and is `PKI_INVALID_OPTION` otherwise, `null` included; an options
+  argument is an object or absent. A value a reader made is told by `assertParsed`, with the bytes the function reads from it and
   nothing it does not read; one built by hand to pass for it is outside the promise. A message names a caller's value through
   `describeValue`, never `String(value)` or a template, which throw on an object with no prototype or a symbol. A table is asked for
   its own names only (`typeof key === 'string'`, then `hasOwnProperty`). `tests/fuzzing/arguments.test.ts` calls every function of the
-  entry point with everything wrong at once; `tests/fuzzing/argument-members.test.ts` makes a valid call wrong in one place — a new
-  function fails it until it has a valid call there, naming its optional members.
+  entry point with everything wrong at once; `tests/fuzzing/argument-members.test.ts` makes a valid call wrong in one place, requires a refusal
+  for a flag that is not a boolean and for a primitive where an object is expected, and reads `docs/assets/api.json`: a new function
+  fails it until it has a valid call there, and a new flag until a call names it.
 - **A catch binds the error and passes it through `_pkiError`** (`src/core/pki-error-guard.ts`), which rethrows
   anything but a `PkiError`. A bare `catch {}` is allowed only in a capability probe listed in `BARE_CATCH_PROBES`
   (`scripts/lib/architecture.ts`) with its reason, opening with a `// capability probe: …` comment;
