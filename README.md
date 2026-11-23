@@ -9,6 +9,7 @@
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
 ![Conformance: x509-limbo, Wycheproof and NIST PKITS](https://img.shields.io/badge/conformance-x509--limbo%20%2B%20Wycheproof%20%2B%20NIST%20PKITS-blueviolet)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Sponsor: GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Nizoka)
 
 Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 
@@ -184,6 +185,15 @@ npm run conformance:fetch && npx tsx scripts/gate.ts --publish --require-all
 ## Origin
 
 pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures. An audit found that code useful but not reusable as it stood — a signed-shift length bug, recursion without a bound, extensions silently lost after an `issuerUniqueID`, and pure-JavaScript RSA and ECDSA that are not constant-time. pkinative keeps the ideas, rewrites the parser, and leaves the secret-dependent arithmetic to Web Crypto.
+
+## Support the project
+
+pkinative is MIT-licensed and free. Two things fund the time spent on it:
+
+- **[GitHub Sponsors](https://github.com/sponsors/Nizoka)** — once or monthly.
+- **A [Plika](https://plika.app) licence** — the personal-finance application of pkinative's author. It is the purchase of that product, not a donation, and it buys nothing in pkinative: neither support nor priority.
+
+Starring the repository helps too. Where to ask a question, report a bug or write to the project: [SUPPORT.md](SUPPORT.md).
 
 ## License
 

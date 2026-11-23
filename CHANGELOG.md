@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - **docs(security): the support period of the 1.x line is written down** (#16): no end date, an end announced one minor release ahead, only the latest minor receiving fixes ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md), amended).
 - **docs: the comparison with other libraries re-read from the npm registry on 2026-11-17** (`docs/data/comparison-2026-11-17.json`), peer dependencies counted apart.
 - **chore(package): the author's address is `hello@pkinative.dev`**, in `package.json` and `CITATION.cff`, and `funding` lists GitHub Sponsors beside plika.app; SUPPORT.md says what each is.
+- **docs(site): the MCP explorer names the engine version it loads** — its page said `pkinative@1.0.0` while its loader ran 1.1.0; `cdn-pin` holds every `pkinative@x.y.z` a playground page writes, and `release-prepare` moves it. The landing page's cards name ML-DSA and attribute certificates; the README and the site's footer link to GitHub Sponsors.
 - **chore(dependabot): no major proposals for `@types/node` and `marked`**; five GitHub Actions move to their current major (checkout 7, setup-node 7, setup-go 7, upload-artifact 7, download-artifact 8).
 
 ### Fixed
