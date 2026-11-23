@@ -2988,7 +2988,7 @@ The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 2
 
 ## Where it runs
 
-`.github/workflows/conformance.yml` runs the gate on every push to `main` and every pull request into it, weekly, and on demand, on Linux, Windows and macOS — three required checks, `conformance`, `conformance-windows` and `conformance-macos`. Three platforms is not redundancy: the command-line tool the L3 level cross-checks against differs by runner (OpenSSL, the Git for Windows build, LibreSSL), and so do line endings, path separators and the default shell. The release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
+`.github/workflows/conformance.yml` runs the gate on every push to `main` and every pull request into it, weekly, and on demand, on Linux, Windows and macOS — three checks the ruleset of `main` requires, `conformance`, `conformance-windows` and `conformance-macos`. Three platforms is not redundancy: the command-line tool the L3 level cross-checks against differs by runner (OpenSSL, the Git for Windows build, LibreSSL), and so do line endings, path separators and the default shell. The release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
 
 ```bash
 npm run build

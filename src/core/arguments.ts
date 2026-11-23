@@ -222,10 +222,10 @@ export function assertCertificates(values: unknown, what: string): asserts value
  *
  * @param value What the caller passed, or nothing.
  * @param what  The argument's name, as the message gives it.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `value` is given and is not an object.
+ * @throws {PkiError} `PKI_INVALID_OPTION` when `value` is given and is not an object — the code the readers have given since 1.0.0.
  */
 export function assertOptions(value: unknown, what: string): void {
-    if (value !== undefined) assertObject(value, what);
+    if (value !== undefined && (typeof value !== 'object' || value === null)) throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${what} must be an object, got ${describeValue(value)} — pass an object of the options the function documents, or omit it`);
 }
 
 /**
@@ -257,4 +257,17 @@ export function assertFlags(owner: unknown, what: string, names: readonly string
     if (owner === undefined) return;
     assertObject(owner, what);
     for (const name of names) assertFlag((owner as Readonly<Record<string, unknown>>)[name], name);
+}
+
+/**
+ * Refuse an options argument that is given and is not an object, then each
+ * of its flags that is not a boolean: `assertOptions`, then `assertFlags`.
+ *
+ * @param options What the caller passed for the options, or nothing.
+ * @param names   The flags it may carry.
+ * @throws {PkiError} `PKI_INVALID_OPTION` when `options` is given and is not an object, or when one of the flags is given and is not a boolean.
+ */
+export function assertOptionFlags(options: unknown, names: readonly string[]): void {
+    assertOptions(options, 'options');
+    assertFlags(options, 'options', names);
 }

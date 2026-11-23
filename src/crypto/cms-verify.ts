@@ -21,7 +21,7 @@ import type { Certificate } from '../types/x509-types.js';
 import { _cmsAlgorithmProblem, _importableSpki, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
-import { assertFlags } from '../core/arguments.js';
+import { assertOptionFlags } from '../core/arguments.js';
 import { isBytes } from '../core/bytes.js';
 
 /** Options of {@link verifySignerInfoSignature}. */
@@ -81,7 +81,7 @@ export interface VerifySignerInfoSignatureOptions {
  *   or `options.content` when the signer has no signed attributes.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed;
  *   `PKI_API_MISUSE` when the signer has no signed attributes and no
- *   `content` was given.
+ *   `content` was given; `PKI_INVALID_OPTION` for options that are not an object or an `allowSha1` that is not a boolean.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no
  *   Web Crypto; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm Web Crypto
  *   does not run (DSA, SHA-224, an unknown OID);
@@ -112,7 +112,7 @@ export async function verifySignerInfoSignature(
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: this signer has no signed attributes, so its signature is over the content itself — pass { content } with the eContent or the detached content');
     }
-    assertFlags(options, 'options', ['allowSha1']);
+    assertOptionFlags(options, ['allowSha1']);
 
     // Before resolution, so an inconsistent pair is a `false` even when one
     // half would also be refused: MD5 is a verdict on the signer, not a gap in

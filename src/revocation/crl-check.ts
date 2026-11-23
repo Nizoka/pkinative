@@ -239,7 +239,7 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  *   `PKI_INVALID_INPUT` for an input that is not an object, a `certificate`
  *   that `parseCertificate` did not make, a `crl` — or the `crl` of a verified `delta` — that
  *   `parseCertificateList` did not, or an `at` that is not a finite number; `PKI_INVALID_OPTION` also
- *   for a `staleTolerance` that is not a number.
+ *   for a `staleTolerance` that is not a number, or a `signatureVerified` — the input's or the delta's — that is not a boolean.
  */
 export function checkRevocation(input: CheckRevocationInput): readonly PkiReason[] {
     assertObject(input, 'the checkRevocation input');

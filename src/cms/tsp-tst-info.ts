@@ -110,7 +110,7 @@ export function _serialOf(node: Asn1Node, ctx: Asn1Context): SerialNumber {
  *   version other than 1.
  * @throws {PkiEncodingError} For any DER violation.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions` or the decoder's limits.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a `Uint8Array`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a `Uint8Array`; `PKI_INVALID_OPTION` for options that are not an object.
  */
 export function parseTstInfo(der: Uint8Array, options?: PkiParseOptions): TstInfo {
     assertOptions(options, 'options');

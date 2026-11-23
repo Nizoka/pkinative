@@ -26,7 +26,7 @@
  * @module crypto/x509-verify
  */
 
-import { A_CERTIFICATE, assertFlags, assertParsed } from '../core/arguments.js';
+import { A_CERTIFICATE, assertOptionFlags, assertParsed } from '../core/arguments.js';
 import { bytesEqual, isBytes } from '../core/bytes.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
 import type { AttributeCertificate } from '../types/attribute-certificate-types.js';
@@ -120,7 +120,7 @@ export interface VerifyCertificateSignatureOptions {
  * @param options See {@link VerifyCertificateSignatureOptions}.
  * @returns Whether the issuer's key signed this certificate's `tbsCertificate`.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not a
- *   parsed certificate.
+ *   parsed certificate; `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no
  *   Web Crypto; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the signature
  *   algorithm is outside the supported set; `PKI_CRYPTO_KEY_UNSUPPORTED`
@@ -180,7 +180,7 @@ function isSignedStructure(value: unknown): value is SignedStructure {
 
 /** The options with their defaults applied, once, so every entry point agrees. */
 function resolveOptions(options: VerifyCertificateSignatureOptions | undefined): { requireAlgorithmMatch: boolean; allowSha1: boolean } {
-    assertFlags(options, 'options', ['requireAlgorithmMatch', 'allowSha1']);
+    assertOptionFlags(options, ['requireAlgorithmMatch', 'allowSha1']);
     return { requireAlgorithmMatch: options?.requireAlgorithmMatch !== false, allowSha1: options?.allowSha1 === true };
 }
 
@@ -249,7 +249,7 @@ async function verifySignedStructure(
  * @param issuer The certificate whose key is alleged to have signed it.
  * @param options See {@link VerifyCertificateSignatureOptions}.
  * @returns Whether the issuer's key signed `crl.tbsDer`.
- * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed; `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  */
 export async function verifyCrlSignature(
@@ -288,7 +288,7 @@ export async function verifyCrlSignature(
  * @param issuer  The AC issuer's public-key certificate.
  * @param options See {@link VerifyCertificateSignatureOptions}.
  * @returns Whether the issuer's key signed `ac.tbsDer`.
- * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed; `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  * @throws {PkiEncodingError} As {@link verifyCertificateSignature}.
  */
@@ -353,7 +353,7 @@ export async function verifyOcspSignature(basicResponse: OcspBasicResponse, resp
  * @param options See {@link VerifyCertificateSignatureOptions}.
  * @returns Whether the certificate's own key signed it, and its subject and
  *   issuer names are byte-identical.
- * @throws {PkiError} `PKI_INVALID_INPUT` when the argument is not a parsed certificate.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the argument is not a parsed certificate; `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  * @throws {PkiCryptoError} As {@link verifyCertificateSignature}.
  */
 export async function verifySelfSignature(certificate: Certificate, options?: VerifyCertificateSignatureOptions): Promise<boolean> {

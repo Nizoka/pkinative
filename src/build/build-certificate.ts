@@ -225,7 +225,7 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  * @throws {PkiError} `PKI_API_MISUSE` for a bigint serial outside 1 to 2^159 − 1, a malformed one, an
  *   inverted validity window, a duplicated extension, or an `ExternalSigner`
  *   that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a
- *   malformed name, a non-`Uint8Array` where DER is expected, or a description or signer that is not an object.
+ *   malformed name, a non-`Uint8Array` where DER is expected, `extensions` that is not an array, or a description or signer that is not an object; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot
  *   sign; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the algorithm has no
  *   RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.

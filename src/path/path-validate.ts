@@ -216,7 +216,7 @@ export function checkSignature(certificate: Certificate, context: PathContext, p
     const result = (issuer === undefined ? undefined : context.signatures.get(`${subject}|${_hex(issuer.der)}`))
         ?? context.signatures.get(subject);
     if (result === undefined) {
-        return signatureNotCheckedReason(path, 'PKI_CRYPTO_UNAVAILABLE', issuer === undefined ? `no signature verdict was supplied for this certificate, and no certificate of its issuer, ${formatDistinguishedName(certificate.issuer)}, to check it with — supply that certificate among the candidates or the trust anchors` : 'no signature verdict was supplied for this certificate');
+        return signatureNotCheckedReason(path, 'PKI_CRYPTO_UNAVAILABLE', issuer === undefined ? `no signature verdict was supplied for this certificate, and no certificate of its issuer, ${formatDistinguishedName(certificate.issuer)}, to check it with — supply that issuer's certificate with the others, or as a trust anchor` : 'no signature verdict was supplied for this certificate');
     }
     if (result === 'ambiguous') {
         return signatureNotCheckedReason(path, 'PKI_API_MISUSE',
@@ -426,7 +426,7 @@ export function advancePolicies(certificate: Certificate, policies: PolicyState,
  *
  * @param input What to validate, and everything needed to judge it.
  * @returns The verdict and every reason behind it.
- * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`.
+ * @throws {PkiError} `PKI_INVALID_OPTION` for an unknown key in `limits`, or a flag that is not a boolean.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `input` is not an object, `path` or `trustAnchors` is not an
  *   array of certificates from `parseCertificate`, `signatures` is not a list of verdicts on such certificates,
  *   `initialPolicySet` is not an array, or `at` is not a finite number.

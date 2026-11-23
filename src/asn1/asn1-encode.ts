@@ -52,13 +52,13 @@ function encodeLength(length: number): number[] {
 
 /**
  * Encode one tag-length-value in DER: the shortest identifier and length forms.
- *
  * @param tagClass    The class of the tag.
  * @param tagNumber   The tag number, 0 to 2^31 − 1 (0 is refused in the universal class).
  * @param constructed Whether the content is a concatenation of encodings.
  * @param content     The content octets.
  * @returns The encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an unknown class, a tag number out of range or universal tag 0.
+ * @throws {PkiError} `PKI_INVALID_OPTION` for a `constructed` that is not a boolean; `PKI_INVALID_INPUT` when `content` is not a Uint8Array.
  */
 export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: boolean, content: Uint8Array): Uint8Array {
     const bytes = assertBytes(content, 'encodeTlv content');
@@ -264,7 +264,7 @@ export function encodeEnumerated(value: bigint | number): Uint8Array {
  * @param options   `tagClass` defaults to `'context'`.
  * @returns The tagged encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object.
  */
 export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
     assertOptions(options, 'options');
@@ -287,7 +287,7 @@ export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: {
  * @param options   `tagClass` defaults to `'context'`.
  * @returns The re-tagged encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `encoded` is not a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `encoded` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiError} `PKI_API_MISUSE` when `encoded` is empty or carries an indefinite length, which has no implicit form under DER.
  */
 export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {

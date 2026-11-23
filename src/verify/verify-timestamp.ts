@@ -189,7 +189,7 @@ interface _Expectation {
  * @returns The verdict and what it established.
  * @throws {PkiError} `PKI_API_MISUSE` when none of `request`, `data` and
  *   `imprint` is given, or when not exactly one of `token` and `response` is; `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
- *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean or an `onDiagnostic` that is not a function;
+ *   `PKI_INVALID_OPTION` for a `strict` or any other flag that is not a boolean, or an `onDiagnostic` that is not a function;
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate` made, a list is not an array, or `at` is not a finite number.
  * @throws {PkiCmsError} When `request` is not a TimeStampReq.
  */

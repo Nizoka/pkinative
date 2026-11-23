@@ -196,7 +196,7 @@ const MINUTE = 60_000;
  *   there are no bytes left to fail on. `PKI_STRICT_DIAGNOSTIC` under
  *   `strict: true`, for the first `warning` diagnostic the decision raises;
  *   `PKI_INVALID_OPTION` for a `futureTolerance` or `staleTolerance` that is
- *   not a finite number of milliseconds, zero or more.
+ *   not a finite number of milliseconds, zero or more, or for a flag that is not a boolean.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `input`, its `response` or its `expected` is not an object, a
  *   member of `expected` or the `nonce` is not bytes, `signer` is not a certificate from `parseCertificate`, or
  *   `at` is not a finite number — each where the decision first needs it, so a response that declined is still answered.

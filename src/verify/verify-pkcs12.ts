@@ -148,7 +148,7 @@ const CURVE_HASH = { 'P-256': 'SHA-256', 'P-384': 'SHA-384', 'P-521': 'SHA-512' 
  * @returns What was opened and why anything was not. Never rejects for a problem with the file.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no Web Crypto to open anything with — see `canDecrypt`.
  * @throws {PkiError} `PKI_INVALID_OPTION` when `options` or its `password` is missing or of the wrong type, when
- *   `rsaAlgorithm` is not an RSA signature algorithm, or for a bad `encodingRules`, `strict` or `onDiagnostic`;
+ *   `rsaAlgorithm` is not an RSA signature algorithm, or for a bad `encodingRules`, `strict`, `allowUnverifiedIntegrity` or `onDiagnostic`;
  *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`; `PKI_INVALID_INPUT` when `der` is not a Uint8Array.
  */
 export async function openPkcs12(der: Uint8Array, options: OpenPkcs12Options): Promise<OpenPkcs12Report> {

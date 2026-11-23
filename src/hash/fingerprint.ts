@@ -80,7 +80,7 @@ export async function computeFingerprintAsync(der: Uint8Array, algorithm: Finger
  * @param digest  The digest octets.
  * @param options Separator (`':'` by default) and letter case (`'upper'` by default).
  * @returns The formatted fingerprint.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `digest` is not a Uint8Array; `PKI_INVALID_OPTION` for a malformed option.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `digest` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object or a malformed option.
  */
 export function formatFingerprint(digest: Uint8Array, options?: FormatFingerprintOptions): string {
     const bytes = assertBytes(digest, 'formatFingerprint digest');

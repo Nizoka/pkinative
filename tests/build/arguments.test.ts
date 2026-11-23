@@ -167,6 +167,18 @@ describe('the signed writers, wrong in one member', () => {
         expect(encodeBasicConstraints({ cA: false })).toEqual(Uint8Array.of(0x30, 0x00));
     });
 
+    it('encodeExtension should still answer for a malformed OID first, as 1.0.0 did, when critical is wrong too', async () => {
+        const value = Uint8Array.of(0x05, 0x00);
+        await expectCode(() => encodeExtension({ oid: 'nope', critical: 'true' as never, value }), 'PKI_OID_INVALID');
+        await expectCode(() => encodeExtension({ oid: '2.5.29.19', critical: 'true' as never, value }), 'PKI_INVALID_OPTION');
+    });
+
+    it.each([['a number', 42], ['a string', 'x'], ['null', null]] as const)('the writers should refuse %s as the options with the code the readers give', async (_label, value) => {
+        const subjectPublicKey = leaf.certificate.subjectPublicKeyInfo.der;
+        await expectCode(() => createCertificationRequest({ subject: NAME, subjectPublicKey }, leaf.signer, value as never), 'PKI_INVALID_OPTION');
+        await expectCode(() => encodeExtensions([], value as never), 'PKI_INVALID_OPTION');
+    });
+
     it.each(WRONG)('createCertificationRequest should refuse %s as the signer', async (_label, value) => {
         await expectInvalid(() => createCertificationRequest({ subject: NAME, subjectPublicKey: leaf.certificate.subjectPublicKeyInfo.der }, value as never));
     });

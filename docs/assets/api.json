@@ -8818,7 +8818,8 @@
       "signature": "export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: boolean, content: Uint8Array): Uint8Array",
       "summary": "Encode one tag-length-value in DER: the shortest identifier and length forms.",
       "throws": [
-        "PkiEncodingError"
+        "PkiEncodingError",
+        "PkiError"
       ],
       "params": [
         {
@@ -9665,10 +9666,6 @@
         "PkiError"
       ],
       "params": [
-        {
-          "name": "node",
-          "description": "A time node, or an implicitly tagged one together with `timeType`. Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds may be omitted, the fraction may use a comma or keep trailing zeros, and a `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime forms — hours only, a fraction of a minute or of an hour, an offset in whole hours — are refused with `PKI_ASN1_TIME_INVALID` in every mode, and a fraction finer than a millisecond is truncated to one."
-        },
         {
           "name": "node",
           "description": "A time node, or an implicitly tagged one together with `timeType`."

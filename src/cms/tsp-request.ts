@@ -13,7 +13,7 @@
  * @module cms/tsp-request
  */
 
-import { assertFlags, assertOptions, describeValue } from '../core/arguments.js';
+import { assertOptionFlags, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
@@ -100,7 +100,7 @@ export interface CreateTimeStampRequestOptions {
  * @param options See {@link CreateTimeStampRequestOptions}.
  * @returns The DER `TimeStampReq`, ready to POST.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `hash` is not bytes or `nonce`
- *   not a bigint; `PKI_INVALID_OPTION` for an unsupported `hashAlgorithm`;
+ *   not a bigint; `PKI_INVALID_OPTION` for an unsupported `hashAlgorithm`, a `certReq` that is not a boolean or options that are not an object;
  *   `PKI_API_MISUSE` when the hash is not as long as the algorithm's output.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed `policy`.
  */
@@ -108,7 +108,7 @@ export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeSta
     if (!isBytes(hash)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the hash to timestamp must be a Uint8Array — hash the data first, with the algorithm you name in hashAlgorithm');
     }
-    assertFlags(options, 'options', ['certReq']);
+    assertOptionFlags(options, ['certReq']);
     const name = options?.hashAlgorithm ?? 'SHA-256';
     // An own name of the table and nothing else: `__proto__` is a name every
     // object answers to, and a value that is not a string is no name at all.
@@ -242,7 +242,7 @@ export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOption
  * @param options Limits and diagnostics. `encodingRules` is ignored: a
  *   TimeStampReq is always DER.
  * @returns The parsed request, with zero-copy views of `der`.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array;
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object;
  *   `PKI_STRICT_DIAGNOSTIC` under `strict: true`.
  * @throws {PkiCmsError} `PKI_CMS_STRUCTURE_INVALID` when the value is not a
  *   TimeStampReq — including a malformed `AlgorithmIdentifier` or recognised

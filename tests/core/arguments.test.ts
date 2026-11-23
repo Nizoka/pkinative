@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    A_CERTIFICATE, assertArray, assertCertificate, assertCertificates, assertFlag, assertFlags, assertInstant, assertIterable, assertObject, assertOptions, assertParsed,
+    A_CERTIFICATE, assertArray, assertCertificate, assertCertificates, assertFlag, assertFlags, assertInstant, assertIterable, assertObject, assertOptionFlags, assertOptions, assertParsed,
     assertParsedList, assertReiterable, assertString, describeValue, listOf,
 } from '../../src/core/arguments.js';
 import { PkiError } from '../../src/types/pki-errors.js';
@@ -259,8 +259,12 @@ const OPTION = expect.objectContaining({ code: 'PKI_INVALID_OPTION' }) as unknow
 
 describe('assertOptions', () => {
     it.each(except('undefined', 'an object', 'an array'))('should refuse %s, whose options would all read as absent', (_label, value) => {
-        expect(() => { assertOptions(value, 'options'); }).toThrow(INVALID);
+        expect(() => { assertOptions(value, 'options'); }).toThrow(OPTION);
         expect(() => { assertOptions(value, 'options'); }).toThrow(PkiError);
+    });
+
+    it('should name the argument and what it was given', () => {
+        expect(() => { assertOptions(null, 'options'); }).toThrow(/options/);
     });
 
     it('should accept options left out, and an object', () => {
@@ -301,5 +305,21 @@ describe('assertFlags', () => {
 
     it('should accept every named flag as a boolean or left out', () => {
         expect(() => { assertFlags({ allowSha1: true }, 'input', ['allowSha1', 'requireRevocation']); }).not.toThrow();
+    });
+});
+
+describe('assertOptionFlags', () => {
+    it.each(except('undefined', 'an object', 'an array'))('should refuse %s as the options, with the code of an option', (_label, value) => {
+        expect(() => { assertOptionFlags(value, ['allowSha1']); }).toThrow(OPTION);
+    });
+
+    it('should refuse a named flag that is not a boolean', () => {
+        expect(() => { assertOptionFlags({ allowSha1: 'true' }, ['allowSha1']); }).toThrow(OPTION);
+        expect(() => { assertOptionFlags({ allowSha1: 'true' }, ['allowSha1']); }).toThrow(/allowSha1/);
+    });
+
+    it('should accept options left out, and flags that are booleans', () => {
+        expect(() => { assertOptionFlags(undefined, ['allowSha1']); }).not.toThrow();
+        expect(() => { assertOptionFlags({ allowSha1: true }, ['allowSha1']); }).not.toThrow();
     });
 });

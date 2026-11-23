@@ -189,7 +189,7 @@ export interface VerifySignedDataReport {
  *   are given, or either is given for a message that carries its own content;
  *   `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`;
  *   `PKI_INVALID_OPTION` for a malformed `encodingRules`, `allowTrailingData`,
- *   `strict` or `onDiagnostic`; `PKI_INVALID_INPUT`
+ *   `strict` or `onDiagnostic`, or any flag that is not a boolean; `PKI_INVALID_INPUT`
  *   when a certificate is not one `parseCertificate` made, a list is not an array, or `at` is not a finite number.
  */
 export async function verifySignedData(input: VerifySignedDataInput): Promise<VerifySignedDataReport> {

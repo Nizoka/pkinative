@@ -50,7 +50,7 @@ const EXTENSION_REQUEST = '1.2.840.113549.1.9.14';
  *   `SigningKey` for Web Crypto, or an `ExternalSigner` for a key held elsewhere.
  * @param options     See {@link PkiBuildOptions}.
  * @returns The complete `CertificationRequest`, in DER.
- * @throws {PkiError} `PKI_API_MISUSE` for a duplicated extension, or an `ExternalSigner` that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a malformed name, a non-`Uint8Array` where DER is expected, or a description or signer that is not an object.
+ * @throws {PkiError} `PKI_API_MISUSE` for a duplicated extension, or an `ExternalSigner` that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a malformed name, a non-`Uint8Array` where DER is expected, `extensions` that is not an array, or a description or signer that is not an object; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot sign; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm with no RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxNameAttributes` or `maxExtensions`.
  */

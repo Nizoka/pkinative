@@ -143,7 +143,7 @@ const NULL_PARAMETERS = /*#__PURE__*/ encodeTlv('universal', 5, false, new Uint8
  * @param options     See {@link CreateOcspRequestOptions}.
  * @returns The encoded `OCSPRequest`, ready to POST.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either certificate is not parsed,
- *   or the nonce is not bytes.
+ *   or the nonce is not bytes; `PKI_INVALID_OPTION` for options that are not an object.
  */
 export function createOcspRequest(certificate: Certificate, issuer: Certificate, options?: CreateOcspRequestOptions): Uint8Array {
     assertOptions(options, 'options');

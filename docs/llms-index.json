@@ -18,8 +18,8 @@
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 454414,
-      "approxTokens": 113604
+      "bytes": 454436,
+      "approxTokens": 113609
     },
     {
       "url": "llms-recipes.txt",
@@ -30,14 +30,14 @@
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 350206,
-      "approxTokens": 87552
+      "bytes": 349656,
+      "approxTokens": 87414
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 32813,
-      "approxTokens": 8203
+      "bytes": 32851,
+      "approxTokens": 8213
     },
     {
       "url": "data/diagnostics.json",
@@ -292,8 +292,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 48369,
-      "approxTokens": 12092
+      "bytes": 48391,
+      "approxTokens": 12098
     },
     {
       "title": "Standards",

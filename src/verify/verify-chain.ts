@@ -300,7 +300,7 @@ function _firstOfEach(ders: readonly Uint8Array[]): Array<[number, Uint8Array]> 
  * @returns The verdict, every reason behind it, the path judged, how many
  *   candidate paths were explored and how many signatures were verified.
  * @throws {PkiError} `PKI_LIMIT_INVALID` for an unknown or non-positive key in `limits`,
- *   `PKI_INVALID_OPTION` for a `strict` that is not a boolean,
+ *   `PKI_INVALID_OPTION` for a `strict` or any other flag that is not a boolean,
  *   `PKI_INVALID_INPUT` when a certificate is not one `parseCertificate`
  *   produced, a list is not an array, or `at` is not a finite number.
  */

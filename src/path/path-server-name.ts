@@ -56,7 +56,7 @@
  * @module path/path-server-name
  */
 
-import { assertArray, assertFlags, assertObject, assertString } from '../core/arguments.js';
+import { assertArray, assertObject, assertOptionFlags, assertString } from '../core/arguments.js';
 import { assertBytes, bytesEqual } from '../core/bytes.js';
 import { nameExcludedReason, nameMismatchReason, nameNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
@@ -155,7 +155,7 @@ const MAX_IPV6_TEXT = 45;
  *   something does.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `certificate` is not one from `parseCertificate`, `reference` is not
  *   an object naming a string (`dns`) or the octets of an address (`ip`), or `options.path` is not an array —
- *   never for a mismatch, which is an answer.
+ *   never for a mismatch, which is an answer. `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  */
 export function checkServerName(
     certificate: Certificate,
@@ -169,7 +169,7 @@ export function checkServerName(
     const identity = asAddress(reference);
     const san = getExtension(certificate, 'subjectAltName');
     const names = san?.names ?? [];
-    assertFlags(options, 'options', ['allowWildcards', 'allowCommonNameFallback']);
+    assertOptionFlags(options, ['allowWildcards', 'allowCommonNameFallback']);
     // §6.4.4: the presence of ANY dNSName or iPAddress makes the SAN
     // authoritative, even when none of them matches. A certificate with a SAN
     // full of other forms falls through to the CN rule, which is the only case
@@ -306,12 +306,12 @@ function fold(text: string): string {
  * @param reference The host the caller asked about.
  * @param options   `allowWildcards: false` refuses every wildcard; on by default.
  * @returns Whether they identify the same host.
- * @throws {PkiError} `PKI_INVALID_INPUT` when either name is not a string.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when either name is not a string; `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  */
 export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean {
     assertString(presented, 'the presented name');
     assertString(reference, 'the reference name');
-    assertFlags(options, 'options', ['allowWildcards']);
+    assertOptionFlags(options, ['allowWildcards']);
     // An empty or NUL-bearing name identifies nothing. Exact comparison would
     // already refuse them, but saying so here makes the intent explicit — a
     // NUL in a certificate name is CVE-2009-2408's whole mechanism.

@@ -143,7 +143,7 @@ export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
  * @param name    The RDNs, most significant first.
  * @param options `limits` bounds the attribute count.
  * @returns The `Name` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `name` is not an array of arrays.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `name` is not an array of arrays; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` when the name has more attributes than `maxNameAttributes`.
  */
 export function encodeDistinguishedName(name: NameDescription, options?: PkiBuildOptions): Uint8Array {
@@ -245,13 +245,13 @@ export function _wholeValue(bytes: Uint8Array, what: string, expected: string, t
  * @param extension The OID, the criticality and the value's DER.
  * @returns The `Extension` encoding.
  * @throws {PkiError} `PKI_INVALID_INPUT` when the extension is not an object or its value not a Uint8Array;
- *   `PKI_API_MISUSE` when it is not exactly one DER value.
+ *   `PKI_API_MISUSE` when it is not exactly one DER value; `PKI_INVALID_OPTION` for a `critical` that is not a boolean.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed OID.
  */
 export function encodeExtension(extension: ExtensionDescription): Uint8Array {
     assertObject(extension, 'an extension');
-    assertFlag(extension.critical, 'critical');
     const fields = [encodeObjectIdentifier(extension.oid)];
+    assertFlag(extension.critical, 'critical');
     if (extension.critical === true) fields.push(encodeBoolean(true));
     fields.push(encodeOctetString(_wholeValue(assertBytes(extension.value, `extension ${extension.oid} value`), `extension ${extension.oid} value`, 'the DER of one value, as encodeBasicConstraints and the other extension encoders return it')));
     return encodeSequence(fields);
@@ -265,7 +265,7 @@ export function encodeExtension(extension: ExtensionDescription): Uint8Array {
  * @returns The `Extensions` encoding.
  * @throws {PkiError} `PKI_API_MISUSE` when two extensions share an OID — which extension a verifier reads would be undefined, so a certificate carrying one twice is refused on the way out as it is on the way in.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions`.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `extensions` is not an array of objects.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `extensions` is not an array of objects; `PKI_INVALID_OPTION` for options that are not an object or a `critical` that is not a boolean.
  */
 export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: PkiBuildOptions): Uint8Array {
     assertArray(extensions, 'extensions');
@@ -331,7 +331,7 @@ export function encodeSubjectPublicKeyInfo(algorithmOid: string, publicKey: Uint
  * @returns The extension value's DER.
  * @throws {PkiError} `PKI_API_MISUSE` for a negative or fractional
  *   `pathLenConstraint`, or one on an end entity, which constrains no path.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `options` is not an object.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `options` is not an object; `PKI_INVALID_OPTION` for a `cA` that is not a boolean.
  */
 export function encodeBasicConstraints(options: { readonly cA: boolean; readonly pathLenConstraint?: number | undefined }): Uint8Array {
     assertObject(options, 'the basicConstraints description');

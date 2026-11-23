@@ -165,7 +165,7 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
 /**
  * Read a UTCTime or a GeneralizedTime.
  *
- * @param node    A time node, or an implicitly tagged one together with `timeType`.
+ * The node is a time node, or an implicitly tagged one read with `timeType`.
  * Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds
  * may be omitted, the fraction may use a comma or keep trailing zeros, and a
  * `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime

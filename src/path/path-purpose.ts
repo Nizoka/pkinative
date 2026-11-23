@@ -40,7 +40,7 @@
  * @module path/path-purpose
  */
 
-import { assertArray, assertFlags, assertString } from '../core/arguments.js';
+import { assertArray, assertOptionFlags, assertString } from '../core/arguments.js';
 import { purposeNotPermittedReason } from '../core/pki-reasons.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { Certificate } from '../types/x509-types.js';
@@ -111,7 +111,7 @@ export interface CheckExtendedKeyUsageOptions {
  * @returns One `PKI_REASON_PURPOSE_NOT_PERMITTED` per certificate that forbids
  *   the purpose; empty when every certificate permits it.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `path` is not an array, `purpose` is not a string, or a certificate it
- *   reads is not one from `parseCertificate` — never for a purpose a chain does not permit, which is an answer.
+ *   reads is not one from `parseCertificate` — never for a purpose a chain does not permit, which is an answer. `PKI_INVALID_OPTION` for options that are not an object or a flag that is not a boolean.
  */
 export function checkExtendedKeyUsage(
     path: readonly Certificate[],
@@ -121,7 +121,7 @@ export function checkExtendedKeyUsage(
     // Each entry is refused by getExtension when it is not a certificate.
     assertArray(path, 'path');
     assertString(purpose, 'purpose');
-    assertFlags(options, 'options', ['restrictIssuers', 'requireExplicitPurpose']);
+    assertOptionFlags(options, ['restrictIssuers', 'requireExplicitPurpose']);
     const out: PkiReason[] = [];
     const restrictIssuers = options?.restrictIssuers !== false;
     for (const [index, certificate] of path.entries()) {

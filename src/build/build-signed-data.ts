@@ -365,7 +365,7 @@ async function resolveContent(input: CreateSignedDataInput, digest: CmsDigest): 
  *   extension, a malformed or duplicated extra attribute, a signed-only type
  *   among the unsigned attributes, a bag entry that is not one DER value, or
  *   an `ExternalSigner` that returns other than what `crypto.subtle.sign`
- *   would; `PKI_INVALID_OPTION` for an unknown `sid`; `PKI_INVALID_INPUT`
+ *   would; `PKI_INVALID_OPTION` for an unknown `sid`, a flag that is not a boolean or options that are not an object; `PKI_INVALID_INPUT`
  *   where bytes, a list, an object or a parsed certificate is expected and something else is given.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an
  *   algorithm with no OID; `PKI_CRYPTO_UNAVAILABLE` and
@@ -560,7 +560,7 @@ function expectTag(header: TlvHeader | undefined, tagClass: TagClass, tagNumber:
  * @returns A new `ContentInfo`, in DER.
  * @throws {PkiError} `PKI_API_MISUSE` when `attributeDer` is not one Attribute,
  *   names a type RFC 5652 allows only signed, or `signerIndex` is not the index
- *   of a signer; `PKI_INVALID_INPUT` when an argument that must be bytes is not.
+ *   of a signer; `PKI_INVALID_INPUT` when an argument that must be bytes is not; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiCmsError} `PKI_CMS_CONTENT_TYPE_UNEXPECTED` for a ContentInfo
  *   that is not id-signedData; `PKI_CMS_STRUCTURE_INVALID`, with a path, for
  *   one that does not have the SignedData shape.

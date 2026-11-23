@@ -261,6 +261,32 @@ describe('one member of the wrong type', () => {
         expect(Object.keys(NOT_READ).filter((exempt) => !report.some((line) => place(line) === exempt))).toEqual([]);
     }, 300_000);
 
+    it('should refuse options that are not an object with one code, on every function', async () => {
+        // The readers have refused them with PKI_INVALID_OPTION since 1.0.0: two codes for one mistake is one too many.
+        const manifest = JSON.parse(readFileSync(new URL('../../docs/assets/api.json', import.meta.url), 'utf8')) as { exports: readonly Declared[] };
+        const report: string[] = [];
+        const seen: string[] = [];
+        for (const fn of manifest.exports.filter((entry) => typeof (api as Readonly<Record<string, unknown>>)[entry.name] === 'function')) {
+            const names = (fn.params ?? []).map((parameter) => parameter.name);
+            // A parameter documented twice moves every index after it: `options` would be looked for one place too far.
+            if (new Set(names).size !== names.length) report.push(`${fn.name}: a parameter is documented twice (${names.join(', ')})`);
+            const index = names.indexOf('options');
+            if (index < 0) continue;
+            seen.push(fn.name);
+            for (const [, args] of calls.filter(([name]) => name === fn.name)) {
+                for (const [label, value] of [...NOT_OBJECTS, ['null', null] as const]) {
+                    const call = Array.from({ length: Math.max(args.length, index + 1) }, (_, i) => (i === index ? value : args[i]));
+                    const error = await refusal(() => (api[fn.name as keyof typeof api] as (...a: never[]) => unknown)(...(call as never[])));
+                    const code = error instanceof api.PkiError ? error.code : String(error);
+                    if (code !== (OPTIONS_ARE_THE_INPUT[fn.name] === undefined ? 'PKI_INVALID_OPTION' : 'PKI_INVALID_INPUT')) report.push(`${fn.name}: options = ${label}: ${code}`);
+                }
+            }
+        }
+        expect(report, report.join('\n')).toEqual([]);
+        expect(seen.length).toBeGreaterThan(50);
+        expect(Object.keys(OPTIONS_ARE_THE_INPUT).filter((exempt) => !seen.includes(exempt))).toEqual([]);
+    }, 300_000);
+
     it('should name, in a call, every flag the types declare', () => {
         // The manifest is generated from the sources: an optional boolean member of a type a
         // function's signature names is a flag of that function, here or one level down.
@@ -303,9 +329,15 @@ const NOT_A_FLAG_HERE: Readonly<Record<string, string>> = {
 };
 
 /** What the manifest says of an export: its signature when it is a function, its members when it is a type. */
+/** The functions whose parameter named `options` is not optional settings but what they encode. */
+const OPTIONS_ARE_THE_INPUT: Readonly<Record<string, string>> = {
+    encodeBasicConstraints: 'its one argument is the description of the extension to write, required: what is not an object there is a wrong input',
+};
+
 interface Declared {
     readonly name: string;
     readonly signature?: string;
+    readonly params?: ReadonlyArray<{ readonly name: string }>;
     readonly members?: ReadonlyArray<{ readonly name: string; readonly type?: string; readonly optional?: boolean }>;
 }
 
