@@ -776,6 +776,15 @@ describe('dependency review and audit', () => {
         expect(review).toMatch(/comment-summary-in-pr:\s*on-failure/);
     });
 
+    it('should exempt from the licence list only the two CI-only Python tools that are under the GPL', () => {
+        // reuse and python-debian run on the runner (`workflow lint`) and are never shipped:
+        // exempted by name, so a GPL package anywhere else still fails the review.
+        const review = readWorkflow('dependency-review.yml');
+        expect(review.match(/allow-dependencies-licenses:\s*(.+)/)?.[1]?.split(',').map((purl) => purl.trim())).toEqual(['pkg:pypi/reuse', 'pkg:pypi/python-debian']);
+        const pinned = readFileSync(join(ROOT, 'scripts', 'data', 'reuse-requirements.txt'), 'utf8');
+        for (const name of ['reuse', 'python-debian']) expect(pinned).toMatch(new RegExp(`^${name}==`, 'm'));
+    });
+
     it('should audit the lockfile weekly', () => {
         const audit = readWorkflow('audit.yml');
         expect(audit).toMatch(/schedule:\s*\n\s*- cron:/);

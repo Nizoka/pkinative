@@ -38,7 +38,7 @@ Closes #12, #13, #14, #15, #16, #17, #18. Carries the commits of #8, #9 and #19 
 ### CI and repository (.github/, root)
 
 - Node.js 26 in the matrix and the ruleset; `node-current.yml` removed until a line is Current again.
-- `reuse lint` in `workflow lint`; `compat-previous` job; advisory `mutation.yml`.
+- `reuse lint` in `workflow lint`; `compat-previous` job; advisory `mutation.yml`. `dependency-review` exempts by name the two CI-only Python tools under the GPL that `reuse lint` installs (`reuse`, `python-debian`): run on the runner, never shipped; any other GPL package still fails it.
 - `publish.yml`: a release without its files fails the run (#14); a step reads the five file names back and checks the tarball digest.
 - Dependabot: majors of `@types/node` and `marked` ignored; vitest 4.1.12, vite 8.2.6, pyasn1 0.6.5.
 - SECURITY.md: support period of the 1.x line (#16).
