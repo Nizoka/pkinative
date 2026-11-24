@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Sponsor: GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Nizoka)
 
-<p align="center"><img src="https://pkinative.dev/assets/demo.gif" width="800" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and calls verifyCertificateChain for two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates."></p>
+<p align="center"><img src="https://pkinative.dev/assets/demo.gif" width="800" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and asks for a verdict on two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates."></p>
 
 Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
 

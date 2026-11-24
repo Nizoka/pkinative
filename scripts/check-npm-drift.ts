@@ -187,6 +187,8 @@ export function parseRelease(apiStatus: number, apiBody: string, tarballStatus: 
 
 /** Anonymous: the repository is public, and a token would only be one more thing to hold. */
 async function queryRelease(version: string): Promise<ReleaseState> {
+    // The version comes from a file of the repository and goes into two URLs of a fixed host: digits, dots and a pre-release tag, nothing else.
+    if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(version)) throw new Error(`${version} is not a version`);
     const headers = { 'User-Agent': 'check-npm-drift', Accept: 'application/vnd.github+json' };
     const api = await fetch(`https://api.github.com/repos/${REPOSITORY}/releases/tags/v${version}`, { headers, signal: AbortSignal.timeout(60_000) });
     const body = await api.text();

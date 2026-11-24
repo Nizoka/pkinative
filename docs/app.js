@@ -202,7 +202,7 @@
     toggle.hidden = false;
     toggle.addEventListener('click', function () {
       var paused = toggle.getAttribute('aria-pressed') === 'true';
-      demo.src = paused ? demo.getAttribute('data-moving') : demo.getAttribute('data-still');
+      demo.src = paused ? 'assets/demo.gif' : 'assets/demo.png';
       toggle.setAttribute('aria-pressed', paused ? 'false' : 'true');
       toggle.textContent = paused ? 'Pause' : 'Play';
     });
