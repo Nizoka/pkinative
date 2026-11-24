@@ -38,6 +38,7 @@
 
 import { PkiLimitError } from '../types/pki-errors.js';
 import type { PkiLimits } from '../types/pki-types.js';
+import { describeValue } from './arguments.js';
 
 /** Default security bounds — the safe path for untrusted input. */
 export const DEFAULT_PKI_LIMITS: PkiLimits = /*#__PURE__*/ Object.freeze({
@@ -90,7 +91,7 @@ export function resolveLimits(overrides: Partial<PkiLimits> | undefined): PkiLim
         }
         if (typeof value !== 'number' || !(value > 0) || (value !== Infinity && !Number.isInteger(value))) {
             throw new PkiLimitError('PKI_LIMIT_INVALID',
-                `pkinative: limit '${key}' must be a positive integer or Infinity, got ${String(value)}`,
+                `pkinative: limit '${key}' must be a positive integer or Infinity, got ${describeValue(value)}`,
                 key, NaN, NaN);
         }
         merged[key] = value;

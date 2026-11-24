@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>pkinative — strict, zero-dependency X.509 and ASN.1 for TypeScript</title>
-  <meta name="description" content="Parse, verify and build X.509 in TypeScript with zero runtime dependencies: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12.">
+  <meta name="description" content="Parse, verify and build X.509 in TypeScript with zero runtime dependencies: strict DER, complete RFC 5280, §6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12, ML-DSA verification where the host supports it, RFC 5755 attribute certificates.">
   <meta name="keywords" content="x509, asn1, der, pem, typescript, zero-dependency, certificate, rfc 5280, path validation, crl, ocsp, cms, rfc 3161, pkcs12, pkcs8, web crypto, pki">
   <meta name="author" content="Nizoka">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -67,7 +67,7 @@
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@id": "https://pkinative.dev/#org" },
-        "softwareVersion": "1.0.0",
+        "softwareVersion": "1.1.0",
         "downloadUrl": "https://www.npmjs.com/package/pkinative",
         "featureList": [
           "Strict ITU-T X.690 DER decoding, BER on request",
@@ -78,9 +78,12 @@
           "CRL and OCSP revocation checking",
           "RFC 5652 CMS SignedData and RFC 3161 timestamps",
           "PKCS#8 and PKCS#12 under PBES2",
+          "ML-DSA (FIPS 204) signature verification where the host supports it",
+          "RFC 5755 attribute certificates, read and signature-checked",
+          "OCSP and RFC 3161 request readers",
           "Zero runtime dependencies"
         ],
-        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure: strict ASN.1 DER, RFC 7468 PEM, complete RFC 5280 X.509, signature verification through Web Crypto, section 6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12."
+        "description": "Zero-dependency TypeScript toolkit for public-key infrastructure: strict ASN.1 DER, RFC 7468 PEM, complete RFC 5280 X.509, signature verification through Web Crypto, section 6 path validation with CRL and OCSP, CMS and RFC 3161 timestamps, PKCS#8 and PKCS#12, ML-DSA verification where the host supports it, RFC 5755 attribute certificates."
       },
       {
         "@type": "SoftwareApplication",
@@ -137,7 +140,7 @@
       </ul>
     </div>
   </nav>
-  <aside class="pk-version-strip" aria-label="Published versions on npm"><div class="pk-version-strip-inner"><span class="pk-version-strip-label">npm:</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">pkinative <strong data-pk-badge="pkinative">v1.0.0</strong></a> <span class="pk-version-strip-sep" aria-hidden="true">·</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative-cli" target="_blank" rel="noopener">cli <strong data-pk-badge="pkinative-cli">v1.0.0</strong></a> <span class="pk-version-strip-sep" aria-hidden="true">·</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative-mcp" target="_blank" rel="noopener">mcp <strong data-pk-badge="pkinative-mcp">v1.0.0</strong></a></div></aside>
+  <aside class="pk-version-strip" aria-label="Published versions on npm"><div class="pk-version-strip-inner"><span class="pk-version-strip-label">npm:</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">pkinative <strong data-pk-badge="pkinative">v1.1.0</strong></a> <span class="pk-version-strip-sep" aria-hidden="true">·</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative-cli" target="_blank" rel="noopener">cli <strong data-pk-badge="pkinative-cli">v1.0.0</strong></a> <span class="pk-version-strip-sep" aria-hidden="true">·</span> <a class="pk-version-strip-pkg" href="https://www.npmjs.com/package/pkinative-mcp" target="_blank" rel="noopener">mcp <strong data-pk-badge="pkinative-mcp">v1.0.0</strong></a></div></aside>
 
   <main id="main-content" tabindex="-1">
   <section class="hero">
@@ -151,6 +154,13 @@
           GitHub
         </a>
       </div>
+      <figure class="hero-demo">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="assets/demo.png">
+          <img id="hero-demo-img" src="assets/demo.gif" width="800" height="330" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and asks for a verdict on two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates.">
+        </picture>
+        <figcaption>A fictitious chain, keys made on the spot, the real output — <a href="https://github.com/Nizoka/pkinative/blob/main/scripts/demo/verify.mjs" target="_blank" rel="noopener">the whole script</a>. <button class="demo-toggle" type="button" id="hero-demo-toggle" aria-pressed="false" hidden>Pause</button></figcaption>
+      </figure>
       <div class="hero-badges" aria-label="Project status">
         <a href="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy"></a>
         <a href="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml/badge.svg" alt="CodeQL status" height="20" loading="lazy"></a>
@@ -221,12 +231,12 @@
         <article class="feature-card">
           <div class="feature-icon fi-iso"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
           <h3>Complete on RFC 5280</h3>
-          <p>Every field and all nineteen extension kinds — the seventeen of RFC 5280, OCSP no-check and the SCT list — decoded and typed — not a subset with the awkward ones left as raw bytes. Certificates and PKCS#10 requests are read, verified and built with the same readers, codes and bounds.</p>
+          <p>Every field and all nineteen extension kinds — the seventeen of RFC 5280, OCSP no-check and the SCT list — decoded and typed — not a subset with the awkward ones left as raw bytes. Certificates and PKCS#10 requests are read, verified and built with the same readers, codes and bounds; RFC 5755 attribute certificates are read and their signature checked.</p>
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-unicode"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <h3>Every signature through Web Crypto</h3>
-          <p>Certificates, certification requests, CRLs, OCSP responses, CMS signers and timestamps are verified by one call into the host's Web Crypto — RSA, ECDSA, Ed25519, and Ed448 where the host has it. No signing, no key generation, no arithmetic on secret material in TypeScript; hashing, SHAKE256 included, covers public data only.</p>
+          <h3>Every signature through Web Crypto, ML-DSA included</h3>
+          <p>Certificates, certification requests, CRLs, OCSP responses, CMS signers and timestamps are verified by one call into the host's Web Crypto — RSA, ECDSA, Ed25519, and where the host has them Ed448 and post-quantum ML-DSA (FIPS 204); where it does not, the verdict says the signature was not checked, never that it is valid. No signing, no key generation, no arithmetic on secret material in TypeScript; hashing, SHAKE256 included, covers public data only.</p>
         </article>
         <article class="feature-card">
           <div class="feature-icon fi-iso"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h6v4H4zM14 14h6v4h-6zM7 10v4h10"/></svg></div>
@@ -259,9 +269,9 @@
       <div class="eco-grid">
         <article class="feature-card eco-card">
           <div class="feature-icon fi-zero"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
-          <p class="eco-pkg"><strong>pkinative</strong> <span data-pk-badge="pkinative">v1.0.0</span></p>
+          <p class="eco-pkg"><strong>pkinative</strong> <span data-pk-badge="pkinative">v1.1.0</span></p>
           <h3>The library</h3>
-          <p>You write application code — Node.js, a browser, Deno, Bun or a Worker. The whole surface: readers, writers, path validation, revocation, CMS and timestamps, PKCS#8 and PKCS#12, every signature through Web Crypto, 57 error codes and a verdict for every refusal.</p>
+          <p>You write application code — Node.js, a browser, Deno, Bun or a Worker. The whole surface: readers, writers, path validation, revocation, CMS and timestamps, PKCS#8 and PKCS#12, every signature through Web Crypto, 58 error codes and a verdict for every refusal.</p>
           <ul>
             <li><a href="guides/quickstart.html">Quick start →</a></li>
             <li><a href="playgrounds/">Library playgrounds →</a></li>
@@ -352,13 +362,13 @@ try {
       <div class="table-wrap">
         <table class="cmp-table">
           <caption style="caption-side:bottom;text-align:left;font-size:12px;color:var(--c-text-dim);padding-top:12px;line-height:1.6;">
-            Dependencies, bundled types and module format of the other libraries were read on <strong>2026-09-19</strong> from the npm registry (<a href="data/comparison-2026-09-19.json">comparison-2026-09-19.json</a>, a dated snapshot whose pkinative row predates 1.0). The capability rows are each project's documented scope, and pkinative's column describes 1.0. The <a href="guides/choose.html">choosing guide</a> details the differences and says when another library is the right answer.
+            Dependencies, bundled types and module format of the other libraries were read on <strong>2026-11-17</strong> from the npm registry (<a href="data/comparison-2026-11-17.json">comparison-2026-11-17.json</a>, a dated snapshot; a peer dependency, which the consumer installs, is counted apart). The capability rows are each project's documented scope, and pkinative's column describes 1.1. The <a href="guides/choose.html">choosing guide</a> details the differences and says when another library is the right answer.
           </caption>
           <thead>
             <tr><th>Library</th><th>pkinative</th><th>node-forge</th><th>asn1js</th><th>@peculiar/x509</th><th>pkijs</th><th>jsrsasign</th><th>micro509</th></tr>
           </thead>
           <tbody>
-            <tr><td>Runtime dependencies</td><td>0</td><td>0</td><td>3</td><td>11</td><td>6</td><td>0</td><td>0</td></tr>
+            <tr><td>Runtime dependencies</td><td>0</td><td>0</td><td>1</td><td>9 + 1 peer</td><td>3 + 1 peer</td><td>0</td><td>0</td></tr>
             <tr><td>Types bundled</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>ES modules</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-check">✓</td></tr>
             <tr><td>Strict DER by default</td><td class="cmp-check">✓</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td><td class="cmp-cross">✗</td></tr>
@@ -443,6 +453,7 @@ try {
       <div class="origin">
         <p>pkinative is the third library of the <em>native</em> family, after <a href="https://github.com/Nizoka/pdfnative" target="_blank" rel="noopener">pdfnative</a> and <a href="https://github.com/Nizoka/zipnative" target="_blank" rel="noopener">zipnative</a>. It began as pdfnative's PAdES signature stack, where an ASN.1 decoder that guessed was a liability, and became the library that reads the certificate rather than the one that trusts it.</p>
         <p>The same doctrine runs through all three: zero runtime dependencies, one quality gate, conformance against corpora the project did not write, and human review before anything is published.</p>
+        <p>pkinative is MIT-licensed and free. Two things fund the time spent on it: <a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">GitHub Sponsors</a>, and a licence of <a href="https://plika.app" target="_blank" rel="noopener">Plika</a>, its author's personal-finance application — the purchase of that product, not a donation.</p>
       </div>
     </div>
   </section>
@@ -461,6 +472,7 @@ try {
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -479,6 +491,7 @@ try {
             <li><a href="guides/standards.html">Standards</a></li>
             <li><a href="guides/errors.html">Errors</a></li>
             <li><a href="guides/choose.html">Choose</a></li>
+            <li><a href="guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -503,7 +516,7 @@ try {
         </div>
       </div>
       <div class="footer-meta">
-        <span>MIT License · © 2026 Nizoka · verified <time id="verified-on" datetime="2026-10-17">2026-10-17</time></span>
+        <span>MIT License · © 2026 Nizoka · verified <time id="verified-on" datetime="2026-11-24">2026-11-24</time></span>
         <ul class="footer-links" role="list">
           <li><a href="sitemap.xml">Sitemap</a></li>
           <li><a href="guides/">All guides</a></li>

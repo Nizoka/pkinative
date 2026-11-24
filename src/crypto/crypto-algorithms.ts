@@ -22,6 +22,12 @@
  * the one digest Web Crypto does not compute, SHAKE256, which RFC 8419 §3.1
  * ties to Ed448 and `src/hash/shake256.ts` computes.
  *
+ * ML-DSA (FIPS 204; RFC 9881, RFC 9882) is in the table since 1.1.0, under
+ * the condition Ed448 has always been under: the host verifies it or the
+ * host refuses the key, and nothing here asks which (ADR 0026). Only the
+ * pure mode is named — HashML-DSA has identifiers of its own, which RFC 9881
+ * §8.3 keeps out of PKIX and this table does not hold.
+ *
  * @module crypto/crypto-algorithms
  */
 
@@ -29,11 +35,12 @@ import { encodeNull, encodeObjectIdentifier, encodeSequence, encodeTlv } from '.
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { readSmallInteger } from '../asn1/asn1-read.js';
 import { TAG_BIT_STRING, TAG_INTEGER, TAG_NULL, TAG_OID, TAG_SEQUENCE } from '../asn1/asn1-tags.js';
+import { describeValue } from '../core/arguments.js';
 import { concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCryptoError, PkiError } from '../types/pki-errors.js';
-import type { EcdsaVerifyParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
+import type { EcdsaVerifyParams, EdKeyImportParams, ImportParams, NamedVerifyParams, RsaPssVerifyParams, VerifyParams } from '../types/webcrypto.js';
 import type { SignatureAlgorithm, SignatureHash } from '../types/crypto-types.js';
 import type { AlgorithmIdentifier, RsaPublicKeyInfo, SubjectPublicKeyInfo } from '../types/x509-types.js';
 
@@ -67,7 +74,28 @@ const DEFAULT_PSS_SALT_LENGTH = 20;
  */
 type SignatureShape =
     | { readonly family: 'rsa-pkcs1' | 'ecdsa'; readonly hash: string }
-    | { readonly family: 'rsa-pss' | 'ed25519' | 'ed448' };
+    | { readonly family: 'rsa-pss' | NamedFamily };
+
+/**
+ * The families a key **kind** names, parameter set and all, and whose host
+ * algorithm takes its name alone: the Edwards curves and the three ML-DSA
+ * parameter sets. A signature of one of these verifies only under a key of
+ * exactly that kind — "ML-DSA-65" under an ML-DSA-44 key is not a question
+ * for the host.
+ */
+type NamedFamily = 'ed25519' | 'ed448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87';
+
+/**
+ * What Web Crypto calls each of them, keyed by the literal union so the
+ * lookup is total and needs no fallback no test could reach.
+ */
+const HOST_ALGORITHM: Readonly<Record<NamedFamily, EdKeyImportParams['name']>> = /*#__PURE__*/ Object.freeze({
+    'ed25519': 'Ed25519',
+    'ed448': 'Ed448',
+    'ml-dsa-44': 'ML-DSA-44',
+    'ml-dsa-65': 'ML-DSA-65',
+    'ml-dsa-87': 'ML-DSA-87',
+});
 
 /**
  * Every signature algorithm pkinative verifies, by OID.
@@ -76,6 +104,12 @@ type SignatureShape =
  * certificates, and Web Crypto implements neither — so the honest answer is
  * `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` naming the algorithm, not a
  * verification pkinative cannot perform.
+ *
+ * The three ML-DSA entries are `id-ml-dsa-44`, `-65` and `-87` (RFC 9881
+ * §2): pure ML-DSA with the empty context string. The HashML-DSA identifiers
+ * (…3.32 to .34) are absent on purpose — RFC 9881 §8.3 forbids them in
+ * PKIX — and so are the SLH-DSA ones, until a host the CI covers verifies
+ * them (ADR 0026).
  */
 const SIGNATURE_BY_OID: ReadonlyMap<string, SignatureShape> = /*#__PURE__*/ new Map<string, SignatureShape>([
     ['1.2.840.113549.1.1.5', { family: 'rsa-pkcs1', hash: 'SHA-1' }],
@@ -89,6 +123,9 @@ const SIGNATURE_BY_OID: ReadonlyMap<string, SignatureShape> = /*#__PURE__*/ new 
     ['1.2.840.10045.4.3.4', { family: 'ecdsa', hash: 'SHA-512' }],
     ['1.3.101.112', { family: 'ed25519' }],
     ['1.3.101.113', { family: 'ed448' }],
+    ['2.16.840.1.101.3.4.3.17', { family: 'ml-dsa-44' }],
+    ['2.16.840.1.101.3.4.3.18', { family: 'ml-dsa-65' }],
+    ['2.16.840.1.101.3.4.3.19', { family: 'ml-dsa-87' }],
 ]);
 
 /** Everything the boundary needs to import a key and check one signature. */
@@ -105,7 +142,7 @@ export interface ResolvedAlgorithm {
     readonly curve: 'P-256' | 'P-384' | 'P-521' | undefined;
     /**
      * The digest this signature is over, as Web Crypto names it, or `undefined`
-     * for Ed25519 and Ed448, whose digest is not a parameter.
+     * for Ed25519, Ed448 and ML-DSA, whose digest is not a parameter.
      *
      * Carried so a **policy** decision can be made on it without re-reading the
      * OID or digging into `importParams`, where it lives in a different place
@@ -282,7 +319,8 @@ function pssKeyAdmits(key: SubjectPublicKeyInfo, signature: { readonly hash: str
  * signature — an RSA key under an ECDSA signature, an X25519 key under any
  * signature at all, an `id-RSASSA-PSS` key under a PKCS#1 v1.5 signature
  * (RFC 4055 §1.2), or under RSASSA-PSS parameters its own parameters exclude
- * (RFC 4055 §3.3: another hash, or a shorter salt). That is a decided "no", not an inability to decide, and
+ * (RFC 4055 §3.3: another hash, or a shorter salt), an ML-DSA key of one
+ * parameter set under a signature naming another (RFC 9881 §3). That is a decided "no", not an inability to decide, and
  * a caller building a path must be able to try the next candidate issuer
  * without writing a `try`. Throwing is reserved for the questions that
  * genuinely cannot be put.
@@ -293,7 +331,8 @@ function pssKeyAdmits(key: SubjectPublicKeyInfo, signature: { readonly hash: str
  *   have signed under this algorithm.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the OID is
  *   not in the table or its parameters — or those of an `id-RSASSA-PSS`
- *   key — name something Web Crypto cannot do; `PKI_CRYPTO_KEY_UNSUPPORTED`
+ *   key — name something Web Crypto cannot do, or an ML-DSA signature
+ *   algorithm carries parameters at all; `PKI_CRYPTO_KEY_UNSUPPORTED`
  *   when the key is of the right family but on a curve Web Crypto does not
  *   verify.
  * @throws {PkiEncodingError} When the algorithm's parameters are malformed
@@ -335,8 +374,20 @@ export function resolveAlgorithm(algorithm: AlgorithmIdentifier, key: SubjectPub
         return { family: shape.family, importParams: { name: 'ECDSA', namedCurve: curve }, verifyParams, curve, hash: shape.hash };
     }
 
+    // What remains names its key kind — Ed25519, Ed448, and since 1.1.0 the
+    // three ML-DSA parameter sets (ADR 0026) — so the family and the kind are
+    // one comparison, and a key of another parameter set is a decided "no".
     if (key.kind !== shape.family) return null;
-    const name = shape.family === 'ed25519' ? 'Ed25519' : 'Ed448';
+    const name = HOST_ALGORITHM[shape.family];
+    // RFC 9881 §3: "The parameters of these signature algorithms MUST be
+    // absent"; RFC 9882 §3.3 says the same of a SignerInfo. A host verifies
+    // by name and would never see them, so a signature that carries any is
+    // not put to it. The Edwards curves are left as 1.0 reads them.
+    if (algorithm.parameters !== undefined && shape.family !== 'ed25519' && shape.family !== 'ed448') {
+        throw unsupported(`the ${name} signature algorithm carries parameters, which RFC 9881 §3 and RFC 9882 §3.3 require absent`, algorithm.oid);
+    }
+    // Pure ML-DSA with the empty context string: the name is the whole of
+    // the host's parameters, as it is for the Edwards curves.
     return { family: shape.family, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined };
 }
 
@@ -400,6 +451,37 @@ const RSA_ENCRYPTION = '1.2.840.113549.1.1.1';
 const ID_EC_PUBLIC_KEY = '1.2.840.10045.2.1';
 const ID_ED448 = '1.3.101.113';
 
+const SHA256_OID = '2.16.840.1.101.3.4.2.1';
+const SHA384_OID = '2.16.840.1.101.3.4.2.2';
+const SHA512_OID = '2.16.840.1.101.3.4.2.3';
+const SHA3_256_OID = '2.16.840.1.101.3.4.2.8';
+const SHA3_384_OID = '2.16.840.1.101.3.4.2.9';
+const SHA3_512_OID = '2.16.840.1.101.3.4.2.10';
+const SHAKE128_OID = '2.16.840.1.101.3.4.2.11';
+const SHAKE256_OID = '2.16.840.1.101.3.4.2.12';
+
+/**
+ * RFC 9882 §3.3, Table 1 — "Suitable Digest Algorithms for ML-DSA": the
+ * digests whose strength meets each parameter set's, by signature OID. The
+ * same section lets a verifier reject any other ("Verifiers MAY reject a
+ * signature if the signer's choice of digest algorithm does not meet the
+ * security requirements of their choice of ML-DSA parameter set"), and this
+ * one does.
+ *
+ * A row lists what the RFC allows, not what pkinative computes: the SHA-3
+ * family and SHAKE128 are in it and are not hashed here, so a signer naming
+ * one is consistent and its content is reported as not checked — never as a
+ * mismatch.
+ */
+const ML_DSA_CMS_DIGESTS: ReadonlyMap<string, { readonly name: string; readonly digests: ReadonlySet<string> }> = /*#__PURE__*/ new Map([
+    ['2.16.840.1.101.3.4.3.17', {
+        name: 'ML-DSA-44',
+        digests: new Set([SHA256_OID, SHA384_OID, SHA512_OID, SHA3_256_OID, SHA3_384_OID, SHA3_512_OID, SHAKE128_OID, SHAKE256_OID]),
+    }],
+    ['2.16.840.1.101.3.4.3.18', { name: 'ML-DSA-65', digests: new Set([SHA384_OID, SHA512_OID, SHA3_384_OID, SHA3_512_OID, SHAKE256_OID]) }],
+    ['2.16.840.1.101.3.4.3.19', { name: 'ML-DSA-87', digests: new Set([SHA512_OID, SHA3_512_OID, SHAKE256_OID]) }],
+]);
+
 /**
  * `id-shake256` (NIST CSOR): SHAKE256 with a 512-bit output when it stands
  * as a digest algorithm, parameters absent (RFC 8419 §2.1, RFC 8702 §3.1).
@@ -410,7 +492,7 @@ const ID_ED448 = '1.3.101.113';
  *
  * @internal
  */
-export const ID_SHAKE256 = '2.16.840.1.101.3.4.2.12';
+export const ID_SHAKE256 = SHAKE256_OID;
 
 /** `md5WithRSAEncryption` and `id-md5`: refused as inconsistent, never reported as merely unsupported. */
 const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1.4', '1.2.840.113549.2.5']);
@@ -438,14 +520,29 @@ const MD5_OIDS: ReadonlySet<string> = /*#__PURE__*/ new Set(['1.2.840.113549.1.1
  * 180-4 digests and would otherwise leave an Ed448 signer over SHA-512 — a
  * computation RFC 8419 forbids — to a resolver that cannot tell.
  *
+ * ML-DSA is judged first for the same reason, and for a second one: its
+ * signature names no hash, so the SHA-1 refusal of `verifySignerInfoSignature`
+ * — which reads the hash off the resolved algorithm — never sees the digest,
+ * and a SHA-1 `messageDigest` would bind the content silently. RFC 9882 §3.3
+ * holds a signer **with signed attributes** to the row of its Table 1 for the
+ * parameter set; a digest outside the row is the problem named here, and one
+ * inside it that pkinative does not compute is left to the content check,
+ * which reports it as not checked. **Without** signed attributes the section
+ * is as explicit the other way — "implementations MUST ignore the content of
+ * the digestAlgorithm field" — which is what the third argument is for.
+ *
  * @internal
  * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
  * @param signatureAlgorithm The SignerInfo's `signatureAlgorithm`.
+ * @param hasSignedAttributes Whether the SignerInfo carries signed attributes.
+ *   Read for an ML-DSA signer only, whose `digestAlgorithm` means nothing
+ *   without them (RFC 9882 §3.3). Default `true`, the judging side: a caller
+ *   that does not say is answered as if the digest were used.
  * @returns One English clause naming the inconsistency, or `null`.
  * @throws Never — a PSS parameter set too malformed to read is left to the
  *   resolver, which reports it with a code.
  */
-export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier): string | null {
+export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signatureAlgorithm: AlgorithmIdentifier, hasSignedAttributes = true): string | null {
     if (MD5_OIDS.has(digestAlgorithm.oid) || MD5_OIDS.has(signatureAlgorithm.oid)) {
         return 'MD5 is refused: its collisions have been practical since 2004';
     }
@@ -457,6 +554,14 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
             return `Ed448 requires the id-shake256 digestAlgorithm, SHAKE256 with a 512-bit output (RFC 8419 §3.1), not ${digestAlgorithm.oid}`;
         }
         return hasNoHashParameters(digestAlgorithm.parameters) ? null : 'the id-shake256 digestAlgorithm carries parameters, where RFC 8419 §2.1 allows none';
+    }
+    const mlDsa = ML_DSA_CMS_DIGESTS.get(signatureAlgorithm.oid);
+    if (mlDsa !== undefined) {
+        if (!hasSignedAttributes) return null;
+        if (!mlDsa.digests.has(digestAlgorithm.oid)) {
+            return `${mlDsa.name} over signed attributes takes a digestAlgorithm of its row in RFC 9882 §3.3 Table 1 (SHA-512 and SHAKE256 suit every parameter set), not ${digestAlgorithm.oid}`;
+        }
+        return hasNoHashParameters(digestAlgorithm.parameters) ? null : `the digestAlgorithm of an ${mlDsa.name} signer carries parameters, where RFC 9882 §3.3 allows none`;
     }
 
     const digest = HASH_BY_OID.get(digestAlgorithm.oid);
@@ -508,7 +613,9 @@ export function _cmsAlgorithmProblem(digestAlgorithm: AlgorithmIdentifier, signa
  * An Ed448 signer resolves like an Ed448 certificate signature — `{ name:
  * 'Ed448' }` for the host, whose refusal on a runtime without Ed448 is the
  * same `PKI_CRYPTO_KEY_UNSUPPORTED` either way. Its SHAKE256 content digest
- * is not the host's concern: `verifySignedData` computes it.
+ * is not the host's concern: `verifySignedData` computes it. An ML-DSA
+ * signer (RFC 9882) resolves the same way, to `{ name: 'ML-DSA-65' }` and
+ * its siblings, whatever `digestAlgorithm` says.
  *
  * @param digestAlgorithm The SignerInfo's `digestAlgorithm`.
  * @param signatureAlgorithm The SignerInfo's `signatureAlgorithm`.
@@ -619,10 +726,10 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
     if (algorithm.name === 'RSA-PSS') {
         const hashOid = OID_BY_HASH.get(algorithm.hash);
         const size = HASH_BYTES.get(algorithm.hash);
-        if (hashOid === undefined || size === undefined) throw unsupported(`RSASSA-PSS with ${algorithm.hash} is not a digest pkinative writes`, '1.2.840.113549.1.1.10');
+        if (hashOid === undefined || size === undefined) throw unsupported(`RSASSA-PSS with ${describeValue(algorithm.hash)} is not a digest pkinative writes`, '1.2.840.113549.1.1.10');
         const saltLength = algorithm.saltLength ?? size;
         if (!Number.isInteger(saltLength) || saltLength < 0) {
-            throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${String(algorithm.saltLength)}`, '1.2.840.113549.1.1.10');
+            throw unsupported(`the RSASSA-PSS salt length must be a non-negative integer, got ${describeValue(algorithm.saltLength)}`, '1.2.840.113549.1.1.10');
         }
         return {
             oid: '1.2.840.113549.1.1.10',
@@ -633,14 +740,14 @@ export function resolveSigner(algorithm: SignatureAlgorithm): ResolvedSigner {
         };
     }
 
-    const oid = OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`);
-    if (oid === undefined) throw unsupported(`${algorithm.name} with ${algorithm.hash} has no RFC 5280 signature OID`, '');
+    const oid = typeof algorithm.name === 'string' && typeof algorithm.hash === 'string' ? OID_BY_SIGNATURE.get(`${algorithm.name}/${algorithm.hash}`) : undefined;
+    if (oid === undefined) throw unsupported(`${describeValue(algorithm.name)} with ${describeValue(algorithm.hash)} has no RFC 5280 signature OID`, '');
     if (algorithm.name === 'ECDSA') {
         // The type requires the curve; a JavaScript caller or a cast can omit it. Without it the
         // r‖s the host returns would be written as it stands, a signature no verifier accepts —
         // an artefact that fails closed everywhere, which is still a lie in the writer's output.
         if (algorithm.namedCurve !== 'P-256' && algorithm.namedCurve !== 'P-384' && algorithm.namedCurve !== 'P-521') {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: an ECDSA signing key names its curve — algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${String(algorithm.namedCurve)}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: an ECDSA signing key names its curve — algorithm.namedCurve must be 'P-256', 'P-384' or 'P-521', got ${describeValue(algorithm.namedCurve)}`);
         }
         return {
             oid,

@@ -61,7 +61,7 @@ describe('every workflow', () => {
             'dependency-review.yml',
             'docs.yml',
             'fuzz.yml',
-            'node-current.yml',
+            'mutation.yml',
             'publish.yml',
             'scorecard.yml',
         ]);
@@ -205,7 +205,8 @@ describe('every workflow job', () => {
             'security.ubuntu.com:443', 'sum.golang.org:443', 'www.rfc-editor.org:443',
         ]);
         expect(allowed('publish')).toEqual(['github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', ...SIGSTORE].sort());
-        expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'registry.npmjs.org:443', 'uploads.github.com:443', ...SIGSTORE].sort());
+        // The two githubusercontent hosts serve a release download: the attest job fetches the tarball it attached back from the public URL.
+        expect(allowed('attest')).toEqual(['api.github.com:443', 'github.com:443', 'nodejs.org:443', 'objects.githubusercontent.com:443', 'registry.npmjs.org:443', 'release-assets.githubusercontent.com:443', 'uploads.github.com:443', ...SIGSTORE].sort());
         // The corpus hosts are real: a corpus moved elsewhere must move here too.
         const corpora = readText('scripts', 'lib', 'corpora.ts');
         for (const host of ['csrc.nist.gov', 'www.rfc-editor.org', 'github.com/C2SP']) expect(corpora, host).toContain(`https://${host}/`);
@@ -257,10 +258,10 @@ describe('ci.yml', () => {
         // here — or dropping the `name:` — would leave required checks pending
         // forever. Adding a platform must stay additive.
         expect(ci).toMatch(/^ {2}ci:\s*\n\s+name: \$\{\{ matrix\.name \}\}/m);
-        expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'macos', 'windows']);
+        expect(checkNames(ci).sort()).toEqual(['ci (22)', 'ci (24)', 'ci (26)', 'macos', 'windows']);
         expect(ci).toMatch(/^ {2}runtimes:\s*\n {4}name: runtimes\s*$/m);
         expect(ci).toMatch(/^ {2}workflow-lint:\s*\n {4}name: workflow lint\s*$/m);
-        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'windows', 'macos']));
+        expect(contexts).toEqual(expect.arrayContaining(['ci (22)', 'ci (24)', 'ci (26)', 'windows', 'macos']));
         for (const os of ['ubuntu-latest', 'windows-latest', 'macos-latest']) expect(ci, os).toContain(`os: ${os}`);
         expect(ci).toMatch(/node-version: 22/);
         expect(ci).toMatch(/node-version: 24/);
@@ -299,6 +300,43 @@ describe('ci.yml', () => {
         expect(check).toBeLessThan(job.indexOf('/actionlint" -color'));
     });
 
+    it('should run the previous release\'s suite against the current sources, with the tag fetched anonymously', () => {
+        // The promise run rather than stated (pdfnative 1.9.0's compat-previous).
+        // The checkout keeps its credentials off the runner, so the one tag
+        // the allow-list names is fetched in its own step, from the public
+        // repository, before the suite runs.
+        const job = ciJob('compat-previous');
+        expect(job).toMatch(/^ {4}name: compat-previous\s*$/m);
+        expect(job).toMatch(/persist-credentials: false/);
+        const fetch = job.indexOf('TAG=$(npx tsx scripts/run-compat.ts --print-tag)');
+        const run = job.indexOf('run: npm run compat:previous');
+        expect(fetch).toBeGreaterThan(job.indexOf('npm ci --ignore-scripts'));
+        expect(job).toContain('git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"');
+        expect(run).toBeGreaterThan(fetch);
+        expect(job).not.toMatch(/continue-on-error/);
+        expect(contexts).toContain('compat-previous');
+        expect((JSON.parse(readText('package.json')) as { scripts: Record<string, string> }).scripts['compat:previous']).toBe('npx tsx scripts/run-compat.ts');
+    });
+
+    it('should run reuse lint from a requirements file pinned by hash, with nothing built and nothing resolved', () => {
+        // The roadmap's 1.1 item: REUSE.toml was held to its shape by a rule
+        // and the tool itself was run by hand. A Python tool is not a dev
+        // dependency, so it is installed as the conformance readers are:
+        // every file by digest, no dependency resolution, no source build.
+        const job = ciJob('workflow-lint');
+        expect(job).toMatch(/pip install --require-hashes --no-deps --only-binary :all: -r scripts\/data\/reuse-requirements\.txt/);
+        expect(job.indexOf('pip install --require-hashes')).toBeLessThan(job.indexOf('/reuse" lint'));
+        expect(job).not.toMatch(/pipx|pip install reuse/);
+        const requirements = readText('scripts/data/reuse-requirements.txt').replace(/\r\n/g, '\n');
+        const blocks = requirements.split('\n').filter((l) => /^[a-z]/.test(l));
+        expect(blocks.some((l) => /^reuse==\d+\.\d+\.\d+ \\$/.test(l))).toBe(true);
+        // Every requirement is an exact version followed by at least one digest.
+        for (const block of blocks) expect(block, block).toMatch(/^[a-z0-9.-]+==[0-9][0-9a-z.]* \\$/);
+        const pins = requirements.split('\n').filter((l) => l.trim() !== '' && !l.startsWith('#') && !/^[a-z]/.test(l));
+        expect(pins.length).toBeGreaterThanOrEqual(blocks.length);
+        for (const pin of pins) expect(pin, pin).toMatch(/^ {4}--hash=sha256:[0-9a-f]{64}(?: \\)?$/);
+    });
+
 
     it('should run the gate with --require-all once, for every platform, and audit only once', () => {
         // One job now, so one gate invocation in the file — and `npm audit` is
@@ -306,7 +344,7 @@ describe('ci.yml', () => {
         // red for a reason that is not this repository's.
         expect([...ci.matchAll(/run: npx tsx scripts\/gate\.ts --ci --require-all/g)]).toHaveLength(1);
         expect(ci).toMatch(/if: matrix\.audit\s*\n\s+run: npm audit --audit-level=high/);
-        expect(checkNames(ci).length, 'the gate runs once per matrix entry').toBe(4);
+        expect(checkNames(ci).length, 'the gate runs once per matrix entry').toBe(5);
         expect(ci).toMatch(/if: failure\(\)[\s\S]*upload-artifact[\s\S]*test-output\/\.gate\//);
     });
 
@@ -410,6 +448,45 @@ function npmCacheEnabled(step: string, pkg: { packageManager?: string; devEngine
     const automatic = (pkg.packageManager ?? '').startsWith('npm@') || pkg.devEngines?.packageManager?.name === 'npm';
     return automatic && !/^\s+package-manager-cache:\s*false\s*$/m.test(step);
 }
+
+describe('mutation.yml', () => {
+    const mutation = readWorkflow('mutation.yml');
+    /** The body of every `run: |` block of the workflow. */
+    const runBlocks = [...mutation.matchAll(/^( +)run: \|\s*\n((?:\1 {2,}[^\n]*\n|\s*\n)+)/gm)].map((m) => m[2]);
+
+    it('should run on pull requests and on demand, and be required by no ruleset', () => {
+        // "100 % killed on every changed file of src/" was held by whoever
+        // made the change. The workflow runs it; it stays advisory, because
+        // a run is minutes per file and a survivor is the work of the pull
+        // request that touched the file.
+        expect(mutation).toMatch(/^on:\s*\n\s+pull_request:\s*\n\s+branches: \[main, master\]\s*\n\s+workflow_dispatch:\s*\n\s+inputs:\s*\n\s+files:/m);
+        expect(mutation).not.toMatch(/^\s+schedule:/m);
+        expect(mutation).not.toMatch(/continue-on-error/);
+        const ruleset = JSON.parse(readText('.github', 'rulesets', 'main.json')) as { rules: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string }> } }> };
+        const contexts = ruleset.rules.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
+        expect(contexts).not.toContain('mutation');
+    });
+
+    it('should mutate exactly the src/ files the pull request adds or modifies', () => {
+        // The checkout of a pull request is its merge commit: the first
+        // parent is the base branch, so two commits are enough and the diff
+        // is what the pull request changes — no deleted file, nothing
+        // outside src/.
+        expect(mutation).toMatch(/^\s+fetch-depth: 2\s*$/m);
+        expect(mutation).toContain("git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'src/*.ts' 'src/**/*.ts'");
+        expect(mutation).toContain('npx tsx scripts/mutate.ts --files "${FILES}"');
+        expect(mutation).toMatch(/if: github\.event_name != 'pull_request' \|\| steps\.select\.outputs\.files != ''/);
+    });
+
+    it('should pass the event and the dispatch input through the environment, never into a script', () => {
+        // A `${{ … }}` inside `run:` is expanded before the shell reads the
+        // script: a dispatch input would be code (zizmor template-injection).
+        expect(runBlocks.length).toBeGreaterThanOrEqual(2);
+        for (const block of runBlocks) expect(block, block).not.toContain('${{');
+        expect(mutation).toMatch(/^\s+EVENT_NAME: \$\{\{ github\.event_name \}\}\s*$/m);
+        expect(mutation).toMatch(/^\s+INPUT_FILES: \$\{\{ inputs\.files \}\}\s*$/m);
+    });
+});
 
 describe('publish.yml', () => {
     const publish = readWorkflow('publish.yml');
@@ -601,11 +678,45 @@ describe('publish.yml', () => {
         const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
         expect(attach).toContain('BUNDLE: ${{ steps.attest.outputs.bundle-path }}');
         expect(attach).toContain('cp "${BUNDLE}" "pkinative-${VERSION}.sigstore.json"');
-        expect(attach).toMatch(/if gh release view "v\$\{VERSION\}"/);
         for (const f of ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json']) expect(attach).toContain(`"pkinative-\${VERSION}${f}"`);
         // A re-run replaces only what this job attached, under the same names.
         expect(attach).toContain('--clobber --repo "${GITHUB_REPOSITORY}"');
         expect(publish).not.toMatch(/gh release (create|edit|delete)/);
+    });
+
+    it('should fail the run when the release cannot be read, and never skip the upload in silence', () => {
+        // The v1.0.0 release carries no file and its run was green: the step
+        // found the release in a state it did not expect, printed a warning
+        // and exited 0. A release that cannot be read is an error, the error
+        // `gh` prints is shown, and no branch of the step ends the job green
+        // without an upload.
+        const attach = (jobs.get('attest') ?? []).find((s) => s.includes('gh release upload')) ?? '';
+        expect(attach).toMatch(/if ! gh release view "v\$\{VERSION\}" --repo "\$\{GITHUB_REPOSITORY\}" --json tagName --jq \.tagName; then\s*\n\s+echo "::error::[^\n]+\n\s+exit 1\s*\n\s+fi/);
+        expect(attach).not.toMatch(/::notice::|::warning::/);
+        expect(attach).not.toMatch(/gh release view[^\n]*(?:>\s*\/dev\/null|2>&1)/);
+        expect(attach).not.toMatch(/\belse\b/);
+        expect(attach.indexOf('exit 1')).toBeLessThan(attach.indexOf('gh release upload'));
+    });
+
+    it('should read the five files back from the release and hold the served tarball to the build digest', () => {
+        const steps = jobs.get('attest') ?? [];
+        const upload = steps.findIndex((s) => s.includes('gh release upload'));
+        const check = steps.findIndex((s) => s.includes('name: Check the files the release carries'));
+        expect(upload).toBeGreaterThan(-1);
+        expect(check).toBe(upload + 1);
+        const body = steps[check] ?? '';
+        // The same five names the step before uploads, and the four the attestation covers plus its bundle.
+        const names = ['.tgz', '.cdx.json', '.spdx.json', '.toolchain.cdx.json', '.sigstore.json'].map((f) => `"pkinative-\${VERSION}${f}"`);
+        for (const name of names) expect(body, name).toContain(name);
+        expect([...body.matchAll(/"pkinative-\$\{VERSION\}\.[a-z.]+"/g)].map((m) => m[0]).sort()).toEqual([...names].sort());
+        expect(body).toContain("--json assets --jq '.assets[].name'");
+        expect(body).toMatch(/if \[ "\$\{ATTACHED\}" != "\$\{EXPECTED\}" \]; then\s*\n\s+echo "::error::[^\n]+\n[^\n]+\n\s+exit 1/);
+        // The public URL the README names, fetched without the token, then the digest of the build job.
+        expect(body).toContain('"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/pkinative-${VERSION}.tgz"');
+        expect(body).toMatch(/curl --fail [^\n]*--proto '=https'/);
+        expect(body).not.toMatch(/curl[^\n]*(?:GH_TOKEN|Authorization)/);
+        expect(body).toContain('echo "${SHA256}  ${RUNNER_TEMP}/served/pkinative-${VERSION}.tgz" | sha256sum --check --strict');
+        expect(readText('README.md')).toMatch(/https:\/\/github\.com\/Nizoka\/pkinative\/releases\/download\/v\d+\.\d+\.\d+\/pkinative-\d+\.\d+\.\d+\.tgz/);
     });
 
     it('should state the provenance level exactly: SLSA Build L2, with L3 discussed in its ADR', () => {
@@ -663,6 +774,15 @@ describe('dependency review and audit', () => {
         expect(review).toMatch(/fail-on-severity:\s*high/);
         expect(review).toMatch(/allow-licenses:\s*MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, 0BSD, CC0-1.0, Unlicense/);
         expect(review).toMatch(/comment-summary-in-pr:\s*on-failure/);
+    });
+
+    it('should exempt from the licence list only the two CI-only Python tools that are under the GPL', () => {
+        // reuse and python-debian run on the runner (`workflow lint`) and are never shipped:
+        // exempted by name, so a GPL package anywhere else still fails the review.
+        const review = readWorkflow('dependency-review.yml');
+        expect(review.match(/allow-dependencies-licenses:\s*(.+)/)?.[1]?.split(',').map((purl) => purl.trim())).toEqual(['pkg:pypi/reuse', 'pkg:pypi/python-debian']);
+        const pinned = readFileSync(join(ROOT, 'scripts', 'data', 'reuse-requirements.txt'), 'utf8');
+        for (const name of ['reuse', 'python-debian']) expect(pinned).toMatch(new RegExp(`^${name}==`, 'm'));
     });
 
     it('should audit the lockfile weekly', () => {
@@ -725,9 +845,25 @@ describe('.github/runtime-smoke/checks.mjs', () => {
         // it runs against src/ on every gate run, the way the fuzz targets
         // are held (tests/fuzzing/targets.test.ts).
         const lines = await (await load()).runChecks(await import('../../src/index.js'));
-        expect(lines).toHaveLength(6);
+        expect(lines).toHaveLength(7);
         // Node has Ed448, so here the host-dependent check lands on the verified side.
         expect(lines[5]).toMatch(/^Ed448 CMS signer .*verified/u);
+        // ML-DSA is the host's too (ADR 0026), and Node.js has it from 24.7 only:
+        // either answer is right here, as it is in the runtimes job.
+        expect(lines[6]).toMatch(/^ML-DSA certificate chain .*: (verified — this host has ML-DSA|SIGNATURE_NOT_CHECKED \/ PKI_CRYPTO_KEY_UNSUPPORTED — this host has no ML-DSA)$/u);
+    });
+
+    it('should accept either answer for ML-DSA and refuse a third, whichever host runs it', async () => {
+        const real = await import('../../src/index.js');
+        const smoke = await load();
+        // The chain reports are the ML-DSA check's only use of verifyCertificateChain.
+        const chain = (reasons: readonly unknown[]): unknown => ({ ...real, verifyCertificateChain: () => Promise.resolve({ valid: reasons.length === 0, reasons }) });
+        const notChecked = { code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED' };
+        expect((await smoke.runChecks(chain([notChecked])))[6]).toMatch(/this host has no ML-DSA$/u);
+        await expect(smoke.runChecks(chain([{ code: 'PKI_REASON_SIGNATURE_INVALID' }]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain: expected verified, or not checked/u);
+        await expect(smoke.runChecks(chain([{ code: 'PKI_REASON_SIGNATURE_NOT_CHECKED', errorCode: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain/u);
+        // A host that says yes to the chain must say no to the altered one.
+        await expect(smoke.runChecks(chain([]))).rejects.toThrow(/runtime smoke: ML-DSA certificate chain with an altered signature/u);
     });
 
     it('should fail loudly when the package under test misbehaves', async () => {

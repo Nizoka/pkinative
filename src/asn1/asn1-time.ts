@@ -21,6 +21,7 @@
  * @module asn1/asn1-time
  */
 
+import { describeValue } from '../core/arguments.js';
 import type { Asn1Node, PkiTime, ReadTimeOptions, TimeType } from '../types/asn1-types.js';
 import { PkiEncodingError, PkiError } from '../types/pki-errors.js';
 import { createAsn1Context, noteBer, type Asn1Context } from './asn1-context.js';
@@ -164,7 +165,7 @@ export function _readTime(node: Asn1Node, ctx: Asn1Context, implicitType: TimeTy
 /**
  * Read a UTCTime or a GeneralizedTime.
  *
- * @param node    A time node, or an implicitly tagged one together with `timeType`.
+ * The node is a time node, or an implicitly tagged one read with `timeType`.
  * Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds
  * may be omitted, the fraction may use a comma or keep trailing zeros, and a
  * `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime
@@ -183,7 +184,7 @@ export function readTime(node: Asn1Node, options?: ReadTimeOptions): PkiTime {
     const ctx = createAsn1Context(options);
     const implicitType = options?.timeType;
     if (implicitType !== undefined && implicitType !== 'UTCTime' && implicitType !== 'GeneralizedTime') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${String(implicitType)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: timeType must be 'UTCTime' or 'GeneralizedTime', got ${describeValue(implicitType)}`);
     }
     return _readTime(checked, ctx, implicitType);
 }

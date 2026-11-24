@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quick start — pkinative</title>
-  <meta name="description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta name="description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#2563eb">
   <meta property="og:type" content="article">
@@ -12,13 +12,13 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://pkinative.dev/guides/quickstart.html">
   <meta property="og:title" content="Quick start — pkinative">
-  <meta property="og:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta property="og:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.">
   <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Quick start — pkinative">
-  <meta name="twitter:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.">
+  <meta name="twitter:description" content="Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.">
   <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
   <link rel="canonical" href="https://pkinative.dev/guides/quickstart.html">
   <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/quickstart.html">
@@ -59,7 +59,7 @@
       {
         "@type": "TechArticle",
         "headline": "Quick start",
-        "description": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
+        "description": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.",
         "inLanguage": "en",
         "author": {
           "@type": "Organization",
@@ -116,13 +116,13 @@
     <article id="guide-content" class="guide-content" data-md="quickstart.md" data-prerendered="true">
 <h1 id="quick-start">Quick start</h1>
 <blockquote>
-<p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 1.0 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
+<p><strong>Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.</strong> Everything below runs on pkinative 1.1 as it is tested; every export named here is in <code>docs/assets/api.json</code>.</p>
 </blockquote>
 <h2 id="install">Install <a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
 <p>pkinative is on npm, published with provenance from the tagged commit after the full gate:</p>
 <pre><code class="language-bash">npm install pkinative
 </code></pre>
-<p><code>npm audit signatures</code> verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: <code>npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz</code>, and <code>gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative</code> checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</p>
+<p><code>npm audit signatures</code> verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: <code>npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz</code>, and <code>gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative</code> checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</p>
 <h2 id="read-a-certificate">Read a certificate <a class="heading-anchor" href="#read-a-certificate" aria-label="Link to this section">#</a></h2>
 <p>A certificate usually arrives as PEM text. <code>decodePem</code> returns its blocks, and the <code>label</code> option refuses any block that is not a certificate — a private key pasted into the same file is an error, not a certificate:</p>
 <pre><code class="language-ts">import { decodePem, formatDistinguishedName, getExtension, parseCertificate } from &#39;pkinative&#39;;
@@ -136,7 +136,7 @@ new Date(cert.validity.notAfter.epochMilliseconds);
 getExtension(cert, &#39;subjectAltName&#39;)?.names;      // [{ kind: &#39;dNSName&#39;, value: &#39;cp.letsencrypt.org&#39;, … }, …]
 getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 </code></pre>
-<p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). Times are <code>epochMilliseconds</code> numbers, exact from year 0000 to 9999.</p>
+<p><code>parseCertificate</code> takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass <code>bytes.slice()</code> to decouple). A time is an object, <code>{ type, epochMilliseconds, text }</code>: compare its <code>epochMilliseconds</code> — a number, exact from year 0000 to 9999 — never the object itself.</p>
 <h2 id="what-a-certificate-holds">What a certificate holds <a class="heading-anchor" href="#what-a-certificate-holds" aria-label="Link to this section">#</a></h2>
 <p>Every field is listed with its type in <code>docs/assets/api.json</code> (the <code>members</code> of <code>Certificate</code> and of each extension interface); the ones you reach for first:</p>
 <table tabindex="0">
@@ -176,7 +176,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 </tr>
 <tr>
 <td><code>subjectPublicKeyInfo</code></td>
-<td><code>{ kind, algorithm, publicKey, der, … }</code>, by <code>kind</code>: <code>rsa</code> and <code>rsa-pss</code> add <code>modulus</code>, <code>modulusBits</code>, <code>publicExponent</code>; <code>ec</code> adds <code>namedCurve</code>, <code>curve</code> (<code>P-256</code>, <code>P-384</code>, <code>P-521</code> or <code>undefined</code>), <code>pointFormat</code>, <code>point</code>; <code>ed25519</code>, <code>ed448</code>, <code>x25519</code>, <code>x448</code>, <code>ml-dsa-44</code>, <code>ml-dsa-65</code>, <code>ml-dsa-87</code> add <code>key</code>; <code>unknown</code> adds nothing</td>
+<td><code>{ kind, algorithm, publicKey, der, … }</code>, by <code>kind</code>: <code>rsa</code> and <code>rsa-pss</code> add <code>modulus</code>, <code>modulusBits</code>, <code>publicExponent</code>; <code>ec</code> adds <code>namedCurve</code>, <code>curve</code> (<code>P-256</code>, <code>P-384</code>, <code>P-521</code> or <code>undefined</code>), <code>pointFormat</code>, <code>point</code>; <code>ed25519</code>, <code>ed448</code>, <code>x25519</code>, <code>x448</code>, <code>ml-dsa-44</code>, <code>ml-dsa-65</code>, <code>ml-dsa-87</code>, the twelve <code>slh-dsa-…</code> kinds (<code>slh-dsa-sha2-128s</code> to <code>slh-dsa-shake-256f</code>) and <code>ml-kem-512</code>, <code>ml-kem-768</code>, <code>ml-kem-1024</code> add <code>key</code>; <code>unknown</code> adds nothing</td>
 </tr>
 <tr>
 <td><code>issuerUniqueId</code>, <code>subjectUniqueId</code></td>
@@ -262,6 +262,7 @@ getExtension(cert, &#39;basicConstraints&#39;)?.cA;       // false
 </tbody></table>
 <h2 id="every-extension-typed">Every extension, typed <a class="heading-anchor" href="#every-extension-typed" aria-label="Link to this section">#</a></h2>
 <p><code>cert.extensions</code> lists every extension in encoded order, each with <code>oid</code>, <code>critical</code> and <code>valueDer</code>, and a <code>kind</code> that says how it was decoded: <code>basicConstraints</code>, <code>keyUsage</code>, <code>extendedKeyUsage</code>, <code>subjectAltName</code>, <code>issuerAltName</code>, <code>subjectDirectoryAttributes</code>, <code>subjectKeyIdentifier</code>, <code>authorityKeyIdentifier</code>, <code>nameConstraints</code>, <code>certificatePolicies</code>, <code>policyMappings</code>, <code>policyConstraints</code>, <code>inhibitAnyPolicy</code>, <code>authorityInfoAccess</code>, <code>subjectInfoAccess</code>, <code>crlDistributionPoints</code>, <code>freshestCRL</code>, <code>signedCertificateTimestampList</code>, <code>ocspNoCheck</code> — or <code>unknown</code> for an extension pkinative does not decode. <code>getExtension(cert, kind)</code> returns the one of that kind, typed.</p>
+<p>An RFC 5755 attribute certificate, read by <code>parseAttributeCertificate</code>, carries the same kinds on <code>ac.extensions</code> plus three that only an attribute certificate carries, and that a certificate keeps as <code>unknown</code>: <code>targetInformation</code> (<code>targets</code>, every target of every Targets element in one list), <code>auditIdentity</code> (<code>identity</code>) and <code>noRevAvail</code> (nothing beyond <code>oid</code>, <code>critical</code>, <code>valueDer</code>). Its attributes are on <code>ac.attributes</code>, by <code>kind</code>: <code>authenticationInfo</code>, <code>accessIdentity</code>, <code>chargingIdentity</code>, <code>group</code>, <code>role</code>, <code>clearance</code> or <code>unknown</code>. Reading it is not judging it: <code>verifyAttributeCertificateSignature</code> checks the signature, and the rest of RFC 5755 §5 is shown in <code>recipes/attribute-certificate.ts</code>.</p>
 <p>An inspection tool that must show a certificate even when one extension is malformed parses with <code>decodeExtensions: false</code> — every extension stays <code>kind: &#39;raw&#39;</code> — and decodes what it needs with <code>decodeExtensionValue(oid, valueDer, { critical })</code>; <code>critical</code> (default <code>false</code>) is reported on the result and decides whether an unknown extension raises <code>PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION</code>.</p>
 <p><code>computeFingerprint(der, algorithm)</code> takes <code>&#39;SHA-1&#39;</code>, <code>&#39;SHA-256&#39;</code>, <code>&#39;SHA-384&#39;</code> or <code>&#39;SHA-512&#39;</code> (anything else is <code>PKI_INVALID_OPTION</code>); <code>formatFingerprint(digest, { separator, letterCase })</code> writes <code>96:BC:EC:…</code> by default — <code>separator</code> defaults to <code>&#39;:&#39;</code>, <code>letterCase</code> to <code>&#39;upper&#39;</code> (or <code>&#39;lower&#39;</code>), so <code>{ separator: &#39;&#39;, letterCase: &#39;lower&#39; }</code> gives the pinning form.</p>
 <h2 id="diagnostics-what-real-issuers-get-wrong">Diagnostics: what real issuers get wrong <a class="heading-anchor" href="#diagnostics-what-real-issuers-get-wrong" aria-label="Link to this section">#</a></h2>
@@ -313,7 +314,7 @@ readInteger(integerNode);                      // 65537n
 <p>Error code unions are in the <a href="errors.html">errors guide</a>.</p>
 <h2 id="next">Next <a class="heading-anchor" href="#next" aria-label="Link to this section">#</a></h2>
 <ul>
-<li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 22 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.</li>
+<li><a href="https://github.com/Nizoka/pkinative/tree/main/recipes/" target="_blank" rel="noopener">recipes/</a> — 25 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host, an attribute certificate and the checks RFC 5755 §5 leaves to you.</li>
 <li><a href="use-cases.html">Use cases</a> — the jobs end to end, from a certificate inventory to a timestamped signature and the <code>.p12</code> holding its key.</li>
 <li><a href="conformance.html">Conformance</a> — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.</li>
 <li><a href="standards.html">Standards</a> — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.</li>
@@ -333,6 +334,7 @@ readInteger(integerNode);                      // 65537n
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -351,6 +353,7 @@ readInteger(integerNode);                      // 65537n
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

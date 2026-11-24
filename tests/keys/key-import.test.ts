@@ -1,9 +1,10 @@
 import { constants, generateKeyPairSync, verify as nodeVerify, type KeyObject, type webcrypto } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { resolveSigner } from '../../src/crypto/crypto-algorithms.js';
 import { signData } from '../../src/crypto/webcrypto.js';
-import { decryptPrivateKey, importPrivateKey } from '../../src/keys/key-import.js';
+import { _signingAlgorithm, decryptPrivateKey, importPrivateKey } from '../../src/keys/key-import.js';
+import { parsePrivateKeyInfo } from '../../src/keys/key-pkcs8.js';
 import type { SignatureAlgorithm, SigningKey } from '../../src/types/crypto-types.js';
 import { PkiCryptoError, PkiError, PkiKeyError } from '../../src/types/pki-errors.js';
 import { alg, attribute, context, int, octets, oid } from '../helpers/cms-signed-data-builder.js';
@@ -414,5 +415,47 @@ describe('decryptPrivateKey — options', () => {
 
     it('should refuse input that is not a Uint8Array', async () => {
         expect(await rejection(decryptPrivateKey([1, 2] as unknown as Uint8Array, { password: PASSWORD, algorithm: P256 }))).toMatchObject({ code: 'PKI_INVALID_INPUT' });
+    });
+});
+
+// ── ML-DSA (ADR 0026) ────────────────────────────────────────────────
+
+describe('importPrivateKey — an ML-DSA key is recognised and not imported (ADR 0026)', () => {
+    const ML_DSA = [
+        ['2.16.840.1.101.3.4.3.17', 'ml-dsa-44'],
+        ['2.16.840.1.101.3.4.3.18', 'ml-dsa-65'],
+        ['2.16.840.1.101.3.4.3.19', 'ml-dsa-87'],
+    ] as const;
+    /** RFC 9881 §6, the seed form: `[0] IMPLICIT OCTET STRING (SIZE (32))` inside the privateKey OCTET STRING. Stand-in octets, not a key. */
+    const mlDsaKey = (dotted: string): Uint8Array =>
+        sequence(int(0), alg(dotted, null), octets(context(0, false, Uint8Array.from({ length: 32 }, (_, i) => i))));
+
+    it.each(ML_DSA)('should refuse %s (%s) with PKI_CRYPTO_KEY_UNSUPPORTED, naming the kind, without asking the host', async (dotted, kind) => {
+        const host = vi.spyOn(crypto.subtle, 'importKey');
+        try {
+            const error = await rejection(importPrivateKey(mlDsaKey(dotted)));
+            expect(error).toBeInstanceOf(PkiCryptoError);
+            expect(error).toMatchObject({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: dotted });
+            expect(error.message).toContain(kind);
+            // Even where the host could import it (Node.js 24.7 and later): the refusal is pkinative's, the same everywhere.
+            expect(host).not.toHaveBeenCalled();
+        } finally {
+            host.mockRestore();
+        }
+    });
+
+    it.each([
+        [{ name: 'Ed25519' }],
+        [{ name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' }],
+        [{ name: 'RSA-PSS', hash: 'SHA-256' }],
+    ] as const)('should refuse it whatever algorithm the caller names (%o)', async (algorithm) => {
+        const error = await rejection(importPrivateKey(mlDsaKey('2.16.840.1.101.3.4.3.18'), { algorithm }));
+        expect(error).toMatchObject({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: '2.16.840.1.101.3.4.3.18' });
+    });
+
+    it.each(ML_DSA)('should give %s no signing algorithm: _signingAlgorithm throws for %s as it does for an unknown key', (dotted) => {
+        const info = parsePrivateKeyInfo(mlDsaKey(dotted));
+        expect(() => _signingAlgorithm(info, undefined)).toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: dotted }));
+        expect(() => _signingAlgorithm(info, { name: 'Ed448' })).toThrow(PkiCryptoError);
     });
 });

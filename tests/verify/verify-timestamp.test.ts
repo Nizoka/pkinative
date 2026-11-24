@@ -4,6 +4,7 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints, encodeDistinguishedName, encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { parseSignedData } from '../../src/cms/cms-signed-data.js';
 import { createTimeStampRequest } from '../../src/cms/tsp-request.js';
+import { parseTimeStampToken } from '../../src/cms/tsp-response.js';
 import { PkiCmsError, PkiError } from '../../src/types/pki-errors.js';
 import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import { verifyTimeStampToken, type VerifyTimeStampTokenInput } from '../../src/verify/verify-timestamp.js';
@@ -634,5 +635,123 @@ describe('verifyTimeStampToken — the certReq contract between the request and 
         expect(codes(await verifyTimeStampToken({ token, request, trustAnchors: [w.root.certificate], at: AT, ocspResponses: [response], requireRevocation: true }))).toEqual([]);
         expect(warn).not.toHaveBeenCalled();
         warn.mockRestore();
+    });
+});
+
+/**
+ * ADR 0025. `strict` in a composition: the warning `parseTimeStampToken` under
+ * strict throws for is reported — `PKI_REASON_INPUT_MALFORMED` carrying
+ * `PKI_STRICT_DIAGNOSTIC`, at the member that raised it — and the call
+ * resolves.
+ */
+describe('verifyTimeStampToken — under strict (ADR 0025)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+    const thrownCode = (fn: () => unknown): string | undefined => {
+        try {
+            fn();
+        } catch (error) {
+            if (error instanceof PkiError) return error.code;
+            throw error;
+        }
+        return undefined;
+    };
+
+    it('should report a warning of the token as it is parsed, at token, where parseTimeStampToken under strict throws', async () => {
+        const w = await world();
+        // ordering FALSE written out, where DER omits a DEFAULT (X.690 §11.5).
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint, ordering: false }));
+        const lenient = collect();
+        expect(codes(await verify(w, token, { onDiagnostic: lenient.onDiagnostic }))).toEqual([]);
+        expect(lenient.seen.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_DEFAULT_ENCODED', 'warning']]);
+        expect(thrownCode(() => parseTimeStampToken(token, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const refused = collect();
+        const report = await verify(w, token, { strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'token' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_DEFAULT_ENCODED');
+        expect(report.token).toBeUndefined();
+        expect(report.signatureVerifications).toBe(0);
+        // Refused, not delivered: throw or diagnose, never both.
+        expect(refused.seen).toEqual([]);
+        // `strict: false` is the default, spelled out.
+        expect(codes(await verify(w, token, { strict: false }))).toEqual([]);
+    });
+
+    it('should report the same warning at response when the whole TimeStampResp was given', async () => {
+        const w = await world();
+        const response = timeStampResp(0, await makeToken(w.tsa, tstInfo({ imprint: w.imprint, ordering: false })));
+        const given = { response, data: DATA, trustAnchors: [w.root.certificate], at: AT } as const;
+        expect(codes(await verifyTimeStampToken(given))).toEqual([]);
+        const report = await verifyTimeStampToken({ ...given, strict: true });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'response' });
+    });
+
+    it('should report the certReq contract the token broke at token.certificates, and still judge the rest of the token (RFC 3161 §2.4.1)', async () => {
+        const w = await world();
+        const request = createTimeStampRequest(w.imprint); // certReq TRUE
+        const token = withCertificates(await makeToken(w.tsa, tstInfo({ imprint: w.imprint })), []);
+        const given = { request, token, certificates: [w.tsa.certificate], trustAnchors: [w.root.certificate], at: AT } as const;
+        // The bytes are clean: only the verify, which holds the request, can say this.
+        expect(thrownCode(() => parseTimeStampToken(token, { strict: true }))).toBeUndefined();
+        expect(codes(await verifyTimeStampToken(given))).toEqual([]);
+
+        const refused = collect();
+        const report = await verifyTimeStampToken({ ...given, strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'token.certificates' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_TSP_CERTREQ_UNMET');
+        expect(refused.seen).toEqual([]);
+        // The TSA was found among the certificates passed, and its chain judged.
+        expect(report.tsaCertificate?.der).toEqual(w.tsa.certificate.der);
+        expect(report.chain?.valid).toBe(true);
+        expect(report.token).toBeDefined();
+
+        // With no TSA to be found, the contract is still reported, after the reason that says so.
+        const unfound = await verifyTimeStampToken({ request, token, trustAnchors: [w.root.certificate], at: AT, strict: true });
+        expect(codes(unfound)).toEqual(['PKI_REASON_CMS_SIGNER_NOT_FOUND', 'PKI_REASON_INPUT_MALFORMED']);
+        expect(unfound.reasons[1]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'token.certificates' });
+        expect(unfound.tsaCertificate).toBeUndefined();
+    });
+
+    it('should find the TSA among the certificates the token carries although its certificate raises a warning: the bag is never read under strict', async () => {
+        const w = await world();
+        // No authorityKeyIdentifier: a warning, which a strict parse of that certificate refuses.
+        expect(thrownCode(() => parseCertificate(w.tsa.certificate.der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+        const report = await verify(w, token, { strict: true });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(report.tsaCertificate?.der).toEqual(w.tsa.certificate.der);
+    });
+
+    it('should pass strict on to the chain of the TSA, whose refusal arrives under token.tsaChain', async () => {
+        const w = await world();
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+        // An OCSP responderID naming nobody: a warning only the chain's judgement raises.
+        const response = await makeOcspResponse(w.root, w.tsa.certificate, 'good', { responderKeyHash: new Uint8Array(20).fill(0xcc) });
+        const given = { ocspResponses: [response], requireRevocation: true } as const;
+        expect(codes(await verify(w, token, given))).toEqual([]);
+        const report = await verify(w, token, { ...given, strict: true });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'token.tsaChain.ocspResponses[0]' });
+        expect(report.chain?.valid).toBe(false);
+    });
+
+    it('should still throw for misuse under strict: a strict that is not a boolean, and a request that is not one', async () => {
+        const w = await world();
+        const token = await makeToken(w.tsa, tstInfo({ imprint: w.imprint }));
+        await expect(verify(w, token, { strict: 'yes' as unknown as boolean })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
+        // The request is the caller's own bytes: read without strict, refused as misuse when malformed.
+        const malformed = verifyTimeStampToken({ token, request: Uint8Array.of(0x30, 0x03, 0x02, 0x01, 0x05), trustAnchors: [w.root.certificate], at: AT, strict: true });
+        await expect(malformed).rejects.toBeInstanceOf(PkiCmsError);
+        const request = createTimeStampRequest(w.imprint, { certReq: true });
+        expect(codes(await verifyTimeStampToken({ token, request, trustAnchors: [w.root.certificate], at: AT, strict: true }))).toEqual([]);
     });
 });

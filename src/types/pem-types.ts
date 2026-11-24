@@ -33,7 +33,7 @@ export interface DecodePemOptions {
     readonly label?: string | undefined;
     /** Overrides for `maxInputBytes` (text length) and `maxPemBlocks`. */
     readonly limits?: Partial<PkiLimits> | undefined;
-    /** Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`. */
+    /** Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC`; an `info` is still only reported. */
     readonly strict?: boolean | undefined;
     /** Receive every diagnostic instead of the default once-per-code `console.warn`. */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;

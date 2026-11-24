@@ -5,7 +5,7 @@ import { createCertificationRequest } from '../../src/build/build-csr.js';
 import { encodeKeyUsage, encodeSubjectAltName } from '../../src/build/build-structures.js';
 import { PkiError } from '../../src/types/pki-errors.js';
 import type { SignatureAlgorithm } from '../../src/types/crypto-types.js';
-import type { PkiParseOptions } from '../../src/types/pki-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from '../../src/types/pki-types.js';
 import { parseCertificationRequest } from '../../src/x509/x509-csr.js';
 import { samples } from '../../scripts/lib/samples.js';
 import {
@@ -216,6 +216,33 @@ describe('parseCertificationRequest — a well-formed synthetic request', () => 
 
     it('should refuse a non-Uint8Array input', () => {
         expect(codeOf(() => parseCertificationRequest('MIIB' as unknown as Uint8Array))).toBe('PKI_INVALID_INPUT');
+    });
+});
+
+// RFC 2986 §4.1 takes its SubjectPublicKeyInfo from X.509, and RFC 5280
+// §4.1.2.7 names no closed set of algorithms: a request for a key the engine
+// does not classify is read, and says so. 1.2.3.4 is no key algorithm and
+// never will be, so the test does not depend on which schemes the engine knows.
+describe('parseCertificationRequest — a public key of an algorithm it does not classify', () => {
+    const der = csr({ spki: sequence(algorithm('1.2.3.4'), bitString([1, 2, 3])) });
+
+    it('should report PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED at certificationRequestInfo.subjectPKInfo.algorithm, as an info', () => {
+        const seen: PkiDiagnostic[] = [];
+        const request = parseCertificationRequest(der, { onDiagnostic: (d) => { seen.push(d); } });
+        expect(seen.map((d) => [d.code, d.severity, d.path, d.standard]))
+            .toEqual([['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', 'info', 'certificationRequestInfo.subjectPKInfo.algorithm', 'RFC 5280 §4.1.2.7']]);
+        expect(request.diagnostics).toEqual(seen);
+        expect(request.subjectPublicKeyInfo).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
+    });
+
+    it('should read it under strict, with the diagnostic recorded: an info never refuses', () => {
+        const request = parseCertificationRequest(der, { strict: true });
+        expect(request.subjectPublicKeyInfo.kind).toBe('unknown');
+        expect(request.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED']);
+    });
+
+    it('should say nothing about the key of a request it classifies', () => {
+        expect(diagnosticsOf(csr())).toEqual([]);
     });
 });
 

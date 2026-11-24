@@ -138,9 +138,11 @@ const PERTURBATIONS: Readonly<Record<string, Mutation>> = {
     // A live page linking a retired URL: the redirect stub would stay load-bearing forever.
     'redirect-stubs': (f) => edit(f, 'docs/playgrounds/index.html', 'href="certificate.html"', 'href="../playground/certificate.html"'),
     // A command counted in the manifest that its own groups do not list.
-    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commandCount": 18', '"commandCount": 19'),
+    'satellite-manifest': (f) => edit(f, 'docs/assets/ecosystem.json', '"commands": 18', '"commands": 19'),
     // pdfnative's defect, replayed: the site advertises one tool count, the server registers another.
     'satellite-counts': (f) => edit(f, 'docs/guides/mcp.md', /\b34 tools\b/, '35 tools'),
+    // A patch release recorded in the manifest and not in the sentence that states the current version.
+    'satellite-stamps': (f) => edit(f, 'docs/guides/cli.md', 'pkinative-cli 1.0.0, released', 'pkinative-cli 1.0.1, released'),
     // A tool dropped from the matrix: the reader choosing a surface no longer sees it exists.
     'surfaces-shape': (f) => edit(f, 'docs/data/surfaces.json', '["inspect_pkcs12", "open_pkcs12"]', '["inspect_pkcs12"]'),
     // An error class the CLI raises, gone from its guide.
@@ -240,6 +242,77 @@ describe('verify-docs rule table', () => {
         mutate(files);
         const problems = await runRules(createMemoryContext(files), RULES, id);
         expect(problems.filter((p) => p.severity === 'error').length, id).toBeGreaterThan(0);
+    });
+
+    it.each([
+        // The pin, where no satellite is named: it has to be the pin of both.
+        ['a pin neither satellite carries', 'README.md', 'pinning `pkinative ^1.0.0`', 'pinning `pkinative ^1.1.0`', 'says pkinative ^1.1.0'],
+        // The release day: the CHANGELOG of pkinative-mcp dates 1.0.0 four days before it shipped.
+        ['a release day the manifest does not record', 'docs/guides/mcp.md', 'released on 2026-10-17', 'released on 2026-10-13', 'dates pkinative-mcp to 2026-10-13'],
+        ['an install command of another version', 'docs/guides/cli.md', 'pkinative-cli@1.0.0', 'pkinative-cli@1.0.1', 'names pkinative-cli 1.0.1'],
+        ['a use-case diagram left at the previous version', 'docs/assets/use-case-mcp-open-keys.svg', 'pkinative-mcp 1.0.0', 'pkinative-mcp 0.9.0', 'names pkinative-mcp 0.9.0'],
+        ['the explorer script left at the previous version', 'docs/playgrounds/mcp.js', "name: 'pkinative-mcp',\n    version: '1.0.0'", "name: 'pkinative-mcp',\n    version: '0.9.0'", 'names pkinative-mcp 0.9.0'],
+    ])('should fire satellite-stamps on %s', async (_what, file, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, file, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'satellite-stamps');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
+    });
+
+    it('should let satellite-stamps pass a historical floor, an allowed mention, the changelog and a decision record', async () => {
+        const files = { ...TREE };
+        // "since" dates a fact; it does not say which version is current.
+        edit(files, 'docs/guides/mcp.md', 'since pkinative-mcp 1.0.0', 'since pkinative-mcp 0.9.0');
+        edit(files, 'docs/guides/errors.md', /\n$/, '\n<!-- verify-docs:allow satellite-stamps (historical: the first release) -->\nRecorded with pkinative-cli 0.9.0.\n');
+        edit(files, 'CHANGELOG.md', /\n$/, '\nShipped beside pkinative-cli 0.9.0.\n');
+        edit(files, 'docs/adr/README.md', /\n$/, '\nDecided when pkinative-mcp 0.9.0 was current.\n');
+        expect(await runRules(createMemoryContext(files), RULES, 'satellite-stamps')).toEqual([]);
+    });
+
+    // The engine releases before its satellites: an export of a minor has no
+    // command and no tool until each satellite's own next minor. The matrix
+    // says so in a sentence, in place of the names — never beside them.
+    const AWAITED = 'awaits the next minor of the satellite, which should expose it under its own inspect command';
+    const withCapability = (surfaces: { cli: unknown; mcp: unknown }): Record<string, string> => {
+        const files = { ...TREE };
+        const registry = JSON.parse(files['docs/data/surfaces.json'] ?? '{}') as { capabilities: unknown[] };
+        registry.capabilities.push({ id: 'awaited-capability', capability: 'An export no satellite reaches yet', exports: [], since: '9.9.0', ...surfaces });
+        files['docs/data/surfaces.json'] = JSON.stringify(registry, null, 2);
+        return files;
+    };
+
+    it('should let surfaces-shape pass a capability no satellite exposes yet, when each surface says so in a sentence', async () => {
+        const files = withCapability({ cli: { pending: AWAITED }, mcp: { pending: AWAITED } });
+        expect(await runRules(createMemoryContext(files), RULES, 'surfaces-shape')).toEqual([]);
+        // …and one satellite may be ahead of the other.
+        const half = withCapability({ cli: { commands: ['tsp inspect'] }, mcp: { pending: AWAITED } });
+        expect(await runRules(createMemoryContext(half), RULES, 'surfaces-shape')).toEqual([]);
+    });
+
+    it.each([
+        ['neither a command nor a pending sentence', { cli: {}, mcp: { pending: AWAITED } }, 'has no cli.commands'],
+        ['neither a tool nor a pending sentence', { cli: { pending: AWAITED }, mcp: { tools: [] } }, 'has no mcp.tools'],
+        ['a pending flag that gives no reason', { cli: { pending: true }, mcp: { pending: AWAITED } }, 'marks cli pending without a reason'],
+        ['a pending sentence too short to act on', { cli: { pending: AWAITED }, mcp: { pending: 'later' } }, 'marks mcp pending without a reason'],
+        ['pending commands beside the commands they replace', { cli: { commands: ['tsp inspect'], pending: AWAITED }, mcp: { pending: AWAITED } }, 'has both cli.commands and cli.pending'],
+        ['pending tools beside the tools they replace', { cli: { pending: AWAITED }, mcp: { tools: ['inspect_timestamp'], pending: AWAITED } }, 'has both mcp.tools and mcp.pending'],
+    ])('should fire surfaces-shape on a capability with %s', async (_what, surfaces, message) => {
+        const problems = await runRules(createMemoryContext(withCapability(surfaces)), RULES, 'surfaces-shape');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/data/surfaces.json', message: expect.stringContaining(message) })]);
+    });
+
+    it.each([
+        ['the subcommand count', 'docs/guides/cli.md', '47 subcommands', '48 subcommands', 'quotes "48 subcommands"'],
+        ['the commands without subcommands', 'docs/guides/cli.md', 'the 6 commands that take none', 'the 7 commands that take none', 'quotes "7 commands that take none"'],
+        ['the schema subjects', 'docs/guides/choose.md', '`schema` (twelve subjects)', '`schema` (eleven subjects)', 'quotes "eleven subjects"'],
+        ['the command groups', 'ROADMAP.md', '18 commands in six groups', '18 commands in five groups', 'quotes "commands in five groups"'],
+        ['the tool groups', 'docs/guides/mcp.md', 'Thirty-four tools in six groups', 'Thirty-four tools in seven groups', 'quotes "tools in seven groups"'],
+        ['the operator variables', 'docs/guides/mcp.md', 'the nine environment variables', 'the eight environment variables', 'quotes "eight environment variables"'],
+    ])('should fire satellite-counts on %s', async (_what, file, from, to, message) => {
+        const files = { ...TREE };
+        edit(files, file, from, to);
+        const problems = await runRules(createMemoryContext(files), RULES, 'satellite-counts');
+        expect(problems).toEqual([expect.objectContaining({ file, message: expect.stringContaining(message) })]);
     });
 
     it.each([
@@ -391,6 +464,24 @@ describe('verify-docs rule table', () => {
         expect(problems).toEqual([expect.objectContaining({ file: 'README.md', message: expect.stringContaining('"Twenty-three named limits"') })]);
     });
 
+    it('should fire llms-index-quality on a guide the entry point llms.txt does not link', async () => {
+        // The migration guide was rendered, indexed and in the sitemap while
+        // llms.txt — written by hand — did not name it, and no rule said so.
+        const files = { ...TREE };
+        edit(files, 'llms.txt', /^- \[[^\]]+\]\(https:\/\/pkinative\.dev\/guides\/migrate\.md\)[^\n]*\n/m, '');
+        const problems = await runRules(createMemoryContext(files), RULES, 'llms-index-quality');
+        expect(problems).toEqual([expect.objectContaining({ file: 'llms.txt', message: expect.stringContaining('guides/migrate.md') })]);
+    });
+
+    it('should fire cdn-pin on a playground page that names another version than the one the loader runs', async () => {
+        // The MCP explorer said "pkinative@1.0.0" twice while its loader ran
+        // 1.1.0: the rule held the loader and not the pages that quote it.
+        const files = { ...TREE };
+        edit(files, 'docs/playgrounds/mcp.html', /Loading pkinative@\d+\.\d+\.\d+ /, 'Loading pkinative@0.9.0 ');
+        const problems = await runRules(createMemoryContext(files), RULES, 'cdn-pin');
+        expect(problems).toEqual([expect.objectContaining({ file: 'docs/playgrounds/mcp.html', message: expect.stringContaining('says pkinative@0.9.0') })]);
+    });
+
     it('should fire count-tokens on a stale error-code count on a playground page', async () => {
         // The playground hub quoted "44 codes" for a 57-code registry: the
         // playground pages were outside every count rule.
@@ -538,6 +629,23 @@ describe('verify-docs rule table', () => {
         expect(await surfaceProblems(files)).toEqual([]);
     });
 
+    it('should accept in error-codes-frozen a code a ratchet recorded, and fire on one younger than the ratchet', async () => {
+        const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
+        const snapshot = JSON.parse(TREE['docs/data/errors.frozen.json'] ?? '{}') as { codes: Array<Record<string, unknown>> };
+        const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
+        const source = (TREE['src/types/pki-errors.ts'] ?? '').replace("    | 'PKI_KEY_VERSION_UNSUPPORTED'", "    | 'PKI_KEY_ADDED'\n    | 'PKI_KEY_VERSION_UNSUPPORTED'");
+        const ratcheted = (since: string): Record<string, string> => ({
+            ...TREE,
+            'src/types/pki-errors.ts': source,
+            'docs/data/errors.json': JSON.stringify({ ...registry, errors: [...registry.errors, { ...added, since }] }, null, 2),
+            'docs/data/errors.frozen.json': JSON.stringify({ ...snapshot, asOf: '1.4.0', codes: [...snapshot.codes, { code: 'PKI_KEY_ADDED', class: 'PkiKeyError' }] }, null, 2),
+        });
+        expect(source).toContain("'PKI_KEY_ADDED'");
+        expect(await runRules(createMemoryContext(ratcheted('1.4.0')), RULES, 'error-codes-frozen')).toEqual([]);
+        const problems = await runRules(createMemoryContext(ratcheted('1.5.0')), RULES, 'error-codes-frozen');
+        expect(problems.map((p) => p.message)).toEqual([expect.stringMatching(/^PKI_KEY_ADDED is in the snapshot, which reaches 1\.4\.0, but claims "since": "1\.5\.0"/)]);
+    });
+
     it('should fire api-surface-frozen in the rehearsal on a new error code, whatever its since, while error-codes-frozen accepts it', async () => {
         const registry = JSON.parse(TREE['docs/data/errors.json'] ?? '{}') as { errors: Array<Record<string, unknown>> };
         const added = { code: 'PKI_KEY_ADDED', class: 'PkiKeyError', since: '0.9.0', raisedWhen: 'x', remedy: 'x', standard: 'x', cwe: null };
@@ -656,13 +764,13 @@ describe('verify-docs rule table', () => {
 
     it('should hold a refusal a 1.x release added to that release\'s note, under its fixed heading', async () => {
         const files = { ...TREE };
-        refusalsStable(files, '1.1.0', '1.1.0');
+        refusalsStable(files, '1.2.0', '1.2.0');
         addRefusal(files, BASELINE, `    "${NEW_HASH}": "PKI_X509_GENERAL_NAME_INVALID",`);
-        addRefusal(files, SNAPSHOT, `    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "since": "1.1.0" },`);
-        expect(await refusalProblems(files)).toEqual([expect.stringMatching(/^is missing — 1 refusal\(s\) of docs\/data\/refusals\.frozen\.json were added by 1\.1\.0/)]);
-        files['release-notes/v1.1.0.md'] = '# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- nothing listed\n';
+        addRefusal(files, SNAPSHOT, `    { "sha256": "${NEW_HASH}", "code": "PKI_X509_GENERAL_NAME_INVALID", "since": "1.2.0" },`);
+        expect(await refusalProblems(files)).toEqual([expect.stringMatching(/^is missing — 1 refusal\(s\) of docs\/data\/refusals\.frozen\.json were added by 1.2.0/)]);
+        files['release-notes/v1.2.0.md'] = '# pkinative v1.2.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- nothing listed\n';
         expect(await refusalProblems(files)).toEqual([expect.stringContaining(`does not list ${NEW_HASH.slice(0, 16)}`)]);
-        files['release-notes/v1.1.0.md'] = `# pkinative v1.1.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- \`${NEW_HASH.slice(0, 16)}\` — now refused with \`PKI_X509_GENERAL_NAME_INVALID\`.\n`;
+        files['release-notes/v1.2.0.md'] = `# pkinative v1.2.0\n\n## Downstream integration notes\n\n### Decision surface\n\n- \`${NEW_HASH.slice(0, 16)}\` — now refused with \`PKI_X509_GENERAL_NAME_INVALID\`.\n`;
         expect(await refusalProblems(files)).toEqual([]);
     });
 
@@ -713,20 +821,23 @@ describe('verify-docs rule table', () => {
 
     it('should fire contracts-shape when contracts.support drifts from package.json, the build target, the CI matrix or SECURITY.md', async () => {
         const engines = { ...TREE };
-        edit(engines, 'package.json', '"node": "^22.22.2 || ^24.14.1 || >=25.8.2"', '"node": ">=22"');
+        edit(engines, 'package.json', '"node": "^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0"', '"node": ">=22"');
         expect(await contractProblems(engines)).toEqual(expect.arrayContaining([expect.stringContaining('package.json engines.node is ">=22"'), expect.stringContaining('Node.js 22 is a supported line and engines.node ">=22" gives it no floor')]));
         const target = { ...TREE };
         edit(target, 'tsup.config.ts', "target: 'es2020'", "target: 'es2022'");
         expect(await contractProblems(target)).toEqual([expect.stringContaining('does not build for es2020')]);
         const untested = { ...TREE };
-        edit(untested, 'docs/assets/ecosystem.json', '"nodeLines": [22, 24]', '"nodeLines": [22, 24, 26]');
+        edit(untested, 'docs/assets/ecosystem.json', '"nodeLines": [22, 24, 26]', '"nodeLines": [22, 24, 26, 28]');
         expect(await contractProblems(untested)).toEqual(expect.arrayContaining([
-            expect.stringContaining('Node.js 26 is a supported line and .github/workflows/ci.yml does not test it'),
+            expect.stringContaining('Node.js 28 is a supported line and .github/workflows/ci.yml does not test it'),
             expect.stringContaining('gives it no floor'),
-            expect.stringContaining('Node.js 26 is in both nodeLines and currentLines'),
+            expect.stringContaining('does not name the supported line Node.js 28'),
         ]));
+        // No line is Current since Node.js 26 entered LTS (ADR 0017, amended
+        // 2026-11-17): the list is empty, and a line added to it without its
+        // advisory workflow is tested by nothing.
         const current = { ...TREE };
-        edit(current, 'docs/assets/ecosystem.json', '"currentLines": [26]', '"currentLines": [22, 27]');
+        edit(current, 'docs/assets/ecosystem.json', '"currentLines": []', '"currentLines": [22, 27]');
         expect(await contractProblems(current)).toEqual(expect.arrayContaining([
             expect.stringContaining('Node.js 22 is in both nodeLines and currentLines'),
             expect.stringContaining('Node.js 27 is a tested Current line and .github/workflows/node-current.yml does not run it'),
@@ -739,7 +850,7 @@ describe('verify-docs rule table', () => {
 
     it('should fire node-pin-parity on a setup-node step pinned to a literal major that contracts.support.currentLines does not name', async () => {
         const files = { ...TREE };
-        edit(files, '.github/workflows/node-current.yml', 'node-version: 26', 'node-version: 27');
+        edit(files, '.github/workflows/bench.yml', 'node-version-file: .nvmrc', 'node-version: 27');
         const problems = (await runRules(createMemoryContext(files), RULES, 'node-pin-parity')).map((p) => p.message);
         expect(problems).toEqual([expect.stringContaining('a Current line named in contracts.support.currentLines')]);
         expect(await runRules(createMemoryContext({ ...TREE }), RULES, 'node-pin-parity')).toEqual([]);

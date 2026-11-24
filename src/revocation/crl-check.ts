@@ -35,6 +35,8 @@
  * @module revocation/crl-check
  */
 
+import { A_CERTIFICATE, assertFlag, assertFlags, assertInstant, assertObject, assertParsed, describeValue } from '../core/arguments.js';
+import { isBytes } from '../core/bytes.js';
 import {
     revocationOutOfScopeReason,
     revocationPartialReason,
@@ -45,6 +47,7 @@ import {
     unknownCriticalExtensionReason,
 } from '../core/pki-reasons.js';
 import type { CertificateList } from '../types/crl-types.js';
+import { PkiError } from '../types/pki-errors.js';
 import type { PkiReason } from '../types/pki-reasons.js';
 import type { PkiDiagnosticHandler, PkiLimits } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
@@ -96,6 +99,14 @@ export interface CheckRevocationInput {
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries. */
     readonly limits?: Partial<PkiLimits> | undefined;
     /**
+     * Refuse the first `warning` the walk raises — an entry extension that is
+     * malformed and dropped — by throwing `PKI_STRICT_DIAGNOSTIC`, as
+     * `findRevocation` does. `false` by default. This is a primitive, so the
+     * refusal is thrown; `verifyCertificateChain`, which composes it, reports
+     * it instead (ADR 0025).
+     */
+    readonly strict?: boolean | undefined;
+    /**
      * Receive every diagnostic the walk raises — an entry extension that is
      * malformed and dropped — instead of the default once-per-code
      * `console.warn`.
@@ -119,6 +130,19 @@ export interface DeltaCrlInput {
 }
 
 /**
+ * Refuse what is not a list `parseCertificateList` made, told by the members
+ * the scope rules go to first.
+ */
+function _assertList(value: unknown, what: string): void {
+    const candidate = value as Partial<CertificateList> | null;
+    if (typeof value !== 'object' || candidate === null
+        || !isBytes(candidate.issuer?.der)
+        || !Array.isArray(candidate.extensions)) {
+        throw new PkiError('PKI_INVALID_INPUT', `pkinative: ${what} must be a list from parseCertificateList — pass the parsed value, and its bytes as crlDer`);
+    }
+}
+
+/**
  * The supplied delta, when it is one this base may be read with.
  *
  * Every condition is a way of being handed the wrong delta, and each is fatal
@@ -130,7 +154,10 @@ export interface DeltaCrlInput {
  */
 function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefined {
     const delta = input.delta;
+    assertFlags(delta, 'delta', ['signatureVerified']);
+    // A delta nobody vouched for is not read at all, its list included.
     if (delta === undefined || delta.signatureVerified !== true) return undefined;
+    _assertList(delta.crl, 'delta.crl');
     if (!_deltaApplies(input.crl, delta.crl)) return undefined;
     // Same scope, in the only sense that changes this answer: both lists have
     // to be entitled to speak about *this* certificate — and to speak at all,
@@ -142,7 +169,7 @@ function _applicableDelta(input: CheckRevocationInput): DeltaCrlInput | undefine
 
 /** The options of every walk over the entries of the lists in `input`. */
 function _lookup(input: CheckRevocationInput): FindRevocationOptions {
-    return { limits: input.limits, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
+    return { limits: input.limits, strict: input.strict, onDiagnostic: input.onDiagnostic, issuerDer: input.certificate.issuer.der };
 }
 
 /**
@@ -182,7 +209,8 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  *
  * It never throws for a revocation issue. It does throw for malformed CRL bytes
  * reached during the walk, because that is a structural failure and not a
- * verdict — the same line every other entry point draws.
+ * verdict — the same line every other entry point draws — and, under
+ * `strict: true`, for the first `warning` the walk raises.
  *
  * Only **one** list is consulted, and whether it is entitled to answer is
  * decided here: RFC 5280 §5.2.5 for what the list declares itself to be about,
@@ -205,8 +233,20 @@ export function _unverifiedRevocation(source: 'list' | 'response', at: number, r
  *   they were established; empty when the certificate is not revoked.
  * @throws {PkiCertificateError} `PKI_X509_STRUCTURE_INVALID` for a malformed entry.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxRevokedCertificates`.
+ * @throws {PkiError} `PKI_STRICT_DIAGNOSTIC` under `strict: true`, for the first
+ *   `warning` diagnostic the walk raises; `PKI_INVALID_OPTION` for a `strict`
+ *   that is not a boolean or an `onDiagnostic` that is not a function;
+ *   `PKI_INVALID_INPUT` for an input that is not an object, a `certificate`
+ *   that `parseCertificate` did not make, a `crl` — or the `crl` of a verified `delta` — that
+ *   `parseCertificateList` did not, or an `at` that is not a finite number; `PKI_INVALID_OPTION` also
+ *   for a `staleTolerance` that is not a number, or a `signatureVerified` — the input's or the delta's — that is not a boolean.
  */
 export function checkRevocation(input: CheckRevocationInput): readonly PkiReason[] {
+    assertObject(input, 'the checkRevocation input');
+    // The scope rules read these two first; what is read after them is told
+    // where it is read, behind the refusals the scope itself can raise.
+    assertParsed(input.certificate, 'certificate', A_CERTIFICATE, ['issuer.der']);
+    _assertList(input.crl, 'crl');
     const out: PkiReason[] = [];
     const path = 'crl';
 
@@ -226,6 +266,7 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // would take it to mean.
     if (scope?.kind === 'unusable') out.push(unknownCriticalExtensionReason(path, scope.oid, 'revocation list'));
 
+    assertFlag(input.signatureVerified, 'signatureVerified');
     if (input.signatureVerified !== true) {
         out.push(revocationUnknownReason(path, input.signatureVerified === false
             ? 'the list\'s signature did not verify against the key it was checked with'
@@ -236,6 +277,11 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // A list without one has nothing asserting it is still current, so it is
     // stale by default rather than current by default.
     const tolerance = input.staleTolerance ?? 0;
+    // Added to nextUpdate below: text would be appended to it, and the list never stale.
+    if (typeof tolerance !== 'number' || Number.isNaN(tolerance)) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: staleTolerance must be a number of milliseconds, got ${describeValue(tolerance)} — leave it out for none`);
+    }
+    assertInstant(input.at, 'at');
     const nextUpdate = input.crl.nextUpdate?.epochMilliseconds;
     if (nextUpdate === undefined || input.at > nextUpdate + tolerance) {
         out.push(revocationStaleReason(path, nextUpdate, input.at));
@@ -244,6 +290,7 @@ export function checkRevocation(input: CheckRevocationInput): readonly PkiReason
     // The lookup happens regardless of everything above, so a malformed entry
     // is refused whatever else is wrong with the list. What a listing *means*
     // is decided below: evidence only from a list that may speak.
+    assertParsed(input.certificate, 'certificate', A_CERTIFICATE, ['serialNumber.bytes']);
     const serial = input.certificate.serialNumber.bytes;
     const lookup = _lookup(input);
     const delta = _applicableDelta(input);

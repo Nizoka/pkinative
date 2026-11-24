@@ -123,7 +123,7 @@
       "text": "If an extension, whether it is marked critical or not critical, is used by a requester but is not recognized by a time-stamping server, the server SHALL not issue a token and SHALL return a failure (unacceptedExtension).",
       "status": "excluded",
       "reason": "producer-policy",
-      "why": "What a time-stamping server does with a request extension it does not recognise; pkinative writes no request extension, and reads unacceptedExtension only as a failure bit."
+      "why": "What a time-stamping server does with a request extension it does not recognise; pkinative is never that server. It writes no request extension, parseTimeStampRequest reads the extensions of a request and keeps the ones it does not recognise rather than refusing them, and unacceptedExtension is read only as a failure bit."
     },
     "2.4.2-1-f458f676": {
       "section": "2.4.2",

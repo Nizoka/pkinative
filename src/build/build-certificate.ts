@@ -17,6 +17,7 @@
  */
 
 import { encodeBitString, encodeExplicit, encodeInteger, encodeNull, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
+import { assertObject, assertOptions, listOf } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import { coordinateBytes, resolveSigner } from '../crypto/crypto-algorithms.js';
 import { ecdsaRawToDer } from '../crypto/crypto-signature.js';
@@ -33,6 +34,17 @@ import {
 } from './build-structures.js';
 
 /**
+ * Refuse what is not a signer before its algorithm is read: `resolveSigner`
+ * decides which algorithms there are, and can only be asked about an object.
+ *
+ * @internal
+ */
+export function _assertSigner(signer: Signer): void {
+    assertObject(signer, 'the signer');
+    assertObject(signer.algorithm, 'the signer\'s algorithm');
+}
+
+/**
  * The `AlgorithmIdentifier` a signature algorithm writes into a structure,
  * parameters included — RSASSA-PSS carries its digest and salt length, and a
  * verifier reads them back out of exactly these bytes.
@@ -45,8 +57,10 @@ import {
  * @returns The `AlgorithmIdentifier` encoding.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the
  *   algorithm has no RFC 5280 OID, or its salt length is negative.
+ * @throws {PkiError} `PKI_INVALID_INPUT` for a signer, or an algorithm, that is not an object.
  */
 export function encodeSignatureAlgorithm(signer: Signer): Uint8Array {
+    _assertSigner(signer);
     const resolved = resolveSigner(signer.algorithm);
     if (resolved.pss === undefined) return encodeAlgorithmIdentifier(resolved.oid);
     // RFC 4055 §3.1. hashAlgorithm [0], maskGenAlgorithm [1] as MGF1 over
@@ -170,6 +184,7 @@ export async function computeSignatureValue(data: Uint8Array, signer: Signer): P
  * BIT STRING of whole octets.
  */
 export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint8Array> {
+    _assertSigner(signer);
     const signature = await computeSignatureValue(tbs, signer);
     return encodeSequence([tbs, encodeSignatureAlgorithm(signer), encodeBitString(signature, 0)]);
 }
@@ -210,13 +225,15 @@ export async function signAndWrap(tbs: Uint8Array, signer: Signer): Promise<Uint
  * @throws {PkiError} `PKI_API_MISUSE` for a bigint serial outside 1 to 2^159 − 1, a malformed one, an
  *   inverted validity window, a duplicated extension, or an `ExternalSigner`
  *   that returns other than what `crypto.subtle.sign` would; `PKI_INVALID_INPUT` for a
- *   malformed name or a non-`Uint8Array` where DER is expected.
+ *   malformed name, a non-`Uint8Array` where DER is expected, `extensions` that is not an array, or a description or signer that is not an object; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime cannot
  *   sign; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when the algorithm has no
  *   RFC 5280 OID; `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses the key.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxNameAttributes` or `maxExtensions`.
  */
 export async function createCertificate(description: CertificateDescription, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array> {
+    assertObject(description, 'the certificate description');
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? undefined : { limits: options.limits };
     const subject = description.subjectDer !== undefined
         ? assertBytes(description.subjectDer, 'subjectDer')
@@ -227,7 +244,7 @@ export async function createCertificate(description: CertificateDescription, sig
             ? encodeDistinguishedName(description.issuer, limits)
             : subject;
 
-    const extensions = description.extensions ?? [];
+    const extensions = listOf(description.extensions, 'extensions');
     const fields: Uint8Array[] = [
         // v3 whenever there are extensions, v1 otherwise. RFC 5280 §4.1.2.1
         // makes the version DEFAULT v1, so a v1 certificate omits the field

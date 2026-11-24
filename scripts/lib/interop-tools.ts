@@ -250,6 +250,17 @@ export function opensslCmsEddsa(o: Host, work: string): string | undefined {
     return undefined;
 }
 
+/**
+ * Why this openssl cannot make an ML-DSA key, or undefined when it can.
+ * ML-DSA (FIPS 204) arrived in OpenSSL 3.5: an older build — the 3.0 of
+ * Ubuntu 22.04 and 24.04 among them — does not know the algorithm, and is
+ * declared without it rather than failed for it, reference build or not.
+ */
+export function opensslMlDsa(o: Host, work: string): string | undefined {
+    const r = o.run(['genpkey', '-algorithm', 'ML-DSA-44', '-out', join(work, 'openssl-ml-dsa-probe-key.pem')]);
+    return r.status === 0 ? undefined : `this openssl has no ML-DSA, which arrived in OpenSSL 3.5 (${firstLine(r)})`;
+}
+
 function opensslTool(): WriteTool {
     let host: Host | null = null;
     return {

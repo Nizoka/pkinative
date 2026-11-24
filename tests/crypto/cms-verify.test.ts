@@ -1,5 +1,5 @@
 import { constants, generateKeyPairSync, sign as nodeSign, type webcrypto } from 'node:crypto';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
 import { verifySignerInfoSignature } from '../../src/crypto/cms-verify.js';
@@ -11,6 +11,8 @@ import { PkiCryptoError, PkiError } from '../../src/types/pki-errors.js';
 import type { AlgorithmIdentifier, Certificate } from '../../src/types/x509-types.js';
 import { algorithm, nullValue, octetString, oid, set } from '../helpers/cert-builder.js';
 import { concat, sequence, universal } from '../helpers/raw-der-builder.js';
+import { parseSignedData } from '../../src/cms/cms-signed-data.js';
+import { ML_DSA_CONTENT, acceptMlDsa, hostImportsMlDsa, mlDsaBytes, mlDsaCertificate, refuseMlDsa } from '../verify/_ml-dsa.js';
 
 /**
  * The CMS signature primitive. Every signature below is made in the test by
@@ -400,5 +402,99 @@ describe('verifySignerInfoSignature', () => {
             await expect(verifySignerInfoSignature(valid(), value as unknown as Certificate))
                 .rejects.toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
         });
+    });
+});
+
+// ── ML-DSA (RFC 9882; ADR 0026) ──────────────────────────────────────
+//
+// The signer is the one OpenSSL 3.5 wrote into tests/fixtures/ml-dsa/: an
+// ML-DSA-44 key, signed attributes, a SHA-512 digestAlgorithm. The signature
+// is the host's to check; what is asserted here on every host is everything
+// before it, and what reaches it.
+
+const HOST_HAS_ML_DSA = await hostImportsMlDsa();
+
+describe('verifySignerInfoSignature — an ML-DSA signer (RFC 9882 §3)', () => {
+    const message = parseSignedData(mlDsaBytes('cms-ml-dsa-44-sha512'), { onDiagnostic: () => undefined });
+    const info = message.signerInfos[0] as SignerInfo;
+    const leaf = mlDsaCertificate('leaf-ml-dsa-44');
+    const root = mlDsaCertificate('root-ml-dsa-65');
+    /** The same signer as RFC 9882 §3.2 describes one without signed attributes: its signature would be over the content. */
+    const withoutAttributes = (digest: AlgorithmIdentifier): SignerInfo => ({ ...info, digestAlgorithm: digest, signedAttributes: undefined, signedAttributesDer: undefined });
+
+    let restore: (() => void) | undefined;
+    afterEach(() => {
+        restore?.();
+        restore = undefined;
+    });
+
+    it.runIf(HOST_HAS_ML_DSA)('should verify the OpenSSL signature on this host, and answer false once it is altered', async () => {
+        await expect(verifySignerInfoSignature(info, leaf)).resolves.toBe(true);
+        const altered = Uint8Array.from(info.signature);
+        altered[0] = (altered[0] as number) ^ 0x01;
+        await expect(verifySignerInfoSignature({ ...info, signature: altered }, leaf)).resolves.toBe(false);
+    });
+
+    it.runIf(!HOST_HAS_ML_DSA)('should refuse it as PKI_CRYPTO_KEY_UNSUPPORTED on this host, which has no ML-DSA', async () => {
+        await expect(verifySignerInfoSignature(info, leaf)).rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED' }));
+    });
+
+    it('should refuse it as PKI_CRYPTO_KEY_UNSUPPORTED on a host that refuses the key, as for an Ed448 signer — never as a verdict', async () => {
+        restore = refuseMlDsa();
+        const refusal = verifySignerInfoSignature(info, leaf);
+        await expect(refusal).rejects.toBeInstanceOf(PkiCryptoError);
+        await expect(refusal).rejects.toMatchObject({ code: 'PKI_CRYPTO_KEY_UNSUPPORTED', algorithm: '2.16.840.1.101.3.4.3.17', message: expect.stringContaining('ML-DSA-44') });
+    });
+
+    it('should hand an accepting host the signer key and the 0x31-tagged signed attributes under the name ML-DSA-44', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifySignerInfoSignature(info, leaf)).resolves.toBe(true);
+        expect(host.verifications).toHaveLength(1);
+        expect(host.verifications[0]).toMatchObject({ importName: 'ML-DSA-44', format: 'spki', extractable: false, usages: ['verify'], verifyParams: { name: 'ML-DSA-44' } });
+        expect(host.verifications[0]?.spki).toEqual(leaf.subjectPublicKeyInfo.der);
+        expect(host.verifications[0]?.signature).toEqual(info.signature);
+        expect(host.verifications[0]?.data).toEqual(info.signedAttributesDer);
+    });
+
+    it('should answer what the host answers', async () => {
+        const host = acceptMlDsa(false);
+        restore = host.restore;
+        await expect(verifySignerInfoSignature(info, leaf)).resolves.toBe(false);
+    });
+
+    it.each([
+        ['SHA-1, which would otherwise bind the content with no refusal at all', identifier(SHA1)],
+        ['SHA-224', identifier(SHA224)],
+        ['SHA-512 carrying parameters', identifier(SHA512, oid('1.2.3'))],
+    ])('should answer false, without asking the host, for signed attributes under %s (RFC 9882 §3.3)', async (_what, digest) => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifySignerInfoSignature({ ...info, digestAlgorithm: digest }, leaf)).resolves.toBe(false);
+        await expect(verifySignerInfoSignature({ ...info, digestAlgorithm: digest }, leaf, { allowSha1: true })).resolves.toBe(false);
+        expect(host.verifications).toEqual([]);
+    });
+
+    it('should ignore the digestAlgorithm of a signer without signed attributes, and put the content to the host (RFC 9882 §3.3)', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifySignerInfoSignature(withoutAttributes(identifier(SHA1)), leaf, { content: ML_DSA_CONTENT })).resolves.toBe(true);
+        expect(host.verifications).toHaveLength(1);
+        expect(host.verifications[0]?.data).toEqual(ML_DSA_CONTENT);
+    });
+
+    it('should answer false, without asking the host, against a certificate of another parameter set', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifySignerInfoSignature(info, root)).resolves.toBe(false);
+        expect(host.verifications).toEqual([]);
+    });
+
+    it('should refuse a signature algorithm that carries parameters as unsupported, not hand it to a host that would ignore them', async () => {
+        const host = acceptMlDsa();
+        restore = host.restore;
+        await expect(verifySignerInfoSignature({ ...info, signatureAlgorithm: identifier('2.16.840.1.101.3.4.3.17', nullValue()) }, leaf))
+            .rejects.toThrow(expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' }));
+        expect(host.verifications).toEqual([]);
     });
 });

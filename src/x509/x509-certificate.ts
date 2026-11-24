@@ -38,6 +38,7 @@ import {
     emptySubjectSanNotCriticalDiagnostic,
     extensionsRequireV3Diagnostic,
     keyCertSignWithoutCaDiagnostic,
+    keyUsageKeyAlgorithmMismatchDiagnostic,
     nameConstraintsInEndEntityDiagnostic,
     generalizedTimeBefore2050Diagnostic,
     generalizedTimeFractionDiagnostic,
@@ -55,9 +56,19 @@ import {
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, BitString, PkiTime } from '../types/asn1-types.js';
 import { PkiError } from '../types/pki-errors.js';
-import type { Certificate, DistinguishedName, Extension, ParseCertificateOptions, RawExtension, SerialNumber, Validity } from '../types/x509-types.js';
+import type {
+    Certificate,
+    DistinguishedName,
+    Extension,
+    KeyUsageName,
+    ParseCertificateOptions,
+    RawExtension,
+    SerialNumber,
+    SubjectPublicKeyInfo,
+    Validity,
+} from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from './x509-algorithm.js';
-import { _decodeExtension } from './x509-extensions.js';
+import { _decodeExtension, type ExtraExtensionDecoders } from './x509-extensions.js';
 import { certificateError, expectUniversalField } from './x509-fields.js';
 import { _readName } from './x509-name.js';
 import { _readSubjectPublicKeyInfo } from './x509-spki.js';
@@ -87,6 +98,36 @@ function looksLikeHost(value: string): boolean {
     if (value === '' || /[\s/=,]/.test(value)) return false;
     return value.includes(':') || /^\*?[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+\.?$/.test(value);
 }
+/** What a key that only signs may assert in keyUsage (RFC 9881 §5, RFC 9909 §6). */
+const SIGNATURE_KEY_USAGES: ReadonlySet<KeyUsageName> = /*#__PURE__*/ new Set<KeyUsageName>(['digitalSignature', 'nonRepudiation', 'keyCertSign', 'cRLSign']);
+
+/**
+ * The clause a keyUsage breaks for the key it certifies, or `undefined` when
+ * it breaks none — which is the answer for every key but the three families
+ * whose RFC says what the extension may assert:
+ *
+ * - ML-DSA, RFC 9881 §5, and SLH-DSA, RFC 9909 §6, in the same words: the
+ *   extension "MUST have at least one of" digitalSignature, nonRepudiation,
+ *   keyCertSign and cRLSign, and "MUST NOT have any of" keyEncipherment,
+ *   dataEncipherment, keyAgreement, encipherOnly and decipherOnly. Those nine
+ *   are every bit RFC 5280 names, so the rule is: one usage at least, and
+ *   every one of them among the first four;
+ * - ML-KEM, RFC 9935 §5: "keyEncipherment MUST be the only key usage set".
+ *
+ * Each applies "if the keyUsage extension is present", so an absent extension
+ * is not this function's business, and neither is one left undecoded.
+ */
+function keyUsageRequirement(kind: SubjectPublicKeyInfo['kind'], usages: readonly KeyUsageName[]): string | undefined {
+    if (kind.startsWith('ml-kem-')) {
+        if (usages.length === 1 && usages[0] === 'keyEncipherment') return undefined;
+        return 'RFC 9935 §5 makes keyEncipherment the only usage an ML-KEM key may assert';
+    }
+    const clause = kind.startsWith('ml-dsa-') ? 'RFC 9881 §5' : kind.startsWith('slh-dsa-') ? 'RFC 9909 §6' : undefined;
+    if (clause === undefined) return undefined;
+    if (usages.length > 0 && usages.every((usage) => SIGNATURE_KEY_USAGES.has(usage))) return undefined;
+    return `${clause} requires at least one of digitalSignature, nonRepudiation, keyCertSign and cRLSign, and none of keyEncipherment, dataEncipherment, keyAgreement, encipherOnly and decipherOnly`;
+}
+
 /**
  * Profile checks that need the **whole certificate**, not one extension.
  *
@@ -105,6 +146,7 @@ function emitProfileDiagnostics(
     subject: DistinguishedName,
     issuer: DistinguishedName,
     extensions: readonly Extension[],
+    keyKind: SubjectPublicKeyInfo['kind'],
 ): void {
     const find = (oid: string): Extension | undefined => extensions.find((e) => e.oid === oid);
     const basicConstraints = find(OID_BASIC_CONSTRAINTS);
@@ -159,6 +201,14 @@ function emitProfileDiagnostics(
     const keyUsage = find(OID_KEY_USAGE);
     if (!isCa && keyUsage?.kind === 'keyUsage' && keyUsage.usages.includes('keyCertSign')) {
         ctx.emitter.emit(keyCertSignWithoutCaDiagnostic());
+    }
+    // What the key's own RFC lets a keyUsage assert (ADR 0026): ML-DSA and
+    // SLH-DSA sign, ML-KEM encapsulates, and a keyUsage that says otherwise
+    // describes a key that does not exist. Like its neighbour above, a
+    // sentence to the CA: reported, never refused.
+    if (keyUsage?.kind === 'keyUsage') {
+        const requirement = keyUsageRequirement(keyKind, keyUsage.usages);
+        if (requirement !== undefined) ctx.emitter.emit(keyUsageKeyAlgorithmMismatchDiagnostic(keyKind, keyUsage.usages, requirement));
     }
 
     // CA/Browser Forum BR 7.1.4.3: a commonName, when present, repeats a SAN
@@ -247,17 +297,26 @@ function readExtensions(field: Asn1Node, ctx: Asn1Context, input: Uint8Array, de
  * `extensionRequest` attribute (x509-csr.ts). One reader, so a request's
  * extensions are held to exactly what a certificate's are — the same codes, the
  * same bound, the same decoders. `counted` is what the `maxExtensions` bound is
- * said to count when it trips.
+ * said to count when it trips. `extra` decoders apply to this sequence only:
+ * an attribute certificate passes the extensions of RFC 5755 §4.3.
  *
  * @internal
  */
-export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: Uint8Array, decode: boolean, path: string, counted: string): readonly Extension[] {
+export function _readExtensionSequence<E = never>(
+    seq: Asn1Node,
+    ctx: Asn1Context,
+    input: Uint8Array,
+    decode: boolean,
+    path: string,
+    counted: string,
+    extra?: ExtraExtensionDecoders<E>,
+): ReadonlyArray<Extension | E> {
     if (seq.children.length === 0) {
         throw certificateError('PKI_X509_EXTENSIONS_EMPTY', path, seq.offset, 'is present but holds no extension; RFC 5280 requires at least one');
     }
     enforceLimit(ctx.limits, 'maxExtensions', seq.children.length, counted);
     const seen = new Set<string>();
-    const extensions: Extension[] = [];
+    const extensions: Array<Extension | E> = [];
     for (let i = 0; i < seq.children.length; i++) {
         const extPath = `${path}[${i}]`;
         const ext = expectUniversalField(seq.children[i], TAG_SEQUENCE, extPath, STRUCTURE, seq.offset);
@@ -283,10 +342,10 @@ export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: U
         } else if (valueNode.constructed) {
             // A BER segmented extnValue was joined into a copy: decode the copy. Offsets
             // inside it count from the joined content (documented in x509-extensions.ts).
-            extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath));
+            extensions.push(_decodeExtension(valueDer, 0, oid, critical, valueDer, ctx, extPath, extra));
         } else {
             const start = valueNode.offset + valueNode.headerLength;
-            extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath));
+            extensions.push(_decodeExtension(input.subarray(0, start + valueNode.contentLength), start, oid, critical, valueDer, ctx, extPath, extra));
         }
     }
     return Object.freeze(extensions);
@@ -313,7 +372,7 @@ export function _readExtensionSequence(seq: Asn1Node, ctx: Asn1Context, input: U
 export function parseCertificate(der: Uint8Array, options?: ParseCertificateOptions): Certificate {
     const bytes = assertBytes(der, 'parseCertificate input');
     const ctx = createAsn1Context(options);
-    const decode = options?.decodeExtensions ?? true;
+    const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;
     if (typeof decode !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: decodeExtensions must be a boolean, got ${typeof decode}`);
     }
@@ -383,7 +442,7 @@ export function parseCertificate(der: Uint8Array, options?: ParseCertificateOpti
     if (subject.rdns.length === 0 && san?.critical !== true) ctx.emitter.emit(emptySubjectSanNotCriticalDiagnostic());
     // §4.2.1.6: critical only when the identity lives in the extension alone.
     if (subject.rdns.length !== 0 && san?.critical === true) ctx.emitter.emit(sanCriticalDiagnostic());
-    emitProfileDiagnostics(ctx, version, subject, issuer, extensions);
+    emitProfileDiagnostics(ctx, version, subject, issuer, extensions, subjectPublicKeyInfo.kind);
 
     const signatureAlgorithm = _readAlgorithmIdentifier(cert.children[1], ctx, 'signatureAlgorithm', STRUCTURE, cert.offset);
     if (!bytesEqual(signatureAlgorithm.der, tbsSignatureAlgorithm.der)) {

@@ -57,7 +57,7 @@ function proseOnly(path: string, text: string): string {
         return text
             .replace(/<pre\b[\s\S]*?<\/pre>/gi, blank)
             .replace(/<code\b[\s\S]*?<\/code>/gi, blank)
-            .replace(/<script\b[\s\S]*?<\/script>/gi, blank)
+            .replace(/<script\b[\s\S]*?<\/script\s*>/gi, blank)
             .replace(/\sxmlns(?::\w+)?="[^"]*"/gi, blank);
     }
     return text.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, blank).replace(/`[^`\n]*`/g, blank);

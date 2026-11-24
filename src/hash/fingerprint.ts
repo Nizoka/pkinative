@@ -16,6 +16,7 @@
  * @module hash/fingerprint
  */
 
+import { assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, toHex } from '../core/bytes.js';
 import type { FingerprintAlgorithm, FormatFingerprintOptions } from '../types/hash-types.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -33,7 +34,7 @@ function digestFunction(algorithm: FingerprintAlgorithm): (data: Uint8Array) => 
         case 'SHA-384': return sha384;
         case 'SHA-512': return sha512;
         default:
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: the fingerprint algorithm must be one of ${ALGORITHMS.join(', ')}, got ${String(algorithm)}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: the fingerprint algorithm must be one of ${ALGORITHMS.join(', ')}, got ${describeValue(algorithm)}`);
     }
 }
 
@@ -79,17 +80,18 @@ export async function computeFingerprintAsync(der: Uint8Array, algorithm: Finger
  * @param digest  The digest octets.
  * @param options Separator (`':'` by default) and letter case (`'upper'` by default).
  * @returns The formatted fingerprint.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `digest` is not a Uint8Array; `PKI_INVALID_OPTION` for a malformed option.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `digest` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object or a malformed option.
  */
 export function formatFingerprint(digest: Uint8Array, options?: FormatFingerprintOptions): string {
     const bytes = assertBytes(digest, 'formatFingerprint digest');
+    assertOptions(options, 'options');
     const separator = options?.separator ?? ':';
     const letterCase = options?.letterCase ?? 'upper';
     if (typeof separator !== 'string') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: separator must be a string, got ${typeof separator}`);
     }
     if (letterCase !== 'upper' && letterCase !== 'lower') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: letterCase must be 'upper' or 'lower', got ${String(letterCase)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: letterCase must be 'upper' or 'lower', got ${describeValue(letterCase)}`);
     }
     const hex = toHex(bytes, separator);
     return letterCase === 'upper' ? hex.toUpperCase() : hex;

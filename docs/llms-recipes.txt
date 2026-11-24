@@ -21,6 +21,15 @@ export function fixture(name: string): Uint8Array {
 }
 
 export const FIXTURE_NAMES = ['isrg-root-x1', 'isrg-root-x2', 'lets-encrypt-e7', 'lets-encrypt-r12', 'letsencrypt-org-leaf', 'rfc8410-x25519'] as const;
+
+/**
+ * The DER bytes of an ML-DSA fixture — certificates and messages OpenSSL 3.5
+ * signed, since pkinative signs nothing with ML-DSA — e.g.
+ * `mlDsaFixture('leaf-ml-dsa-44')`.
+ */
+export function mlDsaFixture(name: string): Uint8Array {
+    return new Uint8Array(readFileSync(new URL(`../tests/fixtures/ml-dsa/${name}.der`, import.meta.url)));
+}
 ```
 
 ---
@@ -2685,6 +2694,424 @@ export default async function run(): Promise<Record<string, string>> {
         sound: `${verdict(sound)} verifications=${String(sound.signatureVerifications)}`,
         altered: `${verdict(altered)} subject=${altered.request === undefined ? '?' : formatDistinguishedName(altered.request.subject)}`,
         garbage: `${verdict(garbage)} errorCode=${garbage.reasons[0]?.errorCode ?? '?'} request=${String(garbage.request)}`,
+    };
+}
+```
+
+---
+<!-- source: recipes/inspect-requests.ts -->
+
+```ts
+/**
+ * Recipe: read a request back — what is about to be sent to a timestamp
+ * authority or an OCSP responder, or what a log kept of it.
+ *
+ * pkinative writes requests and reads responses; this is the other reading
+ * direction, for the tool that inspects a request before it leaves, replays
+ * one from a capture, or explains why an authority declined it. Both readers
+ * read what is **asked** and judge nothing: whether a token answers a
+ * timestamp request is `verifyTimeStampToken`'s verdict, whether a response
+ * answers an OCSP request is `checkOcspStatus`'s, and pkinative is neither a
+ * TSA nor a responder — a signed OCSP request has its signature exposed, not
+ * verified.
+ *
+ * A request another client wrote is read the same way, and what it does
+ * differently is said rather than hidden — here, a timestamp request whose
+ * `certReq` is written out as the FALSE it defaults to, and a signed OCSP
+ * request that does not name who signed it.
+ */
+import {
+    computeFingerprint,
+    createOcspRequest,
+    createTimeStampRequest,
+    encodeAlgorithmIdentifier,
+    encodeBitString,
+    encodeBoolean,
+    encodeExplicit,
+    encodeInteger,
+    encodeNull,
+    encodeOcspCertId,
+    encodeOctetString,
+    encodeSequence,
+    parseCertificate,
+    parseOcspRequest,
+    parseTimeStampRequest,
+    PkiCertificateError,
+    PkiCmsError,
+    type OcspRequest,
+    type OcspRequestEntry,
+    type OcspRequestSignature,
+    type PkiDiagnostic,
+    type TimeStampHashAlgorithm,
+    type TimeStampRequest,
+} from 'pkinative';
+import { fixture } from './_fixtures.ts';
+
+const QUIET = { onDiagnostic: (): undefined => undefined };
+const SHA256 = '2.16.840.1.101.3.4.2.1';
+const HASH_NAMES: ReadonlyMap<string, TimeStampHashAlgorithm> = new Map([
+    [SHA256, 'SHA-256'],
+    ['2.16.840.1.101.3.4.2.2', 'SHA-384'],
+    ['2.16.840.1.101.3.4.2.3', 'SHA-512'],
+]);
+const same = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((byte, i) => byte === b[i]);
+const where = (diagnostics: readonly PkiDiagnostic[]): string => diagnostics.map((d) => `${d.code}@${d.path}`).join(' ') || 'none';
+
+const describeTimeStampRequest = (request: TimeStampRequest): string => [
+    `version=${String(request.version)}`,
+    `hash=${HASH_NAMES.get(request.messageImprint.hashAlgorithm.oid) ?? request.messageImprint.hashAlgorithm.oid}`,
+    `imprint=${String(request.messageImprint.hashedMessage.length)} octets`,
+    `policy=${request.policy ?? 'the default of the TSA'}`,
+    `nonce=${request.nonce === undefined ? 'none' : `0x${request.nonce.toString(16)}`}`,
+    `certReq=${String(request.certReq)}`,
+    `extensions=${String(request.extensions.length)}`,
+].join(' ');
+
+const describeSignature = (signature: OcspRequestSignature | undefined): string =>
+    signature === undefined ? 'no' : `${signature.signatureAlgorithm.oid} over tbsDer, ${String(signature.certificates.length)} certificate(s) attached, not verified`;
+
+const describeOcspRequest = (request: OcspRequest): string => [
+    `version=${String(request.version)}`,
+    `requests=${request.requests.map((entry: OcspRequestEntry) => `${entry.certId.hashAlgorithm.oid}/${entry.certId.serialNumber.hex}`).join(',')}`,
+    `nonce=${request.nonce === undefined ? 'none' : `${String(request.nonce.length)} octets`}`,
+    `requestor=${request.requestorName?.kind ?? 'unnamed'}`,
+    `signed=${describeSignature(request.signature)}`,
+].join(' ');
+
+function timeStampRequests(): Record<string, string> {
+    const hash = computeFingerprint(new TextEncoder().encode('the document to stamp'), 'SHA-256');
+
+    // The request this library writes, read back with nothing to say about it.
+    const diagnostics: PkiDiagnostic[] = [];
+    const written = createTimeStampRequest(hash, { nonce: 0x1f2e3d4c5b6a7988n, policy: '1.3.6.1.4.1.99999.2' });
+    const request = parseTimeStampRequest(written, { onDiagnostic: (d) => { diagnostics.push(d); } });
+
+    // Every field a request holds is one the writer takes: the parsed request
+    // rebuilds the bytes it was read from.
+    const rebuilt = createTimeStampRequest(request.messageImprint.hashedMessage, {
+        hashAlgorithm: HASH_NAMES.get(request.messageImprint.hashAlgorithm.oid),
+        policy: request.policy,
+        nonce: request.nonce,
+        certReq: request.certReq,
+    });
+
+    // A request from another client: certReq written as FALSE, its DEFAULT.
+    const imprint = encodeSequence([encodeAlgorithmIdentifier(SHA256, encodeNull()), encodeOctetString(hash)]);
+    const foreign = parseTimeStampRequest(encodeSequence([encodeInteger(1n), imprint, encodeBoolean(false)]), QUIET);
+
+    // A version this reader does not know is refused by name, not guessed at.
+    let refused = 'accepted';
+    try {
+        parseTimeStampRequest(encodeSequence([encodeInteger(2n), imprint]));
+    } catch (error) {
+        refused = error instanceof PkiCmsError ? error.code : 'another error';
+    }
+
+    return {
+        timeStampRequest: describeTimeStampRequest(request),
+        timeStampDiagnostics: where(diagnostics),
+        timeStampRebuilt: String(same(rebuilt, written)),
+        timeStampForeign: `${describeTimeStampRequest(foreign)} ${where(foreign.diagnostics)}`,
+        timeStampRefused: refused,
+    };
+}
+
+function ocspRequests(): Record<string, string> {
+    const issuer = parseCertificate(fixture('isrg-root-x1'), QUIET);
+    const certificate = parseCertificate(fixture('lets-encrypt-r12'), QUIET);
+
+    // The request this library writes: one certificate, a nonce, no signature.
+    const diagnostics: PkiDiagnostic[] = [];
+    const nonce = Uint8Array.from({ length: 16 }, (_, i) => 0xa0 + i);
+    const written = createOcspRequest(certificate, issuer, { nonce });
+    const request = parseOcspRequest(written, { onDiagnostic: (d) => { diagnostics.push(d); } });
+
+    // Which certificate is it about? The CertID is kept as encoded, so the
+    // answer is a comparison of bytes — no hash is recomputed by hand.
+    const [entry] = request.requests;
+    const aboutThisCertificate = entry !== undefined && same(entry.certIdDer, encodeOcspCertId(certificate, issuer));
+
+    // A signed request from another client that does not say who signed it:
+    // the Signature under [0] EXPLICIT, and no requestorName in the tbsRequest.
+    const tbsRequest = request.tbsDer;
+    const signature = encodeSequence([encodeAlgorithmIdentifier('1.3.101.112'), encodeBitString(new Uint8Array(64))]);
+    const signed = parseOcspRequest(encodeSequence([tbsRequest, encodeExplicit(0, signature, { tagClass: 'context' })]), QUIET);
+
+    // Bytes that are not a request are refused by name, never half-read.
+    let refused = 'accepted';
+    try {
+        parseOcspRequest(encodeSequence([encodeInteger(0n)]));
+    } catch (error) {
+        refused = error instanceof PkiCertificateError ? error.code : 'another error';
+    }
+
+    return {
+        ocspRequest: describeOcspRequest(request),
+        ocspDiagnostics: where(diagnostics),
+        ocspNonceEchoes: String(request.nonce !== undefined && same(request.nonce, nonce)),
+        ocspAboutThisCertificate: String(aboutThisCertificate),
+        ocspSigned: `${describeOcspRequest(signed)} ${where(signed.diagnostics)}`,
+        ocspSignatureCovers: String(same(signed.tbsDer, tbsRequest)),
+        ocspRefused: refused,
+    };
+}
+
+export default function run(): Record<string, string> {
+    return { ...timeStampRequests(), ...ocspRequests() };
+}
+```
+
+---
+<!-- source: recipes/verify-ml-dsa.ts -->
+
+```ts
+/**
+ * Recipe: verify an ML-DSA certificate chain and an ML-DSA CMS message, and
+ * read the report on a runtime that has ML-DSA and on one that has not.
+ *
+ * pkinative implements no signature algorithm: an ML-DSA signature (FIPS 204,
+ * RFC 9881, RFC 9882) is verified by the host's Web Crypto, in one call. Hosts
+ * are gaining the algorithm release by release — Node.js has it from 24.7,
+ * Node.js 22 does not — so the same input has two right answers, and a third
+ * that is always wrong:
+ *
+ *   - `valid: true` where the host verified the signature;
+ *   - `PKI_REASON_SIGNATURE_NOT_CHECKED` carrying `PKI_CRYPTO_KEY_UNSUPPORTED`
+ *     where the host refused the key. That says nothing about the signature;
+ *   - `PKI_REASON_SIGNATURE_INVALID`, which no host gives for these files.
+ *
+ * Nothing here detects the host. The report says which it was — branch on the
+ * reason, never on the runtime's name or version.
+ *
+ * The certificates and the message were written by OpenSSL 3.5
+ * (tests/fixtures/PROVENANCE.md): pkinative signs nothing with ML-DSA.
+ */
+import { parseCertificate, verifyCertificateChain, verifyCertificateSignature, verifySignedData } from 'pkinative';
+import type { PkiReason } from 'pkinative';
+import { mlDsaFixture } from './_fixtures.ts';
+
+/** The three readings of a report over an ML-DSA signature. */
+function outcome(report: { readonly valid: boolean; readonly reasons: readonly PkiReason[] }): string {
+    if (report.valid) return 'verified';
+    const [only] = report.reasons;
+    const notChecked = report.reasons.length === 1 && only?.code === 'PKI_REASON_SIGNATURE_NOT_CHECKED' && only.errorCode === 'PKI_CRYPTO_KEY_UNSUPPORTED';
+    return notChecked ? 'not checked' : `refused: ${report.reasons.map((reason) => reason.code).join(', ')}`;
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    const quiet = { onDiagnostic: () => undefined };
+    const root = parseCertificate(mlDsaFixture('root-ml-dsa-65'), quiet);
+    const leaf = parseCertificate(mlDsaFixture('leaf-ml-dsa-44'), quiet);
+    const at = Date.UTC(2026, 10, 18);
+
+    // The key kind names the parameter set; the three are different algorithms.
+    const keys = `${root.subjectPublicKeyInfo.kind} ${leaf.subjectPublicKeyInfo.kind}`;
+
+    // One call each, exactly as for an RSA or an ECDSA chain.
+    const chain = outcome(await verifyCertificateChain({ leaf, trustAnchors: [root], at }));
+    const message = outcome(await verifySignedData({ signedData: mlDsaFixture('cms-ml-dsa-44-sha512'), trustAnchors: [root], at }));
+
+    // Decided on every host, without asking it: the leaf was signed "ML-DSA-65",
+    // and the leaf's own key is ML-DSA-44. Another parameter set is a plain `false`.
+    const wrongParameterSet = await verifyCertificateSignature(leaf, leaf);
+
+    return {
+        keys,
+        chain,
+        message,
+        // The two right answers, and the same one for both structures on one host.
+        decided: String(chain === 'verified' || chain === 'not checked'),
+        sameAnswer: String(chain === message),
+        branch: chain === 'verified'
+            ? 'this host verifies ML-DSA'
+            : 'this host has no ML-DSA: PKI_REASON_SIGNATURE_NOT_CHECKED / PKI_CRYPTO_KEY_UNSUPPORTED',
+        wrongParameterSet: String(wrongParameterSet),
+    };
+}
+```
+
+---
+<!-- source: recipes/attribute-certificate.ts -->
+
+```ts
+/**
+ * Recipe: read an RFC 5755 attribute certificate, check its signature, and
+ * compose the rest of what RFC 5755 §5 asks before acting on it.
+ *
+ * An attribute certificate (AC) binds attributes — here a role — to a holder
+ * named by reference to the holder's public-key certificate, and is signed by
+ * an AC issuer whose own certificate chains to a trust anchor. pkinative
+ * reads the AC (`parseAttributeCertificate`) and checks one link
+ * (`verifyAttributeCertificateSignature`). It does not judge the AC: holder
+ * binding, targeting, the AC's validity at your instant, the issuer's path and
+ * the rule that an AC issuer is not a CA are yours to compose, as below
+ * (ADR 0028). An AC's revocation, the last step of §5, is not shown:
+ * `checkRevocation` takes a public-key certificate.
+ *
+ * pkinative writes no AC: the one read here is assembled with the public
+ * structural encoders, which is also how to write a structure this library
+ * does not model.
+ */
+import {
+    canSign,
+    createCertificate,
+    encodeAlgorithmIdentifier,
+    encodeAttribute,
+    encodeAuthorityKeyIdentifier,
+    encodeBasicConstraints,
+    encodeBitString,
+    encodeExplicit,
+    encodeExtensions,
+    encodeImplicit,
+    encodeInteger,
+    encodeKeyUsage,
+    encodeSequence,
+    encodeTime,
+    encodeTlv,
+    formatDistinguishedName,
+    getExtension,
+    parseAttributeCertificate,
+    parseCertificate,
+    verifyAttributeCertificateSignature,
+    verifyCertificateChain,
+    type AttributeCertificate,
+    type Certificate,
+    type GeneralName,
+    type PkiDiagnostic,
+    type SigningKey,
+} from 'pkinative';
+
+const DAY = 86_400_000;
+const NOW = Date.UTC(2026, 0, 1);
+const CN = '2.5.4.3';
+const ED25519 = '1.3.101.112';
+const hex = (bytes: Uint8Array): string => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+const ascii = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+async function keyPair(): Promise<{ signer: SigningKey; sign: (data: Uint8Array) => Promise<Uint8Array>; spki: Uint8Array }> {
+    const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    if (!('privateKey' in pair)) throw new Error('Ed25519 returns a key pair');
+    return {
+        signer: { key: pair.privateKey, algorithm: { name: 'Ed25519' } },
+        sign: async (data) => new Uint8Array(await crypto.subtle.sign({ name: 'Ed25519' }, pair.privateKey, data)),
+        spki: new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)),
+    };
+}
+
+// ── Writing an AC with the structural encoders (RFC 5755 §4.1) ──────
+// The module is DEFINITIONS IMPLICIT TAGS: a tagged SEQUENCE is re-tagged,
+// a tagged CHOICE — a GeneralName — is wrapped.
+
+const directoryName = (nameDer: Uint8Array): Uint8Array => encodeExplicit(4, nameDer);
+const uri = (text: string): Uint8Array => encodeTlv('context', 6, false, ascii(text));
+const dnsName = (text: string): Uint8Array => encodeTlv('context', 2, false, ascii(text));
+
+async function writeAttributeCertificate(holder: Certificate, issuer: Certificate, sign: (data: Uint8Array) => Promise<Uint8Array>): Promise<Uint8Array> {
+    const issuerKeyId = getExtension(issuer, 'subjectKeyIdentifier')?.keyIdentifier ?? new Uint8Array(0);
+    const acinfo = encodeSequence([
+        encodeInteger(1), // v2
+        // Holder: baseCertificateID [0] IssuerSerial — the holder's certificate by issuer and serial (§4.2.2).
+        encodeSequence([encodeImplicit(0, encodeSequence([encodeSequence([directoryName(holder.issuer.der)]), encodeInteger(holder.serialNumber.value)]))]),
+        // AttCertIssuer: v2Form [0] holding one directoryName, the issuer's subject (§4.2.3).
+        encodeImplicit(0, encodeSequence([encodeSequence([directoryName(issuer.subject.der)])])),
+        encodeAlgorithmIdentifier(ED25519),
+        encodeInteger(0x5a5an),
+        encodeSequence([encodeTime(NOW, 'GeneralizedTime'), encodeTime(NOW + 30 * DAY, 'GeneralizedTime')]),
+        // One role (§4.4.5): roleName [1] is a URI.
+        encodeSequence([encodeAttribute('2.5.4.72', [encodeSequence([encodeExplicit(1, uri('urn:example:role:operator'))])])]),
+        encodeExtensions([
+            { oid: '2.5.29.35', value: encodeAuthorityKeyIdentifier(issuerKeyId) },
+            // targetInformation (§4.3.2), critical: usable at one server only.
+            { oid: '2.5.29.55', critical: true, value: encodeSequence([encodeSequence([encodeExplicit(0, dnsName('server.example'))])]) },
+        ]),
+    ]);
+    const signature = await sign(acinfo);
+    return encodeSequence([acinfo, encodeAlgorithmIdentifier(ED25519), encodeBitString(signature)]);
+}
+
+// ── What RFC 5755 §5 leaves to the caller ───────────────────────────
+
+const sameName = (a: GeneralName | undefined, der: Uint8Array): boolean => a?.kind === 'directoryName' && hex(a.name.der) === hex(der);
+
+/** The holder check of §5 for a holder named by baseCertificateID: the presented certificate's issuer and serial. */
+function holderMatches(ac: AttributeCertificate, presented: Certificate): boolean {
+    const base = ac.holder.baseCertificateId;
+    return base !== undefined && base.issuer.length === 1 && sameName(base.issuer[0], presented.issuer.der) && base.serial.hex === presented.serialNumber.hex;
+}
+
+/** The targeting check of §4.3.2: an AC with targetInformation is usable only at a server it names. */
+function targetedAt(ac: AttributeCertificate, server: string): boolean {
+    const targeting = ac.extensions.find((e) => e.kind === 'targetInformation');
+    if (targeting?.kind !== 'targetInformation') return true;
+    return targeting.targets.some((t) => t.kind === 'targetName' && t.name.kind === 'dNSName' && t.name.value === server);
+}
+
+export default async function run(): Promise<Record<string, string>> {
+    if (!canSign()) return { available: 'no' };
+    const quiet = { onDiagnostic: () => undefined };
+    const rootKey = await keyPair();
+    const issuerKey = await keyPair();
+    const holderKey = await keyPair();
+
+    const root = parseCertificate(await createCertificate({
+        serialNumber: 1n,
+        subject: [[{ type: CN, value: 'Example Root' }]],
+        notBefore: NOW,
+        notAfter: NOW + 3650 * DAY,
+        subjectPublicKey: rootKey.spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: true }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['keyCertSign', 'cRLSign']) },
+        ],
+    }, rootKey.signer), quiet);
+    // §4.5: the AC issuer's certificate is not a CA's, and its key may sign.
+    const issue = async (serialNumber: bigint, cn: string, spki: Uint8Array): Promise<Certificate> => parseCertificate(await createCertificate({
+        serialNumber,
+        issuerDer: root.subject.der,
+        subject: [[{ type: CN, value: cn }]],
+        notBefore: NOW,
+        notAfter: NOW + 365 * DAY,
+        subjectPublicKey: spki,
+        extensions: [
+            { oid: '2.5.29.19', critical: true, value: encodeBasicConstraints({ cA: false }) },
+            { oid: '2.5.29.15', critical: true, value: encodeKeyUsage(['digitalSignature']) },
+        ],
+    }, rootKey.signer), quiet);
+    const issuer = await issue(2n, 'Example AC Issuer', issuerKey.spki);
+    const holder = await issue(3n, 'alice', holderKey.spki);
+
+    const diagnostics: PkiDiagnostic[] = [];
+    const ac = parseAttributeCertificate(await writeAttributeCertificate(holder, issuer, issuerKey.sign), { onDiagnostic: (d) => diagnostics.push(d) });
+    const at = NOW + DAY;
+
+    // Each step of §5, in the order a verifier fails fastest.
+    const signed = await verifyAttributeCertificateSignature(ac, issuer);
+    const named = ac.issuer.name !== undefined && hex(ac.issuer.name.der) === hex(issuer.subject.der);
+    const issuerPath = await verifyCertificateChain({ leaf: issuer, trustAnchors: [root], at });
+    const notCa = getExtension(issuer, 'basicConstraints')?.cA !== true;
+    const current = ac.validity.notBefore.epochMilliseconds <= at && at <= ac.validity.notAfter.epochMilliseconds;
+    const role = ac.attributes.find((a) => a.kind === 'role');
+
+    // A forgery: the same acinfo signed by the holder's key is not the issuer's AC.
+    const forged = parseAttributeCertificate(await writeAttributeCertificate(holder, issuer, holderKey.sign), quiet);
+
+    return {
+        available: 'yes',
+        version: String(ac.version),
+        diagnostics: String(diagnostics.length),
+        issuer: ac.issuer.name === undefined ? '' : formatDistinguishedName(ac.issuer.name),
+        role: role?.kind === 'role' && role.roles[0]?.roleName.kind === 'uniformResourceIdentifier' ? role.roles[0].roleName.value : '',
+        extensions: ac.extensions.map((e) => e.kind).join(','),
+        signed: String(signed),
+        named: String(named),
+        issuerPath: String(issuerPath.valid),
+        notCa: String(notCa),
+        current: String(current),
+        holder: String(holderMatches(ac, holder)),
+        otherHolder: String(holderMatches(ac, issuer)),
+        targeted: String(targetedAt(ac, 'server.example')),
+        elsewhere: String(targetedAt(ac, 'other.example')),
+        forged: String(await verifyAttributeCertificateSignature(forged, issuer)),
     };
 }
 ```

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "frozenAt": "1.0.0",
   "phase": "stable",
-  "asOf": "1.0.0",
+  "asOf": "1.1.0",
   "corpus": "x509-limbo",
   "commit": "118721335e675edde10015df89b138cf292d7554",
   "refusals": [

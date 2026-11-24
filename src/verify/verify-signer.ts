@@ -40,6 +40,7 @@ import type { FingerprintAlgorithm } from '../types/hash-types.js';
 import type { PkiError } from '../types/pki-errors.js';
 import { _pkiError } from './verify-chain.js';
 import type { PkiReason } from '../types/pki-reasons.js';
+import type { PkiDiagnostic, PkiDiagnosticHandler } from '../types/pki-types.js';
 import type { Certificate } from '../types/x509-types.js';
 
 /** The digests a content may be hashed with here, by OID. */
@@ -209,4 +210,21 @@ export async function _verifySigner(ctx: _SignerContext, signer: SignerInfo, pat
  */
 export function _under(prefix: string, reason: PkiReason): PkiReason {
     return Object.freeze({ ...reason, path: `${prefix}.${reason.path}` });
+}
+
+/**
+ * A diagnostic handler for a composition below, re-rooting each diagnostic
+ * under a path of this one before the caller's handler sees it — what
+ * {@link _under} does for a reason, for the same reader: inside a signed
+ * message, `ocsp.responderID` has to say **whose** chain it was raised in.
+ *
+ * @param prefix  The path of the nested verification in this one's report.
+ * @param handler The caller's handler.
+ * @returns The handler to pass down.
+ * @internal
+ */
+export function _diagnosticsUnder(prefix: string, handler: PkiDiagnosticHandler): PkiDiagnosticHandler {
+    return (diagnostic: PkiDiagnostic): void => {
+        handler(Object.freeze({ ...diagnostic, path: `${prefix}.${diagnostic.path}` }));
+    };
 }

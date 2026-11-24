@@ -290,15 +290,15 @@ export function parseCertificateList(der: Uint8Array, options?: PkiParseOptions)
         baseCrlNumber,
         issuingDistributionPoint: _findIssuingDistributionPoint(extensions, ctx),
         entryCount: countEntries(der, env.revoked, ctx),
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 
 /** Decode an `Extensions` field, or return an empty list when it is absent. */
 function readExtensions(der: Uint8Array, field: TlvHeader | undefined, ctx: Asn1Context, path: string): readonly Extension[] {
-    if (field === undefined) return [];
+    if (field === undefined) return Object.freeze([]);
     const wrapper = field.tagClass === 'context' ? fieldsOf(der, field, path, 1)[0] : field;
-    if (wrapper === undefined) return [];
+    if (wrapper === undefined) return Object.freeze([]);
     const out: Extension[] = [];
     let index = 0;
     for (const entry of walkChildren(der, wrapper, path)) {

@@ -27,7 +27,7 @@ npm run build
 # seed parses, on every gate run.
 seeds="$(mktemp -d)"
 npx tsx tests/fuzzing/_fuzz-seeds.ts "$seeds"
-for target in asn1 cms crl ocsp pem pkcs12 tsp x509; do
+for target in asn1 attribute-certificate cms crl ocsp-request ocsp pem pkcs12 tsp-request tsp x509; do
   zip -j "$OUT/${target}_seed_corpus.zip" tests/fixtures/certs/*.der "$seeds/$target"/*.der >/dev/null
 done
 
@@ -44,10 +44,13 @@ rm -rf node_modules
 mv .clusterfuzzlite/engine/node_modules node_modules
 
 compile_javascript_fuzzer pkinative fuzz/asn1.js --sync
+compile_javascript_fuzzer pkinative fuzz/attribute-certificate.js --sync
 compile_javascript_fuzzer pkinative fuzz/cms.js --sync
 compile_javascript_fuzzer pkinative fuzz/crl.js --sync
+compile_javascript_fuzzer pkinative fuzz/ocsp-request.js --sync
 compile_javascript_fuzzer pkinative fuzz/ocsp.js --sync
 compile_javascript_fuzzer pkinative fuzz/pem.js --sync
 compile_javascript_fuzzer pkinative fuzz/pkcs12.js --sync
+compile_javascript_fuzzer pkinative fuzz/tsp-request.js --sync
 compile_javascript_fuzzer pkinative fuzz/tsp.js --sync
 compile_javascript_fuzzer pkinative fuzz/x509.js --sync

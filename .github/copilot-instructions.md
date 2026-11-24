@@ -43,6 +43,7 @@ caller's key, and `src/crypto/webcrypto.ts` is the only module that names a Web 
 | `src/index.ts` | The single public entry point | `api-design.instructions.md` |
 | `tests/` | Unit, fuzzing, security, property, performance, conformance, tools, docs | `testing.instructions.md` |
 | `scripts/`, `.github/` | The gate, verify-docs, generators, the conformance and mutation runners; workflows and governance | `tooling.instructions.md` |
+| `docs/` satellite pages | The CLI and MCP guides, use cases, surface matrix and playgrounds; `npm run satellites:sync` writes their facts | `satellite-alignment.instructions.md` |
 
 The dependency rules, which `LAYERS` in `scripts/lib/architecture.ts` defines and the `copilot-layer-parity` rule holds this block to:
 

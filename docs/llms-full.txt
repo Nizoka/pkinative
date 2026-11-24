@@ -1,6 +1,6 @@
 # pkinative
 
-> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo, NIST PKITS, Wycheproof and the text of RFC 5280. One API for every runtime with Web Crypto: tested in CI on Node.js 22 (Linux, Windows, macOS) and 24 (Linux), with Deno, Bun and headless Chromium smoke tests and an advisory run on Node.js 26; other Web Crypto runtimes such as Workers are expected to work, not tested in CI. It installs from npm: `npm install pkinative`. Beyond reading, it verifies and creates signatures through Web Crypto, reads, verifies and builds PKCS#10 certification requests, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, hashes public data (SHA-1/256/384/512, SHAKE256), and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys. Six RFC requirement inventories (5280, 5652, 3161, 6960, 7292, 7468) hold it sentence by sentence to the pinned texts.
+> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo, NIST PKITS, Wycheproof and the text of RFC 5280. One API for every runtime with Web Crypto: tested in CI on Node.js 22 (Linux, Windows, macOS), 24 and 26 (Linux), with Deno, Bun and headless Chromium smoke tests; other Web Crypto runtimes such as Workers are expected to work, not tested in CI. It installs from npm: `npm install pkinative`. Beyond reading, it verifies and creates signatures through Web Crypto, reads, verifies and builds PKCS#10 certification requests, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, hashes public data (SHA-1/256/384/512, SHAKE256), and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys. Since 1.1 it verifies ML-DSA (FIPS 204) signatures where the host's Web Crypto does, reads SLH-DSA and ML-KEM public keys, reads and signature-checks RFC 5755 attribute certificates, and reads back OCSP and RFC 3161 requests. Seven RFC requirement inventories (5280, 5652, 3161, 6960, 7292, 7468, 5755) hold it sentence by sentence to the pinned texts.
 
 pkinative never implements secret-dependent cryptography in TypeScript; signing and verification are one call to Web Crypto with the caller's key. Every failure is a PkiError subclass with a stable `code`; profile concerns are diagnostics (`onDiagnostic`, `strict: true`, `certificate.diagnostics`). There is no PEM-to-certificate shortcut: compose `decodePem` and `parseCertificate`.
 
@@ -8,11 +8,11 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 
 - [Agent brief](https://pkinative.dev/agent-brief.md): what to import, what to catch, what not to write
 - [Quick start](https://pkinative.dev/guides/quickstart.md): read a certificate, extensions, diagnostics, errors, limits
-- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes
+- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes — a large file: look an export up by its name rather than read it whole
 
 ## Guides
 
-- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`); ML-DSA verdicts, attribute certificates (`parseAttributeCertificate`) and reading a request back (`parseOcspRequest`, `parseTimeStampRequest`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
@@ -22,6 +22,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models
 - [MCP use cases](https://pkinative.dev/guides/use-cases-mcp.md): an agent triaging a failing chain, issuing a test certificate, offline revocation, opening keys safely
 - [Choosing a library and a surface](https://pkinative.dev/guides/choose.md): when to use pkinative, when another tool is the right one, and library, CLI or MCP server for each capability
+- [Migrating from node-forge or pkijs](https://pkinative.dev/guides/migrate.md): what each node-forge and pkijs call becomes, what changes shape, and what has no counterpart by design
 
 ## Data
 
@@ -61,10 +62,13 @@ pkinative is the engine; two published satellites, each its own repository and n
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
 ![Conformance: x509-limbo, Wycheproof and NIST PKITS](https://img.shields.io/badge/conformance-x509--limbo%20%2B%20Wycheproof%20%2B%20NIST%20PKITS-blueviolet)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Sponsor: GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Nizoka)
 
-Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
+<p align="center"><img src="https://pkinative.dev/assets/demo.gif" width="800" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and asks for a verdict on two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates."></p>
 
-> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
+Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
+
+> **Status: 1.1 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
 
 pkinative reads certificates and verifies them the whole way: signatures, RFC 5280 §6 paths, CRL and OCSP revocation, host names and key purposes. It reads, builds and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files into non-extractable Web Crypto keys, and creates certificates and certification requests — with Web Crypto doing every signature.
 
@@ -74,28 +78,28 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 
 - **Strict by default.** DER's length, tag, constructed-string, BOOLEAN, INTEGER and BIT STRING rules (X.690 §8, §10, §11.1–11.2.1) are refused, not guessed at: two encodings of one value is an ambiguity an attacker can exploit. The departures from §11.2.2, §11.5 and §11.6 that real issuers commit — trailing zero bits in a named bit list, an explicit DEFAULT, an unsorted SET OF — are diagnostics, refused under `strict: true`. BER is an explicit option.
 - **Safe on hostile input.** Every loop runs under a named, CWE-tagged, caller-configurable limit; nesting is iterative; every failure is a typed error with a stable code — never a `TypeError`.
-- **Complete.** Every RFC 5280 extension decoded to its ASN.1 module, every GeneralName form, every DirectoryString type, RFC 4514 names, RSA, EC, EdDSA, XDH and ML-DSA keys.
+- **Complete.** Every RFC 5280 extension decoded to its ASN.1 module, every GeneralName form, every DirectoryString type, RFC 4514 names, RSA, EC, EdDSA, XDH, ML-DSA, SLH-DSA and ML-KEM keys.
 - **Honest about profiles.** What real issuers get wrong — a 21-octet serial, an explicit DEFAULT, a non-critical name constraint — is a diagnostic with its RFC section, not a crash and not silence.
-- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with the input.
+- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with what is being judged: only a call that is itself wrong throws.
 - **No cryptography it should not own.** pkinative never implements signing, key generation or arithmetic on secret material; every signature is created and verified through Web Crypto, with your key.
 - **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks the serial number, validity, CA flag and fingerprint of every parsed certificate against OpenSSL.
 - **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy. Beyond the library, the MCP server gives an assistant 34 typed tools and seven prompts, and the CLI a `--json` contract whose 13 error classes carry pkinative's codes verbatim.
 
 ## How it compares
 
-Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](docs/data/comparison-2026-09-19.json)).
+Registry facts only, read on 2026-11-17 ([docs/data/comparison-2026-11-17.json](docs/data/comparison-2026-11-17.json)); a peer dependency, which the consumer installs, is counted apart.
 
 | Library | Latest | Runtime dependencies | Types bundled | ES modules | Scope |
 |---|---|---|---|---|---|
 | **pkinative** | 1.0 (npm) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509 and PKCS#10 requests, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
-| node-forge | 1.4.0 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
-| asn1js | 3.0.10 | 3 | yes | yes | ASN.1 BER/DER codec |
-| @peculiar/x509 | 2.1.0 | 11 | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
-| pkijs | 3.4.0 | 6 | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
+| node-forge | 1.4.3 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
+| asn1js | 4.0.0 | 1 | yes | yes | ASN.1 BER/DER codec |
+| @peculiar/x509 | 3.1.0 | 9 + 1 peer | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
+| pkijs | 4.0.1 | 3 + 1 peer | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
 | jsrsasign | 11.1.5 | 0 | no | no | Broad: ASN.1, X.509, JWS, its own RSA and ECDSA in JavaScript |
-| micro509 | 0.14.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
+| micro509 | 0.19.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
 
-Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)).
+Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)). Coming from node-forge or pkijs, the [migration guide](docs/guides/migrate.md) maps each call you have to the one that replaces it.
 
 ## Installation
 
@@ -109,8 +113,8 @@ npm audit signatures   # optional: verify the registry signatures and provenance
 Every GitHub release also carries that same tarball, fetched back from the registry, and three SBOMs — CycloneDX and SPDX for the package, CycloneDX for the toolchain that built it — all attested with Sigstore build provenance:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz
-gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
+npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz
+gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
 A plain git install (`github:Nizoka/pkinative#v1.0.0`) does not work: `dist/` is not committed. Every runtime runs the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
@@ -156,12 +160,13 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | The one-call verdict | `verifyCertificateChain` — path building, RFC 5280 §6 validation, host name, key purpose and revocation in one report that lists every reason at once ([use cases](docs/guides/use-cases.md#just-tell-me-whether-to-accept-this-certificate)) |
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
 | Certification requests | `parseCertificationRequest` (PKCS#10, a `CertificationRequest`: subject, key, attributes and the extensions it asks for, read with the certificate's own readers), `verifyCertificationRequest` — the proof of possession checked with the key inside the request, as a `VerifyCertificationRequestReport` that never throws for bad bytes (`VerifyCertificationRequestOptions` for `allowSha1` and the reading options) |
+| Attribute certificates | `parseAttributeCertificate` (RFC 5755: holder, issuer, the six attributes of §4.4, the AC-only extensions, the profile as diagnostics), `verifyAttributeCertificateSignature` — read and signature-checked; §5 validation is the caller's composition ([recipe](recipes/attribute-certificate.ts)) |
 | Signature verification | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` — one signature against one issuer key, through Web Crypto; `PkiCryptoError` when it could not be checked, never when it failed |
 | Creation | `createCertificate`, `createCertificationRequest` (PKCS#10), `canSign` — signed by a Web Crypto key or an `ExternalSigner`; the structural encoders `encodeDistinguishedName`, `encodeExtensions`, `encodeSubjectAltName`, `encodeKeyUsage`, `KEY_USAGE_BITS`, `encodeSubjectPublicKeyInfo` and the rest |
 | Paths | `buildCertificatePath`, `validateCertificatePath` — RFC 5280 §6 with name constraints and the policy tree |
 | Host names and purposes | `checkServerName`, `matchDnsName` (RFC 6125), `checkExtendedKeyUsage`, `KEY_PURPOSES`, `ANY_EXTENDED_KEY_USAGE` |
-| Revocation | CRLs: `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` (delta lists and scopes included); OCSP: `createOcspRequest`, `encodeOcspCertId`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus`, `OCSP_NONCE_OID` — you fetch, pkinative judges |
-| CMS and timestamps | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
+| Revocation | CRLs: `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` (delta lists and scopes included); OCSP: `createOcspRequest`, `encodeOcspCertId`, `parseOcspRequest`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus`, `OCSP_NONCE_OID` — you fetch, pkinative judges |
+| CMS and timestamps | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
 | Private keys and PKCS#12 | `openPkcs12` (one call: MAC, SafeContents, certificates, keys), `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`; PKCS#8 `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey` — keys unwrapped into non-extractable Web Crypto handles, PBES2 only; `canDecrypt`, `PkiKeyError` ([use cases](docs/guides/use-cases.md#private-keys-and-pkcs12)) |
 | PEM | `decodePem` (strict or lax RFC 7468, optionally restricted to one label), `encodePem` |
 | ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`; the typed readers `readBoolean`, `readInteger`, `readSmallInteger`, `readEnumerated`, `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readRelativeOid`, `readString` (eight string types) and `readTime` (both time types); DER encoders (`encodeSequence`, `encodeInteger`, `encodeRelativeOid`, `encodeTlv`, …); `encodeAsn1Node` (byte-identical re-encoding) |
@@ -169,7 +174,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints, key identifiers and hashing | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier`; `shake256` (FIPS 202, over public data — the digest an Ed448 CMS signer uses) |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 294 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 329 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -189,17 +194,17 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 ## Known limitations
 
 - **No external security audit** ([ADR 0010](docs/adr/0010-no-external-security-audit-at-1-0.md)). What stands in its place — the adversarial release audit, the conformance gate, 100 % coverage, the seeded adversarial suites — is listed in [SECURITY.md](SECURITY.md#in-place-of-an-external-audit).
-- **Coverage-guided fuzzing has not run on GitHub yet.** The ClusterFuzzLite workflow is in place; its first run needs the published repository ([SECURITY.md](SECURITY.md#verification-of-the-parser)). The seeded adversarial suites run in every gate.
+- **Coverage-guided fuzzing explores, it does not block.** ClusterFuzzLite runs on pull requests and every week ([SECURITY.md](SECURITY.md#verification-of-the-parser)) and is not a required check; the seeded adversarial suites, which run in every gate, are the blocking half.
 - **An `id-RSASSA-PSS` private key under PBES2 depends on the host**: a `pkcs8ShroudedKeyBag` or an encrypted PKCS#8 is unwrapped by Web Crypto and never handed back to re-wrap, so on Node.js 22 it stays `PKI_REASON_PKCS12_KEY_UNSUPPORTED` or `PKI_CRYPTO_KEY_UNSUPPORTED` — re-export it under `rsaEncryption` with the tool that holds it. Public keys, unencrypted PKCS#8 and plain `keyBag`s under such a certificate verify and open everywhere.
 - **No built-in trust store, no fetching.** The caller supplies the trust anchors, and the CRLs and OCSP responses a check needs: pkinative does no network I/O ([ADR 0006](docs/adr/0006-no-network-io-in-the-engine.md)).
-- **No OCSP-request or timestamp-request reader.** `createOcspRequest` and `createTimeStampRequest` write them; no public function parses one. A PKCS#10 request is read by `parseCertificationRequest` and judged by `verifyCertificationRequest`.
+- **Requests are read, not answered.** `parseOcspRequest` and `parseTimeStampRequest` read what `createOcspRequest` and `createTimeStampRequest` write, or what another client wrote; pkinative is neither a responder nor a TSA, and the signature of a signed OCSP request is exposed, not verified. A PKCS#10 request is read by `parseCertificationRequest` and judged by `verifyCertificationRequest`.
 - **No CRL or OCSP-response writer.** pkinative reads and verifies both, and writes neither.
-- **ML-DSA signatures are not verified**, though ML-DSA keys are read; **DSA signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)); **an Ed448 CMS signer is verified where the host verifies Ed448** (Node.js) and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` where it does not (Bun, Chromium) ([ADR 0022](docs/adr/0022-ed448-cms-signers-host-dependent.md)).
+- **An ML-DSA signature is verified where the host verifies ML-DSA** — a certificate, a CRL, an OCSP response, a certification request, a CMS signer or a timestamp token, on a runtime whose Web Crypto has the algorithm (Node.js 24.7 and later) — and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` where it does not (Node.js 22); **nothing is signed with ML-DSA**, and an ML-DSA private key is described, not imported; **SLH-DSA and ML-KEM keys are read**, and no SLH-DSA signature is verified ([ADR 0026](docs/adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)); **DSA signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)); **an Ed448 CMS signer is verified where the host verifies Ed448** (Node.js) and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` where it does not (Bun, Chromium) ([ADR 0022](docs/adr/0022-ed448-cms-signers-host-dependent.md)).
 - **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied. No public suffix list is embedded: a wildcard needs three labels, and registry-level policy is the caller's.
 - **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a `warning` (refused under `strict: true`); a value past its RFC 5280 Appendix A.1 upper bound, or a country code outside ISO 3166-1, is read as it is with an `info` (`PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG`, `PKI_DIAG_NAME_COUNTRY_UNKNOWN`). TeletexString is read as Latin-1, with a diagnostic.
 - **The Certificate Transparency SCT list** is kept in its TLS encoding, neither decoded nor verified.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
-- **Attribute certificates** (ITU-T X.509 §12 and RFC 5755) are not read; the scope and priority are determined when a consumer requests one.
+- **Attribute certificates** (RFC 5755) are read and signature-checked; RFC 5755 §5 validation is not implemented — holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller's composition ([ADR 0028](docs/adr/0028-attribute-certificates-are-read-not-judged.md), `recipes/attribute-certificate.ts`).
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.
 
 ## What pkinative will NOT do
@@ -210,7 +215,7 @@ No runtime dependency. No TypeScript implementation of signing, key generation o
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.0.0 |
+| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.1.0 |
 | [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
 | [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
 
@@ -236,6 +241,15 @@ npm run conformance:fetch && npx tsx scripts/gate.ts --publish --require-all
 
 pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures. An audit found that code useful but not reusable as it stood — a signed-shift length bug, recursion without a bound, extensions silently lost after an `issuerUniqueID`, and pure-JavaScript RSA and ECDSA that are not constant-time. pkinative keeps the ideas, rewrites the parser, and leaves the secret-dependent arithmetic to Web Crypto.
 
+## Support the project
+
+pkinative is MIT-licensed and free. Two things fund the time spent on it:
+
+- **[GitHub Sponsors](https://github.com/sponsors/Nizoka)** — once or monthly.
+- **A [Plika](https://plika.app) licence** — the personal-finance application of pkinative's author. It is the purchase of that product, not a donation, and it buys nothing in pkinative: neither support nor priority.
+
+Starring the repository helps too. Where to ask a question, report a bug or write to the project: [SUPPORT.md](SUPPORT.md).
+
 ## License
 
 [MIT](LICENSE) © Nizoka — Plika
@@ -245,7 +259,7 @@ pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures.
 
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 1.0 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 1.1 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
@@ -255,7 +269,7 @@ pkinative is on npm, published with provenance from the tagged commit after the 
 npm install pkinative
 ```
 
-`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz`, and `gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 ## Read a certificate
 
@@ -274,7 +288,7 @@ getExtension(cert, 'subjectAltName')?.names;      // [{ kind: 'dNSName', value: 
 getExtension(cert, 'basicConstraints')?.cA;       // false
 ```
 
-`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). Times are `epochMilliseconds` numbers, exact from year 0000 to 9999.
+`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). A time is an object, `{ type, epochMilliseconds, text }`: compare its `epochMilliseconds` — a number, exact from year 0000 to 9999 — never the object itself.
 
 ## What a certificate holds
 
@@ -289,7 +303,7 @@ Every field is listed with its type in `docs/assets/api.json` (the `members` of 
 | `signatureValue` | `{ bytes, unusedBits }` — the signature; `verifyCertificateSignature(cert, issuer)` checks it |
 | `issuer`, `subject` | `{ rdns, der }`: each RDN a list of `{ type, value, valueDer }`, `value` a `{ stringType, value, raw }` string when the attribute is one |
 | `validity` | `{ notBefore, notAfter }`, each `{ type, epochMilliseconds, text }` |
-| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87` add `key`; `unknown` adds nothing |
+| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87`, the twelve `slh-dsa-…` kinds (`slh-dsa-sha2-128s` to `slh-dsa-shake-256f`) and `ml-kem-512`, `ml-kem-768`, `ml-kem-1024` add `key`; `unknown` adds nothing |
 | `issuerUniqueId`, `subjectUniqueId` | `{ bytes, unusedBits }` or `undefined` |
 | `extensions`, `diagnostics` | In encoded order, below |
 
@@ -317,6 +331,8 @@ The fields of the extensions `getExtension` returns:
 ## Every extension, typed
 
 `cert.extensions` lists every extension in encoded order, each with `oid`, `critical` and `valueDer`, and a `kind` that says how it was decoded: `basicConstraints`, `keyUsage`, `extendedKeyUsage`, `subjectAltName`, `issuerAltName`, `subjectDirectoryAttributes`, `subjectKeyIdentifier`, `authorityKeyIdentifier`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, `authorityInfoAccess`, `subjectInfoAccess`, `crlDistributionPoints`, `freshestCRL`, `signedCertificateTimestampList`, `ocspNoCheck` — or `unknown` for an extension pkinative does not decode. `getExtension(cert, kind)` returns the one of that kind, typed.
+
+An RFC 5755 attribute certificate, read by `parseAttributeCertificate`, carries the same kinds on `ac.extensions` plus three that only an attribute certificate carries, and that a certificate keeps as `unknown`: `targetInformation` (`targets`, every target of every Targets element in one list), `auditIdentity` (`identity`) and `noRevAvail` (nothing beyond `oid`, `critical`, `valueDer`). Its attributes are on `ac.attributes`, by `kind`: `authenticationInfo`, `accessIdentity`, `chargingIdentity`, `group`, `role`, `clearance` or `unknown`. Reading it is not judging it: `verifyAttributeCertificateSignature` checks the signature, and the rest of RFC 5755 §5 is shown in `recipes/attribute-certificate.ts`.
 
 An inspection tool that must show a certificate even when one extension is malformed parses with `decodeExtensions: false` — every extension stays `kind: 'raw'` — and decodes what it needs with `decodeExtensionValue(oid, valueDer, { critical })`; `critical` (default `false`) is reported on the result and decides whether an unknown extension raises `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`.
 
@@ -394,7 +410,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 22 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
+- [recipes/](../../recipes/) — 25 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host, an attribute certificate and the checks RFC 5755 §5 leaves to you.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.
@@ -637,7 +653,7 @@ Choosing which anchors to trust is yours, and so is fetching anything not alread
 
 **It takes signature verdicts, not keys**, and three things follow. `validateCertificatePath` is **synchronous** — putting `subtle.verify` inside would make the whole state machine asynchronous, unfuzzable without a host, and would mix an I/O-shaped failure with a logical one. It is **pure** — it reads data and returns a verdict, reaching nothing. And the signatures are checked before the walk, by whoever calls it.
 
-**It never throws for a validation issue.** An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in `limits` — throws. That is the [third vocabulary](errors.md#three-vocabularies-three-questions) doing its job: primitives return and throw, compositions report.
+**It never throws for a validation issue.** An empty chain, no trust anchor, no signature verdicts: each is an answer, in the report. Only misusing the API — an unknown key in `limits`, a value of the wrong type — throws. That is the [third vocabulary](errors.md#three-vocabularies-three-questions) doing its job: primitives return and throw, compositions report.
 
 **It reports every reason, not the first.** A certificate can be expired *and* issued by something that is not a CA, and a caller fixing one per round trip is a caller the report failed.
 
@@ -671,7 +687,7 @@ const report = await verifyCertificateChain({
 if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
 ```
 
-Every layer below this one answers exactly one question and is deliberately blind to the others — §6 has no notion of the host you connected to, `checkServerName` knows nothing about trust, revocation takes a signature verdict it did not compute. That separation is what keeps each of them synchronous, pure, fuzzable and small, and it leaves somebody with the job of putting them in the right order. **If that somebody is every caller, every caller gets it slightly wrong.** So it is here, once: the signatures verified as the path search needs them — each link once, the moment the search is about to rely on it, and never for a pair no path tries — the path built with the purpose already in hand, then the host name, then revocation. `VerifyCertificateChainInput` is the whole surface and `VerifyCertificateChainReport` adds `signatureVerifications` — the number of signatures computed, worth logging, because a number far above the path length is what a bag full of plausible issuers looks like. Its `onDiagnostic` receives what the certificates, lists and responses say about themselves — the RFC 6960 responderID and nocheck concerns among them — without any of it moving the verdict.
+Every layer below this one answers exactly one question and is deliberately blind to the others — §6 has no notion of the host you connected to, `checkServerName` knows nothing about trust, revocation takes a signature verdict it did not compute. That separation is what keeps each of them synchronous, pure, fuzzable and small, and it leaves somebody with the job of putting them in the right order. **If that somebody is every caller, every caller gets it slightly wrong.** So it is here, once: the signatures verified as the path search needs them — each link once, the moment the search is about to rely on it, and never for a pair no path tries — the path built with the purpose already in hand, then the host name, then revocation. `VerifyCertificateChainInput` is the whole surface and `VerifyCertificateChainReport` adds `signatureVerifications` — the number of signatures computed, worth logging, because a number far above the path length is what a bag full of plausible issuers looks like. Its `onDiagnostic` receives what the certificates, lists and responses say about themselves — the RFC 6960 responderID and nocheck concerns among them — without any of it moving the verdict; with `strict: true` the first `warning` among them is reported instead, as `PKI_REASON_INPUT_MALFORMED` carrying `PKI_STRICT_DIAGNOSTIC` at the list or response that raised it ([errors](errors.md#strict-in-the-verify-and-check-verbs)).
 
 Three defaults worth knowing. **`at` is now**, so omitting it asks about today. **Revocation is soft-fail**: with no list or response supplied nothing is claimed, and `requireRevocation: true` turns silence into `PKI_REASON_REVOCATION_UNKNOWN` — the right setting wherever you can actually obtain them, and off by default because a library that refuses every chain for which the caller happened not to download one is a library callers route around. **SHA-1 signatures are not evidence** and come back `PKI_REASON_SIGNATURE_NOT_CHECKED` unless `allowSha1` says otherwise. When the question is whether a certificate was good at some **past** instant — when a document was signed — do not move `at` to a time somebody merely claims: [a verified timestamp is what proves that instant](#prove-when-it-was-signed).
 
@@ -896,7 +912,7 @@ The rest of [`VerifySignedDataInput`](../assets/api.json) is the chain's vocabul
 | Vocabulary | Codes | Raised by | Means |
 |---|---|---|---|
 | Thrown `PkiCmsError` | `PKI_CMS_STRUCTURE_INVALID`, `PKI_CMS_CONTENT_TYPE_UNEXPECTED`, `PKI_CMS_VERSION_UNSUPPORTED`, `PKI_CMS_CONTENT_NOT_OCTET_STRING` | `parseSignedData`, the TSP readers, `addUnsignedAttribute` | The DER is well formed but is not the RFC 5652 or RFC 3161 structure it was read as; `path` and `offset` say where |
-| Emitted diagnostics | `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED` | `parseSignedData`, through `onDiagnostic` and `SignedData.diagnostics` | The structure deviates from the profile in a way no signature depends on |
+| Emitted diagnostics | `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED` | `parseSignedData`, through `onDiagnostic` and `SignedData.diagnostics`; `verifySignedData`, through its own `onDiagnostic` | The structure deviates from the profile in a way no signature depends on; under `strict: true` the parser throws `PKI_STRICT_DIAGNOSTIC` and the verify reports it as `PKI_REASON_INPUT_MALFORMED` at `signedData` |
 | Returned reasons | `PKI_REASON_CMS_*`, `PKI_REASON_TSP_*`, plus every chain reason under `signerInfos[i].chain` | `verifySignedData`, `verifyTimeStampToken` | The message is readable, and the judgement is *no* |
 
 `PkiCmsErrorCode` is the union a `PkiCmsError` narrows `code` to. `verifySignedData` **never throws for bad input** — bytes that are not a `SignedData` are `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the code that would have been thrown — and reads quietly, so the diagnostics are `parseSignedData`'s to show. It throws only for a call that is wrong: content given twice, an unknown `limits` key, a certificate `parseCertificate` did not make. `maxSignerInfos` and `maxCmsCertificatesAndCrls` bound what one message may cost, and `maxAttributes` each attribute list.
@@ -994,12 +1010,20 @@ openssl pkcs12 -export -in bundle.pem -pbmac1_pbkdf2 -out modern.p12
 |---|---|---|---|
 | Thrown `PkiKeyError` | `PKI_KEY_STRUCTURE_INVALID`, `PKI_KEY_VERSION_UNSUPPORTED`, `PKI_KEY_ENCRYPTION_UNSUPPORTED`, `PKI_KEY_MAC_UNSUPPORTED` | the parsers, `importPrivateKey`, `decryptPrivateKey`, `verifyPkcs12Mac`, `openSafeContents` | The structure is not RFC 5958 or RFC 7292, or it is protected by something pkinative refuses; `path` and `offset` say where, and the message names the conversion |
 | Thrown `PkiCryptoError` | `PKI_CRYPTO_DECRYPTION_FAILED` | `decryptPrivateKey`, `openSafeContents` | The file was readable and the host could not decrypt it: the password, the data, or the algorithm named |
-| Emitted diagnostic | `PKI_DIAG_KEY_KDF_ITERATIONS_LOW` | the parsers, through `onDiagnostic` and `diagnostics` | A PBKDF2 count below 1 000; the file still opens |
+| Emitted diagnostic | `PKI_DIAG_KEY_KDF_ITERATIONS_LOW` | the parsers, through `onDiagnostic` and `diagnostics`; `openPkcs12`, through its `onDiagnostic` | A PBKDF2 count below 1 000; the file still opens — unless `strict: true`, under which `openPkcs12` reports it as `PKI_REASON_INPUT_MALFORMED` carrying `PKI_STRICT_DIAGNOSTIC` |
 | Returned reasons | `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED`, `PKI_REASON_PKCS12_MAC_MISMATCH`, `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED`, `PKI_REASON_PKCS12_DECRYPTION_FAILED`, `PKI_REASON_PKCS12_KEY_UNMATCHED`, `PKI_REASON_PKCS12_KEY_UNSUPPORTED`, `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED` | `openPkcs12` | The file is readable, and something in it could not be opened or trusted |
 
 **A `PkiKeyError` never means a wrong password** — only the host can find that out, and it says so as a `PkiCryptoError`. `PkiKeyErrorCode` is the union a `PkiKeyError` narrows `code` to.
 
 `recipes/private-key.ts` reads, imports and decrypts PKCS#8 keys written by `node:crypto`, names the RSA algorithm, and refuses a 3DES and an Appendix C key by name; `recipes/pkcs12.ts` writes a PBMAC1 `.p12`, opens it in one call and with the primitives, signs with the key, and reads the unverifiable, the wrong-password and the legacy cases apart.
+
+## Post-quantum signatures, attribute certificates, and a request read back
+
+Three jobs the calls above already do, or do with one more:
+
+- **A chain or a message signed with ML-DSA.** Nothing changes in the call: `verifyCertificateChain`, `verifySignedData` and `verifyTimeStampToken` verify ML-DSA-44, -65 and -87 through the host's Web Crypto. On a host without the algorithm — Node.js before 24.7 — the report is `valid: false` with `PKI_REASON_SIGNATURE_NOT_CHECKED` and `errorCode: 'PKI_CRYPTO_KEY_UNSUPPORTED'`: the signature was not checked, which is not the same as bad. Branch on the reason, never on the runtime; `recipes/verify-ml-dsa.ts` runs on either kind of host.
+- **An attribute certificate** (RFC 5755). `parseAttributeCertificate` reads the holder, the issuer, the attributes and the extensions, and `verifyAttributeCertificateSignature` checks its signature against the issuer's certificate. What RFC 5755 §5 asks beyond that — the issuer's own chain, the validity period, the holder's binding, targeting, revocation — is yours to compose, and `recipes/attribute-certificate.ts` shows how.
+- **A request read back.** `parseTimeStampRequest` and `parseOcspRequest` read what `createTimeStampRequest` and `createOcspRequest` wrote, or what a client sent you: the imprint, policy and nonce of the one, the CertIDs and nonce of the other. `recipes/inspect-requests.ts` reads both.
 
 ## What none of these do
 
@@ -1022,7 +1046,7 @@ How well the path validator actually agrees with the world is measured rather th
 
 > **pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable `--json` contract for scripts, CI and AI agents.** It pins pkinative ^1.0.0, its only runtime dependency.
 
-[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the `PkiError` family, 6 constants), and a test in the CLI repository proves it.
+[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every runtime export of the engine release it was built on, 1.0.0 (117: 104 functions, the 7 classes of the `PkiError` family, 6 constants), and a test in the CLI repository proves it.
 
 | Command | Subcommands | Engine API behind it |
 |---|---|---|
@@ -1197,7 +1221,7 @@ Usage errors are `E_USAGE`, exit 2, and they are detected before anything is wri
 
 ## Error classes, codes and remedies
 
-Every failure is one of 13 classes. pkinative's 57 frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME` — and the engine's code always rides along, verbatim, in `error.pkiCode`.
+Every failure is one of 13 classes. The engine's frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME`; the table of pkinative-cli 1.0.0 holds the codes it was built against, so not the one this engine release adds, which is raised only when an attribute certificate is read and which that CLI never does — and the engine's code always rides along, verbatim, in `error.pkiCode`.
 
 | Class | Exit | `PKI_*` codes mapped to it | When |
 |---|---|---|---|
@@ -2020,7 +2044,7 @@ A wrong password is `E_PASSWORD` [1]; a password on argv is `E_USAGE` [2]. A leg
 
 [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) exposes the engine to any client that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP. With it installed an assistant can be asked *"Is this server certificate trustworthy for this host today, given the CRL I fetched?"* and answer by calling `verify_certificate_chain`, reasoning on a typed verdict instead of prose.
 
-All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of pkinative 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
+All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of the engine release it was built on, 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
 
 ## Installation
 
@@ -2033,7 +2057,7 @@ npm install -g pkinative-mcp
 pkinative-mcp
 ```
 
-The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || >=25.8.2` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
+The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
 
 ## Configuration by client
 
@@ -2322,11 +2346,11 @@ Every engine tool's result also carries `diagnostics[]` (de-duplicated by code a
 
 ### `describe_engine`
 
-**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine's 57 error codes, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
+**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine registries as the server vendors them at its pinned engine tag — for 1.0.0: 57 errors, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
 
 ### `explain_code`
 
-**Purpose:** any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
+**Purpose:** any code this server can emit, explained from the registries vendored at the engine tag the server was built on — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
 
 ### `draft_governance_issue`
 
@@ -2371,7 +2395,7 @@ The smallest "can I trust this server certificate?" probe:
 
 A refused call is a tool result with `isError: true`, `content[0].text` = `<tool> failed [CODE]: message` and `_meta.error = { code, message, data }`. The code is one of two kinds:
 
-- **One of pkinative's 57 `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
+- **One of the engine's `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
 - **One of the server's 21 wrapper codes**, for the boundary the engine does not own — validation, sandbox, caps, secrets and output — each with its remedy:
 
 | Wrapper code | Raised when |
@@ -2416,7 +2440,7 @@ Two real results, from the 1.0.0 server. The first `PKI_*` code is raised by the
 - **Two password channels, never a third.** The per-call `password` input, or the operator's `PKINATIVE_MCP_PASSWORD` — one per call. A password is never echoed, logged, cached or served; a call carrying one is never cached.
 - **One sandbox.** `PKINATIVE_MCP_OUTPUT_DIR` is the only filesystem boundary, for reads (every `path` input, `resources/read`) and writes (`outputPath`, governance drafts): relative paths only, no traversal, NUL bytes or unlisted extensions, the real path of every file read and of every parent written inside it, exclusive creates, and a partial file removed when a write fails. In `outputMode: 'file'` a result names the absolute path it wrote, in `structuredContent.filePath` and in its text; that is the one place a host path reaches the transcript. Unset, no tool touches the filesystem; the opt-in response cache under `PKINATIVE_MCP_CACHE_DIR` is the only other I/O the server performs.
 - **Ceilings and caps.** The engine's 22 limits apply to every call and rise only by explicit input, never above the operator ceilings; every byte and count the wrapper bounds is a constant `describe_engine.caps` advertises — 256 MiB per stdio frame or HTTP body, 128 MiB of inline PKI input per call, 50 MiB per inline artefact, 1 GiB per file output, 64 KiB per hex artefact.
-- **The engine's doctrine, surfaced.** SHA-1 only with `allowSha1: true`; RSA only with an explicit `rsaScheme`; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA and ML-DSA parsed, never verified; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. `describe_engine.refusals` lists each line with its remedy.
+- **The engine's doctrine, surfaced.** SHA-1 only with `allowSha1: true`; RSA only with an explicit `rsaScheme`; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA parsed, never verified; ML-DSA parsed and, from engine 1.1.0, verified where the host's Web Crypto has it and reported not checked where it has not ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)) — never signed with; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. `describe_engine.refusals` lists each line with its remedy.
 
 The server's own conformance gate has OpenSSL 3 read back every artefact it writes, in CI and before every publish; the [conformance guide](conformance.md) covers the engine underneath, and the [security guide](security.md) its threat model.
 
@@ -2703,6 +2727,10 @@ Exceeding a limit throws `PkiLimitError` with code `PKI_LIMIT_EXCEEDED` and the 
 
 A structural failure throws a `PkiError` subclass — `PkiEncodingError` for X.690, OID and PEM syntax, `PkiCertificateError` for the RFC 5280 structure, `PkiLimitError` for a limit, `PkiCryptoError` for a Web Crypto operation that could not run, `PkiCmsError` and `PkiKeyError` for CMS and key containers — with a stable `code`. A conformance concern is a diagnostic. The two never mix: a diagnostic never hides a structural failure, and a thrown error never carries a merely pedantic concern. Any other exception escaping on malformed input — a `TypeError`, a `RangeError` — is a bug, and the fuzzing suites plus the conformance gate check that none does across every truncation, every single-octet mutation and 30 361 unique x509-limbo certificates.
 
+The same holds for a call the type checker never saw. A script without types, or a tool forwarding what a model wrote, passes `undefined` where an input object is expected: every function of the entry point refuses an argument of the wrong type with a `PkiError` — `PKI_INVALID_INPUT`, unless the argument has a code of its own — where it first reads it, and two suites check that nothing else escapes: one calls each of them with everything wrong at once, the other starts from a valid call and makes it wrong in one place. An argument, its members and the members of those are each checked where the function reads them. A value a reader made is told by the bytes the function reads from it; one built by hand to pass for it is not walked.
+
+What a reader returns is frozen, to the last nested list: the certificate a path builder, a revocation check and a report all hold cannot be changed by any of them.
+
 Decoded names and OIDs are kept in arrays and `Map`s, never as plain object keys, so a crafted `__proto__` cannot reach an object prototype (CWE-1321). `formatDistinguishedName` escapes control characters, so a crafted name cannot drive the terminal that prints it.
 
 ## Cryptography pkinative does not own
@@ -2771,7 +2799,7 @@ Every published vulnerability of a PKI library whose class pkinative could share
 
 CVE-2022-36083 is the one that applied: a PKCS#12 with no MAC could make `openPkcs12` run one ten-million-iteration PBKDF2 per entry. `maxPkcs12KdfIterations` bounds the work of a whole file and refuses it at parse, before anything is derived.
 
-Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eight targets in `fuzz/` — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses, RFC 3161 timestamps, and PKCS#12 with PKCS#8 — each seeded with a real structure of its grammar and each executed against `src/` on every gate run by `tests/fuzzing/targets.test.ts`.
+Coverage-guided fuzzing complements the replays: ClusterFuzzLite runs eleven targets in `fuzz/` — the X.690 decoder, X.509, PEM and OIDs, CMS SignedData, CRLs, OCSP responses and requests, RFC 3161 timestamps and requests, PKCS#12 with PKCS#8, and attribute certificates — each seeded with a real structure of its grammar and each executed against `src/` on every gate run by `tests/fuzzing/targets.test.ts`.
 
 ## Reporting a vulnerability
 
@@ -2792,7 +2820,7 @@ Report privately, never in an issue: through [GitHub's private vulnerability rep
 | [Project Wycheproof](https://github.com/C2SP/wycheproof) | 1 530 Wycheproof ECDSA vectors on P-256, P-384 and P-521, including deliberately mis-encoded signatures | commit `3fa63dd0344a` |
 | [NIST PKITS](https://csrc.nist.gov/projects/pki-testing) | 223 path-validation tests of the US Federal PKI — 405 certificates and 173 revocation lists, with certificate policies, policy mapping, key rollover and indirect CRLs | SHA-256 `592f66030d2e` of `PKITS_data.zip` |
 | [RFC 5280](https://www.rfc-editor.org/rfc/rfc5280) | Not a corpus of cases but the text L5 is held to: 182 requirement sentences of §4.1 and §4.2, each accounted for | SHA-256 `a2f2628c0a83` of `rfc5280.txt` |
-| [RFC 5652](https://www.rfc-editor.org/rfc/rfc5652), [RFC 3161](https://www.rfc-editor.org/rfc/rfc3161), [RFC 6960](https://www.rfc-editor.org/rfc/rfc6960), [RFC 7292](https://www.rfc-editor.org/rfc/rfc7292), [RFC 7468](https://www.rfc-editor.org/rfc/rfc7468) | The texts of CMS, timestamps, OCSP, PKCS #12 and PEM, read the same way: 132 requirement sentences, each held by a named test or excluded with its reason | SHA-256 `dbd209ae7844`, `39fd17644ff2`, `7e63ffa1ea2c`, `168ce6749ac3`, `0b2c3c2087cc` of each `rfc<NNNN>.txt` |
+| [RFC 5652](https://www.rfc-editor.org/rfc/rfc5652), [RFC 3161](https://www.rfc-editor.org/rfc/rfc3161), [RFC 6960](https://www.rfc-editor.org/rfc/rfc6960), [RFC 7292](https://www.rfc-editor.org/rfc/rfc7292), [RFC 7468](https://www.rfc-editor.org/rfc/rfc7468), [RFC 5755](https://www.rfc-editor.org/rfc/rfc5755) | The texts of CMS, timestamps, OCSP, PKCS #12, PEM and attribute certificates, read the same way: 201 requirement sentences, each held by a named test or excluded with its reason | SHA-256 `dbd209ae7844`, `39fd17644ff2`, `7e63ffa1ea2c`, `168ce6749ac3`, `0b2c3c2087cc`, `444553b1e8d7` of each `rfc<NNNN>.txt` |
 
 `npm run conformance:fetch` downloads them into `test-output/corpora/` and refuses any file whose SHA-256 differs from `.github/checksums/`; nothing is committed. PKITS is distributed as a ZIP and nothing else, so it is pinned by the archive's own digest **and** by a per-file list of what was extracted from it — one digest fixes what NIST published, the other fixes what this project's ZIP reader made of it. `scripts/lib/corpora.ts` holds the pins, and the verify-docs rule `corpus-pin-parity` keeps the checksums, `THIRD-PARTY-NOTICES.md` and `docs/assets/ecosystem.json` in step with them.
 
@@ -2829,9 +2857,10 @@ Report privately, never in an issue: through [GitHub's private vulnerability rep
 
   - RFC 5652 §5, §11.1–§11.4: **50 sentences**, **44 held by a test**, **6 excluded** — 4 `not-implemented` (AuthenticatedData), 1 `producer-policy`, 1 `relying-party`. Seven of the tests are the diagnostics that closed the gaps recorded until 1.0: the contents of a countersignature, which pkinative still carries unverified but now looks into as far as its attribute types (`PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE`, `PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST`, `PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY`); a signer-less SignedData whose content is not the certificates-only form (`PKI_DIAG_CMS_CERTS_ONLY_CONTENT`); a signing time in GeneralizedTime for 1950–2049, or with fractional seconds (`PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC`, `PKI_DIAG_CMS_SIGNING_TIME_FRACTION`).
   - RFC 3161 §2.3–§2.4: **38 sentences**, **28 held by a test**, **10 excluded** — 10 `producer-policy` (what the TSA checks, issues and keeps unique). The certReq contract between a request and its token is decided where the two meet, in `verifyTimeStampToken`, and reported through its `onDiagnostic` (`PKI_DIAG_TSP_CERTREQ_UNMET`, `PKI_DIAG_TSP_CERTS_UNREQUESTED`); the verdict never depends on it.
-  - RFC 6960 §4.1–§4.2: **23 sentences**, **18 held by a test**, **5 excluded** — 2 `producer-policy`, 2 `issuer-policy`, 1 `not-implemented` (signed requests). The parser reports an empty certs field and an explicit version (`PKI_DIAG_OCSP_CERTS_EMPTY`, `PKI_DIAG_OCSP_VERSION_NOT_V1`, or `PKI_DIAG_DEFAULT_ENCODED` for a v1 written out); `checkOcspStatus`, given the certificate that signed, compares the responderID with it and reads its ocsp-nocheck flag, and counts the SingleResponses nobody asked about (`PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH`, `PKI_DIAG_OCSP_NOCHECK_CRITICAL`, `PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED`) — `verifyCertificateChain` passes the signer it established and forwards all of it to its own `onDiagnostic`.
+  - RFC 6960 §4.1–§4.2: **23 sentences**, **20 held by a test**, **3 excluded** — 1 `producer-policy`, 2 `issuer-policy`. `parseOcspRequest` holds the two sentences of §4.1.2 that needed a reader: an extension it does not recognise is kept and not refused, and a signed request that names no requestor is `PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED`; it also reports a critical request extension and a nonce outside the 1 to 128 octets of RFC 9654 §2.1 (`PKI_DIAG_OCSP_REQUEST_EXTENSION_CRITICAL`, `PKI_DIAG_OCSP_NONCE_LENGTH`). The response parser reports an empty certs field and an explicit version (`PKI_DIAG_OCSP_CERTS_EMPTY`, `PKI_DIAG_OCSP_VERSION_NOT_V1`, or `PKI_DIAG_DEFAULT_ENCODED` for a v1 written out); `checkOcspStatus`, given the certificate that signed, compares the responderID with it and reads its ocsp-nocheck flag, and counts the SingleResponses nobody asked about (`PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH`, `PKI_DIAG_OCSP_NOCHECK_CRITICAL`, `PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED`) — `verifyCertificateChain` passes the signer it established and forwards all of it to its own `onDiagnostic`.
   - RFC 7292 §4–§5: **9 sentences**, **7 held by a test**, **2 excluded** — 2 `relying-party` (what an importing application does with each bag).
   - RFC 7468 §2–§5: **12 sentences**, **8 held by a test**, **4 excluded** — 2 `not-decidable-from-bytes`, 1 `not-implemented` (no PEM inside the certificate parser), 1 `producer-policy` (the label is the caller's).
+  - RFC 5755 §4: **69 sentences**, **36 held by a test**, **33 excluded** — 17 `not-implemented` (§5 holder binding, targeting and AC revocation, deferred by [ADR 0028](../adr/0028-attribute-certificates-are-read-not-judged.md), and the RFC 3281 clearance), 7 `issuer-policy`, 3 `covered-elsewhere` (the signature algorithm rules certificates already follow), 2 `producer-policy`, 2 `relying-party`, 2 `not-decidable-from-bytes`. §5 itself is outside the inventory by the same record: `parseAttributeCertificate` reads and diagnoses the §4 profile, `verifyAttributeCertificateSignature` checks the signature, and the rest of validation is the caller's (`recipes/attribute-certificate.ts`).
 
   Writing them down added the tests that were missing where pkinative already had the behaviour — a non-DER BasicOCSPResponse, a non-canonical genTime and signing time, the single-instance rule for every signed attribute — and found one inconsistency kept as a recorded fact rather than hidden: under `encodingRules: 'ber'` the signed attributes are refused for a BER length or a constructed string, yet a signing time without seconds inside them is read with `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`. The verified errata in the inventoried sections (RFC 3161 2931 and 2932, RFC 6960 6167, RFC 7468 4508) change ASN.1 comments or ABNF, not a requirement sentence, and are recorded as reviewed.
 - **L6 — path validation, scored.** L1 to L5 judge certificates. L6 judges **chains**, which is the other half of what this library is for and the only half a boolean can be wrong about silently. Every x509-limbo case is built, name-matched and revocation-checked the way a caller would, and pkinative's verdict must match the one the corpus writes down: **9 158 of 9 208 agree, 99.46 %**, with 20 skipped and the rest refused at L1.
@@ -2941,6 +2970,8 @@ The same arrow for everything else pkinative verifies and never writes in the to
 | `openssl:crl-base` | `openssl ca -gencrl` after that revocation | the revoked certificate `PKI_REASON_REVOKED`, another valid |
 | `openssl:crl-delta` | `openssl crl -gendelta -sha256` between that CRL and the next, after a second revocation | with the base alone the second certificate is valid; with the base and the delta, `PKI_REASON_REVOKED` |
 | `openssl:csr` | `openssl req -new` for every key the matrix issues a certificate to (RSA 2048, ECDSA P-256 and P-384, Ed25519) | `parseCertificationRequest` with zero diagnostics and the subject the tool was given; `verifyCertificationRequest` valid |
+| `openssl:cert-ml-dsa` | `openssl req -x509` with an ML-DSA-65 key, and `openssl x509 -req` issuing an ML-DSA-44 leaf under it (OpenSSL 3.5 or later; an older build is declared without ML-DSA, not failed) | `verifyCertificateChain` valid where the host has ML-DSA; `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` where it has not ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)) |
+| `openssl:cms-ml-dsa` | `openssl cms -sign -nodetach -md sha512` with that ML-DSA-44 leaf | `verifySignedData` valid where the host has ML-DSA; not checked, with the same code, where it has not |
 | `gnutls-certtool:crl` | `certtool --generate-crl` over an ECDSA CA and one certificate it issued | the listed certificate `PKI_REASON_REVOKED`, the other valid |
 | `gpgsm:cms-detached` | `gpgsm --detach-sign`, with an RSA key imported from PKCS #12 | valid |
 | `gpgsm:cms-attached` | `gpgsm --sign`: indefinite-length BER | valid with `encodingRules: 'ber'` |
@@ -2959,7 +2990,7 @@ The 20 PKITS §4.8 certificate-policy tests are skipped, at L7 and — for the 2
 
 ## Where it runs
 
-`.github/workflows/conformance.yml` runs the gate on every push to `main` and every pull request into it, weekly, and on demand, on Linux, Windows and macOS — three required checks, `conformance`, `conformance-windows` and `conformance-macos`. Three platforms is not redundancy: the command-line tool the L3 level cross-checks against differs by runner (OpenSSL, the Git for Windows build, LibreSSL), and so do line endings, path separators and the default shell. The release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
+`.github/workflows/conformance.yml` runs the gate on every push to `main` and every pull request into it, weekly, and on demand, on Linux, Windows and macOS — three checks the ruleset of `main` requires, `conformance`, `conformance-windows` and `conformance-macos`. Three platforms is not redundancy: the command-line tool the L3 level cross-checks against differs by runner (OpenSSL, the Git for Windows build, LibreSSL), and so do line endings, path separators and the default shell. The release gate (`npx tsx scripts/gate.ts --publish --require-all`) runs it too. Locally:
 
 ```bash
 npm run build
@@ -2990,7 +3021,7 @@ How to read the status column: **applies** — pkinative implements the standard
 |---|---|---|---|---|
 | ITU-T X.690 \| ISO/IEC 8825-1 — BER, CER and DER | Decoding DER (strict, the default) and BER (on request); encoding DER | applies | `src/asn1/`; `tests/asn1/asn1-decode.test.ts`, `tests/asn1/asn1-encode.test.ts`, `tests/asn1/asn1-read.test.ts`; `tests/fuzzing/asn1-lengths-tags-nesting.test.ts`, `tests/fuzzing/asn1-values.test.ts`; `tests/property/asn1-roundtrip.test.ts`; byte identity at `L2` against `scripts/lib/raw-der.ts`, an independent walker; the §11.6 and §11.2.2 clauses `x690-11.6-rdn-set-sorted` and `x690-11.2.2-named-bits-trimmed` at `L5` | §11.2.2, §11.5 and §11.6 departures are diagnostics, refused only under `strict: true` (decided: real issuers commit them, and they read the same in every parser). CER is neither implemented nor claimed. The X.690 quotes in `scripts/lib/clauses.ts` are not machine-checked against a pinned text, as the RFC 5280 ones are. |
 | ITU-T X.680 \| ISO/IEC 8824-1 — ASN.1 notation | The universal tags and the value sets the readers accept | applies | `src/asn1/asn1-tags.ts`, `src/core/text.ts` (the PrintableString set, diagnostic `PKI_DIAG_PRINTABLE_STRING_CHARSET`); a typed reader for every universal type a PKI structure carries, ENUMERATED (`readEnumerated`, X.690 §8.4) and RELATIVE-OID (`readRelativeOid`, `encodeRelativeOid`, X.690 §8.20) included; `tests/asn1/asn1-tags.test.ts`, `tests/asn1/asn1-read.test.ts`, `tests/asn1/asn1-oid.test.ts`, `tests/asn1/asn1-time.test.ts`, `tests/property/asn1-roundtrip.test.ts` | Not read, because no PKI structure pkinative reads carries them: REAL has no reader, and under BER the GeneralizedTime forms X.680 allows beyond RFC 5280 §4.1.2.5.2 — hour-only times, fractions of a minute or an hour, numeric offsets — are refused. |
-| ITU-T X.509 \| ISO/IEC 9594-8 — certificate framework | Read through the RFC 5280 profile, never beyond it | partial | Everything under RFC 5280 below | Extensions X.509 defines and RFC 5280 does not are kept undecoded (`kind: 'unknown'`). Attribute certificates are not read. |
+| ITU-T X.509 \| ISO/IEC 9594-8 — certificate framework | Read through the RFC 5280 profile, never beyond it | partial | Everything under RFC 5280 below | Extensions X.509 defines and RFC 5280 does not are kept undecoded (`kind: 'unknown'`). Attribute certificates are read through the RFC 5755 profile (row below). |
 | ITU-T X.520 \| ISO/IEC 9594-6 — attribute types | Names: every DirectoryString choice is read, each attribute held to its syntax and its upper bound | applies | `src/x509/x509-name.ts`, with the RFC 5280 Appendix A.1 syntax and `ub-*` table in `src/core/name-oids.ts` and the ISO 3166-1 codes in `src/x509/iso3166.ts`; `tests/x509/x509-name.test.ts` (`PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE`, `PKI_DIAG_COUNTRY_NAME_SIZE`, `PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG`, `PKI_DIAG_NAME_COUNTRY_UNKNOWN`), `tests/x509/iso3166.test.ts`, `tests/build/build-structures.test.ts`; the attribute names in `src/oid/` | Diagnosed, never enforced when reading: a value outside its Appendix A.1 string type raises `PKI_DIAG_NAME_ATTRIBUTE_STRING_TYPE` and a `countryName` that is not two characters `PKI_DIAG_COUNTRY_NAME_SIZE`, each refused only under `strict: true`; a value past its `ub-*` upper bound, counted in characters, raises `PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG` and is read as it is, information even under `strict`. The bounds are RFC 5280 Appendix A.1's (the five X520name attributes at ub-name, 32768), not the X.400 personal-name lengths. `encodeNameAttribute` refuses a wrong type or size when writing. |
 | ITU-T X.660 \| ISO/IEC 9834-1 — object identifier arcs | Encoding, decoding and validating OIDs | applies | `src/asn1/asn1-oid.ts`; `tests/asn1/asn1-oid.test.ts`, `tests/oid/oid-registry.test.ts`; `tests/fuzzing/asn1-values.test.ts` | — |
 
@@ -3011,13 +3042,17 @@ How to read the status column: **applies** — pkinative implements the standard
 | RFC 2986 — PKCS#10 certification requests (with RFC 2985 §5.4 for `extensionRequest` and `challengePassword`) | Reading, verifying the proof of possession, and building | applies | `src/x509/x509-csr.ts`, `src/verify/verify-csr.ts`; `tests/x509/x509-csr.test.ts`, `tests/verify/verify-csr.test.ts`, `tests/fuzzing/csr.test.ts`, `tests/build/build-certificate.test.ts`; `recipes/csr.ts`; the `openssl:csr` case of the [interoperability matrix](conformance.md#the-write-direction) reads back and verifies every request `openssl req -new` writes, and OpenSSL, .NET, GnuTLS, Go, Python cryptography and Java read the ones pkinative writes | Attributes other than `extensionRequest` and `challengePassword` are kept as DER (`CsrAttribute`); a request is held to the certificate's codes and bounds, so a `version` other than 0 is `PKI_X509_VERSION_INVALID` and the attributes count against `maxExtensions`. A valid request proves possession of a key and nothing about who sent it. |
 | RFC 5652 — CMS SignedData | Reading, building and verifying | applies | `tests/cms/cms-signed-data.test.ts`, `tests/cms/cms-check.test.ts`, `tests/verify/verify-signed-data.test.ts`, `tests/fuzzing/cms.test.ts`; `L8`, 224 PKITS S/MIME messages verified whole; the pinned text of §5 and §11.1–11.4 held sentence by sentence to a named test (`scripts/data/rfc5652-requirements.json`) | DSA signers are not verified ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)); an Ed448 signer is verified, and written by `createSignedData`, where the host has Ed448 — Node.js — and reported unchecked, or refused with `PKI_CRYPTO_KEY_UNSUPPORTED`, where it does not — Bun, Chromium ([ADR 0022](../adr/0022-ed448-cms-signers-host-dependent.md)); countersignatures are carried, not verified — their signed attributes are looked into only as far as the §11.4 diagnostics need. |
 | RFC 6211 — CMS algorithm protection; RFC 5035 — signing-certificate-v2 | Checked on verification | applies | `tests/cms/cms-check.test.ts`, `tests/cms/cms-attributes.test.ts` | — |
-| RFC 3161 and RFC 5816 — timestamps | Requests, responses, tokens and their verification | applies | `tests/cms/tsp-request.test.ts`, `tests/cms/tsp-response.test.ts`, `tests/cms/tsp-tst-info.test.ts`, `tests/verify/verify-timestamp.test.ts`; `recipes/timestamp.ts`; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (`scripts/data/rfc3161-requirements.json`) | One level of evidence: no ETSI long-term formats ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)); the certReq contract between request and token is a diagnostic of `verifyTimeStampToken`, never a reason. |
-| RFC 6960 — OCSP | Requests, responses and the client's §3.2 checks | applies | `tests/revocation/ocsp.test.ts`, `tests/revocation/ocsp-check.test.ts`, `tests/fuzzing/reports.test.ts`; the pinned text of §4.1–4.2 held sentence by sentence (`scripts/data/rfc6960-requirements.json`) | No network I/O: the caller fetches ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)); the responderID is compared with the signer only when `checkOcspStatus` is given it, as `verifyCertificateChain` does, and the comparison is a diagnostic, never a reason. |
+| RFC 3161 and RFC 5816 — timestamps | Requests written and read back (`parseTimeStampRequest`), responses, tokens and their verification | applies | `tests/cms/tsp-request.test.ts`, `tests/property/request-roundtrip.test.ts`, `tests/cms/tsp-response.test.ts`, `tests/cms/tsp-tst-info.test.ts`, `tests/verify/verify-timestamp.test.ts`; `recipes/timestamp.ts`; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (`scripts/data/rfc3161-requirements.json`) | One level of evidence: no ETSI long-term formats ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)); the certReq contract between request and token is a diagnostic of `verifyTimeStampToken`, never a reason; a request is read, never answered — pkinative is not a TSA. |
+| RFC 6960 — OCSP, with the nonce of RFC 9654 | Requests written and read back (`parseOcspRequest`), responses and the client's §3.2 checks | applies | `tests/revocation/ocsp.test.ts`, `tests/revocation/ocsp-request.test.ts`, `tests/revocation/ocsp-check.test.ts`, `tests/property/request-roundtrip.test.ts`, `tests/fuzzing/reports.test.ts`; the pinned text of §4.1–4.2 held sentence by sentence (`scripts/data/rfc6960-requirements.json`) | No network I/O: the caller fetches ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)); the responderID is compared with the signer only when `checkOcspStatus` is given it, as `verifyCertificateChain` does, and the comparison is a diagnostic, never a reason. A request is read, never answered, and the signature of a signed one is exposed, not verified — pkinative is not a responder; `createOcspRequest` writes a nonce of 1 to 32 octets, `parseOcspRequest` reads the 1 to 128 of RFC 9654 §2.1. |
 | RFC 7468 — PEM | Strict and lax decoding, encoding | applies | `tests/pem/pem.test.ts`, `tests/fuzzing/pem-malformed.test.ts`; the pinned text of §2–5 held sentence by sentence (`scripts/data/rfc7468-requirements.json`) | Strict mode refuses the whitespace §2 asks parsers to ignore; lax mode accepts it with a diagnostic. |
+| RFC 5755 — attribute certificates | Reading (`parseAttributeCertificate`): the §4.1 structure, the §4.2–§4.3 profile as diagnostics, the six attributes of §4.4 and the three AC-only extensions; the signature (`verifyAttributeCertificateSignature`) | partial | `tests/x509/x509-attribute-certificate.test.ts`, `tests/x509/x509-ac-attributes.test.ts`, `tests/crypto/x509-verify.test.ts`, `recipes/attribute-certificate.ts`, `fuzz/attribute-certificate.js`; the pinned text of §4 held sentence by sentence (`scripts/data/rfc5755-requirements.json`) | §5 validation is not implemented ([ADR 0028](../adr/0028-attribute-certificates-are-read-not-judged.md)): holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller's composition, shown by the recipe. The RFC 3281 clearance syntax is kept undecoded, and no AC is written. |
 | RFC 5958 — PKCS#8; RFC 8018 — PBES2 and PBKDF2 | Reading and opening keys | applies, read only | `tests/keys/key-pkcs8.test.ts`, `tests/keys/key-pbes2.test.ts`, `tests/keys/key-import.test.ts`; the rule `key-operation-parity` | No writer ([ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)); PBES2 with AES-CBC only. |
 | RFC 7292 — PKCS#12; RFC 9579 — PBMAC1 | Opening `.p12` files | partial, by design | `tests/keys/key-pkcs12.test.ts`, `tests/verify/verify-pkcs12.test.ts`, `tests/crypto/webcrypto-password.test.ts`, `tests/fuzzing/pkcs12.test.ts`; the rule `pkcs12-policy-parity`; the pinned text of §4–5 held sentence by sentence (`scripts/data/rfc7292-requirements.json`) | PBES2 only: the Appendix B KDF and the Appendix C ciphers are refused ([ADR 0002](../adr/0002-pkcs12-pbes2-only.md)), so an Appendix B MAC is reported unverified. |
 | RFC 3279, RFC 4055, RFC 5480, RFC 8410, RFC 8017 — algorithms and keys | Reading key and algorithm identifiers; signatures through Web Crypto | applies | `tests/x509/x509-spki.test.ts`, `tests/crypto/crypto-algorithms.test.ts`, `tests/crypto/x509-verify.test.ts`, `tests/build/build-structures.test.ts` | An `id-RSASSA-PSS` public key, which no conforming Web Crypto imports under that identifier, is handed to the host under `rsaEncryption` once the signature has been held to the key's parameters (RFC 4055 §1.2, §3.3), so what it signed verifies everywhere; an `id-RSASSA-PSS` private key under PBES2 still depends on the host, since a shrouded key is never re-wrapped. No default RSA scheme ([ADR 0015](../adr/0015-no-default-rsa-scheme.md)). |
-| FIPS 204 — ML-DSA keys | Reading the SubjectPublicKeyInfo | applies, read only | `tests/x509/x509-spki.test.ts` | ML-DSA signatures are not verified. |
+| FIPS 204 and RFC 9881 — ML-DSA in certificates and CRLs | Reading the keys; verifying signatures through Web Crypto, where the host has ML-DSA | applies, host-dependent | `tests/x509/x509-spki.test.ts`, `tests/crypto/crypto-algorithms.test.ts`, `tests/crypto/x509-verify.test.ts`, `tests/verify/verify-ml-dsa.test.ts`, `tests/keys/key-pkcs8.test.ts`; the ML-DSA fixtures listed in `tests/fixtures/PROVENANCE.md` — the three certificates of RFC 9881 Appendix C.3 and an OpenSSL 3.5 hierarchy; `recipes/verify-ml-dsa.ts`; `.github/runtime-smoke/checks.mjs`; `openssl:cert-ml-dsa` | Verified where the host verifies ML-DSA, `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` where it does not ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)). Pure ML-DSA only: HashML-DSA is refused, as §8.3 excludes it from PKIX. Nothing is signed with ML-DSA, and a private key (§6) is described, not imported. A `keyUsage` that §5 forbids is `PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH`. |
+| RFC 9882 — ML-DSA in CMS | Verifying a SignerInfo, with or without signed attributes | applies, host-dependent | `tests/crypto/crypto-algorithms.test.ts`, `tests/crypto/cms-verify.test.ts`, `tests/verify/verify-ml-dsa.test.ts`; `openssl:cms-ml-dsa` | With signed attributes, the `digestAlgorithm` is held to the row of §3.3 Table 1 for the parameter set; another digest is `PKI_REASON_CMS_ALGORITHM_MISMATCH`. Of the table, SHA-256, SHA-384, SHA-512 and SHAKE256 are computed; a signer over SHA-3 or SHAKE128 is reported not checked. `verifySignedData` applies the table to a signer without signed attributes too, which §3.3 would have ignored. No ML-DSA SignedData is built. |
+| RFC 9909 — SLH-DSA in certificates | Reading the SubjectPublicKeyInfo of the twelve pure parameter sets | applies, read only | `tests/x509/x509-spki.test.ts`, `tests/x509/x509-certificate.test.ts` | No SLH-DSA signature is verified, and none of RFC 9814 in CMS. The HashSLH-DSA key identifiers are kept as `unknown`. A `keyUsage` that §6 forbids is `PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH`. |
+| RFC 9935 — ML-KEM in certificates | Reading the SubjectPublicKeyInfo | applies, read only | `tests/x509/x509-spki.test.ts`, `tests/x509/x509-certificate.test.ts` | Keys only: pkinative encapsulates nothing. A `keyUsage` other than `keyEncipherment` alone (§5) is `PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH`. |
 | RFC 6125 — host names | Matching a certificate to a host | applies | `tests/path/path-server-name.test.ts` | No public suffix list, by design. |
 
 ## Process and supply chain
@@ -3025,7 +3060,7 @@ How to read the status column: **applies** — pkinative implements the standard
 | Standard | Scope for pkinative | Status | Evidence | Gaps |
 |---|---|---|---|---|
 | ECMA-424 (CycloneDX) | The SBOM attached to each GitHub release | partial | `.github/workflows/publish.yml` writes it with `npm sbom --sbom-format cyclonedx` | `npm sbom` writes CycloneDX 1.5 (measured with npm 10.9.2); the current edition of ECMA-424 (December 2025) specifies CycloneDX 1.7. The SBOM is CycloneDX, not claimed as ECMA-424. |
-| ISO/IEC 5962 (SPDX) | Licence identification of every file, and an SPDX SBOM of each release | applies | `REUSE.toml` gives every file an SPDX licence identifier and copyright (REUSE 3.3; `reuse lint` reports the project compliant), held by the rule `reuse-shape`; `.github/workflows/publish.yml` writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (`tests/tools/workflows.test.ts`) | The SBOM of the runtime is empty by design (zero dependencies); the build toolchain has its own CycloneDX SBOM, not an SPDX one. |
+| ISO/IEC 5962 (SPDX) | Licence identification of every file, and an SPDX SBOM of each release | applies | `REUSE.toml` gives every file an SPDX licence identifier and copyright (REUSE 3.3), held by the rule `reuse-shape` and by `reuse lint` in the `workflow lint` job of `.github/workflows/ci.yml`; `.github/workflows/publish.yml` writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (`tests/tools/workflows.test.ts`) | The SBOM of the runtime is empty by design (zero dependencies); the build toolchain has its own CycloneDX SBOM, not an SPDX one. |
 | ISO/IEC 5230 and ISO/IEC 18974 (OpenChain) | Open source licence compliance and security assurance programmes | not claimed | `LICENSE`, `REUSE.toml` (every file's licence, the foreign fixtures under their own terms, rule `reuse-shape`), `THIRD-PARTY-NOTICES.md` (the corpora, their licences and pins, held by the rule `corpus-pin-parity`); zero runtime dependencies | These certify an organisation's programme; a single-maintainer library has no such programme to certify. |
 | ISO/IEC 29147 (vulnerability disclosure) and ISO/IEC 30111 (vulnerability handling) | How a report reaches the maintainer and is handled | applies (self-assessed) | `SECURITY.md` §ISO/IEC 29147 and 30111 self-assessment: each clause of 29147 §5–§7 and 30111 §7.1–§7.5 mapped to where the repository meets it — the policy and `docs/.well-known/security.txt`, the 48-hour receipt, the verification and remediation steps, the advisory, the CVE-class corpus `docs/data/cve-classes.json` | A self-assessment by one maintainer against the clauses, with no certification and no second party: both standards describe an organisation's processes, and the evidence is the repository's own record, not an audited one. |
 | ISO/IEC 40500 (WCAG) | The documentation site | applies (WCAG 2.2 A and AA, automated rules) | The rules `contrast` (4.5:1 text contrast in both palettes) and `a11y-structure` (skip link, one `<main>` and `<h1>`, heading levels, `alt`, button names); `lang="en"` on every page; the `a11y` job of the Docs workflow runs axe-core 4.13.0 (WCAG 2.0/2.1/2.2 A and AA plus best practices) over every page in the light and the dark palette, zero violations blocking (`scripts/a11y-check.ts`) | Automated rules decide about half of WCAG; the manual criteria (meaningful sequence, reading level, consistent navigation) are reviewed, not measured. |
@@ -3059,9 +3094,9 @@ The rule this establishes, and that every composed operation follows:
 Two consequences worth knowing before you write a `catch`:
 
 - **A reason message never starts with `pkinative: `.** That prefix marks what is thrown, and keeping it exclusive is what lets you tell an exception from a verdict in a log. `reason-parity` refuses it.
-- **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 57 error codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
+- **A reason never duplicates an error code.** `PKI_REASON_INPUT_MALFORMED` carries in its `errorCode` field the `PkiErrorCode` that *would* have been thrown, so a report can promise never to throw for a malformed input without copying 58 error codes into a second vocabulary — which would then have to be frozen too. The reason registry **wraps** the error registry; it never mirrors it.
 
-Unlike `PkiErrorCode`, frozen whole since 0.8, the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
+Like `PkiErrorCode` — frozen since 0.8: no code removed, renamed or moved to another class, an addition being semver-minor ([ADR 0012](../adr/0012-frozen-error-vocabulary.md)) — the reason vocabulary is **grow-only**: every name is frozen with the export surface, and the set of ways a chain can be rejected grows with the standards. Adding a reason is semver-minor; removing or renaming one is major ([ADR 0018](../adr/0018-what-the-1-x-promise-covers-beyond-its-snapshots.md)).
 
 ## The error classes
 
@@ -3091,10 +3126,10 @@ One code of that class is the exception, and it is on the decrypting side, where
 
 ### Usage
 
-- `PKI_INVALID_INPUT` — the input has the wrong type: not a `Uint8Array`, not a string, not a parsed certificate.
+- `PKI_INVALID_INPUT` — the input has the wrong type: not a `Uint8Array`, not a string, not the object, list or instant the function documents, not a parsed certificate.
 - `PKI_INVALID_OPTION` — an option fails validation, e.g. `encodingRules: 'cer'`.
 - `PKI_API_MISUSE` — a caller contract is violated, e.g. DER-encoding an indefinite-length node, or reading an implicitly tagged value without saying its type.
-- `PKI_STRICT_DIAGNOSTIC` — `strict: true` refused an input because of its first diagnostic; the message carries that diagnostic's code.
+- `PKI_STRICT_DIAGNOSTIC` — `strict: true` refused an input because of its first `warning` diagnostic; the message carries that diagnostic's code. Thrown by the parsers and by `checkRevocation` and `checkOcspStatus`; a verify report carries it as the `errorCode` of a `PKI_REASON_INPUT_MALFORMED` instead (see [`strict` in the verify and check verbs](#strict-in-the-verify-and-check-verbs)).
 - `PKI_INTERNAL` — an internal invariant broke: a pkinative bug, please report it.
 
 ### ASN.1 and OIDs
@@ -3123,6 +3158,9 @@ One code of that class is the exception, and it is on the decrypting side, where
 - `PKI_X509_EXTENSIONS_EMPTY`, `PKI_X509_EXTENSION_DUPLICATE` — an empty extensions field, or one extension twice (CWE-694).
 - `PKI_X509_EXTENSION_MALFORMED` — a recognised extension whose value does not match its definition; parse with `decodeExtensions: false` to keep every extension raw.
 - `PKI_X509_GENERAL_NAME_INVALID` — a malformed GeneralName: an unknown tag, a bad iPAddress length, a non-ASCII IA5String name.
+- `PKI_X509_ATTRIBUTE_MALFORMED` (since 1.1.0) — an attribute of an RFC 5755 attribute certificate, one of the six types of §4.4, whose value does not match its syntax: a SvceAuthInfo that is not two GeneralNames and an optional OCTET STRING, an IetfAttrSyntax value that is none of its three choices, a RoleSyntax without its roleName, a Clearance without its policyId. An attribute of any other type is kept undecoded and never raises it (CWE-1286).
+
+`parseAttributeCertificate` raises the certificate codes above for the same faults in an attribute certificate: `PKI_X509_VERSION_INVALID` for any version but v2 — a v1 attribute certificate of X.509 (1997) included — and `PKI_X509_VALIDITY_INVALID` for a UTCTime in its validity period, which RFC 5755 types GeneralizedTime ([ADR 0028](../adr/0028-attribute-certificates-are-read-not-judged.md)).
 
 ### Limits
 
@@ -3133,7 +3171,7 @@ One code of that class is the exception, and it is on the decrypting side, where
 
 - `PKI_CRYPTO_UNAVAILABLE` — this runtime exposes no `crypto.subtle` with `importKey` and `verify`, or, to open a password-protected key, with `deriveKey`, `unwrapKey` and `decrypt` too. Call `canVerify()`, `canSign()` or `canDecrypt()` first; a page on plain HTTP has none (CWE-693).
 - `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` — the signature algorithm is outside the set pkinative verifies, or its RSASSA-PSS parameters name something Web Crypto cannot express. MD2 and MD5 are here on purpose: Web Crypto implements neither, so the honest answer names the algorithm instead of a verification that did not happen (CWE-757).
-- `PKI_CRYPTO_KEY_UNSUPPORTED` — the issuer's key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent — for a certificate signature as for a CMS signer, which since 1.0.0 is verified wherever the host has Ed448 ([ADR 0022](../adr/0022-ed448-cms-signers-host-dependent.md)). An `id-RSASSA-PSS` public key is no longer this error: it is handed to the host under `rsaEncryption` once the signature has been held to the key's parameters (RFC 4055), so what it signed verifies on every runtime; only an `id-RSASSA-PSS` private key under PBES2 still depends on the host, since a shrouded key is unwrapped there and never re-wrapped here (CWE-757).
+- `PKI_CRYPTO_KEY_UNSUPPORTED` — the issuer's key is of the right family but on a curve Web Crypto does not verify, or the host refused to import it. Web Crypto does ECDSA only on P-256, P-384 and P-521; Ed448 and, on several runtimes still, Ed25519 are absent — for a certificate signature as for a CMS signer, which since 1.0.0 is verified wherever the host has Ed448 ([ADR 0022](../adr/0022-ed448-cms-signers-host-dependent.md)). ML-DSA is the same case since 1.1.0: verified where the host has it, this error where it has not — Node.js 22 among them — in place of the `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` every host answered in 1.0 ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)). An `id-RSASSA-PSS` public key is no longer this error: it is handed to the host under `rsaEncryption` once the signature has been held to the key's parameters (RFC 4055), so what it signed verifies on every runtime; only an `id-RSASSA-PSS` private key under PBES2 still depends on the host, since a shrouded key is unwrapped there and never re-wrapped here (CWE-757).
 - `PKI_CRYPTO_ALGORITHM_REFUSED` — the signature is over SHA-1. Web Crypto would compute it, and pkinative refuses to treat it as evidence: SHA-1 collisions have been practical since 2017, so a SHA-1 signature does not bind the bytes it covers, and `true` would be a false assurance (RFC 9155 §3). Get the certificate reissued under SHA-256 or better. To examine a historical artefact rather than rely on it, pass `{ allowSha1: true }` and treat the answer as an archival fact, not an authentication decision. A certificate's own SHA-1 fingerprint is unaffected: that is public data, not a signature (CWE-327).
 
 ### CMS and timestamps
@@ -3178,19 +3216,30 @@ A diagnostic is a non-fatal conformance concern: `{ code, severity, message, sta
   `strict: true` refuses the first `warning` — a MUST the input broke — and still reports every `info`: a SHOULD the input did not follow, such as the subjectKeyIdentifier nine thousand x509-limbo end-entity certificates omit, is advice to the issuer, not a reason to refuse the certificate.
 - **CMS** — `PKI_DIAG_CMS_VERSION_MISMATCH`, `PKI_DIAG_CMS_SET_NOT_SORTED`, `PKI_DIAG_CMS_SIGNED_ATTRIBUTES_NOT_DER`, `PKI_DIAG_CMS_DIGEST_ALGORITHM_NOT_LISTED`, on `SignedData.diagnostics`. None of them touches a signed octet — the signed attributes are verified over the bytes as they were signed, never over a re-sorted set — so none changes a verdict; they tell you which other verifiers may refuse the message. The same holds for what the message says against RFC 5652 §5.2, §11.3 and §11.4: `PKI_DIAG_CMS_CERTS_ONLY_CONTENT` (a signer-less SignedData whose eContentType is not id-data, or which carries an eContent), `PKI_DIAG_CMS_SIGNING_TIME_NOT_UTC` and `PKI_DIAG_CMS_SIGNING_TIME_FRACTION` (a signingTime in GeneralizedTime for 1950–2049, or with fractional seconds — the instant is read as written), `PKI_DIAG_CMS_COUNTERSIGNATURE_CONTENT_TYPE`, `PKI_DIAG_CMS_COUNTERSIGNATURE_NO_MESSAGE_DIGEST` and `PKI_DIAG_CMS_COUNTERSIGNATURE_EMPTY` (a countersignature's own signed attributes, looked into as far as their types; the countersignature stays carried, not verified).
 - **Timestamps** — `PKI_DIAG_TSP_CERTREQ_UNMET`, `PKI_DIAG_TSP_CERTS_UNREQUESTED`: the token's certificates field against the request's `certReq` (RFC 3161 §2.4.1), decided only where `verifyTimeStampToken` holds both, and reported through its `onDiagnostic`. The verdict is the same either way: the TSA is found among the token's certificates and the ones you pass.
-- **OCSP** — `PKI_DIAG_OCSP_CERTS_EMPTY` (a certs field present and empty) and `PKI_DIAG_OCSP_VERSION_NOT_V1` (an explicit ResponseData version that is not the INTEGER 0; a v1 written out is `PKI_DIAG_DEFAULT_ENCODED`), on `OcspResponse.diagnostics`; `PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH` and `PKI_DIAG_OCSP_NOCHECK_CRITICAL`, when `checkOcspStatus` is given the certificate that signed (its `signer`) and the responderID names neither its subject nor its key hash, or its `id-pkix-ocsp-nocheck` is critical; `PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED`, the answers about certificates nobody asked about beside the one that was. `verifyCertificateChain` passes the signer it established and forwards every one of them, with what the lists and responses say about themselves, to its own `onDiagnostic` — and says nothing without one.
+- **OCSP** — `PKI_DIAG_OCSP_CERTS_EMPTY` (a certs field present and empty) and `PKI_DIAG_OCSP_VERSION_NOT_V1` (an explicit version that is not the INTEGER 0, in a ResponseData or a TBSRequest; a v1 written out is `PKI_DIAG_DEFAULT_ENCODED`), on `OcspResponse.diagnostics`; on `OcspRequest.diagnostics`, what `parseOcspRequest` finds in a request: `PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED` (a signature and no requestorName, RFC 6960 §4.1.2), `PKI_DIAG_OCSP_NONCE_LENGTH` (a nonce outside the 1 to 128 octets of RFC 9654 §2.1, returned as it is) and `PKI_DIAG_OCSP_REQUEST_EXTENSION_CRITICAL` (an `info`: a request extension marked critical, beside `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION` when pkinative does not decode it either); `PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH` and `PKI_DIAG_OCSP_NOCHECK_CRITICAL`, when `checkOcspStatus` is given the certificate that signed (its `signer`) and the responderID names neither its subject nor its key hash, or its `id-pkix-ocsp-nocheck` is critical; `PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED`, the answers about certificates nobody asked about beside the one that was. `verifyCertificateChain` passes the signer it established and forwards every one of them, with what the lists and responses say about themselves, to its own `onDiagnostic` — and says nothing without one.
 - **Revocation lists** — `PKI_DIAG_CRL_EXTENSION_MALFORMED`: a `cRLNumber` or `deltaCRLIndicator` that is not a DER INTEGER, an entry `reasonCode` RFC 5280 does not assign, or an `invalidityDate` that is not a GeneralizedTime. The value is ignored, because none of them decides whether a serial is revoked: a revocation with an unreadable reason is still a revocation, and a delta whose base number cannot be read is never paired with a base.
 - **Keys** — `PKI_DIAG_KEY_KDF_ITERATIONS_LOW`: a PBKDF2 iteration count, for a key, a SafeContents or a PBMAC1 MAC, below the 1 000 RFC 8018 recommends. The file still opens; the count is what a stolen copy costs to brute-force. A count above `maxKdfIterations` is not a diagnostic but `PKI_LIMIT_EXCEEDED`, because the host would run it where nothing can interrupt it.
-- **Public keys** — `PKI_DIAG_SPKI_RSA_EXPONENT_WEAK`: an RSA public exponent below 3 or even, outside RFC 8017 §3.1. The certificate still parses; no signature under that key is ever checked, since under e = 1 a message is its own signature (`PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` at verification). `PKI_DIAG_SPKI_EC_PARAMETERS_INVALID`: an EC key whose parameters are NULL (implicitCurve) or explicit (specifiedCurve), which RFC 5480 §2.1.1 forbids, or a namedCurve other than P-256, P-384 and P-521. The key decodes with `curve` undefined; no signature under it is checked, for the same reason code.
+- **Public keys** — `PKI_DIAG_SPKI_RSA_EXPONENT_WEAK`: an RSA public exponent below 3 or even, outside RFC 8017 §3.1. The certificate still parses; no signature under that key is ever checked, since under e = 1 a message is its own signature (`PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` at verification). `PKI_DIAG_SPKI_EC_PARAMETERS_INVALID`: an EC key whose parameters are NULL (implicitCurve) or explicit (specifiedCurve), which RFC 5480 §2.1.1 forbids, or a namedCurve other than P-256, P-384 and P-521. The key decodes with `curve` undefined; no signature under it is checked, for the same reason code. `PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED` (an `info`, since 1.1.0): the key of a certificate or a certification request names an algorithm pkinative does not classify. RFC 5280 §4.1.2.7 closes no list, so the key is kept as `kind: 'unknown'` and `strict: true` does not refuse it; the diagnostic, at the key's `algorithm`, says why it was not classified. No signature is found valid under such a key: `PKI_REASON_SIGNATURE_INVALID` when the signature algorithm is one pkinative verifies, `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` when it is not.
+- **Post-quantum keys** — `PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH`: a certificate whose key is ML-DSA, SLH-DSA or ML-KEM carries a `keyUsage` its own RFC forbids. A signature key asserts at least one of `digitalSignature`, `nonRepudiation`, `keyCertSign` and `cRLSign` and none of the five others (RFC 9881 §5, RFC 9909 §6); an ML-KEM key asserts `keyEncipherment` alone (RFC 9935 §5). The certificate still parses, and no signature is verified under a key that cannot have made it.
+- **Attribute certificates** (since 1.1.0, RFC 5755, on `AttributeCertificate.diagnostics`) — the profile of §4.2–§4.4 where the ASN.1 admits more: `PKI_DIAG_AC_HOLDER_EMPTY` (a Holder with none of its three options) and `PKI_DIAG_AC_HOLDER_MULTIPLE` (an `info`: more than one, where §4.2.2 recommends one); `PKI_DIAG_AC_ISSUER_V1_FORM` (the v1Form issuer, read and never refused) and `PKI_DIAG_AC_ISSUER_NOT_PROFILED` (a v2Form without exactly one non-empty directoryName, or with baseCertificateID or objectDigestInfo); `PKI_DIAG_AC_ATTRIBUTES_EMPTY`, `PKI_DIAG_AC_ATTRIBUTE_DUPLICATE` (one attribute type twice — every occurrence is returned, so do not pick one) and `PKI_DIAG_AC_ATTRIBUTE_PROFILE` (an accessIdentity with authInfo, a group or chargingIdentity with two values, an IetfAttrSyntax mixing its choices, a roleName that is not a URI); `PKI_DIAG_AC_EXTENSION_CRITICALITY` (a targetInformation or auditIdentity that is not critical, a noRevAvail or crlDistributionPoints that is) and `PKI_DIAG_AC_EXTENSION_PROFILE` (an auditIdentity outside 1 to 20 octets, more than one Targets element, a targetCert). The serial, validity, fraction, unique-identifier and algorithm-mismatch codes of certificates are raised too, at the AC's own `acinfo.…` paths. None is a verdict: an attribute certificate is read, not judged.
 - **Accepted tolerances** — `PKI_DIAG_BER_CONSTRUCT_ACCEPTED`, `PKI_DIAG_PEM_LAX_ACCEPTED`: the input used a construct you allowed with `encodingRules: 'ber'` or `mode: 'lax'`.
 
 `docs/data/diagnostics.json` gives each one's cause, remedy and the clause it cites.
+
+### `strict` in the verify and check verbs
+
+From 1.1.0 `strict` travels with `onDiagnostic` into the verbs that parse on your behalf, so the bytes a strict parse refuses, a strict verify refuses too ([ADR 0025](../adr/0025-strict-in-the-verify-and-check-verbs.md)). What the refused warning becomes depends on what you called:
+
+- **A composition reports it.** `verifyCertificateChain`, `verifyTimeStampToken`, `verifySignedData` and `openPkcs12` — like `verifyCertificationRequest` since 1.0.0 — never throw for it. The report is `valid: false` with `PKI_REASON_INPUT_MALFORMED`, `errorCode: 'PKI_STRICT_DIAGNOSTIC'`, at the path of the member that raised it — `crls[1]`, `ocspResponses[0]`, `token`, `token.certificates`, `signedData`, `signerInfos[0].chain.crls[0]`, `pkcs12` — and a message naming the diagnostic. Branch on `errorCode`.
+- **A primitive throws it.** `checkRevocation` and `checkOcspStatus` throw `PKI_STRICT_DIAGNOSTIC`, as every parser and `findRevocation` do: a primitive is a step of your own composition, and `verifyCertificateChain`, which composes these two, is where the throw becomes a reason.
+
+An `info` is reported either way and refuses nothing. The certificates that merely travel with the evidence — the bag of a SignedData or of a timestamp token, the certificates an OCSP response attaches — are read without `strict`, exactly as `parseSignedData` and `parseOcspResponse` under `strict` leave them unread: refusing one would report the signer not found, or the responder unauthorised, without saying why. A PKCS#12 is different — its certificates are what `openPkcs12` opens, so each is read under `strict` and reported at its own bag. `verifySignedData` takes `onDiagnostic` from 1.1.0 as well: what the message says about itself arrives with the paths `parseSignedData` gives, and what its timestamps and chains report arrives prefixed with where they sit in its report (`signerInfos[0].chain.ocsp.responderID`). Like every verdict call, it says nothing without a handler.
 
 ## Reasons
 
 A reason is why a **judgement** came out negative: `{ code, message, standard, path }`, plus `errorCode` or `limit` where they apply. It is returned inside a report, never thrown and never printed — and several are returned together whenever several apply, because a certificate can be expired *and* outside a name constraint, and a report that stopped at the first would hide the work still to do.
 
-- **The input, wrapped** — `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the `PkiErrorCode` that would have been thrown.
+- **The input, wrapped** — `PKI_REASON_INPUT_MALFORMED`, carrying in `errorCode` the `PkiErrorCode` that would have been thrown — `PKI_STRICT_DIAGNOSTIC` included, when the call was given `strict: true` and the input raised a warning.
 - **The certificate alone** — `PKI_REASON_NOT_YET_VALID`, `PKI_REASON_EXPIRED`, `PKI_REASON_UNKNOWN_CRITICAL_EXTENSION`.
 - **The link to the issuer** — `PKI_REASON_ISSUER_NOT_FOUND`, `PKI_REASON_SIGNATURE_INVALID`, `PKI_REASON_SIGNATURE_NOT_CHECKED`.
 - **The chain** — `PKI_REASON_NO_TRUST_ANCHOR`, `PKI_REASON_NOT_A_CA`, `PKI_REASON_PATH_TOO_LONG`, `PKI_REASON_PATH_LOOPS`.
@@ -3202,7 +3251,7 @@ A reason is why a **judgement** came out negative: `{ code, message, standard, p
 - **A PKCS#12** (from `openPkcs12`) — `PKI_REASON_PKCS12_INTEGRITY_UNVERIFIED` (the MAC cannot be checked here, or there is none: the contents are reported and `valid` is false unless you pass `allowUnverifiedIntegrity`), `PKI_REASON_PKCS12_MAC_MISMATCH` (a PBMAC1 that does not match — most likely the password — after which nothing is decrypted), `PKI_REASON_PKCS12_ENCRYPTION_UNSUPPORTED` (a scheme pkinative refuses, or one this runtime's Web Crypto lacks, such as AES-192 in several browsers), `PKI_REASON_PKCS12_DECRYPTION_FAILED`, `PKI_REASON_PKCS12_KEY_UNMATCHED` (no certificate shares the key's `localKeyId`, so its algorithm is unknown — `decryptPrivateKey` with a named algorithm opens it), `PKI_REASON_PKCS12_KEY_UNSUPPORTED` (a key Web Crypto does not sign with, such as DSA or X25519) and `PKI_REASON_PKCS12_RSA_SCHEME_UNSPECIFIED` (an RSA key whose scheme you did not name in `rsaAlgorithm`: pkinative does not guess one, so the key stays shut until you do).
 - **Your own limits** — `PKI_REASON_LIMIT_EXCEEDED`, with `limit` naming the bound that stopped the search.
 
-**`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448 — Bun and Chromium today, for a certificate signature as for a CMS signer — says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
+**`PKI_REASON_SIGNATURE_NOT_CHECKED` is not a rejection.** A runtime with no Web Crypto, or one that refuses Ed448 — Bun and Chromium today, for a certificate signature as for a CMS signer — or ML-DSA — Node.js 22 — says nothing about whether a signature is good. Treating it as `PKI_REASON_SIGNATURE_INVALID` turns "ask me elsewhere" into "this certificate is bad", which is the most expensive confusion available in this vocabulary — the same distinction `PkiCryptoError` draws on the throwing side.
 
 **`PKI_REASON_REVOCATION_UNKNOWN` is not "not revoked" either**, for the same reason: a missing or unsigned list is an absence of evidence, and reporting it as a clean answer would make the soft-fail decision on your behalf, invisibly.
 
@@ -3229,7 +3278,7 @@ One failure, three surfaces — a private key passed where a certificate is expe
 {"isError":true,"_meta":{"error":{"code":"PKI_PEM_UNEXPECTED_LABEL","message":"certificate (fixtures/leaf.key.pem) holds no CERTIFICATE or X509 CERTIFICATE or TRUSTED CERTIFICATE PEM block (labels present: PRIVATE KEY).","data":{"errorClass":"input","path":"certificate","remedy":"convert_pem mode:'decode' (lists the labels present)"}}}}
 ```
 
-Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The [CLI guide](cli.md#error-classes-codes-and-remedies) maps the 57 error codes to the 13 classes one by one, and the [MCP guide](mcp.md#error-model) lists the 21 wrapper codes.
+Branch on the code, on every surface: the class says which kind of failure it is, the code says exactly which, and the message is for people. The [CLI guide](cli.md#error-classes-codes-and-remedies) maps the error codes to the 13 classes one by one — those pkinative-cli 1.0.0 was built against, so not yet the one this release adds for attribute certificates, and the [MCP guide](mcp.md#error-model) lists the 21 wrapper codes.
 
 ---
 <!-- source: docs/guides/choose.md -->
@@ -3240,11 +3289,11 @@ Branch on the code, on every surface: the class says which kind of failure it is
 
 ## What pkinative does
 
-- **Reads** DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; PKCS#10 certification requests, with the extensions they ask for; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.
+- **Reads** DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; PKCS#10 certification requests, with the extensions they ask for; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2; RFC 5755 attribute certificates, the OCSP and timestamp requests it writes, and SLH-DSA and ML-KEM public keys as kinds of their own.
 - **Builds** certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an `ExternalSigner` for a key in an HSM or a remote service; RSA PKCS#1 v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519, and Ed448 where the host has it.
-- **Judges**: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps, and a certification request's proof of possession. The one-call reports — `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `verifyCertificationRequest`, `openPkcs12` — return every reason at once and never throw for a problem with the input.
+- **Judges**: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps, and a certification request's proof of possession. The one-call reports — `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `verifyCertificationRequest`, `openPkcs12` — return every reason at once and never throw for a problem with what they are given to judge: only a call that is itself wrong throws. ML-DSA signatures are verified where the host's Web Crypto has the algorithm, and an attribute certificate's signature is checked, its RFC 5755 §5 validation left to the caller.
 - **Proves it**: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the [conformance guide](conformance.md) carries the current figures and every reviewed deviation.
-- Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
+- Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 Verifying a signature is **not** validating a chain: `verifyCertificateSignature` says the issuer's key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. `verifyCertificateChain` is the call that answers those.
 
@@ -3260,28 +3309,28 @@ Each of these is a recorded decision, not a gap on a roadmap: the [decision reco
 | To write a PKCS#8 or PKCS#12, or to generate or export a key | Web Crypto's `encrypt`, `wrapKey`, `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md), [ADR 0003](../adr/0003-no-pkcs8-or-pkcs12-writer.md)) | Web Crypto or `node:crypto` in your own code, or OpenSSL |
 | To verify DSA signatures | Web Crypto implements none of it, and pkinative implements no signature algorithm ([ADR 0004](../adr/0004-dsa-and-ed448-cms-signers-not-verified.md)) | `node:crypto` on Node.js |
 | To fetch a CRL, an OCSP response, a missing intermediate or a timestamp | The engine does no I/O: a verifier that reached the network could be pointed at a host of an attacker's choosing ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)) | Fetch them yourself and pass the bytes |
-| ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope through 1.0; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
+| ETSI long-term signatures — archive timestamps, chained proof of existence | Out of scope in 1.x; `atTimeStamp` takes one level of evidence ([ADR 0009](../adr/0009-no-etsi-long-term-signature-formats.md)) | A PAdES or CAdES toolkit |
 | Distinguished names matched by RFC 5280 §7.1 preparation when building chains | Names are compared by encoded bytes, as Go and webpki do; the miss is a refusal ([ADR 0005](../adr/0005-names-compared-by-encoded-bytes.md)) | Re-issue with consistent encodings |
 
 ## The alternatives, by the facts
 
-Read from the npm registry on 2026-09-19 ([docs/data/comparison-2026-09-19.json](../data/comparison-2026-09-19.json)):
+Read from the npm registry on 2026-11-17 ([docs/data/comparison-2026-11-17.json](../data/comparison-2026-11-17.json)); a peer dependency, which the consumer installs, is counted apart:
 
 | Library | Runtime dependencies | Types bundled | ES modules | Weekly downloads |
 |---|---|---|---|---|
-| node-forge 1.4.0 | 0 | no | no | 27.6 M |
-| asn1js 3.0.10 | 3 | yes | yes | 13.7 M |
-| @peculiar/x509 2.1.0 | 11 | yes | yes | 8.2 M |
-| pkijs 3.4.0 | 6 | yes | yes | 6.8 M |
-| jsrsasign 11.1.5 | 0 | no | no | 1.0 M |
-| micro509 0.14.0 | 0 | yes | yes | 59 |
+| node-forge 1.4.3 | 0 | no | no | 54.7 M |
+| asn1js 4.0.0 | 1 | yes | yes | 36.6 M |
+| @peculiar/x509 3.1.0 | 9 + 1 peer | yes | yes | 23.8 M |
+| pkijs 4.0.1 | 3 + 1 peer | yes | yes | 18.2 M |
+| jsrsasign 11.1.5 | 0 | no | no | 2.5 M |
+| micro509 0.19.0 | 0 | yes | yes | 3 115 |
 
-node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.
+node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them. [Migrating from node-forge or pkijs](migrate.md) maps their calls to the ones that replace them.
 
 ## When pkinative is the right choice
 
 - You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.
-- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 87 KB minified, describing a key file about 45 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
+- You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 90 KB minified, describing a key file about 45 KB, and each subsystem's cost is a budget `npm run verify:bundle` checks.
 - You build tools that must display every field of a certificate, including the ones other parsers skip.
 - You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.
 - You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in `errorCode`.
@@ -3296,7 +3345,7 @@ pkinative reaches you three ways, and all three run the same engine: a verdict, 
 | **[pkinative-cli](cli.md)**, the `pkinative` binary | Shell scripts, CI jobs, operators, and programs in any language that can run a process | Certificates, CRLs and signatures sit on disk or arrive through a pipe, and you want exit codes, `--dry-run` and one JSON envelope per run, offline. Node.js only; keys come from a PKCS#8 or PKCS#12 file, passwords never from argv |
 | **[pkinative-mcp](mcp.md)**, the `pkinative-mcp` server | AI assistants and agents in any MCP client — Claude Desktop, Claude Code, Cursor, VS Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP | A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine's floor) |
 
-The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
+The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine's `PKI_*` codes verbatim, and both reach every runtime export of the engine release they were built on, 1.0.0; the exports 1.1.0 adds reach them with their next minor. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the [errors guide](errors.md#where-the-codes-surface) shows how one failure looks on each.
 
 Every capability `docs/data/surfaces.json` lists, by surface:
 
@@ -3320,8 +3369,10 @@ Every capability `docs/data/surfaces.json` lists, by surface:
 | `x509-purpose` | `checkExtendedKeyUsage`, `KEY_PURPOSES`, `ANY_EXTENDED_KEY_USAGE` | `cert check-purpose`; `--purpose` on `chain` and `cms verify` | `check_certificate_purpose`; `purposes` on `verify_certificate_chain`, `build_certificate_path` and `verify_cms` |
 | `x509-crl` | `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` | `crl inspect`, `find`, `verify-signature`, `check` | `inspect_crl` (`find`, `issuer`), `check_crl_revocation` |
 | `x509-ocsp` | `createOcspRequest`, `encodeOcspCertId`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus` | `ocsp request`, `cert-id`, `inspect`, `verify-signature`, `check` | `create_ocsp_request` (`certIdOnly`), `inspect_ocsp_response` (`responder`), `check_ocsp_status` |
+| `x509-ocsp-request` | `parseOcspRequest` | — until the next minor of pkinative-cli (proposed: `ocsp inspect-request`) | — until the next minor of pkinative-mcp (proposed: `inspect_ocsp_request`) |
 | `cms-signed-data` | `createSignedData`, `parseSignedData`, `verifySignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute` | `cms sign`, `verify`, `inspect`, `verify-signer`, `add-attribute` | `sign_cms`, `verify_cms`, `inspect_cms` (`signerCertificate`), `amend_cms` (`add-unsigned-attribute`) |
 | `cms-timestamp` | `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken` | `tsp request`, `inspect`, `verify`; `cms add-timestamp` | `create_timestamp_request`, `inspect_timestamp`, `verify_timestamp`; `amend_cms` (`add-timestamp`) |
+| `cms-timestamp-request` | `parseTimeStampRequest` | — until the next minor of pkinative-cli (proposed: `tsp inspect-request`) | — until the next minor of pkinative-mcp (proposed: `inspect_timestamp_request`) |
 | `keys-pkcs8` | `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey`, `canDecrypt` | `key inspect`, `key check`; `--key` on the signing commands; `doctor` | `inspect_private_key` (`tryImport`); `signer.key` on the signing tools; `describe_engine` |
 | `keys-pkcs12` | `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`, `openPkcs12` | `p12 inspect`, `verify-mac`, `bags`, `open`; `--p12` on the signing commands | `inspect_pkcs12`, `open_pkcs12`; `signer.p12` on the signing tools |
 
@@ -3353,7 +3404,7 @@ What each surface adds around the engine, and what it leaves out — an em-dash 
 - **No surface generates or exports a key, and none fetches.** Web Crypto's `generateKey` and `exportKey` are refused in every version ([ADR 0001](../adr/0001-no-secret-dependent-cryptography.md)), and the engine opens no socket ([ADR 0006](../adr/0006-no-network-io-in-the-engine.md)): keys come from your HSM, KMS or `openssl genpkey`, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.
 - **Only the CLI and the MCP sandbox write files.** The engine returns bytes. The CLI writes where you point it, exclusively unless `--overwrite`; the MCP server writes only under `PKINATIVE_MCP_OUTPUT_DIR`, never overwrites, and never writes, lists or serves a key-bearing file.
 - **A key in an HSM or a remote service reaches the library only.** Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an `ExternalSigner` is a library call.
-- **A satellite adds no PKI decision.** A `PKI_*`, `PKI_REASON_*` or `PKI_DIAG_*` code means the same on every surface. A CLI `E_*` class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.
+- **A satellite adds no PKI decision** — a rule, not only a description: [ADR 0024](../adr/0024-what-a-satellite-may-implement.md) says what a satellite may implement, what the engine reserves and what a satellite must prove. A `PKI_*`, `PKI_REASON_*` or `PKI_DIAG_*` code means the same on every surface. A CLI `E_*` class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.
 - **The table is the complete story** for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.
 
 ### You can switch later
@@ -3361,3 +3412,120 @@ What each surface adds around the engine, and what it leaves out — an em-dash 
 All three surfaces call the same engine, so what one writes the others read: a certificate `create_certificate` writes into the sandbox verifies under `pkinative chain verify` and parses with `parseCertificate`, and a verdict carries the same reason codes wherever it was reached. `cert create --spec` and the `spec` input of `create_certificate` take the same JSON, so a certificate description moves between the CLI and the MCP server unchanged — but each surface keeps its own defaults: for a self-signed certificate `cert create` adds an `authorityKeyIdentifier` and `create_certificate` does not, so the same spec gives different bytes. Compare verdicts across surfaces, not hashes. Starting on the "wrong" surface costs a call-site migration, not a re-authoring.
 
 The [CLI guide](cli.md) and the [MCP guide](mcp.md) document every command and tool; [CLI use cases](use-cases-cli.md) and [MCP use cases](use-cases-mcp.md) put them to work.
+
+---
+<!-- source: docs/guides/migrate.md -->
+
+# Migrating from node-forge or pkijs
+
+> **What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.**
+
+The node-forge and pkijs names below were read in the published packages, node-forge 1.4.3 and pkijs 4.0.1, on 2026-11-23; the pkinative code on this page runs on every test run.
+
+## Three differences that are not renames
+
+- **Bytes in, frozen values out.** pkinative takes a `Uint8Array` of DER and returns frozen plain objects that hold views of it. PEM is a step of its own, `decodePem`. node-forge works on binary strings and its own ASN.1 objects; pkijs takes a `BufferSource` and returns class instances built over asn1js.
+- **A report, not a boolean.** `verifyCertificateChain`, `verifySignedData`, `verifyTimeStampToken`, `verifyCertificationRequest` and `openPkcs12` resolve with `{ valid, reasons }` — every reason at once, each a stable `PKI_REASON_…` code with the path of what it is about — and throw only for a call that is itself wrong. The [errors guide](errors.md) lists the codes.
+- **No key is made or kept here.** A signature is one Web Crypto call with a key you hold, or with an `ExternalSigner` for a key in an HSM. Generating a key, exporting one and encrypting with one stay in your code, through Web Crypto or `node:crypto`: see [what has no counterpart](#what-has-no-counterpart-by-design).
+
+## From node-forge
+
+| You call (node-forge 1.4.3) | In pkinative | What changes |
+|---|---|---|
+| `forge.pki.certificateFromPem(pem)` | `decodePem(pemText, { label: 'CERTIFICATE' })`, then `parseCertificate(block.bytes)` | Every key type is read — node-forge's reader throws on a certificate whose key is not RSA — and every extension is typed |
+| `forge.asn1.fromDer(bytes)`, then `forge.pki.certificateFromAsn1(obj)` | `parseCertificate(der)` | One call; `decodeAsn1(der)` when you want the tree itself |
+| `forge.pki.createCaStore(certs)`, then `forge.pki.verifyCertificateChain(caStore, chain, options)` | `verifyCertificateChain({ leaf, candidates, trustAnchors })` | The path is built from candidates in any order; revocation, policies, purposes and the server name are options of the same call; the answer is a report |
+| `forge.pki.certificationRequestFromPem(pem)`, then `csr.verify()` | `parseCertificationRequest(der)`, then `verifyCertificationRequest(request)` | A report; the extensions the request asks for are typed |
+| `forge.pki.createCertificate()` … `cert.sign(key, md)` | `createCertificate(description, signer)` | The signer is a Web Crypto key with its algorithm. `cert.sign(key)` without a digest signs with SHA-1 |
+| `forge.pki.createCertificationRequest()` … `csr.sign(key, md)` | `createCertificationRequest(description, signer)` | The same, and the same SHA-1 default on the node-forge side |
+| `forge.pkcs7.messageFromPem(pem)`, `forge.pkcs7.messageFromAsn1(obj)` | `parseSignedData(der)` | SignedData only |
+| `forge.pkcs7.createSignedData()` … `p7.sign()` | `createSignedData({ content, certificate, detached }, signer)` | One call, attached or detached |
+| `message.verify()` on a SignedData, which throws `PKCS#7 signature verification not yet implemented.` | `verifySignedData({ signedData, content, trustAnchors })` | Implemented: every signer, its chain, its timestamp when there is one |
+| `forge.pkcs12.pkcs12FromAsn1(obj, password)`, then `p12.getBags(filter)` | `openPkcs12(p12Bytes, { password })` | PBES2 files only; a key comes out as a `SigningKey` — a non-extractable `CryptoKey` and its algorithm — never as numbers |
+| `forge.pki.privateKeyFromPem(pem)`, `forge.pki.decryptRsaPrivateKey(pem, password)` | `decodePem`, then `importPrivateKey(der, options)` | A PKCS#8 key, RSA or not, becomes a non-extractable handle for Web Crypto; an `RSA PRIVATE KEY` block is PKCS#1, to convert once (`openssl pkcs8 -topk8 -in rsa.pem -out pkcs8.pem`) |
+
+node-forge 1.4.3 has no module for CRLs, OCSP or RFC 3161 timestamps; in pkinative they are `parseCertificateList` and `checkRevocation`, `createOcspRequest`, `parseOcspResponse` and `checkOcspStatus`, `createTimeStampRequest` and `verifyTimeStampToken` — or the `crls` and `ocspResponses` of `verifyCertificateChain`, which composes them.
+
+Reading a certificate, before and after:
+
+```ts
+import { decodePem, formatDistinguishedName, parseCertificate } from 'pkinative';
+
+// const cert = forge.pki.certificateFromPem(pemText);
+const [block] = decodePem(pemText, { label: 'CERTIFICATE' });
+const cert = parseCertificate(block.bytes);
+
+formatDistinguishedName(cert.subject);   // the subject, as text
+cert.subjectPublicKeyInfo.kind;          // 'rsa', 'ec', 'ed25519', 'ml-dsa-65', …
+```
+
+A chain, before and after:
+
+```ts
+import { verifyCertificateChain } from 'pkinative';
+
+// forge.pki.verifyCertificateChain(forge.pki.createCaStore(roots), chain)
+const report = await verifyCertificateChain({ leaf, candidates, trustAnchors: roots });
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+```
+
+## From pkijs
+
+| You call (pkijs 4.0.1) | In pkinative | What changes |
+|---|---|---|
+| `pkijs.Certificate.fromBER(raw)` | `parseCertificate(der)` | Strict DER: an encoding DER does not allow is refused with a typed error, not read |
+| `certificate.verify(issuerCertificate)` | `verifyCertificateSignature(certificate, issuer)` | The same boolean — and, as there, a signature is not a chain |
+| `new pkijs.CertificateChainValidationEngine({ certs, trustedCerts, crls, ocsps, checkDate })`, then `.verify()` | `verifyCertificateChain({ leaf, candidates, trustAnchors, crls, ocspResponses, at })` | `crls` and `ocspResponses` are DER bytes, `at` is milliseconds since the epoch; `{ result, resultCode, resultMessage }` becomes `{ valid, reasons }` |
+| `pkijs.CertificationRequest.fromBER(raw)`, then `.verify()` | `parseCertificationRequest(der)`, then `verifyCertificationRequest(request)` | A report |
+| `pkijs.ContentInfo.fromBER(raw)`, `new pkijs.SignedData({ schema: contentInfo.content })`, then `.verify({ signer, data, trustedCerts, checkChain })` | `verifySignedData({ signedData, content, trustAnchors })` | Every signer is judged in one call, with its chain; `report.signers` has each verdict |
+| `signedData.sign(privateKey, signerIndex, hashAlgorithm, data)` | `createSignedData({ content, certificate, detached }, signer)` | One call returns the DER |
+| `pkijs.CertificateRevocationList.fromBER(raw)`, `crl.verify({ issuerCertificate })`, `crl.isCertificateRevoked(certificate)` | `parseCertificateList(der)`, `verifyCrlSignature(crl, issuer)`, `checkRevocation({ certificate, crl, crlDer, at, signatureVerified })` | Scope, freshness and delta lists are decided too, as reasons |
+| `ocspRequest.createForCertificate(certificate, { issuerCertificate, hashAlgorithm })` | `createOcspRequest(certificate, issuer)` | Returns the DER to send |
+| `pkijs.OCSPResponse.fromBER(raw)`, then `.getCertificateStatus(certificate, issuerCertificate)` | `parseOcspResponse(der)`, then `checkOcspStatus({ response, expected, at, … })` | `{ isForCertificate, status }` becomes reasons: revoked, unknown, stale, not about this certificate |
+| `pkijs.PFX.fromBER(raw)`, then `.parseInternalValues({ password, checkIntegrity })` | `openPkcs12(p12Bytes, { password })` | Integrity is checked unless you say otherwise; keys come out as `SigningKey`s, each a non-extractable `CryptoKey` and its algorithm |
+| `pkijs.TimeStampResp.fromBER(raw)`, then `.verify({ data, trustedCerts })` | `verifyTimeStampToken({ response, data, trustAnchors })` | The TSA's chain and its `timeStamping` purpose are part of the verdict |
+| `pkijs.AttributeCertificateV2.fromBER(raw)` | `parseAttributeCertificate(der)`, then `verifyAttributeCertificateSignature(ac, issuer)` | Attributes and extensions typed; the signature can be checked |
+| `pkijs.setEngine(name, crypto)` | nothing | pkinative calls the host's Web Crypto; there is no engine to set |
+
+pkijs 4.0.1 installs three dependencies and asks for asn1js as a peer; pkinative installs nothing else.
+
+A CMS signature, before and after:
+
+```ts
+import { verifySignedData } from 'pkinative';
+
+// const signedData = new pkijs.SignedData({ schema: pkijs.ContentInfo.fromBER(p7s).content });
+// const ok = await signedData.verify({ signer: 0, data: signedContent, trustedCerts: roots, checkChain: true });
+const report = await verifySignedData({ signedData: p7s, content: signedContent, trustAnchors: roots });
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+```
+
+A PKCS#12, before and after:
+
+```ts
+import { openPkcs12 } from 'pkinative';
+
+// const pfx = pkijs.PFX.fromBER(p12Bytes); await pfx.parseInternalValues({ password, checkIntegrity: true });
+// An rsaEncryption key needs its scheme named: the file does not say it, and pkinative does not guess.
+const report = await openPkcs12(p12Bytes, { password, rsaAlgorithm: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } });
+if (!report.valid) throw new Error(report.reasons.map((r) => `${r.code} at ${r.path}`).join('; '));
+const [{ signingKey, certificate }] = report.keys;
+console.log(certificate !== undefined, signingKey !== undefined);
+```
+
+## What has no counterpart, by design
+
+Each of these is a recorded decision; [Choosing a library and a surface](choose.md) gives the record behind each one.
+
+| You use | In pkinative | Instead |
+|---|---|---|
+| Key generation — `forge.pki.rsa.generateKeyPair(…)` | Refused in every version: no key is generated or exported here | `crypto.subtle.generateKey` in your own code, where it is visible |
+| RSA, ciphers and TLS written in JavaScript — the rest of node-forge | None: pkinative holds no arithmetic on a secret | Web Crypto, `node:crypto`, `node:tls` |
+| CMS EnvelopedData and EncryptedData | SignedData only | Keep the library you have for that part, or OpenSSL |
+| A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC | Refused: PBES2 files only | Convert it once with OpenSSL: the two commands are in [the other guide](choose.md#what-it-does-not-do-by-design) |
+| Writing a PKCS#12 or a PKCS#8 | Not written | Web Crypto or `node:crypto`, or OpenSSL |
+| Fetching a CRL, an OCSP response or a timestamp | The engine does no I/O | Fetch the bytes yourself and pass them |
+
+## Migrating in parts
+
+Nothing requires one step. pkinative has no dependency and no global state, so it sits beside the library you have: move the reading of untrusted input first — the parser is where the advisories are — then the verdicts, and keep the other library for what the table above leaves to it. The boundary between the two is DER bytes: what one writes, the other reads.

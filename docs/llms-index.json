@@ -1,61 +1,61 @@
 {
   "$comment": "Index of pkinative’s machine-readable files and guides, with LF-normalised sizes. Regenerate with `npm run docs:llms`; the verify-docs rule llms-index-sync enforces freshness. approxTokens = bytes / 4.",
   "site": "https://pkinative.dev",
-  "verifiedOn": "2026-10-17",
+  "verifiedOn": "2026-11-24",
   "artefacts": [
     {
       "url": "llms.txt",
       "description": "The machine-readable documentation index — the entry point.",
-      "bytes": 5937,
-      "approxTokens": 1484
+      "bytes": 6543,
+      "approxTokens": 1636
     },
     {
       "url": "agent-brief.md",
       "description": "A compact brief for AI coding agents: what to import, what to catch, what not to write.",
-      "bytes": 8754,
-      "approxTokens": 2189
+      "bytes": 10018,
+      "approxTokens": 2505
     },
     {
       "url": "llms-full.txt",
       "description": "llms.txt, the README and every guide in one text.",
-      "bytes": 422769,
-      "approxTokens": 105692
+      "bytes": 454847,
+      "approxTokens": 113712
     },
     {
       "url": "llms-recipes.txt",
       "description": "Every executable recipe, fenced as TypeScript.",
-      "bytes": 132940,
-      "approxTokens": 33235
+      "bytes": 153565,
+      "approxTokens": 38391
     },
     {
       "url": "assets/api.json",
       "description": "The public surface: every export with module, signature, summary and thrown error classes.",
-      "bytes": 305525,
-      "approxTokens": 76381
+      "bytes": 349656,
+      "approxTokens": 87414
     },
     {
       "url": "data/errors.json",
       "description": "Every error code with its class, cause, remedy, standard and CWE.",
-      "bytes": 29399,
-      "approxTokens": 7350
+      "bytes": 32851,
+      "approxTokens": 8213
     },
     {
       "url": "data/diagnostics.json",
       "description": "Every diagnostic code with its severity, cause, remedy and standard.",
-      "bytes": 39982,
-      "approxTokens": 9996
+      "bytes": 49008,
+      "approxTokens": 12252
     },
     {
       "url": "data/limits.json",
       "description": "The named resource limits with their defaults and CWE.",
-      "bytes": 5297,
-      "approxTokens": 1324
+      "bytes": 5932,
+      "approxTokens": 1483
     },
     {
       "url": "data/surfaces.json",
       "description": "What pkinative does, the exports, CLI commands and MCP tools that do it, and since which version.",
-      "bytes": 13643,
-      "approxTokens": 3411
+      "bytes": 16216,
+      "approxTokens": 4054
     },
     {
       "url": "data/playgrounds.json",
@@ -72,14 +72,14 @@
     {
       "url": "assets/ecosystem.json",
       "description": "Versions, milestones, contracts, corpus pins and counts — the single source of truth.",
-      "bytes": 20040,
-      "approxTokens": 5010
+      "bytes": 20947,
+      "approxTokens": 5237
     }
   ],
   "guides": [
     {
       "title": "Quick start",
-      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.0 as it is tested; every export named here is in docs/assets/api.json.",
+      "summary": "Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits. Everything below runs on pkinative 1.1 as it is tested; every export named here is in docs/assets/api.json.",
       "html": "guides/quickstart.html",
       "markdown": "guides/quickstart.md",
       "anchors": [
@@ -94,8 +94,8 @@
         "types-you-write",
         "next"
       ],
-      "bytes": 14441,
-      "approxTokens": 3610
+      "bytes": 15445,
+      "approxTokens": 3861
     },
     {
       "title": "Use cases",
@@ -124,10 +124,11 @@
         "sign-a-message-and-verify-one-the-whole-way",
         "prove-when-it-was-signed",
         "private-keys-and-pkcs12",
+        "post-quantum-signatures-attribute-certificates-and-a-request-read-back",
         "what-none-of-these-do"
       ],
-      "bytes": 84909,
-      "approxTokens": 21227
+      "bytes": 86940,
+      "approxTokens": 21735
     },
     {
       "title": "pkinative-cli — Command-line reference",
@@ -159,8 +160,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 65365,
-      "approxTokens": 16341
+      "bytes": 65591,
+      "approxTokens": 16398
     },
     {
       "title": "CLI use cases",
@@ -241,8 +242,8 @@
         "versioning",
         "further-reading"
       ],
-      "bytes": 53070,
-      "approxTokens": 13268
+      "bytes": 53398,
+      "approxTokens": 13350
     },
     {
       "title": "MCP use cases",
@@ -273,8 +274,8 @@
         "cve-classes",
         "reporting-a-vulnerability"
       ],
-      "bytes": 15860,
-      "approxTokens": 3965
+      "bytes": 16824,
+      "approxTokens": 4206
     },
     {
       "title": "Conformance",
@@ -291,8 +292,8 @@
         "where-it-runs",
         "fixtures"
       ],
-      "bytes": 46585,
-      "approxTokens": 11646
+      "bytes": 48391,
+      "approxTokens": 12098
     },
     {
       "title": "Standards",
@@ -306,8 +307,8 @@
         "process-and-supply-chain",
         "what-would-change-a-row"
       ],
-      "bytes": 17008,
-      "approxTokens": 4252
+      "bytes": 20757,
+      "approxTokens": 5189
     },
     {
       "title": "Errors, diagnostics and reasons",
@@ -328,11 +329,12 @@
         "cms-and-timestamps",
         "private-keys-and-pkcs12",
         "diagnostics",
+        "strict-in-the-verify-and-check-verbs",
         "reasons",
         "where-the-codes-surface"
       ],
-      "bytes": 35079,
-      "approxTokens": 8770
+      "bytes": 41815,
+      "approxTokens": 10454
     },
     {
       "title": "Choosing a library and a surface",
@@ -348,8 +350,23 @@
         "honest-notes",
         "you-can-switch-later"
       ],
-      "bytes": 18147,
-      "approxTokens": 4537
+      "bytes": 19332,
+      "approxTokens": 4833
+    },
+    {
+      "title": "Migrating from node-forge or pkijs",
+      "summary": "What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.",
+      "html": "guides/migrate.html",
+      "markdown": "guides/migrate.md",
+      "anchors": [
+        "three-differences-that-are-not-renames",
+        "from-node-forge",
+        "from-pkijs",
+        "what-has-no-counterpart-by-design",
+        "migrating-in-parts"
+      ],
+      "bytes": 10805,
+      "approxTokens": 2701
     }
   ]
 }

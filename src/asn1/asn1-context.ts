@@ -9,6 +9,7 @@
  * @module asn1/asn1-context
  */
 
+import { describeValue } from '../core/arguments.js';
 import { berConstructAcceptedDiagnostic, createDiagnosticEmitter } from '../core/pki-diagnostics.js';
 import { resolveLimits } from '../core/pki-limits.js';
 import { PkiError } from '../types/pki-errors.js';
@@ -36,7 +37,7 @@ export function createAsn1Context(options: PkiParseOptions | undefined): Asn1Con
     }
     const rules = options?.encodingRules ?? 'der';
     if (rules !== 'der' && rules !== 'ber') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: encodingRules must be 'der' or 'ber', got ${String(rules)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: encodingRules must be 'der' or 'ber', got ${describeValue(rules)}`);
     }
     if (options?.strict !== undefined && typeof options.strict !== 'boolean') {
         throw new PkiError('PKI_INVALID_OPTION', `pkinative: strict must be a boolean, got ${typeof options.strict}`);

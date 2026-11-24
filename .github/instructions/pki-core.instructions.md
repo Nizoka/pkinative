@@ -11,11 +11,13 @@ applyTo: "src/asn1/**,src/pem/**,src/oid/**,src/x509/**,src/build/**,src/cms/**"
 | Certificate profile | RFC 5280 | §4.1 basic fields, §4.2 extensions, Appendix A ASN.1 modules |
 | PEM | RFC 7468 | §2 general considerations, §3 ABNF (strict and lax), §5 certificates |
 | Names | RFC 4514 | §2 string representation of distinguished names |
-| Algorithms | RFC 3279, RFC 4055, RFC 5480, RFC 8410, RFC 9814 | parameters of RSA, RSA-PSS, EC, EdDSA, ML-DSA keys |
+| Algorithms | RFC 3279, RFC 4055, RFC 5480, RFC 8410, RFC 9881, RFC 9909, RFC 9935 | parameters of RSA, RSA-PSS, EC, EdDSA, ML-DSA, SLH-DSA and ML-KEM keys; key sizes and `keyUsage` of the last three (ADR 0026) |
+| ML-DSA in CMS | RFC 9882 | §3.2 what is signed, §3.3 Table 1: the digests each parameter set takes with signed attributes |
 | IP in names | RFC 5280 §4.2.1.6 / §4.2.1.10 | 4 or 16 octets; doubled with a mask in name constraints |
 | CMS, timestamps | RFC 5652, RFC 3161, RFC 5035, RFC 8419 | §5 SignedData, §11 attributes; TSTInfo and the imprint; ESSCertIDv2; EdDSA digests |
+| Attribute certificates | RFC 5755 | §4 the profile, read and diagnosed; §5 validation is the caller's (ADR 0028) |
 
-Each RFC with an inventory in `scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468) has every MUST/SHOULD sentence given a status; a new check names its sentence there, and a sentence left unchecked carries a closed-list reason.
+Each RFC with an inventory in `scripts/data/rfc*-requirements.json` (5280, 5652, 3161, 6960, 7292, 7468, 5755) has every MUST/SHOULD sentence given a status; a new check names its sentence there, and a sentence left unchecked carries a closed-list reason.
 
 ## Decoder policy
 - `encodingRules: 'der'` (default) refuses: indefinite length, non-minimal length, constructed strings,

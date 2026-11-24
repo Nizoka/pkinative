@@ -39,3 +39,34 @@ path = "tests/fixtures/certs/rfc8410-x25519.der"
 precedence = "override"
 SPDX-FileCopyrightText = "2018 IETF Trust and the persons identified as the document authors"
 SPDX-License-Identifier = "BSD-3-Clause"
+
+# The example certificates of RFC 9881 Appendix C.3, code components of an
+# IETF document: the Revised BSD License under the IETF Trust Legal Provisions.
+[[annotations]]
+path = [
+    "tests/fixtures/ml-dsa/rfc9881-ml-dsa-44.der",
+    "tests/fixtures/ml-dsa/rfc9881-ml-dsa-65.der",
+    "tests/fixtures/ml-dsa/rfc9881-ml-dsa-87.der",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2025 IETF Trust and the persons identified as the document authors"
+SPDX-License-Identifier = "BSD-3-Clause"
+
+# ML-DSA test vectors made for this repository with OpenSSL 3.5.5, which
+# signed them — pkinative signs nothing with ML-DSA (ADR 0026). The keys,
+# the names and the commands are this project's (tests/fixtures/PROVENANCE.md),
+# so the files are its own, annotated here because every fixture is.
+[[annotations]]
+path = [
+    "tests/fixtures/ml-dsa/root-ml-dsa-65.der",
+    "tests/fixtures/ml-dsa/leaf-ml-dsa-44.der",
+    "tests/fixtures/ml-dsa/csr-ml-dsa-44.der",
+    "tests/fixtures/ml-dsa/crl-ml-dsa-65.der",
+    "tests/fixtures/ml-dsa/ocsp-ml-dsa-65.der",
+    "tests/fixtures/ml-dsa/cms-ml-dsa-44-sha512.der",
+    "tests/fixtures/ml-dsa/cms-ml-dsa-44-shake256.der",
+    "tests/fixtures/ml-dsa/tst-ml-dsa-44.der",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Nizoka — Plika (https://plika.app)"
+SPDX-License-Identifier = "MIT"

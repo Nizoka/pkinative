@@ -159,10 +159,24 @@ export interface EcPublicKeyInfo extends PublicKeyInfoBase {
     readonly point: Uint8Array;
 }
 
-/** A key whose subjectPublicKey is the raw key octets (RFC 8410; ML-DSA: RFC 9881, key sizes of FIPS 204). */
+/**
+ * A key whose subjectPublicKey is the raw key octets: the Edwards and
+ * Montgomery curves (RFC 8410), ML-DSA (RFC 9881 §4, key sizes of FIPS 204),
+ * the twelve pure SLH-DSA parameter sets (RFC 9909 §5, FIPS 205) and ML-KEM
+ * (RFC 9935 §4, FIPS 203).
+ *
+ * The kinds added in 1.1.0 — SLH-DSA and ML-KEM — are read and nothing more:
+ * no signature is verified under an SLH-DSA key, and an ML-KEM key signs
+ * nothing (ADR 0026).
+ */
 export interface OctetPublicKeyInfo extends PublicKeyInfoBase {
     /** Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`. */
-    readonly kind: 'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87';
+    readonly kind:
+        | 'ed25519' | 'ed448' | 'x25519' | 'x448'
+        | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87'
+        | 'slh-dsa-sha2-128s' | 'slh-dsa-sha2-128f' | 'slh-dsa-sha2-192s' | 'slh-dsa-sha2-192f' | 'slh-dsa-sha2-256s' | 'slh-dsa-sha2-256f'
+        | 'slh-dsa-shake-128s' | 'slh-dsa-shake-128f' | 'slh-dsa-shake-192s' | 'slh-dsa-shake-192f' | 'slh-dsa-shake-256s' | 'slh-dsa-shake-256f'
+        | 'ml-kem-512' | 'ml-kem-768' | 'ml-kem-1024';
     /** The raw key octets: the subjectPublicKey content, with no structure of its own. */
     readonly key: Uint8Array;
 }

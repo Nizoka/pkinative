@@ -1,0 +1,31 @@
+{
+  "$comment": "Files of the v1.0.0 test suite that scripts/run-compat.ts does not run against the current sources. Every entry carries a reason and a kind: \"tree\" for a test of the repository (its docs, its workflows, its tooling) rather than of the engine, \"behaviour\" for a file whose assertions the engine changed on purpose — each such change is named in the release note's Decision surface or Downstream integration notes.",
+  "tag": "v1.0.0",
+  "exclude": [
+    {
+      "pattern": "tests/docs/**",
+      "kind": "tree",
+      "reason": "Repository-tree tests (the verify-docs rules over the site and the registries, the recipes index, the guide fences, the fixture budget), not engine behaviour: the current suite covers today's tree."
+    },
+    {
+      "pattern": "tests/tools/**",
+      "kind": "tree",
+      "reason": "Repository-tree tests (workflow pins, the guard hook, the agent configuration, the architecture and API-surface classifiers, the mutation runner), not engine behaviour: the current suite covers today's tree."
+    },
+    {
+      "pattern": "tests/conformance/rfc-requirements.test.ts",
+      "kind": "tree",
+      "reason": "Reads the current scripts/data/rfc*-requirements.json and resolves each sentence's test in the tree: 1.1.0 adds the RFC 5755 inventory and points two RFC 6960 sentences at tests the v1.0.0 tree does not have. No engine assertion."
+    },
+    {
+      "pattern": "tests/core/pki-diagnostics.test.ts",
+      "kind": "tree",
+      "reason": "One assertion holds the factories to the current docs/data/diagnostics.json code for code, and the registry is additions-only (ADR 0013): the 14 codes 1.1.0 adds are outside the v1.0.0 list. The runner excludes by file, so this file's emitter and strict tests leave with that assertion; the current suite runs the same file, with them and with the new codes."
+    },
+    {
+      "pattern": "tests/fuzzing/targets.test.ts",
+      "kind": "tree",
+      "reason": "Enumerates the current fuzz/ directory against a list of eight targets written in the v1.0.0 file: 1.1.0 adds three (tsp-request, ocsp-request, attribute-certificate), which that file neither expects nor seeds. The current suite runs all eleven."
+    }
+  ]
+}

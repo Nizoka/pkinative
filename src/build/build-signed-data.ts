@@ -36,6 +36,7 @@ import {
 } from '../asn1/asn1-encode.js';
 import { decodeOid } from '../asn1/asn1-oid.js';
 import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
+import { A_CERTIFICATE, assertFlags, assertObject, assertOptions, assertParsed, describeValue, listOf } from '../core/arguments.js';
 import { assertBytes, byteView, bytesEqual, concatBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
@@ -60,7 +61,7 @@ import {
     OID_SIGNED_DATA,
     SIGNED_ONLY_ATTRIBUTES,
 } from '../core/cms-oids.js';
-import { computeSignatureValue, encodeSignatureAlgorithm } from './build-certificate.js';
+import { _assertSigner, computeSignatureValue, encodeSignatureAlgorithm } from './build-certificate.js';
 import { encodeAlgorithmIdentifier, encodeAttribute } from './build-structures.js';
 
 /** Attributes RFC 5652 §11, RFC 2634, RFC 5035 and RFC 6211 allow only among the signed attributes. */
@@ -286,7 +287,7 @@ function signerIdentifier(certificate: Certificate, sid: CreateSignedDataInput['
         return { der: encodeImplicit(0, encodeOctetString(extension.keyIdentifier)), version: 3 };
     }
     if (sid !== undefined && sid !== 'issuerAndSerialNumber') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: sid must be 'issuerAndSerialNumber' or 'subjectKeyIdentifier', got ${String(sid)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: sid must be 'issuerAndSerialNumber' or 'subjectKeyIdentifier', got ${describeValue(sid)}`);
     }
     return { der: encodeSequence([assertBytes(certificate.issuer.der, 'certificate.issuer.der'), serial]), version: 1 };
 }
@@ -294,7 +295,7 @@ function signerIdentifier(certificate: Certificate, sid: CreateSignedDataInput['
 /** The signingTime value: UTCTime through 2049, GeneralizedTime from 2050, whole seconds (RFC 5652 §11.3). */
 function signingTimeValue(time: number): Uint8Array {
     if (typeof time !== 'number' || !Number.isFinite(time)) {
-        throw misuse(`signingTime is an instant in epoch milliseconds and must be a finite number, got ${String(time)}`);
+        throw misuse(`signingTime is an instant in epoch milliseconds and must be a finite number, got ${describeValue(time)}`);
     }
     // Truncated rather than refused: `Date.now()` almost always carries
     // milliseconds, and a claimed signing time is not precise to one anyway.
@@ -364,8 +365,8 @@ async function resolveContent(input: CreateSignedDataInput, digest: CmsDigest): 
  *   extension, a malformed or duplicated extra attribute, a signed-only type
  *   among the unsigned attributes, a bag entry that is not one DER value, or
  *   an `ExternalSigner` that returns other than what `crypto.subtle.sign`
- *   would; `PKI_INVALID_OPTION` for an unknown `sid`; `PKI_INVALID_INPUT`
- *   where bytes are expected and something else is given.
+ *   would; `PKI_INVALID_OPTION` for an unknown `sid`, a flag that is not a boolean or options that are not an object; `PKI_INVALID_INPUT`
+ *   where bytes, a list, an object or a parsed certificate is expected and something else is given.
  * @throws {PkiCryptoError} `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an
  *   algorithm with no OID; `PKI_CRYPTO_UNAVAILABLE` and
  *   `PKI_CRYPTO_KEY_UNSUPPORTED` as for `createCertificate` — the latter also
@@ -375,21 +376,28 @@ async function resolveContent(input: CreateSignedDataInput, digest: CmsDigest): 
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxAttributes` or `maxCmsCertificatesAndCrls`.
  */
 export async function createSignedData(input: CreateSignedDataInput, signer: Signer, options?: PkiBuildOptions): Promise<Uint8Array> {
+    // Each guard stands where 1.0.0 first read what it guards, so that a call
+    // wrong in two places is still refused for the one it always was.
+    assertOptions(options, 'options');
     const limits: PkiLimits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
+    _assertSigner(signer);
     const digest = signerDigest(signer);
     // Before the digest table is read: resolveSigner is what refuses a hash
     // the table does not hold.
     const signatureAlgorithm = encodeSignatureAlgorithm(signer);
     const digestAlgorithm = encodeAlgorithmIdentifier(DIGESTS[digest].oid);
+    assertObject(input, 'the createSignedData input');
+    assertFlags(input, 'input', ['detached', 'signingCertificateV2', 'algorithmProtection']);
     const contentType = input.contentType ?? OID_DATA;
     const certificate = input.certificate;
-    const certificateDer = assertBytes(certificate.der, 'certificate.der');
-    const serial = encodeTlv('universal', TAG_INTEGER, false, assertBytes(certificate.serialNumber.bytes, 'certificate.serialNumber.bytes'));
+    assertParsed(certificate, 'certificate', A_CERTIFICATE, ['der', 'serialNumber.bytes']);
+    const certificateDer = certificate.der;
+    const serial = encodeTlv('universal', TAG_INTEGER, false, certificate.serialNumber.bytes);
     const sid = signerIdentifier(certificate, input.sid, serial);
 
     // ── The bag, checked before any hashing is spent on the call ──
-    const extraCertificates = input.certificates ?? [];
-    const crls = input.crls ?? [];
+    const extraCertificates = listOf(input.certificates, 'certificates');
+    const crls = listOf(input.crls, 'crls');
     enforceLimit(limits, 'maxCmsCertificatesAndCrls', extraCertificates.length + crls.length, 'the certificates and revocation lists given');
     let version = sid.version === 3 || contentType !== OID_DATA ? 3 : 1;
     const certificates: Uint8Array[] = [certificateDer];
@@ -412,7 +420,7 @@ export async function createSignedData(input: CreateSignedDataInput, signer: Sig
     if (input.signingTime !== undefined) written.add(OID_ATTR_SIGNING_TIME);
     if (input.signingCertificateV2 !== false) written.add(OID_ATTR_SIGNING_CERTIFICATE_V2);
     if (input.algorithmProtection !== false) written.add(OID_ATTR_ALGORITHM_PROTECTION);
-    const extraSigned = input.signedAttributes ?? [];
+    const extraSigned = listOf(input.signedAttributes, 'signedAttributes');
     enforceLimit(limits, 'maxAttributes', written.size + extraSigned.length, 'the signed attributes being built');
     extraSigned.forEach((attribute, index) => {
         const what = `signedAttributes[${String(index)}]`;
@@ -427,7 +435,7 @@ export async function createSignedData(input: CreateSignedDataInput, signer: Sig
         }
         written.add(type);
     });
-    const unsigned = input.unsignedAttributes ?? [];
+    const unsigned = listOf(input.unsignedAttributes, 'unsignedAttributes');
     enforceLimit(limits, 'maxAttributes', unsigned.length, 'the unsigned attributes being built');
     unsigned.forEach((attribute, index) => {
         const what = `unsignedAttributes[${String(index)}]`;
@@ -552,7 +560,7 @@ function expectTag(header: TlvHeader | undefined, tagClass: TagClass, tagNumber:
  * @returns A new `ContentInfo`, in DER.
  * @throws {PkiError} `PKI_API_MISUSE` when `attributeDer` is not one Attribute,
  *   names a type RFC 5652 allows only signed, or `signerIndex` is not the index
- *   of a signer; `PKI_INVALID_INPUT` when an argument that must be bytes is not.
+ *   of a signer; `PKI_INVALID_INPUT` when an argument that must be bytes is not; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiCmsError} `PKI_CMS_CONTENT_TYPE_UNEXPECTED` for a ContentInfo
  *   that is not id-signedData; `PKI_CMS_STRUCTURE_INVALID`, with a path, for
  *   one that does not have the SignedData shape.
@@ -560,6 +568,7 @@ function expectTag(header: TlvHeader | undefined, tagClass: TagClass, tagNumber:
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxInputBytes`, `maxSignerInfos` or `maxAttributes`.
  */
 export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: number, attributeDer: Uint8Array, options?: PkiBuildOptions): Uint8Array {
+    assertOptions(options, 'options');
     const limits: PkiLimits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     const der = assertBytes(signedDataDer, 'signedDataDer');
     const attribute = assertBytes(attributeDer, 'attributeDer');
@@ -568,7 +577,7 @@ export function addUnsignedAttribute(signedDataDer: Uint8Array, signerIndex: num
         throw misuse(`attributeDer is a ${type} attribute, which RFC 5652 §11, RFC 5035 and RFC 6211 allow only among the signed attributes — it cannot be added after signing; sign again with it`);
     }
     if (!Number.isSafeInteger(signerIndex) || signerIndex < 0) {
-        throw misuse(`signerIndex is the position of a signer in signerInfos, a non-negative integer, got ${String(signerIndex)}`);
+        throw misuse(`signerIndex is the position of a signer in signerInfos, a non-negative integer, got ${describeValue(signerIndex)}`);
     }
     enforceLimit(limits, 'maxInputBytes', der.length, 'the SignedData');
 

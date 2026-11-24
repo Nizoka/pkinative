@@ -1,6 +1,6 @@
 # pkinative
 
-> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo, NIST PKITS, Wycheproof and the text of RFC 5280. One API for every runtime with Web Crypto: tested in CI on Node.js 22 (Linux, Windows, macOS) and 24 (Linux), with Deno, Bun and headless Chromium smoke tests and an advisory run on Node.js 26; other Web Crypto runtimes such as Workers are expected to work, not tested in CI. It installs from npm: `npm install pkinative`. Beyond reading, it verifies and creates signatures through Web Crypto, reads, verifies and builds PKCS#10 certification requests, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, hashes public data (SHA-1/256/384/512, SHAKE256), and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys. Six RFC requirement inventories (5280, 5652, 3161, 6960, 7292, 7468) hold it sentence by sentence to the pinned texts.
+> Zero-dependency TypeScript toolkit for public-key infrastructure data: strict ASN.1 DER (BER on request), RFC 7468 PEM, object identifiers and complete RFC 5280 X.509 certificate parsing with every standard extension, CWE-tagged resource limits, stable error codes and a conformance gate over x509-limbo, NIST PKITS, Wycheproof and the text of RFC 5280. One API for every runtime with Web Crypto: tested in CI on Node.js 22 (Linux, Windows, macOS), 24 and 26 (Linux), with Deno, Bun and headless Chromium smoke tests; other Web Crypto runtimes such as Workers are expected to work, not tested in CI. It installs from npm: `npm install pkinative`. Beyond reading, it verifies and creates signatures through Web Crypto, reads, verifies and builds PKCS#10 certification requests, validates RFC 5280 §6 paths with CRL and OCSP revocation, reads, builds and verifies CMS SignedData and RFC 3161 timestamps, hashes public data (SHA-1/256/384/512, SHAKE256), and opens PKCS#8 keys and PKCS#12 files (PBES2 only) into non-extractable signing keys. Since 1.1 it verifies ML-DSA (FIPS 204) signatures where the host's Web Crypto does, reads SLH-DSA and ML-KEM public keys, reads and signature-checks RFC 5755 attribute certificates, and reads back OCSP and RFC 3161 requests. Seven RFC requirement inventories (5280, 5652, 3161, 6960, 7292, 7468, 5755) hold it sentence by sentence to the pinned texts.
 
 pkinative never implements secret-dependent cryptography in TypeScript; signing and verification are one call to Web Crypto with the caller's key. Every failure is a PkiError subclass with a stable `code`; profile concerns are diagnostics (`onDiagnostic`, `strict: true`, `certificate.diagnostics`). There is no PEM-to-certificate shortcut: compose `decodePem` and `parseCertificate`.
 
@@ -8,11 +8,11 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 
 - [Agent brief](https://pkinative.dev/agent-brief.md): what to import, what to catch, what not to write
 - [Quick start](https://pkinative.dev/guides/quickstart.md): read a certificate, extensions, diagnostics, errors, limits
-- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes
+- [API manifest](https://pkinative.dev/assets/api.json): every public export with module, signature, summary and thrown error classes — a large file: look an export up by its name rather than read it whole
 
 ## Guides
 
-- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`)
+- [Use cases](https://pkinative.dev/guides/use-cases.md): inventory, pinning, chains, revocation, CMS signatures (`createSignedData`, `verifySignedData`) RFC 3161 timestamps (`verifyTimeStampToken`, `addTimeStampToken`, `atTimeStamp`), and private keys and PKCS#12 (`openPkcs12`, `decryptPrivateKey`, `allowUnverifiedIntegrity`); ML-DSA verdicts, attribute certificates (`parseAttributeCertificate`) and reading a request back (`parseOcspRequest`, `parseTimeStampRequest`)
 - [Security model](https://pkinative.dev/guides/security.md): strict DER, the twenty-two limits, typed failures, the cryptography boundary
 - [Conformance](https://pkinative.dev/guides/conformance.md): x509-limbo, NIST PKITS, Wycheproof, RFC 5280 clause by clause, OpenSSL differential
 - [Standards](https://pkinative.dev/guides/standards.md): every ISO/IEC, ITU-T and IETF standard pkinative touches, its evidence and its gaps — a self-assessment, not a certification
@@ -22,6 +22,7 @@ pkinative never implements secret-dependent cryptography in TypeScript; signing 
 - [MCP server](https://pkinative.dev/guides/mcp.md): pkinative-mcp — client configuration, the 34 tools, seven prompts, resources, error and security models
 - [MCP use cases](https://pkinative.dev/guides/use-cases-mcp.md): an agent triaging a failing chain, issuing a test certificate, offline revocation, opening keys safely
 - [Choosing a library and a surface](https://pkinative.dev/guides/choose.md): when to use pkinative, when another tool is the right one, and library, CLI or MCP server for each capability
+- [Migrating from node-forge or pkijs](https://pkinative.dev/guides/migrate.md): what each node-forge and pkijs call becomes, what changes shape, and what has no counterpart by design
 
 ## Data
 

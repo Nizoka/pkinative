@@ -33,6 +33,15 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "tsup"
         update-types: ["version-update:semver-major"]
+      # The types follow the lowest Node.js line `engines` supports, so that
+      # an API a supported runtime lacks does not type-check; the major moves
+      # by hand, in the commit that drops a line.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Pinned exactly: the guide builder and its tests are written against
+      # this renderer's output, and a major is a migration, not a bump.
+      - dependency-name: "marked"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         patterns:

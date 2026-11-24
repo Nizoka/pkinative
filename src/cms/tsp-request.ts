@@ -2,8 +2,9 @@
  * pkinative — RFC 3161 timestamp requests
  * =======================================
  * The question a timestamp authority is asked, in both directions: written by
- * `createTimeStampRequest`, and read back by the verifier so that a token can
- * be held to the request it claims to answer.
+ * `createTimeStampRequest`, read back by `parseTimeStampRequest` for whoever
+ * inspects one, and by the verifier so that a token can be held to the request
+ * it claims to answer — one walk of the bytes behind both readers.
  *
  * pkinative does not send the request. RFC 3161 §3 defines four transports and
  * none of them belongs in a library with no I/O: the caller POSTs these bytes
@@ -12,17 +13,21 @@
  * @module cms/tsp-request
  */
 
+import { assertOptionFlags, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
-import { createAsn1Context } from '../asn1/asn1-context.js';
+import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { encodeBoolean, encodeInteger, encodeObjectIdentifier, encodeOctetString, encodeSequence, encodeTlv } from '../asn1/asn1-encode.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBoolean, _readInteger } from '../asn1/asn1-read.js';
 import { encodeAlgorithmIdentifier } from '../build/build-structures.js';
+import { defaultEncodedDiagnostic } from '../core/pki-diagnostics.js';
+import type { Asn1Node } from '../types/asn1-types.js';
 import { PkiCmsError, PkiError } from '../types/pki-errors.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
-import type { MessageImprint } from '../types/tsp-types.js';
-import { _readMessageImprint, _tspError } from './tsp-tst-info.js';
+import type { MessageImprint, TimeStampRequest } from '../types/tsp-types.js';
+import type { Extension } from '../types/x509-types.js';
+import { _readImplicitExtensions, _readMessageImprint, _tspError } from './tsp-tst-info.js';
 
 /**
  * The digests a new request may stamp.
@@ -95,7 +100,7 @@ export interface CreateTimeStampRequestOptions {
  * @param options See {@link CreateTimeStampRequestOptions}.
  * @returns The DER `TimeStampReq`, ready to POST.
  * @throws {PkiError} `PKI_INVALID_INPUT` when `hash` is not bytes or `nonce`
- *   not a bigint; `PKI_INVALID_OPTION` for an unsupported `hashAlgorithm`;
+ *   not a bigint; `PKI_INVALID_OPTION` for an unsupported `hashAlgorithm`, a `certReq` that is not a boolean or options that are not an object;
  *   `PKI_API_MISUSE` when the hash is not as long as the algorithm's output.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed `policy`.
  */
@@ -103,10 +108,13 @@ export function createTimeStampRequest(hash: Uint8Array, options?: CreateTimeSta
     if (!isBytes(hash)) {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: the hash to timestamp must be a Uint8Array — hash the data first, with the algorithm you name in hashAlgorithm');
     }
+    assertOptionFlags(options, ['certReq']);
     const name = options?.hashAlgorithm ?? 'SHA-256';
-    const algorithm = HASHES[name];
-    if (typeof algorithm !== 'object') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: hashAlgorithm must be 'SHA-256', 'SHA-384' or 'SHA-512', got ${String(name)} — SHA-1 is not offered for new timestamps, because a collision would let one token cover two documents`);
+    // An own name of the table and nothing else: `__proto__` is a name every
+    // object answers to, and a value that is not a string is no name at all.
+    const algorithm = typeof name === 'string' && Object.prototype.hasOwnProperty.call(HASHES, name) ? HASHES[name] : undefined;
+    if (algorithm === undefined) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: hashAlgorithm must be 'SHA-256', 'SHA-384' or 'SHA-512', got ${describeValue(name)} — SHA-1 is not offered for new timestamps, because a collision would let one token cover two documents`);
     }
     if (hash.length !== algorithm.bytes) {
         throw new PkiError('PKI_API_MISUSE', `pkinative: a ${name} hash is ${String(algorithm.bytes)} octets and this one is ${String(hash.length)} — pass the digest itself, computed with the algorithm you name`);
@@ -136,20 +144,22 @@ export interface _TimeStampRequestDetails {
     readonly certReq: boolean;
 }
 
+/** Everything one walk of a `TimeStampReq` yields; the two readers below each keep their part of it. */
+interface RequestFields extends _TimeStampRequestDetails {
+    readonly root: Asn1Node;
+    readonly extensions: readonly Extension[];
+}
+
 /**
- * Read back a `TimeStampReq` — the caller's own request, which a token must
- * answer.
+ * The one walk of a `TimeStampReq`, shared by the verifier's reader and the
+ * public one so that the two cannot disagree on what a request says.
  *
- * Internal because its one use is `verifyTimeStampToken`: a library that
- * issued tokens would need it public, and pkinative does not issue tokens.
- * Extensions are read past rather than decoded — a request's extensions are
- * the TSA's concern, and nothing a client checks depends on them.
- *
- * @internal
+ * `inspect` is what separates them. The verifier holds a token to the caller's
+ * own request and needs four fields of it: it reads past the extensions and
+ * reports nothing. The public reader is asked what the request **is**, so it
+ * decodes the extensions and names a `certReq` that encodes its DEFAULT.
  */
-export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): _TimeStampRequestDetails {
-    const bytes = assertBytes(der, 'TimeStampReq input');
-    const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
+function readRequest(bytes: Uint8Array, ctx: Asn1Context, inspect: boolean): RequestFields {
     const root = decodeWithContext(bytes, ctx, false);
     const path = 'TimeStampReq';
     if (root.tagClass !== 'universal' || root.tagNumber !== 16) throw _tspError(path, root.offset, 'is not a SEQUENCE');
@@ -163,6 +173,7 @@ export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOption
     let policy: string | undefined;
     let nonce: bigint | undefined;
     let certReq = false;
+    let extensions: readonly Extension[] = Object.freeze([]);
     // 0 = reqPolicy, 1 = nonce, 2 = certReq, 3 = extensions [0] — once each, in order.
     let last = -1;
     for (const field of rest) {
@@ -173,7 +184,86 @@ export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOption
         last = slot;
         if (slot === 0) policy = _readObjectIdentifier(field, ctx);
         if (slot === 1) nonce = _readInteger(field, ctx);
-        if (slot === 2) certReq = _readBoolean(field, ctx);
+        if (slot === 2) {
+            certReq = _readBoolean(field, ctx);
+            // certReq is BOOLEAN DEFAULT FALSE: X.690 §11.5 requires the default
+            // to be absent, as the TSTInfo reader says of `ordering`.
+            if (inspect && !certReq) ctx.emitter.emit(defaultEncodedDiagnostic(`${path}.certReq`, 'FALSE', field.offset));
+        }
+        if (slot === 3 && inspect) {
+            // extensions [0] IMPLICIT Extensions: the [0] stands for the SEQUENCE
+            // tag, so a primitive one holds octets where Extension values belong.
+            if (!field.constructed) throw _tspError(`${path}.extensions`, field.offset, 'is primitive, where [0] IMPLICIT Extensions is constructed');
+            extensions = _readImplicitExtensions(bytes, field, ctx, `${path}.extensions`);
+        }
     }
+    return { root, messageImprint, policy, nonce, certReq, extensions };
+}
+
+/**
+ * Read back a `TimeStampReq` — the caller's own request, which a token must
+ * answer.
+ *
+ * Internal because its one use is `verifyTimeStampToken`, which needs the four
+ * fields a response must echo and nothing else. Extensions are read past
+ * rather than decoded — a request's extensions are the TSA's concern, and
+ * nothing a client checks depends on them — and no diagnostic is raised: the
+ * verdict on a token must not move with a remark about its request. The public
+ * {@link parseTimeStampRequest} reads the same bytes through the same walk.
+ *
+ * @internal
+ */
+export function _parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): _TimeStampRequestDetails {
+    if (!isBytes(der)) throw new PkiError('PKI_INVALID_INPUT', 'pkinative: request must be the DER of the TimeStampReq that was sent — the bytes createTimeStampRequest returned, not what parseTimeStampRequest made of them');
+    const { messageImprint, policy, nonce, certReq } = readRequest(der, createAsn1Context({ ...options, encodingRules: 'der' }), false);
     return Object.freeze({ messageImprint, policy, nonce, certReq });
+}
+
+/**
+ * Parse a `TimeStampReq` (RFC 3161 §2.4.1) — the request
+ * `createTimeStampRequest` writes, or the one another client wrote.
+ *
+ * ```ts
+ * const asked = parseTimeStampRequest(request);
+ * console.log(asked.messageImprint.hashAlgorithm.oid, asked.nonce, asked.certReq);
+ * ```
+ *
+ * It reads what is **asked**. Whether a token answers this request is
+ * `verifyTimeStampToken`'s to decide, from the same bytes passed as
+ * `request`; pkinative issues no token, so nothing here judges the request as
+ * a TSA would — an extension it does not recognise is kept, not refused.
+ *
+ * Read **as DER whatever the caller asked for**: every transport RFC 3161 §3
+ * defines carries the DER encoding of the request, and it is what lets
+ * `createTimeStampRequest` reproduce a request from its parsed fields byte
+ * for byte.
+ *
+ * @param der     The DER of one TimeStampReq.
+ * @param options Limits and diagnostics. `encodingRules` is ignored: a
+ *   TimeStampReq is always DER.
+ * @returns The parsed request, with zero-copy views of `der`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `der` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object;
+ *   `PKI_STRICT_DIAGNOSTIC` under `strict: true`.
+ * @throws {PkiCmsError} `PKI_CMS_STRUCTURE_INVALID` when the value is not a
+ *   TimeStampReq — including a malformed `AlgorithmIdentifier` or recognised
+ *   extension inside it — or `PKI_CMS_VERSION_UNSUPPORTED` for a version
+ *   other than 1.
+ * @throws {PkiEncodingError} For any DER violation.
+ * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions` or the decoder's limits.
+ */
+export function parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): TimeStampRequest {
+    const bytes = assertBytes(der, 'parseTimeStampRequest input');
+    assertOptions(options, 'options');
+    const ctx = createAsn1Context({ ...options, encodingRules: 'der' });
+    const { root, messageImprint, policy, nonce, certReq, extensions } = readRequest(bytes, ctx, true);
+    return Object.freeze({
+        der: bytes.subarray(root.offset, root.offset + root.headerLength + root.contentLength),
+        version: 1,
+        messageImprint,
+        policy,
+        nonce,
+        certReq,
+        extensions,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
+    });
 }

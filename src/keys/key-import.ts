@@ -20,6 +20,7 @@
  * @module keys/key-import
  */
 
+import { describeValue } from '../core/arguments.js';
 import { decodeAsn1 } from '../asn1/asn1-decode.js';
 import { encodeNull, encodeObjectIdentifier, encodeSequence } from '../asn1/asn1-encode.js';
 import { resolveSigner } from '../crypto/crypto-algorithms.js';
@@ -41,7 +42,7 @@ const CUSTOMARY_HASH: Readonly<Record<'P-256' | 'P-384' | 'P-521', SignatureHash
 
 /** An algorithm in words, for an error message. */
 function _algorithmName(algorithm: SignatureAlgorithm): string {
-    return algorithm.name === 'ECDSA' ? `ECDSA on ${String(algorithm.namedCurve)}` : String(algorithm.name);
+    return algorithm.name === 'ECDSA' ? `ECDSA on ${describeValue(algorithm.namedCurve)}` : describeValue(algorithm.name);
 }
 
 function _mismatch(key: string, algorithm: SignatureAlgorithm): PkiError {
@@ -94,6 +95,15 @@ export function _signingAlgorithm(info: PrivateKeyInfo, requested: SignatureAlgo
             }
             if (requested.name !== 'RSA-PSS') throw _mismatch('an RSA key restricted to PSS (id-RSASSA-PSS)', requested);
             return requested;
+        case 'ml-dsa-44':
+        case 'ml-dsa-65':
+        case 'ml-dsa-87':
+            // Recognised, and refused all the same (ADR 0026): pkinative
+            // verifies ML-DSA where the host does and signs with it nowhere
+            // yet, whatever `requested` says — the algorithm has no name in
+            // `SignatureAlgorithm` for a caller to pass.
+            throw new PkiCryptoError('PKI_CRYPTO_KEY_UNSUPPORTED',
+                `pkinative: the private key is an ML-DSA key (${info.kind}), which pkinative reads and does not sign with: ML-DSA signatures are verified where the host verifies them, and signing waits for a later release (ADR 0026) — sign with a library or a device that implements it`, oid);
         case 'unknown':
             throw _unsupported(`is of a type pkinative does not sign with (${oid})`, oid);
     }
@@ -138,7 +148,9 @@ function _checkAlgorithmOption(algorithm: unknown, required: boolean): void {
  * @throws {PkiKeyError} `PKI_KEY_STRUCTURE_INVALID` or `PKI_KEY_VERSION_UNSUPPORTED`.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past a named limit.
  * @throws {PkiCryptoError} `PKI_CRYPTO_KEY_UNSUPPORTED` for a key type or a
- *   curve Web Crypto does not sign with, or a key the host refuses;
+ *   curve Web Crypto does not sign with, an ML-DSA key — recognised since
+ *   1.1.0, and not signed with on any host (ADR 0026) — or a key the host
+ *   refuses;
  *   `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm with no RFC 5280 OID;
  *   `PKI_CRYPTO_UNAVAILABLE` when the runtime has no Web Crypto.
  */

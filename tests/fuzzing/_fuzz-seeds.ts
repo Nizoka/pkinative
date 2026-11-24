@@ -38,10 +38,33 @@ import {
     shroudedKeyBag,
 } from '../helpers/pkcs12-builder.js';
 import { ascii, sequence, tlv, universal } from '../helpers/raw-der-builder.js';
+import {
+    NO_REV_AVAIL,
+    OID_ACCESS_IDENTITY,
+    OID_AUTHENTICATION_INFO,
+    OID_CHARGING_IDENTITY,
+    OID_CLEARANCE,
+    OID_GROUP,
+    OID_ROLE,
+    TARGET_INFORMATION,
+    attribute,
+    attributeCertificate,
+    clearance,
+    ietfAttrSyntax,
+    implicitSequence,
+    issuerSerialComponents,
+    objectDigestComponents,
+    rfc822Name,
+    roleSyntax,
+    securityCategory,
+    serviceAuthInfo,
+    uriName,
+    v2Form,
+} from '../helpers/attribute-certificate-builder.js';
 import { issue, issueTsa, makeCrl, makeRoot, makeToken, sha, tstInfo } from '../verify/_cms-pki.js';
 
 /** The target names, as `fuzz/<name>.js`. */
-export type FuzzTarget = 'asn1' | 'cms' | 'crl' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp' | 'x509';
+export type FuzzTarget = 'asn1' | 'attribute-certificate' | 'cms' | 'crl' | 'ocsp-request' | 'ocsp' | 'pem' | 'pkcs12' | 'tsp-request' | 'tsp' | 'x509';
 
 const PASSWORD = 'fuzz-seed';
 
@@ -51,6 +74,16 @@ export function fixtureSeeds(): Uint8Array[] {
         .filter((f) => f.endsWith('.der'))
         .sort()
         .map((f) => new Uint8Array(readFileSync(`tests/fixtures/certs/${f}`)));
+}
+
+/**
+ * An ML-DSA certificate: the ML-DSA-44 example of RFC 9881 Appendix C.3, the
+ * smallest of the three. No test here can build one — pkinative signs nothing
+ * with ML-DSA (ADR 0026) — and a 1312-octet key under a 2420-octet signature
+ * is a shape no other seed has.
+ */
+function mlDsaSeed(): Uint8Array {
+    return new Uint8Array(readFileSync('tests/fixtures/ml-dsa/rfc9881-ml-dsa-44.der'));
 }
 
 /** An RFC 6960 §4.2.1 response, built field by field: `successful`, one `good` answer, responder by key hash. */
@@ -71,6 +104,78 @@ function ocspResponse(): Uint8Array {
     const basic = sequence(tbs, sequence(universal(6, [0x2b, 0x65, 0x70])), universal(3, [0x00, 0xde, 0xad]));
     const basicOid = universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x01]);
     return sequence(universal(10, [0]), tlv(2, true, 0, sequence(basicOid, universal(4, basic))));
+}
+
+/**
+ * RFC 6960 §4.1.1 requests, built field by field: the bare one, and one with an explicit version, a requestor, two
+ * Requests, a nonce and a signature carrying a certificate — every optional field the grammar has.
+ */
+function ocspRequests(): Uint8Array[] {
+    const certId = (serial: number): Uint8Array => sequence(
+        sequence(universal(6, [0x2b, 0x0e, 0x03, 0x02, 0x1a]), universal(5, [])),
+        universal(4, new Array<number>(20).fill(0xaa)),
+        universal(4, new Array<number>(20).fill(0xbb)),
+        universal(2, [serial]),
+    );
+    const nonce = sequence(universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01, 0x02]), universal(4, universal(4, new Array<number>(16).fill(0x5c))));
+    const single = tlv(2, true, 0, sequence(sequence(universal(6, [0x2a, 0x03, 0x04, 0x05]), universal(4, universal(5, [])))));
+    const tbs = sequence(
+        tlv(2, true, 0, universal(2, [0])),
+        tlv(2, true, 1, tlv(2, false, 2, ascii('client.example'))),
+        sequence(sequence(certId(1)), sequence(certId(2), single)),
+        tlv(2, true, 2, sequence(nonce)),
+    );
+    const signature = tlv(2, true, 0, sequence(
+        sequence(universal(6, [0x2b, 0x65, 0x70])),
+        universal(3, [0x00, 0xde, 0xad]),
+        tlv(2, true, 0, sequence(sequence(universal(2, [1])))),
+    ));
+    return [sequence(sequence(sequence(sequence(certId(1))))), sequence(tbs, signature)];
+}
+
+/**
+ * RFC 3161 §2.4.1 requests, built field by field: the bare one, and one with a policy, a nonce, certReq and an
+ * extension — every optional field the grammar has, so the fuzzer starts with each of them in hand.
+ */
+function timeStampRequests(): Uint8Array[] {
+    const imprint = sequence(
+        sequence(universal(6, [0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01]), universal(5, [])),
+        universal(4, new Array<number>(32).fill(0x5a)),
+    );
+    const extension = sequence(universal(6, [0x2a, 0x03, 0x04, 0x05]), universal(4, universal(5, [])));
+    return [
+        sequence(universal(2, [1]), imprint),
+        sequence(universal(2, [1]), imprint, universal(6, [0x2a, 0x03, 0x04]), universal(2, [0x12, 0x34]), universal(1, [0xff]), tlv(2, true, 0, extension)),
+    ];
+}
+
+/**
+ * RFC 5755 attribute certificates, built field by field: the default one (a
+ * holder by certificate, one role, a targeting extension), and one carrying
+ * every attribute type of §4.4 and every AC-only extension of §4.3 under a
+ * holder with all three references — every shape the reader decodes.
+ */
+function attributeCertificates(): Uint8Array[] {
+    const holder = sequence(
+        implicitSequence(0, ...issuerSerialComponents()),
+        implicitSequence(1, rfc822Name('holder@example.com')),
+        implicitSequence(2, ...objectDigestComponents(2, '1.2.3.9')),
+    );
+    const attributes = sequence(
+        attribute(OID_AUTHENTICATION_INFO, serviceAuthInfo([1, 2, 3])),
+        attribute(OID_ACCESS_IDENTITY, serviceAuthInfo()),
+        attribute(OID_CHARGING_IDENTITY, ietfAttrSyntax([universal(4, [1, 2])], [uriName('urn:authority')])),
+        attribute(OID_GROUP, ietfAttrSyntax([universal(12, ascii('admins')), universal(12, ascii('ops'))])),
+        attribute(OID_ROLE, roleSyntax(uriName('urn:admin'), [uriName('urn:authority')])),
+        attribute(OID_CLEARANCE, clearance('1.2.3.4', universal(3, [2, 0xa4]), tlv(0, true, 17, securityCategory()))),
+        attribute('1.2.3.4', universal(12, ascii('other'))),
+    );
+    const extensions = sequence(
+        TARGET_INFORMATION,
+        NO_REV_AVAIL,
+        sequence(universal(6, [0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x04]), universal(1, [0xff]), universal(4, universal(4, [7, 7, 7]))),
+    );
+    return [attributeCertificate(), attributeCertificate({ holder, issuer: v2Form(), attributes, trailing: [universal(3, [0, 0x5a]), extensions] })];
 }
 
 /** Every target's seeds. Keys are generated, so two calls give different bytes of the same shapes. */
@@ -105,11 +210,14 @@ export async function fuzzSeeds(): Promise<Readonly<Record<FuzzTarget, readonly 
 
     return {
         asn1: [...fixtures, signed],
-        x509: [...fixtures, signer.certificate.der, tsa.certificate.der],
+        'attribute-certificate': attributeCertificates(),
+        x509: [...fixtures, signer.certificate.der, tsa.certificate.der, mlDsaSeed()],
         pem: [pem],
         cms: [signed, cmsContentInfo()],
         crl: [await makeCrl(root, [signer.certificate]), await makeCrl(root)],
+        'ocsp-request': ocspRequests(),
         ocsp: [ocspResponse(), sequence(universal(10, [3]))],
+        'tsp-request': timeStampRequests(),
         tsp: [response, token, info],
         pkcs12: [p12, pkcs8, shrouded],
     };

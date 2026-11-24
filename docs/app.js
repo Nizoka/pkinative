@@ -195,4 +195,16 @@
       activateInstall(installBtns[next]);
     });
   });
+  // The landing page's demo moves for fifteen seconds and loops: WCAG 2.2.2 asks for a way to stop it.
+  var demo = document.getElementById('hero-demo-img');
+  var toggle = document.getElementById('hero-demo-toggle');
+  if (demo && toggle && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    toggle.hidden = false;
+    toggle.addEventListener('click', function () {
+      var paused = toggle.getAttribute('aria-pressed') === 'true';
+      demo.src = paused ? 'assets/demo.gif' : 'assets/demo.png';
+      toggle.setAttribute('aria-pressed', paused ? 'false' : 'true');
+      toggle.textContent = paused ? 'Pause' : 'Play';
+    });
+  }
 })();

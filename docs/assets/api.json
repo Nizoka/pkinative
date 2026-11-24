@@ -2,7 +2,7 @@
   "$comment": "Machine-generated public surface of pkinative (the single entry point src/index.ts) — the ground truth for agents, since dist/*.d.ts is not committed. Fields that cannot be read mechanically are null, never guessed. Functions carry `params`, `returns` and `throws` (the @throws classes) from their TSDoc; interfaces carry `members`, every field with its type, inherited ones first; a type alias carries its whole union in `signature`. Regenerate with `npm run docs:api`; the verify-docs rule api-json-sync enforces freshness.",
   "package": "pkinative",
   "source": "src/index.ts",
-  "exportCount": 294,
+  "exportCount": 329,
   "exports": [
     {
       "name": "ANY_EXTENDED_KEY_USAGE",
@@ -36,6 +36,48 @@
           "type": "GeneralName",
           "optional": false,
           "summary": "Where to reach it, usually a `uniformResourceIdentifier`."
+        }
+      ]
+    },
+    {
+      "name": "AccessIdentityAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AccessIdentityAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-aca-accessIdentity (RFC 5755 §4.4.2): the SvceAuthInfo syntax without `authInfo`.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'accessIdentity'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "identities",
+          "type": "readonly ServiceAuthInfo[]",
+          "optional": false,
+          "summary": "One SvceAuthInfo per value, in encoded order."
         }
       ]
     },
@@ -213,6 +255,249 @@
       ]
     },
     {
+      "name": "AttributeCertificate",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AttributeCertificate",
+      "summary": "A parsed RFC 5755 attribute certificate.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole AC encoding."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The acinfo encoding — the bytes the signature covers."
+        },
+        {
+          "name": "version",
+          "type": "2",
+          "optional": false,
+          "summary": "The AC version, decoded from the encoded 1: RFC 5755 defines v2 only."
+        },
+        {
+          "name": "holder",
+          "type": "AttributeCertificateHolder",
+          "optional": false,
+          "summary": "Whom the attributes belong to."
+        },
+        {
+          "name": "issuer",
+          "type": "AttributeCertificateIssuer",
+          "optional": false,
+          "summary": "Who issued the AC."
+        },
+        {
+          "name": "tbsSignatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "acinfo.signature, which must equal `signatureAlgorithm`."
+        },
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The outer signatureAlgorithm."
+        },
+        {
+          "name": "signatureValue",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The signature over `tbsDer`."
+        },
+        {
+          "name": "serialNumber",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": "The issuer-assigned serial; the pair (issuer, serialNumber) identifies an AC."
+        },
+        {
+          "name": "validity",
+          "type": "Validity",
+          "optional": false,
+          "summary": "attrCertValidityPeriod."
+        },
+        {
+          "name": "attributes",
+          "type": "readonly AttributeCertificateAttribute[]",
+          "optional": false,
+          "summary": "Every attribute in encoded order."
+        },
+        {
+          "name": "issuerUniqueId",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": "issuerUniqueID, or `undefined` when absent."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly AttributeCertificateExtension[]",
+          "optional": false,
+          "summary": "Every extension in encoded order; empty when the field is absent."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Every diagnostic the parse recorded, in emission order."
+        }
+      ]
+    },
+    {
+      "name": "AttributeCertificateAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type AttributeCertificateAttribute = | AuthenticationInfoAttribute | AccessIdentityAttribute | ChargingIdentityAttribute | GroupAttribute | RoleAttribute | ClearanceAttribute | UnknownAttributeCertificateAttribute",
+      "summary": "An attribute of an AC, discriminated by `kind`.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "AttributeCertificateAttributeBase",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AttributeCertificateAttributeBase",
+      "summary": "The fields every AC attribute carries (RFC 5755 §4.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        }
+      ]
+    },
+    {
+      "name": "AttributeCertificateExtension",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type AttributeCertificateExtension = Extension | TargetInformationExtension | AuditIdentityExtension | NoRevAvailExtension",
+      "summary": "An extension of an AC: any certificate extension, or one of the three only an AC carries.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "AttributeCertificateHolder",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AttributeCertificateHolder",
+      "summary": "The Holder of an AC (RFC 5755 §4.2.2): up to three references to whom the attributes belong.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "baseCertificateId",
+          "type": "IssuerSerial | undefined",
+          "optional": false,
+          "summary": "The holder's public-key certificate, by issuer and serial, or `undefined` when absent."
+        },
+        {
+          "name": "entityName",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": "The holder's names, or `undefined` when absent."
+        },
+        {
+          "name": "objectDigestInfo",
+          "type": "ObjectDigestInfo | undefined",
+          "optional": false,
+          "summary": "A digest of the holder's key or certificate, or `undefined` when absent."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The Holder encoding, exactly as encoded."
+        }
+      ]
+    },
+    {
+      "name": "AttributeCertificateIssuer",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AttributeCertificateIssuer",
+      "summary": "The issuer of an AC (RFC 5755 §4.2.3): `v2Form`, the only form the profile allows, or the `v1Form` of X.509 (1997), read and diagnosed.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "form",
+          "type": "'v1Form' | 'v2Form'",
+          "optional": false,
+          "summary": "Which CHOICE of AttCertIssuer was encoded."
+        },
+        {
+          "name": "issuerName",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": "The issuer's names: the GeneralNames of `v1Form`, or `issuerName` of `v2Form` (`undefined` when that is absent)."
+        },
+        {
+          "name": "name",
+          "type": "DistinguishedName | undefined",
+          "optional": false,
+          "summary": "The issuer's distinguished name when `issuerName` is exactly one non-empty directoryName — the profiled form — and `undefined` otherwise."
+        },
+        {
+          "name": "baseCertificateId",
+          "type": "IssuerSerial | undefined",
+          "optional": false,
+          "summary": "`v2Form.baseCertificateID`, which the profile forbids, or `undefined`."
+        },
+        {
+          "name": "objectDigestInfo",
+          "type": "ObjectDigestInfo | undefined",
+          "optional": false,
+          "summary": "`v2Form.objectDigestInfo`, which the profile forbids, or `undefined`."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The AttCertIssuer encoding, exactly as encoded."
+        }
+      ]
+    },
+    {
+      "name": "AttributeCertificateTarget",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type AttributeCertificateTarget = | { readonly kind: 'targetName'",
+      "summary": "One Target of targetInformation (RFC 5755 §4.3.2): a named target, a target group, or a targetCert — which RFC 5755 forbids, kept as its DER under its implicit `[2]` tag.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "AttributeTypeAndValue",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -239,6 +524,90 @@
           "type": "Uint8Array",
           "optional": false,
           "summary": "The exact encoding of the value: tag, length and content."
+        }
+      ]
+    },
+    {
+      "name": "AuditIdentityExtension",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AuditIdentityExtension extends ExtensionBase",
+      "summary": "id-pe-ac-auditIdentity (RFC 5755 §4.3.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'auditIdentity'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "identity",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The opaque audit identity."
+        }
+      ]
+    },
+    {
+      "name": "AuthenticationInfoAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface AuthenticationInfoAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-aca-authenticationInfo (RFC 5755 §4.4.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'authenticationInfo'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "infos",
+          "type": "readonly ServiceAuthInfo[]",
+          "optional": false,
+          "summary": "One SvceAuthInfo per value, in encoded order."
         }
       ]
     },
@@ -909,6 +1278,48 @@
       ]
     },
     {
+      "name": "ChargingIdentityAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface ChargingIdentityAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-aca-chargingIdentity (RFC 5755 §4.4.3).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'chargingIdentity'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "syntaxes",
+          "type": "readonly IetfAttrSyntax[]",
+          "optional": false,
+          "summary": "One IetfAttrSyntax per value — RFC 5755 allows one."
+        }
+      ]
+    },
+    {
       "name": "CheckExtendedKeyUsageOptions",
       "kind": "type",
       "module": "src/path/path-purpose.ts",
@@ -950,9 +1361,9 @@
         },
         {
           "name": "expected",
-          "type": "{",
+          "type": "{ readonly issuerNameHash: Uint8Array; readonly issuerKeyHash: Uint8Array; readonly serialNumber: Uint8Array; }",
           "optional": false,
-          "summary": "The `CertID` that was asked about, as `encodeOcspCertId` produced it."
+          "summary": "The three fields of the `CertID` that was asked about, each as bytes — not the DER `encodeOcspCertId` returns."
         },
         {
           "name": "at",
@@ -983,6 +1394,12 @@
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
           "summary": "Receive the diagnostics this decision raises — what the response says about itself that §4.2 asks it not to, none of which touches the verdict."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` this decision raises — a `responderID` that does not name `signer` — by throwing `PKI_STRICT_DIAGNOSTIC`; an `info` is still only reported."
         },
         {
           "name": "nonce",
@@ -1069,6 +1486,12 @@
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`, applied to the walk of the entries."
         },
         {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the walk raises — an entry extension that is malformed and dropped — by throwing `PKI_STRICT_DIAGNOSTIC`, as `findRevocation` does."
+        },
+        {
           "name": "onDiagnostic",
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
@@ -1103,6 +1526,95 @@
           "type": "boolean | undefined",
           "optional": true,
           "summary": "Accept a wildcard certificate at all."
+        }
+      ]
+    },
+    {
+      "name": "ClassListName",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type ClassListName = 'unmarked' | 'unclassified' | 'restricted' | 'confidential' | 'secret' | 'topSecret'",
+      "summary": "The six classes the basic hierarchy of RFC 5755 §4.4.6 reserves, bits 0 to 5 of ClassList.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
+      "name": "Clearance",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface Clearance",
+      "summary": "Clearance (RFC 5755 §4.4.6, the X.501 (1997) syntax).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "policyId",
+          "type": "string",
+          "optional": false,
+          "summary": "The security policy the clearance relates to."
+        },
+        {
+          "name": "classList",
+          "type": "readonly ClassListName[]",
+          "optional": false,
+          "summary": "The named classes set among bits 0 to 5 — `['unclassified']`, the DEFAULT, when classList is absent."
+        },
+        {
+          "name": "classListBits",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": "The ClassList BIT STRING as encoded, for classes a security policy defines beyond bit 5; `undefined` when absent."
+        },
+        {
+          "name": "securityCategories",
+          "type": "readonly SecurityCategory[] | undefined",
+          "optional": false,
+          "summary": "The security categories, or `undefined` when absent."
+        }
+      ]
+    },
+    {
+      "name": "ClearanceAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface ClearanceAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-at-clearance, 2.5.4.55 (RFC 5755 §4.4.6).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'clearance'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "clearances",
+          "type": "readonly Clearance[]",
+          "optional": false,
+          "summary": "One Clearance per value, in encoded order."
         }
       ]
     },
@@ -1400,7 +1912,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -1442,7 +1954,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -1490,7 +2002,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC`; an `info` is still only reported."
         },
         {
           "name": "onDiagnostic",
@@ -1537,7 +2049,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -1588,6 +2100,17 @@
           "summary": "Whether a key entitled to sign it did."
         }
       ]
+    },
+    {
+      "name": "DigestedObjectType",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type DigestedObjectType = 'publicKey' | 'publicKeyCert' | 'otherObjectTypes'",
+      "summary": "What an ObjectDigestInfo digests (RFC 5755 §4.1, §7.3).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
     },
     {
       "name": "DirectoryAttribute",
@@ -1851,7 +2374,7 @@
         },
         {
           "name": "issuerSerial",
-          "type": "{",
+          "type": "{ readonly issuer: readonly GeneralName[]; readonly serialNumber: SerialNumber; } | undefined",
           "optional": false,
           "summary": "`issuerSerial`, when the signer included it; `undefined` otherwise."
         }
@@ -2020,7 +2543,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -2166,6 +2689,83 @@
       ]
     },
     {
+      "name": "GroupAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface GroupAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-aca-group (RFC 5755 §4.4.4).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'group'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "syntaxes",
+          "type": "readonly IetfAttrSyntax[]",
+          "optional": false,
+          "summary": "One IetfAttrSyntax per value — RFC 5755 allows one."
+        }
+      ]
+    },
+    {
+      "name": "IetfAttrSyntax",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface IetfAttrSyntax",
+      "summary": "IetfAttrSyntax (RFC 5755 §4.4): values under an optional policy authority.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "policyAuthority",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": "The policyAuthority, or `undefined` when absent."
+        },
+        {
+          "name": "values",
+          "type": "readonly IetfAttrValue[]",
+          "optional": false,
+          "summary": "The values, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "IetfAttrValue",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export type IetfAttrValue = | { readonly kind: 'octets'",
+      "summary": "One value of an IetfAttrSyntax (RFC 5755 §4.4): an OCTET STRING, an OBJECT IDENTIFIER or a UTF8String.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": null
+    },
+    {
       "name": "ImportPrivateKeyOptions",
       "kind": "type",
       "module": "src/types/key-types.ts",
@@ -2191,7 +2791,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -2336,6 +2936,42 @@
           "type": "readonly GeneralName[]",
           "optional": false,
           "summary": "Alternative names of the issuer, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "IssuerSerial",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface IssuerSerial",
+      "summary": "IssuerSerial (RFC 5755 §4.1): a public-key certificate named by its issuer and serial number.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "issuer",
+          "type": "readonly GeneralName[]",
+          "optional": false,
+          "summary": "The issuer of the referenced certificate, as GeneralNames — RFC 5755 §4.2.2 asks for one directoryName equal to its issuer field."
+        },
+        {
+          "name": "serial",
+          "type": "SerialNumber",
+          "optional": false,
+          "summary": "The serial number of the referenced certificate."
+        },
+        {
+          "name": "issuerUid",
+          "type": "BitString | undefined",
+          "optional": false,
+          "summary": "The issuerUniqueID of the referenced certificate, or `undefined` when absent."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The IssuerSerial encoding, exactly as encoded (under its implicit tag where it has one)."
         }
       ]
     },
@@ -2606,6 +3242,42 @@
       "members": null
     },
     {
+      "name": "NoRevAvailExtension",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface NoRevAvailExtension extends ExtensionBase",
+      "summary": "id-ce-noRevAvail (RFC 5755 §4.3.6): no revocation information will be published for this AC.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'noRevAvail'",
+          "optional": false,
+          "summary": "Discriminant."
+        }
+      ]
+    },
+    {
       "name": "NoticeReference",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -2650,6 +3322,48 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "ObjectDigestInfo",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface ObjectDigestInfo",
+      "summary": "ObjectDigestInfo (RFC 5755 §4.1): an object named by its digest.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "digestedObjectType",
+          "type": "DigestedObjectType",
+          "optional": false,
+          "summary": "The kind of object digested."
+        },
+        {
+          "name": "otherObjectTypeId",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "otherObjectTypeID, or `undefined` when absent."
+        },
+        {
+          "name": "digestAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The digest algorithm."
+        },
+        {
+          "name": "objectDigest",
+          "type": "BitString",
+          "optional": false,
+          "summary": "The digest."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The ObjectDigestInfo encoding, exactly as encoded."
+        }
+      ]
     },
     {
       "name": "OcspBasicResponse",
@@ -2806,6 +3520,132 @@
       ]
     },
     {
+      "name": "OcspRequest",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequest",
+      "summary": "A parsed `OCSPRequest` (RFC 6960 §4.1.1): the question a responder is asked.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole request, as a zero-copy view of the input."
+        },
+        {
+          "name": "tbsDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `tbsRequest` bytes a signature, when there is one, covers."
+        },
+        {
+          "name": "version",
+          "type": "1",
+          "optional": false,
+          "summary": "Always `1`: RFC 6960 defines v1 alone, and a request that declares another version is read as v1 and reported."
+        },
+        {
+          "name": "requestorName",
+          "type": "GeneralName | undefined",
+          "optional": false,
+          "summary": "`requestorName`, who is asking; `undefined` when absent, as in every unsigned request pkinative writes."
+        },
+        {
+          "name": "requests",
+          "type": "readonly OcspRequestEntry[]",
+          "optional": false,
+          "summary": "One entry per certificate asked about, in encoded order."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`requestExtensions`, decoded; the nonce lives here."
+        },
+        {
+          "name": "nonce",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "The nonce (RFC 9654 §2.1) a response must echo, as the octets inside the extension's two OCTET STRINGs; `undefined` when the request carries none."
+        },
+        {
+          "name": "signature",
+          "type": "OcspRequestSignature | undefined",
+          "optional": false,
+          "summary": "The signature of a signed request; `undefined` for an unsigned one."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "OcspRequestEntry",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequestEntry",
+      "summary": "One `Request` of an OCSP request (RFC 6960 §4.1.1): one certificate being asked about.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "certId",
+          "type": "OcspCertId",
+          "optional": false,
+          "summary": "Which certificate the question is about."
+        },
+        {
+          "name": "certIdDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The `CertID` exactly as encoded."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`singleRequestExtensions`, decoded; empty when there are none."
+        }
+      ]
+    },
+    {
+      "name": "OcspRequestSignature",
+      "kind": "type",
+      "module": "src/types/ocsp-types.ts",
+      "signature": "export interface OcspRequestSignature",
+      "summary": "The `Signature` of a signed OCSP request (RFC 6960 §4.1.1).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "signatureAlgorithm",
+          "type": "AlgorithmIdentifier",
+          "optional": false,
+          "summary": "The algorithm the requestor signed with."
+        },
+        {
+          "name": "signatureValue",
+          "type": "{ readonly bytes: Uint8Array; readonly unusedBits: number }",
+          "optional": false,
+          "summary": "The signature over `tbsDer`, as a BIT STRING of whole octets."
+        },
+        {
+          "name": "certificates",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Certificates the requestor attached to help a responder verify the signature."
+        }
+      ]
+    },
+    {
       "name": "OcspResponderId",
       "kind": "type",
       "module": "src/types/ocsp-types.ts",
@@ -2910,7 +3750,7 @@
       "kind": "type",
       "module": "src/types/x509-types.ts",
       "signature": "export interface OctetPublicKeyInfo extends PublicKeyInfoBase",
-      "summary": "A key whose subjectPublicKey is the raw key octets (RFC 8410; ML-DSA: RFC 9881, key sizes of FIPS 204).",
+      "summary": "A key whose subjectPublicKey is the raw key octets: the Edwards and Montgomery curves (RFC 8410), ML-DSA (RFC 9881 §4, key sizes of FIPS 204), the twelve pure SLH-DSA parameter sets (RFC 9909 §5, FIPS 205) and ML-KEM (RFC 9935 §4, FIPS 203).",
       "throws": null,
       "params": null,
       "returns": null,
@@ -2935,7 +3775,7 @@
         },
         {
           "name": "kind",
-          "type": "'ed25519' | 'ed448' | 'x25519' | 'x448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87'",
+          "type": "",
           "optional": false,
           "summary": "Discriminant, which also names the algorithm; switch on it to narrow a `SubjectPublicKeyInfo`."
         },
@@ -3033,7 +3873,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -3177,7 +4017,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -3219,7 +4059,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -3492,7 +4332,7 @@
         },
         {
           "name": "pbmac1",
-          "type": "{",
+          "type": "{ readonly salt: Uint8Array; readonly iterations: number; readonly prf: Pbkdf2Prf; readonly keyLength: number; readonly hmac: Pbkdf2Prf; } | undefined",
           "optional": false,
           "summary": "Under PBMAC1, what the MAC key is derived with and which HMAC it keys; otherwise `undefined`."
         }
@@ -3553,7 +4393,7 @@
       "name": "PkiCertificateErrorCode",
       "kind": "type",
       "module": "src/types/pki-errors.ts",
-      "signature": "export type PkiCertificateErrorCode = | 'PKI_X509_STRUCTURE_INVALID' // the certificate does not match the RFC 5280 ASN.1 module (CWE-1286) | 'PKI_X509_VERSION_INVALID' // a version other than v1, v2 or v3 (CWE-1286) | 'PKI_X509_NAME_INVALID' // a malformed distinguished name (CWE-1286) | 'PKI_X509_VALIDITY_INVALID' // a malformed validity period (CWE-1286) | 'PKI_X509_SPKI_INVALID' // a malformed subject public key info (CWE-1286) | 'PKI_X509_UNIQUE_ID_INVALID' // a malformed or misplaced unique identifier (CWE-1286) | 'PKI_X509_EXTENSIONS_EMPTY' // an extensions field with no extension (CWE-1286) | 'PKI_X509_EXTENSION_DUPLICATE' // the same extension OID twice (CWE-694) | 'PKI_X509_EXTENSION_MALFORMED' // a recognised extension whose value does not match its definition (CWE-1286) | 'PKI_X509_GENERAL_NAME_INVALID'",
+      "signature": "export type PkiCertificateErrorCode = | 'PKI_X509_STRUCTURE_INVALID' // the certificate does not match the RFC 5280 ASN.1 module (CWE-1286) | 'PKI_X509_VERSION_INVALID' // a version other than v1, v2 or v3 (CWE-1286) | 'PKI_X509_NAME_INVALID' // a malformed distinguished name (CWE-1286) | 'PKI_X509_VALIDITY_INVALID' // a malformed validity period (CWE-1286) | 'PKI_X509_SPKI_INVALID' // a malformed subject public key info (CWE-1286) | 'PKI_X509_UNIQUE_ID_INVALID' // a malformed or misplaced unique identifier (CWE-1286) | 'PKI_X509_EXTENSIONS_EMPTY' // an extensions field with no extension (CWE-1286) | 'PKI_X509_EXTENSION_DUPLICATE' // the same extension OID twice (CWE-694) | 'PKI_X509_EXTENSION_MALFORMED' // a recognised extension whose value does not match its definition (CWE-1286) | 'PKI_X509_GENERAL_NAME_INVALID' // a malformed GeneralName (CWE-1286) | 'PKI_X509_ATTRIBUTE_MALFORMED'",
       "summary": "Codes carried by PkiCertificateError: the RFC 5280 certificate structure.",
       "throws": null,
       "params": null,
@@ -3943,7 +4783,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4255,7 +5095,7 @@
       "name": "PrivateKeyKind",
       "kind": "type",
       "module": "src/types/key-types.ts",
-      "signature": "export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown'",
+      "signature": "export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87' | 'unknown'",
       "summary": "The kinds of private key a PrivateKeyInfo can name that pkinative recognises.",
       "throws": null,
       "params": null,
@@ -4324,7 +5164,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4366,7 +5206,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -4473,6 +5313,72 @@
           "type": "number | undefined",
           "optional": false,
           "summary": "`invalidityDate` (RFC 5280 §5.3.2) in epoch milliseconds, or undefined."
+        }
+      ]
+    },
+    {
+      "name": "RoleAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface RoleAttribute extends AttributeCertificateAttributeBase",
+      "summary": "id-at-role (RFC 5755 §4.4.5).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'role'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "roles",
+          "type": "readonly RoleSyntax[]",
+          "optional": false,
+          "summary": "One RoleSyntax per value, in encoded order."
+        }
+      ]
+    },
+    {
+      "name": "RoleSyntax",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface RoleSyntax",
+      "summary": "RoleSyntax (RFC 5755 §4.4.5).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "roleAuthority",
+          "type": "readonly GeneralName[] | undefined",
+          "optional": false,
+          "summary": "The roleAuthority, or `undefined` when absent."
+        },
+        {
+          "name": "roleName",
+          "type": "GeneralName",
+          "optional": false,
+          "summary": "The roleName — RFC 5755 requires a uniformResourceIdentifier."
         }
       ]
     },
@@ -4662,6 +5568,30 @@
       ]
     },
     {
+      "name": "SecurityCategory",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface SecurityCategory",
+      "summary": "SecurityCategory (RFC 5755 §4.4.6): a type and a value defined by the security policy.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "type",
+          "type": "string",
+          "optional": false,
+          "summary": "The category type."
+        },
+        {
+          "name": "value",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The value under the explicit `[1]` tag, as its exact DER."
+        }
+      ]
+    },
+    {
       "name": "SerialNumber",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -4701,6 +5631,36 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "ServiceAuthInfo",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface ServiceAuthInfo",
+      "summary": "SvceAuthInfo (RFC 5755 §4.4.1): a service, the holder's identity at it, and optional authentication data.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "service",
+          "type": "GeneralName",
+          "optional": false,
+          "summary": "The service."
+        },
+        {
+          "name": "ident",
+          "type": "GeneralName",
+          "optional": false,
+          "summary": "The holder's identity at the service."
+        },
+        {
+          "name": "authInfo",
+          "type": "Uint8Array | undefined",
+          "optional": false,
+          "summary": "Service-specific authentication data (often a password: treat as secret), or `undefined` when absent."
+        }
+      ]
     },
     {
       "name": "SignatureAlgorithm",
@@ -4997,7 +5957,7 @@
         },
         {
           "name": "algorithmProtection",
-          "type": "{",
+          "type": "{ readonly digestAlgorithm: AlgorithmIdentifier; readonly signatureAlgorithm: AlgorithmIdentifier; } | undefined",
           "optional": false,
           "summary": "`CMSAlgorithmProtection` (RFC 6211): the signer's **signed** statement of the algorithms it used."
         },
@@ -5314,6 +6274,48 @@
       "members": null
     },
     {
+      "name": "TargetInformationExtension",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface TargetInformationExtension extends ExtensionBase",
+      "summary": "id-ce-targetInformation (RFC 5755 §4.3.2).",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The extnID, in dotted notation, e.g. `2.5.29.19` (basicConstraints)."
+        },
+        {
+          "name": "critical",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the issuer marked the extension critical: a relying party that does not understand a critical extension must reject the certificate."
+        },
+        {
+          "name": "valueDer",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The content of extnValue: the DER encoding of the extension value."
+        },
+        {
+          "name": "kind",
+          "type": "'targetInformation'",
+          "optional": false,
+          "summary": "Discriminant."
+        },
+        {
+          "name": "targets",
+          "type": "readonly AttributeCertificateTarget[]",
+          "optional": false,
+          "summary": "Every Target of every Targets element, as one list — what RFC 5755 §4.3.2 tells a reader to do."
+        }
+      ]
+    },
+    {
       "name": "TextGeneralName",
       "kind": "type",
       "module": "src/types/x509-types.ts",
@@ -5394,6 +6396,66 @@
       "params": null,
       "returns": null,
       "members": null
+    },
+    {
+      "name": "TimeStampRequest",
+      "kind": "type",
+      "module": "src/types/tsp-types.ts",
+      "signature": "export interface TimeStampRequest",
+      "summary": "A parsed `TimeStampReq` (RFC 3161 §2.4.1): the question a timestamp authority is asked.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole request, as a zero-copy view of the input."
+        },
+        {
+          "name": "version",
+          "type": "1",
+          "optional": false,
+          "summary": "Always `1`; any other version is refused."
+        },
+        {
+          "name": "messageImprint",
+          "type": "MessageImprint",
+          "optional": false,
+          "summary": "The hash to stamp, and the algorithm it was computed with."
+        },
+        {
+          "name": "policy",
+          "type": "string | undefined",
+          "optional": false,
+          "summary": "`reqPolicy`, the TSA policy asked for; `undefined` when the TSA is left to choose."
+        },
+        {
+          "name": "nonce",
+          "type": "bigint | undefined",
+          "optional": false,
+          "summary": "The nonce the token must echo; `undefined` when the request carries none."
+        },
+        {
+          "name": "certReq",
+          "type": "boolean",
+          "optional": false,
+          "summary": "Whether the TSA is asked to include its certificate in the token; `false` when the field is absent."
+        },
+        {
+          "name": "extensions",
+          "type": "readonly Extension[]",
+          "optional": false,
+          "summary": "`extensions`, decoded; empty when there are none."
+        },
+        {
+          "name": "diagnostics",
+          "type": "readonly PkiDiagnostic[]",
+          "optional": false,
+          "summary": "Profile concerns found while reading, in encoded order."
+        }
+      ]
     },
     {
       "name": "TimeStampResponse",
@@ -5570,6 +6632,42 @@
           "type": "Uint8Array",
           "optional": false,
           "summary": "The whole `TSTInfo`, exactly as encoded — the `eContent` the token's signer signed."
+        }
+      ]
+    },
+    {
+      "name": "UnknownAttributeCertificateAttribute",
+      "kind": "type",
+      "module": "src/types/attribute-certificate-types.ts",
+      "signature": "export interface UnknownAttributeCertificateAttribute extends AttributeCertificateAttributeBase",
+      "summary": "An attribute pkinative does not decode — any type outside RFC 5755 §4.4, the RFC 3281 clearance (2.5.1.5.55) among them.",
+      "throws": null,
+      "params": null,
+      "returns": null,
+      "members": [
+        {
+          "name": "oid",
+          "type": "string",
+          "optional": false,
+          "summary": "The attribute type, in dotted notation, e.g. `2.5.4.72` (role)."
+        },
+        {
+          "name": "values",
+          "type": "readonly Uint8Array[]",
+          "optional": false,
+          "summary": "Each AttributeValue, as its exact DER, in encoded order — at least one."
+        },
+        {
+          "name": "der",
+          "type": "Uint8Array",
+          "optional": false,
+          "summary": "The whole Attribute SEQUENCE, exactly as encoded."
+        },
+        {
+          "name": "kind",
+          "type": "'unknown'",
+          "optional": false,
+          "summary": "Discriminant."
         }
       ]
     },
@@ -5948,6 +7046,12 @@
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
           "summary": "Receive every diagnostic this verification raises or reads: what the CRLs, the OCSP responses and the responders' certificates say about themselves that their RFCs ask them not to, and what only this call can decide — an OCSP `responderID` that does not name the signer, answers about certificates no…"
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` a CRL or an OCSP response raises — as it is parsed, as its entries are walked, or as the response is judged against its signer."
         }
       ]
     },
@@ -6043,7 +7147,7 @@
           "name": "strict",
           "type": "boolean | undefined",
           "optional": true,
-          "summary": "Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`."
+          "summary": "Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it."
         },
         {
           "name": "onDiagnostic",
@@ -6212,6 +7316,18 @@
           "type": "Partial<PkiLimits> | undefined",
           "optional": true,
           "summary": "Overrides for any subset of `DEFAULT_PKI_LIMITS`."
+        },
+        {
+          "name": "onDiagnostic",
+          "type": "PkiDiagnosticHandler | undefined",
+          "optional": true,
+          "summary": "Receive every diagnostic this verification raises or reads: what the message says about itself against RFC 5652, with the paths `parseSignedData` gives them, and what each signer's timestamps and chain report, their paths prefixed with where they sit in this report — `signerInfos[i].unsignedAttrs.ti…"
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the message raises as it is parsed, and — passed on to them — each signer's timestamps and chain."
         }
       ]
     },
@@ -6380,6 +7496,12 @@
           "type": "PkiDiagnosticHandler | undefined",
           "optional": true,
           "summary": "Receive every diagnostic this verification raises or reads: what the token, the response and the TSA's chain say about themselves that their RFCs ask them not to, and what only this call can decide — whether the token honoured the request's `certReq` (RFC 3161 §2.4.1), which needs `request`."
+        },
+        {
+          "name": "strict",
+          "type": "boolean | undefined",
+          "optional": true,
+          "summary": "Refuse the first `warning` the token or the response raises as it is parsed, the `certReq` contract when `request` is given, and — passed on to the TSA's chain — the CRLs and OCSP responses."
         }
       ]
     },
@@ -6560,7 +7682,7 @@
       "summary": "Whether this runtime can verify a signature at all.",
       "throws": [],
       "params": [],
-      "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448 and Ed25519 are missing on several runtimes that answer `true`.",
+      "returns": "Whether `globalThis.crypto.subtle` offers both `importKey` and `verify`. It does not say which algorithms the host implements — Ed448, Ed25519 and ML-DSA are missing on runtimes that answer `true`.",
       "members": null
     },
     {
@@ -6569,7 +7691,9 @@
       "module": "src/path/path-purpose.ts",
       "signature": "export function checkExtendedKeyUsage( path: readonly Certificate[], purpose: string, options?: CheckExtendedKeyUsageOptions, ): readonly PkiReason[]",
       "summary": "Check that every certificate in a path permits a purpose.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "path",
@@ -6593,7 +7717,9 @@
       "module": "src/revocation/ocsp-check.ts",
       "signature": "export function checkOcspStatus(input: CheckOcspStatusInput): readonly PkiReason[]",
       "summary": "Decide what an OCSP response establishes about one certificate.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "input",
@@ -6611,6 +7737,7 @@
       "summary": "Decide a certificate's revocation status against one CRL.",
       "throws": [
         "PkiCertificateError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [
@@ -6628,7 +7755,9 @@
       "module": "src/path/path-server-name.ts",
       "signature": "export function checkServerName( certificate: Certificate, reference: ServerIdentity, options?: CheckServerNameOptions, ): readonly PkiReason[]",
       "summary": "Check that a certificate names the host or address the caller asked about.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "certificate",
@@ -7123,7 +8252,9 @@
       "module": "src/asn1/asn1-encode.ts",
       "signature": "export function encodeBoolean(value: boolean): Uint8Array",
       "summary": "Encode a BOOLEAN (TRUE as 0xFF, as DER requires).",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "value",
@@ -7351,7 +8482,8 @@
       "signature": "export function encodeNamedBits(bits: Iterable<number>): Uint8Array",
       "summary": "Encode a named-bit BIT STRING with the DER trailing-zero rule.",
       "throws": [
-        "PkiEncodingError"
+        "PkiEncodingError",
+        "PkiError"
       ],
       "params": [
         {
@@ -7557,7 +8689,8 @@
       "signature": "export function encodeSignatureAlgorithm(signer: Signer): Uint8Array",
       "summary": "The `AlgorithmIdentifier` a signature algorithm writes into a structure, parameters included — RSASSA-PSS carries its digest and salt length, and a verifier reads them back out of exactly these bytes.",
       "throws": [
-        "PkiCryptoError"
+        "PkiCryptoError",
+        "PkiError"
       ],
       "params": [
         {
@@ -7685,7 +8818,8 @@
       "signature": "export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: boolean, content: Uint8Array): Uint8Array",
       "summary": "Encode one tag-length-value in DER: the shortest identifier and length forms.",
       "throws": [
-        "PkiEncodingError"
+        "PkiEncodingError",
+        "PkiError"
       ],
       "params": [
         {
@@ -7884,7 +9018,9 @@
       "module": "src/path/path-server-name.ts",
       "signature": "export function matchDnsName(presented: string, reference: string, options?: MatchDnsNameOptions): boolean",
       "summary": "RFC 6125 §6.4: a presented `dNSName` against a reference host name.",
-      "throws": [],
+      "throws": [
+        "PkiError"
+      ],
       "params": [
         {
           "name": "presented",
@@ -7953,6 +9089,31 @@
         }
       ],
       "returns": "The bags, in encoded order, nested safeContentsBags flattened.",
+      "members": null
+    },
+    {
+      "name": "parseAttributeCertificate",
+      "kind": "function",
+      "module": "src/x509/x509-attribute-certificate.ts",
+      "signature": "export function parseAttributeCertificate(der: Uint8Array, options?: ParseCertificateOptions): AttributeCertificate",
+      "summary": "Parse a DER-encoded attribute certificate (RFC 5755 §4.1).",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The attribute certificate encoding. The result holds zero-copy views of it: do not mutate it while you use the result."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules (`'der'` by default), limits, `strict`, `onDiagnostic` and `decodeExtensions` (default `true`)."
+        }
+      ],
+      "returns": "The frozen attribute certificate, with every diagnostic of the parse on `diagnostics`.",
       "members": null
     },
     {
@@ -8056,6 +9217,31 @@
       "members": null
     },
     {
+      "name": "parseOcspRequest",
+      "kind": "function",
+      "module": "src/revocation/ocsp-request.ts",
+      "signature": "export function parseOcspRequest(der: Uint8Array, options?: PkiParseOptions): OcspRequest",
+      "summary": "Parse an `OCSPRequest` (RFC 6960 §4.1) — the request `createOcspRequest` writes, or the one another client wrote.",
+      "throws": [
+        "PkiCertificateError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The complete OCSPRequest."
+        },
+        {
+          "name": "options",
+          "description": "Encoding rules, limits, diagnostics."
+        }
+      ],
+      "returns": "The parsed request, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
       "name": "parseOcspResponse",
       "kind": "function",
       "module": "src/revocation/ocsp-response.ts",
@@ -8155,6 +9341,31 @@
       "members": null
     },
     {
+      "name": "parseTimeStampRequest",
+      "kind": "function",
+      "module": "src/cms/tsp-request.ts",
+      "signature": "export function parseTimeStampRequest(der: Uint8Array, options?: PkiParseOptions): TimeStampRequest",
+      "summary": "Parse a `TimeStampReq` (RFC 3161 §2.4.1) — the request `createTimeStampRequest` writes, or the one another client wrote.",
+      "throws": [
+        "PkiCmsError",
+        "PkiEncodingError",
+        "PkiError",
+        "PkiLimitError"
+      ],
+      "params": [
+        {
+          "name": "der",
+          "description": "The DER of one TimeStampReq."
+        },
+        {
+          "name": "options",
+          "description": "Limits and diagnostics. `encodingRules` is ignored: a TimeStampReq is always DER."
+        }
+      ],
+      "returns": "The parsed request, with zero-copy views of `der`.",
+      "members": null
+    },
+    {
       "name": "parseTimeStampResponse",
       "kind": "function",
       "module": "src/cms/tsp-response.ts",
@@ -8212,6 +9423,7 @@
       "throws": [
         "PkiCmsError",
         "PkiEncodingError",
+        "PkiError",
         "PkiLimitError"
       ],
       "params": [
@@ -8456,10 +9668,6 @@
       "params": [
         {
           "name": "node",
-          "description": "A time node, or an implicitly tagged one together with `timeType`. Under DER only the X.690 §11.7–11.8 forms are read. Under BER the seconds may be omitted, the fraction may use a comma or keep trailing zeros, and a `±hhmm` offset may replace `Z`; the rarer ITU-T X.680 GeneralizedTime forms — hours only, a fraction of a minute or of an hour, an offset in whole hours — are refused with `PKI_ASN1_TIME_INVALID` in every mode, and a fraction finer than a millisecond is truncated to one."
-        },
-        {
-          "name": "node",
           "description": "A time node, or an implicitly tagged one together with `timeType`."
         },
         {
@@ -8508,6 +9716,34 @@
         }
       ],
       "returns": "The verdict and every reason behind it.",
+      "members": null
+    },
+    {
+      "name": "verifyAttributeCertificateSignature",
+      "kind": "function",
+      "module": "src/crypto/x509-verify.ts",
+      "signature": "export async function verifyAttributeCertificateSignature( ac: AttributeCertificate, issuer: Certificate, options?: VerifyCertificateSignatureOptions, ): Promise<boolean>",
+      "summary": "Verify that an AC issuer's key signed this attribute certificate (RFC 5755).",
+      "throws": [
+        "PkiCryptoError",
+        "PkiEncodingError",
+        "PkiError"
+      ],
+      "params": [
+        {
+          "name": "ac",
+          "description": "A parsed attribute certificate, from `parseAttributeCertificate`."
+        },
+        {
+          "name": "issuer",
+          "description": "The AC issuer's public-key certificate."
+        },
+        {
+          "name": "options",
+          "description": "See {@link VerifyCertificateSignatureOptions}."
+        }
+      ],
+      "returns": "Whether the issuer's key signed `ac.tbsDer`.",
       "members": null
     },
     {

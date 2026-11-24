@@ -73,7 +73,11 @@ if (!haveDist && process.env['GATE_REQUIRE_ARTIFACTS'] === '1') {
 }
 
 describe.skipIf(!haveDist)('the bundles this repository ships', () => {
-    const files: DistFile[] = readdirSync(join(ROOT, 'dist')).map((name) => {
+    // `skipIf` skips the tests, not this callback: vitest still runs it to
+    // collect them, so without dist/ there is nothing to list — and listing it
+    // anyway failed the suite a checkout that has not built yet was promised
+    // would skip.
+    const files: DistFile[] = (haveDist ? readdirSync(join(ROOT, 'dist')) : []).map((name) => {
         const path = `dist/${name}`;
         return { path, text: readFileSync(join(ROOT, path), 'utf8'), bytes: statSync(join(ROOT, path)).size };
     });

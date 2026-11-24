@@ -1,11 +1,14 @@
 import { constants, generateKeyPairSync, type KeyPairKeyObjectResult, verify as nodeVerify, webcrypto } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { createCertificate } from '../../src/build/build-certificate.js';
-import { encodeKeyUsage } from '../../src/build/build-structures.js';
+import { encodeAuthorityKeyIdentifier, encodeKeyUsage } from '../../src/build/build-structures.js';
 import { signData } from '../../src/crypto/webcrypto.js';
+import { parsePkcs12 } from '../../src/keys/key-pkcs12.js';
 import { PkiError } from '../../src/types/pki-errors.js';
+import type { PkiDiagnostic } from '../../src/types/pki-types.js';
 import { openPkcs12, type OpenPkcs12Options } from '../../src/verify/verify-pkcs12.js';
+import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { alg, int, octets } from '../helpers/cms-signed-data-builder.js';
 import {
     authenticatedSafe,
@@ -610,5 +613,136 @@ describe('openPkcs12 — misuse still throws', () => {
     it('should accept an empty password, which is a password', async () => {
         const report = await openPkcs12(sequence(int(3)), { password: '' });
         expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+    });
+});
+
+/**
+ * ADR 0025. `OpenPkcs12Options` has always extended `PkiParseOptions`; until
+ * 1.1.0 the call applied neither `onDiagnostic` nor `strict`. It now hands
+ * both to every reader it calls, and — being a composition — reports under
+ * `strict` what those readers throw.
+ */
+describe('openPkcs12 — onDiagnostic and strict (ADR 0025)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+    const thrownCode = (fn: () => unknown): string | undefined => {
+        try {
+            fn();
+        } catch (error) {
+            if (error instanceof PkiError) return error.code;
+            throw error;
+        }
+        return undefined;
+    };
+    /** A holder whose certificate names its issuer's key, so that it raises no warning of its own. */
+    const cleanHolder = async (root: Authority): Promise<Holder> =>
+        issue(root, { extensions: [{ oid: '2.5.29.35', value: encodeAuthorityKeyIdentifier(Uint8Array.of(0xa1, 0xa2, 0xa3, 0xa4)) }] });
+    /** The usual file, its certificates encrypted under a PBKDF2 count of `iterations`. */
+    async function fileWith(holder: Holder, iterations: number): Promise<Uint8Array> {
+        const certs = safeContents(certBag(holder.certificate.der, [localKeyId(ID)]));
+        const key = safeContents(shroudedKeyBag(await shroudKey(await pkcs8Of(holder), PASSWORD), [localKeyId(ID)]));
+        const auth = authenticatedSafe(await encryptedSafeContents(certs, PASSWORD, { iterations }), dataInfo(key));
+        return pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) });
+    }
+
+    it('should deliver what the file and its certificates say about themselves to onDiagnostic, and stay silent without a handler', async () => {
+        const holder = await issue(await makeRoot());
+        const der = await fileWith(holder, 500);
+        const heard = collect();
+        const report = await read(der, { onDiagnostic: heard.onDiagnostic });
+        // None of it changes the verdict.
+        expect(codes(report)).toEqual([]);
+        expect(heard.seen.map((d) => [d.code, d.severity])).toEqual([
+            ['PKI_DIAG_KEY_KDF_ITERATIONS_LOW', 'warning'],
+            ['PKI_DIAG_AKI_MISSING', 'warning'],
+            ['PKI_DIAG_SKI_MISSING_END_ENTITY', 'info'],
+        ]);
+
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            expect(codes(await read(der))).toEqual([]);
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
+    it('should report a warning of the PFX as it is parsed, at pkcs12, where parsePkcs12 under strict throws', async () => {
+        const holder = await cleanHolder(await makeRoot());
+        // A PBKDF2 count below the 1 000 RFC 8018 recommends: the file opens, with a warning.
+        const der = await fileWith(holder, 500);
+        expect(codes(await read(der))).toEqual([]);
+        expect(thrownCode(() => parsePkcs12(der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const refused = collect();
+        const report = await read(der, { strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'pkcs12' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_KEY_KDF_ITERATIONS_LOW');
+        expect(report.pkcs12).toBeUndefined();
+        expect(report.keys).toEqual([]);
+        // Refused, not delivered: throw or diagnose, never both.
+        expect(refused.seen).toEqual([]);
+        // `strict: false` is the default, spelled out.
+        expect(codes(await read(der, { strict: false }))).toEqual([]);
+    });
+
+    it('should report a warning only an opened SafeContents reveals, at that SafeContents', async () => {
+        // The key is shrouded under a low count **inside** encrypted contents:
+        // parsePkcs12 cannot see it, openSafeContents does.
+        const holder = await cleanHolder(await makeRoot());
+        const certs = safeContents(certBag(holder.certificate.der, [localKeyId(ID)]));
+        const hidden = safeContents(shroudedKeyBag(await shroudKey(await pkcs8Of(holder), PASSWORD, { iterations: 500 }), [localKeyId(ID)]));
+        const auth = authenticatedSafe(await encryptedSafeContents(certs, PASSWORD), await encryptedSafeContents(hidden, PASSWORD));
+        const der = pfx({ authSafe: auth, macData: await pbmac1MacData(auth, PASSWORD) });
+        expect(thrownCode(() => parsePkcs12(der, { strict: true }))).toBeUndefined();
+        const lenient = await read(der);
+        expect(codes(lenient)).toEqual([]);
+        expect(lenient.keys[0]?.signingKey).toBeDefined();
+
+        const report = await read(der, { strict: true });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'authSafe[1]' });
+        // The rest of the file was still read.
+        expect(report.certificates.map((c) => c.der)).toEqual([holder.certificate.der]);
+        expect(report.keys).toEqual([]);
+    });
+
+    it('should report a certificate that raises a warning at its bag — a PKCS#12 certificate is what the call opens, not a hint', async () => {
+        // No authorityKeyIdentifier: a warning, which a strict parse of that certificate refuses.
+        const holder = await issue(await makeRoot());
+        expect(thrownCode(() => parseCertificate(holder.certificate.der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        const der = await file({ holder });
+        expect(codes(await read(der))).toEqual([]);
+
+        const report = await read(der, { strict: true });
+        expect(report.valid).toBe(false);
+        // The certificate is refused where it stands, so the key has none to take its algorithm from.
+        expect(report.reasons.map((r) => [r.code, r.errorCode, r.path])).toEqual([
+            ['PKI_REASON_INPUT_MALFORMED', 'PKI_STRICT_DIAGNOSTIC', 'authSafe[0].bags[0]'],
+            ['PKI_REASON_PKCS12_KEY_UNMATCHED', undefined, 'authSafe[1].bags[0]'],
+        ]);
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_AKI_MISSING');
+        expect(report.certificates).toEqual([]);
+    });
+
+    it('should open a file that raises nothing but an info under strict, exactly as without it', async () => {
+        const holder = await cleanHolder(await makeRoot());
+        const der = await file({ holder });
+        const heard = collect();
+        const report = await read(der, { strict: true, onDiagnostic: heard.onDiagnostic });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(await signsLikeItsCertificate(report, holder)).toBe(true);
+        expect(heard.seen.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_SKI_MISSING_END_ENTITY', 'info']]);
+    });
+
+    it('should throw PKI_INVALID_OPTION for a strict that is not a boolean or an onDiagnostic that is not a function, before anything is read', async () => {
+        const der = await file({ holder: await issue(await makeRoot()) });
+        await expect(read(der, { strict: 'yes' as unknown as boolean })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
+        await expect(read(der, { onDiagnostic: 'log' as unknown as () => void })).rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
     });
 });

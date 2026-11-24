@@ -49,7 +49,7 @@ import {
     decisionSurfaceSection, diffRefusals, DECISION_SURFACE_HEADING, HASH_PREFIX, parseRefusalBaseline, parseRefusalsFrozen,
     REFUSAL_BASELINE, REFUSALS_FROZEN, REFUSALS_GENERATOR, type FrozenRefusal,
 } from '../../lib/refusals-frozen.js';
-import { error, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
+import { error, escapeRegExp, lineContaining, readJson, type Finding, type Rule, type RuleContext } from '../context.js';
 import { compareSemver, ERRORS_REGISTRY, FROZEN_REGISTRY } from './registries.js';
 
 const major = (v: string): number => Number(v.split('.')[0]);
@@ -487,7 +487,6 @@ interface DefaultRow {
     readonly evidence?: unknown;
 }
 
-const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Whether the export takes the option: a member of an interface, a parameter

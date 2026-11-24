@@ -4,7 +4,7 @@
 
 [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp) exposes the engine to any client that speaks the [Model Context Protocol](https://modelcontextprotocol.io) — Claude Desktop, Claude Code, Cursor, VS Code, Continue, Zed, Windsurf, Cline, Roo Code, the MCP Inspector, or any local client over stdio or loopback Streamable HTTP. With it installed an assistant can be asked *"Is this server certificate trustworthy for this host today, given the CRL I fetched?"* and answer by calling `verify_certificate_chain`, reasoning on a typed verdict instead of prose.
 
-All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of pkinative 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
+All PKI logic lives in pkinative: the server is a thin wrapper that adds the MCP SDK and zod — three runtime dependencies in total (pkinative ^1.0.0, `@modelcontextprotocol/server` ^2.0.0, zod ^4.2.0) — plus a sandbox, a response cache, token-frugal projections and a human-in-the-loop issue drafter. Its 34 tools reach every runtime export of the engine release it was built on, 1.0.0, and the engine's error, reason and diagnostic codes pass through verbatim.
 
 ## Installation
 
@@ -17,7 +17,7 @@ npm install -g pkinative-mcp
 pkinative-mcp
 ```
 
-The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || >=25.8.2` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
+The binary is `pkinative-mcp`; the package requires Node.js 22 or later, and the engine's own floor is `^22.22.2 || ^24.14.1 || ^25.8.2 || >=26.0.0` — `describe_engine` reports `capabilities.nodeFloorSatisfied`. The published package carries npm provenance, and each release attaches a build attestation and a CycloneDX SBOM. Its MCP registry name is `io.github.Nizoka/pkinative-mcp`, and its `server.json` declares the npm package with `runtimeHint: "npx"`, the arguments `-y pkinative-mcp`, the stdio transport and the nine environment variables below.
 
 ## Configuration by client
 
@@ -306,11 +306,11 @@ Every engine tool's result also carries `diagnostics[]` (de-duplicated by code a
 
 ### `describe_engine`
 
-**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine's 57 error codes, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
+**Purpose:** the offline preflight. **Key inputs:** projection only. **Output:** `server` (name, version, tool API version, protocol, tool count), `engine` (name, version, Node.js floor), `capabilities` (`canVerify`, `canSign`, `canDecrypt`, `node`, `nodeFloorSatisfied`, platform), `randomness`, `defaultLimits` (the 22 engine limits), `ceilings`, `caps`, `sandbox` (enabled, cache enabled, pinned instant, the extension allow-lists), `network: 'none'`, `registries` (the engine registries as the server vendors them at its pinned engine tag — for 1.0.0: 57 errors, 43 reasons and 97 diagnostics, the 21 wrapper codes, purposes, key-usage bits, the OID registry count), `refusals` (the doctrine) and `unexposed`. **Annotation:** read-only. Never cached.
 
 ### `explain_code`
 
-**Purpose:** any code this server can emit, explained from the registries vendored at the pkinative v1.0.0 tag — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
+**Purpose:** any code this server can emit, explained from the registries vendored at the engine tag the server was built on — class, standard, CWE, the version that brought it, the remedy and the MCP input that lifts it. **Key inputs:** `code`, or `list: true` with `kind` (`error` \| `reason` \| `diagnostic` \| `wrapper`); projection. **Output:** `code`, `kind`, `summary`, `standard`, `severity`, `errorClass`, `engineClass`, `cwe`, `since`, `remedy` — or `codes[]` and `count`. **Annotation:** read-only. An unknown code is `NOT_FOUND`.
 
 ### `draft_governance_issue`
 
@@ -355,7 +355,7 @@ The smallest "can I trust this server certificate?" probe:
 
 A refused call is a tool result with `isError: true`, `content[0].text` = `<tool> failed [CODE]: message` and `_meta.error = { code, message, data }`. The code is one of two kinds:
 
-- **One of pkinative's 57 `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
+- **One of the engine's `PKI_*` error codes, passed through verbatim** as `_meta.error.code`, with `data.errorClass` (the coarse class: `usage`, `input`, `parse`, `security`, `limit`, `unsupported`, `crypto`, `password`, `check`, `internal`), `data.engineError` (the `PkiError` subclass), `path`, `offset`, `algorithm`, `limit`, `configured`, `observed` or `env` where the engine knows them, and `data.remedy` phrased as MCP inputs.
 - **One of the server's 21 wrapper codes**, for the boundary the engine does not own — validation, sandbox, caps, secrets and output — each with its remedy:
 
 | Wrapper code | Raised when |
@@ -400,7 +400,7 @@ Two real results, from the 1.0.0 server. The first `PKI_*` code is raised by the
 - **Two password channels, never a third.** The per-call `password` input, or the operator's `PKINATIVE_MCP_PASSWORD` — one per call. A password is never echoed, logged, cached or served; a call carrying one is never cached.
 - **One sandbox.** `PKINATIVE_MCP_OUTPUT_DIR` is the only filesystem boundary, for reads (every `path` input, `resources/read`) and writes (`outputPath`, governance drafts): relative paths only, no traversal, NUL bytes or unlisted extensions, the real path of every file read and of every parent written inside it, exclusive creates, and a partial file removed when a write fails. In `outputMode: 'file'` a result names the absolute path it wrote, in `structuredContent.filePath` and in its text; that is the one place a host path reaches the transcript. Unset, no tool touches the filesystem; the opt-in response cache under `PKINATIVE_MCP_CACHE_DIR` is the only other I/O the server performs.
 - **Ceilings and caps.** The engine's 22 limits apply to every call and rise only by explicit input, never above the operator ceilings; every byte and count the wrapper bounds is a constant `describe_engine.caps` advertises — 256 MiB per stdio frame or HTTP body, 128 MiB of inline PKI input per call, 50 MiB per inline artefact, 1 GiB per file output, 64 KiB per hex artefact.
-- **The engine's doctrine, surfaced.** SHA-1 only with `allowSha1: true`; RSA only with an explicit `rsaScheme`; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA and ML-DSA parsed, never verified; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. `describe_engine.refusals` lists each line with its remedy.
+- **The engine's doctrine, surfaced.** SHA-1 only with `allowSha1: true`; RSA only with an explicit `rsaScheme`; PBES2 and PBMAC1 only, a legacy RC2 or 3DES PKCS#12 refused with the OpenSSL 3.4 conversion as remedy; DSA parsed, never verified; ML-DSA parsed and, from engine 1.1.0, verified where the host's Web Crypto has it and reported not checked where it has not ([ADR 0026](../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)) — never signed with; no writer for PKCS#8, PKCS#12, CRLs, OCSP responses or timestamp responses. `describe_engine.refusals` lists each line with its remedy.
 
 The server's own conformance gate has OpenSSL 3 read back every artefact it writes, in CI and before every publish; the [conformance guide](conformance.md) covers the engine underneath, and the [security guide](security.md) its threat model.
 

@@ -22,6 +22,7 @@
  * @module verify/verify-csr
  */
 
+import { assertFlag } from '../core/arguments.js';
 import { isBytes } from '../core/bytes.js';
 import { _pkiError } from '../core/pki-error-guard.js';
 import { inputMalformedReason, signatureInvalidReason, signatureNotCheckedReason } from '../core/pki-reasons.js';
@@ -94,6 +95,7 @@ export async function verifyCertificationRequest(
         throw new PkiError('PKI_INVALID_OPTION', 'pkinative: options must be an object — pass { allowSha1, encodingRules, limits, strict, onDiagnostic, decodeExtensions } or omit it');
     }
     const { allowSha1, ...reading } = options ?? {};
+    assertFlag(allowSha1, 'allowSha1');
     let parsed: CertificationRequest;
     if (isBytes(request)) {
         try {

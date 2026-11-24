@@ -89,21 +89,21 @@ function _diagnostic(
 
 // ── Payload factories — serial, algorithms, version ──────────────────
 
-export function serialTooLongDiagnostic(octets: number, offset?: number): PkiDiagnostic {
+export function serialTooLongDiagnostic(octets: number, offset?: number, path = 'tbsCertificate.serialNumber'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SERIAL_TOO_LONG', 'warning', 'RFC 5280 §4.1.2.2',
         `the serial number is ${octets} octets long; RFC 5280 allows at most 20, and some verifiers refuse longer serials`,
-        'tbsCertificate.serialNumber', offset);
+        path, offset);
 }
 
-export function serialNotPositiveDiagnostic(offset?: number): PkiDiagnostic {
+export function serialNotPositiveDiagnostic(offset?: number, path = 'tbsCertificate.serialNumber'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SERIAL_NOT_POSITIVE', 'warning', 'RFC 5280 §4.1.2.2',
         'the serial number is zero or negative; RFC 5280 requires a positive integer (the value is still returned as decoded)',
-        'tbsCertificate.serialNumber', offset);
+        path, offset);
 }
 
-export function signatureAlgorithmMismatchDiagnostic(outer: string, inner: string): PkiDiagnostic {
+export function signatureAlgorithmMismatchDiagnostic(outer: string, inner: string, innerPath = 'tbsCertificate.signature'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_SIGNATURE_ALGORITHM_MISMATCH', 'warning', 'RFC 5280 §4.1.1.2',
-        `signatureAlgorithm (${outer}) differs from tbsCertificate.signature (${inner}); a verifier must refuse this certificate`,
+        `signatureAlgorithm (${outer}) differs from ${innerPath} (${inner}); a verifier must refuse this certificate`,
         'signatureAlgorithm', undefined);
 }
 
@@ -139,10 +139,10 @@ export function generalizedTimeFractionDiagnostic(path: string, text: string, of
         path, offset);
 }
 
-export function validityInvertedDiagnostic(notBefore: string, notAfter: string): PkiDiagnostic {
+export function validityInvertedDiagnostic(notBefore: string, notAfter: string, path = 'tbsCertificate.validity'): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_VALIDITY_INVERTED', 'warning', 'RFC 5280 §4.1.2.5',
         `notBefore (${notBefore}) is later than notAfter (${notAfter}); the certificate is valid at no instant`,
-        'tbsCertificate.validity', undefined);
+        path, undefined);
 }
 
 // ── Payload factories — names ────────────────────────────────────────
@@ -294,6 +294,29 @@ export function tspCertsUnrequestedDiagnostic(path: string, count: number): PkiD
         path, undefined);
 }
 
+// ── Payload factories — RFC 6960 §4.1: what a request says about itself ──
+
+/** A signed request carries no `requestorName`; §4.1.2 requires a requestor that signs to name itself. */
+export function ocspRequestSignedUnnamedDiagnostic(offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED', 'warning', 'RFC 6960 §4.1.2',
+        'the request is signed and carries no requestorName; RFC 6960 §4.1.2 says a requestor that signs shall specify its name — the signature is read as it is, and a responder has no name to look the signer up by',
+        'TBSRequest.requestorName', offset);
+}
+
+/** The nonce is empty or longer than 128 octets; RFC 9654 §2.1 sizes it 1 to 128. */
+export function ocspNonceLengthDiagnostic(octets: number, path: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_NONCE_LENGTH', 'warning', 'RFC 9654 §2.1',
+        `the nonce is ${String(octets)} octet(s) long; RFC 9654 §2.1 defines it as an OCTET STRING of 1 to 128 octets, and has a responder answer malformedRequest outside that range — the nonce is returned as it is`,
+        path, offset);
+}
+
+/** A request extension sets the critical flag; §4.1.2 says none of them should. */
+export function ocspRequestExtensionCriticalDiagnostic(oid: string, path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_REQUEST_EXTENSION_CRITICAL', 'info', 'RFC 6960 §4.1.2',
+        `the request extension ${oid} is marked critical; RFC 6960 §4.1.2 says the critical flag should not be set for any request extension — it is read all the same, and a responder that does not understand it may refuse the request`,
+        path, undefined);
+}
+
 // ── Payload factories — RFC 6960 §4.2: what a response says about itself ──
 
 /** The `certs` field is present and holds no certificate; §4.2.1 says it should then be absent. */
@@ -303,11 +326,11 @@ export function ocspCertsEmptyDiagnostic(offset?: number): PkiDiagnostic {
         'BasicOCSPResponse.certs', offset);
 }
 
-/** `ResponseData.version` is present and is not the one-octet INTEGER 0 of v1. */
-export function ocspVersionNotV1Diagnostic(found: string, offset?: number): PkiDiagnostic {
-    return _diagnostic('PKI_DIAG_OCSP_VERSION_NOT_V1', 'warning', 'RFC 6960 §4.2.2.3',
-        `ResponseData.version ${found}; RFC 6960 §4.2.2.3 defines v1 (0) only, so the response is read with the v1 syntax — a strict reader may refuse it`,
-        'ResponseData.version', offset);
+/** The explicit `version` is not the one-octet INTEGER 0 of v1 — in a `ResponseData`, or in the `TBSRequest` that `path` names. */
+export function ocspVersionNotV1Diagnostic(found: string, offset?: number, path = 'ResponseData.version'): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_OCSP_VERSION_NOT_V1', 'warning', 'RFC 6960 §4.1.1, §4.2.2.3',
+        `${path} ${found}; RFC 6960 defines v1 (0) only, for a request (§4.1.1) and for a response (§4.2.2.3), so the message is read with the v1 syntax — a strict reader may refuse it`,
+        path, offset);
 }
 
 /** The `responderID` names neither the subject nor the key of the certificate that signed the response. */
@@ -372,6 +395,29 @@ export function spkiEcParametersInvalidDiagnostic(path: string, namedCurve: stri
         namedCurve === undefined
             ? 'the EC key parameters are not a namedCurve OBJECT IDENTIFIER; RFC 5480 forbids implicitCurve (NULL) and specifiedCurve, and no signature under this key will be checked'
             : `the EC key names the curve ${namedCurve}, which pkinative does not know; no signature under this key will be checked`,
+        path, offset);
+}
+
+/**
+ * A SubjectPublicKeyInfo whose algorithm pkinative does not classify: the key
+ * is kept as `kind: 'unknown'`, bytes and AlgorithmIdentifier untouched.
+ *
+ * An `info`, never a `warning`: RFC 5280 §4.1.2.7 does not restrict the
+ * subject key to a registered algorithm, so a valid certificate carrying a
+ * key from a scheme the engine does not know yet keeps parsing under
+ * `strict: true`. What the caller learns is why the key was not classified,
+ * and that no signature will be found valid under it — `resolveAlgorithm`
+ * answers "this key cannot have signed that" for every signature algorithm it
+ * knows, and refuses the ones it does not (`PKI_CRYPTO_ALGORITHM_UNSUPPORTED`).
+ *
+ * @param path   The path of the key's AlgorithmIdentifier.
+ * @param oid    The algorithm OID, in dotted form.
+ * @param offset The absolute offset of the AlgorithmIdentifier, when known.
+ * @returns The diagnostic.
+ */
+export function spkiAlgorithmUnrecognisedDiagnostic(path: string, oid: string, offset?: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', 'info', 'RFC 5280 §4.1.2.7',
+        `the public key algorithm ${oid} is not one pkinative classifies; the key is kept as kind 'unknown' with its bytes, and no signature can be verified under it`,
         path, offset);
 }
 
@@ -581,6 +627,31 @@ export function defaultEncodedDiagnostic(path: string, value: string, offset?: n
     return _diagnostic('PKI_DIAG_DEFAULT_ENCODED', 'warning', 'ITU-T X.690 §11.5',
         `the field encodes its DEFAULT value ${value}, which DER omits; the value reads the same either way, but a strict DER verifier may refuse the certificate`,
         path, offset);
+}
+
+/**
+ * A keyUsage that asserts what the certified key's algorithm cannot do, or
+ * leaves out what it is for.
+ *
+ * Three documents say what a post-quantum key may assert when the extension
+ * is present. An ML-DSA key (RFC 9881 §5) and an SLH-DSA key (RFC 9909 §6)
+ * sign and do nothing else: at least one of digitalSignature, nonRepudiation,
+ * keyCertSign and cRLSign, and none of keyEncipherment, dataEncipherment,
+ * keyAgreement, encipherOnly and decipherOnly. An ML-KEM key (RFC 9935 §5)
+ * encapsulates and does nothing else: keyEncipherment, alone. Each sentence
+ * is addressed to the issuing CA, so this is a `warning` and not a refusal:
+ * the certificate parses, and no signature is ever verified under a key that
+ * cannot sign, whatever its keyUsage claims.
+ *
+ * @param kind        The key kind, which names the algorithm.
+ * @param usages      The usages the extension asserts, in bit order.
+ * @param requirement The clause the usages contradict, and what it requires.
+ * @returns The diagnostic.
+ */
+export function keyUsageKeyAlgorithmMismatchDiagnostic(kind: string, usages: readonly string[], requirement: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH', 'warning', 'RFC 9881 §5, RFC 9909 §6, RFC 9935 §5',
+        `keyUsage asserts [${usages.join(', ')}] in a certificate whose key is ${kind}; ${requirement}`,
+        'tbsCertificate.extensions.keyUsage', undefined);
 }
 
 // ── Payload factories — the rest of the RFC 5280 §4.1–§4.2 profile ───
@@ -798,6 +869,65 @@ export function caRepositoryNoHttpOrLdapUriDiagnostic(): PkiDiagnostic {
     return _diagnostic('PKI_DIAG_CA_REPOSITORY_NO_HTTP_OR_LDAP_URI', 'info', 'RFC 5280 §4.2.2.2',
         'no id-ad-caRepository access location is an HTTP or LDAP URI; RFC 5280 says at least one should be',
         'tbsCertificate.extensions.subjectInfoAccess', undefined);
+}
+
+// ── Payload factories — attribute certificates (RFC 5755) ────────────
+
+export function acHolderEmptyDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_HOLDER_EMPTY', 'warning', 'RFC 5755 §4.2.2',
+        'the Holder carries none of baseCertificateID, entityName and objectDigestInfo; the attributes are bound to nobody',
+        'acinfo.holder', offset);
+}
+
+export function acHolderMultipleDiagnostic(options: readonly string[], offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_HOLDER_MULTIPLE', 'info', 'RFC 5755 §4.2.2',
+        `the Holder carries ${options.join(' and ')}; RFC 5755 recommends one option only, since which one is normative is unclear`,
+        'acinfo.holder', offset);
+}
+
+export function acIssuerV1FormDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ISSUER_V1_FORM', 'warning', 'RFC 5755 §4.2.3',
+        'the issuer uses the v1Form choice, which RFC 5755 forbids; its names are read as issuerName',
+        'acinfo.issuer', offset);
+}
+
+export function acIssuerNotProfiledDiagnostic(why: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ISSUER_NOT_PROFILED', 'warning', 'RFC 5755 §4.2.3',
+        `the issuer ${why}; RFC 5755 requires exactly one non-empty directoryName in issuerName, and neither baseCertificateID nor objectDigestInfo`,
+        'acinfo.issuer', offset);
+}
+
+export function acAttributesEmptyDiagnostic(offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTES_EMPTY', 'warning', 'RFC 5755 §4.2.7',
+        'the attributes SEQUENCE is empty; RFC 5755 requires an AC to contain at least one attribute',
+        'acinfo.attributes', offset);
+}
+
+export function acAttributeDuplicateDiagnostic(oid: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTE_DUPLICATE', 'warning', 'RFC 5755 §4.2.7',
+        `the attribute type ${oid} occurs more than once; RFC 5755 allows each type once, multi-valued if need be`,
+        path, offset);
+}
+
+/** A §4.4 attribute its syntax admits and its profile forbids; `clause` names the subsection. */
+export function acAttributeProfileDiagnostic(why: string, clause: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_ATTRIBUTE_PROFILE', 'warning', 'RFC 5755 §4.4',
+        `${why} (RFC 5755 ${clause}); the value is still returned as decoded`,
+        path, offset);
+}
+
+/** An AC extension whose criticality is the opposite of `required`, the one RFC 5755 §4.3 sets for it. */
+export function acExtensionCriticalityDiagnostic(name: string, required: 'critical' | 'non-critical', path: string): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_EXTENSION_CRITICALITY', 'warning', 'RFC 5755 §4.3',
+        `${name} must be ${required} in an attribute certificate, and is not; a verifier that does not recognise a critical extension refuses the AC`,
+        path, undefined);
+}
+
+/** A §4.3 extension its syntax admits and its profile forbids; `clause` names the subsection. */
+export function acExtensionProfileDiagnostic(why: string, clause: string, path: string, offset: number): PkiDiagnostic {
+    return _diagnostic('PKI_DIAG_AC_EXTENSION_PROFILE', 'warning', 'RFC 5755 §4.3',
+        `${why} (RFC 5755 ${clause}); the value is still returned as decoded`,
+        path, offset);
 }
 
 // ── Payload factories — accepted tolerances ──────────────────────────

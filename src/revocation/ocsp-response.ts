@@ -20,14 +20,11 @@
 
 import { createAsn1Context, type Asn1Context } from '../asn1/asn1-context.js';
 import { readTlvHeader, walkChildren, type TlvHeader } from '../asn1/asn1-cursor.js';
-import { decodeValueAt } from '../asn1/asn1-decode.js';
 import { readObjectIdentifier } from '../asn1/asn1-oid.js';
-import { readInteger } from '../asn1/asn1-read.js';
 import { _readTime } from '../asn1/asn1-time.js';
-import { assertBytes, toHex } from '../core/bytes.js';
-import { defaultEncodedDiagnostic, ocspCertsEmptyDiagnostic, ocspVersionNotV1Diagnostic } from '../core/pki-diagnostics.js';
+import { assertBytes } from '../core/bytes.js';
+import { ocspCertsEmptyDiagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
-import type { Asn1Node } from '../types/asn1-types.js';
 import type { CrlReason } from '../types/crl-types.js';
 import type {
     OcspBasicResponse,
@@ -38,13 +35,12 @@ import type {
     OcspResponseStatus,
     OcspSingleResponse,
 } from '../types/ocsp-types.js';
-import { PkiCertificateError } from '../types/pki-errors.js';
+import type { PkiCertificateError } from '../types/pki-errors.js';
 import type { PkiParseOptions } from '../types/pki-types.js';
-import type { Extension, SerialNumber } from '../types/x509-types.js';
+import type { Extension } from '../types/x509-types.js';
 import { _readAlgorithmIdentifier } from '../x509/x509-algorithm.js';
-import { _decodeExtension } from '../x509/x509-extensions.js';
+import { _OCSP_STRUCTURE, _decodeAt, _fieldsOf, _ocspError, _readCertId, _readExtensions, _readOcspVersion } from './ocsp-shared.js';
 
-const STRUCTURE = 'PKI_X509_STRUCTURE_INVALID';
 const OID_BASIC_RESPONSE = '1.3.6.1.5.5.7.48.1.1';
 const OID_CRL_REASON = '2.5.29.21';
 
@@ -61,24 +57,12 @@ const REASONS: Readonly<Record<number, CrlReason>> = Object.freeze({
     8: 'removeFromCRL', 9: 'privilegeWithdrawn', 10: 'aACompromise',
 });
 
-/**
- * The children of `parent`, refused past `max` — the most the field can hold by its ASN.1 definition,
- * which bounds the walk before anything is allocated (see the same helper in crl-parse.ts; review of 2026-10-04).
- */
-function fieldsOf(der: Uint8Array, parent: TlvHeader, path: string, max: number): TlvHeader[] {
-    const fields: TlvHeader[] = [];
-    for (const field of walkChildren(der, parent, path)) {
-        if (fields.length === max) throw ocspError(path, field.offset, `holds more than ${String(max)} values, where RFC 6960 §4.2.1 defines at most ${String(max)}`);
-        fields.push(field);
-    }
-    return fields;
-}
-
-function ocspError(path: string, offset: number, why: string): PkiCertificateError {
-    return new PkiCertificateError(STRUCTURE, `pkinative: ${path} ${why} — the input is not an RFC 6960 OCSPResponse`, path, offset);
-}
-
-const decodeAt = (der: Uint8Array, header: TlvHeader, ctx: Asn1Context): Asn1Node => decodeValueAt(der, header.offset, ctx);
+// The shared readers, bound to the message this module reads: a refusal here names an OCSPResponse.
+const fieldsOf = (der: Uint8Array, parent: TlvHeader, path: string, max: number): TlvHeader[] => _fieldsOf('OCSPResponse', der, parent, path, max);
+const ocspError = (path: string, offset: number, why: string): PkiCertificateError => _ocspError('OCSPResponse', path, offset, why);
+const decodeAt = _decodeAt;
+const readCertId = (der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): OcspCertId => _readCertId('OCSPResponse', der, field, ctx, path);
+const readExtensions = (der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): readonly Extension[] => _readExtensions('OCSPResponse', der, field, ctx, path);
 
 /**
  * Parse an `OCSPResponse`.
@@ -145,7 +129,7 @@ export function parseOcspResponse(der: Uint8Array, options?: PkiParseOptions): O
         der: der.subarray(outer.offset, outer.end),
         status,
         basicResponse,
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 
@@ -207,7 +191,7 @@ function readBasicResponse(der: Uint8Array, ctx: Asn1Context): OcspBasicResponse
         responderId: data.responderId,
         producedAt: data.producedAt,
         responses: data.responses,
-        signatureAlgorithm: _readAlgorithmIdentifier(decodeAt(der, algorithmField, ctx), ctx, 'BasicOCSPResponse.signatureAlgorithm', STRUCTURE, outer.offset),
+        signatureAlgorithm: _readAlgorithmIdentifier(decodeAt(der, algorithmField, ctx), ctx, 'BasicOCSPResponse.signatureAlgorithm', _OCSP_STRUCTURE, outer.offset),
         signatureValue: Object.freeze({ bytes: signatureNode.content.subarray(1), unusedBits: signatureNode.content[0] ?? 0 }),
         certificates: Object.freeze(certificates),
         extensions: data.extensions,
@@ -231,7 +215,7 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     // version [0] EXPLICIT is the only context-0 field here, and responderID
     // is context 1 or 2, so one tag test separates them.
     if (fields[0]?.tagClass === 'context' && fields[0].tagNumber === 0) {
-        readVersion(der, fields[0], ctx);
+        _readOcspVersion('OCSPResponse', der, fields[0], ctx, 'ResponseData.version');
         at += 1;
     }
 
@@ -261,45 +245,19 @@ function readResponseData(der: Uint8Array, tbs: TlvHeader, ctx: Asn1Context): Re
     }
 
     const extensionsField = fields[at];
-    const extensions = extensionsField === undefined ? [] : readExtensions(der, extensionsField, ctx, 'ResponseData.responseExtensions');
+    const extensions = extensionsField === undefined ? Object.freeze([]) : readExtensions(der, extensionsField, ctx, 'ResponseData.responseExtensions');
     return { responderId, producedAt, responses: Object.freeze(responses), extensions };
-}
-
-/**
- * `version [0] EXPLICIT Version DEFAULT v1`, when the responder wrote it out.
- *
- * Two sentences meet here and neither refuses. Written as v1, the field
- * encodes its DEFAULT, which DER omits (X.690 §11.5): the same diagnostic a
- * certificate gets for an explicit v1. Written as anything else — another
- * value, or not the INTEGER the syntax calls for — it violates RFC 6960
- * §4.2.2.3, which defines v1 alone; the response is read with the v1 syntax
- * because there is no other, and the reader says so. Compared on the bytes,
- * not decoded: a version is one octet, and reading a stranger's INTEGER here
- * could only add a refusal where a diagnostic was promised.
- */
-function readVersion(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): void {
-    const inner = fieldsOf(der, field, 'ResponseData.version', 1)[0];
-    if (inner === undefined || inner.tagClass !== 'universal' || inner.tagNumber !== 2) {
-        ctx.emitter.emit(ocspVersionNotV1Diagnostic('holds no INTEGER', field.offset));
-        return;
-    }
-    const content = der.subarray(inner.contentStart, inner.end);
-    if (content.length === 1 && content[0] === 0) {
-        ctx.emitter.emit(defaultEncodedDiagnostic('ResponseData.version', 'v1 (0)', field.offset));
-        return;
-    }
-    ctx.emitter.emit(ocspVersionNotV1Diagnostic(`declares the version 0x${toHex(content)}`, field.offset));
 }
 
 function readResponderId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context): OcspResponderId {
     const inner = fieldsOf(der, field, 'ResponseData.responderID', 1)[0];
     if (inner === undefined) throw ocspError('ResponseData.responderID', field.offset, 'is empty');
-    if (field.tagNumber === 1) return { kind: 'byName', nameDer: der.subarray(inner.offset, inner.end) };
+    if (field.tagNumber === 1) return Object.freeze({ kind: 'byName', nameDer: der.subarray(inner.offset, inner.end) });
     const node = decodeAt(der, inner, ctx);
     if (node.tagClass !== 'universal' || node.tagNumber !== 4) {
         throw ocspError('ResponseData.responderID', inner.offset, 'byKey is not an OCTET STRING');
     }
-    return { kind: 'byKey', keyHash: node.content };
+    return Object.freeze({ kind: 'byKey', keyHash: node.content });
 }
 
 /**
@@ -327,26 +285,7 @@ function readSingleResponse(der: Uint8Array, single: TlvHeader, ctx: Asn1Context
         status: readCertStatus(der, statusField, ctx, `${path}.certStatus`),
         thisUpdate: _readTime(decodeAt(der, thisUpdateField, ctx), ctx, undefined),
         nextUpdate,
-        extensions: extensionsField === undefined ? [] : readExtensions(der, extensionsField, ctx, `${path}.singleExtensions`),
-    });
-}
-
-function readCertId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): OcspCertId {
-    const parts = fieldsOf(der, field, path, 4);
-    const [algorithmField, nameHashField, keyHashField, serialField] = parts;
-    if (parts.length !== 4 || algorithmField === undefined || nameHashField === undefined || keyHashField === undefined || serialField === undefined) {
-        throw ocspError(path, field.offset, `holds ${String(parts.length)} values where a CertID has four`);
-    }
-    const serialContent = der.subarray(serialField.contentStart, serialField.end);
-    return Object.freeze({
-        hashAlgorithm: _readAlgorithmIdentifier(decodeAt(der, algorithmField, ctx), ctx, `${path}.hashAlgorithm`, STRUCTURE, field.offset),
-        issuerNameHash: decodeAt(der, nameHashField, ctx).content,
-        issuerKeyHash: decodeAt(der, keyHashField, ctx).content,
-        serialNumber: Object.freeze({
-            bytes: serialContent,
-            hex: toHex(serialContent),
-            value: readInteger(decodeAt(der, serialField, ctx)),
-        }) as SerialNumber,
+        extensions: extensionsField === undefined ? Object.freeze([]) : readExtensions(der, extensionsField, ctx, `${path}.singleExtensions`),
     });
 }
 
@@ -359,8 +298,8 @@ function readCertId(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: s
  */
 function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): OcspCertStatus {
     if (field.tagClass !== 'context') throw ocspError(path, field.offset, 'is not a context-tagged CHOICE');
-    if (field.tagNumber === 0) return { kind: 'good' };
-    if (field.tagNumber === 2) return { kind: 'unknown' };
+    if (field.tagNumber === 0) return Object.freeze({ kind: 'good' });
+    if (field.tagNumber === 2) return Object.freeze({ kind: 'unknown' });
     if (field.tagNumber !== 1) throw ocspError(path, field.offset, `is [${String(field.tagNumber)}]; RFC 6960 defines [0] good, [1] revoked and [2] unknown`);
 
     // RevokedInfo ::= SEQUENCE { revocationTime GeneralizedTime,
@@ -374,59 +313,7 @@ function readCertStatus(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, pat
         const inner = fieldsOf(der, reasonField, `${path}.revocationReason`, 1)[0];
         if (inner !== undefined && inner.length === 1) reason = REASONS[der[inner.contentStart] as number];
     }
-    return { kind: 'revoked', revocationTime: _readTime(decodeAt(der, timeField, ctx), ctx, undefined), reason };
-}
-
-/**
- * A `[n] EXPLICIT Extensions` field.
- *
- * Every extensions field in RFC 6960 is explicitly tagged, so a bare SEQUENCE
- * here is refused rather than unwrapped one level short — which would read the
- * *extensions* as if they were the wrapper and hand back their innards.
- */
-function readExtensions(der: Uint8Array, field: TlvHeader, ctx: Asn1Context, path: string): readonly Extension[] {
-    if (field.tagClass !== 'context') throw ocspError(path, field.offset, 'is not a context-tagged Extensions field');
-    const wrapper = fieldsOf(der, field, path, 1)[0];
-    if (wrapper === undefined) return [];
-    const out: Extension[] = [];
-    let index = 0;
-    for (const entry of walkChildren(der, wrapper, path)) {
-        const where = `${path}[${String(index)}]`;
-        enforceLimit(ctx.limits, 'maxExtensions', index + 1, where);
-        const node = decodeAt(der, entry, ctx);
-        const oidNode = node.children[0];
-        const valueNode = node.children[node.children.length - 1];
-        if (oidNode === undefined || valueNode === undefined || node.children.length < 2) {
-            throw ocspError(where, entry.offset, 'is not an Extension');
-        }
-        const criticalNode = node.children.length === 3 ? node.children[1] : undefined;
-        // `extnValue OCTET STRING` and `critical BOOLEAN` (RFC 5280 §4.1): any
-        // other tag is not the wrapper the value is read out of, whatever its
-        // content looks like — read as the certificate parser reads them.
-        if (valueNode.tagClass !== 'universal' || valueNode.tagNumber !== 4) {
-            throw ocspError(`${where}.extnValue`, valueNode.offset, 'is not an OCTET STRING, the extnValue RFC 5280 §4.1 defines');
-        }
-        if (criticalNode !== undefined && (criticalNode.tagClass !== 'universal' || criticalNode.tagNumber !== 1 || criticalNode.contentLength !== 1)) {
-            throw ocspError(`${where}.critical`, criticalNode.offset, 'is not a BOOLEAN, the critical flag RFC 5280 §4.1 defines');
-        }
-        // In place, from a view that ends where the extnValue ends, starting at
-        // its content — the only way the reader can tell trailing octets inside
-        // the value from a well-formed one. The CRL parser shipped this wrong in
-        // 0.5 and refused every list carrying a recognised extension; this
-        // reader had the same mistake, hidden because the extension an OCSP
-        // response usually carries — the nonce — is one the certificate reader
-        // does not recognise and so never decodes.
-        const start = valueNode.offset + valueNode.headerLength;
-        out.push(_decodeExtension(
-            der.subarray(0, start + valueNode.contentLength), start,
-            readObjectIdentifier(oidNode),
-            criticalNode !== undefined && criticalNode.content[0] !== 0x00,
-            valueNode.content,
-            ctx, where,
-        ));
-        index += 1;
-    }
-    return Object.freeze(out);
+    return Object.freeze({ kind: 'revoked', revocationTime: _readTime(decodeAt(der, timeField, ctx), ctx, undefined), reason });
 }
 
 /** The OID of `cRLReason`, re-exported so a caller can find it on an extension. */

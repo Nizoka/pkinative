@@ -11,6 +11,7 @@
  * @module asn1/asn1-encode
  */
 
+import { assertFlag, assertIterable, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, byteView, compareOctets, concatBytes } from '../core/bytes.js';
 import { encodeUtf8, isIa5Octet, isNumericOctet, isPrintableOctet, isVisibleOctet } from '../core/text.js';
 import type { Asn1Node, Asn1StringType, TagClass } from '../types/asn1-types.js';
@@ -51,24 +52,25 @@ function encodeLength(length: number): number[] {
 
 /**
  * Encode one tag-length-value in DER: the shortest identifier and length forms.
- *
  * @param tagClass    The class of the tag.
  * @param tagNumber   The tag number, 0 to 2^31 − 1 (0 is refused in the universal class).
  * @param constructed Whether the content is a concatenation of encodings.
  * @param content     The content octets.
  * @returns The encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an unknown class, a tag number out of range or universal tag 0.
+ * @throws {PkiError} `PKI_INVALID_OPTION` for a `constructed` that is not a boolean; `PKI_INVALID_INPUT` when `content` is not a Uint8Array.
  */
 export function encodeTlv(tagClass: TagClass, tagNumber: number, constructed: boolean, content: Uint8Array): Uint8Array {
     const bytes = assertBytes(content, 'encodeTlv content');
     const classIndex = TAG_CLASSES.indexOf(tagClass);
     if (classIndex < 0) {
-        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: tagClass must be one of ${TAG_CLASSES.join(', ')}, got ${String(tagClass)}`);
+        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: tagClass must be one of ${TAG_CLASSES.join(', ')}, got ${describeValue(tagClass)}`);
     }
     if (!Number.isInteger(tagNumber) || tagNumber < 0 || tagNumber > 0x7fffffff || (tagClass === 'universal' && tagNumber === 0)) {
         throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE',
-            `pkinative: tag number ${String(tagNumber)} is outside 0 to 2^31 − 1, or is the reserved universal tag 0 — pass a valid tag number`);
+            `pkinative: tag number ${describeValue(tagNumber)} is outside 0 to 2^31 − 1, or is the reserved universal tag 0 — pass a valid tag number`);
     }
+    assertFlag(constructed, 'constructed');
     const leading = (classIndex << 6) | (constructed ? 0x20 : 0);
     const identifier: number[] = [];
     if (tagNumber < 31) {
@@ -162,7 +164,7 @@ export function encodeInteger(value: bigint | number): Uint8Array {
     } else if (typeof value === 'number' && Number.isSafeInteger(value)) {
         v = BigInt(value);
     } else {
-        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: encodeInteger expects a bigint or a safe integer, got ${String(value)}`);
+        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: encodeInteger expects a bigint or a safe integer, got ${describeValue(value)}`);
     }
     let hex: string;
     if (v >= 0n) {
@@ -182,9 +184,10 @@ export function encodeInteger(value: bigint | number): Uint8Array {
  *
  * @param value The boolean.
  * @returns The BOOLEAN encoding.
- * @throws Never.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `value` is not a boolean.
  */
 export function encodeBoolean(value: boolean): Uint8Array {
+    if (typeof value !== 'boolean') throw new PkiError('PKI_INVALID_INPUT', `pkinative: encodeBoolean takes true or false, got ${describeValue(value)} — a value that reads as one is not one`);
     return encodeTlv('universal', TAG_BOOLEAN, false, Uint8Array.of(value ? 0xff : 0x00));
 }
 
@@ -210,7 +213,7 @@ export function encodeBitString(bytes: Uint8Array, unusedBits = 0): Uint8Array {
     const data = assertBytes(bytes, 'encodeBitString bytes');
     if (!Number.isInteger(unusedBits) || unusedBits < 0 || unusedBits > 7 || (data.length === 0 && unusedBits !== 0)) {
         throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE',
-            `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${String(unusedBits)}`);
+            `pkinative: unusedBits must be 0 to 7, and 0 for an empty BIT STRING, got ${describeValue(unusedBits)}`);
     }
     // data.length === 0 with unusedBits !== 0 has already thrown above.
     if (unusedBits > 0 && (byteView(data).getUint8(data.length - 1) & ((1 << unusedBits) - 1)) !== 0) {
@@ -261,9 +264,10 @@ export function encodeEnumerated(value: bigint | number): Uint8Array {
  * @param options   `tagClass` defaults to `'context'`.
  * @returns The tagged encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `inner` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object.
  */
 export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
+    assertOptions(options, 'options');
     return encodeTlv(options?.tagClass ?? 'context', tagNumber, true, assertBytes(inner, 'encodeExplicit inner'));
 }
 
@@ -283,7 +287,7 @@ export function encodeExplicit(tagNumber: number, inner: Uint8Array, options?: {
  * @param options   `tagClass` defaults to `'context'`.
  * @returns The re-tagged encoding.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for an invalid tag number or class.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `encoded` is not a Uint8Array.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `encoded` is not a Uint8Array; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiError} `PKI_API_MISUSE` when `encoded` is empty or carries an indefinite length, which has no implicit form under DER.
  */
 export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?: { readonly tagClass?: TagClass | undefined }): Uint8Array {
@@ -298,6 +302,7 @@ export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?:
     }
     // The constructed bit belongs to the type being re-tagged, not to the
     // tag replacing it; carrying it over is the whole contract here.
+    assertOptions(options, 'options');
     const retagged = encodeTlv(options?.tagClass ?? 'context', tagNumber, (identifier & 0x20) !== 0, new Uint8Array(0));
     const header = retagged.length - 1;
     const out = new Uint8Array(header + bytes.length - 1);
@@ -318,13 +323,15 @@ export function encodeImplicit(tagNumber: number, encoded: Uint8Array, options?:
  * @param bits The set positions, counted from bit 0 as the most significant bit of the first octet.
  * @returns The BIT STRING encoding, with no trailing zero bit.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` when a position is not a non-negative safe integer.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `bits` cannot be iterated.
  */
 export function encodeNamedBits(bits: Iterable<number>): Uint8Array {
+    assertIterable(bits, 'encodeNamedBits bits');
     let highest = -1;
     const positions: number[] = [];
     for (const bit of bits) {
         if (!Number.isInteger(bit) || bit < 0 || bit > 0xffff) {
-            throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: a named bit position must be an integer from 0 to 65535, got ${String(bit)}`);
+            throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: a named bit position must be an integer from 0 to 65535, got ${describeValue(bit)}`);
         }
         positions.push(bit);
         if (bit > highest) highest = bit;
@@ -439,7 +446,7 @@ export function encodeString(type: Asn1StringType, value: string): Uint8Array {
             break;
         }
         default:
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(', ')}, got ${String(type)}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: string type must be one of ${Object.keys(STRING_TAGS).join(', ')}, got ${describeValue(type)}`);
     }
     return encodeTlv('universal', STRING_TAGS[type], false, content);
 }
@@ -462,12 +469,12 @@ function pad(value: number, width: number): string {
  */
 export function encodeTime(epochMilliseconds: number, type: 'UTCTime' | 'GeneralizedTime' | 'rfc5280' = 'rfc5280'): Uint8Array {
     if (type !== 'UTCTime' && type !== 'GeneralizedTime' && type !== 'rfc5280') {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${String(type)}`);
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: time type must be 'UTCTime', 'GeneralizedTime' or 'rfc5280', got ${describeValue(type)}`);
     }
     const date = new Date(typeof epochMilliseconds === 'number' ? epochMilliseconds : NaN);
     const year = date.getUTCFullYear();
     if (Number.isNaN(date.getTime()) || year < 0 || year > 9999) {
-        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: ${String(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
+        throw new PkiEncodingError('PKI_ASN1_VALUE_OUT_OF_RANGE', `pkinative: ${describeValue(epochMilliseconds)} is not an instant in the years 0000 to 9999`);
     }
     const millisecond = date.getUTCMilliseconds();
     const resolved = type === 'rfc5280' ? (year >= 1950 && year <= 2049 ? 'UTCTime' : 'GeneralizedTime') : type;

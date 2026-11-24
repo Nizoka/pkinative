@@ -29,18 +29,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # One job, four runs. `name:` is what decides the status-check name, so the
+  # One job, five runs. `name:` is what decides the status-check name, so the
   # three contexts the ruleset already requires — `ci (22)`, `ci (24)` and
   # `windows` — keep exactly the names they had when they were separate jobs,
-  # and `macos` is purely additive. Renaming a required check is what leaves
-  # every pull request waiting for a context that will never report again.
+  # and `macos` and `ci (26)` are purely additive. Renaming a required check
+  # is what leaves every pull request waiting for a context that will never
+  # report again.
+  #
+  # One Linux run per supported Node.js line (ADR 0017: every line in Active
+  # or Maintenance LTS). Node.js 26 entered LTS on 2026-10-28 and moved here
+  # from the advisory node-current workflow, which is gone until a line is
+  # Current again (Node.js 27, 2027-04-22).
   #
   # Windows and macOS are blocking from day one (zipnative doctrine): CRLF
   # line endings in PEM files, path separators in the scripts, the npm.cmd
   # shim and LibreSSL in place of OpenSSL are facts a Linux runner never
   # exercises. Any "skip on this platform" needs a linked issue. Both non-
-  # Linux platforms run the Node version of .nvmrc; the second Node version
-  # is covered on Linux, where the runners are fastest.
+  # Linux platforms run the Node version of .nvmrc; the other Node versions
+  # are covered on Linux, where the runners are fastest.
   ci:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -52,6 +58,7 @@ jobs:
         include:
           - { name: 'ci (22)', os: ubuntu-latest, node-version: 22, slug: linux-node22, audit: true }
           - { name: 'ci (24)', os: ubuntu-latest, node-version: 24, slug: linux-node24, audit: false }
+          - { name: 'ci (26)', os: ubuntu-latest, node-version: 26, slug: linux-node26, audit: false }
           - { name: windows, os: windows-latest, node-version: 22, slug: windows, audit: false }
           - { name: macos, os: macos-latest, node-version: 22, slug: macos, audit: false }
 
@@ -61,16 +68,16 @@ jobs:
       # mode, and Linux with block mode as well. One step serves all four
       # legs, so the policy is the one the Windows and macOS legs allow.
       - name: Harden the runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit # 2026-10-01: audit only on Windows/macOS (vendor matrix), and one step serves every leg
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -92,12 +99,56 @@ jobs:
 
       - name: Upload the gate logs on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gate-logs-${{ matrix.slug }}
           path: test-output/.gate/
           retention-days: 7
           if-no-files-found: ignore
+
+  # The 1.x promise, run rather than stated: the test suite of the previous
+  # release, exactly as it was tagged, against today's src/
+  # (scripts/run-compat.ts). The three frozen snapshots hold what the surface
+  # is; this holds what the release did. Blocking: a test of the previous
+  # release that fails here is a breaking change until
+  # tests/compat/allow-<version>.json names it with its reason.
+  #
+  # Not a gate step, so that the publish path never depends on a tag having
+  # been fetched: a commit reaches main only through this required check.
+  compat-previous:
+    name: compat-previous
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit # 2026-11-17: first runs of the job; block once its endpoints are baselined
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # The previous tag only, and anonymously — the repository is public —
+      # so the checkout above keeps its credentials off the runner.
+      - name: Fetch the previous release tag
+        run: |
+          set -euo pipefail
+          TAG=$(npx tsx scripts/run-compat.ts --print-tag)
+          git fetch --no-tags --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+
+      - name: Run the previous release's test suite against the current sources
+        run: npm run compat:previous
 
   # README.md and the landing page say the same build runs on Node, browsers,
   # Deno and Bun. The gate proves Node; this proves the rest, on the BUILT
@@ -112,16 +163,16 @@ jobs:
 
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit # 2026-10-01: the Deno and Bun downloads are not baselined yet
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -160,9 +211,11 @@ jobs:
   # for the GitHub Actions weaknesses (cache poisoning, template injection,
   # excessive permissions, unpinned or impostor actions — the class of audit
   # P-01 that a plain-text test missed); actionlint checks the syntax,
-  # expressions and every `run:` script through shellcheck. Both pinned: the
-  # zizmor image by the digest the action pins for 1.30.1, actionlint by the
-  # SHA-256 of its release archive.
+  # expressions and every `run:` script through shellcheck; `reuse lint`
+  # checks that every file carries its licence. All three pinned: the zizmor
+  # image by the digest the action pins for 1.30.1, actionlint by the SHA-256
+  # of its release archive, reuse and its dependencies by the SHA-256 of
+  # every file (scripts/data/reuse-requirements.txt).
   workflow-lint:
     name: workflow lint
     runs-on: ubuntu-latest
@@ -170,16 +223,16 @@ jobs:
 
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit # 2026-10-01: the container registry hosts behind ghcr.io are not baselined yet
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           version: 1.30.1
           min-severity: medium
@@ -200,3 +253,16 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}" actionlint
           shellcheck --version | head -2
           "${RUNNER_TEMP}/actionlint" -color
+
+      # Every file carries its copyright and its licence (REUSE.toml, REUSE
+      # 3.3). The verify-docs rule reuse-shape holds the shape of REUSE.toml;
+      # this is the tool itself, a Python package and so not a dev dependency:
+      # installed into its own environment from a requirements file that pins
+      # it and its dependencies by the SHA-256 of every file PyPI publishes.
+      - name: REUSE compliance
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/reuse"
+          "${RUNNER_TEMP}/reuse/bin/python" -m pip install --require-hashes --no-deps --only-binary :all: -r scripts/data/reuse-requirements.txt
+          "${RUNNER_TEMP}/reuse/bin/reuse" --version
+          "${RUNNER_TEMP}/reuse/bin/reuse" lint

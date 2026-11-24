@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Migrating from node-forge or pkijs — pkinative</title>
+  <meta name="description" content="What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="pkinative">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://pkinative.dev/guides/migrate.html">
+  <meta property="og:title" content="Migrating from node-forge or pkijs — pkinative">
+  <meta property="og:description" content="What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.">
+  <meta property="og:image" content="https://pkinative.dev/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Migrating from node-forge or pkijs — pkinative">
+  <meta name="twitter:description" content="What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.">
+  <meta name="twitter:image" content="https://pkinative.dev/assets/og-image.png">
+  <link rel="canonical" href="https://pkinative.dev/guides/migrate.html">
+  <link rel="alternate" hreflang="en" href="https://pkinative.dev/guides/migrate.html">
+  <link rel="alternate" hreflang="x-default" href="https://pkinative.dev/guides/migrate.html">
+  <link rel="alternate" type="text/markdown" href="migrate.md" title="Markdown source">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="guide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://pkinative.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Guides",
+            "item": "https://pkinative.dev/guides/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Migrating from node-forge or pkijs",
+            "item": "https://pkinative.dev/guides/migrate.html"
+          }
+        ]
+      },
+      {
+        "@type": "TechArticle",
+        "headline": "Migrating from node-forge or pkijs",
+        "description": "What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.",
+        "inLanguage": "en",
+        "author": {
+          "@type": "Organization",
+          "name": "Nizoka",
+          "url": "https://github.com/Nizoka"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://pkinative.dev/assets/logo.svg"
+          }
+        },
+        "image": "https://pkinative.dev/assets/og-image.png",
+        "mainEntityOfPage": {
+          "@type": "WebPage",
+          "@id": "https://pkinative.dev/guides/migrate.html"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "pkinative",
+          "url": "https://pkinative.dev/"
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-inner">
+      <a class="nav-brand" href="../"><img src="../assets/logo.svg" alt="" width="28" height="28">pkinative</a>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+      <ul class="nav-links" role="list">
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#ecosystem">Ecosystem</a></li>
+        <li><a href="../#examples">Examples</a></li>
+        <li><a href="../#comparison">Compare</a></li>
+        <li><a href="../#benchmarks">Benchmarks</a></li>
+        <li><a href="../#architecture">Architecture</a></li>
+        <li><a href="../guides/" aria-current="page">Guides</a></li>
+        <li><a href="../playgrounds/">Playgrounds</a></li>
+        <li><a href="../llms.txt">llms.txt</a></li>
+        <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+        <li><button class="theme-toggle" aria-label="Toggle theme" aria-pressed="false">🌙</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="guide-shell" id="main-content" tabindex="-1">
+    <p class="guide-breadcrumb"><a href="../">Home</a> › <a href="./">Guides</a> › Migrating from node-forge or pkijs</p>
+    <article id="guide-content" class="guide-content" data-md="migrate.md" data-prerendered="true">
+<h1 id="migrating-from-node-forge-or-pkijs">Migrating from node-forge or pkijs</h1>
+<blockquote>
+<p><strong>What each node-forge or pkijs call becomes in pkinative, what changes shape on the way — a report with reason codes where there was a boolean or an exception — and what has no counterpart, by design.</strong></p>
+</blockquote>
+<p>The node-forge and pkijs names below were read in the published packages, node-forge 1.4.3 and pkijs 4.0.1, on 2026-11-23; the pkinative code on this page runs on every test run.</p>
+<h2 id="three-differences-that-are-not-renames">Three differences that are not renames <a class="heading-anchor" href="#three-differences-that-are-not-renames" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Bytes in, frozen values out.</strong> pkinative takes a <code>Uint8Array</code> of DER and returns frozen plain objects that hold views of it. PEM is a step of its own, <code>decodePem</code>. node-forge works on binary strings and its own ASN.1 objects; pkijs takes a <code>BufferSource</code> and returns class instances built over asn1js.</li>
+<li><strong>A report, not a boolean.</strong> <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>verifyCertificationRequest</code> and <code>openPkcs12</code> resolve with <code>{ valid, reasons }</code> — every reason at once, each a stable <code>PKI_REASON_…</code> code with the path of what it is about — and throw only for a call that is itself wrong. The <a href="errors.html">errors guide</a> lists the codes.</li>
+<li><strong>No key is made or kept here.</strong> A signature is one Web Crypto call with a key you hold, or with an <code>ExternalSigner</code> for a key in an HSM. Generating a key, exporting one and encrypting with one stay in your code, through Web Crypto or <code>node:crypto</code>: see <a href="#what-has-no-counterpart-by-design">what has no counterpart</a>.</li>
+</ul>
+<h2 id="from-node-forge">From node-forge <a class="heading-anchor" href="#from-node-forge" aria-label="Link to this section">#</a></h2>
+<table tabindex="0">
+<thead>
+<tr>
+<th>You call (node-forge 1.4.3)</th>
+<th>In pkinative</th>
+<th>What changes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>forge.pki.certificateFromPem(pem)</code></td>
+<td><code>decodePem(pemText, { label: &#39;CERTIFICATE&#39; })</code>, then <code>parseCertificate(block.bytes)</code></td>
+<td>Every key type is read — node-forge&#39;s reader throws on a certificate whose key is not RSA — and every extension is typed</td>
+</tr>
+<tr>
+<td><code>forge.asn1.fromDer(bytes)</code>, then <code>forge.pki.certificateFromAsn1(obj)</code></td>
+<td><code>parseCertificate(der)</code></td>
+<td>One call; <code>decodeAsn1(der)</code> when you want the tree itself</td>
+</tr>
+<tr>
+<td><code>forge.pki.createCaStore(certs)</code>, then <code>forge.pki.verifyCertificateChain(caStore, chain, options)</code></td>
+<td><code>verifyCertificateChain({ leaf, candidates, trustAnchors })</code></td>
+<td>The path is built from candidates in any order; revocation, policies, purposes and the server name are options of the same call; the answer is a report</td>
+</tr>
+<tr>
+<td><code>forge.pki.certificationRequestFromPem(pem)</code>, then <code>csr.verify()</code></td>
+<td><code>parseCertificationRequest(der)</code>, then <code>verifyCertificationRequest(request)</code></td>
+<td>A report; the extensions the request asks for are typed</td>
+</tr>
+<tr>
+<td><code>forge.pki.createCertificate()</code> … <code>cert.sign(key, md)</code></td>
+<td><code>createCertificate(description, signer)</code></td>
+<td>The signer is a Web Crypto key with its algorithm. <code>cert.sign(key)</code> without a digest signs with SHA-1</td>
+</tr>
+<tr>
+<td><code>forge.pki.createCertificationRequest()</code> … <code>csr.sign(key, md)</code></td>
+<td><code>createCertificationRequest(description, signer)</code></td>
+<td>The same, and the same SHA-1 default on the node-forge side</td>
+</tr>
+<tr>
+<td><code>forge.pkcs7.messageFromPem(pem)</code>, <code>forge.pkcs7.messageFromAsn1(obj)</code></td>
+<td><code>parseSignedData(der)</code></td>
+<td>SignedData only</td>
+</tr>
+<tr>
+<td><code>forge.pkcs7.createSignedData()</code> … <code>p7.sign()</code></td>
+<td><code>createSignedData({ content, certificate, detached }, signer)</code></td>
+<td>One call, attached or detached</td>
+</tr>
+<tr>
+<td><code>message.verify()</code> on a SignedData, which throws <code>PKCS#7 signature verification not yet implemented.</code></td>
+<td><code>verifySignedData({ signedData, content, trustAnchors })</code></td>
+<td>Implemented: every signer, its chain, its timestamp when there is one</td>
+</tr>
+<tr>
+<td><code>forge.pkcs12.pkcs12FromAsn1(obj, password)</code>, then <code>p12.getBags(filter)</code></td>
+<td><code>openPkcs12(p12Bytes, { password })</code></td>
+<td>PBES2 files only; a key comes out as a <code>SigningKey</code> — a non-extractable <code>CryptoKey</code> and its algorithm — never as numbers</td>
+</tr>
+<tr>
+<td><code>forge.pki.privateKeyFromPem(pem)</code>, <code>forge.pki.decryptRsaPrivateKey(pem, password)</code></td>
+<td><code>decodePem</code>, then <code>importPrivateKey(der, options)</code></td>
+<td>A PKCS#8 key, RSA or not, becomes a non-extractable handle for Web Crypto; an <code>RSA PRIVATE KEY</code> block is PKCS#1, to convert once (<code>openssl pkcs8 -topk8 -in rsa.pem -out pkcs8.pem</code>)</td>
+</tr>
+</tbody></table>
+<p>node-forge 1.4.3 has no module for CRLs, OCSP or RFC 3161 timestamps; in pkinative they are <code>parseCertificateList</code> and <code>checkRevocation</code>, <code>createOcspRequest</code>, <code>parseOcspResponse</code> and <code>checkOcspStatus</code>, <code>createTimeStampRequest</code> and <code>verifyTimeStampToken</code> — or the <code>crls</code> and <code>ocspResponses</code> of <code>verifyCertificateChain</code>, which composes them.</p>
+<p>Reading a certificate, before and after:</p>
+<pre><code class="language-ts">import { decodePem, formatDistinguishedName, parseCertificate } from &#39;pkinative&#39;;
+
+// const cert = forge.pki.certificateFromPem(pemText);
+const [block] = decodePem(pemText, { label: &#39;CERTIFICATE&#39; });
+const cert = parseCertificate(block.bytes);
+
+formatDistinguishedName(cert.subject);   // the subject, as text
+cert.subjectPublicKeyInfo.kind;          // &#39;rsa&#39;, &#39;ec&#39;, &#39;ed25519&#39;, &#39;ml-dsa-65&#39;, …
+</code></pre>
+<p>A chain, before and after:</p>
+<pre><code class="language-ts">import { verifyCertificateChain } from &#39;pkinative&#39;;
+
+// forge.pki.verifyCertificateChain(forge.pki.createCaStore(roots), chain)
+const report = await verifyCertificateChain({ leaf, candidates, trustAnchors: roots });
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+</code></pre>
+<h2 id="from-pkijs">From pkijs <a class="heading-anchor" href="#from-pkijs" aria-label="Link to this section">#</a></h2>
+<table tabindex="0">
+<thead>
+<tr>
+<th>You call (pkijs 4.0.1)</th>
+<th>In pkinative</th>
+<th>What changes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pkijs.Certificate.fromBER(raw)</code></td>
+<td><code>parseCertificate(der)</code></td>
+<td>Strict DER: an encoding DER does not allow is refused with a typed error, not read</td>
+</tr>
+<tr>
+<td><code>certificate.verify(issuerCertificate)</code></td>
+<td><code>verifyCertificateSignature(certificate, issuer)</code></td>
+<td>The same boolean — and, as there, a signature is not a chain</td>
+</tr>
+<tr>
+<td><code>new pkijs.CertificateChainValidationEngine({ certs, trustedCerts, crls, ocsps, checkDate })</code>, then <code>.verify()</code></td>
+<td><code>verifyCertificateChain({ leaf, candidates, trustAnchors, crls, ocspResponses, at })</code></td>
+<td><code>crls</code> and <code>ocspResponses</code> are DER bytes, <code>at</code> is milliseconds since the epoch; <code>{ result, resultCode, resultMessage }</code> becomes <code>{ valid, reasons }</code></td>
+</tr>
+<tr>
+<td><code>pkijs.CertificationRequest.fromBER(raw)</code>, then <code>.verify()</code></td>
+<td><code>parseCertificationRequest(der)</code>, then <code>verifyCertificationRequest(request)</code></td>
+<td>A report</td>
+</tr>
+<tr>
+<td><code>pkijs.ContentInfo.fromBER(raw)</code>, <code>new pkijs.SignedData({ schema: contentInfo.content })</code>, then <code>.verify({ signer, data, trustedCerts, checkChain })</code></td>
+<td><code>verifySignedData({ signedData, content, trustAnchors })</code></td>
+<td>Every signer is judged in one call, with its chain; <code>report.signers</code> has each verdict</td>
+</tr>
+<tr>
+<td><code>signedData.sign(privateKey, signerIndex, hashAlgorithm, data)</code></td>
+<td><code>createSignedData({ content, certificate, detached }, signer)</code></td>
+<td>One call returns the DER</td>
+</tr>
+<tr>
+<td><code>pkijs.CertificateRevocationList.fromBER(raw)</code>, <code>crl.verify({ issuerCertificate })</code>, <code>crl.isCertificateRevoked(certificate)</code></td>
+<td><code>parseCertificateList(der)</code>, <code>verifyCrlSignature(crl, issuer)</code>, <code>checkRevocation({ certificate, crl, crlDer, at, signatureVerified })</code></td>
+<td>Scope, freshness and delta lists are decided too, as reasons</td>
+</tr>
+<tr>
+<td><code>ocspRequest.createForCertificate(certificate, { issuerCertificate, hashAlgorithm })</code></td>
+<td><code>createOcspRequest(certificate, issuer)</code></td>
+<td>Returns the DER to send</td>
+</tr>
+<tr>
+<td><code>pkijs.OCSPResponse.fromBER(raw)</code>, then <code>.getCertificateStatus(certificate, issuerCertificate)</code></td>
+<td><code>parseOcspResponse(der)</code>, then <code>checkOcspStatus({ response, expected, at, … })</code></td>
+<td><code>{ isForCertificate, status }</code> becomes reasons: revoked, unknown, stale, not about this certificate</td>
+</tr>
+<tr>
+<td><code>pkijs.PFX.fromBER(raw)</code>, then <code>.parseInternalValues({ password, checkIntegrity })</code></td>
+<td><code>openPkcs12(p12Bytes, { password })</code></td>
+<td>Integrity is checked unless you say otherwise; keys come out as <code>SigningKey</code>s, each a non-extractable <code>CryptoKey</code> and its algorithm</td>
+</tr>
+<tr>
+<td><code>pkijs.TimeStampResp.fromBER(raw)</code>, then <code>.verify({ data, trustedCerts })</code></td>
+<td><code>verifyTimeStampToken({ response, data, trustAnchors })</code></td>
+<td>The TSA&#39;s chain and its <code>timeStamping</code> purpose are part of the verdict</td>
+</tr>
+<tr>
+<td><code>pkijs.AttributeCertificateV2.fromBER(raw)</code></td>
+<td><code>parseAttributeCertificate(der)</code>, then <code>verifyAttributeCertificateSignature(ac, issuer)</code></td>
+<td>Attributes and extensions typed; the signature can be checked</td>
+</tr>
+<tr>
+<td><code>pkijs.setEngine(name, crypto)</code></td>
+<td>nothing</td>
+<td>pkinative calls the host&#39;s Web Crypto; there is no engine to set</td>
+</tr>
+</tbody></table>
+<p>pkijs 4.0.1 installs three dependencies and asks for asn1js as a peer; pkinative installs nothing else.</p>
+<p>A CMS signature, before and after:</p>
+<pre><code class="language-ts">import { verifySignedData } from &#39;pkinative&#39;;
+
+// const signedData = new pkijs.SignedData({ schema: pkijs.ContentInfo.fromBER(p7s).content });
+// const ok = await signedData.verify({ signer: 0, data: signedContent, trustedCerts: roots, checkChain: true });
+const report = await verifySignedData({ signedData: p7s, content: signedContent, trustAnchors: roots });
+if (!report.valid) for (const reason of report.reasons) console.log(reason.code, reason.path, reason.message);
+</code></pre>
+<p>A PKCS#12, before and after:</p>
+<pre><code class="language-ts">import { openPkcs12 } from &#39;pkinative&#39;;
+
+// const pfx = pkijs.PFX.fromBER(p12Bytes); await pfx.parseInternalValues({ password, checkIntegrity: true });
+// An rsaEncryption key needs its scheme named: the file does not say it, and pkinative does not guess.
+const report = await openPkcs12(p12Bytes, { password, rsaAlgorithm: { name: &#39;RSASSA-PKCS1-v1_5&#39;, hash: &#39;SHA-256&#39; } });
+if (!report.valid) throw new Error(report.reasons.map((r) =&gt; `${r.code} at ${r.path}`).join(&#39;; &#39;));
+const [{ signingKey, certificate }] = report.keys;
+console.log(certificate !== undefined, signingKey !== undefined);
+</code></pre>
+<h2 id="what-has-no-counterpart-by-design">What has no counterpart, by design <a class="heading-anchor" href="#what-has-no-counterpart-by-design" aria-label="Link to this section">#</a></h2>
+<p>Each of these is a recorded decision; <a href="choose.html">Choosing a library and a surface</a> gives the record behind each one.</p>
+<table tabindex="0">
+<thead>
+<tr>
+<th>You use</th>
+<th>In pkinative</th>
+<th>Instead</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Key generation — <code>forge.pki.rsa.generateKeyPair(…)</code></td>
+<td>Refused in every version: no key is generated or exported here</td>
+<td><code>crypto.subtle.generateKey</code> in your own code, where it is visible</td>
+</tr>
+<tr>
+<td>RSA, ciphers and TLS written in JavaScript — the rest of node-forge</td>
+<td>None: pkinative holds no arithmetic on a secret</td>
+<td>Web Crypto, <code>node:crypto</code>, <code>node:tls</code></td>
+</tr>
+<tr>
+<td>CMS EnvelopedData and EncryptedData</td>
+<td>SignedData only</td>
+<td>Keep the library you have for that part, or OpenSSL</td>
+</tr>
+<tr>
+<td>A legacy PKCS#12 — RC2, 3DES, the RFC 7292 Appendix B MAC</td>
+<td>Refused: PBES2 files only</td>
+<td>Convert it once with OpenSSL: the two commands are in <a href="choose.html#what-it-does-not-do-by-design">the other guide</a></td>
+</tr>
+<tr>
+<td>Writing a PKCS#12 or a PKCS#8</td>
+<td>Not written</td>
+<td>Web Crypto or <code>node:crypto</code>, or OpenSSL</td>
+</tr>
+<tr>
+<td>Fetching a CRL, an OCSP response or a timestamp</td>
+<td>The engine does no I/O</td>
+<td>Fetch the bytes yourself and pass them</td>
+</tr>
+</tbody></table>
+<h2 id="migrating-in-parts">Migrating in parts <a class="heading-anchor" href="#migrating-in-parts" aria-label="Link to this section">#</a></h2>
+<p>Nothing requires one step. pkinative has no dependency and no global state, so it sits beside the library you have: move the reading of untrusted input first — the parser is where the advisories are — then the verdicts, and keep the other library for what the table above leaves to it. The boundary between the two is DER bytes: what one writes, the other reads.</p>
+    </article>
+  </main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h2 class="footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/pkinative" target="_blank" rel="noopener">npm</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
+            <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
+            <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Guides</h2>
+          <ul>
+            <li><a href="../guides/quickstart.html">Quick start</a></li>
+            <li><a href="../guides/use-cases.html">Use cases</a></li>
+            <li><a href="../guides/cli.html">CLI</a></li>
+            <li><a href="../guides/use-cases-cli.html">CLI use cases</a></li>
+            <li><a href="../guides/mcp.html">MCP server</a></li>
+            <li><a href="../guides/use-cases-mcp.html">MCP use cases</a></li>
+            <li><a href="../guides/security.html">Security</a></li>
+            <li><a href="../guides/conformance.html">Conformance</a></li>
+            <li><a href="../guides/standards.html">Standards</a></li>
+            <li><a href="../guides/errors.html">Errors</a></li>
+            <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">Ecosystem</h2>
+          <ul>
+            <li><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a></li>
+            <li><a href="https://github.com/Nizoka/pkinative-mcp" target="_blank" rel="noopener">pkinative-mcp</a></li>
+            <li><a href="../playgrounds/">Playgrounds</a></li>
+            <li><a href="../playgrounds/cli.html">CLI command builder</a></li>
+            <li><a href="../playgrounds/mcp.html">MCP tool explorer</a></li>
+            <li><a href="../data/surfaces.json">surfaces.json</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h2 class="footer-title">For agents</h2>
+          <ul>
+            <li><a href="../llms.txt">llms.txt</a></li>
+            <li><a href="../llms-full.txt">llms-full.txt</a></li>
+            <li><a href="../agent-brief.md">Agent brief</a></li>
+            <li><a href="../assets/api.json">api.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>MIT License · © 2026 Nizoka</span>
+        <ul class="footer-links" role="list">
+          <li><a href="../sitemap.xml">Sitemap</a></li>
+          <li><a href="../guides/">All guides</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" integrity="sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js" integrity="sha384-PeOqKNW/piETaCg8rqKFy+Pm6KEk7e36/5YZE5XO/OaFdO+/Aw3O8qZ9qDPKVUgx" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js" integrity="sha384-9WmlN8ABpoFSSHvBGGjhvB3E/D8UkNB9HpLJjBQFC2VSQsM1odiQDv4NbEo+7l15" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" integrity="sha384-RhrmFFMb0ZCHImjFMpR/UE3VEtIVTCtNrtKQqXCzqXZNJala02N3UbVhi+qzw3CY" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-powershell.min.js" integrity="sha384-xbI9krqyYp4npK9Cn94XyNoSR+TYZKddrk0NUVZ44zZ+OVpKz/LL0U1PB0MjR7Vx" crossorigin="anonymous" defer></script>
+  <script src="guide.js" defer></script>
+</body>
+</html>

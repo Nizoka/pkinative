@@ -28,6 +28,7 @@ import {
     encodeString,
     encodeTime,
 } from '../asn1/asn1-encode.js';
+import { assertArray, assertFlag, assertIterable, assertObject, assertOptions, describeValue } from '../core/arguments.js';
 import { assertBytes, isBytes } from '../core/bytes.js';
 import { NAME_ATTRIBUTE_SYNTAX, OID_COUNTRY_NAME } from '../core/name-oids.js';
 import { DEFAULT_PKI_LIMITS, enforceLimit, resolveLimits } from '../core/pki-limits.js';
@@ -84,7 +85,7 @@ function nameStringType(type: string, value: string, requested: NameAttribute['s
     const allowed = fixed === undefined ? DIRECTORY_STRING_TYPES.has(chosen) : chosen === fixed;
     if (!allowed) {
         const expected = fixed === undefined ? 'a DirectoryString, which a conforming CA writes as UTF8String or PrintableString (RFC 5280 §4.1.2.4)' : `${fixed === 'printable' ? 'a PrintableString' : 'an IA5String'} (RFC 5280 Appendix A.1)`;
-        throw new PkiError('PKI_API_MISUSE', `pkinative: ${spec.name} (${type}) is ${expected}, not stringType '${chosen}' — omit stringType to get the right one, or pass the value's DER as a Uint8Array to reproduce an existing name byte for byte`);
+        throw new PkiError('PKI_API_MISUSE', `pkinative: ${spec.name} (${type}) is ${expected}, not stringType '${describeValue(chosen)}' — omit stringType to get the right one, or pass the value's DER as a Uint8Array to reproduce an existing name byte for byte`);
     }
     // SIZE counts characters: code points, not UTF-16 units or octets.
     const size = [...value].length;
@@ -110,13 +111,14 @@ function nameStringType(type: string, value: string, requested: NameAttribute['s
  *
  * @param attribute The type OID and its value.
  * @returns The `AttributeTypeAndValue` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when the value is neither a string
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the attribute is not an object, or its value neither a string
  *   nor a Uint8Array; `PKI_API_MISUSE` when `stringType` is one the
  *   attribute's syntax excludes (`'utf8'` for `countryName`, `'ia5'` for
  *   `commonName`), or the value is outside the attribute's SIZE bounds.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed type OID; `PKI_ASN1_VALUE_OUT_OF_RANGE` for a character the chosen string type cannot carry.
  */
 export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
+    assertObject(attribute, 'a name attribute');
     const { type, value, stringType } = attribute;
     const encoded = isBytes(value)
         ? value
@@ -124,7 +126,7 @@ export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
             ? encodeString(nameStringType(type, value, stringType), value)
             : null;
     if (encoded === null) {
-        throw new PkiError('PKI_INVALID_INPUT', `pkinative: the value of name attribute ${type} must be a string or a Uint8Array of its DER, got ${typeof value}`);
+        throw new PkiError('PKI_INVALID_INPUT', `pkinative: the value of name attribute ${describeValue(type)} must be a string or a Uint8Array of its DER, got ${typeof value}`);
     }
     return encodeSequence([encodeObjectIdentifier(type), encoded]);
 }
@@ -141,13 +143,14 @@ export function encodeNameAttribute(attribute: NameAttribute): Uint8Array {
  * @param name    The RDNs, most significant first.
  * @param options `limits` bounds the attribute count.
  * @returns The `Name` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when `name` is not an array of arrays.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `name` is not an array of arrays; `PKI_INVALID_OPTION` for options that are not an object.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` when the name has more attributes than `maxNameAttributes`.
  */
 export function encodeDistinguishedName(name: NameDescription, options?: PkiBuildOptions): Uint8Array {
     if (!Array.isArray(name)) {
         throw new PkiError('PKI_INVALID_INPUT', `pkinative: a name is an array of relative distinguished names, got ${typeof name}`);
     }
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     let attributes = 0;
     const rdns: Uint8Array[] = [];
@@ -241,12 +244,14 @@ export function _wholeValue(bytes: Uint8Array, what: string, expected: string, t
  *
  * @param extension The OID, the criticality and the value's DER.
  * @returns The `Extension` encoding.
- * @throws {PkiError} `PKI_INVALID_INPUT` when the value is not a Uint8Array;
- *   `PKI_API_MISUSE` when it is not exactly one DER value.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when the extension is not an object or its value not a Uint8Array;
+ *   `PKI_API_MISUSE` when it is not exactly one DER value; `PKI_INVALID_OPTION` for a `critical` that is not a boolean.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed OID.
  */
 export function encodeExtension(extension: ExtensionDescription): Uint8Array {
+    assertObject(extension, 'an extension');
     const fields = [encodeObjectIdentifier(extension.oid)];
+    assertFlag(extension.critical, 'critical');
     if (extension.critical === true) fields.push(encodeBoolean(true));
     fields.push(encodeOctetString(_wholeValue(assertBytes(extension.value, `extension ${extension.oid} value`), `extension ${extension.oid} value`, 'the DER of one value, as encodeBasicConstraints and the other extension encoders return it')));
     return encodeSequence(fields);
@@ -260,12 +265,16 @@ export function encodeExtension(extension: ExtensionDescription): Uint8Array {
  * @returns The `Extensions` encoding.
  * @throws {PkiError} `PKI_API_MISUSE` when two extensions share an OID — which extension a verifier reads would be undefined, so a certificate carrying one twice is refused on the way out as it is on the way in.
  * @throws {PkiLimitError} `PKI_LIMIT_EXCEEDED` past `maxExtensions`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `extensions` is not an array of objects; `PKI_INVALID_OPTION` for options that are not an object or a `critical` that is not a boolean.
  */
 export function encodeExtensions(extensions: readonly ExtensionDescription[], options?: PkiBuildOptions): Uint8Array {
+    assertArray(extensions, 'extensions');
+    assertOptions(options, 'options');
     const limits = options?.limits === undefined ? DEFAULT_PKI_LIMITS : resolveLimits(options.limits);
     enforceLimit(limits, 'maxExtensions', extensions.length, 'the extensions being built');
     const seen = new Set<string>();
     for (const extension of extensions) {
+        assertObject(extension, 'an extension');
         if (seen.has(extension.oid)) {
             throw new PkiError('PKI_API_MISUSE', `pkinative: extension ${extension.oid} appears twice; RFC 5280 §4.2 allows one instance, and which one a verifier reads is undefined`);
         }
@@ -322,14 +331,17 @@ export function encodeSubjectPublicKeyInfo(algorithmOid: string, publicKey: Uint
  * @returns The extension value's DER.
  * @throws {PkiError} `PKI_API_MISUSE` for a negative or fractional
  *   `pathLenConstraint`, or one on an end entity, which constrains no path.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `options` is not an object; `PKI_INVALID_OPTION` for a `cA` that is not a boolean.
  */
 export function encodeBasicConstraints(options: { readonly cA: boolean; readonly pathLenConstraint?: number | undefined }): Uint8Array {
+    assertObject(options, 'the basicConstraints description');
+    assertFlag(options.cA, 'cA');
     const fields: Uint8Array[] = [];
     // cA DEFAULT FALSE: omitted when false, as DER requires.
     if (options.cA) fields.push(encodeBoolean(true));
     if (options.pathLenConstraint !== undefined) {
         if (!Number.isInteger(options.pathLenConstraint) || options.pathLenConstraint < 0) {
-            throw new PkiError('PKI_API_MISUSE', `pkinative: pathLenConstraint must be a non-negative integer, got ${String(options.pathLenConstraint)}`);
+            throw new PkiError('PKI_API_MISUSE', `pkinative: pathLenConstraint must be a non-negative integer, got ${describeValue(options.pathLenConstraint)}`);
         }
         if (!options.cA) {
             throw new PkiError('PKI_API_MISUSE', 'pkinative: pathLenConstraint is meaningful only when cA is true (RFC 5280 §4.2.1.9) — an end-entity certificate constrains no path');
@@ -381,13 +393,15 @@ export const KEY_USAGE_BITS: ReadonlyMap<string, number> = /*#__PURE__*/ readOnl
  * @param usages The usage names, in any order — {@link KEY_USAGE_BITS} lists them.
  * @returns The extension value's DER, with every trailing zero bit dropped.
  * @throws {PkiError} `PKI_INVALID_OPTION` for a name RFC 5280 does not define.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `usages` cannot be iterated.
  */
 export function encodeKeyUsage(usages: Iterable<string>): Uint8Array {
+    assertIterable(usages, 'the key usages');
     const bits: number[] = [];
     for (const usage of usages) {
         const bit = KEY_USAGE_TABLE.get(usage);
         if (bit === undefined) {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${usage} is not a KeyUsage of RFC 5280 §4.2.1.3 — one of ${[...KEY_USAGE_TABLE.keys()].join(', ')}`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${describeValue(usage)} is not a KeyUsage of RFC 5280 §4.2.1.3 — one of ${[...KEY_USAGE_TABLE.keys()].join(', ')}`);
         }
         bits.push(bit);
     }
@@ -401,8 +415,10 @@ export function encodeKeyUsage(usages: Iterable<string>): Uint8Array {
  * @returns The extension value's DER.
  * @throws {PkiError} `PKI_API_MISUSE` when the list is empty, which permits nothing.
  * @throws {PkiEncodingError} `PKI_OID_INVALID` for a malformed OID.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `purposes` is not an array.
  */
 export function encodeExtendedKeyUsage(purposes: readonly string[]): Uint8Array {
+    assertArray(purposes, 'the extended key usages');
     if (purposes.length === 0) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: an extendedKeyUsage with no purpose permits nothing and is refused by RFC 5280 §4.2.1.12');
     }
@@ -477,12 +493,15 @@ const TEXT_NAME_TAGS: ReadonlyMap<string, number> = /*#__PURE__*/ new Map([
  *   or for an `iPAddress` that is not 4 or 16 octets.
  * @throws {PkiEncodingError} `PKI_ASN1_VALUE_OUT_OF_RANGE` for a character an IA5String cannot carry.
  * @throws {PkiError} `PKI_OID_INVALID` for a malformed `registeredID`.
+ * @throws {PkiError} `PKI_INVALID_INPUT` when `names` is not an array of objects.
  */
 export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): Uint8Array {
+    assertArray(names, 'the subject alternative names');
     if (names.length === 0) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: a subjectAltName with no name is refused by RFC 5280 §4.2.1.6 — omit the extension instead');
     }
     return encodeSequence(names.map((name) => {
+        assertObject(name, 'a subject alternative name');
         if (name.kind === 'directoryNameDer') return encodeExplicit(4, assertBytes(name.value, 'directoryName'));
         if (name.kind === 'iPAddress') {
             const address = assertBytes(name.value, 'iPAddress');
@@ -497,7 +516,7 @@ export function encodeSubjectAltName(names: readonly GeneralNameDescription[]): 
         if (name.kind === 'registeredID') return encodeImplicit(8, encodeObjectIdentifier(name.value));
         const tag = TEXT_NAME_TAGS.get(name.kind);
         if (tag === undefined) {
-            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${String((name as { kind: string }).kind)} is not a GeneralName form this encoder writes — pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
+            throw new PkiError('PKI_INVALID_OPTION', `pkinative: ${describeValue((name as { kind: unknown }).kind)} is not a GeneralName form this encoder writes — pass a directoryNameDer, or build the GeneralName with encodeImplicit`);
         }
         return encodeImplicit(tag, encodeString('ia5', name.value));
     }));

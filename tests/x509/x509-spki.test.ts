@@ -3,7 +3,7 @@ import { createAsn1Context } from '../../src/asn1/asn1-context.js';
 import { decodeAsn1 } from '../../src/asn1/asn1-decode.js';
 import { _readSubjectPublicKeyInfo } from '../../src/x509/x509-spki.js';
 import { PkiCertificateError, PkiError, PkiLimitError } from '../../src/types/pki-errors.js';
-import type { PkiParseOptions } from '../../src/types/pki-types.js';
+import type { PkiDiagnostic, PkiParseOptions } from '../../src/types/pki-types.js';
 import type { SubjectPublicKeyInfo } from '../../src/types/x509-types.js';
 import { algorithm, bitString, integer, nullValue, octetString, oid, rsaKey } from '../helpers/cert-builder.js';
 import { concat, sequence, universal } from '../helpers/raw-der-builder.js';
@@ -202,10 +202,115 @@ describe('_readSubjectPublicKeyInfo', () => {
         });
     });
 
+    // 1.1.0 (ADR 0026): the twelve pure SLH-DSA parameter sets and the three
+    // ML-KEM ones, read and nothing more. OIDs: NIST CSOR sigAlgs 20 to 31 and
+    // kems 1 to 3. Lengths: PK.seed ‖ PK.root, 2n octets (RFC 9909 §5 and
+    // Table 1 of its Appendix B); the encapsulation keys of RFC 9935 §4.
+    describe('SLH-DSA and ML-KEM keys', () => {
+        const POST_QUANTUM: readonly (readonly [string, string, number, string])[] = [
+            ['2.16.840.1.101.3.4.3.20', 'slh-dsa-sha2-128s', 32, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.21', 'slh-dsa-sha2-128f', 32, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.22', 'slh-dsa-sha2-192s', 48, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.23', 'slh-dsa-sha2-192f', 48, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.24', 'slh-dsa-sha2-256s', 64, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.25', 'slh-dsa-sha2-256f', 64, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.26', 'slh-dsa-shake-128s', 32, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.27', 'slh-dsa-shake-128f', 32, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.28', 'slh-dsa-shake-192s', 48, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.29', 'slh-dsa-shake-192f', 48, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.30', 'slh-dsa-shake-256s', 64, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.3.31', 'slh-dsa-shake-256f', 64, 'RFC 9909 §5'],
+            ['2.16.840.1.101.3.4.4.1', 'ml-kem-512', 800, 'RFC 9935 §3'],
+            ['2.16.840.1.101.3.4.4.2', 'ml-kem-768', 1184, 'RFC 9935 §3'],
+            ['2.16.840.1.101.3.4.4.3', 'ml-kem-1024', 1568, 'RFC 9935 §3'],
+        ];
+        const keyOf = (length: number): Uint8Array => bitString(new Array<number>(length).fill(7));
+
+        it.each(POST_QUANTUM)('should read %s as %s, a key of %i octets, and say nothing', (algorithmOid, kind, length) => {
+            const seen: string[] = [];
+            const key = readSpki(spki(algorithm(algorithmOid), keyOf(length)), { onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(key.kind).toBe(kind);
+            expect('key' in key ? key.key.length : 0).toBe(length);
+            expect(seen).toEqual([]);
+        });
+
+        it.each(POST_QUANTUM)('should refuse %s (%s) one octet short of %i, and one octet over', (algorithmOid, _kind, length) => {
+            expect(codeOf(() => readSpki(spki(algorithm(algorithmOid), keyOf(length - 1))))).toBe('PKI_X509_SPKI_INVALID');
+            expect(codeOf(() => readSpki(spki(algorithm(algorithmOid), keyOf(length + 1))))).toBe('PKI_X509_SPKI_INVALID');
+        });
+
+        it.each(POST_QUANTUM)('should refuse %s (%s) with parameters, citing its clause', (algorithmOid, _kind, length, clause) => {
+            // RFC 9909 §5 and RFC 9935 §3: "The parameters field … MUST be absent."
+            const error = thrown(() => readSpki(spki(algorithm(algorithmOid, nullValue()), keyOf(length))));
+            expect(error).toBeInstanceOf(PkiCertificateError);
+            expect(error).toMatchObject({ code: 'PKI_X509_SPKI_INVALID', message: expect.stringContaining(`(${clause})`) });
+        });
+
+        it('should refuse an SLH-DSA key with unused bits', () => {
+            expect(codeOf(() => readSpki(spki(algorithm('2.16.840.1.101.3.4.3.20'), bitString(new Array<number>(32).fill(0x10), 4))))).toBe('PKI_X509_SPKI_INVALID');
+        });
+
+        it.each<[string, string]>([
+            ['id-hash-slh-dsa-sha2-128s-with-sha256', '2.16.840.1.101.3.4.3.35'],
+            ['id-hash-slh-dsa-shake-256f-with-shake256', '2.16.840.1.101.3.4.3.46'],
+            ['id-hash-ml-dsa-44-with-sha512', '2.16.840.1.101.3.4.3.32'],
+        ])('should keep %s as unknown: only the pure identifiers are classified', (_name, algorithmOid) => {
+            const seen: string[] = [];
+            const key = readSpki(spki(algorithm(algorithmOid), keyOf(32)), { onDiagnostic: (d) => { seen.push(d.code); } });
+            expect(key.kind).toBe('unknown');
+            expect(seen).toEqual(['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED']);
+        });
+    });
+
     it('should keep the key of an algorithm it does not decode', () => {
         const key = readSpki(spki(algorithm('1.2.3.4', nullValue()), bitString([1, 2, 3])));
         expect(key).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
         expect([...key.publicKey.bytes]).toEqual([1, 2, 3]);
+    });
+
+    // RFC 5280 §4.1.2.7 names no closed set of key algorithms: the key is kept,
+    // and the reader says why it was not classified — as an `info`, so that a
+    // valid certificate under an algorithm the engine does not know yet still
+    // parses under `strict`.
+    describe('an algorithm it does not classify', () => {
+        const UNKNOWN = spki(algorithm('1.2.3.4', nullValue()), bitString([1, 2, 3]));
+
+        it('should report PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED once, as an info at the AlgorithmIdentifier, naming the OID', () => {
+            const seen: PkiDiagnostic[] = [];
+            const key = readSpki(UNKNOWN, { onDiagnostic: (d) => { seen.push(d); } });
+            expect(seen.map((d) => ({ code: d.code, severity: d.severity, path: d.path, offset: d.offset, standard: d.standard })))
+                .toEqual([{ code: 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED', severity: 'info', path: 'spki.algorithm', offset: 2, standard: 'RFC 5280 §4.1.2.7' }]);
+            expect(seen[0]?.message).toContain('1.2.3.4');
+            expect(key.kind).toBe('unknown');
+        });
+
+        it('should give the offset of the AlgorithmIdentifier behind a long-form SEQUENCE header', () => {
+            const seen: (number | undefined)[] = [];
+            readSpki(spki(algorithm('1.2.3.4'), bitString(new Array<number>(200).fill(7))), { onDiagnostic: (d) => { seen.push(d.offset); } });
+            expect(seen).toEqual([3]);
+        });
+
+        it('should keep the key under strict: an info is reported, never refused', () => {
+            const ctx = createAsn1Context({ strict: true });
+            const key = _readSubjectPublicKeyInfo(decodeAsn1(UNKNOWN), ctx, 'spki', 0);
+            expect(key).toMatchObject({ kind: 'unknown', algorithm: { oid: '1.2.3.4' } });
+            expect(ctx.emitter.diagnostics.map((d) => d.code)).toEqual(['PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED']);
+        });
+
+        it.each<[string, Uint8Array]>([
+            ['an RSA key', rsaKey([0x41, 0x02, 0x03])],
+            ['an Ed25519 key', spki(algorithm(ED25519), bitString(new Array<number>(32).fill(7)))],
+            ['an EC key on P-256', spki(ecAlgorithm(P256), bitString(point(65)))],
+        ])('should say nothing about %s', (_label, bytes) => {
+            expect(diagnosticsOf(bytes)).toEqual([]);
+        });
+
+        it('should refuse a malformed key structure without also diagnosing its algorithm', () => {
+            const seen: string[] = [];
+            expect(() => readSpki(sequence(algorithm('1.2.3.4'), octetString([1, 2, 3])), { onDiagnostic: (d) => { seen.push(d.code); } }))
+                .toThrow(expect.objectContaining({ code: 'PKI_X509_SPKI_INVALID' }));
+            expect(seen).toEqual([]);
+        });
     });
 
     describe('structure', () => {

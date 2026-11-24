@@ -462,6 +462,7 @@ export function compareSemver(a: string, b: string): number {
 
 interface FrozenSnapshot {
     readonly frozenAt?: unknown;
+    readonly asOf?: unknown;
     readonly codes?: Array<{ readonly code?: unknown; readonly class?: unknown }>;
 }
 
@@ -491,6 +492,10 @@ const errorCodesFrozen: Rule = {
         const snapText = ctx.read(FROZEN_REGISTRY) ?? '';
         const frozenAt = snapshot.value.frozenAt;
         if (typeof frozenAt !== 'string' || !SEMVER.test(frozenAt)) return [error(FROZEN_REGISTRY, '"frozenAt" must be the x.y.z version the vocabulary froze at')];
+
+        // A ratchet records the codes a later release ships: the snapshot then reaches `asOf`, not only `frozenAt`.
+        const asOf = snapshot.value.asOf;
+        const through = typeof asOf === 'string' && SEMVER.test(asOf) && compareSemver(asOf, frozenAt) > 0 ? asOf : frozenAt;
 
         const sourceText = ctx.read(ERRORS_SOURCE);
         if (sourceText === null) return [error(ERRORS_SOURCE, 'missing — the error hierarchy and its code unions')];
@@ -522,7 +527,7 @@ const errorCodesFrozen: Rule = {
             const union = codeClass.get(code);
             if (entry === undefined) out.push(error(ERRORS_REGISTRY, `${code} was frozen at ${frozenAt} and is gone from the registry — removing or renaming a frozen code: ${howTo}`));
             else if (entry.class !== row.class) out.push(error(ERRORS_REGISTRY, `${code} was frozen at ${frozenAt} as a ${row.class} and is now a ${String(entry.class)} — moving a code to another class breaks every instanceof check: ${howTo}`, lineContaining(regText, `"${code}"`)));
-            else if (typeof entry.since === 'string' && SEMVER.test(entry.since) && compareSemver(entry.since, frozenAt) > 0) out.push(error(ERRORS_REGISTRY, `${code} is frozen at ${frozenAt} but claims "since": "${entry.since}" — a frozen code cannot be younger than the freeze`, lineContaining(regText, `"${code}"`)));
+            else if (typeof entry.since === 'string' && SEMVER.test(entry.since) && compareSemver(entry.since, through) > 0) out.push(error(ERRORS_REGISTRY, `${code} is in the snapshot, which reaches ${through}, but claims "since": "${entry.since}" — a recorded code cannot be younger than the release that recorded it`, lineContaining(regText, `"${code}"`)));
             if (union === undefined) out.push(error(ERRORS_SOURCE, `${code} was frozen at ${frozenAt} and is gone from the code unions — removing or renaming a frozen code: ${howTo}`));
             else if (union !== row.class) out.push(error(ERRORS_SOURCE, `${code} was frozen at ${frozenAt} as a ${row.class} and now belongs to the union of ${union}: ${howTo}`, lineContaining(sourceText, `'${code}'`)));
         }

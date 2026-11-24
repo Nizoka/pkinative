@@ -127,9 +127,10 @@ describe('build-api-frozen', () => {
     const snapshot: ApiFrozen = { ...live, frozenAt: '0.8.0', phase: 'rehearsal', asOf: '0.8.0' };
     const REHEARSAL: Record<string, string> = { ...TREE, 'docs/assets/api.frozen.json': renderApiFrozen(snapshot) };
 
-    it('should be in sync with the committed snapshot, which is the 1.0.0 stable promise', () => {
-        expect(live).toMatchObject({ frozenAt: '1.0.0', phase: 'stable', asOf: '1.0.0' });
-        expect(planApiFrozen(readerOf(TREE), '1.0.0', { kind: 'default' }).action).toBe('unchanged');
+    it('should be in sync with the committed snapshot: the 1.0.0 stable promise, ratcheted by the release package.json names', () => {
+        const current = (JSON.parse(TREE['package.json'] ?? '{}') as { version: string }).version;
+        expect(live).toMatchObject({ frozenAt: '1.0.0', phase: 'stable', asOf: current });
+        expect(planApiFrozen(readerOf(TREE), current, { kind: 'default' }).action).toBe('unchanged');
         expect(renderApiFrozen(live)).toBe(TREE['docs/assets/api.frozen.json']);
         expect(planApiFrozen(readerOf(REHEARSAL), '0.8.0', { kind: 'default' }).action).toBe('unchanged');
     });

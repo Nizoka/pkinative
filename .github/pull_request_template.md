@@ -21,6 +21,7 @@ word; keep the two in step when you change either.
 - [ ] Every new loop over untrusted bytes consults a named limit, with its CWE, a fuzzing test and a SECURITY.md row (see [Security](../CONTRIBUTING.md#security))
 - [ ] If decoding or parsing behaviour changed: the conformance gate passes and every expectation change is explained in the commit (see [Conformance](../CONTRIBUTING.md#conformance))
 - [ ] If docs/, README or llms files changed: `npm run verify:docs` passes
+- [ ] If the pull request aligns the site on a pkinative-cli or pkinative-mcp release: `npm run satellites:sync -- --capture --apply --dry-run` reports unchanged rows only, and no fact was taken from a satellite's README, CHANGELOG or release note
 - [ ] CHANGELOG.md updated if user-facing changes
 - [ ] For releases: follow [Release](../CONTRIBUTING.md#release) — `release-notes/vX.Y.Z.md` written, and `npx tsx scripts/gate.ts --publish --require-all` passes locally
 

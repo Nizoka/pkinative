@@ -39,6 +39,7 @@ import { decodeWithContext } from '../asn1/asn1-decode.js';
 import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readInteger, _readOctetString, _readSmallInteger, _readString } from '../asn1/asn1-read.js';
 import { TAG_BMP_STRING, TAG_INTEGER, TAG_NULL, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
+import { assertObject, describeValue } from '../core/arguments.js';
 import { assertBytes } from '../core/bytes.js';
 import { OID_DATA, OID_ENCRYPTED_DATA, OID_ENVELOPED_DATA, OID_SIGNED_DATA } from '../core/cms-oids.js';
 import {
@@ -165,7 +166,7 @@ function _readBag(pending: _PendingBag, ctx: Asn1Context): { readonly bag: SafeB
     const oid = _readObjectIdentifier(_expectField(idNode, TAG_OID, `${path}.bagId`, seq.offset, 'an OBJECT IDENTIFIER'), ctx);
     const value = _explicit(valueNode, 0, `${path}.bagValue`, seq.offset, 'bagValue [0] EXPLICIT');
 
-    let attributes: readonly Attribute[] = [];
+    let attributes: readonly Attribute[] = Object.freeze([]);
     let friendlyName: string | undefined;
     let localKeyId: Uint8Array | undefined;
     if (attributesNode !== undefined) {
@@ -424,7 +425,7 @@ export function parsePkcs12(der: Uint8Array, options?: PkiParseOptions): Pkcs12 
     const declared = (mac?.pbmac1?.iterations ?? 0)
         + contents.reduce((sum, entry) => sum + (entry.encryption?.pbes2?.iterations ?? 0) + _keysKdfIterations(entry.bags), 0);
     enforceLimit(ctx.limits, 'maxPkcs12KdfIterations', declared, 'the PBKDF2 iterations this PKCS#12 declares across its MAC, its encrypted SafeContents and its shrouded keys');
-    return Object.freeze({ der: pfx.bytes, version, authenticatedSafe, contents, mac, diagnostics: ctx.emitter.diagnostics });
+    return Object.freeze({ der: pfx.bytes, version, authenticatedSafe, contents, mac, diagnostics: Object.freeze([...ctx.emitter.diagnostics]) });
 }
 
 /**
@@ -472,9 +473,11 @@ export async function verifyPkcs12Mac(pkcs12: Pkcs12, password: Uint8Array | str
     if (mac === undefined) {
         throw new PkiError('PKI_API_MISUSE', 'pkinative: this PKCS#12 carries no MacData, so there is no MAC to verify — check pkcs12.mac before calling verifyPkcs12Mac');
     }
+    assertObject(mac, 'pkcs12.mac');
     const path = 'macData.mac.digestAlgorithm';
     if (mac.kind !== 'pbmac1') {
-        throw _keyError('PKI_KEY_MAC_UNSUPPORTED', path, undefined, `is ${mac.algorithm.oid}, a MAC keyed by the RFC 7292 Appendix B KDF, which pkinative never implements`);
+        assertObject(mac.algorithm, 'pkcs12.mac.algorithm');
+        throw _keyError('PKI_KEY_MAC_UNSUPPORTED', path, undefined, `is ${describeValue(mac.algorithm.oid)}, a MAC keyed by the RFC 7292 Appendix B KDF, which pkinative never implements`);
     }
     const params = mac.pbmac1;
     if (params === undefined) {
@@ -525,7 +528,7 @@ export async function verifyPkcs12Mac(pkcs12: Pkcs12, password: Uint8Array | str
  *   `maxPkcs12KdfIterations` when this derivation, or it and the shrouded keys the plaintext holds, would cost more.
  */
 export async function openSafeContents(contents: SafeContentsInfo, password: Uint8Array | string, options?: PkiParseOptions): Promise<readonly SafeBag[]> {
-    if (typeof contents !== 'object' || contents === null) {
+    if (typeof contents !== 'object' || contents === null || typeof (contents as Partial<SafeContentsInfo>).path !== 'string') {
         throw new PkiError('PKI_INVALID_INPUT', 'pkinative: openSafeContents expects an entry of parsePkcs12(…).contents');
     }
     const ctx = createAsn1Context(options);

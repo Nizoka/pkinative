@@ -21,7 +21,17 @@ import { _readObjectIdentifier } from '../asn1/asn1-oid.js';
 import { _readBitString, _readOctetString, _readSmallInteger } from '../asn1/asn1-read.js';
 import { TAG_INTEGER, TAG_OCTET_STRING, TAG_OID, TAG_SEQUENCE, TAG_SET } from '../asn1/asn1-tags.js';
 import { assertBytes } from '../core/bytes.js';
-import { EC_CURVE_OIDS, OID_EC_PUBLIC_KEY, OID_ED25519, OID_ED448, OID_RSA_ENCRYPTION, OID_RSASSA_PSS } from '../core/key-oids.js';
+import {
+    EC_CURVE_OIDS,
+    OID_EC_PUBLIC_KEY,
+    OID_ED25519,
+    OID_ED448,
+    OID_ML_DSA_44,
+    OID_ML_DSA_65,
+    OID_ML_DSA_87,
+    OID_RSA_ENCRYPTION,
+    OID_RSASSA_PSS,
+} from '../core/key-oids.js';
 import { enforceLimit } from '../core/pki-limits.js';
 import type { Asn1Node, BitString } from '../types/asn1-types.js';
 import type { Attribute } from '../types/cms-types.js';
@@ -29,13 +39,20 @@ import type { EncryptedPrivateKeyInfo, PrivateKeyInfo, PrivateKeyKind } from '..
 import type { PkiParseOptions } from '../types/pki-types.js';
 import { _expectField, _keyError, _readKeyAlgorithm, _readPasswordEncryption } from './key-pbes2.js';
 
-/** Private key algorithm OIDs, by what they name. */
+/**
+ * Private key algorithm OIDs, by what they name. The ML-DSA entries name the
+ * key and nothing more: it is described, and `importPrivateKey` refuses it
+ * (ADR 0026).
+ */
 const KEY_TYPES: ReadonlyMap<string, PrivateKeyKind> = /*#__PURE__*/ new Map<string, PrivateKeyKind>([
     [OID_RSA_ENCRYPTION, 'rsa'],
     [OID_RSASSA_PSS, 'rsa-pss'],
     [OID_EC_PUBLIC_KEY, 'ec'],
     [OID_ED25519, 'ed25519'],
     [OID_ED448, 'ed448'],
+    [OID_ML_DSA_44, 'ml-dsa-44'],
+    [OID_ML_DSA_65, 'ml-dsa-65'],
+    [OID_ML_DSA_87, 'ml-dsa-87'],
 ]);
 
 // ── Attributes (X.501, shared with CMS and PKCS#12) ──
@@ -86,7 +103,7 @@ export function _readPrivateKeyInfo(node: Asn1Node | undefined, ctx: Asn1Context
     // The octets are the secret: checked for shape, never kept.
     _readOctetString(_expectField(keyNode, TAG_OCTET_STRING, `${path}.privateKey`, seq.offset, 'an OCTET STRING private key'), ctx);
 
-    let attributes: readonly Attribute[] = [];
+    let attributes: readonly Attribute[] = Object.freeze([]);
     let publicKey: BitString | undefined;
     let rank = -1;
     for (const field of optional) {
@@ -144,6 +161,9 @@ export function _readEncryptedPrivateKeyInfo(node: Asn1Node | undefined, ctx: As
  * console.log(info.kind, info.curve);   // 'ec' 'P-256'
  * ```
  *
+ * An ML-DSA key (RFC 9881 §6) is described as `'ml-dsa-44'`, `'ml-dsa-65'` or
+ * `'ml-dsa-87'` since 1.1.0; it cannot be imported to sign with (ADR 0026).
+ *
  * @param der     The DER of a RFC 5958 `OneAsymmetricKey` (version 0 is RFC 5208 PKCS#8).
  * @param options Encoding rules, limits and diagnostics.
  * @returns The key's description. The `privateKey` octets are not a field.
@@ -156,7 +176,7 @@ export function parsePrivateKeyInfo(der: Uint8Array, options?: PkiParseOptions):
     const bytes = assertBytes(der, 'parsePrivateKeyInfo input');
     const ctx = createAsn1Context(options);
     const info = _readPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, 'privateKeyInfo', 0);
-    return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+    return Object.freeze({ ...info, diagnostics: Object.freeze([...ctx.emitter.diagnostics]) });
 }
 
 /**
@@ -178,5 +198,5 @@ export function parseEncryptedPrivateKeyInfo(der: Uint8Array, options?: PkiParse
     const bytes = assertBytes(der, 'parseEncryptedPrivateKeyInfo input');
     const ctx = createAsn1Context(options);
     const info = _readEncryptedPrivateKeyInfo(decodeWithContext(bytes, ctx, false), ctx, 'encryptedPrivateKeyInfo', 0);
-    return Object.freeze({ ...info, diagnostics: ctx.emitter.diagnostics });
+    return Object.freeze({ ...info, diagnostics: Object.freeze([...ctx.emitter.diagnostics]) });
 }

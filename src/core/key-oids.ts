@@ -92,6 +92,12 @@ export const OID_EC_PUBLIC_KEY = '1.2.840.10045.2.1';
 export const OID_ED25519 = '1.3.101.112';
 /** `id-Ed448` (RFC 8410). */
 export const OID_ED448 = '1.3.101.113';
+/** `id-ml-dsa-44` (FIPS 204; RFC 9881 §2 and §6): recognised, never imported (ADR 0026). */
+export const OID_ML_DSA_44 = '2.16.840.1.101.3.4.3.17';
+/** `id-ml-dsa-65` (FIPS 204; RFC 9881 §2 and §6): recognised, never imported (ADR 0026). */
+export const OID_ML_DSA_65 = '2.16.840.1.101.3.4.3.18';
+/** `id-ml-dsa-87` (FIPS 204; RFC 9881 §2 and §6): recognised, never imported (ADR 0026). */
+export const OID_ML_DSA_87 = '2.16.840.1.101.3.4.3.19';
 
 /** The named curves Web Crypto signs with, by OID. */
 export const EC_CURVE_OIDS: ReadonlyMap<string, 'P-256' | 'P-384' | 'P-521'> = /*#__PURE__*/ new Map<string, 'P-256' | 'P-384' | 'P-521'>([

@@ -21,6 +21,7 @@ import type { Certificate } from '../types/x509-types.js';
 import { _cmsAlgorithmProblem, _importableSpki, coordinateBytes, resolveCmsAlgorithm } from './crypto-algorithms.js';
 import { ecdsaDerToRaw } from './crypto-signature.js';
 import { importPublicKey, verifySignature } from './webcrypto.js';
+import { assertOptionFlags } from '../core/arguments.js';
 import { isBytes } from '../core/bytes.js';
 
 /** Options of {@link verifySignerInfoSignature}. */
@@ -48,7 +49,9 @@ export interface VerifySignerInfoSignatureOptions {
  * Returns a boolean; it throws only when the question could not be put. A
  * tampered signature, an unusable ECDSA encoding, a key that cannot carry the
  * algorithm, and a `digestAlgorithm` that contradicts the signature algorithm
- * (`ecdsa-with-SHA384` over a SHA-256 digest, MD5 anywhere) are all `false`:
+ * (`ecdsa-with-SHA384` over a SHA-256 digest, MD5 anywhere, an ML-DSA signer
+ * with signed attributes over a digest outside its row of RFC 9882 §3.3
+ * Table 1 — SHA-1 among them) are all `false`:
  * an inconsistent SignerInfo does not stand up, and `verifySignedData` names
  * the precise reason by asking the same question.
  *
@@ -78,14 +81,17 @@ export interface VerifySignerInfoSignatureOptions {
  *   or `options.content` when the signer has no signed attributes.
  * @throws {PkiError} `PKI_INVALID_INPUT` when either argument is not parsed;
  *   `PKI_API_MISUSE` when the signer has no signed attributes and no
- *   `content` was given.
+ *   `content` was given; `PKI_INVALID_OPTION` for options that are not an object or an `allowSha1` that is not a boolean.
  * @throws {PkiCryptoError} `PKI_CRYPTO_UNAVAILABLE` when the runtime has no
  *   Web Crypto; `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` for an algorithm Web Crypto
  *   does not run (DSA, SHA-224, an unknown OID);
  *   `PKI_CRYPTO_ALGORITHM_REFUSED` for SHA-1 without `allowSha1`;
  *   `PKI_CRYPTO_KEY_UNSUPPORTED` when the host refuses to import the key — an
  *   Ed448 signer on a runtime without Ed448 (Bun, Chromium), as for an Ed448
- *   certificate signature. A signer certificate whose key is `id-RSASSA-PSS`
+ *   certificate signature, and an ML-DSA signer on a runtime without ML-DSA
+ *   (Node.js 22), since 1.1.0 (ADR 0026; it was
+ *   `PKI_CRYPTO_ALGORITHM_UNSUPPORTED` on every host before). A signer
+ *   certificate whose key is `id-RSASSA-PSS`
  *   is imported under `rsaEncryption` once held to its parameters (see
  *   `verifyCertificateSignature`); such a key signing with PKCS#1 v1.5, or
  *   under RSASSA-PSS parameters its own exclude, is `false` (RFC 4055 §1.2
@@ -106,11 +112,14 @@ export async function verifySignerInfoSignature(
         throw new PkiError('PKI_API_MISUSE',
             'pkinative: this signer has no signed attributes, so its signature is over the content itself — pass { content } with the eContent or the detached content');
     }
+    assertOptionFlags(options, ['allowSha1']);
 
     // Before resolution, so an inconsistent pair is a `false` even when one
     // half would also be refused: MD5 is a verdict on the signer, not a gap in
-    // what this runtime can check.
-    if (_cmsAlgorithmProblem(info.digestAlgorithm, info.signatureAlgorithm) !== null) return false;
+    // what this runtime can check. An ML-DSA signer without signed attributes
+    // signs the content itself, and RFC 9882 §3.3 has its digestAlgorithm
+    // ignored: the third argument says which case this is.
+    if (_cmsAlgorithmProblem(info.digestAlgorithm, info.signatureAlgorithm, info.signedAttributesDer !== undefined) !== null) return false;
 
     const resolved = resolveCmsAlgorithm(info.digestAlgorithm, info.signatureAlgorithm, certificate.subjectPublicKeyInfo);
     if (resolved === null) return false;

@@ -120,11 +120,11 @@
 </blockquote>
 <h2 id="what-pkinative-does">What pkinative does <a class="heading-anchor" href="#what-pkinative-does" aria-label="Link to this section">#</a></h2>
 <ul>
-<li><strong>Reads</strong> DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; PKCS#10 certification requests, with the extensions they ask for; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2.</li>
+<li><strong>Reads</strong> DER (and BER on request), PEM and OIDs; every field and standard extension of an RFC 5280 certificate, with profile concerns as diagnostics; PKCS#10 certification requests, with the extensions they ask for; CRLs, OCSP responses, CMS SignedData, RFC 3161 timestamp tokens, PKCS#8 keys and PKCS#12 files under PBES2; RFC 5755 attribute certificates, the OCSP and timestamp requests it writes, and SLH-DSA and ML-KEM public keys as kinds of their own.</li>
 <li><strong>Builds</strong> certificates, certification requests, OCSP requests, CMS SignedData attached or detached, and timestamp requests — signed through Web Crypto by a key you hold, or by an <code>ExternalSigner</code> for a key in an HSM or a remote service; RSA PKCS#1 v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519, and Ed448 where the host has it.</li>
-<li><strong>Judges</strong>: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps, and a certification request&#39;s proof of possession. The one-call reports — <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>verifyCertificationRequest</code>, <code>openPkcs12</code> — return every reason at once and never throw for a problem with the input.</li>
+<li><strong>Judges</strong>: RFC 5280 §6 path building and validation with name constraints and the policy tree, revocation by CRL (delta lists and scoping included) or OCSP, RFC 6125 host names, extended key usage, CMS signatures and timestamps, and a certification request&#39;s proof of possession. The one-call reports — <code>verifyCertificateChain</code>, <code>verifySignedData</code>, <code>verifyTimeStampToken</code>, <code>verifyCertificationRequest</code>, <code>openPkcs12</code> — return every reason at once and never throw for a problem with what they are given to judge: only a call that is itself wrong throws. ML-DSA signatures are verified where the host&#39;s Web Crypto has the algorithm, and an attribute certificate&#39;s signature is checked, its RFC 5755 §5 validation left to the caller.</li>
 <li><strong>Proves it</strong>: scored against x509-limbo, NIST PKITS and its S/MIME messages, clause by clause against the pinned text of RFC 5280, and against OpenSSL and Windows in both directions — the <a href="conformance.html">conformance guide</a> carries the current figures and every reviewed deviation.</li>
-<li>Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</li>
+<li>Runs one build on every runtime with Web Crypto, with zero runtime dependencies: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.</li>
 </ul>
 <p>Verifying a signature is <strong>not</strong> validating a chain: <code>verifyCertificateSignature</code> says the issuer&#39;s key signed these bytes, and nothing about expiry, trust, revocation, or whether that issuer was entitled to sign. <code>verifyCertificateChain</code> is the call that answers those.</p>
 <p><code>docs/data/surfaces.json</code> lists each capability with the library exports, CLI commands and MCP tools that provide it and the version that brought it.</p>
@@ -160,7 +160,7 @@
 </tr>
 <tr>
 <td>ETSI long-term signatures — archive timestamps, chained proof of existence</td>
-<td>Out of scope through 1.0; <code>atTimeStamp</code> takes one level of evidence (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>)</td>
+<td>Out of scope in 1.x; <code>atTimeStamp</code> takes one level of evidence (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>)</td>
 <td>A PAdES or CAdES toolkit</td>
 </tr>
 <tr>
@@ -170,7 +170,7 @@
 </tr>
 </tbody></table>
 <h2 id="the-alternatives-by-the-facts">The alternatives, by the facts <a class="heading-anchor" href="#the-alternatives-by-the-facts" aria-label="Link to this section">#</a></h2>
-<p>Read from the npm registry on 2026-09-19 (<a href="../data/comparison-2026-09-19.json">docs/data/comparison-2026-09-19.json</a>):</p>
+<p>Read from the npm registry on 2026-11-17 (<a href="../data/comparison-2026-11-17.json">docs/data/comparison-2026-11-17.json</a>); a peer dependency, which the consumer installs, is counted apart:</p>
 <table tabindex="0">
 <thead>
 <tr>
@@ -182,53 +182,53 @@
 </tr>
 </thead>
 <tbody><tr>
-<td>node-forge 1.4.0</td>
+<td>node-forge 1.4.3</td>
 <td>0</td>
 <td>no</td>
 <td>no</td>
-<td>27.6 M</td>
+<td>54.7 M</td>
 </tr>
 <tr>
-<td>asn1js 3.0.10</td>
-<td>3</td>
+<td>asn1js 4.0.0</td>
+<td>1</td>
 <td>yes</td>
 <td>yes</td>
-<td>13.7 M</td>
+<td>36.6 M</td>
 </tr>
 <tr>
-<td>@peculiar/x509 2.1.0</td>
-<td>11</td>
+<td>@peculiar/x509 3.1.0</td>
+<td>9 + 1 peer</td>
 <td>yes</td>
 <td>yes</td>
-<td>8.2 M</td>
+<td>23.8 M</td>
 </tr>
 <tr>
-<td>pkijs 3.4.0</td>
-<td>6</td>
+<td>pkijs 4.0.1</td>
+<td>3 + 1 peer</td>
 <td>yes</td>
 <td>yes</td>
-<td>6.8 M</td>
+<td>18.2 M</td>
 </tr>
 <tr>
 <td>jsrsasign 11.1.5</td>
 <td>0</td>
 <td>no</td>
 <td>no</td>
-<td>1.0 M</td>
+<td>2.5 M</td>
 </tr>
 <tr>
-<td>micro509 0.14.0</td>
+<td>micro509 0.19.0</td>
 <td>0</td>
 <td>yes</td>
 <td>yes</td>
-<td>59</td>
+<td>3 115</td>
 </tr>
 </tbody></table>
-<p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them.</p>
+<p>node-forge and jsrsasign implement RSA and elliptic curves in JavaScript; pkinative will not, and leaves that arithmetic to Web Crypto. asn1js, pkijs and @peculiar/x509 are typed and modern, and bring their dependency trees with them. <a href="migrate.html">Migrating from node-forge or pkijs</a> maps their calls to the ones that replace them.</p>
 <h2 id="when-pkinative-is-the-right-choice">When pkinative is the right choice <a class="heading-anchor" href="#when-pkinative-is-the-right-choice" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>You read certificates from untrusted sources — uploads, network peers, logs — and want the parser to refuse ambiguous encodings and bound its resources.</li>
-<li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 87 KB minified, describing a key file about 45 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
+<li>You ship to browsers or edge runtimes and count every dependency and every kilobyte: reading a certificate ships about 90 KB minified, describing a key file about 45 KB, and each subsystem&#39;s cost is a budget <code>npm run verify:bundle</code> checks.</li>
 <li>You build tools that must display every field of a certificate, including the ones other parsers skip.</li>
 <li>You drive a library from an AI agent and want machine-readable codes, diagnostics and an API manifest.</li>
 <li>You need a verdict you can act on: every refusal a reason code with its clause, several at once, and the one that would have been thrown kept in <code>errorCode</code>.</li>
@@ -259,7 +259,7 @@
 <td>A conversation needs PKI tools: 34 typed tools, seven prompts and sandboxed file resources, a negative verdict that is data rather than an error, and no key byte or network call, ever. Node.js 22.22.2, 24.14.1 or 25.8.2 and later (the engine&#39;s floor)</td>
 </tr>
 </tbody></table>
-<p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of pkinative 1.0.0. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
+<p>The CLI and the MCP server are thin wrappers: neither adds a PKI decision of its own, both pin pkinative ^1.0.0, both carry the engine&#39;s <code>PKI_*</code> codes verbatim, and both reach every runtime export of the engine release they were built on, 1.0.0; the exports 1.1.0 adds reach them with their next minor. What they add is the boundary the engine deliberately lacks — files and exit codes for the CLI, a sandbox and an MCP protocol surface for the server — and the <a href="errors.html#where-the-codes-surface">errors guide</a> shows how one failure looks on each.</p>
 <p>Every capability <code>docs/data/surfaces.json</code> lists, by surface:</p>
 <table tabindex="0">
 <thead>
@@ -379,6 +379,12 @@
 <td><code>create_ocsp_request</code> (<code>certIdOnly</code>), <code>inspect_ocsp_response</code> (<code>responder</code>), <code>check_ocsp_status</code></td>
 </tr>
 <tr>
+<td><code>x509-ocsp-request</code></td>
+<td><code>parseOcspRequest</code></td>
+<td>— until the next minor of pkinative-cli (proposed: <code>ocsp inspect-request</code>)</td>
+<td>— until the next minor of pkinative-mcp (proposed: <code>inspect_ocsp_request</code>)</td>
+</tr>
+<tr>
 <td><code>cms-signed-data</code></td>
 <td><code>createSignedData</code>, <code>parseSignedData</code>, <code>verifySignedData</code>, <code>verifySignerInfoSignature</code>, <code>addUnsignedAttribute</code></td>
 <td><code>cms sign</code>, <code>verify</code>, <code>inspect</code>, <code>verify-signer</code>, <code>add-attribute</code></td>
@@ -389,6 +395,12 @@
 <td><code>createTimeStampRequest</code>, <code>parseTimeStampResponse</code>, <code>parseTimeStampToken</code>, <code>parseTstInfo</code>, <code>verifyTimeStampToken</code>, <code>addTimeStampToken</code></td>
 <td><code>tsp request</code>, <code>inspect</code>, <code>verify</code>; <code>cms add-timestamp</code></td>
 <td><code>create_timestamp_request</code>, <code>inspect_timestamp</code>, <code>verify_timestamp</code>; <code>amend_cms</code> (<code>add-timestamp</code>)</td>
+</tr>
+<tr>
+<td><code>cms-timestamp-request</code></td>
+<td><code>parseTimeStampRequest</code></td>
+<td>— until the next minor of pkinative-cli (proposed: <code>tsp inspect-request</code>)</td>
+<td>— until the next minor of pkinative-mcp (proposed: <code>inspect_timestamp_request</code>)</td>
 </tr>
 <tr>
 <td><code>keys-pkcs8</code></td>
@@ -527,7 +539,7 @@
 <li><strong>No surface generates or exports a key, and none fetches.</strong> Web Crypto&#39;s <code>generateKey</code> and <code>exportKey</code> are refused in every version (<a href="../adr/0001-no-secret-dependent-cryptography.md">ADR 0001</a>), and the engine opens no socket (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>): keys come from your HSM, KMS or <code>openssl genpkey</code>, and CRLs, OCSP responses and timestamps are evidence you carry in. The CLI and the MCP server build the OCSP and timestamp requests; neither sends them.</li>
 <li><strong>Only the CLI and the MCP sandbox write files.</strong> The engine returns bytes. The CLI writes where you point it, exclusively unless <code>--overwrite</code>; the MCP server writes only under <code>PKINATIVE_MCP_OUTPUT_DIR</code>, never overwrites, and never writes, lists or serves a key-bearing file.</li>
 <li><strong>A key in an HSM or a remote service reaches the library only.</strong> Both satellites sign with a PKCS#8 or PKCS#12 file, imported as a non-extractable Web Crypto key; an <code>ExternalSigner</code> is a library call.</li>
-<li><strong>A satellite adds no PKI decision.</strong> A <code>PKI_*</code>, <code>PKI_REASON_*</code> or <code>PKI_DIAG_*</code> code means the same on every surface. A CLI <code>E_*</code> class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.</li>
+<li><strong>A satellite adds no PKI decision</strong> — a rule, not only a description: <a href="../adr/0024-what-a-satellite-may-implement.md">ADR 0024</a> says what a satellite may implement, what the engine reserves and what a satellite must prove. A <code>PKI_*</code>, <code>PKI_REASON_*</code> or <code>PKI_DIAG_*</code> code means the same on every surface. A CLI <code>E_*</code> class groups the codes for exit codes and scripts; an MCP wrapper code names only the boundary the server owns — validation, the sandbox, caps, secrets, output.</li>
 <li><strong>The table is the complete story</strong> for these capabilities, not a sample: where a cell is an em-dash, the surface lacks the capability rather than hiding it under another name.</li>
 </ul>
 <h3 id="you-can-switch-later">You can switch later <a class="heading-anchor" href="#you-can-switch-later" aria-label="Link to this section">#</a></h3>
@@ -547,6 +559,7 @@
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -565,6 +578,7 @@
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

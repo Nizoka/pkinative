@@ -13,10 +13,18 @@
     },
     {
       "option": "strict",
-      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions", "VerifyCertificationRequestOptions"],
-      "default": "false — a diagnostic is reported, not thrown; true refuses the first warning and still reports every info",
+      "in": ["PkiParseOptions", "DecodeAsn1Options", "DecodeExtensionValueOptions", "DecodePemOptions", "DecryptPrivateKeyOptions", "FindRevocationOptions", "ImportPrivateKeyOptions", "OpenPkcs12Options", "ParseCertificateOptions", "ParseSignedDataOptions", "ReadStringOptions", "ReadTimeOptions", "VerifyCertificationRequestOptions", "CheckOcspStatusInput", "CheckRevocationInput", "VerifyCertificateChainInput", "VerifySignedDataInput", "VerifyTimeStampTokenInput"],
+      "default": "false — a diagnostic is reported, not thrown; true refuses the first warning and still reports every info. The refusal is thrown as PKI_STRICT_DIAGNOSTIC by a parser and by a primitive (checkRevocation, checkOcspStatus); a verify composition reports it as PKI_REASON_INPUT_MALFORMED carrying that code (ADR 0025)",
       "semver": "frozen",
-      "evidence": [{ "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true && diagnostic.severity === 'warning') {" }]
+      "evidence": [
+        { "file": "src/core/pki-diagnostics.ts", "text": "if (strict === true && diagnostic.severity === 'warning') {" },
+        { "file": "src/revocation/crl-check.ts", "text": "strict: input.strict," },
+        { "file": "src/revocation/ocsp-check.ts", "text": "createDiagnosticEmitter(input.strict, input.onDiagnostic)" },
+        { "file": "src/verify/verify-chain.ts", "text": "strict: input.strict," },
+        { "file": "src/verify/verify-signed-data.ts", "text": "strict: input.strict," },
+        { "file": "src/verify/verify-timestamp.ts", "text": "strict: input.strict," },
+        { "file": "src/verify/verify-pkcs12.ts", "text": "strict: options.strict," }
+      ]
     },
     {
       "option": "limits",
@@ -34,10 +42,10 @@
     },
     {
       "option": "onDiagnostic",
-      "in": ["VerifyCertificateChainInput", "VerifyTimeStampTokenInput"],
+      "in": ["VerifyCertificateChainInput", "VerifyTimeStampTokenInput", "VerifySignedDataInput", "OpenPkcs12Options"],
       "default": "silent — no handler, no console: a verdict call reports through its result, and a given handler receives every diagnostic the call raises or reads",
       "semver": "not-promised",
-      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }, { "file": "src/verify/verify-timestamp.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }]
+      "evidence": [{ "file": "src/verify/verify-chain.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }, { "file": "src/verify/verify-timestamp.ts", "text": "onDiagnostic: input.onDiagnostic ?? (" }, { "file": "src/verify/verify-signed-data.ts", "text": "const sink = input.onDiagnostic ?? (" }, { "file": "src/verify/verify-pkcs12.ts", "text": "onDiagnostic: options.onDiagnostic ?? (" }]
     },
     {
       "option": "signer",
@@ -76,8 +84,8 @@
       "default": "true — every recognised extension is decoded",
       "semver": "frozen",
       "evidence": [
-        { "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions ?? true;" },
-        { "file": "src/x509/x509-csr.ts", "text": "const decode = options?.decodeExtensions ?? true;" }
+        { "file": "src/x509/x509-certificate.ts", "text": "const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;" },
+        { "file": "src/x509/x509-csr.ts", "text": "const decode = options?.decodeExtensions === undefined ? true : options.decodeExtensions;" }
       ]
     },
     {
@@ -85,7 +93,7 @@
       "in": ["DecodeExtensionValueOptions"],
       "default": "false",
       "semver": "frozen",
-      "evidence": [{ "file": "src/x509/x509-extensions.ts", "text": "const critical = options?.critical ?? false;" }]
+      "evidence": [{ "file": "src/x509/x509-extensions.ts", "text": "const critical = options?.critical === undefined ? false : options.critical;" }]
     },
     {
       "option": "critical",

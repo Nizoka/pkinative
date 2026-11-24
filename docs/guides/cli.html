@@ -118,7 +118,7 @@
 <blockquote>
 <p><strong>pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable <code>--json</code> contract for scripts, CI and AI agents.</strong> It pins pkinative ^1.0.0, its only runtime dependency.</p>
 </blockquote>
-<p><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a> is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine&#39;s; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine&#39;s <code>PKI_*</code> code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the <code>PkiError</code> family, 6 constants), and a test in the CLI repository proves it.</p>
+<p><a href="https://github.com/Nizoka/pkinative-cli" target="_blank" rel="noopener">pkinative-cli</a> is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine&#39;s; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine&#39;s <code>PKI_*</code> code verbatim. Its 18 commands reach every runtime export of the engine release it was built on, 1.0.0 (117: 104 functions, the 7 classes of the <code>PkiError</code> family, 6 constants), and a test in the CLI repository proves it.</p>
 <table tabindex="0">
 <thead>
 <tr>
@@ -526,7 +526,7 @@ pkinative schema summary cert inspect
 </tbody></table>
 <p><code>--config</code> together with <code>--no-config</code> is not refused: <code>--no-config</code> wins and the named file is never read.</p>
 <h2 id="error-classes-codes-and-remedies">Error classes, codes and remedies <a class="heading-anchor" href="#error-classes-codes-and-remedies" aria-label="Link to this section">#</a></h2>
-<p>Every failure is one of 13 classes. pkinative&#39;s 57 frozen error codes map to them by a fixed table — typed against the engine&#39;s code union, so an engine release that added a code would fail the CLI&#39;s type-check rather than leak as <code>E_RUNTIME</code> — and the engine&#39;s code always rides along, verbatim, in <code>error.pkiCode</code>.</p>
+<p>Every failure is one of 13 classes. The engine&#39;s frozen error codes map to them by a fixed table — typed against the engine&#39;s code union, so an engine release that added a code would fail the CLI&#39;s type-check rather than leak as <code>E_RUNTIME</code>; the table of pkinative-cli 1.0.0 holds the codes it was built against, so not the one this engine release adds, which is raised only when an attribute certificate is read and which that CLI never does — and the engine&#39;s code always rides along, verbatim, in <code>error.pkiCode</code>.</p>
 <table tabindex="0">
 <thead>
 <tr>
@@ -1906,6 +1906,7 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -1924,6 +1925,7 @@ pkinative completion fish &gt; ~/.config/fish/completions/pkinative.fish
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

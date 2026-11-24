@@ -151,7 +151,7 @@
 <td>Read through the RFC 5280 profile, never beyond it</td>
 <td>partial</td>
 <td>Everything under RFC 5280 below</td>
-<td>Extensions X.509 defines and RFC 5280 does not are kept undecoded (<code>kind: &#39;unknown&#39;</code>). Attribute certificates are not read.</td>
+<td>Extensions X.509 defines and RFC 5280 does not are kept undecoded (<code>kind: &#39;unknown&#39;</code>). Attribute certificates are read through the RFC 5755 profile (row below).</td>
 </tr>
 <tr>
 <td>ITU-T X.520 | ISO/IEC 9594-6 — attribute types</td>
@@ -249,17 +249,17 @@
 </tr>
 <tr>
 <td>RFC 3161 and RFC 5816 — timestamps</td>
-<td>Requests, responses, tokens and their verification</td>
+<td>Requests written and read back (<code>parseTimeStampRequest</code>), responses, tokens and their verification</td>
 <td>applies</td>
-<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
-<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason.</td>
+<td><code>tests/cms/tsp-request.test.ts</code>, <code>tests/property/request-roundtrip.test.ts</code>, <code>tests/cms/tsp-response.test.ts</code>, <code>tests/cms/tsp-tst-info.test.ts</code>, <code>tests/verify/verify-timestamp.test.ts</code>; <code>recipes/timestamp.ts</code>; the pinned text of RFC 3161 §2.3–2.4 held sentence by sentence (<code>scripts/data/rfc3161-requirements.json</code>)</td>
+<td>One level of evidence: no ETSI long-term formats (<a href="../adr/0009-no-etsi-long-term-signature-formats.md">ADR 0009</a>); the certReq contract between request and token is a diagnostic of <code>verifyTimeStampToken</code>, never a reason; a request is read, never answered — pkinative is not a TSA.</td>
 </tr>
 <tr>
-<td>RFC 6960 — OCSP</td>
-<td>Requests, responses and the client&#39;s §3.2 checks</td>
+<td>RFC 6960 — OCSP, with the nonce of RFC 9654</td>
+<td>Requests written and read back (<code>parseOcspRequest</code>), responses and the client&#39;s §3.2 checks</td>
 <td>applies</td>
-<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
-<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); the responderID is compared with the signer only when <code>checkOcspStatus</code> is given it, as <code>verifyCertificateChain</code> does, and the comparison is a diagnostic, never a reason.</td>
+<td><code>tests/revocation/ocsp.test.ts</code>, <code>tests/revocation/ocsp-request.test.ts</code>, <code>tests/revocation/ocsp-check.test.ts</code>, <code>tests/property/request-roundtrip.test.ts</code>, <code>tests/fuzzing/reports.test.ts</code>; the pinned text of §4.1–4.2 held sentence by sentence (<code>scripts/data/rfc6960-requirements.json</code>)</td>
+<td>No network I/O: the caller fetches (<a href="../adr/0006-no-network-io-in-the-engine.md">ADR 0006</a>); the responderID is compared with the signer only when <code>checkOcspStatus</code> is given it, as <code>verifyCertificateChain</code> does, and the comparison is a diagnostic, never a reason. A request is read, never answered, and the signature of a signed one is exposed, not verified — pkinative is not a responder; <code>createOcspRequest</code> writes a nonce of 1 to 32 octets, <code>parseOcspRequest</code> reads the 1 to 128 of RFC 9654 §2.1.</td>
 </tr>
 <tr>
 <td>RFC 7468 — PEM</td>
@@ -267,6 +267,13 @@
 <td>applies</td>
 <td><code>tests/pem/pem.test.ts</code>, <code>tests/fuzzing/pem-malformed.test.ts</code>; the pinned text of §2–5 held sentence by sentence (<code>scripts/data/rfc7468-requirements.json</code>)</td>
 <td>Strict mode refuses the whitespace §2 asks parsers to ignore; lax mode accepts it with a diagnostic.</td>
+</tr>
+<tr>
+<td>RFC 5755 — attribute certificates</td>
+<td>Reading (<code>parseAttributeCertificate</code>): the §4.1 structure, the §4.2–§4.3 profile as diagnostics, the six attributes of §4.4 and the three AC-only extensions; the signature (<code>verifyAttributeCertificateSignature</code>)</td>
+<td>partial</td>
+<td><code>tests/x509/x509-attribute-certificate.test.ts</code>, <code>tests/x509/x509-ac-attributes.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>recipes/attribute-certificate.ts</code>, <code>fuzz/attribute-certificate.js</code>; the pinned text of §4 held sentence by sentence (<code>scripts/data/rfc5755-requirements.json</code>)</td>
+<td>§5 validation is not implemented (<a href="../adr/0028-attribute-certificates-are-read-not-judged.md">ADR 0028</a>): holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller&#39;s composition, shown by the recipe. The RFC 3281 clearance syntax is kept undecoded, and no AC is written.</td>
 </tr>
 <tr>
 <td>RFC 5958 — PKCS#8; RFC 8018 — PBES2 and PBKDF2</td>
@@ -290,11 +297,32 @@
 <td>An <code>id-RSASSA-PSS</code> public key, which no conforming Web Crypto imports under that identifier, is handed to the host under <code>rsaEncryption</code> once the signature has been held to the key&#39;s parameters (RFC 4055 §1.2, §3.3), so what it signed verifies everywhere; an <code>id-RSASSA-PSS</code> private key under PBES2 still depends on the host, since a shrouded key is never re-wrapped. No default RSA scheme (<a href="../adr/0015-no-default-rsa-scheme.md">ADR 0015</a>).</td>
 </tr>
 <tr>
-<td>FIPS 204 — ML-DSA keys</td>
+<td>FIPS 204 and RFC 9881 — ML-DSA in certificates and CRLs</td>
+<td>Reading the keys; verifying signatures through Web Crypto, where the host has ML-DSA</td>
+<td>applies, host-dependent</td>
+<td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/crypto/crypto-algorithms.test.ts</code>, <code>tests/crypto/x509-verify.test.ts</code>, <code>tests/verify/verify-ml-dsa.test.ts</code>, <code>tests/keys/key-pkcs8.test.ts</code>; the ML-DSA fixtures listed in <code>tests/fixtures/PROVENANCE.md</code> — the three certificates of RFC 9881 Appendix C.3 and an OpenSSL 3.5 hierarchy; <code>recipes/verify-ml-dsa.ts</code>; <code>.github/runtime-smoke/checks.mjs</code>; <code>openssl:cert-ml-dsa</code></td>
+<td>Verified where the host verifies ML-DSA, <code>PKI_REASON_SIGNATURE_NOT_CHECKED</code> with <code>PKI_CRYPTO_KEY_UNSUPPORTED</code> where it does not (<a href="../adr/0026-ml-dsa-verified-where-the-host-verifies-it.md">ADR 0026</a>). Pure ML-DSA only: HashML-DSA is refused, as §8.3 excludes it from PKIX. Nothing is signed with ML-DSA, and a private key (§6) is described, not imported. A <code>keyUsage</code> that §5 forbids is <code>PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH</code>.</td>
+</tr>
+<tr>
+<td>RFC 9882 — ML-DSA in CMS</td>
+<td>Verifying a SignerInfo, with or without signed attributes</td>
+<td>applies, host-dependent</td>
+<td><code>tests/crypto/crypto-algorithms.test.ts</code>, <code>tests/crypto/cms-verify.test.ts</code>, <code>tests/verify/verify-ml-dsa.test.ts</code>; <code>openssl:cms-ml-dsa</code></td>
+<td>With signed attributes, the <code>digestAlgorithm</code> is held to the row of §3.3 Table 1 for the parameter set; another digest is <code>PKI_REASON_CMS_ALGORITHM_MISMATCH</code>. Of the table, SHA-256, SHA-384, SHA-512 and SHAKE256 are computed; a signer over SHA-3 or SHAKE128 is reported not checked. <code>verifySignedData</code> applies the table to a signer without signed attributes too, which §3.3 would have ignored. No ML-DSA SignedData is built.</td>
+</tr>
+<tr>
+<td>RFC 9909 — SLH-DSA in certificates</td>
+<td>Reading the SubjectPublicKeyInfo of the twelve pure parameter sets</td>
+<td>applies, read only</td>
+<td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/x509/x509-certificate.test.ts</code></td>
+<td>No SLH-DSA signature is verified, and none of RFC 9814 in CMS. The HashSLH-DSA key identifiers are kept as <code>unknown</code>. A <code>keyUsage</code> that §6 forbids is <code>PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH</code>.</td>
+</tr>
+<tr>
+<td>RFC 9935 — ML-KEM in certificates</td>
 <td>Reading the SubjectPublicKeyInfo</td>
 <td>applies, read only</td>
-<td><code>tests/x509/x509-spki.test.ts</code></td>
-<td>ML-DSA signatures are not verified.</td>
+<td><code>tests/x509/x509-spki.test.ts</code>, <code>tests/x509/x509-certificate.test.ts</code></td>
+<td>Keys only: pkinative encapsulates nothing. A <code>keyUsage</code> other than <code>keyEncipherment</code> alone (§5) is <code>PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH</code>.</td>
 </tr>
 <tr>
 <td>RFC 6125 — host names</td>
@@ -326,7 +354,7 @@
 <td>ISO/IEC 5962 (SPDX)</td>
 <td>Licence identification of every file, and an SPDX SBOM of each release</td>
 <td>applies</td>
-<td><code>REUSE.toml</code> gives every file an SPDX licence identifier and copyright (REUSE 3.3; <code>reuse lint</code> reports the project compliant), held by the rule <code>reuse-shape</code>; <code>.github/workflows/publish.yml</code> writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (<code>tests/tools/workflows.test.ts</code>)</td>
+<td><code>REUSE.toml</code> gives every file an SPDX licence identifier and copyright (REUSE 3.3), held by the rule <code>reuse-shape</code> and by <code>reuse lint</code> in the <code>workflow lint</code> job of <code>.github/workflows/ci.yml</code>; <code>.github/workflows/publish.yml</code> writes an SPDX SBOM (pkinative-X.Y.Z.spdx.json) beside the CycloneDX one, attested and attached to the release (<code>tests/tools/workflows.test.ts</code>)</td>
 <td>The SBOM of the runtime is empty by design (zero dependencies); the build toolchain has its own CycloneDX SBOM, not an SPDX one.</td>
 </tr>
 <tr>
@@ -374,6 +402,7 @@
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -392,6 +421,7 @@
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

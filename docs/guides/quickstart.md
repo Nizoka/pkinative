@@ -1,6 +1,6 @@
 # Quick start
 
-> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 1.0 as it is tested; every export named here is in `docs/assets/api.json`.
+> **Read a certificate in three calls, then learn the four things every pkinative call shares: strict DER, typed errors, diagnostics and limits.** Everything below runs on pkinative 1.1 as it is tested; every export named here is in `docs/assets/api.json`.
 
 ## Install
 
@@ -10,7 +10,7 @@ pkinative is on npm, published with provenance from the tagged commit after the 
 npm install pkinative
 ```
 
-`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz`, and `gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
+`npm audit signatures` verifies the registry signature and the provenance of what you installed. Every GitHub release also carries the tarball, attested with Sigstore build provenance: `npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz`, and `gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative` checks where it was built. Every runtime loads the same build, and there is no runtime dependency. CI tests it on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI.
 
 ## Read a certificate
 
@@ -29,7 +29,7 @@ getExtension(cert, 'subjectAltName')?.names;      // [{ kind: 'dNSName', value: 
 getExtension(cert, 'basicConstraints')?.cA;       // false
 ```
 
-`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). Times are `epochMilliseconds` numbers, exact from year 0000 to 9999.
+`parseCertificate` takes DER bytes. The result is frozen and holds zero-copy views of your input, so do not mutate the bytes while you use it (pass `bytes.slice()` to decouple). A time is an object, `{ type, epochMilliseconds, text }`: compare its `epochMilliseconds` — a number, exact from year 0000 to 9999 — never the object itself.
 
 ## What a certificate holds
 
@@ -44,7 +44,7 @@ Every field is listed with its type in `docs/assets/api.json` (the `members` of 
 | `signatureValue` | `{ bytes, unusedBits }` — the signature; `verifyCertificateSignature(cert, issuer)` checks it |
 | `issuer`, `subject` | `{ rdns, der }`: each RDN a list of `{ type, value, valueDer }`, `value` a `{ stringType, value, raw }` string when the attribute is one |
 | `validity` | `{ notBefore, notAfter }`, each `{ type, epochMilliseconds, text }` |
-| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87` add `key`; `unknown` adds nothing |
+| `subjectPublicKeyInfo` | `{ kind, algorithm, publicKey, der, … }`, by `kind`: `rsa` and `rsa-pss` add `modulus`, `modulusBits`, `publicExponent`; `ec` adds `namedCurve`, `curve` (`P-256`, `P-384`, `P-521` or `undefined`), `pointFormat`, `point`; `ed25519`, `ed448`, `x25519`, `x448`, `ml-dsa-44`, `ml-dsa-65`, `ml-dsa-87`, the twelve `slh-dsa-…` kinds (`slh-dsa-sha2-128s` to `slh-dsa-shake-256f`) and `ml-kem-512`, `ml-kem-768`, `ml-kem-1024` add `key`; `unknown` adds nothing |
 | `issuerUniqueId`, `subjectUniqueId` | `{ bytes, unusedBits }` or `undefined` |
 | `extensions`, `diagnostics` | In encoded order, below |
 
@@ -72,6 +72,8 @@ The fields of the extensions `getExtension` returns:
 ## Every extension, typed
 
 `cert.extensions` lists every extension in encoded order, each with `oid`, `critical` and `valueDer`, and a `kind` that says how it was decoded: `basicConstraints`, `keyUsage`, `extendedKeyUsage`, `subjectAltName`, `issuerAltName`, `subjectDirectoryAttributes`, `subjectKeyIdentifier`, `authorityKeyIdentifier`, `nameConstraints`, `certificatePolicies`, `policyMappings`, `policyConstraints`, `inhibitAnyPolicy`, `authorityInfoAccess`, `subjectInfoAccess`, `crlDistributionPoints`, `freshestCRL`, `signedCertificateTimestampList`, `ocspNoCheck` — or `unknown` for an extension pkinative does not decode. `getExtension(cert, kind)` returns the one of that kind, typed.
+
+An RFC 5755 attribute certificate, read by `parseAttributeCertificate`, carries the same kinds on `ac.extensions` plus three that only an attribute certificate carries, and that a certificate keeps as `unknown`: `targetInformation` (`targets`, every target of every Targets element in one list), `auditIdentity` (`identity`) and `noRevAvail` (nothing beyond `oid`, `critical`, `valueDer`). Its attributes are on `ac.attributes`, by `kind`: `authenticationInfo`, `accessIdentity`, `chargingIdentity`, `group`, `role`, `clearance` or `unknown`. Reading it is not judging it: `verifyAttributeCertificateSignature` checks the signature, and the rest of RFC 5755 §5 is shown in `recipes/attribute-certificate.ts`.
 
 An inspection tool that must show a certificate even when one extension is malformed parses with `decodeExtensions: false` — every extension stays `kind: 'raw'` — and decodes what it needs with `decodeExtensionValue(oid, valueDer, { critical })`; `critical` (default `false`) is reported on the result and decides whether an unknown extension raises `PKI_DIAG_UNKNOWN_CRITICAL_EXTENSION`.
 
@@ -149,7 +151,7 @@ Error code unions are in the [errors guide](errors.md).
 
 ## Next
 
-- [recipes/](../../recipes/) — 22 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, PKCS#8 private keys, PKCS#12 files.
+- [recipes/](../../recipes/) — 25 executable recipes: the quick start, the agent brief, a CA bundle, fingerprints, extensions on demand, ASN.1 and OIDs, the ASN.1 primitives, hostile input, signature verification, certificate and CSR creation, reading and judging a CSR, path validation, the one-call verification, server-name matching, extended key usage, revocation lists, OCSP, CMS signing and verification, an external signer, RFC 3161 timestamps, reading a request back, PKCS#8 private keys, PKCS#12 files, ML-DSA verification on either kind of host, an attribute certificate and the checks RFC 5755 §5 leaves to you.
 - [Use cases](use-cases.md) — the jobs end to end, from a certificate inventory to a timestamped signature and the `.p12` holding its key.
 - [Conformance](conformance.md) — how pkinative is held to x509-limbo, NIST PKITS, Wycheproof, the text of RFC 5280 and OpenSSL.
 - [Standards](standards.md) — every ISO/IEC, ITU-T and IETF standard pkinative touches, what holds each, and the gaps: a tooled self-assessment, not a certification.

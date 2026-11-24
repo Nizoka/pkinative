@@ -5,7 +5,8 @@ import { createCertificate } from '../../src/build/build-certificate.js';
 import { encodeBasicConstraints } from '../../src/build/build-structures.js';
 import { verifyCrlSignature } from '../../src/crypto/x509-verify.js';
 import { checkRevocation } from '../../src/revocation/crl-check.js';
-import { parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { findRevocation, parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { PkiError } from '../../src/types/pki-errors.js';
 import type { Certificate } from '../../src/types/x509-types.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { ascii, sequence, universal } from '../helpers/raw-der-builder.js';
@@ -203,6 +204,48 @@ describe('checkRevocation', () => {
 
     it('should never throw for a revocation issue', () => {
         expect(() => check(LISTED, buildCrl({ issuer: nameOf('Other CA'), nextUpdate: null }), { signatureVerified: false })).not.toThrow();
+    });
+});
+
+// ADR 0025: checkRevocation is a primitive, so what `strict` refuses is thrown
+// here, as findRevocation throws it — and reported by verifyCertificateChain,
+// which composes it.
+describe('checkRevocation — under strict (ADR 0025)', () => {
+    // reasonCode (2.5.29.21) valued 7, which RFC 5280 §5.3.1 leaves unassigned:
+    // the walk drops the value with PKI_DIAG_CRL_EXTENSION_MALFORMED, a warning.
+    const REASON_7 = sequence(sequence(universal(6, [0x55, 0x1d, 0x15]), universal(4, [0x0a, 0x01, 0x07])));
+    const odd = buildCrl({ entries: [sequence(int(0x07), utc('260201000000Z'), REASON_7)] });
+
+    it('should throw PKI_STRICT_DIAGNOSTIC for the warning the walk only reports without strict', () => {
+        const seen: string[] = [];
+        expect(codes(check(LISTED, odd, { onDiagnostic: (d) => { seen.push(`${d.code} ${d.severity}`); } }))).toEqual(['PKI_REASON_REVOKED']);
+        expect(seen).toEqual(['PKI_DIAG_CRL_EXTENSION_MALFORMED warning']);
+
+        const refused: string[] = [];
+        let caught: unknown;
+        try {
+            check(LISTED, odd, { strict: true, onDiagnostic: (d) => { refused.push(d.code); } });
+        } catch (error) {
+            caught = error;
+        }
+        expect(caught).toBeInstanceOf(PkiError);
+        expect(caught).toMatchObject({ code: 'PKI_STRICT_DIAGNOSTIC' });
+        expect(refused).toEqual([]);
+        // The walk itself, on the same bytes, says the same.
+        expect(() => findRevocation(odd, LISTED.serialNumber.bytes, { strict: true }))
+            .toThrow(expect.objectContaining({ code: 'PKI_STRICT_DIAGNOSTIC' }));
+    });
+
+    it('should give the same answers under strict for a list that raises nothing', () => {
+        expect(check(NOT_LISTED, buildCrl(), { strict: true })).toEqual([]);
+        expect(codes(check(LISTED, buildCrl(), { strict: true }))).toEqual(['PKI_REASON_REVOKED']);
+        expect(codes(check(LISTED, buildCrl({ issuer: nameOf('Other CA'), nextUpdate: null }), { strict: true, signatureVerified: false })))
+            .toEqual(['PKI_REASON_REVOCATION_WRONG_ISSUER', 'PKI_REASON_REVOCATION_UNKNOWN', 'PKI_REASON_REVOCATION_STALE']);
+    });
+
+    it('should refuse a strict that is not a boolean as PKI_INVALID_OPTION', () => {
+        expect(() => check(NOT_LISTED, buildCrl(), { strict: 'yes' as unknown as boolean }))
+            .toThrow(expect.objectContaining({ code: 'PKI_INVALID_OPTION' }));
     });
 });
 

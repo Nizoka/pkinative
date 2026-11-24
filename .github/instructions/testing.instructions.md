@@ -15,9 +15,12 @@ applyTo: "tests/**"
 ```
 tests/
 ├── core/ asn1/ pem/ oid/ hash/ x509/ crypto/ build/ path/ revocation/ cms/ keys/ verify/   # one directory per src/ layer
-├── fuzzing/        # one file per adversarial class, seeded, fixed budgets; reports.test.ts: every report function always resolves
+├── fuzzing/        # one file per adversarial class, seeded, fixed budgets; reports.test.ts: every report function always resolves;
+│                   # arguments.test.ts: every export of the entry point, called with values of the wrong type;
+│                   # argument-members.test.ts: a valid call of every function, wrong in one member at a time; flags and options refused
 ├── security/       # CVE-class replays, one test per published class, held to docs/data/cve-classes.json
-├── property/       # seeded round-trip and repeatability properties (encode → decode → encode; same input, same bytes)
+├── property/       # seeded round-trip and repeatability properties (encode → decode → encode; same input, same bytes);
+│                   # frozen-results.test.ts: everything a parse*/decode* export returns is frozen — a new reader needs an input there
 ├── performance/    # a time budget per named limit (library time only); excluded from the mutation runner
 ├── conformance/    # offline differential against node:crypto and the pinned corpora' baselines
 ├── tools/          # guard hook, workflows, agent config, architecture, api-surface, mutate, verify-issue
@@ -43,6 +46,7 @@ tests/
 - One file per class: length encoding, nesting depth, node count, high tag numbers, integers, bit strings, OID arcs, time rollover, string types, BER indefinite forms, PEM, truncation, byte flips, duplicate extensions
 - Seeded and deterministic (`tests/helpers/prng.ts`); print the seed in the failure message
 - Every iteration must end in a returned value or a thrown `PkiError` subclass — any other exception (`TypeError`, `RangeError`) fails the suite
+- A guard on an argument has its own test in `tests/<layer>/arguments.test.ts` (helpers in `tests/core/_arguments.ts`), on the call where that guard is the one that answers: the sweep proves no `TypeError` escapes, the layer test proves which code does
 - Every named limit in `src/core/pki-limits.ts` has a test that trips it and asserts `PKI_LIMIT_EXCEEDED` with the right `limit`
 
 ## Locking tests for fixes

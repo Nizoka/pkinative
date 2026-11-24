@@ -79,7 +79,8 @@ export type PkiCertificateErrorCode =
     | 'PKI_X509_EXTENSIONS_EMPTY'      // an extensions field with no extension (CWE-1286)
     | 'PKI_X509_EXTENSION_DUPLICATE'   // the same extension OID twice (CWE-694)
     | 'PKI_X509_EXTENSION_MALFORMED'   // a recognised extension whose value does not match its definition (CWE-1286)
-    | 'PKI_X509_GENERAL_NAME_INVALID'; // a malformed GeneralName (CWE-1286)
+    | 'PKI_X509_GENERAL_NAME_INVALID'  // a malformed GeneralName (CWE-1286)
+    | 'PKI_X509_ATTRIBUTE_MALFORMED';  // an RFC 5755 §4.4 attribute whose value does not match its syntax (CWE-1286)
 
 /** Codes carried by {@link PkiLimitError}. */
 export type PkiLimitErrorCode =

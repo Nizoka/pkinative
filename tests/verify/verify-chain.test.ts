@@ -31,6 +31,9 @@ import { bytesEqual } from '../../src/core/bytes.js';
 import { verifyCertificateSignature } from '../../src/crypto/x509-verify.js';
 import { buildCertificatePath } from '../../src/path/path-build.js';
 import { KEY_PURPOSES } from '../../src/path/path-purpose.js';
+import { checkRevocation } from '../../src/revocation/crl-check.js';
+import { parseCertificateList } from '../../src/revocation/crl-parse.js';
+import { parseOcspResponse } from '../../src/revocation/ocsp-response.js';
 import { parseCertificate } from '../../src/x509/x509-certificate.js';
 import { verifyCertificateChain } from '../../src/verify/verify-chain.js';
 import { PkiError } from '../../src/types/pki-errors.js';
@@ -681,6 +684,166 @@ describe('verifyCertificateChain — what it reports through onDiagnostic (RFC 6
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         expect(codes(await verifyCertificateChain({ ...common, ocspResponses: [empty, await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } })] }))).toEqual([]);
         expect(warn).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ADR 0025. `strict` in a composition: the warning a strict parse or a strict
+ * primitive would throw for is **reported** — `PKI_REASON_INPUT_MALFORMED`
+ * carrying `PKI_STRICT_DIAGNOSTIC`, at the member that raised it — and the
+ * call resolves. Each case holds the same bytes three ways: lenient (the
+ * verdict and the diagnostic), the parser or primitive under strict (it
+ * throws), and the report under strict (it says so).
+ */
+describe('verifyCertificateChain — under strict (ADR 0025)', () => {
+    const collect = (): { readonly seen: PkiDiagnostic[]; readonly onDiagnostic: (d: PkiDiagnostic) => void } => {
+        const seen: PkiDiagnostic[] = [];
+        return { seen, onDiagnostic: (d): void => { seen.push(d); } };
+    };
+    const keyHashOf = (certificate: Certificate): Uint8Array =>
+        encodeExplicit(2, encodeOctetString(computeKeyIdentifier(certificate.subjectPublicKeyInfo.publicKey.bytes, 'SHA-1')), { tagClass: 'context' });
+    const thrownCode = (fn: () => unknown): string | undefined => {
+        try {
+            fn();
+        } catch (error) {
+            if (error instanceof PkiError) return error.code;
+            throw error;
+        }
+        return undefined;
+    };
+
+    it('should report a warning of a CRL as it is parsed, at crls[i], where parseCertificateList under strict throws', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const crl = await signedCrl(ica, icaKey, { badNumber: true });
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, crls: [crl], requireRevocation: true } as const;
+
+        const lenient = collect();
+        expect(codes(await verifyCertificateChain({ ...common, onDiagnostic: lenient.onDiagnostic }))).toEqual([]);
+        expect(lenient.seen.map((d) => [d.code, d.severity, d.path])).toEqual([['PKI_DIAG_CRL_EXTENSION_MALFORMED', 'warning', 'tbsCertList.crlExtensions.cRLNumber']]);
+        expect(thrownCode(() => parseCertificateList(crl, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const refused = collect();
+        const report = await verifyCertificateChain({ ...common, strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        // The list is refused, so nothing answers about the leaf either.
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED', 'PKI_REASON_REVOCATION_UNKNOWN']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'crls[0]' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_CRL_EXTENSION_MALFORMED');
+        // Refused, not delivered: throw or diagnose, never both.
+        expect(refused.seen).toEqual([]);
+        // `strict: false` is the default, spelled out.
+        expect(codes(await verifyCertificateChain({ ...common, strict: false }))).toEqual([]);
+    });
+
+    it('should report a warning the walk of the entries raises, at crls[i], where checkRevocation under strict throws', async () => {
+        // reasonCode 7 is a value RFC 5280 §5.3.1 leaves unassigned: the list
+        // parses clean, and only the walk that reaches the entry drops it.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const crl = await signedCrl(ica, icaKey, { revoked: leaf, entryReason: 7 });
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, crls: [crl], requireRevocation: true } as const;
+        expect(thrownCode(() => parseCertificateList(crl, { strict: true }))).toBeUndefined();
+
+        const lenient = collect();
+        expect(codes(await verifyCertificateChain({ ...common, onDiagnostic: lenient.onDiagnostic }))).toEqual(['PKI_REASON_REVOKED']);
+        expect(lenient.seen.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_CRL_EXTENSION_MALFORMED', 'warning']]);
+        expect(thrownCode(() => checkRevocation({ certificate: leaf, crl: parseCertificateList(crl, quiet), crlDer: crl, at: AT, signatureVerified: true, strict: true })))
+            .toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const report = await verifyCertificateChain({ ...common, strict: true });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'crls[0]' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_CRL_EXTENSION_MALFORMED');
+    });
+
+    it('should report a warning of an OCSP response as it is parsed, at ocspResponses[i], where parseOcspResponse under strict throws', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const response = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey }, responderId: keyHashOf(ica), explicitVersion: true });
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, ocspResponses: [response], requireRevocation: true } as const;
+
+        const lenient = collect();
+        expect(codes(await verifyCertificateChain({ ...common, onDiagnostic: lenient.onDiagnostic }))).toEqual([]);
+        expect(lenient.seen.map((d) => [d.code, d.severity])).toEqual([['PKI_DIAG_DEFAULT_ENCODED', 'warning']]);
+        expect(thrownCode(() => parseOcspResponse(response, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+
+        const report = await verifyCertificateChain({ ...common, strict: true });
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED', 'PKI_REASON_REVOCATION_UNKNOWN']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'ocspResponses[0]' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_DEFAULT_ENCODED');
+    });
+
+    it('should report a warning only the judgement of a response raises — a responderID that names nobody — where checkOcspStatus under strict throws', async () => {
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const response = await ocspResponse({ certificate: leaf, issuer: ica, signer: { key: icaKey } });
+        const common = { leaf, candidates: [ica], trustAnchors: [root], at: AT, ocspResponses: [response], requireRevocation: true } as const;
+        // The bytes parse clean under strict: the claim is wrong only against the signer.
+        expect(thrownCode(() => parseOcspResponse(response, { strict: true }))).toBeUndefined();
+        expect(codes(await verifyCertificateChain(common))).toEqual([]);
+
+        const refused = collect();
+        const report = await verifyCertificateChain({ ...common, strict: true, onDiagnostic: refused.onDiagnostic });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_INPUT_MALFORMED']);
+        expect(report.reasons[0]).toMatchObject({ errorCode: 'PKI_STRICT_DIAGNOSTIC', path: 'ocspResponses[0]' });
+        expect(report.reasons[0]?.message).toContain('PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH');
+        expect(refused.seen).toEqual([]);
+    });
+
+    it('should keep the verdict when nothing but an info is raised, and read a certificate the response attaches without strict', async () => {
+        // The delegate's own certificate carries a warning (no
+        // authorityKeyIdentifier). It is a hint the response attached: refused
+        // under strict it would be skipped in silence and the response
+        // reported unauthorised, the cause hidden. It is read leniently, its
+        // diagnostics still delivered, and the two `info`s refuse nothing.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy();
+        const delegate = await issueEd25519({ subject: 'OCSP Responder', issuerDer: ica.subject.der, signer: icaKey, purposes: [OCSP_SIGNING], noCheck: true, noCheckCritical: true });
+        expect(thrownCode(() => parseCertificate(delegate.certificate.der, { strict: true }))).toBe('PKI_STRICT_DIAGNOSTIC');
+        const seen = collect();
+        const report = await verifyCertificateChain({
+            leaf, candidates: [ica], trustAnchors: [root], at: AT, requireRevocation: true, strict: true,
+            ocspResponses: [await ocspResponse({
+                certificate: leaf, issuer: ica, signer: { key: delegate.key, certificates: [delegate.certificate.der] },
+                responderId: keyHashOf(delegate.certificate), others: [{ serial: Uint8Array.of(0x7a, 0x01) }],
+            })],
+            onDiagnostic: seen.onDiagnostic,
+        });
+        expect(codes(report)).toEqual([]);
+        expect(report.valid).toBe(true);
+        expect(seen.seen.map((d) => [d.code, d.severity])).toEqual([
+            ['PKI_DIAG_AKI_MISSING', 'warning'],
+            ['PKI_DIAG_SKI_MISSING_END_ENTITY', 'info'],
+            ['PKI_DIAG_OCSP_NOCHECK_CRITICAL', 'info'],
+            ['PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED', 'info'],
+        ]);
+    });
+
+    it('should stop believing a delegated CRL signer when the list that would clear it raises a warning about it', async () => {
+        // The CA's own list names the delegate with removeFromCRL — not a
+        // revocation — and an invalidityDate that is not a time, which only the
+        // walk about the delegate reaches. Lenient, the delegate is cleared and
+        // its list believed. Under strict that walk is refused, as an entry
+        // that cannot be read is: the delegate is not believed, so the list it
+        // signed is one nobody entitled signed — fail closed.
+        const { root, ica, leaf, icaKey } = await ed25519Hierarchy({ crlSign: true });
+        const delegate = await crlDelegate(ica, icaKey);
+        const lists = [await signedCrl(ica, delegate.key), await signedCrl(ica, icaKey, { revoked: delegate.certificate, entryReason: 8, badInvalidityDate: true })];
+        const common = { leaf, candidates: [ica, delegate.certificate], trustAnchors: [root], at: AT, crls: lists, requireRevocation: true } as const;
+
+        const lenient = collect();
+        expect(codes(await verifyCertificateChain({ ...common, onDiagnostic: lenient.onDiagnostic }))).toEqual([]);
+        expect(lenient.seen.map((d) => d.code)).toContain('PKI_DIAG_CRL_EXTENSION_MALFORMED');
+
+        const report = await verifyCertificateChain({ ...common, strict: true });
+        expect(report.valid).toBe(false);
+        expect(codes(report)).toEqual(['PKI_REASON_REVOCATION_UNKNOWN']);
+        expect(report.reasons[0]?.path).toBe('crls[0]');
+    });
+
+    it('should throw PKI_INVALID_OPTION for a strict that is not a boolean, before anything is read', async () => {
+        const { root, ica, leaf } = await hierarchy();
+        await expect(verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT, strict: 'yes' as unknown as boolean }))
+            .rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
+        await expect(verifyCertificateChain({ leaf, candidates: [ica], trustAnchors: [root], at: AT, crls: [emptyCrl(ica)], strict: 1 as unknown as boolean }))
+            .rejects.toMatchObject({ code: 'PKI_INVALID_OPTION' });
     });
 });
 
@@ -2188,6 +2351,8 @@ async function ocspResponse(options: {
     readonly also?: Uint8Array;
     /** The responderID TLV; by key, twenty 0xcc octets — a claim that names nobody — by default. */
     readonly responderId?: Uint8Array;
+    /** Write ResponseData.version out as v1 (0), which DER omits as the DEFAULT: PKI_DIAG_DEFAULT_ENCODED as the response is parsed. */
+    readonly explicitVersion?: boolean;
 }): Promise<Uint8Array> {
     if (options.statusCode !== undefined) return encodeSequence([encodeEnumerated(options.statusCode)]);
     const singleResponse = (serial: Uint8Array, wide: boolean, status: Uint8Array): Uint8Array => {
@@ -2209,6 +2374,7 @@ async function ocspResponse(options: {
     const single = singleResponse(options.serial ?? options.certificate.serialNumber.bytes, options.sha256 === true, options.status ?? good);
     const others = (options.others ?? []).map((other) => singleResponse(other.serial, other.sha256 === true, good));
     const tbs = encodeSequence([
+        ...(options.explicitVersion === true ? [encodeExplicit(0, encodeInteger(0n), { tagClass: 'context' })] : []),
         // responderID ::= [2] KeyHash — by key, which needs no name to match.
         options.responderId ?? encodeExplicit(2, encodeOctetString(new Uint8Array(20).fill(0xcc)), { tagClass: 'context' }),
         encodeTime(options.producedAt ?? AT - DAY, 'GeneralizedTime'),
@@ -2267,6 +2433,10 @@ interface SignedCrlOptions {
     readonly criticalExtension?: boolean;
     /** `indirectCRL` in the issuingDistributionPoint (RFC 5280 §5.2.5): a list answering for another CA's certificates. */
     readonly indirect?: boolean;
+    /** A `cRLNumber` valued NULL, where RFC 5280 §5.2.3 wants an INTEGER: dropped, with a warning, as the list is parsed. */
+    readonly badNumber?: boolean;
+    /** An `invalidityDate` valued NULL on the revoked entry: dropped, with a warning, by the walk that reaches that entry. */
+    readonly badInvalidityDate?: boolean;
 }
 
 /** `1.3.6.1.4.1.99999.7`, critical, valued NULL: an instruction nothing here can follow. */
@@ -2278,10 +2448,13 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: Sig
         ...(revoked === undefined ? [] : [encodeSequence([
             encodeTlv('universal', 2, false, revoked.serialNumber.bytes),
             encodeTime(AT - 30 * DAY, 'UTCTime'),
-            ...(options.entryReason === undefined ? [] : [encodeSequence([encodeSequence([
-                encodeObjectIdentifier('2.5.29.21'),
-                encodeOctetString(encodeEnumerated(BigInt(options.entryReason))),
-            ])])]),
+            ...(options.entryReason === undefined && options.badInvalidityDate !== true ? [] : [encodeSequence([
+                ...(options.entryReason === undefined ? [] : [encodeSequence([
+                    encodeObjectIdentifier('2.5.29.21'),
+                    encodeOctetString(encodeEnumerated(BigInt(options.entryReason))),
+                ])]),
+                ...(options.badInvalidityDate === true ? [encodeSequence([encodeObjectIdentifier('2.5.29.24'), encodeOctetString(encodeNull())])] : []),
+            ])]),
         ])]),
         ...(options.malformedEntry === true ? [encodeSequence([encodeInteger(0x7777n)])] : []),
         ...(options.criticalEntry === true ? [encodeSequence([encodeInteger(0x7778n), encodeTime(AT - 30 * DAY, 'UTCTime'), encodeSequence([VENDOR_CRITICAL])])] : []),
@@ -2309,6 +2482,7 @@ async function signedCrl(issuer: Certificate, key: CryptoKeyHandle, options: Sig
             encodeObjectIdentifier('2.5.29.20'),
             encodeOctetString(encodeInteger(BigInt(options.number))),
         ])]),
+        ...(options.badNumber === true ? [encodeSequence([encodeObjectIdentifier('2.5.29.20'), encodeOctetString(encodeNull())])] : []),
         ...(options.over === undefined ? [] : [encodeSequence([
             encodeObjectIdentifier('2.5.29.27'),
             encodeBoolean(true),

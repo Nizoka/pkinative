@@ -9,10 +9,13 @@
 ![TypeScript strict mode](https://img.shields.io/badge/TypeScript-strict-blue)
 ![Conformance: x509-limbo, Wycheproof and NIST PKITS](https://img.shields.io/badge/conformance-x509--limbo%20%2B%20Wycheproof%20%2B%20NIST%20PKITS-blueviolet)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Sponsor: GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Nizoka)
 
-Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 on Linux, with a Deno, a Bun and a headless Chromium smoke test, and on Node.js 26 (Current) in an advisory run until its LTS date; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
+<p align="center"><img src="https://pkinative.dev/assets/demo.gif" width="800" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and asks for a verdict on two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates."></p>
 
-> **Status: 1.0 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
+Zero runtime dependencies. 100% TypeScript. One API for every runtime with Web Crypto: tested in CI on Node.js 22 on Linux, Windows and macOS and on Node.js 24 and 26 on Linux, with a Deno, a Bun and a headless Chromium smoke test; other Web Crypto runtimes, such as Cloudflare Workers, are expected to work and are not tested in CI. The third library of the *native* family, under the engineering doctrine of [pdfnative](https://github.com/Nizoka/pdfnative) and [zipnative](https://github.com/Nizoka/zipnative).
+
+> **Status: 1.1 — stable, on npm.** The public API, the error codes and the reason codes follow semantic versioning: a minor release only adds, and a removal or an incompatible change waits for the next major ([ROADMAP.md](ROADMAP.md), [SECURITY.md §Compatibility promise](SECURITY.md#compatibility-promise)). No version below 1.0.0 was tagged or released: the 0.x milestones are history in [CHANGELOG.md](CHANGELOG.md) and `release-notes/`, and `0.0.1` on npm is the name reservation, not a release. Its two satellites are published too: [pkinative-cli](https://github.com/Nizoka/pkinative-cli), the `pkinative` command line, and [pkinative-mcp](https://github.com/Nizoka/pkinative-mcp), a Model Context Protocol server for AI assistants ([Ecosystem](#ecosystem)).
 
 pkinative reads certificates and verifies them the whole way: signatures, RFC 5280 §6 paths, CRL and OCSP revocation, host names and key purposes. It reads, builds and verifies CMS SignedData and RFC 3161 timestamps, opens PKCS#8 keys and PKCS#12 files into non-extractable Web Crypto keys, and creates certificates and certification requests — with Web Crypto doing every signature.
 
@@ -22,28 +25,28 @@ The JavaScript ecosystem parses certificates with node-forge, pkijs, asn1js and 
 
 - **Strict by default.** DER's length, tag, constructed-string, BOOLEAN, INTEGER and BIT STRING rules (X.690 §8, §10, §11.1–11.2.1) are refused, not guessed at: two encodings of one value is an ambiguity an attacker can exploit. The departures from §11.2.2, §11.5 and §11.6 that real issuers commit — trailing zero bits in a named bit list, an explicit DEFAULT, an unsorted SET OF — are diagnostics, refused under `strict: true`. BER is an explicit option.
 - **Safe on hostile input.** Every loop runs under a named, CWE-tagged, caller-configurable limit; nesting is iterative; every failure is a typed error with a stable code — never a `TypeError`.
-- **Complete.** Every RFC 5280 extension decoded to its ASN.1 module, every GeneralName form, every DirectoryString type, RFC 4514 names, RSA, EC, EdDSA, XDH and ML-DSA keys.
+- **Complete.** Every RFC 5280 extension decoded to its ASN.1 module, every GeneralName form, every DirectoryString type, RFC 4514 names, RSA, EC, EdDSA, XDH, ML-DSA, SLH-DSA and ML-KEM keys.
 - **Honest about profiles.** What real issuers get wrong — a 21-octet serial, an explicit DEFAULT, a non-critical name constraint — is a diagnostic with its RFC section, not a crash and not silence.
-- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with the input.
+- **Verdicts that explain themselves.** A chain, a signed message, a timestamp or a PKCS#12 file comes back as a report carrying every reason it was refused, each a stable code with its clause, never an exception for a problem with what is being judged: only a call that is itself wrong throws.
 - **No cryptography it should not own.** pkinative never implements signing, key generation or arithmetic on secret material; every signature is created and verified through Web Crypto, with your key.
 - **Held to external corpora.** A blocking conformance gate runs x509-limbo, Wycheproof and NIST PKITS, pinned by commit and checksum, holds the parser to the pinned text of RFC 5280 clause by clause, and cross-checks the serial number, validity, CA flag and fingerprint of every parsed certificate against OpenSSL.
 - **Agent-pilotable.** Machine-readable error codes, a diagnostics channel, [`llms.txt`](llms.txt), a generated [API manifest](docs/assets/api.json), and a human-in-the-loop AI governance policy. Beyond the library, the MCP server gives an assistant 34 typed tools and seven prompts, and the CLI a `--json` contract whose 13 error classes carry pkinative's codes verbatim.
 
 ## How it compares
 
-Registry facts only, read on 2026-09-19 ([docs/data/comparison-2026-09-19.json](docs/data/comparison-2026-09-19.json)).
+Registry facts only, read on 2026-11-17 ([docs/data/comparison-2026-11-17.json](docs/data/comparison-2026-11-17.json)); a peer dependency, which the consumer installs, is counted apart.
 
 | Library | Latest | Runtime dependencies | Types bundled | ES modules | Scope |
 |---|---|---|---|---|---|
 | **pkinative** | 1.0 (npm) | **0** | yes | yes | ASN.1, PEM, OIDs, X.509 and PKCS#10 requests, path validation with CRL and OCSP, CMS and RFC 3161, PKCS#8 and PKCS#12 under PBES2; every signature through Web Crypto |
-| node-forge | 1.4.0 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
-| asn1js | 3.0.10 | 3 | yes | yes | ASN.1 BER/DER codec |
-| @peculiar/x509 | 2.1.0 | 11 | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
-| pkijs | 3.4.0 | 6 | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
+| node-forge | 1.4.3 | 0 | no | no | Broad: ASN.1, X.509, TLS, its own RSA and ciphers in JavaScript |
+| asn1js | 4.0.0 | 1 | yes | yes | ASN.1 BER/DER codec |
+| @peculiar/x509 | 3.1.0 | 9 + 1 peer | yes | yes | X.509 over Web Crypto, on the @peculiar/asn1 schema stack |
+| pkijs | 4.0.1 | 3 + 1 peer | yes | yes | Broad PKI over asn1js and Web Crypto: X.509, CRL, OCSP, CMS, timestamps |
 | jsrsasign | 11.1.5 | 0 | no | no | Broad: ASN.1, X.509, JWS, its own RSA and ECDSA in JavaScript |
-| micro509 | 0.14.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
+| micro509 | 0.19.0 | 0 | yes | yes | Small X.509 toolkit, pre-1.0 |
 
-Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)).
+Choose pkinative for strict, dependency-free PKI with every refusal explained by a stable code; choose another tool for what it will never do — legacy PKCS#12, DSA, network fetching, key generation — each a recorded decision ([choose guide](docs/guides/choose.md)). Coming from node-forge or pkijs, the [migration guide](docs/guides/migrate.md) maps each call you have to the one that replaces it.
 
 ## Installation
 
@@ -57,8 +60,8 @@ npm audit signatures   # optional: verify the registry signatures and provenance
 Every GitHub release also carries that same tarball, fetched back from the registry, and three SBOMs — CycloneDX and SPDX for the package, CycloneDX for the toolchain that built it — all attested with Sigstore build provenance:
 
 ```bash
-npm install https://github.com/Nizoka/pkinative/releases/download/v1.0.0/pkinative-1.0.0.tgz
-gh attestation verify pkinative-1.0.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
+npm install https://github.com/Nizoka/pkinative/releases/download/v1.1.0/pkinative-1.1.0.tgz
+gh attestation verify pkinative-1.1.0.tgz --repo Nizoka/pkinative   # optional: check where it was built
 ```
 
 A plain git install (`github:Nizoka/pkinative#v1.0.0`) does not work: `dist/` is not committed. Every runtime runs the same build; the package has `browser`, `import` and `require` conditions and no runtime dependency.
@@ -104,12 +107,13 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | The one-call verdict | `verifyCertificateChain` — path building, RFC 5280 §6 validation, host name, key purpose and revocation in one report that lists every reason at once ([use cases](docs/guides/use-cases.md#just-tell-me-whether-to-accept-this-certificate)) |
 | Certificates | `parseCertificate`, `getExtension`, `decodeExtensionValue`, `formatDistinguishedName` — every RFC 5280 field and standard extension |
 | Certification requests | `parseCertificationRequest` (PKCS#10, a `CertificationRequest`: subject, key, attributes and the extensions it asks for, read with the certificate's own readers), `verifyCertificationRequest` — the proof of possession checked with the key inside the request, as a `VerifyCertificationRequestReport` that never throws for bad bytes (`VerifyCertificationRequestOptions` for `allowSha1` and the reading options) |
+| Attribute certificates | `parseAttributeCertificate` (RFC 5755: holder, issuer, the six attributes of §4.4, the AC-only extensions, the profile as diagnostics), `verifyAttributeCertificateSignature` — read and signature-checked; §5 validation is the caller's composition ([recipe](recipes/attribute-certificate.ts)) |
 | Signature verification | `verifyCertificateSignature`, `verifySelfSignature`, `canVerify` — one signature against one issuer key, through Web Crypto; `PkiCryptoError` when it could not be checked, never when it failed |
 | Creation | `createCertificate`, `createCertificationRequest` (PKCS#10), `canSign` — signed by a Web Crypto key or an `ExternalSigner`; the structural encoders `encodeDistinguishedName`, `encodeExtensions`, `encodeSubjectAltName`, `encodeKeyUsage`, `KEY_USAGE_BITS`, `encodeSubjectPublicKeyInfo` and the rest |
 | Paths | `buildCertificatePath`, `validateCertificatePath` — RFC 5280 §6 with name constraints and the policy tree |
 | Host names and purposes | `checkServerName`, `matchDnsName` (RFC 6125), `checkExtendedKeyUsage`, `KEY_PURPOSES`, `ANY_EXTENDED_KEY_USAGE` |
-| Revocation | CRLs: `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` (delta lists and scopes included); OCSP: `createOcspRequest`, `encodeOcspCertId`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus`, `OCSP_NONCE_OID` — you fetch, pkinative judges |
-| CMS and timestamps | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
+| Revocation | CRLs: `parseCertificateList`, `findRevocation`, `verifyCrlSignature`, `checkRevocation` (delta lists and scopes included); OCSP: `createOcspRequest`, `encodeOcspCertId`, `parseOcspRequest`, `parseOcspResponse`, `verifyOcspSignature`, `checkOcspStatus`, `OCSP_NONCE_OID` — you fetch, pkinative judges |
+| CMS and timestamps | `createSignedData` (a Web Crypto key or an `ExternalSigner` such as an HSM), `verifySignedData`, `parseSignedData`, `verifySignerInfoSignature`, `addUnsignedAttribute`; RFC 3161 `createTimeStampRequest`, `parseTimeStampRequest`, `parseTimeStampResponse`, `parseTimeStampToken`, `parseTstInfo`, `verifyTimeStampToken`, `addTimeStampToken`; `PkiCmsError` ([use cases](docs/guides/use-cases.md#sign-a-message-and-verify-one-the-whole-way)) |
 | Private keys and PKCS#12 | `openPkcs12` (one call: MAC, SafeContents, certificates, keys), `parsePkcs12`, `verifyPkcs12Mac`, `openSafeContents`; PKCS#8 `parsePrivateKeyInfo`, `parseEncryptedPrivateKeyInfo`, `importPrivateKey`, `decryptPrivateKey` — keys unwrapped into non-extractable Web Crypto handles, PBES2 only; `canDecrypt`, `PkiKeyError` ([use cases](docs/guides/use-cases.md#private-keys-and-pkcs12)) |
 | PEM | `decodePem` (strict or lax RFC 7468, optionally restricted to one label), `encodePem` |
 | ASN.1 | `decodeAsn1`, `decodeAsn1Sequence`; the typed readers `readBoolean`, `readInteger`, `readSmallInteger`, `readEnumerated`, `readNull`, `readBitString`, `readOctetString`, `readObjectIdentifier`, `readRelativeOid`, `readString` (eight string types) and `readTime` (both time types); DER encoders (`encodeSequence`, `encodeInteger`, `encodeRelativeOid`, `encodeTlv`, …); `encodeAsn1Node` (byte-identical re-encoding) |
@@ -117,7 +121,7 @@ This block is [recipes/quick-start.ts](recipes/quick-start.ts), executed on ever
 | Fingerprints, key identifiers and hashing | `computeFingerprint`, `computeFingerprintAsync` (Web Crypto), `formatFingerprint`, `computeKeyIdentifier`; `shake256` (FIPS 202, over public data — the digest an Ed448 CMS signer uses) |
 | Errors and limits | `PkiError` and its six subclasses — `PkiEncodingError`, `PkiCertificateError`, `PkiLimitError`, `PkiCryptoError`, `PkiCmsError`, `PkiKeyError` — each with a stable `code` ([error guide](docs/guides/errors.md)); `DEFAULT_PKI_LIMITS` |
 
-pkinative has 294 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
+pkinative has 329 public exports. There is deliberately no PEM-to-certificate shortcut: `decodePem` and `parseCertificate` compose, as Go's `encoding/pem` and `crypto/x509` do, so the certificate parser carries no PEM code ([recipes/pem-bundle.ts](recipes/pem-bundle.ts)).
 
 ## Security model
 
@@ -137,17 +141,17 @@ What this is and is not evidence of, standard by standard, is the [standards sel
 ## Known limitations
 
 - **No external security audit** ([ADR 0010](docs/adr/0010-no-external-security-audit-at-1-0.md)). What stands in its place — the adversarial release audit, the conformance gate, 100 % coverage, the seeded adversarial suites — is listed in [SECURITY.md](SECURITY.md#in-place-of-an-external-audit).
-- **Coverage-guided fuzzing has not run on GitHub yet.** The ClusterFuzzLite workflow is in place; its first run needs the published repository ([SECURITY.md](SECURITY.md#verification-of-the-parser)). The seeded adversarial suites run in every gate.
+- **Coverage-guided fuzzing explores, it does not block.** ClusterFuzzLite runs on pull requests and every week ([SECURITY.md](SECURITY.md#verification-of-the-parser)) and is not a required check; the seeded adversarial suites, which run in every gate, are the blocking half.
 - **An `id-RSASSA-PSS` private key under PBES2 depends on the host**: a `pkcs8ShroudedKeyBag` or an encrypted PKCS#8 is unwrapped by Web Crypto and never handed back to re-wrap, so on Node.js 22 it stays `PKI_REASON_PKCS12_KEY_UNSUPPORTED` or `PKI_CRYPTO_KEY_UNSUPPORTED` — re-export it under `rsaEncryption` with the tool that holds it. Public keys, unencrypted PKCS#8 and plain `keyBag`s under such a certificate verify and open everywhere.
 - **No built-in trust store, no fetching.** The caller supplies the trust anchors, and the CRLs and OCSP responses a check needs: pkinative does no network I/O ([ADR 0006](docs/adr/0006-no-network-io-in-the-engine.md)).
-- **No OCSP-request or timestamp-request reader.** `createOcspRequest` and `createTimeStampRequest` write them; no public function parses one. A PKCS#10 request is read by `parseCertificationRequest` and judged by `verifyCertificationRequest`.
+- **Requests are read, not answered.** `parseOcspRequest` and `parseTimeStampRequest` read what `createOcspRequest` and `createTimeStampRequest` write, or what another client wrote; pkinative is neither a responder nor a TSA, and the signature of a signed OCSP request is exposed, not verified. A PKCS#10 request is read by `parseCertificationRequest` and judged by `verifyCertificationRequest`.
 - **No CRL or OCSP-response writer.** pkinative reads and verifies both, and writes neither.
-- **ML-DSA signatures are not verified**, though ML-DSA keys are read; **DSA signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)); **an Ed448 CMS signer is verified where the host verifies Ed448** (Node.js) and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` where it does not (Bun, Chromium) ([ADR 0022](docs/adr/0022-ed448-cms-signers-host-dependent.md)).
+- **An ML-DSA signature is verified where the host verifies ML-DSA** — a certificate, a CRL, an OCSP response, a certification request, a CMS signer or a timestamp token, on a runtime whose Web Crypto has the algorithm (Node.js 24.7 and later) — and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` with `PKI_CRYPTO_KEY_UNSUPPORTED` where it does not (Node.js 22); **nothing is signed with ML-DSA**, and an ML-DSA private key is described, not imported; **SLH-DSA and ML-KEM keys are read**, and no SLH-DSA signature is verified ([ADR 0026](docs/adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)); **DSA signers are not verified** ([ADR 0004](docs/adr/0004-dsa-and-ed448-cms-signers-not-verified.md)); **an Ed448 CMS signer is verified where the host verifies Ed448** (Node.js) and reported `PKI_REASON_SIGNATURE_NOT_CHECKED` where it does not (Bun, Chromium) ([ADR 0022](docs/adr/0022-ed448-cms-signers-host-dependent.md)).
 - **Internationalized names are not converted**: a non-ASCII octet in an IA5String name is refused, not guessed, and IDNA is not applied. No public suffix list is embedded: a wildcard needs three labels, and registry-level policy is the caller's.
 - **X.520 attribute syntaxes are diagnosed, not enforced, when reading a name**: a `countryName` that is not a two-character PrintableString, or an `emailAddress` that is not an IA5String, is read with a `warning` (refused under `strict: true`); a value past its RFC 5280 Appendix A.1 upper bound, or a country code outside ISO 3166-1, is read as it is with an `info` (`PKI_DIAG_NAME_ATTRIBUTE_TOO_LONG`, `PKI_DIAG_NAME_COUNTRY_UNKNOWN`). TeletexString is read as Latin-1, with a diagnostic.
 - **The Certificate Transparency SCT list** is kept in its TLS encoding, neither decoded nor verified.
 - **The SHA implementations** are synchronous TypeScript over public data; `computeFingerprintAsync` uses Web Crypto when the host has it.
-- **Attribute certificates** (ITU-T X.509 §12 and RFC 5755) are not read; the scope and priority are determined when a consumer requests one.
+- **Attribute certificates** (RFC 5755) are read and signature-checked; RFC 5755 §5 validation is not implemented — holder binding, targeting, AC revocation and the issuer-is-not-a-CA rule are the caller's composition ([ADR 0028](docs/adr/0028-attribute-certificates-are-read-not-judged.md), `recipes/attribute-certificate.ts`).
 - **Refusals by design** — PKCS#12 and PKCS#8 under PBES2 only, no DSA verification, no network fetching, no key generation or export, no PKCS#8 or PKCS#12 writer, no ETSI long-term (B-LTA) signature formats — are recorded decisions, listed below.
 
 ## What pkinative will NOT do
@@ -158,7 +162,7 @@ No runtime dependency. No TypeScript implementation of signing, key generation o
 
 | Package | Purpose | Status |
 |---|---|---|
-| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.0.0 |
+| [`pkinative`](https://www.npmjs.com/package/pkinative) | the engine (this repository) — zero runtime dependencies, every runtime with Web Crypto | 1.1.0 |
 | [`pkinative-cli`](https://github.com/Nizoka/pkinative-cli) | command line (`npm install --global pkinative-cli`, binary `pkinative`) — 18 commands, 53 invocations, a `--json` envelope whose 13 error classes carry pkinative's `PKI_*` codes verbatim, JSON Schemas, shell completion; the filesystem and the process the engine refuses to own ([guide](docs/guides/cli.md)) | 1.0.0 |
 | [`pkinative-mcp`](https://github.com/Nizoka/pkinative-mcp) | Model Context Protocol server (`npx -y pkinative-mcp`) — 34 tools, seven prompts, sandboxed file resources, stdio and Streamable HTTP; no network call and no key byte returned, ever ([guide](docs/guides/mcp.md)) | 1.0.0 |
 
@@ -183,6 +187,15 @@ npm run conformance:fetch && npx tsx scripts/gate.ts --publish --require-all
 ## Origin
 
 pkinative grew out of the X.509 and CMS code pdfnative wrote for PDF signatures. An audit found that code useful but not reusable as it stood — a signed-shift length bug, recursion without a bound, extensions silently lost after an `issuerUniqueID`, and pure-JavaScript RSA and ECDSA that are not constant-time. pkinative keeps the ideas, rewrites the parser, and leaves the secret-dependent arithmetic to Web Crypto.
+
+## Support the project
+
+pkinative is MIT-licensed and free. Two things fund the time spent on it:
+
+- **[GitHub Sponsors](https://github.com/sponsors/Nizoka)** — once or monthly.
+- **A [Plika](https://plika.app) licence** — the personal-finance application of pkinative's author. It is the purchase of that product, not a donation, and it buys nothing in pkinative: neither support nor priority.
+
+Starring the repository helps too. Where to ask a question, report a bug or write to the project: [SUPPORT.md](SUPPORT.md).
 
 ## License
 

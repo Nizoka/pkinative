@@ -48,15 +48,19 @@ export interface EcKeyImportParams {
     readonly namedCurve: 'P-256' | 'P-384' | 'P-521';
 }
 
-/** Ed25519 and Ed448 take no parameter beyond the name. */
+/**
+ * Ed25519, Ed448 and — on a host that implements them — the three ML-DSA
+ * parameter sets take no parameter beyond the name. For ML-DSA that is the
+ * pure mode with the empty context string (RFC 9881 §3).
+ */
 export interface EdKeyImportParams {
-    readonly name: 'Ed25519' | 'Ed448';
+    readonly name: 'Ed25519' | 'Ed448' | 'ML-DSA-44' | 'ML-DSA-65' | 'ML-DSA-87';
 }
 
 /** Every import parameter pkinative passes. */
 export type ImportParams = RsaHashedImportParams | EcKeyImportParams | EdKeyImportParams;
 
-/** RSASSA-PKCS1-v1_5, Ed25519 and Ed448 sign and verify by name alone. */
+/** RSASSA-PKCS1-v1_5, Ed25519 and Ed448 sign and verify by name alone; ML-DSA is verified by name alone. */
 export interface NamedVerifyParams {
     readonly name: string;
 }

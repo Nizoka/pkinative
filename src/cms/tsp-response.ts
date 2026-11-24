@@ -142,7 +142,7 @@ export function parseTimeStampResponse(der: Uint8Array, options?: PkiParseOption
         failInfo,
         tokenDer,
         token,
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 
@@ -161,8 +161,8 @@ function readStatusInfo(node: Asn1Node, ctx: Asn1Context, path: string): {
         throw _tspError(`${path}.status`, statusNode.offset, `is ${String(value)}, which RFC 3161 §2.4.2 does not define — a status this reader does not know is one it cannot tell apart from a grant`);
     }
 
-    let statusStrings: readonly string[] = [];
-    let failInfo: readonly TimeStampFailure[] = [];
+    let statusStrings: readonly string[] = Object.freeze([]);
+    let failInfo: readonly TimeStampFailure[] = Object.freeze([]);
     let last = -1;
     for (const field of rest) {
         // 0 = statusString (SEQUENCE OF UTF8String), 1 = failInfo (BIT STRING).

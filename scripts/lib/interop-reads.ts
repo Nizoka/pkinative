@@ -36,6 +36,7 @@ import {
 } from '../../src/index.js';
 import { READ_CASES } from './interop.js';
 import { firstLine, locate, type Host, type Ran } from './interop-host.js';
+import { opensslMlDsa } from './interop-tools.js';
 
 const PROGRAMS = join(dirname(fileURLToPath(import.meta.url)), '..', 'validators');
 
@@ -77,6 +78,19 @@ function expectValid(what: string, report: { readonly valid: boolean; readonly r
 function expectReason(what: string, report: { readonly valid: boolean; readonly reasons: readonly { readonly code: string }[] }, code: string): string[] {
     if (report.valid) return [`${what}: valid, expected ${code}`];
     return report.reasons.some((r) => r.code === code) ? [] : [`${what}: refused with ${codes(report.reasons)}, expected ${code}`];
+}
+
+/**
+ * An ML-DSA signature is the host's to verify (ADR 0026): `valid` where this
+ * Node.js has ML-DSA in Web Crypto, and where it has not, the one reason that
+ * says so — `PKI_REASON_SIGNATURE_NOT_CHECKED` carrying
+ * `PKI_CRYPTO_KEY_UNSUPPORTED`, alone. Anything else disagrees with the tool.
+ */
+export function expectVerifiedOrNotChecked(what: string, report: { readonly valid: boolean; readonly reasons: readonly { readonly code: string; readonly errorCode?: string | undefined }[] }): string[] {
+    if (report.valid) return [];
+    const only = report.reasons[0];
+    const notChecked = report.reasons.length === 1 && only?.code === 'PKI_REASON_SIGNATURE_NOT_CHECKED' && only.errorCode === 'PKI_CRYPTO_KEY_UNSUPPORTED';
+    return notChecked ? [] : [`${what}: neither valid nor reported not checked with PKI_CRYPTO_KEY_UNSUPPORTED (${codes(report.reasons)})`];
 }
 
 /** Run each command in turn; the first failure stops and is returned. */
@@ -237,6 +251,34 @@ function opensslWrites(o: Host, dir: string, reference: boolean): Written {
         }
         return out;
     });
+
+    // ML-DSA (FIPS 204; RFC 9881, RFC 9882): a root, a leaf and a SignedData
+    // of their own, so nothing above depends on them. A build without the
+    // algorithm is declared without it, not failed — the probe decides, not
+    // `reference`. What pkinative answers is its host's to say (ADR 0026).
+    const mlDsa = ['openssl:cert-ml-dsa', 'openssl:cms-ml-dsa'];
+    const noMlDsa = opensslMlDsa(o, dir);
+    if (noMlDsa !== undefined) for (const id of mlDsa) skipped.set(id, noMlDsa);
+    else {
+        const made = steps(o, [
+            ['genpkey', '-algorithm', 'ML-DSA-65', '-out', f('mldsa-root.key')],
+            ['req', '-x509', '-new', '-key', f('mldsa-root.key'), '-subj', '/CN=pkinative interop openssl ML-DSA root', '-days', '30', '-config', cnf, '-extensions', 'v3_root', '-out', f('mldsa-root.pem')],
+            ['genpkey', '-algorithm', 'ML-DSA-44', '-out', f('mldsa-signer.key')],
+            ['req', '-new', '-key', f('mldsa-signer.key'), '-subj', '/CN=mldsa-signer.example.com', '-config', cnf, '-out', f('mldsa-signer.csr')],
+            ['x509', '-req', '-in', f('mldsa-signer.csr'), '-CA', f('mldsa-root.pem'), '-CAkey', f('mldsa-root.key'), '-set_serial', '0x2000', '-days', '30', '-extfile', cnf, '-extensions', 'v3_signer', '-out', f('mldsa-signer.pem')],
+            // RFC 9882 §3.3: SHA-512 is the digest every implementation supports; OpenSSL has no default for ML-DSA.
+            ['cms', '-sign', '-in', f('data.txt'), '-binary', '-nodetach', '-md', 'sha512', '-signer', f('mldsa-signer.pem'), '-inkey', f('mldsa-signer.key'), '-outform', 'DER', '-out', f('cms-mldsa.der')],
+        ]);
+        if (made !== null) giveUp(mlDsa, made);
+        else {
+            // Unwrapped with Buffer's base64: node:crypto's X509Certificate need not know the key.
+            const mlDsaCert = (name: string): Certificate => cert(pemBlocks(readFileSync(f(name), 'utf8'), 'CERTIFICATE')[0] ?? new Uint8Array(0));
+            cases.set('openssl:cert-ml-dsa', async () => expectVerifiedOrNotChecked('openssl:cert-ml-dsa',
+                await verifyCertificateChain({ leaf: mlDsaCert('mldsa-signer.pem'), trustAnchors: [mlDsaCert('mldsa-root.pem')] })));
+            cases.set('openssl:cms-ml-dsa', async () => expectVerifiedOrNotChecked('openssl:cms-ml-dsa',
+                await verifySignedData({ signedData: read(f('cms-mldsa.der')), trustAnchors: [mlDsaCert('mldsa-root.pem')] })));
+        }
+    }
 
     // CMS SignedData.
     const sign = (out: string, signer: string, extra: readonly string[]): readonly string[] =>

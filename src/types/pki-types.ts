@@ -162,11 +162,25 @@ export type PkiDiagnosticCode =
     | 'PKI_DIAG_CMS_SIGNING_TIME_FRACTION'
     | 'PKI_DIAG_TSP_CERTREQ_UNMET'
     | 'PKI_DIAG_TSP_CERTS_UNREQUESTED'
+    | 'PKI_DIAG_OCSP_REQUEST_SIGNED_UNNAMED'
+    | 'PKI_DIAG_OCSP_NONCE_LENGTH'
+    | 'PKI_DIAG_OCSP_REQUEST_EXTENSION_CRITICAL'
     | 'PKI_DIAG_OCSP_CERTS_EMPTY'
     | 'PKI_DIAG_OCSP_VERSION_NOT_V1'
     | 'PKI_DIAG_OCSP_RESPONDER_ID_MISMATCH'
     | 'PKI_DIAG_OCSP_SINGLE_RESPONSE_UNREQUESTED'
-    | 'PKI_DIAG_OCSP_NOCHECK_CRITICAL';
+    | 'PKI_DIAG_OCSP_NOCHECK_CRITICAL'
+    | 'PKI_DIAG_SPKI_ALGORITHM_UNRECOGNISED'
+    | 'PKI_DIAG_KEY_USAGE_KEY_ALGORITHM_MISMATCH'
+    | 'PKI_DIAG_AC_HOLDER_EMPTY'
+    | 'PKI_DIAG_AC_HOLDER_MULTIPLE'
+    | 'PKI_DIAG_AC_ISSUER_V1_FORM'
+    | 'PKI_DIAG_AC_ISSUER_NOT_PROFILED'
+    | 'PKI_DIAG_AC_ATTRIBUTES_EMPTY'
+    | 'PKI_DIAG_AC_ATTRIBUTE_DUPLICATE'
+    | 'PKI_DIAG_AC_ATTRIBUTE_PROFILE'
+    | 'PKI_DIAG_AC_EXTENSION_CRITICALITY'
+    | 'PKI_DIAG_AC_EXTENSION_PROFILE';
 
 /** `warning`: a profile violation a verifier may refuse. `info`: an accepted, documented tolerance. */
 export type PkiDiagnosticSeverity = 'warning' | 'info';
@@ -209,7 +223,7 @@ export interface PkiParseOptions {
     readonly encodingRules?: EncodingRules | undefined;
     /** Overrides for any subset of `DEFAULT_PKI_LIMITS`. */
     readonly limits?: Partial<PkiLimits> | undefined;
-    /** Escalate every diagnostic to a thrown `PkiError` with code `PKI_STRICT_DIAGNOSTIC`. */
+    /** Refuse the first `warning` diagnostic with a thrown `PkiError` of code `PKI_STRICT_DIAGNOSTIC` — an `info` is still only reported; a verify composition reports the refusal as a reason instead of throwing it. */
     readonly strict?: boolean | undefined;
     /** Receive every diagnostic instead of the default once-per-code `console.warn`. */
     readonly onDiagnostic?: PkiDiagnosticHandler | undefined;

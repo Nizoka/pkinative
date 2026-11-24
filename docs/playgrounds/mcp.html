@@ -234,7 +234,7 @@
     </div>
     <div class="pg-drop" id="drop" tabindex="0" role="button" aria-label="Drop PKI files here, or press Enter to choose them">Drop a certificate, CSR, CRL, OCSP response, .p7s, .tsr, a TEST key or a TEST .p12 here — or click to choose. It never leaves this tab.</div>
     <input type="file" id="file" multiple hidden>
-    <p class="pg-status info" id="status" role="status" aria-live="polite">Loading pkinative@1.0.0 from the CDN…</p>
+    <p class="pg-status info" id="status" role="status" aria-live="polite">Loading pkinative@1.1.0 from the CDN…</p>
 
     <div class="guide-content">
       <h3 id="your-files-heading">Your files</h3>
@@ -284,12 +284,12 @@
       <p>With <code>PKINATIVE_MCP_OUTPUT_DIR</code> set, every regular file in the sandbox is a resource under the template <code>pkinative://output/{+path}</code>, and an artefact written with <code>outputMode: 'file'</code> comes back as a <code>resource_link</code> to it — so <code>create_csr</code> → <code>create_certificate</code> → <code>verify_certificate_chain</code> never re-sends the bytes. Key-bearing files are never listed and never served, and key material is refused by content too, whatever the file name. This page has no sandbox, so it lists no resource.</p>
 
       <h2 id="errors">Errors and verdicts</h2>
-      <p>A negative verdict is not an error: a verdict tool answers <code>valid: false</code> with the engine's <code>PKI_REASON_*</code> codes in <code>reasons[]</code>. <code>isError: true</code> means the input was refused — with one of pkinative's 57 error codes passed through verbatim, or one of the server's 21 wrapper codes for the boundary the engine does not own. Branch on the code, never on the message; <code>explain_code</code> explains each one, and the <a href="../guides/mcp.html#error-model">error model</a> lists the wrapper codes.</p>
+      <p>A negative verdict is not an error: a verdict tool answers <code>valid: false</code> with the engine's <code>PKI_REASON_*</code> codes in <code>reasons[]</code>. <code>isError: true</code> means the input was refused — with one of pkinative's 58 error codes passed through verbatim, or one of the server's 21 wrapper codes for the boundary the engine does not own. Branch on the code, never on the message; <code>explain_code</code> explains each one, and the <a href="../guides/mcp.html#error-model">error model</a> lists the wrapper codes.</p>
 
       <h2 id="limits">What this page does not do</h2>
       <ul>
         <li>It runs no MCP server and speaks no JSON-RPC: each Run is the engine call behind a tool, made in this tab. Where the browser result differs from the server's — the cache, the sandbox, the ceilings, the server half of <code>describe_engine</code> — the card says so.</li>
-        <li>It opens no connection but the one that loads pkinative@1.0.0 from esm.sh or jsDelivr, and the same-origin read of the code registries by <code>explain_code</code>. No CRL, OCSP or TSA is ever contacted — the server has no network code path either.</li>
+        <li>It opens no connection but the one that loads pkinative@1.1.0 from esm.sh or jsDelivr, and the same-origin read of the code registries by <code>explain_code</code>. No CRL, OCSP or TSA is ever contacted — the server has no network code path either.</li>
         <li>Nothing you drop or type is uploaded, stored or logged; reload the page and it is gone.</li>
         <li>No key leaves the tab. The page generates its two keys as non-extractable, reads only their public halves, and describes the keys it unwraps from a PKCS#12 by algorithm and usages — never by a byte. Drop TEST material only all the same.</li>
       </ul>
@@ -316,6 +316,7 @@
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/Nizoka/pkinative/blob/main/docs/adr/README.md" target="_blank" rel="noopener">Decision records</a></li>
+            <li><a href="https://github.com/sponsors/Nizoka" target="_blank" rel="noopener">Sponsor</a></li>
             <li><a href="https://pdfnative.dev" target="_blank" rel="noopener">Sibling: pdfnative</a></li>
             <li><a href="https://zipnative.dev" target="_blank" rel="noopener">Sibling: zipnative</a></li>
           </ul>
@@ -334,6 +335,7 @@
             <li><a href="../guides/standards.html">Standards</a></li>
             <li><a href="../guides/errors.html">Errors</a></li>
             <li><a href="../guides/choose.html">Choose</a></li>
+            <li><a href="../guides/migrate.html">Migrate</a></li>
           </ul>
         </div>
         <div class="footer-col">

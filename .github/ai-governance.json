@@ -71,8 +71,9 @@
       "hooks": [
         {
           "event": "PreToolUse",
-          "matcher": "Bash and PowerShell — every tool that reaches a shell carries its own matcher, because a hook that is never invoked parses nothing",
-          "command": "node .claude/hooks/guard.mjs",
+          "matcher": "Bash|PowerShell — every tool that reaches a shell is named in the matcher, because a hook that is never invoked parses nothing",
+          "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\"",
+          "path": "through $CLAUDE_PROJECT_DIR, never relative: after a cd, node exits 1 on a missing script and Claude Code treats a hook that exits 1 as a non-blocking error",
           "denies": ["npm publish|unpublish|deprecate|dist-tag|version <bump>", "npx npm publish", "gh pr create|edit|close|merge|comment", "gh issue create|edit|close|comment", "gh release *", "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F", "git push (any form)", "git add --renormalize", "git tag (except list forms)"],
           "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
           "tests": "tests/tools/guard.test.ts"
@@ -82,7 +83,8 @@
       "env_limits": { "BASH_MAX_OUTPUT_LENGTH": "16000", "BASH_DEFAULT_TIMEOUT_MS": "300000", "BASH_MAX_TIMEOUT_MS": "1800000", "NO_COLOR": "1" },
       "rules": { "directory": ".claude/rules/", "generated_from": ".github/instructions/*.instructions.md", "generator": "npm run agents:rules", "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally" },
       "skills": [
-        { "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false, "purpose": "The pre-release audit of CONTRIBUTING.md §Release step 5 and SECURITY.md §In place of an external audit; run by the maintainer, never by the model on its own (disable-model-invocation: true)." }
+        { "name": "release-audit", "path": ".claude/skills/release-audit/SKILL.md", "model_invocable": false, "purpose": "The pre-release audit of CONTRIBUTING.md §Release step 5 and SECURITY.md §In place of an external audit; run by the maintainer, never by the model on its own (disable-model-invocation: true)." },
+        { "name": "satellite-align", "path": ".claude/skills/satellite-align/SKILL.md", "model_invocable": false, "purpose": "The documentation pass of CONTRIBUTING.md §Release step 12 after a pkinative-cli or pkinative-mcp release: facts, mechanical edits and worklist from npm run satellites:sync, at most six writers that never read a satellite, one reviewer for behavioural claims, a pull-request body drafted under .github/drafts/; run by the maintainer, never by the model on its own (disable-model-invocation: true), and it pushes, tags and publishes nothing." }
       ]
     }
   },

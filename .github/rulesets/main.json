@@ -34,8 +34,10 @@
         "required_status_checks": [
           { "context": "ci (22)", "integration_id": 15368 },
           { "context": "ci (24)", "integration_id": 15368 },
+          { "context": "ci (26)", "integration_id": 15368 },
           { "context": "windows", "integration_id": 15368 },
           { "context": "macos", "integration_id": 15368 },
+          { "context": "compat-previous", "integration_id": 15368 },
           { "context": "conformance", "integration_id": 15368 },
           { "context": "conformance-windows", "integration_id": 15368 },
           { "context": "conformance-macos", "integration_id": 15368 },

@@ -56,6 +56,14 @@ export function warning(file: string, message: string, line = 1): Finding {
     return { severity: 'warn', file, line, message };
 }
 
+/**
+ * A string as a literal inside a `RegExp`: every metacharacter escaped, so
+ * that a version, a host or a heading matches itself and nothing else.
+ */
+export function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Line number (1-based) of a character offset. */
 export function lineOf(text: string, index: number): number {
     let line = 1;
@@ -115,12 +123,17 @@ export function createFsContext(root: string, online = false): RuleContext {
     };
 }
 
-/** Every text file of the tree, `path → text`, for building a memory context. */
+/**
+ * Every text file of the tree, `path → text`, for building a memory context. A
+ * binary file is there too, as an empty text: its bytes are no rule's business,
+ * but its existence is — a page that links to an image must resolve in memory
+ * as it does on disk.
+ */
 export function loadTextTree(root: string): Record<string, string> {
     const ctx = createFsContext(root);
     const out: Record<string, string> = {};
     for (const path of ctx.list('')) {
-        if (BINARY_EXTENSIONS.test(path)) continue;
+        if (BINARY_EXTENSIONS.test(path)) { out[path] = ''; continue; }
         const text = ctx.read(path);
         if (text !== null) out[path] = text;
     }

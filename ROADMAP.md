@@ -162,13 +162,38 @@ Published after the engine, as separate repositories and npm packages pinning `p
 
 Everything here is a semver-minor addition under the 1.x promise. The list this section held until 2026-10-03 was pulled into 1.0.0 whole (see above); what remains is set by a calendar, or is a gap the [standards guide](docs/guides/standards.md) records and nobody has asked to close.
 
-- [ ] Node.js 26 moves from Current to a supported line on 2026-10-28, when it enters LTS — one commit: `contracts.support.currentLines` → `nodeLines`, the `ci.yml` matrix, `engines.node`, and the SECURITY.md runtime table with them
-- [ ] `reuse lint` runs in no workflow yet: the verify-docs rule `reuse-shape` holds `REUSE.toml` to its shape, and the tool itself (a Python package, so not a dev dependency) is run by the maintainer — a `pipx`-installed step in the `workflow lint` job of `ci.yml` closes the gap
-- [ ] Attribute certificates (ITU-T X.509 §12 and following, RFC 5755) are not read — the gap the standards guide's X.509 row records; a reader is scoped when a consumer needs one, and not before
+- [x] Node.js 26 is a supported line since it entered LTS on 2026-10-28 — one commit: `contracts.support.currentLines` → `nodeLines`, `ci (26)` in the `ci.yml` matrix and among the checks the committed ruleset requires, its floor written out in `engines.node` (the range itself is unchanged), and the SECURITY.md runtime table with them. The advisory `node-current` workflow is removed until a line is Current again: Node.js adopted a schedule without odd lines, and Node.js 27 starts on 2027-04-22 ([ADR 0017](docs/adr/0017-runtime-and-toolchain-support.md), amended)
+- [x] `reuse lint` runs on every pull request, in the `workflow lint` job of `ci.yml`: the verify-docs rule `reuse-shape` held `REUSE.toml` to its shape, and the tool itself (a Python package, so not a dev dependency) was run by the maintainer. It is installed as the conformance readers are, not through `pipx`: `scripts/data/reuse-requirements.txt` pins reuse and its nine dependencies by the SHA-256 of every file PyPI publishes, and pip resolves and builds nothing
+- [x] Attribute certificates (RFC 5755) are read and signature-checked — `parseAttributeCertificate`, `verifyAttributeCertificateSignature` — and not judged: RFC 5755 §5 validation waits for a graded corpus ([ADR 0028](docs/adr/0028-attribute-certificates-are-read-not-judged.md))
+- [x] Outside the list this section held: ML-DSA signatures verified where the host verifies them ([ADR 0026](docs/adr/0026-ml-dsa-verified-where-the-host-verifies-it.md)), the request readers `parseTimeStampRequest` and `parseOcspRequest`, and `strict` on the verify and check verbs ([ADR 0025](docs/adr/0025-strict-in-the-verify-and-check-verbs.md))
+- [x] Found by an audit of the release candidate and closed in it: an argument of the wrong type is a `PkiError` on every export (`PKI_INVALID_INPUT`, unless it has a code of its own), where 37 of the 108 functions of the entry point threw a `TypeError` (`src/core/arguments.ts`, held by `tests/fuzzing/arguments.test.ts` and `tests/fuzzing/argument-members.test.ts`); and everything a reader returns is frozen, the empty lists included (held by `tests/property/frozen-results.test.ts`); and a flag that is not a boolean, or options that are not an object, are refused with `PKI_INVALID_OPTION` on every function, where 1.0.0 read the text `'true'` as off and a number as no options
+
+## 1.2.x — candidates, additive by construction
+
+None is promised; each enters a release when it meets the bar of the rest — tests, 100 % mutation, a requirement inventory or a graded corpus.
+
+- [ ] A reader for the Certificate Transparency SCT list (RFC 6962 §3.3), as an export of its own applied to the bytes `parseCertificate` already keeps; SCT signature verification after it
+- [ ] Writers for CRLs and OCSP responses, signed through the caller's key like every other writer
+- [ ] RFC 5755 §5 validation of attribute certificates (holder binding, targeting, AC revocation), once a graded corpus exists
+- [ ] ML-DSA signing in the writers and ML-DSA private-key import, when the gate's runtime (`.nvmrc`) moves to a Node.js line whose Web Crypto signs it
+- [ ] SLH-DSA signature verification, once a runtime of the CI matrix verifies it
+- [ ] A diagnostic raised inside a composition carries the path of the member that raised it (`crls[1]`, `ocspResponses[0]`), as the reason for a refused warning already does: today the two are matched by their code
+
+## At the next major
+
+What the 1.x promise holds in place, and a major may move.
+
+- [ ] A certificate whose issuer was not supplied is reported as `PKI_REASON_ISSUER_NOT_FOUND`. In 1.x `verifyCertificateChain` reports it as `PKI_REASON_SIGNATURE_NOT_CHECKED` with `errorCode: 'PKI_CRYPTO_UNAVAILABLE'`, beside `PKI_REASON_NO_TRUST_ANCHOR`; the v1.0.0 test suite holds those codes, so 1.1.0 changed the message and the registries, not the codes
+
+## Tooling — outside the engine's version line
+
+What the gate and the agents work with. Nothing here changes what the package exports.
+
+- [ ] Anchor the two line-indexed registries on content instead of a line number. The ids of `scripts/data/mutation-equivalents.json` (`<file>:<line>:<column>:<operator>`) and the TSDoc fence keys of `tests/docs/guide-fences.test.ts` (`src/<file>:<line>`) move with every line added or removed under `src/` and are re-anchored by hand from a diff, which the audit fixes of 1.1.0 did five times. A key made of the file, the operator and the text of the line — with its occurrence when the text repeats — survives an edit elsewhere in the file: `scripts/mutate.ts` and the fence test read it, the entries are migrated once, and the re-anchoring step leaves `CLAUDE.md`
 
 ## How to Influence the Roadmap
 
 - **Open an issue** describing the use case and the standard that defines it.
 - **Report a conformance case** with the conformance template — the corpus grows from real certificates.
-- **Sponsor** development through [GitHub Sponsors](https://github.com/sponsors/Nizoka).
+- **Sponsor** development through [GitHub Sponsors](https://github.com/sponsors/Nizoka), or by buying a licence of [Plika](https://plika.app), the author's personal-finance application — see [SUPPORT.md](SUPPORT.md).
 - **Contribute** — see [CONTRIBUTING.md](CONTRIBUTING.md).

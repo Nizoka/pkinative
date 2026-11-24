@@ -84,7 +84,8 @@ export const PROBES: readonly Probe[] = [
     // now carries the bound no child may cross (an indefinite child held to its
     // definite parent, P-03).
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 15 KB → 17 KB, measured at 16.7 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
-    { exports: ['decodeAsn1'], maxBytes: 17 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
+    // 1.1.0, the release audit (2026-11-24): 17 KB → 18 KB, measured at 17.04 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['decodeAsn1'], maxBytes: 18 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.x509, MARKERS.webcrypto] },
     // Final review (2026-10-02): 13 KB → 14 KB, measured at 13.0 KB — the strict
     // rule now reads a diagnostic's severity, in the diagnostics module PEM carries.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 14 KB → 16 KB, measured at 15.2 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
@@ -98,11 +99,13 @@ export const PROBES: readonly Probe[] = [
     // the RFC 3986/4516 grammar they need (core/uri.ts), the EC-parameter and
     // RSA-exponent diagnostics and the control-character check on general names.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 86 KB → 90 KB, measured at 87.3 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the X.520 upper-bound and ISO 3166-1 checks; the extension reader shared with the PKCS#10 reader.
-    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 90 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
+    // 1.1.0 (2026-11-18): 90 KB → 93 KB, measured at 90.1 KB — the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts, and the SLH-DSA and ML-KEM key kinds.
+    { exports: ['parseCertificate', 'getExtension', 'formatDistinguishedName'], maxBytes: 93 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem, MARKERS.webcrypto] },
     // 1.0.0 audit: 11 KB → 12 KB, measured at 11.1 KB — the PkiError brand that
     // keeps instanceof true across the ESM and CJS builds.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 12 KB → 14 KB, measured at 13.7 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
-    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 14 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
+    // 1.1.0, the release audit (2026-11-24): 14 KB → 15 KB, measured at 14.26 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['computeFingerprint', 'formatFingerprint'], maxBytes: 15 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.webcrypto] },
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 19 KB → 22 KB, measured at 21.0 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; id-shake256 and id-RSASSA-PSS names.
     { exports: ['getOidName'], maxBytes: 22 * 1024, mustNotContain: [MARKERS.asn1Decoder, MARKERS.sha, MARKERS.x509, MARKERS.webcrypto] },
     // 1.0.0 audit: 17 KB → 18 KB, measured at 17.4 KB — the RFC 4055 §1.2/§3.3
@@ -111,7 +114,8 @@ export const PROBES: readonly Probe[] = [
     // exponent refused below 3 or even (RFC 8017 §3.1), and the RSASSA-PSS
     // parameter grammar enforced field by field.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 19 KB → 22 KB, measured at 20.8 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the id-RSASSA-PSS re-wrap at the Web Crypto door.
-    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 22 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.1.0, the release audit (2026-11-24): 22 KB → 23 KB, measured at 22.55 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['verifyCertificateSignature', 'verifySelfSignature', 'canVerify'], maxBytes: 23 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The builder from the same angle: writing a certificate ships no reader.
     // It carries the ASN.1 *encoders* by necessity, so the decoder marker is
     // the one that matters here — an app that only issues certificates must
@@ -121,7 +125,8 @@ export const PROBES: readonly Probe[] = [
     // messages that say which.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 24 KB → 25 KB, measured at 24.1 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
     // 1.0.0, the second review (2026-10-04): 25 KB → 26 KB, measured at 25.5 KB — the shape guards on `subjectPublicKey` and every extension value (`_wholeValue`, X.690 §8.1 arithmetic, no decoder) and the Edwards signature sizes an ExternalSigner is held to.
-    { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 26 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 26 KB → 27 KB, measured at 26.2 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    { exports: ['createCertificate', 'createCertificationRequest', 'canSign'], maxBytes: 27 * 1024, mustNotContain: [MARKERS.x509, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "§6 is synchronous and pure", weighed. The Web Crypto marker is the one
     // that matters: signature verdicts reach `validateCertificatePath` as
     // data, so a bundle that retained the bridge would mean the claim had
@@ -149,7 +154,9 @@ export const PROBES: readonly Probe[] = [
     // matched by name and key, the §6.1.5 (g)(iii) intersection, v1/v2
     // intermediates refused and the implicit anchor counted.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 26 KB → 28 KB, measured at 27.3 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
-    { exports: ['validateCertificatePath'], maxBytes: 28 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 28 KB → 29 KB, measured at 28.5 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    // 1.1.0, the release audit (2026-11-24): 29 KB → 30 KB, measured at 29.53 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['validateCertificatePath'], maxBytes: 30 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.asn1Decoder, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // "Revocation is synchronous and carries no crypto", weighed. The Web
     // Crypto marker is the invariant: `checkRevocation` takes a signature
     // verdict rather than a key, and a bundle retaining the bridge would mean
@@ -182,7 +189,9 @@ export const PROBES: readonly Probe[] = [
     // distribution-point reasons mask, and the profile diagnostics the list's
     // issuer and extensions share with the certificate reader.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 87 KB → 90 KB, measured at 88.7 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts.
-    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 90 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 90 KB → 91 KB, measured at 90.4 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    // 1.1.0, the release audit (2026-11-24): 91 KB → 92 KB, measured at 91.15 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['parseCertificateList', 'findRevocation', 'checkRevocation'], maxBytes: 92 * 1024, mustNotContain: [MARKERS.webcrypto, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // 156 KB → 164 KB, measured at 157.9 KB: the purpose check and the
     // composition layer. The roadmap's own projection for 1.0 is ~320 KB, so
     // this figure is on track; it is raised in the commit that measures it,
@@ -215,7 +224,9 @@ export const PROBES: readonly Probe[] = [
     // links, the delegated responder's revocation, OCSP freshness and the
     // re-rooted reason paths.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 158 KB → 168 KB, measured at 163.2 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the lazy verdict search (VerdictMemo), the OCSP delegate judged at producedAt, the responderID and SingleResponse diagnostics.
-    { exports: ['verifyCertificateChain'], maxBytes: 168 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 168 KB → 172 KB, measured at 170.0 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    // 1.1.0, the release audit (2026-11-24): 172 KB → 174 KB, measured at 173.13 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['verifyCertificateChain'], maxBytes: 174 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.7 band, weighed from four sides — measured 2026-09-29 at 70.5,
     // 35.2, 17.2 and 167.2 KB.
     //
@@ -233,7 +244,9 @@ export const PROBES: readonly Probe[] = [
     // its issuer and serial are lifted from the encoding, never re-rendered.
     // The hashes are here by necessity — `messageDigest` is one.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 40 KB → 42 KB, measured at 41.0 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the Ed448 signer with its SHAKE256 digest.
-    { exports: ['createSignedData', 'addTimeStampToken', 'createTimeStampRequest'], maxBytes: 42 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 42 KB → 43 KB, measured at 42.5 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    // 1.1.0, the release audit (2026-11-24): 43 KB → 44 KB, measured at 43.54 KB — a flag that is not a boolean and options that are not an object refused as PKI_INVALID_OPTION (the guards of src/core/arguments.ts and the flag names each call site lists).
+    { exports: ['createSignedData', 'addTimeStampToken', 'createTimeStampRequest'], maxBytes: 44 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem] },
     // The CMS signature on its own consumes a parsed SignerInfo and hashes
     // through Web Crypto, so it carries neither the parser nor the SHA code.
     // 1.0.0 audit: 19 KB → 20 KB, measured at 19.1 KB — the RFC 4055 rules,
@@ -241,7 +254,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 20 KB → 21 KB, measured at 20.5 KB — the RSA
     // exponent refusal and the RSASSA-PSS parameter grammar.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 21 KB → 23 KB, measured at 22.6 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; Ed448 resolved to the host, the PSS re-wrap.
-    { exports: ['verifySignerInfoSignature'], maxBytes: 23 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
+    // 1.1.0 (2026-11-18): 23 KB → 25 KB, measured at 23.8 KB — the three ML-DSA rows of the signature table and the digest rule of RFC 9882 §3.3.
+    { exports: ['verifySignerInfoSignature'], maxBytes: 25 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.pem, MARKERS.sha] },
     // The two CMS verdicts are `verifyCertificateChain` plus the CMS layer,
     // which is exactly what they are: 121.7 + ~45 KB.
     // 1.0.0 audit: 176 KB → 190 KB, measured at 182.9 KB — everything
@@ -249,7 +263,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 190 KB → 210 KB, measured at 206.0 KB — the chain
     // report's growth above, the SHA-1 imprint gate and the clock read once.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 210 KB → 225 KB, measured at 219.6 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; SHAKE256 (Keccak-f[1600]) for Ed448 signers, the certReq diagnostics, the chain's lazy search.
-    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 225 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0 (2026-11-18): 225 KB → 232 KB, measured at 225.8 KB — ML-DSA, strict in the verify verbs (ADR 0025), and the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts.
+    { exports: ['verifySignedData', 'verifyTimeStampToken'], maxBytes: 232 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // The 0.8 band, weighed from three sides — measured 2026-09-29 at 39.8,
     // 44.3 and 94.4 KB.
     //
@@ -262,14 +277,16 @@ export const PROBES: readonly Probe[] = [
     // Opening them reaches the door and still no certificate parser: a key's
     // algorithm is named by the caller or, in openPkcs12, by its certificate.
     // Final review (2026-10-04): 50 KB → 51 KB, measured at 50.2 KB — resolveSigner refuses an ECDSA signing key without its curve before anything is signed (PKI_INVALID_OPTION).
-    { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 51 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
+    // 1.1.0, the audit of the release candidate (2026-11-22): 51 KB → 52 KB, measured at 51.3 KB — an argument of the wrong type refused as PKI_INVALID_INPUT on every export of this probe (src/core/arguments.ts and the message of each guard).
+    { exports: ['importPrivateKey', 'decryptPrivateKey', 'verifyPkcs12Mac', 'openSafeContents'], maxBytes: 52 * 1024, mustNotContain: [MARKERS.x509, MARKERS.oidRegistry, MARKERS.sha, MARKERS.pem] },
     // The one call parses every certificate the file carries, to match each
     // key to the one naming its algorithm: the certificate parser is the price.
     // Final review (2026-10-02): 104 KB → 120 KB, measured at 118.5 KB — the
     // certificate reader's profile diagnostics, which the bag's certificates
     // pass through, and the PBMAC1 key-length floor.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 120 KB → 128 KB, measured at 124.9 KB — the 15 diagnostic codes of Lots A1 and A4 and their factories, which every leaf carries through pki-diagnostics.ts; the id-RSASSA-PSS key re-wrapped in importPrivateKey and the PSS case of _algorithmOf.
-    { exports: ['openPkcs12'], maxBytes: 128 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
+    // 1.1.0 (2026-11-18): 128 KB → 132 KB, measured at 128.4 KB — strict and the diagnostic sink honoured (ADR 0025), ML-DSA, and the 14 diagnostic codes of 1.1.0 and their factories, which every leaf carries through pki-diagnostics.ts.
+    { exports: ['openPkcs12'], maxBytes: 132 * 1024, mustNotContain: [MARKERS.oidRegistry, MARKERS.pem] },
     // 164 KB → 168 KB, measured at 165.4 KB with the CRL scope decision;
     // 168 KB → 172 KB, measured at 168.9 KB with delta CRLs and the signer rules;
     // 172 KB → 236 KB, measured at 225.3 KB with CMS and RFC 3161 — the largest
@@ -282,7 +299,8 @@ export const PROBES: readonly Probe[] = [
     // Final review (2026-10-02): 280 KB → 300 KB, measured at 296.3 KB — the sum of
     // the leaves above: 37 diagnostics and the checks behind them.
     // 1.0.0, the 1.1 list pulled in (2026-10-03): 300 KB → 320 KB, measured at 314.6 KB — the sum of the above — the 1.1 list at 1.0.0: the PKCS#10 reader and verdict, SHAKE256, the PSS re-wrap, Ed448 CMS both ways, the lazy search, the X.680 readers, 15 diagnostics; still under the ~320 KB projection written for 1.0.
-    { exports: ['*'], maxBytes: 320 * 1024, mustNotContain: [] },
+    // 1.1.0 (2026-11-18): 320 KB → 355 KB, measured at 345.3 KB — the sum of the above and the three readers no other probe imports: attribute certificates (RFC 5755), the OCSP request and the timestamp request.
+    { exports: ['*'], maxBytes: 355 * 1024, mustNotContain: [] },
 ];
 
 interface ProbeResult {

@@ -46,7 +46,7 @@ export interface CorpusArchive {
 }
 
 export interface Corpus {
-    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits' | 'rfc5280' | 'rfc5652' | 'rfc3161' | 'rfc6960' | 'rfc7292' | 'rfc7468';
+    readonly id: 'x509-limbo' | 'wycheproof' | 'pkits' | 'rfc5280' | 'rfc5652' | 'rfc3161' | 'rfc6960' | 'rfc7292' | 'rfc7468' | 'rfc5755';
     readonly title: string;
     readonly repository: string;
     /**
@@ -168,6 +168,14 @@ export const CORPORA: readonly Corpus[] = [
         commit: '0b2c3c2087cc0b099789c90e61c0208e87b25793f0ce40090979e8c734b3d989',
         licence: 'Copyright (C) The IETF Trust (2015), BCP 78',
         files: [{ name: 'rfc7468.txt', path: 'rfc7468.txt', url: 'https://www.rfc-editor.org/rfc/rfc7468.txt' }],
+    },
+    {
+        id: 'rfc5755',
+        title: 'RFC 5755, An Internet Attribute Certificate Profile for Authorization (plain text)',
+        repository: 'https://www.rfc-editor.org/rfc/rfc5755',
+        commit: '444553b1e8d7312dd286fe9c4d0a8462ca33f9742c6b8594da287c61490f120a',
+        licence: 'Copyright (C) The IETF Trust (2010), BCP 78',
+        files: [{ name: 'rfc5755.txt', path: 'rfc5755.txt', url: 'https://www.rfc-editor.org/rfc/rfc5755.txt' }],
     },
 ];
 

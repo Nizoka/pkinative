@@ -14,13 +14,13 @@ abstract: >-
 type: software
 authors:
   - name: "Nizoka"
-    email: "hello@pdfnative.dev"
-    website: "https://pdfnative.dev"
+    email: "hello@pkinative.dev"
+    website: "https://pkinative.dev"
 repository-code: "https://github.com/Nizoka/pkinative"
 url: "https://github.com/Nizoka/pkinative"
 license: MIT
-version: 1.0.0
-date-released: 2026-10-04
+version: 1.1.0
+date-released: 2026-11-24
 keywords:
   - pki
   - x509

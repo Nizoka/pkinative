@@ -88,7 +88,7 @@ number typed from memory is the failure this instruction exists to prevent.
 ## Human-in-the-loop — steps for the maintainer
 
 1. Squash-merge to `main` with the title `release: vX.Y.Z — <headline>`.
-2. Wait for the seven required checks: `ci (22)`, `ci (24)`, `windows`, `macos`, `conformance`, `conformance-windows`, `conformance-macos`.
+2. Wait for the twelve required checks: `ci (22)`, `ci (24)`, `ci (26)`, `windows`, `macos`, `compat-previous`, `runtimes`, `workflow lint`, `conformance`, `conformance-windows`, `conformance-macos`, `dependency-review`.
 3. Tag `vX.Y.Z` on the merge commit and push it. **`tags.json` has an empty `bypass_actors`: a pushed tag can never be moved or deleted, by anyone.**
 4. Publish the GitHub Release (title `vX.Y.Z — <headline>`, body = `release-notes/vX.Y.Z.md`).
    Expect `publish.yml` to pass its `guard` job, wait for the `npm-publish` reviewer, then publish and attest; afterwards `npm view pkinative version` names X.Y.Z and `npm run check:npm-drift` is clean.

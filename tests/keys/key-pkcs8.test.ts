@@ -324,3 +324,53 @@ describe('parseEncryptedPrivateKeyInfo', () => {
         expect(() => parseEncryptedPrivateKeyInfo(null as unknown as Uint8Array)).toThrow(expect.objectContaining({ code: 'PKI_INVALID_INPUT' }));
     });
 });
+
+// ── ML-DSA (RFC 9881 §6; ADR 0026) ───────────────────────────────────
+
+describe('parsePrivateKeyInfo — ML-DSA keys are named, in each private key form (RFC 9881 §6)', () => {
+    /** The OID, the kind, and the size of the expanded private key of FIPS 204. */
+    const ML_DSA = [
+        ['2.16.840.1.101.3.4.3.17', 'ml-dsa-44', 2560],
+        ['2.16.840.1.101.3.4.3.18', 'ml-dsa-65', 4032],
+        ['2.16.840.1.101.3.4.3.19', 'ml-dsa-87', 4896],
+    ] as const;
+    /** Stand-in octets, as SECRET is: the reader never interprets the secret, whatever its form. */
+    const SEED = Uint8Array.from({ length: 32 }, (_, i) => 0x80 + i);
+    const expanded = (size: number): Uint8Array => new Uint8Array(size).fill(0x5a);
+
+    it.each(ML_DSA)('should name %s as %s whether the key is a seed, an expanded key or both', (dotted, kind, size) => {
+        const forms = [
+            context(0, false, SEED), // seed [0] IMPLICIT OCTET STRING: 0x80 0x20 and 32 octets
+            octets(expanded(size)),
+            sequence(octets(SEED), octets(expanded(size))),
+        ];
+        for (const form of forms) {
+            const info = parsePrivateKeyInfo(pkcs8({ algorithm: alg(dotted, null), key: octets(form) }));
+            expect(info.kind).toBe(kind);
+            expect(info.algorithm).toMatchObject({ oid: dotted, parameters: undefined });
+            expect(info.curve).toBeUndefined();
+            expect(info.diagnostics).toEqual([]);
+        }
+    });
+
+    it('should describe it and expose nothing more than it does for any other key', () => {
+        const info = parsePrivateKeyInfo(pkcs8({ algorithm: alg('2.16.840.1.101.3.4.3.18', null), key: octets(context(0, false, SEED)) }));
+        expect(Object.keys(info).sort()).toEqual(['algorithm', 'attributes', 'curve', 'der', 'diagnostics', 'kind', 'publicKey', 'version']);
+        expect(Object.isFrozen(info)).toBe(true);
+    });
+
+    it('should read the public key a version 1 structure carries beside it', () => {
+        const key = new Uint8Array(1952).fill(7);
+        const info = parsePrivateKeyInfo(pkcs8({ version: 1, algorithm: alg('2.16.840.1.101.3.4.3.18', null), key: octets(context(0, false, SEED)), optional: [publicKey(key)] }));
+        expect(info.kind).toBe('ml-dsa-65');
+        expect(info.publicKey?.bytes).toEqual(key);
+    });
+
+    it.each([
+        ['id-hash-ml-dsa-65-with-sha512, which RFC 9881 §8.3 keeps out of PKIX', '2.16.840.1.101.3.4.3.33'],
+        ['id-slh-dsa-sha2-128s, whose private keys pkinative does not name', '2.16.840.1.101.3.4.3.20'],
+        ['id-alg-ml-kem-768, a key that does not sign', '2.16.840.1.101.3.4.4.2'],
+    ])('should leave %s unknown', (_label, dotted) => {
+        expect(parsePrivateKeyInfo(pkcs8({ algorithm: alg(dotted, null) })).kind).toBe('unknown');
+    });
+});

@@ -471,3 +471,159 @@ describe('the RSA public exponent (RFC 8017 §3.1)', () => {
         expect(resolveCmsAlgorithm(identifier(SHA256), identifier('1.2.840.113549.1.1.1'), rsa(65537n))?.family).toBe('rsa-pkcs1');
     });
 });
+
+// ── ML-DSA (FIPS 204; RFC 9881, RFC 9882; ADR 0026) ──────────────────
+//
+// Everything below is the table and the rules around it, which are plain
+// TypeScript and the same on every host. Whether a host then verifies the
+// signature is asked in tests/crypto/x509-verify.test.ts and tests/verify/.
+
+const ML_DSA: readonly (readonly [string, string, string])[] = [
+    ['2.16.840.1.101.3.4.3.17', 'ml-dsa-44', 'ML-DSA-44'],
+    ['2.16.840.1.101.3.4.3.18', 'ml-dsa-65', 'ML-DSA-65'],
+    ['2.16.840.1.101.3.4.3.19', 'ml-dsa-87', 'ML-DSA-87'],
+];
+const unsupported = expect.objectContaining({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED' });
+
+describe('resolveAlgorithm — ML-DSA (RFC 9881 §2 and §3)', () => {
+    it.each(ML_DSA)('should resolve %s under an %s key to the host\'s %s, by name alone', (dotted, kind, name) => {
+        const resolved = resolveAlgorithm(identifier(dotted), ED_KEY(kind));
+        // Pure ML-DSA, empty context string: nothing but the name reaches the host.
+        expect(resolved).toEqual({ family: kind, importParams: { name }, verifyParams: { name }, curve: undefined, hash: undefined });
+    });
+
+    it.each(ML_DSA.flatMap(([dotted, signed]) => ML_DSA.filter(([, kind]) => kind !== signed).map(([, kind]) => [signed, kind, dotted] as const)))(
+        'should return null for an %s signature under an %s key: another parameter set is a mismatch, not a host question',
+        (_signed, kind, dotted) => {
+            expect(resolveAlgorithm(identifier(dotted), ED_KEY(kind))).toBeNull();
+        },
+    );
+
+    it.each([
+        ['an RSA key', RSA_KEY],
+        ['an EC key', EC_KEY('P-256')],
+        ['an Ed25519 key', ED_KEY('ed25519')],
+        ['an Ed448 key', ED_KEY('ed448')],
+        ['an SLH-DSA key', ED_KEY('slh-dsa-sha2-128s')],
+        ['an ML-KEM key', ED_KEY('ml-kem-768')],
+        ['a key of an algorithm pkinative does not classify', ED_KEY('unknown')],
+    ])('should return null for an ML-DSA-65 signature under %s', (_what, key) => {
+        expect(resolveAlgorithm(identifier('2.16.840.1.101.3.4.3.18'), key)).toBeNull();
+    });
+
+    it.each([['Ed25519', '1.3.101.112'], ['Ed448', '1.3.101.113']])('should return null for an %s signature under an ML-DSA key', (_name, dotted) => {
+        expect(resolveAlgorithm(identifier(dotted), ED_KEY('ml-dsa-44'))).toBeNull();
+    });
+
+    it.each(ML_DSA)('should refuse %s carrying parameters — "MUST be absent" (RFC 9881 §3)', (dotted, kind) => {
+        for (const parameters of [nullValue(), sequence(), oid('1.2.3')]) {
+            const error = (() => {
+                try {
+                    return resolveAlgorithm(identifier(dotted, parameters), ED_KEY(kind));
+                } catch (thrown) {
+                    return thrown;
+                }
+            })();
+            expect(error).toBeInstanceOf(PkiCryptoError);
+            expect(error).toMatchObject({ code: 'PKI_CRYPTO_ALGORITHM_UNSUPPORTED', algorithm: dotted });
+        }
+    });
+
+    it('should decide the key before the parameters: a mismatched key is null whatever the parameters say', () => {
+        expect(resolveAlgorithm(identifier('2.16.840.1.101.3.4.3.18', nullValue()), ED_KEY('ml-dsa-44'))).toBeNull();
+    });
+
+    it.each([['Ed25519', '1.3.101.112', 'ed25519'], ['Ed448', '1.3.101.113', 'ed448']])(
+        'should leave %s as 1.0 reads it: parameters on its identifier are not this rule\'s to refuse',
+        (name, dotted, kind) => {
+            expect(resolveAlgorithm(identifier(dotted, nullValue()), ED_KEY(kind))?.verifyParams).toEqual({ name });
+        },
+    );
+
+    it.each([
+        ['id-hash-ml-dsa-44-with-sha512', '2.16.840.1.101.3.4.3.32'],
+        ['id-hash-ml-dsa-65-with-sha512', '2.16.840.1.101.3.4.3.33'],
+        ['id-hash-ml-dsa-87-with-sha512', '2.16.840.1.101.3.4.3.34'],
+        ['id-slh-dsa-sha2-128s, whose keys are read and whose signatures are not verified', '2.16.840.1.101.3.4.3.20'],
+    ])('should keep %s out of the table (RFC 9881 §8.3; ADR 0026)', (_name, dotted) => {
+        expect(() => resolveAlgorithm(identifier(dotted), ED_KEY('ml-dsa-44'))).toThrow(unsupported);
+    });
+});
+
+describe('_cmsAlgorithmProblem — an ML-DSA signer (RFC 9882 §3.3)', () => {
+    const SHA3_224 = '2.16.840.1.101.3.4.2.7';
+    const SHA3_256 = '2.16.840.1.101.3.4.2.8';
+    const SHA3_384 = '2.16.840.1.101.3.4.2.9';
+    const SHA3_512 = '2.16.840.1.101.3.4.2.10';
+    const SHAKE128 = '2.16.840.1.101.3.4.2.11';
+    /** RFC 9882 §3.3 Table 1, "Suitable Digest Algorithms for ML-DSA", transcribed from the RFC. */
+    const TABLE_1: Readonly<Record<string, readonly string[]>> = {
+        '2.16.840.1.101.3.4.3.17': [SHA256, SHA384, SHA512, SHA3_256, SHA3_384, SHA3_512, SHAKE128, ID_SHAKE256],
+        '2.16.840.1.101.3.4.3.18': [SHA384, SHA512, SHA3_384, SHA3_512, ID_SHAKE256],
+        '2.16.840.1.101.3.4.3.19': [SHA512, SHA3_512, ID_SHAKE256],
+    };
+    /** Every digest the rule could be shown, the rows' members and their neighbours. */
+    const CANDIDATES: readonly (readonly [string, string])[] = [
+        ['SHA-1', SHA1], ['SHA-224', SHA224], ['SHA-256', SHA256], ['SHA-384', SHA384], ['SHA-512', SHA512],
+        ['SHA-512/256', '2.16.840.1.101.3.4.2.6'], ['SHA3-224', SHA3_224], ['SHA3-256', SHA3_256], ['SHA3-384', SHA3_384], ['SHA3-512', SHA3_512],
+        ['SHAKE128', SHAKE128], ['SHAKE256', ID_SHAKE256], ['id-shake256-len', '2.16.840.1.101.3.4.2.18'], ['an OID nobody registered', '1.2.3.4'],
+    ];
+    const cases = ML_DSA.flatMap(([dotted, , name]) => CANDIDATES.map(([digestName, digest]) =>
+        [name, digestName, dotted, digest, (TABLE_1[dotted] as readonly string[]).includes(digest)] as const));
+
+    it.each(cases.filter(([, , , , suitable]) => suitable))('should accept %s over %s with signed attributes, parameters absent or NULL', (_name, _digestName, dotted, digest) => {
+        expect(_cmsAlgorithmProblem(identifier(digest), identifier(dotted))).toBeNull();
+        expect(_cmsAlgorithmProblem(identifier(digest, nullValue()), identifier(dotted), true)).toBeNull();
+    });
+
+    it.each(cases.filter(([, , , , suitable]) => !suitable))('should name the problem with %s over %s with signed attributes: outside its row of Table 1', (name, _digestName, dotted, digest) => {
+        const problem = _cmsAlgorithmProblem(identifier(digest), identifier(dotted));
+        expect(problem).toMatch(/RFC 9882 §3\.3 Table 1/u);
+        expect(problem).toContain(name);
+        expect(problem).toContain(digest);
+    });
+
+    it.each(ML_DSA)('should name the problem with a digestAlgorithm of %s (%s) that carries parameters', (dotted, _kind, name) => {
+        const problem = _cmsAlgorithmProblem(identifier(SHA512, oid('1.2.3')), identifier(dotted));
+        expect(problem).toMatch(/carries parameters/u);
+        expect(problem).toContain(name);
+    });
+
+    it.each(ML_DSA)('should ignore the digestAlgorithm of %s without signed attributes — "MUST ignore the content of the digestAlgorithm field"', (dotted) => {
+        // The signature is over the content itself: no digest is computed, so none can be wrong.
+        expect(_cmsAlgorithmProblem(identifier(SHA1), identifier(dotted), false)).toBeNull();
+        expect(_cmsAlgorithmProblem(identifier('1.2.3.4'), identifier(dotted), false)).toBeNull();
+        expect(_cmsAlgorithmProblem(identifier(SHA512, oid('1.2.3')), identifier(dotted), false)).toBeNull();
+    });
+
+    it('should judge a signer when it is not told whether there are signed attributes', () => {
+        expect(_cmsAlgorithmProblem(identifier(SHA1), identifier('2.16.840.1.101.3.4.3.17'))).not.toBeNull();
+    });
+
+    it('should read the third argument for ML-DSA only: every other signer is judged with or without signed attributes', () => {
+        expect(_cmsAlgorithmProblem(identifier(SHA256), identifier('1.3.101.112'), false)).toMatch(/RFC 8419/u);
+        expect(_cmsAlgorithmProblem(identifier(SHA512), identifier(ED448), false)).toMatch(/RFC 8419/u);
+        expect(_cmsAlgorithmProblem(identifier(SHA256), identifier('1.2.840.10045.4.3.3'), false)).not.toBeNull();
+    });
+
+    it('should still call MD5 the problem, signed attributes or not: it is refused wherever it is named', () => {
+        expect(_cmsAlgorithmProblem(identifier('1.2.840.113549.2.5', nullValue()), identifier('2.16.840.1.101.3.4.3.18'))).toMatch(/MD5/u);
+        expect(_cmsAlgorithmProblem(identifier('1.2.840.113549.2.5', nullValue()), identifier('2.16.840.1.101.3.4.3.18'), false)).toMatch(/MD5/u);
+    });
+});
+
+describe('resolveCmsAlgorithm — an ML-DSA signer (RFC 9882 §3.3)', () => {
+    it.each(ML_DSA)('should resolve %s as the host\'s algorithm, whatever digestAlgorithm says', (dotted, kind, name) => {
+        for (const digest of [SHA512, ID_SHAKE256, SHA1]) {
+            const resolved = resolveCmsAlgorithm(identifier(digest), identifier(dotted), ED_KEY(kind));
+            expect(resolved?.importParams).toEqual({ name });
+            expect(resolved?.verifyParams).toEqual({ name });
+            expect(resolved?.hash).toBeUndefined();
+        }
+    });
+
+    it('should return null for a signer certificate of another parameter set, and refuse parameters on the signature algorithm', () => {
+        expect(resolveCmsAlgorithm(identifier(SHA512), identifier('2.16.840.1.101.3.4.3.18'), ED_KEY('ml-dsa-87'))).toBeNull();
+        expect(() => resolveCmsAlgorithm(identifier(SHA512), identifier('2.16.840.1.101.3.4.3.18', nullValue()), ED_KEY('ml-dsa-65'))).toThrow(unsupported);
+    });
+});

@@ -105,7 +105,7 @@ No breaking changes. Drop-in replacement for vX.Y.Z-1.
 
 ## Downstream integration notes
 
-<!-- Every new, removed or changed public API, error code, diagnostic, limit default or behaviour shift, and the package it affects. -->
+<!-- Every new, removed or changed public API, error code, diagnostic, limit default or behaviour shift, and the package it affects. Name the list of the satellite's surface each change moves (.claude/skills/satellite-align/surface-contract.md): a new PKI_* code moves pkinative-cli `pkiCodes`, a new limit its `limitFlags` and `globalFlags`, a new export its `engineCoverage`; a new option a satellite exposes moves pkinative-cli `flags` and pkinative-mcp `inputs:<tool>`; a registry change moves what both vendor. -->
 
 - ...
 

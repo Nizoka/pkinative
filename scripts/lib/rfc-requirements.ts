@@ -11,11 +11,12 @@
  * clause can be held to a sentence the RFC actually contains.
  *
  * The same extraction runs over every RFC of {@link RFC_INVENTORIES} — CMS
- * (RFC 5652), TSP (RFC 3161), OCSP (RFC 6960), PKCS #12 (RFC 7292) and PEM
- * (RFC 7468) — each with the sections its spec names and its own registry
- * under scripts/data/. There a sentence is held by a `test` (a named Vitest
- * case that exercises its keyword) or excluded with a reason; the rules below
- * are the same for all six, so RFC 5280's ids are what they always were.
+ * (RFC 5652), TSP (RFC 3161), OCSP (RFC 6960), PKCS #12 (RFC 7292), PEM
+ * (RFC 7468) and attribute certificates (RFC 5755) — each with the sections
+ * its spec names and its own registry under scripts/data/. There a sentence is
+ * held by a `test` (a named Vitest case that exercises its keyword) or
+ * excluded with a reason; the rules below are the same for all seven, so
+ * RFC 5280's ids are what they always were.
  *
  * **The keyword set** is RFC 2119 minus its permissions: `MUST`, `MUST NOT`,
  * `SHALL`, `SHALL NOT`, `REQUIRED`, `SHOULD`, `SHOULD NOT`, `RECOMMENDED`
@@ -144,6 +145,10 @@ export const RFC_INVENTORIES: readonly RfcInventorySpec[] = Object.freeze([
     {
         rfc: 'RFC 7468', corpus: 'rfc7468', file: 'rfc7468.txt', data: 'scripts/data/rfc7468-requirements.json', declared: 'rfc7468',
         scope: '§2–§5', sections: (id: string): boolean => within(id, ['2', '3', '4', '5']),
+    },
+    {
+        rfc: 'RFC 5755', corpus: 'rfc5755', file: 'rfc5755.txt', data: 'scripts/data/rfc5755-requirements.json', declared: 'rfc5755',
+        scope: '§4', sections: (id: string): boolean => within(id, ['4']),
     },
 ]);
 

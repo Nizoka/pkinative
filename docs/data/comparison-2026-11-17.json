@@ -1,0 +1,15 @@
+{
+  "$comment": "Facts behind the README comparison, read mechanically on 2026-11-17 from the npm registry (https://registry.npmjs.org/<name>, latest dist-tag) and the npm downloads API (last week). Only registry facts are recorded — no benchmark, no opinion. `runtimeDependencies` is the `dependencies` field and `peerDependencies` the field of that name: a peer is installed by the consumer, so it is counted apart. pkinative's row is the registry's latest on that day (1.0.0); the README row names the version it ships with. Refresh by re-reading the same endpoints and saving a new dated file.",
+  "schemaVersion": 1,
+  "retrievedOn": "2026-11-17",
+  "downloadsWeek": "2026-11-10..2026-11-16",
+  "libraries": [
+    { "name": "pkinative", "version": "1.0.0", "published": "2026-10-04", "license": "MIT", "runtimeDependencies": [], "peerDependencies": [], "bundledTypes": true, "esm": true, "weeklyDownloads": 85 },
+    { "name": "node-forge", "version": "1.4.3", "published": "2026-11-04", "license": "(BSD-3-Clause OR GPL-2.0)", "runtimeDependencies": [], "peerDependencies": [], "bundledTypes": false, "esm": false, "weeklyDownloads": 54737004 },
+    { "name": "asn1js", "version": "4.0.0", "published": "2026-10-19", "license": "BSD-3-Clause", "runtimeDependencies": ["@peculiar/utils"], "peerDependencies": [], "bundledTypes": true, "esm": true, "weeklyDownloads": 36637960 },
+    { "name": "@peculiar/x509", "version": "3.1.0", "published": "2026-10-27", "license": "MIT", "runtimeDependencies": ["tsyringe", "@peculiar/utils", "@peculiar/asn1-cms", "@peculiar/asn1-csr", "@peculiar/asn1-ecc", "@peculiar/asn1-rsa", "@peculiar/asn1-x509", "@peculiar/asn1-pkcs9", "@peculiar/asn1-x509-post-quantum"], "peerDependencies": ["@peculiar/asn1-schema"], "bundledTypes": true, "esm": true, "weeklyDownloads": 23760364 },
+    { "name": "pkijs", "version": "4.0.1", "published": "2026-10-27", "license": "BSD-3-Clause", "runtimeDependencies": ["bytestreamjs", "@noble/hashes", "@peculiar/utils"], "peerDependencies": ["asn1js"], "bundledTypes": true, "esm": true, "weeklyDownloads": 18208986 },
+    { "name": "jsrsasign", "version": "11.1.5", "published": "2026-08-14", "license": "MIT", "runtimeDependencies": [], "peerDependencies": [], "bundledTypes": false, "esm": false, "weeklyDownloads": 2455975 },
+    { "name": "micro509", "version": "0.19.0", "published": "2026-11-16", "license": "MIT", "runtimeDependencies": [], "peerDependencies": [], "bundledTypes": true, "esm": true, "weeklyDownloads": 3115 }
+  ]
+}

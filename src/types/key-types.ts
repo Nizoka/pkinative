@@ -64,8 +64,15 @@ export interface PasswordEncryption {
  * `'unknown'` is open: a later minor may decode what lands here today and
  * report it under a kind of its own (ADR 0018): branch on the known kinds, and
  * treat it as a fallback rather than as a promise that the input stays unknown.
+ *
+ * The three ML-DSA kinds (since 1.1.0; RFC 9881 §6) are that case: such a key
+ * was `'unknown'` in 1.0, and is now named. It is **described only** —
+ * `importPrivateKey` and `openPkcs12` refuse it with
+ * `PKI_CRYPTO_KEY_UNSUPPORTED`, since pkinative signs nothing with ML-DSA yet
+ * (ADR 0026). Whichever of the seed, expanded or combined forms the
+ * `privateKey` octets take is not read: they are the secret.
  */
-export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'unknown';
+export type PrivateKeyKind = 'rsa' | 'rsa-pss' | 'ec' | 'ed25519' | 'ed448' | 'ml-dsa-44' | 'ml-dsa-65' | 'ml-dsa-87' | 'unknown';
 
 /**
  * RFC 5958 `OneAsymmetricKey` (PKCS#8 `PrivateKeyInfo` when version 0) —

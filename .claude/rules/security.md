@@ -21,14 +21,27 @@ Every certificate, PEM file and DER blob is attacker-controlled. Assume adversar
   failure, and a thrown error never carries a merely pedantic concern.
 - **Every thrown value is a `PkiError` subclass** with a stable `code` and a message that starts with
   `pkinative: ` and names the remedy. A `TypeError` escaping from malformed input is a bug.
+- **An argument of the wrong type is a `PkiError`, on every export** — `PKI_INVALID_INPUT` from a new guard, the code it already had otherwise. Three levels — an argument, its members, the members
+  of those — are each refused where the function first reads them, never earlier: a refusal the function already made for a reason
+  of its own still answers first where it was read first. The guards are in `src/core/arguments.ts` (`assertObject`, `assertArray`, `assertIterable`, `assertReiterable`, `assertString`,
+  `assertInstant`, `listOf`, `assertOptions`, `assertFlag`, `assertFlags`, `assertOptionFlags`), with `assertBytes`. **A flag is a boolean or absent** — read as
+  `=== true`, the text `'true'` leaves a check off without a word — and is `PKI_INVALID_OPTION` otherwise, `null` included; an options
+  argument is an object or absent, with that same code on every function, as the readers have given since 1.0.0. A value a reader made is told by `assertParsed`, with the bytes the function reads from it and
+  nothing it does not read; one built by hand to pass for it is outside the promise. A message names a caller's value through
+  `describeValue`, never `String(value)` or a template, which throw on an object with no prototype or a symbol. A table is asked for
+  its own names only (`typeof key === 'string'`, then `hasOwnProperty`). `tests/fuzzing/arguments.test.ts` calls every function of the
+  entry point with everything wrong at once; `tests/fuzzing/argument-members.test.ts` makes a valid call wrong in one place, requires a refusal
+  for a flag that is not a boolean, for a primitive where an object is expected and one code for options that are not an object, and reads `docs/assets/api.json`: a new function
+  fails it until it has a valid call there, and a new flag until a call names it.
 - **A catch binds the error and passes it through `_pkiError`** (`src/core/pki-error-guard.ts`), which rethrows
   anything but a `PkiError`. A bare `catch {}` is allowed only in a capability probe listed in `BARE_CATCH_PROBES`
   (`scripts/lib/architecture.ts`) with its reason, opening with a `// capability probe: …` comment;
   `tests/tools/architecture.test.ts` enforces both from the syntax tree.
 - **Bytes are `isBytes`, never `instanceof Uint8Array`** (`src/core/bytes.ts`): a view from another realm is still bytes; the
   architecture test forbids the `instanceof` outside that module.
-- **An algorithm the host lacks is a verdict, never a throw.** `importKey` refusing a curve (Ed448 on Bun or Chromium) yields the
-  unsupported reason; a key whose own AlgorithmIdentifier the host cannot import (id-RSASSA-PSS) is re-wrapped as
+- **An algorithm the host lacks is a verdict, never a throw.** `importKey` refusing a curve (Ed448 on Bun or Chromium) or an
+  algorithm (ML-DSA on Node.js 22, ADR 0026) yields the unsupported reason — and that refusal is the only detection: no
+  feature probe, no runtime name, no version test; a key whose own AlgorithmIdentifier the host cannot import (id-RSASSA-PSS) is re-wrapped as
   rsaEncryption **after** its RFC 4055 parameters have been checked against the signature — Web Crypto never sees
   parameters it would ignore.
 - **No object keys from input.** Decoded names and OIDs go into arrays or `Map`s, never into plain object keys

@@ -62,6 +62,7 @@ describe('release-prepare — the bumps after 1.0.0', () => {
             expect(after[doc]).toContain('gh attestation verify pkinative-1.1.0.tgz');
         }
         expect(after['README.md']).toContain('**Status: 1.1 — stable, on npm.**');
+        expect(after['README.md']).toContain('every runtime with Web Crypto | 1.1.0 |');
         expect(after['docs/index.html']).not.toContain('releases/download/');
         expect(after['docs/agent-brief.md']).not.toContain('releases/download/');
         expect(after['docs/index.html']).toContain('data-copy="npm install pkinative"');
@@ -83,18 +84,22 @@ describe('release-prepare — the bumps after 1.0.0', () => {
 
     it('should move the playgrounds\' CDN pin with the manifest, so cdn-pin holds on the tree it writes', async () => {
         expect(after['docs/playgrounds/load-engine.js']).toMatch(/^const VERSION = '1\.1\.0';$/m);
+        expect(after['docs/playgrounds/mcp.html']).toContain('Loading pkinative@1.1.0 ');
         expect(await problems(after, 'cdn-pin')).toEqual([]);
         expect(await problems(after, 'versions-widget')).toEqual([]);
         expect(await problems(after, 'jsonld-version')).toEqual([]);
     });
 
-    it('should plan a 1.0.1 patch the same way', async () => {
-        const patch = planRelease(readerOf(releaseBranch()), { version: '1.0.1', date: DATE });
+    it('should plan the next patch the same way', async () => {
+        // The patch after the version package.json names: a snapshot is never older than its release.
+        const [major, minorPart, patchPart] = (JSON.parse(TREE['package.json'] ?? '{}') as { version: string }).version.split('.').map(Number);
+        const next = `${String(major)}.${String(minorPart)}.${String((patchPart ?? 0) + 1)}`;
+        const patch = planRelease(readerOf(releaseBranch()), { version: next, date: DATE });
         expect(failures(patch)).toEqual([]);
         const tree = applied(releaseBranch(), patch);
         expect(await problems(tree, 'release-era-prose')).toEqual([]);
         expect(await problems(tree, 'install-url-version')).toEqual([]);
-        expect(tree['README.md']).toContain('releases/download/v1.0.1/pkinative-1.0.1.tgz');
+        expect(tree['README.md']).toContain(`releases/download/v${next}/pkinative-${next}.tgz`);
     });
 
     it('should refuse a swap whose span is found twice, or not at all', () => {
@@ -114,7 +119,7 @@ describe('install-url-version from 1.0.0', () => {
     it('should fire on an install page that does not name the registry', async () => {
         const files = { ...TREE };
         files['docs/agent-brief.md'] = (files['docs/agent-brief.md'] ?? '').replace('`npm install pkinative`', '`npm install` from the registry');
-        expect(await problems(files, 'install-url-version')).toEqual([expect.stringContaining('docs/agent-brief.md: does not say `npm install pkinative` with package.json at 1.0.0')]);
+        expect(await problems(files, 'install-url-version')).toEqual([expect.stringMatching(/^docs\/agent-brief\.md: does not say `npm install pkinative` with package\.json at \d+\.\d+\.\d+ /)]);
     });
 
     it('should fire when the copy button copies another command than the one shown', async () => {

@@ -17,6 +17,7 @@
  * @module asn1/asn1-read
  */
 
+import { describeValue } from '../core/arguments.js';
 import { byteView, concatBytes, isBytes } from '../core/bytes.js';
 import { printableStringCharsetDiagnostic, stringEscapeSequenceDiagnostic, stringSignatureDiagnostic, teletexAsLatin1Diagnostic } from '../core/pki-diagnostics.js';
 import { enforceLimit } from '../core/pki-limits.js';
@@ -480,8 +481,8 @@ export function readString(node: Asn1Node, options?: ReadStringOptions): Asn1Str
     const ctx = createAsn1Context(options);
     const implicitType = options?.stringType;
     // An own-key check: `in` would let 'toString' or '__proto__' through (CWE-1321).
-    if (implicitType !== undefined && !Object.prototype.hasOwnProperty.call(STRING_TAGS, implicitType)) {
-        throw new PkiError('PKI_INVALID_OPTION', `pkinative: stringType must be one of ${Object.keys(STRING_TAGS).join(', ')}, got ${String(implicitType)}`);
+    if (implicitType !== undefined && (typeof implicitType !== 'string' || !Object.prototype.hasOwnProperty.call(STRING_TAGS, implicitType))) {
+        throw new PkiError('PKI_INVALID_OPTION', `pkinative: stringType must be one of ${Object.keys(STRING_TAGS).join(', ')}, got ${describeValue(implicitType)}`);
     }
     return _readString(checked, ctx, implicitType, '');
 }

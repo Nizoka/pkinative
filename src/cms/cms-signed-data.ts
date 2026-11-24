@@ -225,7 +225,7 @@ function readSignedData(root: Asn1Node, seq: Asn1Node, ctx: Asn1Context): Signed
         crls: bag.crls,
         ocspResponses: bag.ocspResponses,
         signerInfos: Object.freeze(signerInfos),
-        diagnostics: ctx.emitter.diagnostics,
+        diagnostics: Object.freeze([...ctx.emitter.diagnostics]),
     });
 }
 

@@ -2,7 +2,7 @@
 
 > **pkinative-cli 1.0.0 puts the whole pkinative engine on the command line: 18 commands, offline, with a stable `--json` contract for scripts, CI and AI agents.** It pins pkinative ^1.0.0, its only runtime dependency.
 
-[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every runtime export of pkinative 1.0.0 (117: 104 functions, the 7 classes of the `PkiError` family, 6 constants), and a test in the CLI repository proves it.
+[pkinative-cli](https://github.com/Nizoka/pkinative-cli) is a thin, strict front end over pkinative. Every PKI decision — parsing, path validation, revocation, signature verification, CMS, timestamps, key import — is the engine's; the CLI adds what a library deliberately does not do: it reads files and stdin, tells PEM from DER, bounds every read, turns options into flags, writes artefacts safely, renders reports, and maps every failure to one of 13 stable error classes while carrying the engine's `PKI_*` code verbatim. Its 18 commands reach every runtime export of the engine release it was built on, 1.0.0 (117: 104 functions, the 7 classes of the `PkiError` family, 6 constants), and a test in the CLI repository proves it.
 
 | Command | Subcommands | Engine API behind it |
 |---|---|---|
@@ -177,7 +177,7 @@ Usage errors are `E_USAGE`, exit 2, and they are detected before anything is wri
 
 ## Error classes, codes and remedies
 
-Every failure is one of 13 classes. pkinative's 57 frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME` — and the engine's code always rides along, verbatim, in `error.pkiCode`.
+Every failure is one of 13 classes. The engine's frozen error codes map to them by a fixed table — typed against the engine's code union, so an engine release that added a code would fail the CLI's type-check rather than leak as `E_RUNTIME`; the table of pkinative-cli 1.0.0 holds the codes it was built against, so not the one this engine release adds, which is raised only when an attribute certificate is read and which that CLI never does — and the engine's code always rides along, verbatim, in `error.pkiCode`.
 
 | Class | Exit | `PKI_*` codes mapped to it | When |
 |---|---|---|---|

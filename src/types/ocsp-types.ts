@@ -16,7 +16,7 @@
 
 import type { PkiTime } from './asn1-types.js';
 import type { CrlReason } from './crl-types.js';
-import type { AlgorithmIdentifier, Extension, SerialNumber } from './x509-types.js';
+import type { AlgorithmIdentifier, Extension, GeneralName, SerialNumber } from './x509-types.js';
 import type { PkiDiagnostic } from './pki-types.js';
 
 /**
@@ -38,6 +38,70 @@ export interface OcspCertId {
     readonly issuerKeyHash: Uint8Array;
     /** The serial of the certificate being asked about. Compare by `bytes` or `hex`. */
     readonly serialNumber: SerialNumber;
+}
+
+/** One `Request` of an OCSP request (RFC 6960 §4.1.1): one certificate being asked about. */
+export interface OcspRequestEntry {
+    /** Which certificate the question is about. */
+    readonly certId: OcspCertId;
+    /**
+     * The `CertID` exactly as encoded. Compare it with what `encodeOcspCertId`
+     * writes to know which certificate is meant without re-deriving the two
+     * hashes; it sits here, and not on `OcspCertId`, because that type is also
+     * what a response carries.
+     */
+    readonly certIdDer: Uint8Array;
+    /** `singleRequestExtensions`, decoded; empty when there are none. */
+    readonly extensions: readonly Extension[];
+}
+
+/**
+ * The `Signature` of a signed OCSP request (RFC 6960 §4.1.1).
+ *
+ * Exposed, not verified: pkinative is not a responder. The signature covers
+ * `OcspRequest.tbsDer`.
+ */
+export interface OcspRequestSignature {
+    /** The algorithm the requestor signed with. */
+    readonly signatureAlgorithm: AlgorithmIdentifier;
+    /** The signature over `tbsDer`, as a BIT STRING of whole octets. */
+    readonly signatureValue: { readonly bytes: Uint8Array; readonly unusedBits: number };
+    /**
+     * Certificates the requestor attached to help a responder verify the
+     * signature. **Attached, not trusted**, as those of a response are.
+     */
+    readonly certificates: readonly Uint8Array[];
+}
+
+/**
+ * A parsed `OCSPRequest` (RFC 6960 §4.1.1): the question a responder is asked.
+ *
+ * It is what `createOcspRequest` writes, read back — and what any other client
+ * wrote. Nothing here answers the request or says it was answered: a response
+ * is held to it by `checkOcspStatus`.
+ */
+export interface OcspRequest {
+    /** The whole request, as a zero-copy view of the input. */
+    readonly der: Uint8Array;
+    /** The `tbsRequest` bytes a signature, when there is one, covers. */
+    readonly tbsDer: Uint8Array;
+    /** Always `1`: RFC 6960 defines v1 alone, and a request that declares another version is read as v1 and reported. */
+    readonly version: 1;
+    /** `requestorName`, who is asking; `undefined` when absent, as in every unsigned request pkinative writes. */
+    readonly requestorName: GeneralName | undefined;
+    /** One entry per certificate asked about, in encoded order. */
+    readonly requests: readonly OcspRequestEntry[];
+    /** `requestExtensions`, decoded; the nonce lives here. Empty when there are none. */
+    readonly extensions: readonly Extension[];
+    /**
+     * The nonce (RFC 9654 §2.1) a response must echo, as the octets inside the
+     * extension's two OCTET STRINGs; `undefined` when the request carries none.
+     */
+    readonly nonce: Uint8Array | undefined;
+    /** The signature of a signed request; `undefined` for an unsigned one. */
+    readonly signature: OcspRequestSignature | undefined;
+    /** Profile concerns found while reading, in encoded order. */
+    readonly diagnostics: readonly PkiDiagnostic[];
 }
 
 /**
