@@ -34,7 +34,7 @@ const NOT_RUN: Readonly<Record<string, string>> = {};
 
 /** Fences whose only output is a failure: no log line, no returned string, is the proof they succeeded. */
 const EXPECT_SILENT = new Set<string>([
-    'README.md:78', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:97',
+    'README.md:80', 'docs/guides/quickstart.md:19', 'docs/guides/quickstart.md:97',
     'docs/guides/use-cases.md:105', 'docs/guides/use-cases.md:133', 'docs/guides/use-cases.md:164',
     'docs/guides/use-cases.md:195', 'docs/guides/use-cases.md:256', 'docs/guides/use-cases.md:338',
     'docs/guides/use-cases.md:430', 'docs/guides/use-cases.md:462', 'docs/guides/use-cases.md:505', 'docs/guides/use-cases.md:544',
@@ -51,7 +51,7 @@ const EXPECT_PRINTED: Readonly<Record<string, RegExp>> = {
 
 /** What the functions a fence defines must return when called with the inputs below (the prose's own answer). */
 const EXPECT_RESULT: Readonly<Record<string, (results: readonly unknown[]) => void>> = {
-    'README.md:78': (r) => { expect(r[0]).toEqual(expect.arrayContaining([expect.stringContaining('Guide Leaf'), expect.stringContaining('Guide Root')])); },
+    'README.md:80': (r) => { expect(r[0]).toEqual(expect.arrayContaining([expect.stringContaining('Guide Leaf'), expect.stringContaining('Guide Root')])); },
     'docs/guides/use-cases.md:105': (r) => { expect(r[0]).toBe('yes'); },
     'docs/guides/use-cases.md:133': (r) => { expect(r[0]).toBeInstanceOf(Uint8Array); expect(pkinative.parseCertificate(r[0] as Uint8Array).subject.der.length).toBeGreaterThan(0); },
     'docs/guides/use-cases.md:17': (r) => { expect(r[0]).toHaveLength(2); },   // both test certificates expire within the year

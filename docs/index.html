@@ -154,6 +154,13 @@
           GitHub
         </a>
       </div>
+      <figure class="hero-demo">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="assets/demo.png">
+          <img id="hero-demo-img" src="assets/demo.gif" width="800" height="330" alt="Terminal demo, fifteen seconds: npm install pkinative adds one package; verify.mjs issues a fictitious chain and calls verifyCertificateChain for two host names; api.example.com is refused with PKI_REASON_NAME_MISMATCH (RFC 6125 §6) and a message naming the host the certificate is for; shop.example.com is valid, 2 certificates." data-still="assets/demo.png" data-moving="assets/demo.gif">
+        </picture>
+        <figcaption>A fictitious chain, keys made on the spot, the real output — <a href="https://github.com/Nizoka/pkinative/blob/main/scripts/demo/verify.mjs" target="_blank" rel="noopener">the whole script</a>. <button class="demo-toggle" type="button" id="hero-demo-toggle" aria-pressed="false" hidden>Pause</button></figcaption>
+      </figure>
       <div class="hero-badges" aria-label="Project status">
         <a href="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy"></a>
         <a href="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml" target="_blank" rel="noopener"><img src="https://github.com/Nizoka/pkinative/actions/workflows/codeql.yml/badge.svg" alt="CodeQL status" height="20" loading="lazy"></a>

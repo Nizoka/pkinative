@@ -95,7 +95,7 @@ A last outside reading (2026-11-23) raised four points. One was settled already:
 
 Not run here, and first exercised on the runner: the `ci (24)` and `ci (26)` legs (the only place a positive ML-DSA verdict runs — Node 22 has no ML-DSA), the `reuse lint` step, the `compat-previous` job, `mutation.yml`, and the release-file check of `publish.yml`.
 
-**Known red:** `npm audit --audit-level=high` fails on `picomatch` ≤ 4.0.7 (GHSA-fc5q-39xc-vjpf), a development-only transitive dependency with no patched release. Decision taken: wait for upstream, no allow-list and no threshold change. `ci (22)` is red on that step until the fix ships.
+**Audit:** `npm audit --audit-level=high` passes. The advisory against `picomatch` ≤ 4.0.7 (GHSA-fc5q-39xc-vjpf) was withdrawn by GitHub on 2026-11-18, with no new release of picomatch; nothing was allow-listed and no threshold changed. One moderate advisory remains below that threshold: `minimatch` < 11.0.1 (GHSA-g3hv-75wg-m249), a development-only dependency of `typescript-eslint`, left to Dependabot.
 
 ## Backward compatibility
 
@@ -109,7 +109,7 @@ The SCT list reader (RFC 6962), CRL and OCSP-response writers, RFC 5755 §5 vali
 
 1. Push `chore/release-v1.1.0`, open the pull request with this body, squash-merge with the title `release: v1.1.0 — post-quantum verification, attribute certificates, request readers`.
 2. Rulesets: **the live `main` ruleset (24453575) targets no branch (`include: []`) and has no status-check rule — nothing is required today.** Import `.github/rulesets/main.json` and `tags.json` after the merge, once the workflows that report `ci (26)` and `compat-previous` are on `main` (earlier, the release pull request would block itself). Required checks then: `ci (22)`, `ci (24)`, `ci (26)`, `windows`, `macos`, `compat-previous`, `runtimes`, `workflow lint`, `conformance`, `conformance-windows`, `conformance-macos`, `dependency-review`.
-3. `ci (22)` and `picomatch`: merge as an administrator, or wait for the patched release (see **Known red**).
+3. Merge the Dependabot pull request that raises `typescript-eslint` past `minimatch` 11.0.1 when it comes (moderate, development-only).
 4. Publish the GitHub Release `v1.1.0` (body = `release-notes/v1.1.0.md`). `publish.yml` passes its `guard` job, waits for the `npm-publish` reviewer, publishes and attests; then `npm view pkinative version` names 1.1.0 and `npm run check:npm-drift` is clean.
 5. Release `v1.0.0` was published without its five files: attach them by hand, or the weekly drift check stays red on that release.
 6. Close #3 (`@types/node` 26: the types follow the lowest supported line, 22) and #4 (`marked` 18: pinned on purpose, two tests and three rules depend on 12); both majors are now ignored in `dependabot.yml`.
@@ -119,7 +119,7 @@ The SCT list reader (RFC 6962), CRL and OCSP-response writers, RFC 5755 §5 vali
    - weak-cryptographic-algorithm (SHA-1): the OCSP CertID hash RFC 6960 §4.1.1 defines, over public data.
    - Scorecard BranchProtection: a true finding until the rulesets are imported (step 2) — do not dismiss. PinnedDependencies (deliberate, `publish.yml` installs the pinned npm client), Maintained and CodeReview (repository age, single maintainer).
    - Scorecard SecurityPolicy (#5): SECURITY.md is present and names the private reporting channel; the finding's "no linked content" is not explained by the file. Re-read it after the next Scorecard run on `main`; dismiss only if it persists with the file unchanged.
-   - Scorecard Vulnerabilities (#36): the vite, vitest and pyasn1 advisories are closed by this branch; it stays open on `picomatch` until upstream ships a fix (see **Known red**). Do not dismiss.
+   - Scorecard Vulnerabilities (#36): the vite, vitest and pyasn1 advisories are closed by this branch and the `picomatch` advisory was withdrawn; re-read it after the next Scorecard run on `main`, where `minimatch` (moderate, see **Audit**) may keep it open until Dependabot's update. Do not dismiss.
    - Scorecard CII-Best-Practices: register the project at bestpractices.dev and add the badge.
 8. Satellites: file the drafts in `pkinative-cli/.github/drafts/`, `pkinative-mcp/.github/drafts/` and `pdfnative-cli/.github/drafts/`; after their next minors, `npm run satellites:sync` then `/satellite-align`.
 9. Re-upload the social preview if the title changed.
